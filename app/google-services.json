@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "519103475417",
+    "project_id": "msp-db-1c2ce",
+    "storage_bucket": "msp-db-1c2ce.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:519103475417:android:18f964eaf909c6bbd898c8",
+        "android_client_info": {
+          "package_name": "com.example.msp_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArugwdhltuQ4DskwRxzmCv2X4xwRrYWFQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:519103475417:android:cd20a82fba5fe844d898c8",
+        "android_client_info": {
+          "package_name": "com.reactnativeapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArugwdhltuQ4DskwRxzmCv2X4xwRrYWFQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
