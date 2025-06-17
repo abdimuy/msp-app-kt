@@ -3,8 +3,8 @@ package com.example.msp_app.data.local.entities
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "Pay")
-data class PayEntity(
+@Entity(tableName = "Payment")
+data class PaymentEntity(
     @PrimaryKey val ID: String,
     val COBRADOR: String,
     val DOCTO_CC_ACR_ID: Int,
