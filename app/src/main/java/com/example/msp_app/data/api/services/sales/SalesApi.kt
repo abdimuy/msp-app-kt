@@ -15,5 +15,4 @@ data class SaleResponse(
 interface SalesApi {
     @GET("/ventas/getAllVentasByZona/21563?dateInit=2025-04-15")
     suspend fun getAll(): SaleResponse
-
 }
