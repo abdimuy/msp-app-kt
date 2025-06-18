@@ -2,8 +2,15 @@ package com.example.msp_app.data.local.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
 
-@Entity(tableName = "Payment")
+@Entity(
+    tableName = "Payment",
+    indices = [
+        Index(value = ["DOCTO_CC_ACR_ID"]),
+        Index(value = ["DOCTO_CC_ID"]),
+        Index(value = ["FECHA_HORA_PAGO"])
+    ])
 data class PaymentEntity(
     @PrimaryKey val ID: String,
     val COBRADOR: String,
@@ -20,3 +27,4 @@ data class PaymentEntity(
     val ZONA_CLIENTE_ID: Int,
     val NOMBRE_CLIENTE: String
 )
+

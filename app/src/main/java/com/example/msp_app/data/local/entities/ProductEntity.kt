@@ -2,8 +2,14 @@ package com.example.msp_app.data.local.entities
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import androidx.room.Index
 
-@Entity(tableName = "Product")
+@Entity(tableName = "products",
+    indices = [
+        Index(value = ["DOCTO_PV_ID"]),
+        Index(value = ["FOLIO"]),
+        Index(value = ["ARTICULO_ID"])
+    ])
 data class ProductEntity(
     @PrimaryKey val DOCTO_PV_DET_ID: Int,
     val DOCTO_PV_ID: Int,
