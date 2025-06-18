@@ -9,8 +9,8 @@ interface ProductDao {
     @Query("SELECT ARTICULO_ID FROM products WHERE ARTICULO_ID = :id")
     suspend fun getProductById(id:Int): Int
 
-    @Query ("SELECT FOLIO FROM products WHERE FOLIO = :saleId")
-    suspend fun getProductByFolio(saleId:String): List<String>
+    @Query ("SELECT FOLIO FROM products WHERE FOLIO = :folio")
+    suspend fun getProductByFolio(folio:String): List<String>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(products: List<ProductEntity>)
