@@ -6,12 +6,15 @@ import com.example.msp_app.data.local.entities.PaymentEntity
 @Dao
 interface PaymentDao {
 
-    @Query("SELECT * FROM payment WHERE DOCTO_CC_ID = :saleId AND ID = :paymentId")
-    suspend fun getPaymentBySaleIdAndId(saleId: Int, paymentId: Int): List<PaymentEntity>
+    @Query ("SELECT ID FROM payment WHERE ID = :id")
+    suspend fun getPaymentById(id:String): String
+
+    @Query ("SELECT DOCTO_CC_ACR_ID FROM payment WHERE DOCTO_CC_ACR_ID = :saleId")
+    suspend fun getPaymentBySaleId(saleId:Int): List<Int>
 
     @Insert (onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(payment: List<PaymentEntity>)
+    suspend fun saveAll(payment: List<PaymentEntity>)
 
     @Query ("DELETE FROM payment")
-    suspend fun clearAll()
+    suspend fun deleteAll()
 }
