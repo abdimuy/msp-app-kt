@@ -3,7 +3,18 @@ package com.example.msp_app.data.local.entities
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "sales")
+@Entity(
+    tableName = "sales", indices = [
+        androidx.room.Index(value = ["DOCTO_CC_ACR_ID"], unique = false),
+        androidx.room.Index(value = ["DOCTO_CC_ID"], unique = true),
+        androidx.room.Index(value = ["FOLIO"], unique = true),
+        androidx.room.Index(value = ["CLIENTE_ID"], unique = false),
+        androidx.room.Index(value = ["COBRADOR_ID"], unique = false),
+        androidx.room.Index(value = ["ZONA_CLIENTE_ID"], unique = false),
+        androidx.room.Index(value = ["FECHA"], unique = false),
+        androidx.room.Index(value = ["ESTADO_COBRANZA"], unique = false),
+    ]
+)
 data class SaleEntity(
     @PrimaryKey val DOCTO_CC_ACR_ID: Int,
     val DOCTO_CC_ID: Int,
