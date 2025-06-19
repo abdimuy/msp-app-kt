@@ -77,4 +77,5 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     implementation("androidx.compose.foundation:foundation:1.7.8")
+    implementation("androidx.compose.material:material-icons-core:1.7.8")
 }
