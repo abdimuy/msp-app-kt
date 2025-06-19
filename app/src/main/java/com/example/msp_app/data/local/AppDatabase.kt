@@ -11,7 +11,7 @@ import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.local.entities.ProductEntity
 import com.example.msp_app.data.local.entities.SaleEntity
 
-@Database(entities = [SaleEntity::class, PaymentEntity::class, ProductEntity::class], version = 2)
+@Database(entities = [SaleEntity::class, PaymentEntity::class, ProductEntity::class], version = 3)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
     abstract fun paymentDao(): PaymentDao

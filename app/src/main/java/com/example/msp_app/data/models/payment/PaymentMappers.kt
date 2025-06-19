@@ -2,7 +2,7 @@ package com.example.msp_app.data.models.payment
 
 import com.example.msp_app.data.local.entities.PaymentEntity
 
-fun Payment.toEntity(): PaymentEntity = PaymentEntity(
+fun PaymentApi.toEntity(): PaymentEntity = PaymentEntity(
     ID,
     COBRADOR,
     DOCTO_CC_ACR_ID,
@@ -10,8 +10,8 @@ fun Payment.toEntity(): PaymentEntity = PaymentEntity(
     FECHA_HORA_PAGO,
     GUARDADO_EN_MICROSIP,
     IMPORTE,
-    LAT,
-    LNG,
+    try { LAT.toDouble() } catch (e: NumberFormatException) { null },
+    try { LNG.toDouble() } catch (e: NumberFormatException) { null },
     CLIENTE_ID,
     COBRADOR_ID,
     FORMA_COBRO_ID,
@@ -19,7 +19,7 @@ fun Payment.toEntity(): PaymentEntity = PaymentEntity(
     NOMBRE_CLIENTE
 )
 
-fun PaymentEntity.toDomain(): Payment = Payment(
+fun PaymentEntity.toDomain(): PaymentApi = PaymentApi(
     ID,
     COBRADOR,
     DOCTO_CC_ACR_ID,
@@ -27,11 +27,12 @@ fun PaymentEntity.toDomain(): Payment = Payment(
     FECHA_HORA_PAGO,
     GUARDADO_EN_MICROSIP,
     IMPORTE,
-    LAT,
-    LNG,
+    LAT.toString(),
+    LNG.toString(),
     CLIENTE_ID,
     COBRADOR_ID,
     FORMA_COBRO_ID,
     ZONA_CLIENTE_ID,
     NOMBRE_CLIENTE
 )
+
