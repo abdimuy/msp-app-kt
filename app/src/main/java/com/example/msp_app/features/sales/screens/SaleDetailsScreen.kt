@@ -102,7 +102,6 @@ fun SaleDetailsContent(
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
                     .align(Alignment.BottomCenter)
-                    //.absoluteOffset(y = 20.dp)
                     .background(Color.White, RoundedCornerShape(16.dp))
             ) {
                 Column(modifier = Modifier.padding(vertical = 30.dp, horizontal = 16.dp)) {
@@ -153,7 +152,7 @@ fun SaleDetailsContent(
                             .padding(10.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        SaleContactAction(sale)
+                        SaleContactActions(sale)
                     }
 
                     Field(
@@ -310,7 +309,7 @@ fun Field(
 }
 
 @Composable
-fun SaleContactAction(sale : Sale) {
+fun SaleContactActions(sale : Sale) {
     val context = LocalContext.current
     val telephone = sale.TELEFONO
     val validPhone = !telephone.isNullOrBlank()
@@ -363,7 +362,7 @@ fun SaleContactAction(sale : Sale) {
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 data = Uri.parse(url)
-                setPackage("com.whatsapp") // asegúrate de que abra solo WhatsApp
+                setPackage("com.whatsapp")
             }
 
             context.startActivity(intent)
