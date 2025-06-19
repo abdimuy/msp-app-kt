@@ -11,7 +11,7 @@ import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.local.entities.ProductEntity
 import com.example.msp_app.data.local.entities.SaleEntity
 
-@Database(entities = [SaleEntity::class, PaymentEntity::class, ProductEntity::class], version = 1)
+@Database(entities = [SaleEntity::class, PaymentEntity::class, ProductEntity::class], version = 2)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
     abstract fun paymentDao(): PaymentDao
@@ -26,7 +26,10 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "msp_db"
-                ).build().also { INSTANCE = it }
+
+                )
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
             }
         }
     }
