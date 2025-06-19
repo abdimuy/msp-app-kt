@@ -6,14 +6,30 @@ import com.example.msp_app.data.local.entities.ProductEntity
 @Dao
 interface ProductDao {
 
-    @Query("""SELECT DOCTO_PV_DET_ID, DOCTO_PV_ID, FOLIO, ARTICULO_ID, ARTICULO, 
-           CANTIDAD, PRECIO_UNITARIO_IMPTO, PRECIO_TOTAL_NETO, POSICION 
+    @Query("""SELECT 
+        DOCTO_PV_DET_ID, 
+        DOCTO_PV_ID, 
+        FOLIO, 
+        ARTICULO_ID, 
+        ARTICULO, 
+        CANTIDAD, 
+        PRECIO_UNITARIO_IMPTO, 
+        PRECIO_TOTAL_NETO, 
+        POSICION 
     FROM products 
     WHERE ARTICULO_ID = :id""")
     suspend fun getProductById(id: Int): ProductEntity
 
-    @Query("""SELECT DOCTO_PV_DET_ID, DOCTO_PV_ID, FOLIO, ARTICULO_ID, ARTICULO, 
-           CANTIDAD, PRECIO_UNITARIO_IMPTO, PRECIO_TOTAL_NETO, POSICION
+    @Query("""SELECT 
+        DOCTO_PV_DET_ID, 
+        DOCTO_PV_ID, 
+        FOLIO, 
+        ARTICULO_ID, 
+        ARTICULO, 
+        CANTIDAD, 
+        PRECIO_UNITARIO_IMPTO, 
+        PRECIO_TOTAL_NETO, 
+        POSICION
     FROM products
     WHERE FOLIO = :folio""")
     suspend fun getProductByFolio(folio: String): List<ProductEntity>

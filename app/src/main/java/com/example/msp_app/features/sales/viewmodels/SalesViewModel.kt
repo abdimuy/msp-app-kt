@@ -10,13 +10,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import com.example.msp_app.data.local.datasource.payment.PaymentLocalDataSource
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
-import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
-import com.example.msp_app.data.local.entities.PaymentEntity
-import com.example.msp_app.data.local.entities.ProductEntity
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -59,49 +55,3 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 }
-
-class ProductsViewModel(application: Application) : AndroidViewModel(application) {
-    private val productStore = ProductsLocalDataSource(application.applicationContext)
-
-    private val _productState = MutableStateFlow<ResultState<String>>(ResultState.Idle)
-    val productState: StateFlow<ResultState<String>> = _productState
-
-    fun insertProductsLocal(products: List<ProductEntity>) {
-        viewModelScope.launch {
-            _productState.value = ResultState.Loading
-
-            try {
-                productStore.saveAll(products)
-
-                _productState.value = ResultState.Success("Productos insertados correctamente")
-
-            } catch (e: Exception) {
-                _productState.value = ResultState.Error(e.message ?: "Error al guardar productos")
-            }
-        }
-    }
-}
-
-
-class PaymentsViewModel(application: Application) : AndroidViewModel(application) {
-    private val paymentStore = PaymentLocalDataSource(application.applicationContext)
-
-    private val _paymentState = MutableStateFlow<ResultState<String>>(ResultState.Idle)
-    val paymentState: StateFlow<ResultState<String>> = _paymentState
-
-    fun insertPaymentsLocal(payments: List<PaymentEntity>) {
-        viewModelScope.launch {
-            _paymentState.value = ResultState.Loading
-
-            try {
-                paymentStore.saveAll(payments)
-                _paymentState.value = ResultState.Success("Pagos insertados correctamente")
-            } catch (e: Exception) {
-                _paymentState.value = ResultState.Error(e.message ?: "Error al guardar pagos")
-            }
-        }
-    }
-}
-
-
-
