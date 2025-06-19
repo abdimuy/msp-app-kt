@@ -6,11 +6,43 @@ import com.example.msp_app.data.local.entities.PaymentEntity
 @Dao
 interface PaymentDao {
 
-    @Query ("SELECT ID FROM payment WHERE ID = :id")
-    suspend fun getPaymentById(id:String): String
+    @Query("""SELECT 
+        ID,
+        COBRADOR,
+        DOCTO_CC_ACR_ID,
+        DOCTO_CC_ID,
+        FECHA_HORA_PAGO,
+        GUARDADO_EN_MICROSIP,
+        IMPORTE,
+        LAT,
+        LNG,
+        CLIENTE_ID,
+        COBRADOR_ID,
+        FORMA_COBRO_ID,
+        ZONA_CLIENTE_ID,
+        NOMBRE_CLIENTE
+    FROM Payment
+    WHERE ID = :id""")
+    suspend fun getPaymentById(id:String): PaymentEntity
 
-    @Query ("SELECT DOCTO_CC_ACR_ID FROM payment WHERE DOCTO_CC_ACR_ID = :saleId")
-    suspend fun getPaymentBySaleId(saleId:Int): List<Int>
+    @Query("""SELECT 
+        ID,
+        COBRADOR,
+        DOCTO_CC_ACR_ID,
+        DOCTO_CC_ID,
+        FECHA_HORA_PAGO,
+        GUARDADO_EN_MICROSIP,
+        IMPORTE,
+        LAT,
+        LNG,
+        CLIENTE_ID,
+        COBRADOR_ID,
+        FORMA_COBRO_ID,
+        ZONA_CLIENTE_ID,
+        NOMBRE_CLIENTE
+    FROM Payment
+    WHERE DOCTO_CC_ACR_ID = :saleId""")
+    suspend fun getPaymentsBySaleId(saleId:Int): List<PaymentEntity>
 
     @Insert (onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)
