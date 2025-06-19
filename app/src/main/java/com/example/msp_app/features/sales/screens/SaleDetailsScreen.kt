@@ -153,7 +153,7 @@ fun SaleDetailsContent(
                             .padding(10.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        MyIcon(sale)
+                        SaleContactAction(sale)
                     }
 
                     Field(
@@ -224,9 +224,9 @@ fun SaleDetailsContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ){
-            AccountButtons(
+            SaleActions(
                 texto = "AGREGAR PAGO",
-                colorFondo = Color(0xFF1976D2), // Azul
+                colorFondo = Color(0xFF1976D2),
                 iconRes = R.drawable.money,
                 onClick = {}
             )
@@ -234,17 +234,17 @@ fun SaleDetailsContent(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                AccountButtons(
+                SaleActions(
                     texto = "AGREGAR CONDONACIÓN",
-                    colorFondo = Color(0xFFD32F2F), // Rojo
+                    colorFondo = Color(0xFFD32F2F),
                     iconRes = R.drawable.checklist,
                     modifier = Modifier.weight(0.3f),
                     onClick = {  }
                 )
 
-                AccountButtons(
+                SaleActions(
                     texto = "AGREGAR VISITA",
-                    colorFondo = Color(0xFF388E3C), // Verde
+                    colorFondo = Color(0xFF388E3C),
                     iconRes = R.drawable.visita,
                     modifier = Modifier.weight(0.3f),
                     onClick = {  }
@@ -310,7 +310,7 @@ fun Field(
 }
 
 @Composable
-fun MyIcon(sale : Sale) {
+fun SaleContactAction(sale : Sale) {
     val context = LocalContext.current
     val telephone = sale.TELEFONO
     val validPhone = !telephone.isNullOrBlank()
@@ -387,7 +387,7 @@ fun MyIcon(sale : Sale) {
 }
 
 @Composable
-fun AccountButtons(
+fun SaleActions(
     texto: String,
     colorFondo: Color,
     iconRes: Int,
@@ -423,14 +423,12 @@ fun AccountButtons(
     }
 }
 
-/* --- Modelo de datos --- */
 data class Payment(
     val monto: Double,
-    val fecha: String, // Formato: "2025-06-18"
+    val fecha: String,
     val metodoPago: String
 )
 
-/* --- ViewModel --- */
 class HistoryViewModel : ViewModel() {
     private val _monthlyPayments = MutableStateFlow<Map<String, List<Payment>>>(emptyMap())
     val monthlyPayments: StateFlow<Map<String, List<Payment>>> = _monthlyPayments
@@ -458,7 +456,7 @@ class HistoryViewModel : ViewModel() {
         _monthlyPayments.value = grouped
     }
 }
-/* --- Pantalla composable --- */
+
 @Composable
 fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
     val monthlyPayments by viewModel.monthlyPayments.collectAsState()
@@ -483,7 +481,7 @@ fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
         }
     }
 }
-/* --- Componente de tarjeta --- */
+
 @Composable
 fun PagoCard(pago: Payment) {
     Card(
