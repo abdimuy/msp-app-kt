@@ -42,7 +42,7 @@ interface PaymentDao {
         NOMBRE_CLIENTE
     FROM Payment
     WHERE DOCTO_CC_ACR_ID = :saleId""")
-    suspend fun getPaymentBySalesId(saleId:Int): List<PaymentEntity>
+    suspend fun getPaymentsBySaleId(saleId:Int): List<PaymentEntity>
 
     @Insert (onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)

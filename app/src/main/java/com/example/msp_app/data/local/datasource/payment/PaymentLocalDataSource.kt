@@ -12,7 +12,7 @@ class PaymentLocalDataSource(context: Context) {
     }
 
     suspend fun getPaymentBySaleId(saleId:Int): List<PaymentEntity>{
-        return paymentDao.getPaymentBySalesId(saleId)
+        return paymentDao.getPaymentsBySaleId(saleId)
     }
 
     suspend fun saveAll(payments: List<PaymentEntity>){

@@ -32,7 +32,7 @@ interface ProductDao {
         POSICION
     FROM products
     WHERE FOLIO = :folio""")
-    suspend fun getProductByFolio(folio: String): List<ProductEntity>
+    suspend fun getProductsByFolio(folio: String): List<ProductEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(products: List<ProductEntity>)
