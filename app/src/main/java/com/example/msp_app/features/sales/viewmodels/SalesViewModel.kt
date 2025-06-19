@@ -17,8 +17,6 @@ import com.example.msp_app.data.models.sale.toEntity
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.models.product.toEntity
 import com.example.msp_app.data.models.payment.toEntity
-import android.util.Log
-
 
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
