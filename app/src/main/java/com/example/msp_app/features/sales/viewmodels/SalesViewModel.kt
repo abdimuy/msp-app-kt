@@ -47,6 +47,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncSales() {
         viewModelScope.launch {
+            _salesState.value = ResultState.Loading
             try {
                 val salesData  = api.getAll()
 
