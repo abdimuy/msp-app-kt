@@ -2,16 +2,17 @@ package com.example.msp_app.data.local.datasource.product;
 
 import android.content.Context
 import com.example.msp_app.data.local.AppDatabase
+import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.local.entities.ProductEntity
 
 class ProductsLocalDataSource (context: Context) {
     private val productDao = AppDatabase.getInstance(context).productDao()
 
-    suspend fun getProductById(id:Int): Int {
+    suspend fun getProductById(id:Int): ProductEntity {
         return productDao.getProductById(id)
     }
 
-    suspend fun getProductByFolio(folio:String): List<String>{
+    suspend fun getProductByFolio(folio:String): List<ProductEntity>{
         return productDao.getProductByFolio(folio)
     }
 
