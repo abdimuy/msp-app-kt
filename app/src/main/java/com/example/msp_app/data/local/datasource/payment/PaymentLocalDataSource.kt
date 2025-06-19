@@ -11,7 +11,7 @@ class PaymentLocalDataSource(context: Context) {
         return paymentDao.getPaymentById(id)
     }
 
-    suspend fun getPaymentBySaleId(saleId:Int): List<PaymentEntity>{
+    suspend fun getPaymentsBySaleId(saleId:Int): List<PaymentEntity>{
         return paymentDao.getPaymentsBySaleId(saleId)
     }
 
