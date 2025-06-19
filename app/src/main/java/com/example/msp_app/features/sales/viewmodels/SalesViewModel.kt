@@ -47,9 +47,6 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncSales() {
         viewModelScope.launch {
-            Log.d("SalesViewModel", "syncSales() iniciada")
-            _salesState.value = ResultState.Loading
-            Log.d("SalesViewModel", "Datos recibidos de API")
             try {
                 val salesData  = api.getAll()
 
@@ -61,13 +58,10 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 productStore.saveAll(productos.map { it.toEntity()})
                 paymentStore.saveAll(pagos.map { it.toEntity()})
 
-                Log.d("SalesViewModel", "Datos guardados localmente en la BD")
-
                 _salesState.value = ResultState.Success(ventas)
                 println("Ventas: ${ventas.size}, Productos: ${productos.size}, Pagos: ${pagos.size} sincronizados localmente")
 
             } catch (e: Exception) {
-                Log.e("SalesViewModel", "Error en syncSales: ${e.message}", e)
                 if (_salesState.value !is ResultState.Success) {
                     _salesState.value = ResultState.Error(e.message ?: "Error al cargar ventas")
                 }
