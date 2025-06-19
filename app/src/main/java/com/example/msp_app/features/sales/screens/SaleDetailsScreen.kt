@@ -1,23 +1,38 @@
 package com.example.msp_app.features.sales.screens
 
 import android.content.Intent
-import android.net.Uri
-import androidx.lifecycle.ViewModel
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import java.time.LocalTime
-import java.time.format.TextStyle
-import java.util.*
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,13 +43,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.R
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.components.CustomMap
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun SaleDetailsScreen(
@@ -217,12 +238,12 @@ fun SaleDetailsContent(
             )
         }
 
-        Spacer( modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         Column(
             modifier = Modifier.fillMaxWidth(0.92f),
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
-        ){
+        ) {
             SaleActions(
                 texto = "AGREGAR PAGO",
                 colorFondo = Color(0xFF1976D2),
@@ -238,7 +259,7 @@ fun SaleDetailsContent(
                     colorFondo = Color(0xFFD32F2F),
                     iconRes = R.drawable.checklist,
                     modifier = Modifier.weight(0.3f),
-                    onClick = {  }
+                    onClick = { }
                 )
 
                 SaleActions(
@@ -246,12 +267,12 @@ fun SaleDetailsContent(
                     colorFondo = Color(0xFF388E3C),
                     iconRes = R.drawable.visita,
                     modifier = Modifier.weight(0.3f),
-                    onClick = {  }
+                    onClick = { }
                 )
             }
         }
 
-        Spacer( modifier = Modifier.height(15.dp))
+        Spacer(modifier = Modifier.height(15.dp))
         Card(
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
             colors = CardDefaults.cardColors(
@@ -260,7 +281,7 @@ fun SaleDetailsContent(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .background(Color.White, RoundedCornerShape(16.dp))
-        ){
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -309,14 +330,14 @@ fun Field(
 }
 
 @Composable
-fun SaleContactActions(sale : Sale) {
+fun SaleContactActions(sale: Sale) {
     val context = LocalContext.current
     val telephone = sale.TELEFONO
-    val validPhone = !telephone.isNullOrBlank()
+    val validPhone = telephone.isNullOrBlank()
     IconButton(
         onClick = {
             val intent = Intent(Intent.ACTION_DIAL).apply {
-                data = Uri.parse("tel:"+sale.TELEFONO)
+                data = ("tel:" + sale.TELEFONO).toUri()
             }
             context.startActivity(intent)
         },
@@ -329,11 +350,11 @@ fun SaleContactActions(sale : Sale) {
                 else
                     Modifier.background(Color.Gray, shape = RoundedCornerShape(12.dp))
             )
-    ){
+    ) {
         Icon(
             imageVector = Icons.Default.Call,
             contentDescription = "Telefono",
-            tint =  if (validPhone) Color.Black else Color.DarkGray,
+            tint = if (validPhone) Color.Black else Color.DarkGray,
             modifier = Modifier.size(34.dp)
         )
     }
@@ -347,21 +368,21 @@ fun SaleContactActions(sale : Sale) {
         modifier = Modifier
             .size(56.dp)
             .background(Color.Green, shape = RoundedCornerShape(12.dp))
-    ){
+    ) {
         Icon(
             imageVector = Icons.Default.DateRange,
-            contentDescription =  "Calendar",
+            contentDescription = "Calendar",
             tint = Color.Black,
             modifier = Modifier.size((34.dp))
         )
     }
     IconButton(
         onClick = {
-            val number = "521"+sale.TELEFONO.replace("\\s".toRegex(), "")
+            val number = "521" + sale.TELEFONO.replace("\\s".toRegex(), "")
             val url = "https://wa.me/$number"
 
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                data = Uri.parse(url)
+                data = url.toUri()
                 setPackage("com.whatsapp")
             }
 
@@ -371,7 +392,7 @@ fun SaleContactActions(sale : Sale) {
         modifier = Modifier
             .size(56.dp)
             .then(
-                if(validPhone)
+                if (validPhone)
                     Modifier.background(Color(0xFF25D366), shape = RoundedCornerShape(12.dp))
                 else
                     Modifier.background(Color.Gray, shape = RoundedCornerShape(12.dp))
@@ -392,9 +413,9 @@ fun SaleActions(
     iconRes: Int,
     modifier: Modifier = Modifier.fillMaxWidth(),
     onClick: () -> Unit
-){
+) {
     Button(
-        onClick = onClick ,
+        onClick = onClick,
         colors = ButtonDefaults.buttonColors(containerColor = colorFondo),
         modifier = modifier
             .height(88.dp),
@@ -449,7 +470,9 @@ class HistoryViewModel : ViewModel() {
             .sortedByDescending { it.fecha }
             .groupBy {
                 val fecha = LocalDate.parse(it.fecha)
-                "${fecha.month.getDisplayName(TextStyle.FULL, Locale("es")).uppercase()} ${fecha.year}"
+                "${
+                    fecha.month.getDisplayName(TextStyle.FULL, Locale("es")).uppercase()
+                } ${fecha.year}"
             }
 
         _monthlyPayments.value = grouped
@@ -491,16 +514,18 @@ fun PagoCard(pago: Payment) {
         shape = RoundedCornerShape(12.dp)
     ) {
         Row {
-            Column(modifier = Modifier
-                .padding(16.dp)
-                .weight(0.7f)
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .weight(0.7f)
             ) {
-                Text("${pago.fecha}", style = MaterialTheme.typography.bodyLarge)
-                Text("${pago.metodoPago}", style = MaterialTheme.typography.bodyLarge)
+                Text(pago.fecha, style = MaterialTheme.typography.bodyLarge)
+                Text(pago.metodoPago, style = MaterialTheme.typography.bodyLarge)
             }
-            Column(modifier = Modifier
-                .padding(16.dp)
-                .weight(0.3f)
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .weight(0.3f)
             ) {
                 Text("$${pago.monto}", style = MaterialTheme.typography.bodyLarge)
                 Text("Enviado")
