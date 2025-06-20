@@ -1,14 +1,17 @@
 package com.example.msp_app.features.sales.screens
 
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -26,6 +29,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -104,9 +109,15 @@ fun SaleDetailsScreen(
 fun SaleDetailsContent(
     sale: Sale,
 ) {
+    val isDark = isSystemInDarkTheme()
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(bottom = 20.dp)
+        modifier = Modifier
+            .padding(bottom = 20.dp)
+            .background(
+                MaterialTheme.colorScheme.background
+            )
     ) {
         Box(
             modifier = Modifier
@@ -115,10 +126,14 @@ fun SaleDetailsContent(
         ) {
             CustomMap()
 
-            Card(
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            OutlinedCard(
+                elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.background
+                ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (isDark) Color.Gray else Color.Transparent
                 ),
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
@@ -137,7 +152,7 @@ fun SaleDetailsContent(
                     )
                     Text(
                         text = sale.FOLIO,
-                        color = Color.Blue,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         modifier = Modifier
@@ -191,10 +206,15 @@ fun SaleDetailsContent(
             }
         }
 
-        Card(
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        Spacer(modifier = Modifier.height(24.dp))
+        OutlinedCard(
+            elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.background
+            ),
+            border = BorderStroke(
+                width = 1.dp,
+                color = if (isDark) Color.Gray else Color.Transparent
             ),
             modifier = Modifier
                 .fillMaxWidth(0.92f)
@@ -219,6 +239,7 @@ fun SaleDetailsContent(
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Center
                 )
+                Spacer(modifier = Modifier.height(16.dp))
                 Column {
                     ProductsCard(products = productosDemo)
                 }
@@ -230,10 +251,10 @@ fun SaleDetailsContent(
             onClick = { },
             modifier = Modifier
                 .background(
-                    Color(0xFF1827CC),
+                    MaterialTheme.colorScheme.primary,
                     shape = RoundedCornerShape(8.dp)
                 )
-                .height(36.dp)
+                .height(40.dp)
                 .fillMaxWidth(0.92f)
         ) {
             Text(
@@ -247,30 +268,30 @@ fun SaleDetailsContent(
         Spacer(modifier = Modifier.height(24.dp))
         Column(
             modifier = Modifier.fillMaxWidth(0.92f),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            SaleActions(
-                texto = "AGREGAR PAGO",
-                colorFondo = Color(0xFF1976D2),
+            SaleActionButton(
+                text = "AGREGAR PAGO",
+                backgroundColor = MaterialTheme.colorScheme.primary,
                 iconRes = R.drawable.money,
                 onClick = {}
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                SaleActions(
-                    texto = "AGREGAR CONDONACIÓN",
-                    colorFondo = Color(0xFFD32F2F),
+                SaleActionButton(
+                    text = "AGREGAR CONDONACIÓN",
+                    backgroundColor = Color(0xFFD32F2F),
                     iconRes = R.drawable.checklist,
                     modifier = Modifier.weight(0.3f),
                     onClick = { }
                 )
 
-                SaleActions(
-                    texto = "AGREGAR VISITA",
-                    colorFondo = Color(0xFF388E3C),
+                SaleActionButton(
+                    text = "AGREGAR VISITA",
+                    backgroundColor = Color(0xFF388E3C),
                     iconRes = R.drawable.visita,
                     modifier = Modifier.weight(0.3f),
                     onClick = { }
@@ -279,14 +300,10 @@ fun SaleDetailsContent(
         }
 
         Spacer(modifier = Modifier.height(15.dp))
-        Card(
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.background
-            ),
+        Column(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
-                .background(Color.White, RoundedCornerShape(16.dp))
+                .background(Color.Transparent, RoundedCornerShape(16.dp))
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -294,16 +311,16 @@ fun SaleDetailsContent(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(
-                    modifier = Modifier.height(8.dp)
+                    modifier = Modifier.height(12.dp)
                 )
                 Text(
                     "Historial de pagos",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 19.sp,
+                    fontSize = 22.sp,
                     textAlign = TextAlign.Left,
                 )
 
-                PaymentHistoryScreen()
+                PaymentsHistory()
             }
         }
     }
@@ -352,7 +369,7 @@ fun SaleContactActions(sale: Sale) {
             .size(56.dp)
             .then(
                 if (validPhone)
-                    Modifier.background(Color(0xFF49CCF5), shape = RoundedCornerShape(12.dp))
+                    Modifier.background(Color(0xFFADD8E6), shape = RoundedCornerShape(12.dp))
                 else
                     Modifier.background(Color.Gray, shape = RoundedCornerShape(12.dp))
             )
@@ -360,7 +377,7 @@ fun SaleContactActions(sale: Sale) {
         Icon(
             imageVector = Icons.Default.Call,
             contentDescription = "Telefono",
-            tint = if (validPhone) Color.Black else Color.DarkGray,
+            tint = if (validPhone) MaterialTheme.colorScheme.primary else Color.DarkGray,
             modifier = Modifier.size(34.dp)
         )
     }
@@ -373,12 +390,12 @@ fun SaleContactActions(sale: Sale) {
         },
         modifier = Modifier
             .size(56.dp)
-            .background(Color.Green, shape = RoundedCornerShape(12.dp))
+            .background(Color(0xFF90EE90), shape = RoundedCornerShape(12.dp))
     ) {
         Icon(
             imageVector = Icons.Default.DateRange,
             contentDescription = "Calendar",
-            tint = Color.Black,
+            tint = Color(0xFF008000),
             modifier = Modifier.size((34.dp))
         )
     }
@@ -399,7 +416,7 @@ fun SaleContactActions(sale: Sale) {
             .size(56.dp)
             .then(
                 if (validPhone)
-                    Modifier.background(Color(0xFF25D366), shape = RoundedCornerShape(12.dp))
+                    Modifier.background(Color(0xFF90EE90), shape = RoundedCornerShape(12.dp))
                 else
                     Modifier.background(Color.Gray, shape = RoundedCornerShape(12.dp))
             )
@@ -407,22 +424,23 @@ fun SaleContactActions(sale: Sale) {
         Icon(
             painter = painterResource(id = R.drawable.whatsapp),
             contentDescription = "WhatsApp",
-            modifier = Modifier.size(28.dp)
+            modifier = Modifier.size(28.dp),
+            tint = if (validPhone) Color(0xFF008000) else Color.DarkGray
         )
     }
 }
 
 @Composable
-fun SaleActions(
-    texto: String,
-    colorFondo: Color,
+fun SaleActionButton(
+    text: String,
+    backgroundColor: Color,
     iconRes: Int,
     modifier: Modifier = Modifier.fillMaxWidth(),
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
-        colors = ButtonDefaults.buttonColors(containerColor = colorFondo),
+        colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
         modifier = modifier
             .height(88.dp),
         shape = RoundedCornerShape(8.dp),
@@ -433,7 +451,7 @@ fun SaleActions(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                text = texto,
+                text = text,
                 color = Color.White,
                 fontSize = 16.sp,
                 textAlign = TextAlign.Center
@@ -486,7 +504,7 @@ class HistoryViewModel : ViewModel() {
 }
 
 @Composable
-fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
+fun PaymentsHistory(viewModel: HistoryViewModel = viewModel()) {
     val monthlyPayments by viewModel.monthlyPayments.collectAsState()
 
     Column(
@@ -494,11 +512,11 @@ fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
             .fillMaxWidth()
             .padding(10.dp)
     ) {
-        monthlyPayments.forEach { (mes, payments) ->
+        monthlyPayments.forEach { (month, payments) ->
             Text(
-                text = mes,
+                text = month,
                 style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(vertical = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp),
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -506,6 +524,7 @@ fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
                     PaymentCard(payment)
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -515,26 +534,53 @@ fun PaymentCard(payment: Payment) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 4.dp)
+            .height(80.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Row {
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .weight(0.7f)
+        Box(modifier = Modifier.fillMaxSize()) {
+            Image(
+                painter = painterResource(id = R.drawable.bg_gradient),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(payment.fecha, style = MaterialTheme.typography.bodyLarge)
-                Text(payment.metodoPago, style = MaterialTheme.typography.bodyLarge)
-            }
-            Column(
-                modifier = Modifier
-                    .padding(16.dp)
-                    .weight(0.3f)
-            ) {
-                Text("$${payment.monto}", style = MaterialTheme.typography.bodyLarge)
-                Text("Enviado")
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .weight(0.7f),
+                ) {
+                    Text(
+                        payment.fecha,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White
+                    )
+                    Text(
+                        payment.metodoPago,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White
+                    )
+                }
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .weight(0.3f),
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        "$${payment.monto}",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Enviado", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                }
             }
         }
     }
@@ -586,7 +632,7 @@ fun ProductsCard(products: List<Products>) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "\$${product.precio}",
+                            text = "$${product.precio}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold
                         )
