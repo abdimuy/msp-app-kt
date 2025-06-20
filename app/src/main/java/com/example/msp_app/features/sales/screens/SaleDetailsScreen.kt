@@ -191,7 +191,6 @@ fun SaleDetailsContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
         Card(
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
             colors = CardDefaults.cardColors(
@@ -201,6 +200,13 @@ fun SaleDetailsContent(
                 .fillMaxWidth(0.92f)
                 .background(Color.White, RoundedCornerShape(16.dp))
         ) {
+
+            val productosDemo = listOf(
+                Products(1, 120.0, "Camiseta de algodón 100%"),
+                Products(2, 250.0, "Pantalón mezclilla azul"),
+                Products(3, 450.0, "Zapatos de piel color negro")
+            )
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -214,7 +220,7 @@ fun SaleDetailsContent(
                     textAlign = TextAlign.Center
                 )
                 Column {
-
+                    ProductsCard(products = productosDemo)
                 }
             }
         }
@@ -333,7 +339,7 @@ fun Field(
 fun SaleContactActions(sale: Sale) {
     val context = LocalContext.current
     val telephone = sale.TELEFONO
-    val validPhone = telephone.isNullOrBlank()
+    val validPhone = !telephone.isNullOrBlank()
     IconButton(
         onClick = {
             val intent = Intent(Intent.ACTION_DIAL).apply {
@@ -488,7 +494,7 @@ fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
             .fillMaxWidth()
             .padding(10.dp)
     ) {
-        monthlyPayments.forEach { (mes, pagos) ->
+        monthlyPayments.forEach { (mes, payments) ->
             Text(
                 text = mes,
                 style = MaterialTheme.typography.titleLarge,
@@ -496,8 +502,8 @@ fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                pagos.forEach { pago ->
-                    PagoCard(pago)
+                payments.forEach { payment ->
+                    PaymentCard(payment)
                 }
             }
         }
@@ -505,7 +511,7 @@ fun PaymentHistoryScreen(viewModel: HistoryViewModel = viewModel()) {
 }
 
 @Composable
-fun PagoCard(pago: Payment) {
+fun PaymentCard(payment: Payment) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -519,16 +525,73 @@ fun PagoCard(pago: Payment) {
                     .padding(16.dp)
                     .weight(0.7f)
             ) {
-                Text(pago.fecha, style = MaterialTheme.typography.bodyLarge)
-                Text(pago.metodoPago, style = MaterialTheme.typography.bodyLarge)
+                Text(payment.fecha, style = MaterialTheme.typography.bodyLarge)
+                Text(payment.metodoPago, style = MaterialTheme.typography.bodyLarge)
             }
             Column(
                 modifier = Modifier
                     .padding(16.dp)
                     .weight(0.3f)
             ) {
-                Text("$${pago.monto}", style = MaterialTheme.typography.bodyLarge)
+                Text("$${payment.monto}", style = MaterialTheme.typography.bodyLarge)
                 Text("Enviado")
+            }
+        }
+    }
+}
+
+data class Products(
+    val cantidad: Int,
+    val precio: Double,
+    val descripcion: String
+)
+
+@Composable
+fun ProductsCard(products: List<Products>) {
+    Column {
+        products.forEach { product ->
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "${product.cantidad}",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(3f)
+                    ) {
+                        Text(
+                            text = product.descripcion,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                    Column(
+                        modifier = Modifier.weight(1.5f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "\$${product.precio}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
