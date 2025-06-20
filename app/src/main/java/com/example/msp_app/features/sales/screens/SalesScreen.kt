@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,7 +49,9 @@ fun SalesScreen(
     val state by viewModel.salesState.collectAsState()
 
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabTitles = listOf("POR VISITAR", "VISITADOS", "PAGADOS")
+    val totalCount = (state as? ResultState.Success<List<Sale>>)?.data?.size ?: 0
+    val tabTitles =
+        listOf("POR VISITAR($totalCount)", "VISITADOS($totalCount)", "PAGADOS($totalCount)")
 
     LaunchedEffect(Unit) {
         viewModel.loadLocalSales()
@@ -113,14 +116,16 @@ fun SalesScreen(
 
                         is ResultState.Success -> {
                             val sales = (state as ResultState.Success<List<Sale>>).data
-                            LazyColumn {
-                                items(sales, key = { it.DOCTO_CC_ID }) { sale ->
-                                    SaleItem(
-                                        sale = sale,
-                                        onClick = {
-                                            navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
-                                        }
-                                    )
+                            key(selectedTabIndex) {
+                                LazyColumn {
+                                    items(sales, key = { it.DOCTO_CC_ID }) { sale ->
+                                        SaleItem(
+                                            sale = sale,
+                                            onClick = {
+                                                navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
