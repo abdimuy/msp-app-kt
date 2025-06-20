@@ -515,7 +515,7 @@ fun PaymentsHistory(viewModel: HistoryViewModel = viewModel()) {
         monthlyPayments.forEach { (month, payments) ->
             Text(
                 text = month,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
 
@@ -557,7 +557,7 @@ fun PaymentCard(payment: Payment) {
                 ) {
                     Text(
                         payment.fecha,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = Color.White
                     )
                     Text(
@@ -574,7 +574,7 @@ fun PaymentCard(payment: Payment) {
                 ) {
                     Text(
                         "$${payment.monto}",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
                         fontWeight = FontWeight.Bold
                     )
