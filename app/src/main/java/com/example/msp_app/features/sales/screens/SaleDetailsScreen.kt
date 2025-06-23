@@ -501,7 +501,6 @@ fun PaymentsHistory(sale: Sale) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(10.dp)
     ) {
         when (val result = paymentBySaleIdGroupedState) {
             is ResultState.Success -> {
