@@ -46,21 +46,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.R
+import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.data.models.product.Product
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.CustomMap
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
 
 @Composable
 fun SaleDetailsScreen(
@@ -110,6 +110,13 @@ fun SaleDetailsContent(
     sale: Sale,
 ) {
     val isDark = isSystemInDarkTheme()
+
+    val productsViewModel: ProductsViewModel = viewModel()
+    val productsState by productsViewModel.productsByFolioState.collectAsState()
+
+    LaunchedEffect(sale.FOLIO) {
+        productsViewModel.getProductsByFolio(sale.FOLIO)
+    }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -221,12 +228,6 @@ fun SaleDetailsContent(
                 .background(Color.White, RoundedCornerShape(16.dp))
         ) {
 
-            val productosDemo = listOf(
-                Products(1, 120.0, "Camiseta de algodón 100%"),
-                Products(2, 250.0, "Pantalón mezclilla azul"),
-                Products(3, 450.0, "Zapatos de piel color negro")
-            )
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -240,9 +241,30 @@ fun SaleDetailsContent(
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Column {
-                    ProductsCard(products = productosDemo)
+                when (val result = productsState) {
+                    is ResultState.Idle -> {
+                        Text("No hay productos")
+                    }
+
+                    is ResultState.Loading -> {
+                        Text("Cargando productos...")
+                    }
+
+                    is ResultState.Error -> {
+                        Text("Error: ${result.message}")
+                    }
+
+                    is ResultState.Success -> {
+                        if (result.data.isEmpty()) {
+                            Text("No se encontraron productos para esta venta")
+                        } else {
+                            Column {
+                                ProductsCard(products = result.data)
+                            }
+                        }
+                    }
                 }
+
             }
         }
 
@@ -320,7 +342,7 @@ fun SaleDetailsContent(
                     textAlign = TextAlign.Left,
                 )
 
-                PaymentsHistory()
+                PaymentsHistory(sale)
             }
         }
     }
@@ -467,64 +489,50 @@ fun SaleActionButton(
     }
 }
 
-data class Payment(
-    val monto: Double,
-    val fecha: String,
-    val metodoPago: String
-)
-
-class HistoryViewModel : ViewModel() {
-    private val _monthlyPayments = MutableStateFlow<Map<String, List<Payment>>>(emptyMap())
-    val monthlyPayments: StateFlow<Map<String, List<Payment>>> = _monthlyPayments
-
-    init {
-        loadPayments()
-    }
-
-    private fun loadPayments() {
-        val paymentList = listOf(
-            Payment(150.0, "2025-06-18", "Tarjeta"),
-            Payment(100.0, "2025-06-17", "Efectivo"),
-            Payment(200.0, "2025-05-22", "Transferencia"),
-            Payment(180.0, "2025-05-10", "Tarjeta"),
-            Payment(50.0, "2025-04-18", "Efectivo")
-        )
-
-        val grouped = paymentList
-            .sortedByDescending { it.fecha }
-            .groupBy {
-                val fecha = LocalDate.parse(it.fecha)
-                "${
-                    fecha.month.getDisplayName(TextStyle.FULL, Locale("es")).uppercase()
-                } ${fecha.year}"
-            }
-
-        _monthlyPayments.value = grouped
-    }
-}
-
 @Composable
-fun PaymentsHistory(viewModel: HistoryViewModel = viewModel()) {
-    val monthlyPayments by viewModel.monthlyPayments.collectAsState()
+fun PaymentsHistory(sale: Sale) {
+    val viewModel: PaymentsViewModel = viewModel()
+    val paymentBySaleIdGroupedState by viewModel.paymentBySaleIdGroupedState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.getGroupedPaymentsBySaleId(saleId = sale.DOCTO_CC_ID)
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(10.dp)
     ) {
-        monthlyPayments.forEach { (month, payments) ->
-            Text(
-                text = month,
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                payments.forEach { payment ->
-                    PaymentCard(payment)
+        when (val result = paymentBySaleIdGroupedState) {
+            is ResultState.Success -> {
+                val groupedPayments = result.data
+                groupedPayments.forEach { (month, payments) ->
+                    Text(
+                        text = month,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 5.dp),
+                        fontSize = 18.sp,
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        payments.forEach { payment ->
+                            PaymentCard(payment)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+
+            is ResultState.Loading -> {
+                Text("Cargando pagos...")
+            }
+
+            is ResultState.Error -> {
+                Text("Error: ${result.message}")
+            }
+
+            else -> {
+                Text("No hay pagos")
+            }
         }
     }
 }
@@ -534,12 +542,16 @@ fun PaymentCard(payment: Payment) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .height(80.dp),
+            .padding(vertical = 2.dp)
+            .height(70.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
             Image(
                 painter = painterResource(id = R.drawable.bg_gradient),
                 contentDescription = null,
@@ -549,51 +561,58 @@ fun PaymentCard(payment: Payment) {
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(horizontal = 10.dp)
             ) {
                 Column(
                     modifier = Modifier
-                        .padding(16.dp)
-                        .weight(0.7f),
+                        .weight(0.7f)
                 ) {
                     Text(
-                        payment.fecha,
+                        payment.COBRADOR,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        payment.metodoPago,
+                        DateUtils.formatIsoDate(
+                            payment.FECHA_HORA_PAGO,
+                            pattern = "EE dd/MM/yyyy hh:mm a",
+                        ).uppercase(),
                         style = MaterialTheme.typography.titleMedium,
-                        color = Color.White
+                        color = Color.White,
+                        maxLines = 1,
                     )
                 }
                 Column(
                     modifier = Modifier
-                        .padding(16.dp)
                         .weight(0.3f),
                     verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "$${payment.monto}",
+                        "$${payment.IMPORTE.toInt()}",
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text("Enviado", color = Color.White, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        if (payment.GUARDADO_EN_MICROSIP) "ENVIADO" else "PENDIENTE",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
                 }
             }
         }
     }
 }
 
-data class Products(
-    val cantidad: Int,
-    val precio: Double,
-    val descripcion: String
-)
-
 @Composable
-fun ProductsCard(products: List<Products>) {
+fun ProductsCard(products: List<Product>) {
     Column {
         products.forEach { product ->
             Card(
@@ -614,7 +633,7 @@ fun ProductsCard(products: List<Products>) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "${product.cantidad}",
+                            text = "${product.CANTIDAD}",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
@@ -623,7 +642,7 @@ fun ProductsCard(products: List<Products>) {
                         modifier = Modifier.weight(3f)
                     ) {
                         Text(
-                            text = product.descripcion,
+                            text = product.ARTICULO,
                             style = MaterialTheme.typography.titleMedium,
                         )
                     }
@@ -632,7 +651,7 @@ fun ProductsCard(products: List<Products>) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "$${product.precio}",
+                            text = "$${product.PRECIO_UNITARIO_IMPTO}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold
                         )

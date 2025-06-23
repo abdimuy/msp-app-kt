@@ -47,10 +47,10 @@ data class SaleEntity(
     val ESTADO: String,
     val TELEFONO: String,
     val NOMBRE_COBRADOR: String,
-    val ESTADO_COBRANZA: String, // usar enum.name
+    val ESTADO_COBRANZA: String,
     val DIA_COBRANZA: String,
     val DIA_TEMPORAL_COBRANZA: String,
     val PRECIO_DE_CONTADO: Double,
     val AVAL_O_RESPONSABLE: String,
-    val FREC_PAGO: String // usar enum.name
+    val FREC_PAGO: String
 )
