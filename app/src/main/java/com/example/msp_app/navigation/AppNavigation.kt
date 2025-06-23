@@ -26,7 +26,7 @@ sealed class Screen(val route: String) {
     }
 }
 
-@ExperimentalMaterial3Api
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation() {
     val authViewModel = remember { AuthViewModel() }
