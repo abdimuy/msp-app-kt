@@ -613,7 +613,6 @@ fun PaymentCard(payment: Payment) {
 
 @Composable
 fun ProductsCard(products: List<Product>) {
-    val isDark = isSystemInDarkTheme()
     Column {
         products.forEach { product ->
             Card(
