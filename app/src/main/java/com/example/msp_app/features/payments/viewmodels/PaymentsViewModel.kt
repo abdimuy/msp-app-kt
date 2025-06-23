@@ -7,9 +7,11 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.toDomain
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
@@ -29,7 +31,9 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
             try {
-                val payments = paymentStore.getPaymentsBySaleId(saleId).map { it.toDomain() }
+                val payments = withContext(Dispatchers.IO) {
+                    paymentStore.getPaymentsBySaleId(saleId).map { it.toDomain() }
+                }
                 _paymentsBySaleIdState.value = ResultState.Success(payments)
             } catch (e: Exception) {
                 _paymentsBySaleIdState.value =
@@ -74,7 +78,9 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _paymentBySaleIdGroupedState.value = ResultState.Loading
             try {
-                val payments = paymentStore.getPaymentsBySaleId(saleId).map { it.toDomain() }
+                val payments = withContext(Dispatchers.IO) {
+                    paymentStore.getPaymentsBySaleId(saleId).map { it.toDomain() }
+                }
                 val grouped = groupPaymentsByMonthAndYear(payments)
                 _paymentBySaleIdGroupedState.value = ResultState.Success(grouped)
             } catch (e: Exception) {

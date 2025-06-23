@@ -7,9 +7,12 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.models.product.Product
 import com.example.msp_app.data.models.product.toDomain
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 
 class ProductsViewModel(application: Application) : AndroidViewModel(application) {
     val productStore = ProductsLocalDataSource(application.applicationContext)
@@ -22,7 +25,9 @@ class ProductsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _productsByFolioState.value = ResultState.Loading
             try {
-                val products = productStore.getProductsByFolio(folio).map { it.toDomain() }
+                val products = withContext(Dispatchers.IO) {
+                    productStore.getProductsByFolio(folio).map { it.toDomain() }
+                }
                 _productsByFolioState.value = ResultState.Success(products)
             } catch (e: Exception) {
                 _productsByFolioState.value =
