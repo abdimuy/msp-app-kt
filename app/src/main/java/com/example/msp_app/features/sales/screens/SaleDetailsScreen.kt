@@ -46,11 +46,14 @@ import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import com.example.msp_app.R
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.components.CustomMap
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.navigation.Screen
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.time.LocalDate
@@ -59,7 +62,8 @@ import java.util.Locale
 
 @Composable
 fun SaleDetailsScreen(
-    saleId: Int
+    saleId: Int,
+    navController: NavHostController
 ) {
     val viewModel: SaleDetailsViewModel = viewModel()
     val state by viewModel.saleState.collectAsState()
@@ -90,7 +94,7 @@ fun SaleDetailsScreen(
                 is ResultState.Success -> {
                     val sale = result.data
                     if (sale != null) {
-                        SaleDetailsContent(sale = sale)
+                        SaleDetailsContent(sale = sale, navController = navController)
                     } else {
                         Text("No se encontró la venta")
                     }
@@ -103,6 +107,7 @@ fun SaleDetailsScreen(
 @Composable
 fun SaleDetailsContent(
     sale: Sale,
+    navController: NavController
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -113,7 +118,11 @@ fun SaleDetailsContent(
                 .fillMaxWidth()
                 .height(850.dp)
         ) {
-            CustomMap()
+            CustomMap(
+                onClick = {
+                    navController.navigate(Screen.Map.route)
+                }
+            )
 
             Card(
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),

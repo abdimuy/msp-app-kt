@@ -1,5 +1,6 @@
 package com.example.msp_app.navigation
 
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -12,8 +13,9 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.home.screens.HomeScreen
-import com.example.msp_app.features.sales.screens.SalesScreen
+import com.example.msp_app.features.sales.screens.MapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
+import com.example.msp_app.features.sales.screens.SalesScreen
 
 
 sealed class Screen(val route: String) {
@@ -23,8 +25,11 @@ sealed class Screen(val route: String) {
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sale/sale_details/$saleId"
     }
+
+    object Map : Screen("map")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation() {
     val authViewModel = remember { AuthViewModel() }
@@ -47,23 +52,29 @@ fun AppNavigation() {
             }
 
             composable(Screen.Home.route) {
-                HomeScreen(navController=navController)
+                HomeScreen(navController = navController)
             }
 
             composable(Screen.Sales.route) {
-                SalesScreen(navController=navController)
+                SalesScreen(navController = navController)
             }
 
             composable(Screen.SaleDetails.route) { backStackEntry ->
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
                     SaleDetailsScreen(
-                        saleId = saleId
+                        saleId = saleId,
+                        navController = navController
                     )
                 } else {
                     // Manejar el caso en que no se proporciona un ID de venta válido
                 }
             }
+
+            composable(Screen.Map.route) {
+                MapScreen(navController = navController)
+            }
+
         }
     }
 }
