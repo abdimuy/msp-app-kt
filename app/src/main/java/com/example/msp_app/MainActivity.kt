@@ -4,11 +4,13 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
 import com.google.firebase.auth.FirebaseAuth
-import com.example.msp_app.navigation.AppNavigation
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -16,7 +18,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            MspappTheme {
+            MspappTheme(dynamicColor = false) {
                 val auth = FirebaseAuth.getInstance()
                 var isLoggedIn by remember { mutableStateOf(auth.currentUser != null) }
 

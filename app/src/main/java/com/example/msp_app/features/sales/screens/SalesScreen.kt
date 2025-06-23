@@ -54,7 +54,7 @@ fun SalesScreen(
         listOf("POR VISITAR($totalCount)", "VISITADOS($totalCount)", "PAGADOS($totalCount)")
 
     LaunchedEffect(Unit) {
-        viewModel.loadLocalSales()
+        viewModel.getLocalSales()
     }
 
     DrawerContainer(navController = navController) { openDrawer ->

@@ -10,8 +10,16 @@ fun PaymentApi.toEntity(): PaymentEntity = PaymentEntity(
     FECHA_HORA_PAGO,
     GUARDADO_EN_MICROSIP,
     IMPORTE,
-    try { LAT.toDouble() } catch (e: NumberFormatException) { null },
-    try { LNG.toDouble() } catch (e: NumberFormatException) { null },
+    try {
+        LAT.toDouble()
+    } catch (e: NumberFormatException) {
+        null
+    },
+    try {
+        LNG.toDouble()
+    } catch (e: NumberFormatException) {
+        null
+    },
     CLIENTE_ID,
     COBRADOR_ID,
     FORMA_COBRO_ID,
@@ -19,7 +27,7 @@ fun PaymentApi.toEntity(): PaymentEntity = PaymentEntity(
     NOMBRE_CLIENTE
 )
 
-fun PaymentEntity.toDomain(): PaymentApi = PaymentApi(
+fun PaymentEntity.toDomainApi(): PaymentApi = PaymentApi(
     ID,
     COBRADOR,
     DOCTO_CC_ACR_ID,
@@ -36,3 +44,19 @@ fun PaymentEntity.toDomain(): PaymentApi = PaymentApi(
     NOMBRE_CLIENTE
 )
 
+fun PaymentEntity.toDomain(): Payment = Payment(
+    ID,
+    COBRADOR,
+    DOCTO_CC_ACR_ID,
+    DOCTO_CC_ID,
+    FECHA_HORA_PAGO,
+    GUARDADO_EN_MICROSIP,
+    IMPORTE,
+    LAT,
+    LNG,
+    CLIENTE_ID,
+    COBRADOR_ID,
+    FORMA_COBRO_ID,
+    ZONA_CLIENTE_ID,
+    NOMBRE_CLIENTE
+)
