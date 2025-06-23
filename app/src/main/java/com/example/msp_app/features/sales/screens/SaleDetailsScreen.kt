@@ -26,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -74,10 +75,10 @@ fun SaleDetailsScreen(
     }
 
     Scaffold { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
+                .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
         ) {
             when (val result = state) {
                 is ResultState.Idle -> {
@@ -85,7 +86,13 @@ fun SaleDetailsScreen(
                 }
 
                 is ResultState.Loading -> {
-                    Text("Cargando...")
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
 
                 is ResultState.Error -> {
@@ -95,7 +102,13 @@ fun SaleDetailsScreen(
                 is ResultState.Success -> {
                     val sale = result.data
                     if (sale != null) {
-                        SaleDetailsContent(sale = sale)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            SaleDetailsContent(sale = sale)
+                        }
                     } else {
                         Text("No se encontró la venta")
                     }
