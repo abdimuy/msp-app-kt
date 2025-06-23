@@ -337,6 +337,7 @@ fun SaleDetailsContent(
                 )
                 Text(
                     "Historial de pagos",
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     fontSize = 22.sp,
                     textAlign = TextAlign.Left,
@@ -612,13 +613,16 @@ fun PaymentCard(payment: Payment) {
 
 @Composable
 fun ProductsCard(products: List<Product>) {
+    val isDark = isSystemInDarkTheme()
     Column {
         products.forEach { product ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 0.dp
+                ),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Row(
