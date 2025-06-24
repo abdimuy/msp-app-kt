@@ -3,10 +3,16 @@ package com.example.msp_app.features.sales.components.map
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -60,11 +66,16 @@ fun MapView(
 fun rememberLocation(context: Context): State<LatLng?> {
     val locationState = remember { mutableStateOf<LatLng?>(null) }
     var permissionGranted by remember { mutableStateOf(false) }
+    var showPermissionDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        permissionGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        permissionGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (!permissionGranted) {
+            showPermissionDialog = true
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -88,6 +99,31 @@ fun rememberLocation(context: Context): State<LatLng?> {
                 Log.e("MapError", "${e.localizedMessage}")
             }
         }
+    }
+
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            title = { Text("Permiso de Ubicación Necesario") },
+            text = { Text("Esta aplicación necesita el permiso de ubicación para funcionar correctamente. Por favor, activa el permiso desde la configuración de la aplicación.") },
+            confirmButton = {
+                Button(onClick = {
+                    showPermissionDialog = false
+                    // Abrir la configuración de la aplicación
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    val uri = Uri.fromParts("package", context.packageName, null)
+                    intent.data = uri
+                    context.startActivity(intent)
+                }) {
+                    Text("Abrir Configuración")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showPermissionDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 
     return locationState
