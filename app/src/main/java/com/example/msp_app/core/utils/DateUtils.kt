@@ -37,7 +37,19 @@ object DateUtils {
             val formatter = DateTimeFormatter.ofPattern(pattern, locale)
             parsed.format(formatter)
         } catch (e: Exception) {
-            iso // fallback en caso de error
+            iso
         }
+    }
+
+    /**
+     * Obtiene la fecha actual en formato ISO 8601.
+     *
+     * @param dateTime Fecha y hora a formatear, o null para usar la actual
+     * @return Fecha en formato ISO 8601 (ej. "2024-07-10T15:30:00Z")
+     */
+    fun getIsoDateTime(dateTime: LocalDateTime? = null): String {
+        val formatter = DateTimeFormatter.ISO_INSTANT
+        val zoned = (dateTime ?: LocalDateTime.now()).atZone(java.time.ZoneOffset.UTC)
+        return formatter.format(zoned)
     }
 }
