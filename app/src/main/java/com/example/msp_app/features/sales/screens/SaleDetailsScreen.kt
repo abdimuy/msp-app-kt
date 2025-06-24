@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
-import com.example.msp_app.R
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
@@ -46,17 +45,12 @@ import com.example.msp_app.features.sales.components.saleclientdetailssection.Sa
 import com.example.msp_app.features.sales.components.saleproductssection.SaleProductsSection
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.navigation.Screen
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import java.time.LocalDate
-import java.time.format.TextStyle
-import java.util.Locale
 
 
 @Composable
 fun SaleDetailsScreen(
     saleId: Int,
-    navController: NavHostController
+    navController: NavHostController,
 ) {
     val viewModel: SaleDetailsViewModel = viewModel()
     val state by viewModel.saleState.collectAsState()
@@ -113,7 +107,7 @@ fun SaleDetailsScreen(
 @Composable
 fun SaleDetailsContent(
     sale: Sale,
-    navController: NavController
+    navController: NavController,
 ) {
     val isDark = isSystemInDarkTheme()
 
