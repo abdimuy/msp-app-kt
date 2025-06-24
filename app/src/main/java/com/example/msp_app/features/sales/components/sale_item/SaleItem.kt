@@ -84,7 +84,7 @@ fun SaleItem(sale: Sale, onClick: () -> Unit) {
                             )
                             else Color(0xFF9E9E9E),
                             shape = MaterialTheme.shapes.small
-                        ), // verde
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     when (sale.ESTADO_COBRANZA) {
