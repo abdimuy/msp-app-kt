@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -32,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
@@ -67,14 +71,61 @@ fun SaleItem(sale: Sale, onClick: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .background(Color(0xFF4CAF50), shape = MaterialTheme.shapes.small), // verde
+                        .background(
+                            if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) Color(0xFF4CAF50)
+                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) Color(
+                                0xFF9E9E9E
+                            )
+                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO) Color(
+                                0xFFF44336
+                            )
+                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR) Color(
+                                0xFFFF9800
+                            )
+                            else Color(0xFF9E9E9E),
+                            shape = MaterialTheme.shapes.small
+                        ), // verde
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Check,
-                        contentDescription = "Check",
-                        tint = Color.White
-                    )
+                    when (sale.ESTADO_COBRANZA) {
+                        EstadoCobranza.PENDIENTE -> {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Pendiente",
+                                tint = Color.White,
+                            )
+                        }
+
+                        EstadoCobranza.PAGADO -> {
+                            Icon(
+                                imageVector = Icons.Default.Done,
+                                contentDescription = "Pagado",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+
+                        EstadoCobranza.NO_PAGADO ->
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "No Pagado",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp),
+                            )
+
+                        EstadoCobranza.VOLVER_VISITAR -> {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Volver a Visitar",
+                                tint = Color.White,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        }
+
+                        else -> {
+                            // Puedes agregar más estados si es necesario
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
