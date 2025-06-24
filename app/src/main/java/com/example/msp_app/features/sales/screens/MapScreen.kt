@@ -17,7 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
-import com.example.msp_app.features.sales.components.map.MapViewComposable
+import com.example.msp_app.features.sales.components.map.MapView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,14 +37,14 @@ fun MapScreen(
         }
     ) {
         Box(modifier = Modifier.padding(it)) {
-            MapaComposable(context = context)
+            Map(context = context)
         }
     }
 }
 
 @Composable
-fun MapaComposable(context: Context) {
-    MapViewComposable(
+fun Map(context: Context) {
+    MapView(
         modifier = Modifier,
         context = context
     )

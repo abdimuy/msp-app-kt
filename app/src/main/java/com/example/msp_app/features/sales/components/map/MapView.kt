@@ -26,7 +26,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.tasks.await
 
 @Composable
-fun MapViewComposable(
+fun MapView(
     modifier: Modifier = Modifier,
     context: Context,
     initialZoom: Float = 16f,
