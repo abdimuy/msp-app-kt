@@ -7,6 +7,7 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.toDomain
+import com.example.msp_app.data.models.payment.toEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,9 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<Map<String, List<Payment>>>>(ResultState.Idle)
     val paymentsBySaleIdGroupedState: StateFlow<ResultState<Map<String, List<Payment>>>> =
         _paymentsBySaleIdGroupedState
+
+    private val _savePaymentState = MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
+    val savePaymentState: StateFlow<ResultState<Unit>> = _savePaymentState
 
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
@@ -87,6 +91,20 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 _paymentsBySaleIdGroupedState.value =
                     ResultState.Error(e.message ?: "Error agrupando pagos")
+            }
+        }
+    }
+
+    fun savePayment(payment: Payment) {
+        viewModelScope.launch {
+            _savePaymentState.value = ResultState.Loading
+            try {
+                withContext(Dispatchers.IO) {
+                    paymentStore.savePayment(payment.toEntity())
+                }
+                _savePaymentState.value = ResultState.Success(Unit)
+            } catch (e: Exception) {
+                _savePaymentState.value = ResultState.Error(e.message ?: "Error guardando pago")
             }
         }
     }
