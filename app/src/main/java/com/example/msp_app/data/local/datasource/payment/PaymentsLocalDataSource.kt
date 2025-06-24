@@ -15,6 +15,10 @@ class PaymentsLocalDataSource(context: Context) {
         return paymentDao.getPaymentsBySaleId(saleId)
     }
 
+    suspend fun savePayment(payment: PaymentEntity) {
+        paymentDao.savePayment(payment)
+    }
+
     suspend fun saveAll(payments: List<PaymentEntity>) {
         paymentDao.deleteAll()
         paymentDao.saveAll(payments)
