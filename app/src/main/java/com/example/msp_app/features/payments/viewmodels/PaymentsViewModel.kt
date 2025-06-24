@@ -8,6 +8,7 @@ import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.models.payment.toEntity
+import com.example.msp_app.data.models.sale.EstadoCobranza
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -100,7 +101,12 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             _savePaymentState.value = ResultState.Loading
             try {
                 withContext(Dispatchers.IO) {
-                    paymentStore.savePayment(payment.toEntity())
+                    paymentStore.insertPaymentAndUpdateSale(
+                        payment.toEntity(),
+                        payment.DOCTO_CC_ACR_ID,
+                        payment.IMPORTE,
+                        EstadoCobranza.PAGADO
+                    )
                 }
                 _savePaymentState.value = ResultState.Success(Unit)
             } catch (e: Exception) {
