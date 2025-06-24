@@ -203,7 +203,7 @@ fun SaleDetailsContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        SaleActionSection()
+        SaleActionSection(sale)
 
         Spacer(modifier = Modifier.height(15.dp))
         Column(

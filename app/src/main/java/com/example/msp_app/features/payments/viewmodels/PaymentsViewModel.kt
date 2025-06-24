@@ -22,10 +22,10 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
     val paymentsBySaleIdState: StateFlow<ResultState<List<Payment>>> = _paymentsBySaleIdState
 
-    private val _paymentBySaleIdGroupedState =
+    private val _paymentsBySaleIdGroupedState =
         MutableStateFlow<ResultState<Map<String, List<Payment>>>>(ResultState.Idle)
-    val paymentBySaleIdGroupedState: StateFlow<ResultState<Map<String, List<Payment>>>> =
-        _paymentBySaleIdGroupedState
+    val paymentsBySaleIdGroupedState: StateFlow<ResultState<Map<String, List<Payment>>>> =
+        _paymentsBySaleIdGroupedState
 
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
@@ -76,15 +76,16 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
 
     fun getGroupedPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
-            _paymentBySaleIdGroupedState.value = ResultState.Loading
+            _paymentsBySaleIdGroupedState.value = ResultState.Loading
             try {
                 val payments = withContext(Dispatchers.IO) {
                     paymentStore.getPaymentsBySaleId(saleId).map { it.toDomain() }
                 }
+                _paymentsBySaleIdState.value = ResultState.Success(payments)
                 val grouped = groupPaymentsByMonthAndYear(payments)
-                _paymentBySaleIdGroupedState.value = ResultState.Success(grouped)
+                _paymentsBySaleIdGroupedState.value = ResultState.Success(grouped)
             } catch (e: Exception) {
-                _paymentBySaleIdGroupedState.value =
+                _paymentsBySaleIdGroupedState.value =
                     ResultState.Error(e.message ?: "Error agrupando pagos")
             }
         }
