@@ -97,6 +97,8 @@ fun NewPaymentDialog(
 
                 showConfirmDialog = false
                 onDismissRequest()
+
+                paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
             } catch (e: Exception) {
                 e.printStackTrace()
             }
