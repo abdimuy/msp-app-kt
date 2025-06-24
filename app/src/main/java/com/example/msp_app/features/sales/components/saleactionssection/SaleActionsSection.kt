@@ -53,7 +53,8 @@ fun SaleActionSection(sale: Sale) {
             open,
             onDismissRequest = { closeDialog() },
             suggestions = paymentAmounts,
-            suggestedPayment = sale.PARCIALIDAD
+            suggestedPayment = sale.PARCIALIDAD,
+            sale
         )
         SaleActionButton(
             text = "AGREGAR PAGO",

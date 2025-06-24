@@ -18,10 +18,12 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,17 +34,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import kotlinx.coroutines.launch
+import java.util.UUID
 
 @Composable
 fun NewPaymentDialog(
     show: Boolean,
     onDismissRequest: () -> Unit,
     suggestions: List<Int> = emptyList(),
-    suggestedPayment: Int = 0
+    suggestedPayment: Int = 0,
+    sale: Sale
 ) {
     if (!show) return
+
+    val paymentsViewModel: PaymentsViewModel = viewModel()
+    val savePaymentState by paymentsViewModel.savePaymentState.collectAsState()
 
     var inputValue by remember { mutableStateOf("") }
     var showConfirmDialog by remember { mutableStateOf(false) }
@@ -52,6 +65,43 @@ fun NewPaymentDialog(
         Constants.PAGO_EN_EFECTIVO_ID to "Efectivo",
         Constants.PAGO_CON_TRANSFERENCIA_ID to "Transferencia"
     )
+
+    val coroutineScope = rememberCoroutineScope()
+
+    fun handleSavePayment() {
+        if (inputValue.isBlank()) return
+
+        val payment = Payment(
+            CLIENTE_ID = sale.CLIENTE_ID,
+            ID = UUID.randomUUID().toString(),
+            LAT = 0.0,
+            LNG = 0.0,
+            IMPORTE = inputValue.toDouble(),
+            NOMBRE_CLIENTE = sale.CLIENTE,
+            FECHA_HORA_PAGO = DateUtils.getIsoDateTime(),
+            COBRADOR = sale.NOMBRE_COBRADOR,
+            COBRADOR_ID = sale.COBRADOR_ID,
+            DOCTO_CC_ID = 0,
+            FORMA_COBRO_ID = selectedPaymentMethod,
+            DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,
+            ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
+            GUARDADO_EN_MICROSIP = false
+        )
+
+        coroutineScope.launch {
+            try {
+                paymentsViewModel.savePayment(payment)
+
+                inputValue = ""
+                selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
+
+                showConfirmDialog = false
+                onDismissRequest()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     FullScreenDialog(
         show = true,
@@ -183,8 +233,7 @@ fun NewPaymentDialog(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showConfirmDialog = false
-                        onDismissRequest()
+                        handleSavePayment()
                     }
                 ) {
                     Text("Confirmar")
