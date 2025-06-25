@@ -68,6 +68,7 @@ fun NewPaymentDialog(
     var inputValue by remember { mutableStateOf("") }
     var showConfirmDialog by remember { mutableStateOf(false) }
     var selectedPaymentMethod by remember { mutableIntStateOf(Constants.PAGO_EN_EFECTIVO_ID) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val paymentMethods = listOf(
         Constants.PAGO_EN_EFECTIVO_ID to "Efectivo",
@@ -75,9 +76,18 @@ fun NewPaymentDialog(
     )
 
     val coroutineScope = rememberCoroutineScope()
+    
+    val inputDouble = inputValue.toDoubleOrNull()
+    errorMessage = when {
+        inputValue.isBlank() -> null
+        inputDouble == null -> "Ingrese un número válido"
+        inputDouble <= 0 -> "El monto debe ser mayor a cero"
+        inputDouble > sale.SALDO_REST -> "El monto no puede ser mayor al saldo restante"
+        else -> null
+    }
 
     fun handleSavePayment() {
-        if (inputValue.isBlank()) return
+        if (inputValue.isBlank() || errorMessage != null) return
 
         val payment = Payment(
             CLIENTE_ID = sale.CLIENTE_ID,
@@ -195,9 +205,19 @@ fun NewPaymentDialog(
                 label = { Text("Ingrese monto") },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                textStyle = TextStyle(fontSize = 20.sp)
+                    .padding(bottom = 8.dp),
+                textStyle = TextStyle(fontSize = 20.sp),
+                isError = errorMessage != null
             )
+
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage ?: "",
+                    color = Color.Red,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
 
             val inputInt = inputValue.toIntOrNull()
             if (suggestedPayment > 0 && inputInt != null && inputInt < suggestedPayment) {
@@ -262,7 +282,7 @@ fun NewPaymentDialog(
             Button(
                 onClick = { showConfirmDialog = true },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = inputValue.isNotBlank()
+                enabled = inputValue.isNotBlank() && errorMessage == null
             ) {
                 Text("Guardar")
             }

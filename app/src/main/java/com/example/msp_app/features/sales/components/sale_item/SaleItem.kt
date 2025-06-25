@@ -270,7 +270,8 @@ fun SaleItem(
         NewPaymentDialog(
             show = true,
             onDismissRequest = { showPaymentDialog.value = false },
-            sale = sale
+            sale = sale,
+            suggestedPayment = sale.PARCIALIDAD
         )
     }
 }
