@@ -52,4 +52,50 @@ object DateUtils {
         val zoned = (dateTime ?: LocalDateTime.now()).atZone(java.time.ZoneOffset.UTC)
         return formatter.format(zoned)
     }
+
+    /**
+     * Compara dos fechas en formato ISO 8601 y determina si son iguales.
+     *
+     * @param iso1 Primera fecha en formato ISO
+     * @param iso2 Segunda fecha en formato ISO
+     * @return true si son iguales, false en caso contrario
+     */
+    fun isAfterIso(iso1: String, iso2: String): Boolean {
+        val dt1 = parseIsoToDateTime(iso1)
+        val dt2 = parseIsoToDateTime(iso2)
+        return dt1.isAfter(dt2)
+    }
+
+    /**
+     * Compara dos fechas en formato ISO 8601 y determina si la primera es anterior a la segunda.
+     *
+     * @param iso1 Primera fecha en formato ISO
+     * @param iso2 Segunda fecha en formato ISO
+     * @return true si la primera es anterior a la segunda, false en caso contrario
+     */
+    fun isBeforeIso(iso1: String, iso2: String): Boolean {
+        val dt1 = parseIsoToDateTime(iso1)
+        val dt2 = parseIsoToDateTime(iso2)
+        return dt1.isBefore(dt2)
+    }
+
+    /**
+     * Compara dos fechas en formato ISO 8601 y determina si son iguales.
+     *
+     * @param iso1 Primera fecha en formato ISO
+     * @param iso2 Segunda fecha en formato ISO
+     * @return true si son iguales, false en caso contrario
+     */
+    private fun parseIsoToDateTime(iso: String): LocalDateTime {
+        return when {
+            iso.contains("T") && iso.endsWith("Z") ->
+                OffsetDateTime.parse(iso).toLocalDateTime()
+
+            iso.contains("T") ->
+                LocalDateTime.parse(iso)
+
+            else ->
+                LocalDate.parse(iso).atStartOfDay()
+        }
+    }
 }
