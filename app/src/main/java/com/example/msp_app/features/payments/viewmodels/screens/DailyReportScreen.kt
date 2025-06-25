@@ -1,6 +1,7 @@
 package com.example.msp_app.features.payments.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -37,17 +39,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import java.text.SimpleDateFormat
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import java.util.Locale
 
@@ -63,8 +71,9 @@ fun DailyReportScreen(
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
     val queryDateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val scrollState = rememberScrollState()
-
     val paymentsState by viewModel.paymentsBySaleIdState.collectAsState()
+    var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
+
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let {
@@ -73,6 +82,7 @@ fun DailyReportScreen(
             textDate = TextFieldValue(formattedText)
             val queryDate = queryDateFormat.format(date)
             viewModel.getPaymentsByDate(queryDate)
+            showDatePicker = false
         }
     }
 
@@ -105,9 +115,8 @@ fun DailyReportScreen(
                 modifier = Modifier
                     .statusBarsPadding()
                     .padding(innerPadding)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp)
                     .fillMaxSize()
-                    .verticalScroll(scrollState)
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth()
@@ -154,32 +163,82 @@ fun DailyReportScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                when (paymentsState) {
-                    is ResultState.Loading -> {
-                        Text("Cargando pagos...")
-                    }
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                ) {
+                    when (paymentsState) {
+                        is ResultState.Loading -> {
+                            Text("Cargando pagos...")
+                        }
 
-                    is ResultState.Success -> {
-                        val pagos = (paymentsState as ResultState.Success<List<Payment>>).data
-                        if (pagos.isEmpty()) {
-                            Text("No hay pagos para esta fecha.")
-                        } else {
-                            Column {
-                                pagos.forEach { pago ->
-                                    PaymentItem(pago)
+                        is ResultState.Success -> {
+                            val pagos = (paymentsState as ResultState.Success<List<Payment>>).data
+                            LaunchedEffect(pagos) {
+                                visiblePayments = pagos
+                            }
+
+                            if (pagos.isEmpty()) {
+                                Text("No hay pagos para esta fecha.")
+                            } else {
+                                val formatter = DateTimeFormatter.ISO_DATE_TIME
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            visiblePayments =
+                                                visiblePayments.sortedBy { it.NOMBRE_CLIENTE }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Ordenar por nombre")
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            visiblePayments = visiblePayments.sortedBy {
+                                                try {
+                                                    LocalDateTime.parse(
+                                                        it.FECHA_HORA_PAGO,
+                                                        formatter
+                                                    ).toLocalTime()
+                                                } catch (e: Exception) {
+                                                    LocalTime.MAX
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Ordenar por hora")
+                                    }
+                                }
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .verticalScroll(scrollState)
+                                )
+                                {
+                                    Spacer(modifier = Modifier.height(2.dp))
+
+                                    visiblePayments.forEach { pago ->
+                                        PaymentItem(pago)
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    is ResultState.Error -> {
-                        Text("Error: ${(paymentsState as ResultState.Error).message}")
-                    }
+                        is ResultState.Error -> {
+                            Text("Error: ${(paymentsState as ResultState.Error).message}")
+                        }
 
-                    else -> {
-                        Text("Selecciona una fecha para ver los pagos.")
+                        else -> {
+                            Text("Selecciona una fecha para ver los pagos.")
+                        }
                     }
                 }
             }
@@ -189,23 +248,48 @@ fun DailyReportScreen(
 
 @Composable
 fun PaymentItem(payment: Payment) {
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 6.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(8.dp))
-            .padding(12.dp)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "Fecha: ${payment.FECHA_HORA_PAGO}",
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Monto: \$${payment.IMPORTE}",
-            style = MaterialTheme.typography.bodyLarge
-        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+        ) {
+            Text(
+                text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = payment.NOMBRE_CLIENTE,
+                maxLines = 1,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyLarge,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(start = 8.dp)
+                .align(Alignment.CenterVertically)
+        ) {
+            Text(
+                text = String.format("$%.0f", payment.IMPORTE),
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
