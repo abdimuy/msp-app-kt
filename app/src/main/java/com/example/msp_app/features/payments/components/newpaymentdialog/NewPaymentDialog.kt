@@ -7,11 +7,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -29,9 +34,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -120,6 +128,38 @@ fun NewPaymentDialog(
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(bottom = 24.dp)
             )
+            Text(
+                text = sale.CLIENTE,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp)
+            )
+
+            Text(
+                buildAnnotatedString {
+                    withStyle(
+                        style = SpanStyle(
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    ) {
+                        append("Saldo actual: ")
+                    }
+                    withStyle(
+                        style = SpanStyle(
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        append("$${sale.SALDO_REST.toInt()}")
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Column(
                 modifier = Modifier
@@ -230,6 +270,8 @@ fun NewPaymentDialog(
     }
 
     if (showConfirmDialog) {
+        val amount = inputValue.toDoubleOrNull() ?: 0.0
+        val saldoRestante = (sale.SALDO_REST - amount).coerceAtLeast(0.0)
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
             confirmButton = {
@@ -263,14 +305,59 @@ fun NewPaymentDialog(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "$$inputValue",
-                        style = TextStyle(
-                            fontSize = 36.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        ),
-                        textAlign = TextAlign.Center,
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Pago a realizar",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.secondary,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
+                            Text(
+                                text = "$${amount.toInt()}",
+                                style = TextStyle(
+                                    fontSize = 36.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary // Cambia este color según tu preferencia
+                                ),
+                                textAlign = TextAlign.Center
+                            )
+
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Flecha hacia abajo",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .padding(vertical = 4.dp)
+                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Saldo restante",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.secondary,
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
+                            Text(
+                                text = "$${saldoRestante.toInt()}",
+                                style = TextStyle(
+                                    fontSize = 36.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF4CAF50) // Cambia este color según tu preferencia
+                                ),
+                                textAlign = TextAlign.Center
+                            )
+
+                        }
+                    }
                 }
             },
         )
