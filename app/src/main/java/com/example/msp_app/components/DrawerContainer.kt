@@ -69,7 +69,7 @@ fun DrawerContainer(
                         )
 
                         NavigationDrawerItem(
-                            label = { Text("Reporte de Pagos") },
+                            label = { Text("Reportes Diarios") },
                             selected = true,
                             onClick = {
                                 navController.navigate("daily reports") {

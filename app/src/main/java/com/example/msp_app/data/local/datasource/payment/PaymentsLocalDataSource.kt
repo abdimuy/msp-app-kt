@@ -15,8 +15,8 @@ class PaymentsLocalDataSource(context: Context) {
         return paymentDao.getPaymentsBySaleId(saleId)
     }
 
-    suspend fun getAllPayments(): List<PaymentEntity> {
-        return paymentDao.getAllPayments()
+    suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity> {
+        return paymentDao.getPaymentsByDate(start, end)
     }
 
     suspend fun saveAll(payments: List<PaymentEntity>) {

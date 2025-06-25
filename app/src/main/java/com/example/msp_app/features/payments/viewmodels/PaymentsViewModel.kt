@@ -95,15 +95,13 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             _paymentsBySaleIdState.value = ResultState.Loading
 
             val payments = withContext(Dispatchers.IO) {
-                getPaymentsFilteredByDate(date)
+                val startDateTime = "${date}T00:00:00"
+                val endDateTime = "${date}T23:59:59"
+
+                paymentStore.getPaymentsByDate(startDateTime, endDateTime)
+                    .map { it.toDomain() }
             }
             _paymentsBySaleIdState.value = ResultState.Success(payments)
         }
-    }
-
-    private suspend fun getPaymentsFilteredByDate(date: String): List<Payment> {
-        return paymentStore.getAllPayments()
-            .map { it.toDomain() }
-            .filter { it.FECHA_HORA_PAGO.startsWith(date) }
     }
 }

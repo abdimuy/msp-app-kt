@@ -67,9 +67,11 @@ interface PaymentDao {
         FORMA_COBRO_ID,
         ZONA_CLIENTE_ID,
         NOMBRE_CLIENTE
-    FROM Payment"""
+    FROM Payment
+    WHERE FECHA_HORA_PAGO BETWEEN :start  AND :end 
+    ORDER BY FECHA_HORA_PAGO DESC"""
     )
-    suspend fun getAllPayments(): List<PaymentEntity>
+    suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)
