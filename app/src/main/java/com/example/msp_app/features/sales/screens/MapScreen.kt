@@ -52,11 +52,11 @@ fun MapScreen(
         val lat = payment.LAT ?: 0.0
         val lon = payment.LNG ?: 0.0
         if (lat == 0.0 && lon == 0.0) return@mapNotNull null
-        val dateFormatted = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy HH:mm")
+        val dateFormatted = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a")
         MapPin(
             lat = lat,
             lon = lon,
-            description = "Pago: ${payment.IMPORTE} en $dateFormatted"
+            description = "Pago: $${payment.IMPORTE} en $dateFormatted"
         )
     }
 
