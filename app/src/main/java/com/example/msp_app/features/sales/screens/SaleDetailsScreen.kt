@@ -11,11 +11,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
@@ -35,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
@@ -59,44 +66,50 @@ fun SaleDetailsScreen(
         viewModel.loadSaleDetails(saleId)
     }
 
-    Scaffold { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (val result = state) {
-                is ResultState.Idle -> {
-                    Text("No hay datos")
-                }
-
-                is ResultState.Loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator()
+    DrawerContainer(navController = navController) { openDrawer ->
+        Scaffold { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (val result = state) {
+                    is ResultState.Idle -> {
+                        Text("No hay datos")
                     }
-                }
 
-                is ResultState.Error -> {
-                    Text("Error: ${result.message}")
-                }
-
-                is ResultState.Success -> {
-                    val sale = result.data
-                    if (sale != null) {
-                        Column(
+                    is ResultState.Loading -> {
+                        Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
+                                .fillMaxSize(),
+                            contentAlignment = Alignment.Center,
                         ) {
-                            SaleDetailsContent(sale = sale, navController = navController)
+                            CircularProgressIndicator()
                         }
+                    }
 
-                    } else {
-                        Text("No se encontró la venta")
+                    is ResultState.Error -> {
+                        Text("Error: ${result.message}")
+                    }
+
+                    is ResultState.Success -> {
+                        val sale = result.data
+                        if (sale != null) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                SaleDetailsContent(
+                                    sale = sale,
+                                    navController = navController,
+                                    openDrawer = openDrawer
+                                )
+                            }
+
+                        } else {
+                            Text("No se encontró la venta")
+                        }
                     }
                 }
             }
@@ -108,6 +121,7 @@ fun SaleDetailsScreen(
 fun SaleDetailsContent(
     sale: Sale,
     navController: NavController,
+    openDrawer: () -> Unit
 ) {
     val isDark = isSystemInDarkTheme()
 
@@ -129,7 +143,7 @@ fun SaleDetailsContent(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(850.dp)
+                .wrapContentHeight()
         ) {
             CustomMap(
                 onClick = {
@@ -137,7 +151,25 @@ fun SaleDetailsContent(
                 }
             )
 
-            SaleClientDetailsSection(sale, modifier = Modifier.align(Alignment.BottomCenter))
+            SaleClientDetailsSection(
+                sale,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(top = 56.dp)
+            )
+
+            IconButton(
+                onClick = openDrawer,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .background(
+                        MaterialTheme.colorScheme.background.copy(alpha = 0.9f),
+                        shape = CircleShape
+                    )
+            ) {
+                Icon(Icons.Default.Menu, contentDescription = "Menú")
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
