@@ -26,7 +26,9 @@ sealed class Screen(val route: String) {
         fun createRoute(saleId: Int) = "sale/sale_details/$saleId"
     }
 
-    object Map : Screen("map")
+    object Map : Screen("map/{saleId}") {
+        fun createRoute(saleId: Int) = "map/$saleId"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,8 +73,11 @@ fun AppNavigation() {
                 }
             }
 
-            composable(Screen.Map.route) {
-                MapScreen(navController = navController)
+            composable(Screen.Map.route) { backStackEntry ->
+                val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
+                if (saleId != null) {
+                    MapScreen(navController = navController, saleId = saleId)
+                }
             }
 
         }

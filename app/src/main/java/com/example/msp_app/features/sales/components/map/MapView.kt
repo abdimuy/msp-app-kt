@@ -27,29 +27,39 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
+
+data class MapPin(
+    val lat: Double,
+    val lon: Double,
+    val description: String,
+)
 
 @Composable
 fun MapView(
     modifier: Modifier = Modifier,
     context: Context,
+    pins: List<MapPin> = emptyList(),
     initialZoom: Float = 16f,
 ) {
     val location = rememberLocation(context)
     val cameraPositionState = rememberCameraPositionState()
 
-    LaunchedEffect(location.value) {
-        Log.d("MapView", "Location updated: ${location.value}")
-        location.value?.let {
-            cameraPositionState.animate(
-                update = CameraUpdateFactory.newLatLngZoom(it, initialZoom)
-            )
+    LaunchedEffect(pins) {
+        if (pins.isNotEmpty()) {
+            val focusLatLng = getClusterCenter(pins)
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(focusLatLng, initialZoom)
         }
     }
 
@@ -57,13 +67,43 @@ fun MapView(
         modifier = modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
         properties = MapProperties(
-            isMyLocationEnabled = location.value != null
+            isMyLocationEnabled = location.value != null,
         ),
     ) {
-        location.value?.let {
-            Marker(state = MarkerState(position = it), title = "Tu ubicación")
+        pins.forEach { pin ->
+            Marker(
+                state = MarkerState(position = LatLng(pin.lat, pin.lon)),
+                title = pin.description
+            )
         }
     }
+}
+
+private fun getClusterCenter(pins: List<MapPin>, radiusMeters: Double = 300.0): LatLng {
+    var maxCount = 0
+    var bestCenter: LatLng = LatLng(pins[0].lat, pins[0].lon)
+    for (pin in pins) {
+        val center = LatLng(pin.lat, pin.lon)
+        val count = pins.count {
+            haversine(pin.lat, pin.lon, it.lat, it.lon) <= radiusMeters
+        }
+        if (count > maxCount) {
+            maxCount = count
+            bestCenter = center
+        }
+    }
+    return bestCenter
+}
+
+private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val R = 6371000.0 // Radio de la Tierra en metros
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = sin(dLat / 2).pow(2.0) +
+            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
+            sin(dLon / 2).pow(2.0)
+    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
 }
 
 @SuppressLint("MissingPermission")
@@ -92,7 +132,6 @@ fun rememberLocation(context: Context): State<LatLng?> {
         )
     }
 
-    // Usar DisposableEffect para limpiar el callback
     DisposableEffect(permissionGranted) {
         var callback: LocationCallback? = null
         if (permissionGranted) {
@@ -137,7 +176,6 @@ fun rememberLocation(context: Context): State<LatLng?> {
             confirmButton = {
                 Button(onClick = {
                     showPermissionDialog = false
-                    // Abrir la configuración de la aplicación
                     val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
                     val uri = Uri.fromParts("package", context.packageName, null)
                     intent.data = uri

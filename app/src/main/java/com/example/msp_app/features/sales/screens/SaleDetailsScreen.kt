@@ -133,7 +133,7 @@ fun SaleDetailsContent(
         ) {
             CustomMap(
                 onClick = {
-                    navController.navigate(Screen.Map.route)
+                    navController.navigate(Screen.Map.createRoute(saleId = sale.DOCTO_CC_ID))
                 }
             )
 
