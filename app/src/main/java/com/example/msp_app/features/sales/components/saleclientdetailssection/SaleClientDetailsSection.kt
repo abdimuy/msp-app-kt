@@ -107,6 +107,10 @@ fun SaleClientDetailsSection(sale: Sale, modifier: Modifier = Modifier) {
                     )
                 } ${sale.ESTADO}"
             )
+            InfoField(
+                label = "Aval o responsable",
+                value = sale.AVAL_O_RESPONSABLE.toString()
+            )
             InfoField(label = "Notas:", value = sale.NOTAS)
             InfoField(label = "Vendedores:", value = sale.VENDEDOR_1)
         }
