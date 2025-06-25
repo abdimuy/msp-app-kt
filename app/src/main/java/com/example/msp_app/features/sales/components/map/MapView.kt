@@ -14,6 +14,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -21,7 +22,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
@@ -29,7 +34,6 @@ import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import kotlinx.coroutines.tasks.await
 
 @Composable
 fun MapView(
@@ -41,6 +45,7 @@ fun MapView(
     val cameraPositionState = rememberCameraPositionState()
 
     LaunchedEffect(location.value) {
+        Log.d("MapView", "Location updated: ${location.value}")
         location.value?.let {
             cameraPositionState.animate(
                 update = CameraUpdateFactory.newLatLngZoom(it, initialZoom)
@@ -87,16 +92,39 @@ fun rememberLocation(context: Context): State<LatLng?> {
         )
     }
 
-    LaunchedEffect(permissionGranted) {
+    // Usar DisposableEffect para limpiar el callback
+    DisposableEffect(permissionGranted) {
+        var callback: LocationCallback? = null
         if (permissionGranted) {
             val fusedLocation = LocationServices.getFusedLocationProviderClient(context)
-            try {
-                val location = fusedLocation.lastLocation.await()
-                location?.let {
-                    locationState.value = LatLng(it.latitude, it.longitude)
+            val locationRequest = LocationRequest.Builder(
+                3000 // intervalo en ms
+            )
+                .setMinUpdateIntervalMillis(2000)
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                .build()
+            callback = object : LocationCallback() {
+                override fun onLocationResult(result: LocationResult) {
+                    val loc = result.lastLocation
+                    if (loc != null) {
+                        locationState.value = LatLng(loc.latitude, loc.longitude)
+                    }
                 }
+            }
+            try {
+                fusedLocation.requestLocationUpdates(
+                    locationRequest,
+                    callback,
+                    android.os.Looper.getMainLooper()
+                )
             } catch (e: Exception) {
                 Log.e("MapError", "${e.localizedMessage}")
+            }
+        }
+        onDispose {
+            if (permissionGranted && callback != null) {
+                val fusedLocation = LocationServices.getFusedLocationProviderClient(context)
+                fusedLocation.removeLocationUpdates(callback)
             }
         }
     }
