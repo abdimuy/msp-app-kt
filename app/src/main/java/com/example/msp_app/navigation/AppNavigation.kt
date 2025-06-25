@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -34,7 +34,7 @@ sealed class Screen(val route: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation() {
-    val authViewModel = remember { AuthViewModel() }
+    val authViewModel: AuthViewModel = viewModel()
     val currentUser by authViewModel.currentUser.collectAsState()
     val navController = rememberNavController()
 
