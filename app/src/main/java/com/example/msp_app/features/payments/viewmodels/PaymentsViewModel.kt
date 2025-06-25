@@ -89,4 +89,21 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    fun getPaymentsByDate(date: String) {
+        viewModelScope.launch {
+            _paymentsBySaleIdState.value = ResultState.Loading
+
+            val payments = withContext(Dispatchers.IO) {
+                getPaymentsFilteredByDate(date)
+            }
+            _paymentsBySaleIdState.value = ResultState.Success(payments)
+        }
+    }
+
+    private suspend fun getPaymentsFilteredByDate(date: String): List<Payment> {
+        return paymentStore.getAllPayments()
+            .map { it.toDomain() }
+            .filter { it.FECHA_HORA_PAGO.startsWith(date) }
+    }
 }

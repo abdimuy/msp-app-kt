@@ -13,6 +13,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.home.screens.HomeScreen
+import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
 
@@ -24,6 +25,8 @@ sealed class Screen(val route: String) {
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sale/sale_details/$saleId"
     }
+
+    object DailyReport : Screen("daily reports")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,6 +68,10 @@ fun AppNavigation() {
                 } else {
                     // Manejar el caso en que no se proporciona un ID de venta válido
                 }
+            }
+
+            composable(Screen.DailyReport.route) {
+                DailyReportScreen(navController = navController)
             }
         }
     }
