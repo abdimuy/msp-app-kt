@@ -191,7 +191,6 @@ fun SalesScreen(
                                         SaleItem(
                                             sale = sale,
                                             onClick = {
-                                                query = sale.CLIENTE
                                                 navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
                                             }
                                         )
