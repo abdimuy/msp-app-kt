@@ -13,6 +13,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.home.screens.HomeScreen
+import com.example.msp_app.features.sales.screens.MapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
 
@@ -23,6 +24,10 @@ sealed class Screen(val route: String) {
     object Sales : Screen("sales")
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sale/sale_details/$saleId"
+    }
+
+    object Map : Screen("map/{saleId}") {
+        fun createRoute(saleId: Int) = "map/$saleId"
     }
 }
 
@@ -60,12 +65,21 @@ fun AppNavigation() {
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
                     SaleDetailsScreen(
-                        saleId = saleId
+                        saleId = saleId,
+                        navController = navController
                     )
                 } else {
                     // Manejar el caso en que no se proporciona un ID de venta válido
                 }
             }
+
+            composable(Screen.Map.route) { backStackEntry ->
+                val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
+                if (saleId != null) {
+                    MapScreen(navController = navController, saleId = saleId)
+                }
+            }
+
         }
     }
 }

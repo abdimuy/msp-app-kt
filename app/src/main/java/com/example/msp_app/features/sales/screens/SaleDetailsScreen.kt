@@ -33,6 +33,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
@@ -42,10 +44,13 @@ import com.example.msp_app.features.sales.components.saleactionssection.SaleActi
 import com.example.msp_app.features.sales.components.saleclientdetailssection.SaleClientDetailsSection
 import com.example.msp_app.features.sales.components.saleproductssection.SaleProductsSection
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.navigation.Screen
+
 
 @Composable
 fun SaleDetailsScreen(
-    saleId: Int
+    saleId: Int,
+    navController: NavHostController,
 ) {
     val viewModel: SaleDetailsViewModel = viewModel()
     val state by viewModel.saleState.collectAsState()
@@ -87,8 +92,9 @@ fun SaleDetailsScreen(
                                 .fillMaxSize()
                                 .verticalScroll(rememberScrollState())
                         ) {
-                            SaleDetailsContent(sale = sale)
+                            SaleDetailsContent(sale = sale, navController = navController)
                         }
+
                     } else {
                         Text("No se encontró la venta")
                     }
@@ -101,6 +107,7 @@ fun SaleDetailsScreen(
 @Composable
 fun SaleDetailsContent(
     sale: Sale,
+    navController: NavController,
 ) {
     val isDark = isSystemInDarkTheme()
 
@@ -124,7 +131,11 @@ fun SaleDetailsContent(
                 .fillMaxWidth()
                 .height(850.dp)
         ) {
-            CustomMap()
+            CustomMap(
+                onClick = {
+                    navController.navigate(Screen.Map.createRoute(saleId = sale.DOCTO_CC_ID))
+                }
+            )
 
             SaleClientDetailsSection(sale, modifier = Modifier.align(Alignment.BottomCenter))
         }
