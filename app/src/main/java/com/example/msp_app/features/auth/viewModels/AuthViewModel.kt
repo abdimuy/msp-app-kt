@@ -1,6 +1,5 @@
 package com.example.msp_app.features.auth.viewModels
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants
@@ -26,7 +25,6 @@ class AuthViewModel : ViewModel() {
         auth.addAuthStateListener {
             _currentUser.value = it.currentUser
             val email = it.currentUser?.email
-            Log.d("AuthViewModel", "Current user email: $email")
             if (email != null) {
                 getUserDataByEmail(email)
             }
@@ -49,12 +47,9 @@ class AuthViewModel : ViewModel() {
                     .await()
 
                 val data = querySnapshot.documents.firstOrNull()?.let { doc ->
-                    Log.d("AuthViewModel", "User data: ${doc.data}")
                     doc.toObject(User::class.java)
                         ?.copy(ID = doc.id)
                 }
-                Log.d("AuthViewModel", "Length of documents: ${querySnapshot.size()}")
-                Log.d("AuthViewModel", "User data fetched: $data")
                 _userData.value = ResultState.Success(data)
             } catch (e: Exception) {
                 _userData.value = ResultState.Error(e.message ?: "Error desconocido")
