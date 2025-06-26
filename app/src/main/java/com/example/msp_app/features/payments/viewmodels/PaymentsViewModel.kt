@@ -7,6 +7,8 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.toDomain
+import com.example.msp_app.data.models.payment.toEntity
+import com.example.msp_app.data.models.sale.EstadoCobranza
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,10 +24,13 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
     val paymentsBySaleIdState: StateFlow<ResultState<List<Payment>>> = _paymentsBySaleIdState
 
-    private val _paymentBySaleIdGroupedState =
+    private val _paymentsBySaleIdGroupedState =
         MutableStateFlow<ResultState<Map<String, List<Payment>>>>(ResultState.Idle)
-    val paymentBySaleIdGroupedState: StateFlow<ResultState<Map<String, List<Payment>>>> =
-        _paymentBySaleIdGroupedState
+    val paymentsBySaleIdGroupedState: StateFlow<ResultState<Map<String, List<Payment>>>> =
+        _paymentsBySaleIdGroupedState
+
+    private val _savePaymentState = MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
+    val savePaymentState: StateFlow<ResultState<Unit>> = _savePaymentState
 
     private val _paymentsByDateState =
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
@@ -80,15 +85,16 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
 
     fun getGroupedPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
-            _paymentBySaleIdGroupedState.value = ResultState.Loading
+            _paymentsBySaleIdGroupedState.value = ResultState.Loading
             try {
                 val payments = withContext(Dispatchers.IO) {
                     paymentStore.getPaymentsBySaleId(saleId).map { it.toDomain() }
                 }
+                _paymentsBySaleIdState.value = ResultState.Success(payments)
                 val grouped = groupPaymentsByMonthAndYear(payments)
-                _paymentBySaleIdGroupedState.value = ResultState.Success(grouped)
+                _paymentsBySaleIdGroupedState.value = ResultState.Success(grouped)
             } catch (e: Exception) {
-                _paymentBySaleIdGroupedState.value =
+                _paymentsBySaleIdGroupedState.value =
                     ResultState.Error(e.message ?: "Error agrupando pagos")
             }
         }
@@ -104,6 +110,23 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                     .map { it.toDomain() }
             }
             _paymentsByDateState.value = ResultState.Success(payments)
+
+    fun savePayment(payment: Payment) {
+        viewModelScope.launch {
+            _savePaymentState.value = ResultState.Loading
+            try {
+                withContext(Dispatchers.IO) {
+                    paymentStore.insertPaymentAndUpdateSale(
+                        payment.toEntity(),
+                        payment.DOCTO_CC_ACR_ID,
+                        payment.IMPORTE,
+                        EstadoCobranza.PAGADO
+                    )
+                }
+                _savePaymentState.value = ResultState.Success(Unit)
+            } catch (e: Exception) {
+                _savePaymentState.value = ResultState.Error(e.message ?: "Error guardando pago")
+            }
         }
     }
 }

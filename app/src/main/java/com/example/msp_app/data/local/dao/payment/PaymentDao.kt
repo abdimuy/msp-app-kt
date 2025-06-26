@@ -74,6 +74,9 @@ interface PaymentDao {
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun savePayment(payment: PaymentEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)
 
     @Query("DELETE FROM payment")

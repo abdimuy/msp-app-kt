@@ -27,6 +27,23 @@ fun PaymentApi.toEntity(): PaymentEntity = PaymentEntity(
     NOMBRE_CLIENTE
 )
 
+fun Payment.toEntity(): PaymentEntity = PaymentEntity(
+    ID,
+    COBRADOR,
+    DOCTO_CC_ACR_ID,
+    DOCTO_CC_ID,
+    FECHA_HORA_PAGO,
+    GUARDADO_EN_MICROSIP,
+    IMPORTE,
+    LAT,
+    LNG,
+    CLIENTE_ID,
+    COBRADOR_ID,
+    FORMA_COBRO_ID,
+    ZONA_CLIENTE_ID,
+    NOMBRE_CLIENTE
+)
+
 fun PaymentEntity.toDomainApi(): PaymentApi = PaymentApi(
     ID,
     COBRADOR,

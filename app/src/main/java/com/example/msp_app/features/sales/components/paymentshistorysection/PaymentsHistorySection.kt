@@ -24,7 +24,7 @@ import com.example.msp_app.features.sales.components.paymentcard.PaymentCard
 @Composable
 fun PaymentsHistory(sale: Sale) {
     val viewModel: PaymentsViewModel = viewModel()
-    val paymentBySaleIdGroupedState by viewModel.paymentBySaleIdGroupedState.collectAsState()
+    val paymentsBySaleIdGroupedState by viewModel.paymentsBySaleIdGroupedState.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.getGroupedPaymentsBySaleId(saleId = sale.DOCTO_CC_ID)
@@ -34,7 +34,7 @@ fun PaymentsHistory(sale: Sale) {
         modifier = Modifier
             .fillMaxWidth()
     ) {
-        when (val result = paymentBySaleIdGroupedState) {
+        when (val result = paymentsBySaleIdGroupedState) {
             is ResultState.Success -> {
                 val groupedPayments = result.data
                 groupedPayments.forEach { (month, payments) ->

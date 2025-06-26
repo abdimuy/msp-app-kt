@@ -1,11 +1,14 @@
 package com.example.msp_app.features.sales.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -32,17 +35,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
@@ -56,12 +62,11 @@ fun SalesScreen(
     val viewModel: SalesViewModel = viewModel()
     val state by viewModel.salesState.collectAsState()
 
-    var selectedTabIndex by remember { mutableStateOf(0) }
-    val totalCount = (state as? ResultState.Success<List<Sale>>)?.data?.size ?: 0
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
     val tabTitles = listOf(
-        "POR VISITAR($totalCount)",
-        "VISITADOS($totalCount)",
-        "PAGADOS($totalCount)"
+        "POR VISITAR",
+        "VISITADOS",
+        "PAGADOS"
     )
 
     var query by remember { mutableStateOf("") }
@@ -75,23 +80,27 @@ fun SalesScreen(
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             bottomBar = {
-                SecondaryTabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = MaterialTheme.colorScheme.background,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    divider = {}) {
-                    tabTitles.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            selectedContentColor = MaterialTheme.colorScheme.primary,
-                            unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        ) {
-                            Text(
-                                text = title,
-                                modifier = Modifier.padding(25.dp),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                Box(modifier = Modifier.navigationBarsPadding()) {
+                    SecondaryTabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        containerColor = MaterialTheme.colorScheme.background,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        divider = {}) {
+                        tabTitles.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTabIndex == index,
+                                onClick = { selectedTabIndex = index },
+                                selectedContentColor = MaterialTheme.colorScheme.primary,
+                                unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(
+                                    alpha = 0.5f
+                                )
+                            ) {
+                                Text(
+                                    text = title,
+                                    modifier = Modifier.padding(25.dp),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
                 }
@@ -107,7 +116,7 @@ fun SalesScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp),
+                            .padding(bottom = 8.dp, top = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
@@ -185,6 +194,22 @@ fun SalesScreen(
                                 it.CLIENTE.contains(query, ignoreCase = true)
                             }
 
+                            val salesToVisit = filteredSales.filter {
+                                it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
+                                        it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE
+                                        || it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
+                            }
+                            val visitedSales =
+                                filteredSales.filter { it.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO }
+                            val paidSale =
+                                filteredSales.filter { it.ESTADO_COBRANZA == EstadoCobranza.PAGADO }
+
+                            val currentList = when (selectedTabIndex) {
+                                0 -> salesToVisit
+                                1 -> visitedSales
+                                else -> paidSale
+                            }
+
                             key(selectedTabIndex) {
                                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                                     items(filteredSales, key = { it.DOCTO_CC_ID }) { sale ->
@@ -193,7 +218,39 @@ fun SalesScreen(
                                             onClick = {
                                                 navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
                                             }
+                                if (currentList.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 32.dp, vertical = 64.dp)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                Color.Transparent,
+                                                RoundedCornerShape(8.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "No hay ventas en ${tabTitles[selectedTabIndex].lowercase()}",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = MaterialTheme.typography.bodyMedium
                                         )
+                                    }
+                                } else {
+                                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                        items(currentList, key = { it.DOCTO_CC_ID }) { sale ->
+                                            SaleItem(
+                                                sale = sale,
+                                                onClick = {
+                                                    query = sale.CLIENTE
+                                                    navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }

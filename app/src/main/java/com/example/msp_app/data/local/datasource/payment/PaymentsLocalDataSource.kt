@@ -1,11 +1,14 @@
 package com.example.msp_app.data.local.datasource.payment;
 
 import android.content.Context
+import androidx.room.Transaction
 import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.entities.PaymentEntity
+import com.example.msp_app.data.models.sale.EstadoCobranza
 
 class PaymentsLocalDataSource(context: Context) {
     private val paymentDao = AppDatabase.getInstance(context).paymentDao()
+    private val saleDao = AppDatabase.getInstance(context).saleDao()
 
     suspend fun getPaymentById(id: String): PaymentEntity {
         return paymentDao.getPaymentById(id)
@@ -17,10 +20,24 @@ class PaymentsLocalDataSource(context: Context) {
 
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity> {
         return paymentDao.getPaymentsByDate(start, end)
+
+    suspend fun savePayment(payment: PaymentEntity) {
+        paymentDao.savePayment(payment)
     }
 
     suspend fun saveAll(payments: List<PaymentEntity>) {
         paymentDao.deleteAll()
         paymentDao.saveAll(payments)
+    }
+
+    @Transaction
+    suspend fun insertPaymentAndUpdateSale(
+        payment: PaymentEntity,
+        saleId: Int,
+        newAmount: Double,
+        newEstadoCobranza: EstadoCobranza
+    ) {
+        paymentDao.savePayment(payment)
+        saleDao.updateTotal(saleId, newAmount, newEstadoCobranza)
     }
 }

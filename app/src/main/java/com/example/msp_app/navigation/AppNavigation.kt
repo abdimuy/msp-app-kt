@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -14,6 +14,7 @@ import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
+import com.example.msp_app.features.sales.screens.MapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
 
@@ -27,12 +28,16 @@ sealed class Screen(val route: String) {
     }
 
     object DailyReport : Screen("daily_reports")
+
+    object Map : Screen("map/{saleId}") {
+        fun createRoute(saleId: Int) = "map/$saleId"
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation() {
-    val authViewModel = remember { AuthViewModel() }
+    val authViewModel: AuthViewModel = viewModel()
     val currentUser by authViewModel.currentUser.collectAsState()
     val navController = rememberNavController()
 
@@ -63,7 +68,8 @@ fun AppNavigation() {
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
                     SaleDetailsScreen(
-                        saleId = saleId
+                        saleId = saleId,
+                        navController = navController
                     )
                 } else {
                     // Manejar el caso en que no se proporciona un ID de venta válido
@@ -72,6 +78,13 @@ fun AppNavigation() {
 
             composable(Screen.DailyReport.route) {
                 DailyReportScreen(navController = navController)
+            }
+            
+            composable(Screen.Map.route) { backStackEntry ->
+                val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
+                if (saleId != null) {
+                    MapScreen(navController = navController, saleId = saleId)
+                }
             }
         }
     }

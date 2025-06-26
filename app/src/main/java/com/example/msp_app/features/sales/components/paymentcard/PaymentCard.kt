@@ -16,6 +16,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,12 +27,42 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.R
 import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import java.time.ZoneOffset
 
 @Composable
 fun PaymentCard(payment: Payment) {
+    val authViewModel: AuthViewModel = viewModel()
+    val userState by authViewModel.userData.collectAsState()
+
+    val user = (userState as? ResultState.Success<User?>)?.data
+
+    val dateInitial = user
+        ?.FECHA_CARGA_INICIAL
+        ?.toDate()
+        ?.toInstant()
+        ?.atZone(ZoneOffset.UTC)
+        ?.toLocalDateTime()
+        ?.let { DateUtils.getIsoDateTime(it) }
+        ?: DateUtils.getIsoDateTime()
+
+    val bgRes = if (
+        DateUtils.isAfterIso(
+            payment.FECHA_HORA_PAGO,
+            dateInitial
+        )
+    ) {
+        R.drawable.bg_gradient_success
+    } else {
+        R.drawable.bg_gradient
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -45,7 +77,10 @@ fun PaymentCard(payment: Payment) {
             contentAlignment = Alignment.Center
         ) {
             Image(
-                painter = painterResource(id = R.drawable.bg_gradient),
+                painter = painterResource(
+                    id = bgRes
+
+                ),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
