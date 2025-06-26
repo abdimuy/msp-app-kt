@@ -1,4 +1,4 @@
-package com.example.msp_app.data.local.datasource.payment;
+package com.example.msp_app.data.local.datasource.payment
 
 import android.content.Context
 import androidx.room.Transaction
@@ -20,6 +20,7 @@ class PaymentsLocalDataSource(context: Context) {
 
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity> {
         return paymentDao.getPaymentsByDate(start, end)
+    }
 
     suspend fun savePayment(payment: PaymentEntity) {
         paymentDao.savePayment(payment)

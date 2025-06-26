@@ -105,11 +105,12 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             _paymentsByDateState.value = ResultState.Loading
 
             val payments = withContext(Dispatchers.IO) {
-
                 paymentStore.getPaymentsByDate(startDate, endDate)
                     .map { it.toDomain() }
             }
             _paymentsByDateState.value = ResultState.Success(payments)
+        }
+    }
 
     fun savePayment(payment: Payment) {
         viewModelScope.launch {
