@@ -76,7 +76,7 @@ fun NewPaymentDialog(
     )
 
     val coroutineScope = rememberCoroutineScope()
-    
+
     val inputDouble = inputValue.toDoubleOrNull()
     errorMessage = when {
         inputValue.isBlank() -> null
@@ -109,6 +109,7 @@ fun NewPaymentDialog(
         coroutineScope.launch {
             try {
                 paymentsViewModel.savePayment(payment)
+                paymentsViewModel.postPaymentRemote(payment)
 
                 inputValue = ""
                 selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
@@ -371,7 +372,7 @@ fun NewPaymentDialog(
                                 style = TextStyle(
                                     fontSize = 36.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF4CAF50) // Cambia este color según tu preferencia
+                                    color = Color(0xFF4CAF50)
                                 ),
                                 textAlign = TextAlign.Center
                             )

@@ -1,9 +1,13 @@
 package com.example.msp_app.features.payments.viewmodels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.api.ApiProvider
+import com.example.msp_app.data.api.services.payment.PaymentRequest
+import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.toDomain
@@ -19,6 +23,7 @@ import java.time.format.DateTimeFormatter
 
 class PaymentsViewModel(application: Application) : AndroidViewModel(application) {
     val paymentStore = PaymentsLocalDataSource(application.applicationContext)
+    private val api = ApiProvider.create(PaymentsApi::class.java)
 
     private val _paymentsBySaleIdState =
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
@@ -124,9 +129,20 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                         EstadoCobranza.PAGADO
                     )
                 }
+                getGroupedPaymentsBySaleId(payment.DOCTO_CC_ACR_ID)
                 _savePaymentState.value = ResultState.Success(Unit)
             } catch (e: Exception) {
                 _savePaymentState.value = ResultState.Error(e.message ?: "Error guardando pago")
+            }
+        }
+    }
+
+    fun postPaymentRemote(payment: Payment) {
+        viewModelScope.launch {
+            try {
+                api.savePayment(PaymentRequest(pago = payment))
+            } catch (e: Exception) {
+                Log.e("PaymentsViewModel", "Error posting payment: ${e.message}")
             }
         }
     }
