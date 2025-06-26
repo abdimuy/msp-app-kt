@@ -52,11 +52,9 @@ import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
-import java.text.SimpleDateFormat
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.util.Date
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,21 +66,21 @@ fun DailyReportScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var textDate by remember { mutableStateOf(TextFieldValue("")) }
     val datePickerState = rememberDatePickerState()
-    val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()) }
-    val queryDateFormat = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
     val scrollState = rememberScrollState()
-    val paymentsState by viewModel.paymentsBySaleIdState.collectAsState()
+    val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
 
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
-        datePickerState.selectedDateMillis?.let {
-            val date = Date(it)
-            val formattedText = dateFormat.format(date)
+        datePickerState.selectedDateMillis?.let { millis ->
+            val localDate = java.time.Instant.ofEpochMilli(millis)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalDate()
+            val isoDate = localDate.toString() + "T00:00:00"
+            val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale.getDefault())
             textDate = TextFieldValue(formattedText)
-            val queryDate = queryDateFormat.format(date)
-            val startDateTime = "${queryDate}T00:00:00"
-            val endDateTime = "${queryDate}T23:59:59"
+            val startDateTime = "${localDate}T00:00:00"
+            val endDateTime = "${localDate}T23:59:59"
             viewModel.getPaymentsByDate(startDateTime, endDateTime)
             showDatePicker = false
         }

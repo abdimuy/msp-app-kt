@@ -27,6 +27,10 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     val paymentBySaleIdGroupedState: StateFlow<ResultState<Map<String, List<Payment>>>> =
         _paymentBySaleIdGroupedState
 
+    private val _paymentsByDateState =
+        MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
+    val paymentsByDateState: StateFlow<ResultState<List<Payment>>> = _paymentsByDateState
+
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
@@ -92,14 +96,14 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
 
     fun getPaymentsByDate(startDate: String, endDate: String) {
         viewModelScope.launch {
-            _paymentsBySaleIdState.value = ResultState.Loading
+            _paymentsByDateState.value = ResultState.Loading
 
             val payments = withContext(Dispatchers.IO) {
-                
+
                 paymentStore.getPaymentsByDate(startDate, endDate)
                     .map { it.toDomain() }
             }
-            _paymentsBySaleIdState.value = ResultState.Success(payments)
+            _paymentsByDateState.value = ResultState.Success(payments)
         }
     }
 }
