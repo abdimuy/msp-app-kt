@@ -90,15 +90,13 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun getPaymentsByDate(date: String) {
+    fun getPaymentsByDate(startDate: String, endDate: String) {
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
 
             val payments = withContext(Dispatchers.IO) {
-                val startDateTime = "${date}T00:00:00"
-                val endDateTime = "${date}T23:59:59"
-
-                paymentStore.getPaymentsByDate(startDateTime, endDateTime)
+                
+                paymentStore.getPaymentsByDate(startDate, endDate)
                     .map { it.toDomain() }
             }
             _paymentsBySaleIdState.value = ResultState.Success(payments)

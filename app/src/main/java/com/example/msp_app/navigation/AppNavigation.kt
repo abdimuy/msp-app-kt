@@ -26,7 +26,7 @@ sealed class Screen(val route: String) {
         fun createRoute(saleId: Int) = "sale/sale_details/$saleId"
     }
 
-    object DailyReport : Screen("daily reports")
+    object DailyReport : Screen("daily_reports")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -72,7 +72,7 @@ fun DrawerContainer(
                             label = { Text("Reportes Diarios") },
                             selected = true,
                             onClick = {
-                                navController.navigate("daily reports") {
+                                navController.navigate("daily_reports") {
                                     popUpTo("Home")
                                 }
                             }

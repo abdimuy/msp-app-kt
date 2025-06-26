@@ -81,7 +81,9 @@ fun DailyReportScreen(
             val formattedText = dateFormat.format(date)
             textDate = TextFieldValue(formattedText)
             val queryDate = queryDateFormat.format(date)
-            viewModel.getPaymentsByDate(queryDate)
+            val startDateTime = "${queryDate}T00:00:00"
+            val endDateTime = "${queryDate}T23:59:59"
+            viewModel.getPaymentsByDate(startDateTime, endDateTime)
             showDatePicker = false
         }
     }
