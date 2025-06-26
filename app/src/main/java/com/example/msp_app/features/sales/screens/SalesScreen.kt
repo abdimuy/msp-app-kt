@@ -1,5 +1,7 @@
 package com.example.msp_app.features.sales.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -208,15 +211,39 @@ fun SalesScreen(
                             }
 
                             key(selectedTabIndex) {
-                                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                                    items(currentList, key = { it.DOCTO_CC_ID }) { sale ->
-                                        SaleItem(
-                                            sale = sale,
-                                            onClick = {
-                                                query = sale.CLIENTE
-                                                navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
-                                            }
+                                if (currentList.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 32.dp, vertical = 64.dp)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                Color.Transparent,
+                                                RoundedCornerShape(8.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "No hay ventas en ${tabTitles[selectedTabIndex].lowercase()}",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            style = MaterialTheme.typography.bodyMedium
                                         )
+                                    }
+                                } else {
+                                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                        items(currentList, key = { it.DOCTO_CC_ID }) { sale ->
+                                            SaleItem(
+                                                sale = sale,
+                                                onClick = {
+                                                    query = sale.CLIENTE
+                                                    navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
