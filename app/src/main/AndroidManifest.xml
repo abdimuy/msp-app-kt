@@ -35,7 +35,7 @@
         </activity>
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="${MAPS_API_KEY}" />
+            android:value="AIzaSyCASwsCJvFm7dGajUWlVg19PmS8JVPqRaY" />
     </application>
 
     <uses-permission android:name="android.permission.CALL_PHONE" />
