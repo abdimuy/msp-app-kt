@@ -13,6 +13,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.home.screens.HomeScreen
+import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.sales.screens.MapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
@@ -25,6 +26,8 @@ sealed class Screen(val route: String) {
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sale/sale_details/$saleId"
     }
+
+    object DailyReport : Screen("daily_reports")
 
     object Map : Screen("map/{saleId}") {
         fun createRoute(saleId: Int) = "map/$saleId"
@@ -73,13 +76,16 @@ fun AppNavigation() {
                 }
             }
 
+            composable(Screen.DailyReport.route) {
+                DailyReportScreen(navController = navController)
+            }
+            
             composable(Screen.Map.route) { backStackEntry ->
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
                     MapScreen(navController = navController, saleId = saleId)
                 }
             }
-
         }
     }
 }

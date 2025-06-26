@@ -32,6 +32,10 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     private val _savePaymentState = MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
     val savePaymentState: StateFlow<ResultState<Unit>> = _savePaymentState
 
+    private val _paymentsByDateState =
+        MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
+    val paymentsByDateState: StateFlow<ResultState<List<Payment>>> = _paymentsByDateState
+
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
@@ -95,6 +99,17 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    fun getPaymentsByDate(startDate: String, endDate: String) {
+        viewModelScope.launch {
+            _paymentsByDateState.value = ResultState.Loading
+
+            val payments = withContext(Dispatchers.IO) {
+
+                paymentStore.getPaymentsByDate(startDate, endDate)
+                    .map { it.toDomain() }
+            }
+            _paymentsByDateState.value = ResultState.Success(payments)
 
     fun savePayment(payment: Payment) {
         viewModelScope.launch {

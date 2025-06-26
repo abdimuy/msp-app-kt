@@ -18,6 +18,9 @@ class PaymentsLocalDataSource(context: Context) {
         return paymentDao.getPaymentsBySaleId(saleId)
     }
 
+    suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity> {
+        return paymentDao.getPaymentsByDate(start, end)
+
     suspend fun savePayment(payment: PaymentEntity) {
         paymentDao.savePayment(payment)
     }

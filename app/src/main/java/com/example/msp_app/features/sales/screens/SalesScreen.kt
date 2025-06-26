@@ -211,6 +211,13 @@ fun SalesScreen(
                             }
 
                             key(selectedTabIndex) {
+                                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                                    items(filteredSales, key = { it.DOCTO_CC_ID }) { sale ->
+                                        SaleItem(
+                                            sale = sale,
+                                            onClick = {
+                                                navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
+                                            }
                                 if (currentList.isEmpty()) {
                                     Box(
                                         modifier = Modifier
