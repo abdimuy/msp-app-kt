@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -76,23 +77,27 @@ fun SalesScreen(
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             bottomBar = {
-                SecondaryTabRow(
-                    selectedTabIndex = selectedTabIndex,
-                    containerColor = MaterialTheme.colorScheme.background,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    divider = {}) {
-                    tabTitles.forEachIndexed { index, title ->
-                        Tab(
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index },
-                            selectedContentColor = MaterialTheme.colorScheme.primary,
-                            unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                        ) {
-                            Text(
-                                text = title,
-                                modifier = Modifier.padding(25.dp),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                Box(modifier = Modifier.navigationBarsPadding()) {
+                    SecondaryTabRow(
+                        selectedTabIndex = selectedTabIndex,
+                        containerColor = MaterialTheme.colorScheme.background,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        divider = {}) {
+                        tabTitles.forEachIndexed { index, title ->
+                            Tab(
+                                selected = selectedTabIndex == index,
+                                onClick = { selectedTabIndex = index },
+                                selectedContentColor = MaterialTheme.colorScheme.primary,
+                                unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(
+                                    alpha = 0.5f
+                                )
+                            ) {
+                                Text(
+                                    text = title,
+                                    modifier = Modifier.padding(25.dp),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
                         }
                     }
                 }
@@ -108,7 +113,7 @@ fun SalesScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp),
+                            .padding(bottom = 8.dp, top = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
