@@ -71,8 +71,8 @@ fun HomeScreen(navController: NavController) {
     authViewModel.currentUser.collectAsState().value
     authViewModel.userData.collectAsState().value
 
-    val viewModel: SalesViewModel = viewModel()
-    val state by viewModel.salesState.collectAsState()
+    val salesViewModel: SalesViewModel = viewModel()
+    val salesState by salesViewModel.salesState.collectAsState()
 
     val isDark = isSystemInDarkTheme()
 
@@ -91,7 +91,6 @@ fun HomeScreen(navController: NavController) {
     )
 
     DrawerContainer(navController = navController) { openDrawer ->
-
         Scaffold(
             content = { innerPadding ->
 
@@ -379,26 +378,26 @@ fun HomeScreen(navController: NavController) {
                         }
                         Spacer(Modifier.height(14.dp))
 
-                        Buttons(text = "Descargar ventas", onClick = { viewModel.syncSales() })
+                        Buttons(text = "Descargar ventas", onClick = { salesViewModel.syncSales() })
 
-                        when (state) {
+                        when (salesState) {
                             is ResultState.Idle -> {
                                 Text("Presiona el botón para descargar ventas")
                             }
 
                             is ResultState.Loading -> CircularProgressIndicator()
 
-                            is ResultState.Success -> Text("Ventas descargadas: ${(state as ResultState.Success<List<*>>).data.size}")
-                            is ResultState.Error -> Text("Error: ${(state as ResultState.Error).message}")
+                            is ResultState.Success -> Text("Ventas descargadas: ${(salesState as ResultState.Success<List<*>>).data.size}")
+                            is ResultState.Error -> Text("Error: ${(salesState as ResultState.Error).message}")
                         }
 
-                        Buttons(text = "Enviar Pagos Pendientes", onClick = { viewModel })
+                        Buttons(text = "Enviar Pagos Pendientes", onClick = { salesViewModel })
 
-                        Buttons(text = "Reenviar todos los pagos", onClick = { viewModel })
+                        Buttons(text = "Reenviar todos los pagos", onClick = { salesViewModel })
 
-                        Buttons(text = "Cerrar sesión", onClick = { viewModel })
+                        Buttons(text = "Cerrar sesión", onClick = { salesViewModel })
 
-                        Buttons(text = "Inicializar semana de Cobro", onClick = { viewModel })
+                        Buttons(text = "Inicializar semana de Cobro", onClick = { salesViewModel })
                     }
                 }
             },
