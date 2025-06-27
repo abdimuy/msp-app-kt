@@ -109,7 +109,6 @@ fun NewPaymentDialog(
         coroutineScope.launch {
             try {
                 paymentsViewModel.savePayment(payment)
-                paymentsViewModel.postPaymentRemote(payment)
 
                 inputValue = ""
                 selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
@@ -208,7 +207,8 @@ fun NewPaymentDialog(
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
                 textStyle = TextStyle(fontSize = 20.sp),
-                isError = errorMessage != null
+                isError = errorMessage != null,
+                maxLines = 1,
             )
 
             if (errorMessage != null) {

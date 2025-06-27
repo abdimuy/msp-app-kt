@@ -122,7 +122,7 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             _savePaymentState.value = ResultState.Loading
             try {
                 withContext(Dispatchers.IO) {
-                    paymentStore.insertPaymentAndUpdateSale(
+                    paymentStore.saveAndEnqueue(
                         payment.toEntity(),
                         payment.DOCTO_CC_ACR_ID,
                         payment.IMPORTE,

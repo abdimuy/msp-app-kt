@@ -5,8 +5,9 @@ import androidx.room.Transaction
 import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.models.sale.EstadoCobranza
+import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 
-class PaymentsLocalDataSource(context: Context) {
+class PaymentsLocalDataSource(private val context: Context) {
     private val paymentDao = AppDatabase.getInstance(context).paymentDao()
     private val saleDao = AppDatabase.getInstance(context).saleDao()
 
@@ -31,6 +32,17 @@ class PaymentsLocalDataSource(context: Context) {
         paymentDao.saveAll(payments)
     }
 
+    suspend fun getPendingPayments(): List<PaymentEntity> {
+        return paymentDao.getPendingPayments()
+    }
+
+    suspend fun changePaymentStatus(id: String, status: Boolean) {
+        paymentDao.updateEstado(
+            id,
+            if (status) 1 else 0
+        )
+    }
+
     @Transaction
     suspend fun insertPaymentAndUpdateSale(
         payment: PaymentEntity,
@@ -40,5 +52,15 @@ class PaymentsLocalDataSource(context: Context) {
     ) {
         paymentDao.savePayment(payment)
         saleDao.updateTotal(saleId, newAmount, newEstadoCobranza)
+    }
+
+    suspend fun saveAndEnqueue(
+        payment: PaymentEntity,
+        saleId: Int,
+        newAmount: Double,
+        newEstadoCobranza: EstadoCobranza
+    ) {
+        insertPaymentAndUpdateSale(payment, saleId, newAmount, newEstadoCobranza)
+        enqueuePendingPaymentsWorker(context)
     }
 }

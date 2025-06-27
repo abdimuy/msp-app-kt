@@ -76,6 +76,9 @@ interface PaymentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePayment(payment: PaymentEntity)
 
+    @Query("UPDATE Payment SET GUARDADO_EN_MICROSIP = :newEstado WHERE id = :id")
+    suspend fun updateEstado(id: String, newEstado: Int)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)
 
