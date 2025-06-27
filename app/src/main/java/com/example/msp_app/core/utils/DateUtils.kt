@@ -3,7 +3,10 @@ package com.example.msp_app.core.utils
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Date
 import java.util.Locale
 
 object DateUtils {
@@ -22,20 +25,19 @@ object DateUtils {
         locale: Locale = Locale("es", "MX")
     ): String {
         return try {
-            val parsed = when {
-                iso.contains("T") && iso.endsWith("Z") ->
-                    OffsetDateTime.parse(iso)
-                        .toLocalDateTime()
-
-                iso.contains("T") ->
-                    LocalDateTime.parse(iso)
-
-                else ->
-                    LocalDate.parse(iso).atStartOfDay()
+            // 1. Parsear con zona UTC si viene con "Z"
+            val offset = when {
+                iso.endsWith("Z") -> OffsetDateTime.parse(iso)
+                iso.contains("T") -> LocalDateTime.parse(iso).atOffset(ZoneOffset.UTC)
+                else -> LocalDate.parse(iso).atStartOfDay().atOffset(ZoneOffset.UTC)
             }
-
-            val formatter = DateTimeFormatter.ofPattern(pattern, locale)
-            parsed.format(formatter)
+            // 2. Convertir a zona local
+            val zonedLocal = offset.atZoneSameInstant(ZoneId.systemDefault())
+            // 3. Formatear con patrón, locale y zona
+            val formatter = DateTimeFormatter
+                .ofPattern(pattern, locale)
+                .withZone(ZoneId.systemDefault())
+            formatter.format(zonedLocal)
         } catch (e: Exception) {
             iso
         }
@@ -51,6 +53,10 @@ object DateUtils {
         val formatter = DateTimeFormatter.ISO_INSTANT
         val zoned = (dateTime ?: LocalDateTime.now()).atZone(java.time.ZoneOffset.UTC)
         return formatter.format(zoned)
+    }
+
+    fun getCurrentDate(): LocalDate {
+        return LocalDate.now(ZoneId.systemDefault())
     }
 
     /**
@@ -86,7 +92,7 @@ object DateUtils {
      * @param iso2 Segunda fecha en formato ISO
      * @return true si son iguales, false en caso contrario
      */
-    private fun parseIsoToDateTime(iso: String): LocalDateTime {
+    fun parseIsoToDateTime(iso: String): LocalDateTime {
         return when {
             iso.contains("T") && iso.endsWith("Z") ->
                 OffsetDateTime.parse(iso).toLocalDateTime()
@@ -97,5 +103,16 @@ object DateUtils {
             else ->
                 LocalDate.parse(iso).atStartOfDay()
         }
+    }
+
+    /**
+     * Convierte un objeto Date a una cadena en formato ISO 8601.
+     *
+     * @return Fecha en formato ISO 8601 (ej. "2024-07-10T15:30:00Z")
+     */
+    fun parseDateToIso(date: Date?): String {
+        if (date == null) return getIsoDateTime()
+        val localDateTime = date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime()
+        return getIsoDateTime(localDateTime)
     }
 }
