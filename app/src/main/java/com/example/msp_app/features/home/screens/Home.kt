@@ -55,6 +55,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -102,6 +103,8 @@ fun HomeScreen(navController: NavController) {
     var selectedDateLabel by remember { mutableStateOf("") }
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
+    val isDark = isSystemInDarkTheme()
+
     val startWeekDate = DateUtils.parseDateToIso(
         (userDataState as? ResultState.Success<User?>)
             ?.data
@@ -125,8 +128,17 @@ fun HomeScreen(navController: NavController) {
         else -> 0.0 to 0
     }
 
-    val isDark = isSystemInDarkTheme()
+    val totalTodayPayments = paymentsGroupedByDayWeekly
+        .takeIf { it is ResultState.Success }
+        ?.let { (it as ResultState.Success<Map<String, List<Payment>>>).data }
+        ?.get(LocalDate.now().toString())
+        ?.sumOf { it.IMPORTE } ?: 0.0
 
+    val numberOfPaymentsToday = paymentsGroupedByDayWeekly
+        .takeIf { it is ResultState.Success }
+        ?.let { (it as ResultState.Success<Map<String, List<Payment>>>).data }
+        ?.get(LocalDate.now().toString())
+        ?.size ?: 0
 
     val userData = when (userDataState) {
         is ResultState.Success -> (userDataState as ResultState.Success<User?>).data
@@ -222,7 +234,10 @@ fun HomeScreen(navController: NavController) {
                                     ) {
                                         PaymentInfoCollector(
                                             label = "Total Cobrado (Hoy)",
-                                            value = "$8"
+                                            value = totalTodayPayments.toCurrency(noDecimals = true),
+                                        )
+                                        Spacer(
+                                            modifier = Modifier.height(8.dp)
                                         )
                                         PaymentInfoCollector(
                                             label = "Total cobrado (semanal)",
@@ -235,8 +250,11 @@ fun HomeScreen(navController: NavController) {
                                     ) {
                                         PaymentInfoCollector(
                                             label = "Pagos (Hoy)",
-                                            value = "0",
+                                            value = "$numberOfPaymentsToday",
                                             horizontalAlignment = Alignment.End
+                                        )
+                                        Spacer(
+                                            modifier = Modifier.height(8.dp)
                                         )
                                         PaymentInfoCollector(
                                             label = "Pagos (semanal)",
@@ -593,6 +611,8 @@ fun PaymentInfoCollector(
             color = Color.Gray,
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = value,
