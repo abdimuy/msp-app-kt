@@ -51,7 +51,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 val sales = salesData.body.ventas
                 val products = salesData.body.productos
                 val payments = salesData.body.pagos
-                payments
+                
                 saleStore.saveAll(sales.map { it.toEntity() })
                 productStore.saveAll(products.map { it.toEntity() })
                 paymentStore.saveAll(payments.map { it.toEntity() })
