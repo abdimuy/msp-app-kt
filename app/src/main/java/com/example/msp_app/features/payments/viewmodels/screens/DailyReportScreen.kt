@@ -314,7 +314,7 @@ fun PaymentItem(payment: Payment, variant: PaymentItemVariant = PaymentItemVaria
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp)
                 )
-                .padding(12.dp),
+                .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
@@ -327,7 +327,7 @@ fun PaymentItem(payment: Payment, variant: PaymentItemVariant = PaymentItemVaria
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(0.dp))
                 Text(
                     text = payment.NOMBRE_CLIENTE,
                     maxLines = 1,
