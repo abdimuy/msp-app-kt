@@ -53,25 +53,47 @@ interface PaymentDao {
 
     @Query(
         """SELECT 
-        ID,
-        COBRADOR,
-        DOCTO_CC_ACR_ID,
-        DOCTO_CC_ID,
-        FECHA_HORA_PAGO,
-        GUARDADO_EN_MICROSIP,
-        IMPORTE,
-        LAT,
-        LNG,
-        CLIENTE_ID,
-        COBRADOR_ID,
-        FORMA_COBRO_ID,
-        ZONA_CLIENTE_ID,
-        NOMBRE_CLIENTE
-    FROM Payment
-    WHERE FECHA_HORA_PAGO BETWEEN :start  AND :end 
-    ORDER BY FECHA_HORA_PAGO DESC"""
+                ID,
+                COBRADOR,
+                DOCTO_CC_ACR_ID,
+                DOCTO_CC_ID,
+                FECHA_HORA_PAGO,
+                GUARDADO_EN_MICROSIP,
+                IMPORTE,
+                LAT,
+                LNG,
+                CLIENTE_ID,
+                COBRADOR_ID,
+                FORMA_COBRO_ID,
+                ZONA_CLIENTE_ID,
+                NOMBRE_CLIENTE
+            FROM Payment
+            WHERE FECHA_HORA_PAGO BETWEEN :start  AND :end 
+            ORDER BY FECHA_HORA_PAGO DESC"""
     )
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity>
+
+    @Query(
+        """SELECT 
+                ID,
+                COBRADOR,
+                DOCTO_CC_ACR_ID,
+                DOCTO_CC_ID,
+                FECHA_HORA_PAGO,
+                GUARDADO_EN_MICROSIP,
+                IMPORTE,
+                LAT,
+                LNG,
+                CLIENTE_ID,
+                COBRADOR_ID,
+                FORMA_COBRO_ID,
+                ZONA_CLIENTE_ID,
+                NOMBRE_CLIENTE
+            FROM Payment
+            WHERE GUARDADO_EN_MICROSIP = 0
+            ORDER BY FECHA_HORA_PAGO ASC"""
+    )
+    suspend fun getPendingPayments(): List<PaymentEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePayment(payment: PaymentEntity)
