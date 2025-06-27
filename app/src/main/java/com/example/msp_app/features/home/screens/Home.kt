@@ -2,6 +2,9 @@ package com.example.msp_app.features.home.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,11 +18,14 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,16 +37,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,10 +63,17 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.auth.User
+import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.features.payments.screens.PaymentItem
+import com.example.msp_app.features.payments.screens.PaymentItemVariant
+import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import java.time.LocalDate
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 
@@ -68,15 +87,44 @@ fun HomeScreen(navController: NavController) {
     }
 
     val authViewModel = LocalAuthViewModel.current
-    authViewModel.currentUser.collectAsState().value
-    authViewModel.userData.collectAsState().value
 
     val salesViewModel: SalesViewModel = viewModel()
     val salesState by salesViewModel.salesState.collectAsState()
 
-    val isDark = isSystemInDarkTheme()
+    val paymentsViewModel: PaymentsViewModel = viewModel()
+    val paymentsGroupedByDayWeekly: ResultState<Map<String, List<Payment>>> by paymentsViewModel.paymentsGroupedByDayWeeklyState.collectAsState()
 
     val userDataState by authViewModel.userData.collectAsState()
+
+    var showPaymentsDialog by remember { mutableStateOf(false) }
+    var selectedDateLabel by remember { mutableStateOf("") }
+    var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
+
+    val startWeekDate = DateUtils.parseDateToIso(
+        (userDataState as? ResultState.Success<User?>)
+            ?.data
+            ?.FECHA_CARGA_INICIAL
+            ?.toDate()
+    )
+
+    LaunchedEffect(startWeekDate) {
+        paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+    }
+
+    val (totalWeeklyPayments, numberOfPaymentsWeekly) = when (val result =
+        paymentsGroupedByDayWeekly) {
+        is ResultState.Success ->
+            result.data.values
+                .flatten()
+                .fold(0.0 to 0) { (sum, count), payment ->
+                    (sum + payment.IMPORTE) to (count + 1)
+                }
+
+        else -> 0.0 to 0
+    }
+
+    val isDark = isSystemInDarkTheme()
+
 
     val userData = when (userDataState) {
         is ResultState.Success -> (userDataState as ResultState.Success<User?>).data
@@ -127,8 +175,8 @@ fun HomeScreen(navController: NavController) {
                                 color = Color.LightGray
                             )
                             Text(
-                                text = userData?.NOMBRE ?: "Usuario no encontrado",
-                                style = MaterialTheme.typography.titleLarge,
+                                text = userData?.NOMBRE ?: "-",
+                                fontSize = 20.sp,
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
                             )
@@ -139,7 +187,7 @@ fun HomeScreen(navController: NavController) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         modifier = Modifier
                             .fillMaxWidth()
-
+                            .offset(y = (-40).dp)
                     ) {
                         OutlinedCard(
                             elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
@@ -156,7 +204,6 @@ fun HomeScreen(navController: NavController) {
                                     MaterialTheme.colorScheme.background,
                                     RoundedCornerShape(16.dp)
                                 )
-                                .offset(y = (-40).dp)
                         ) {
                             Column(
                                 modifier = Modifier
@@ -177,7 +224,7 @@ fun HomeScreen(navController: NavController) {
                                         )
                                         PaymentInfoCollector(
                                             label = "Total cobrado (semanal)",
-                                            value = "$450"
+                                            value = totalWeeklyPayments.toCurrency(noDecimals = true),
                                         )
                                     }
                                     Column(
@@ -191,7 +238,7 @@ fun HomeScreen(navController: NavController) {
                                         )
                                         PaymentInfoCollector(
                                             label = "Pagos (semanal)",
-                                            value = "3",
+                                            value = "$numberOfPaymentsWeekly",
                                             horizontalAlignment = Alignment.End
                                         )
                                     }
@@ -212,24 +259,27 @@ fun HomeScreen(navController: NavController) {
                                         ),
                                         elevation = CardDefaults.cardElevation(8.dp)
                                     ) {
-                                        Box(
+                                        Column(
                                             modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 text = "Porcentaje (Cuentas)",
                                                 color = Color.White,
                                                 modifier = Modifier
-                                                    .align(Alignment.TopCenter)
                                                     .padding(top = 8.dp),
-                                                fontSize = 16.sp
+                                                fontSize = 14.sp,
+                                                textAlign = TextAlign.Center
                                             )
                                             Text(
                                                 text = "1.01%",
                                                 fontWeight = FontWeight.ExtraBold,
                                                 fontSize = 22.sp,
                                                 color = Color.White,
-                                                modifier = Modifier.offset(y = 10.dp)
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 10.dp)
+                                                    .align(Alignment.CenterHorizontally),
+                                                textAlign = TextAlign.Center
                                             )
                                         }
                                     }
@@ -255,7 +305,7 @@ fun HomeScreen(navController: NavController) {
                                                 modifier = Modifier
                                                     .align(Alignment.TopCenter)
                                                     .padding(top = 8.dp),
-                                                fontSize = 16.sp
+                                                fontSize = 14.sp
                                             )
                                             Text(
                                                 text = buildAnnotatedString {
@@ -279,51 +329,105 @@ fun HomeScreen(navController: NavController) {
                                         }
                                     }
                                 }
+                            }
+                        }
 
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(100.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color(
-                                            0xFF56DA6A
-                                        )
-                                    ),
-                                    elevation = CardDefaults.cardElevation(8.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "Porcentaje (Cobro)",
-                                            color = Color.White,
+                        Spacer(Modifier.height(20.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            when (paymentsGroupedByDayWeekly) {
+//                                is ResultState.Loading -> CircularProgressIndicator()
+                                is ResultState.Error -> Text(
+                                    text = "Error al cargar pagos: ${(paymentsGroupedByDayWeekly as ResultState.Error).message}",
+                                    color = Color.Red
+                                )
+
+                                is ResultState.Success -> {
+                                    val paymentsMap: Map<String, List<Payment>> =
+                                        when (val result = paymentsGroupedByDayWeekly) {
+                                            is ResultState.Success -> result.data
+                                            else -> emptyMap()
+                                        }
+
+                                    paymentsMap.forEach { (date, payments) ->
+                                        val total = payments.sumOf { it.IMPORTE }
+                                        val count = payments.size
+                                        val formattedDate = LocalDate.parse(date).format(
+                                            DateTimeFormatter.ofPattern(
+                                                "EEE dd/MM", Locale("es", "MX")
+                                            )
+                                        ).uppercase()
+
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
+                                            ),
                                             modifier = Modifier
-                                                .align(Alignment.TopCenter)
-                                                .padding(top = 8.dp),
-                                            fontSize = 16.sp
-                                        )
-                                        Text(
-                                            text = "1.01%",
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 22.sp,
-                                            color = Color.White,
-                                            modifier = Modifier.offset(y = 10.dp)
-                                        )
+                                                .width(100.dp)
+                                                .height(100.dp)
+                                                .clickable {
+                                                    selectedDateLabel = formattedDate
+                                                    selectedPayments = payments
+                                                    showPaymentsDialog = true
+                                                }
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = if (isDark) Color.Gray else Color(
+                                                        0xFFE0E0E0
+                                                    ),
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ),
+                                            elevation = CardDefaults.cardElevation(4.dp),
+                                        ) {
+                                            Column(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                            ) {
+                                                Text(
+                                                    text = formattedDate,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = total.toCurrency(noDecimals = true),
+                                                    fontSize = 16.sp
+                                                )
+                                                Text(
+                                                    text = "$count pagos",
+                                                    fontSize = 12.sp,
+                                                    color = Color.Gray
+                                                )
+                                            }
+                                        }
                                     }
                                 }
 
-                                Text(
-                                    text = buildAnnotatedString {
-                                        append("Inicio de semana: ")
-                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                            append(startDate)
-                                        }
-                                    },
-                                    fontSize = 16.sp,
-                                )
+                                else -> {}
                             }
+
                         }
+
+                        Spacer(Modifier.height(20.dp))
+
+                        Text(
+                            text = buildAnnotatedString {
+                                append("Inicio de semana: ")
+                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                    append(startDate.uppercase())
+                                }
+                            },
+                            fontSize = 16.sp,
+                        )
+
+                        Spacer(Modifier.height(20.dp))
 
                         OutlinedCard(
                             elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
@@ -402,6 +506,25 @@ fun HomeScreen(navController: NavController) {
                 }
             },
         )
+
+        if (showPaymentsDialog) {
+            AlertDialog(
+                onDismissRequest = { showPaymentsDialog = false },
+                title = { Text("Pagos de $selectedDateLabel") },
+                text = {
+                    LazyColumn {
+                        items(selectedPayments) { payment ->
+                            PaymentItem(payment = payment, variant = PaymentItemVariant.COMPACT)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showPaymentsDialog = false }) {
+                        Text("Cerrar")
+                    }
+                }
+            )
+        }
     }
 }
 

@@ -41,6 +41,11 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
     val paymentsByDateState: StateFlow<ResultState<List<Payment>>> = _paymentsByDateState
 
+    private val _paymentsGroupedByDayWeeklyState =
+        MutableStateFlow<ResultState<Map<String, List<Payment>>>>(ResultState.Idle)
+    val paymentsGroupedByDayWeeklyState: StateFlow<ResultState<Map<String, List<Payment>>>> =
+        _paymentsGroupedByDayWeeklyState
+
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
@@ -114,6 +119,22 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                     .map { it.toDomain() }
             }
             _paymentsByDateState.value = ResultState.Success(payments)
+        }
+    }
+
+    fun getPaymentsGroupedByDayWeekly(startWeek: String) {
+        viewModelScope.launch {
+            _paymentsGroupedByDayWeeklyState.value = ResultState.Loading
+            try {
+                val paymentsGrouped = paymentStore.getPaymentsGroupedByDaySince(startWeek)
+                val payments = paymentsGrouped.mapValues { (_, paymentList) ->
+                    paymentList.map { it.toDomain() }
+                }.toSortedMap(compareByDescending { it })
+                _paymentsGroupedByDayWeeklyState.value = ResultState.Success(payments)
+            } catch (e: Exception) {
+                _paymentsGroupedByDayWeeklyState.value =
+                    ResultState.Error(e.message ?: "Error al cargar pagos")
+            }
         }
     }
 

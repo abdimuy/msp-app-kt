@@ -23,6 +23,10 @@ class PaymentsLocalDataSource(private val context: Context) {
         return paymentDao.getPaymentsByDate(start, end)
     }
 
+    suspend fun getPaymentsGroupedByDaySince(startDate: String): Map<String, List<PaymentEntity>> {
+        return paymentDao.getPaymentsGroupedByDaySince(startDate)
+    }
+
     suspend fun savePayment(payment: PaymentEntity) {
         paymentDao.savePayment(payment)
     }

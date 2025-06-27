@@ -1,5 +1,6 @@
 package com.example.msp_app.features.payments.screens
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,7 @@ import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import java.time.LocalDateTime
@@ -175,12 +177,13 @@ fun DailyReportScreen(
                         }
 
                         is ResultState.Success -> {
-                            val pagos = (paymentsState as ResultState.Success<List<Payment>>).data
-                            LaunchedEffect(pagos) {
-                                visiblePayments = pagos
+                            val payments =
+                                (paymentsState as ResultState.Success<List<Payment>>).data
+                            LaunchedEffect(payments) {
+                                visiblePayments = payments
                             }
 
-                            if (pagos.isEmpty()) {
+                            if (payments.isEmpty()) {
                                 Text("No hay pagos para esta fecha.")
                             } else {
                                 val formatter = DateTimeFormatter.ISO_DATE_TIME
@@ -246,50 +249,106 @@ fun DailyReportScreen(
     }
 }
 
-@Composable
-fun PaymentItem(payment: Payment) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-        ) {
-            Text(
-                text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = payment.NOMBRE_CLIENTE,
-                maxLines = 1,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyLarge,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+enum class PaymentItemVariant {
+    DEFAULT,
+    COMPACT
+}
 
-        Box(
+@SuppressLint("DefaultLocale")
+@Composable
+fun PaymentItem(payment: Payment, variant: PaymentItemVariant = PaymentItemVariant.DEFAULT) {
+
+    if (variant == PaymentItemVariant.DEFAULT) {
+        Row(
             modifier = Modifier
-                .padding(start = 8.dp)
-                .align(Alignment.CenterVertically)
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = String.format("$%.0f", payment.IMPORTE),
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+            ) {
+                Text(
+                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = payment.NOMBRE_CLIENTE,
+                    maxLines = 1,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyLarge,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .align(Alignment.CenterVertically)
+            ) {
+                Text(
+                    text = String.format("$%.0f", payment.IMPORTE),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+
+    if (variant == PaymentItemVariant.COMPACT) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+            ) {
+                Text(
+                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = payment.NOMBRE_CLIENTE,
+                    maxLines = 1,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .align(Alignment.CenterVertically)
+            ) {
+                Text(
+                    text = payment.IMPORTE.toCurrency(noDecimals = true),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }

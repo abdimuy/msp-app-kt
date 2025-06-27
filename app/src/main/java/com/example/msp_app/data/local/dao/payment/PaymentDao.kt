@@ -4,7 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.data.local.entities.PaymentEntity
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Dao
 interface PaymentDao {
@@ -94,6 +97,21 @@ interface PaymentDao {
             ORDER BY FECHA_HORA_PAGO ASC"""
     )
     suspend fun getPendingPayments(): List<PaymentEntity>
+
+    suspend fun getPaymentsGroupedByDaySince(startDate: String): Map<String, List<PaymentEntity>> {
+        val endDate = LocalDate
+            .now()
+            .plusDays(100)
+            .format(DateTimeFormatter.ISO_DATE)
+        val payments = getPaymentsByDate(startDate, endDate)
+
+        val paymentsByDay = payments.groupBy {
+            DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "yyyy-MM-dd")
+        }
+        return paymentsByDay.mapValues { (_, paymentList) ->
+            paymentList.sortedByDescending { it.FECHA_HORA_PAGO }
+        }.toSortedMap(compareByDescending { it })
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePayment(payment: PaymentEntity)
