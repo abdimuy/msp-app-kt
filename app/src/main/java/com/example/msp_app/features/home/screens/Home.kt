@@ -400,11 +400,13 @@ fun HomeScreen(navController: NavController) {
                                                 )
                                                 Text(
                                                     text = total.toCurrency(noDecimals = true),
-                                                    fontSize = 16.sp
+                                                    fontSize = 18.sp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold
                                                 )
                                                 Text(
                                                     text = "$count pagos",
-                                                    fontSize = 12.sp,
+                                                    fontSize = 14.sp,
                                                     color = Color.Gray
                                                 )
                                             }
@@ -527,7 +529,8 @@ fun HomeScreen(navController: NavController) {
                         ) { payment ->
                             PaymentItem(
                                 payment = payment,
-                                variant = PaymentItemVariant.COMPACT
+                                variant = PaymentItemVariant.COMPACT,
+                                navController = navController,
                             )
                         }
                     }

@@ -2,16 +2,19 @@ package com.example.msp_app.features.payments.screens
 
 import android.annotation.SuppressLint
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -20,8 +23,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -71,7 +77,6 @@ fun DailyReportScreen(
     val scrollState = rememberScrollState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
-
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
@@ -229,7 +234,11 @@ fun DailyReportScreen(
                                     Spacer(modifier = Modifier.height(2.dp))
 
                                     visiblePayments.forEach { pago ->
-                                        PaymentItem(pago)
+                                        PaymentItem(
+                                            pago,
+                                            variant = PaymentItemVariant.DEFAULT,
+                                            navController = navController
+                                        )
                                     }
                                 }
                             }
@@ -256,7 +265,18 @@ enum class PaymentItemVariant {
 
 @SuppressLint("DefaultLocale")
 @Composable
-fun PaymentItem(payment: Payment, variant: PaymentItemVariant = PaymentItemVariant.DEFAULT) {
+fun PaymentItem(
+    payment: Payment,
+    variant: PaymentItemVariant = PaymentItemVariant.DEFAULT,
+    navController: NavController
+) {
+    val menuExpanded = remember { mutableStateOf(false) }
+
+    fun goToClientDetails() {
+        navController.navigate(
+            "sales/sale_details/${payment.DOCTO_CC_ACR_ID}"
+        )
+    }
 
     if (variant == PaymentItemVariant.DEFAULT) {
         Row(
@@ -296,11 +316,37 @@ fun PaymentItem(payment: Payment, variant: PaymentItemVariant = PaymentItemVaria
                     .align(Alignment.CenterVertically)
             ) {
                 Text(
-                    text = String.format("$%.0f", payment.IMPORTE),
+                    text = payment.IMPORTE.toCurrency(noDecimals = true),
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Más opciones",
+                    modifier = Modifier
+                        .size(30.dp)
+                        .padding(start = 8.dp)
+                        .clickable { menuExpanded.value = true }
+                )
+                DropdownMenu(
+                    expanded = menuExpanded.value,
+                    onDismissRequest = { menuExpanded.value = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ver cliente") },
+                        onClick = {
+                            menuExpanded.value = false
+                            goToClientDetails()
+                        }
+                    )
+                }
             }
         }
     }
@@ -348,6 +394,33 @@ fun PaymentItem(payment: Payment, variant: PaymentItemVariant = PaymentItemVaria
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Más opciones",
+                    modifier = Modifier
+                        .size(30.dp)
+                        .padding(start = 8.dp)
+                        .clickable { menuExpanded.value = true }
+                )
+                DropdownMenu(
+                    expanded = menuExpanded.value,
+                    onDismissRequest = { menuExpanded.value = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ver cliente") },
+                        onClick = {
+                            menuExpanded.value = false
+                            goToClientDetails()
+                        }
+                    )
+                }
             }
         }
     }
