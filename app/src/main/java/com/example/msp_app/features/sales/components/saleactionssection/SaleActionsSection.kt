@@ -22,6 +22,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.SaleActionButton
+import com.example.msp_app.features.visit.components.NewVisitDialog
 
 @Composable
 fun SaleActionSection(sale: Sale) {
@@ -29,6 +30,7 @@ fun SaleActionSection(sale: Sale) {
     val paymentsBySaleIdState by viewModel.paymentsBySaleIdState.collectAsState()
 
     var open by remember { mutableStateOf(false) }
+    var openVisitDialog by remember { mutableStateOf(false) }
 
     val paymentAmounts: List<Int> = if (paymentsBySaleIdState is ResultState.Success) {
         (paymentsBySaleIdState as ResultState.Success).data.map { it.IMPORTE.toInt() }.distinct()
@@ -74,12 +76,17 @@ fun SaleActionSection(sale: Sale) {
                 onClick = { }
             )
 
+            NewVisitDialog(
+                show = openVisitDialog,
+                onDismissRequest = { openVisitDialog = false },
+                sale
+            )
             SaleActionButton(
                 text = "AGREGAR VISITA",
                 backgroundColor = Color(0xFF388E3C),
                 iconRes = R.drawable.visita,
                 modifier = Modifier.weight(0.3f),
-                onClick = { }
+                onClick = { openVisitDialog = true }
             )
         }
     }
