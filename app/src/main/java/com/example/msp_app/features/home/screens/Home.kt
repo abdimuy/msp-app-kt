@@ -69,6 +69,7 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.screens.PaymentItem
 import com.example.msp_app.features.payments.screens.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -105,15 +106,22 @@ fun HomeScreen(navController: NavController) {
 
     val isDark = isSystemInDarkTheme()
 
-    val startWeekDate = DateUtils.parseDateToIso(
-        (userDataState as? ResultState.Success<User?>)
-            ?.data
-            ?.FECHA_CARGA_INICIAL
-            ?.toDate()
-    )
+    val initialDate = (userDataState as? ResultState.Success<User?>)
+        ?.data
+        ?.FECHA_CARGA_INICIAL
+
+    val startWeekDate = remember(initialDate) {
+        DateUtils.parseDateToIso(initialDate?.toDate())
+    }
 
     LaunchedEffect(startWeekDate) {
         paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+        salesViewModel.getLocalSales()
+    }
+
+    val numberOfSales: Int = when (salesState) {
+        is ResultState.Success -> (salesState as ResultState.Success<List<Sale>>).data.size
+        else -> 0
     }
 
     val (totalWeeklyPayments, numberOfPaymentsWeekly) = when (val result =
@@ -151,6 +159,13 @@ fun HomeScreen(navController: NavController) {
         pattern = "EEE. dd/MM/yyyy hh:mm a",
         locale = Locale("es", "MX")
     )
+
+    val accountsPercentage = if (numberOfSales > 0) {
+        (numberOfPaymentsWeekly.toDouble() / numberOfSales.toDouble()) * 100
+    } else 0.0
+
+    val accountsPercentageRounded =
+        String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -240,7 +255,7 @@ fun HomeScreen(navController: NavController) {
                                             modifier = Modifier.height(8.dp)
                                         )
                                         PaymentInfoCollector(
-                                            label = "Total cobrado (semanal)",
+                                            label = "Total cobrado (Semanal)",
                                             value = totalWeeklyPayments.toCurrency(noDecimals = true),
                                         )
                                     }
@@ -257,7 +272,7 @@ fun HomeScreen(navController: NavController) {
                                             modifier = Modifier.height(8.dp)
                                         )
                                         PaymentInfoCollector(
-                                            label = "Pagos (semanal)",
+                                            label = "Pagos (Semanal)",
                                             value = "$numberOfPaymentsWeekly",
                                             horizontalAlignment = Alignment.End
                                         )
@@ -291,7 +306,7 @@ fun HomeScreen(navController: NavController) {
                                                 textAlign = TextAlign.Center
                                             )
                                             Text(
-                                                text = "1.01%",
+                                                text = accountsPercentageRounded,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 fontSize = 22.sp,
                                                 color = Color.White,
@@ -315,36 +330,27 @@ fun HomeScreen(navController: NavController) {
                                         ),
                                         elevation = CardDefaults.cardElevation(8.dp)
                                     ) {
-                                        Box(
+                                        Column(
                                             modifier = Modifier.fillMaxSize(),
-                                            contentAlignment = Alignment.Center
                                         ) {
                                             Text(
-                                                text = "Cntas. cobradas",
+                                                text = "Porcentaje (Cuentas)",
                                                 color = Color.White,
                                                 modifier = Modifier
-                                                    .align(Alignment.TopCenter)
                                                     .padding(top = 8.dp),
-                                                fontSize = 14.sp
+                                                fontSize = 14.sp,
+                                                textAlign = TextAlign.Center
                                             )
                                             Text(
-                                                text = buildAnnotatedString {
-                                                    withStyle(style = SpanStyle(color = Color.White)) {
-                                                        append("3")
-                                                    }
-                                                    withStyle(
-                                                        style = SpanStyle(
-                                                            color = Color.White.copy(
-                                                                alpha = 0.5f
-                                                            )
-                                                        )
-                                                    ) {
-                                                        append("/296")
-                                                    }
-                                                },
-                                                fontSize = 22.sp,
+                                                text = accountsPercentageRounded,
                                                 fontWeight = FontWeight.ExtraBold,
-                                                modifier = Modifier.offset(y = 10.dp)
+                                                fontSize = 22.sp,
+                                                color = Color.White,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 10.dp)
+                                                    .align(Alignment.CenterHorizontally),
+                                                textAlign = TextAlign.Center
                                             )
                                         }
                                     }
@@ -354,87 +360,92 @@ fun HomeScreen(navController: NavController) {
 
                         Spacer(Modifier.height(20.dp))
 
-                        Row(
+                        Box(
                             modifier = Modifier
-                                .padding(horizontal = 16.dp)
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            when (paymentsGroupedByDayWeekly) {
-//                                is ResultState.Loading -> CircularProgressIndicator()
-                                is ResultState.Error -> Text(
-                                    text = "Error al cargar pagos: ${(paymentsGroupedByDayWeekly as ResultState.Error).message}",
-                                    color = Color.Red
-                                )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth(.92f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                when (paymentsGroupedByDayWeekly) {
+                                    is ResultState.Loading -> CircularProgressIndicator()
+                                    is ResultState.Error -> Text(
+                                        text = "Error al cargar pagos: ${(paymentsGroupedByDayWeekly as ResultState.Error).message}",
+                                        color = Color.Red
+                                    )
 
-                                is ResultState.Success -> {
-                                    val paymentsMap: Map<String, List<Payment>> =
-                                        when (val result = paymentsGroupedByDayWeekly) {
-                                            is ResultState.Success -> result.data
-                                            else -> emptyMap()
-                                        }
+                                    is ResultState.Success -> {
+                                        val paymentsMap: Map<String, List<Payment>> =
+                                            when (val result = paymentsGroupedByDayWeekly) {
+                                                is ResultState.Success -> result.data
+                                                else -> emptyMap()
+                                            }
 
-                                    paymentsMap.forEach { (date, payments) ->
-                                        val total = payments.sumOf { it.IMPORTE }
-                                        val count = payments.size
-                                        val formattedDate = LocalDate.parse(date).format(
-                                            DateTimeFormatter.ofPattern(
-                                                "EEE dd/MM", Locale("es", "MX")
-                                            )
-                                        ).uppercase()
+                                        paymentsMap.forEach { (date, payments) ->
+                                            val total = payments.sumOf { it.IMPORTE }
+                                            val count = payments.size
+                                            val formattedDate = LocalDate.parse(date).format(
+                                                DateTimeFormatter.ofPattern(
+                                                    "EEE dd/MM", Locale("es", "MX")
+                                                )
+                                            ).uppercase()
 
-                                        Card(
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
-                                            ),
-                                            modifier = Modifier
-                                                .width(100.dp)
-                                                .height(100.dp)
-                                                .clickable {
-                                                    selectedDateLabel = formattedDate
-                                                    selectedPayments = payments
-                                                    showPaymentsDialog = true
-                                                }
-                                                .border(
-                                                    width = 1.dp,
-                                                    color = if (isDark) Color.Gray else Color(
-                                                        0xFFE0E0E0
-                                                    ),
-                                                    shape = RoundedCornerShape(12.dp)
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
                                                 ),
-                                            elevation = CardDefaults.cardElevation(4.dp),
-                                        ) {
-                                            Column(
                                                 modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(8.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                    .width(100.dp)
+                                                    .height(100.dp)
+                                                    .clickable {
+                                                        selectedDateLabel = formattedDate
+                                                        selectedPayments = payments
+                                                        showPaymentsDialog = true
+                                                    }
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = if (isDark) Color.Gray else Color(
+                                                            0xFFE0E0E0
+                                                        ),
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    ),
+                                                elevation = CardDefaults.cardElevation(4.dp),
                                             ) {
-                                                Text(
-                                                    text = formattedDate,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Text(
-                                                    text = total.toCurrency(noDecimals = true),
-                                                    fontSize = 18.sp,
-                                                    color = MaterialTheme.colorScheme.primary,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Text(
-                                                    text = "$count pagos",
-                                                    fontSize = 14.sp,
-                                                    color = Color.Gray
-                                                )
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(8.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                                ) {
+                                                    Text(
+                                                        text = formattedDate,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = total.toCurrency(noDecimals = true),
+                                                        fontSize = 18.sp,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        text = "$count pagos",
+                                                        fontSize = 14.sp,
+                                                        color = Color.Gray
+                                                    )
+                                                }
                                             }
                                         }
                                     }
+
+                                    else -> {}
                                 }
 
-                                else -> {}
                             }
-
                         }
 
                         Spacer(Modifier.height(20.dp))
