@@ -262,7 +262,8 @@ fun DailyReportScreen(
                                                         data = paymentTextData,
                                                         title = "REPORTE DE PAGOS DIARIOS",
                                                         nameCollector = visiblePayments.firstOrNull()?.COBRADOR
-                                                            ?: "No especificado"
+                                                            ?: "No especificado",
+                                                        fileName = "reporte_diario.pdf"
                                                     )
                                                 }
 

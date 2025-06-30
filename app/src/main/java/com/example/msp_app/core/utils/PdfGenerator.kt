@@ -17,7 +17,8 @@ object PdfGenerator {
         context: Context,
         data: PaymentTextData,
         title: String,
-        nameCollector: String
+        nameCollector: String,
+        fileName: String
     ): File? {
         val pdfDocument = PdfDocument()
         val paint = Paint().apply {
@@ -98,7 +99,7 @@ object PdfGenerator {
 
         pdfDocument.finishPage(page)
 
-        val file = File(context.cacheDir, "reporte_pagos.pdf")
+        val file = File(context.cacheDir, fileName)
         pdfDocument.writeTo(FileOutputStream(file))
         pdfDocument.close()
         return file
