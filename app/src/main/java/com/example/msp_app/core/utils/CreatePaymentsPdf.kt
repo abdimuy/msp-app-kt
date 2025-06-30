@@ -13,9 +13,32 @@ import java.util.Locale
 
 object CreatePaymentsPdf {
 
-    fun createPaymentsPdf(
+    data class PaymentTextData(
+        val lines: List<Triple<String, String, Double>>,
+        val totalCount: Int,
+        val totalAmount: Double
+    )
+
+    fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
+        val lines = payments.map { pago ->
+            val formattedDate = DateUtils.formatIsoDate(
+                pago.FECHA_HORA_PAGO,
+                "dd/MM/yyyy hh:mm a",
+                Locale("es", "MX")
+            )
+            Triple(formattedDate, pago.NOMBRE_CLIENTE, pago.IMPORTE)
+        }
+
+        val totalCount = payments.size
+        val totalAmount = payments.sumOf { it.IMPORTE }
+
+        return PaymentTextData(lines, totalCount, totalAmount)
+    }
+
+    fun generatePdfFromLines(
         context: Context,
-        payments: List<Payment>,
+        data: PaymentTextData,
+        title: String,
         nameCollector: String
     ): File? {
         val pdfDocument = PdfDocument()
@@ -38,7 +61,7 @@ object CreatePaymentsPdf {
 
         paint.textSize = 14f
         paint.isFakeBoldText = true
-        canvas.drawText("REPORTE DE PAGOS DIARIOS", pageWidth / 2f - 100, yPos.toFloat(), paint)
+        canvas.drawText(title, pageWidth / 2f - 100, yPos.toFloat(), paint)
         yPos += 25
 
         canvas.drawText("Cobrador: $nameCollector", marginLeft, yPos.toFloat(), paint)
@@ -52,16 +75,14 @@ object CreatePaymentsPdf {
         canvas.drawText("Creado el: $printDate", marginLeft, yPos.toFloat(), paint)
         yPos += 30
 
-        val header = String.format("%-22s %-35s %8s", "Fecha/Hora", "Cliente", "Importe")
+        val header = "Fecha/Hora             Cliente                              Importe"
         canvas.drawText(header, marginLeft, yPos.toFloat(), paint)
         yPos += lineSpacing
         canvas.drawLine(marginLeft, yPos.toFloat(), pageWidth - marginLeft, yPos.toFloat(), paint)
         yPos += lineSpacing
 
-        val totalPayments = payments.size
-        val totalValue = payments.sumOf { it.IMPORTE }
-
-        for (pago in payments) {
+        paint.isFakeBoldText = false
+        for ((fecha, cliente, importe) in data.lines) {
             if (yPos > pageHeight - 80) {
                 pdfDocument.finishPage(page)
                 page = pdfDocument.startPage(pageInfo)
@@ -69,29 +90,26 @@ object CreatePaymentsPdf {
                 yPos = 40
             }
 
-            val paymentDateStr = DateUtils.formatIsoDate(
-                pago.FECHA_HORA_PAGO,
-                "dd/MM/yyyy hh:mm a",
-                Locale("es", "MX")
-            )
-
-            val formattedLine = String.format(
+            val formattedImporte = "$${importFormat.format(importe)}"
+            val line = String.format(
+                Locale("es", "MX"),
                 "%-22s %-35s %8s",
-                paymentDateStr,
-                pago.NOMBRE_CLIENTE.take(35),
-                "$${importFormat.format(pago.IMPORTE)}"
+                fecha,
+                cliente.take(35),
+                formattedImporte
             )
-            canvas.drawText(formattedLine, marginLeft, yPos.toFloat(), paint)
+            canvas.drawText(line, marginLeft, yPos.toFloat(), paint)
             yPos += lineSpacing
         }
+
 
         yPos += lineSpacing
         canvas.drawLine(marginLeft, yPos.toFloat(), pageWidth - marginLeft, yPos.toFloat(), paint)
         yPos += lineSpacing
 
         paint.isFakeBoldText = true
-        val totalPaymentsText = "Total de pagos: $totalPayments"
-        val totalAmountsText = "Total recaudado: $${importFormat.format(totalValue)}"
+        val totalPaymentsText = "Total de pagos: ${data.totalCount}"
+        val totalAmountsText = "Total recaudado: $${importFormat.format(data.totalAmount)}"
 
         val xTotalPagos = pageWidth - rightMargin - paint.measureText(totalPaymentsText)
         val xTotalImportes = pageWidth - rightMargin - paint.measureText(totalAmountsText)
@@ -100,7 +118,6 @@ object CreatePaymentsPdf {
         yPos += lineSpacing
         canvas.drawText(totalAmountsText, xTotalImportes, yPos.toFloat(), paint)
 
-        paint.isFakeBoldText = false
         pdfDocument.finishPage(page)
 
         val file = File(context.cacheDir, "reporte_pagos.pdf")

@@ -228,8 +228,6 @@ fun DailyReportScreen(
                                 val context = LocalContext.current
                                 val coroutineScope = rememberCoroutineScope()
                                 var isGeneratingPdf by remember { mutableStateOf(false) }
-                                val collectorName =
-                                    visiblePayments.firstOrNull()?.COBRADOR ?: "No especificado"
 
                                 Column(
                                     modifier = Modifier.weight(1f)
@@ -254,19 +252,18 @@ fun DailyReportScreen(
                                             coroutineScope.launch {
                                                 isGeneratingPdf = true
 
-                                                val reportDate = textDate.text.ifEmpty {
-                                                    formatIsoDate(
-                                                        LocalDateTime.now().toString(),
-                                                        "dd/MM/yyyy",
-                                                        Locale.getDefault()
+                                                val paymentTextData =
+                                                    CreatePaymentsPdf.formatPaymentsTextList(
+                                                        visiblePayments
                                                     )
-                                                }
 
                                                 val file = withContext(Dispatchers.IO) {
-                                                    CreatePaymentsPdf.createPaymentsPdf(
-                                                        context,
-                                                        visiblePayments,
-                                                        collectorName
+                                                    CreatePaymentsPdf.generatePdfFromLines(
+                                                        context = context,
+                                                        data = paymentTextData,
+                                                        title = "REPORTE DE PAGOS DIARIOS",
+                                                        nameCollector = visiblePayments.firstOrNull()?.COBRADOR
+                                                            ?: "No especificado"
                                                     )
                                                 }
 
@@ -281,8 +278,8 @@ fun DailyReportScreen(
 
                                                     val intent = Intent(Intent.ACTION_VIEW).apply {
                                                         setDataAndType(uri, "application/pdf")
-                                                        flags = Intent.FLAG_ACTIVITY_NO_HISTORY or
-                                                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                        flags =
+                                                            Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION
                                                     }
 
                                                     try {
@@ -309,6 +306,7 @@ fun DailyReportScreen(
                                     ) {
                                         Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
                                     }
+
                                 }
 
                             }
