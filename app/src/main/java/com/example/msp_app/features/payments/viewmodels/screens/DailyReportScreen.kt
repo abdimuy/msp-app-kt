@@ -1,18 +1,22 @@
 package com.example.msp_app.features.payments.screens
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -21,8 +25,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +63,7 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import kotlinx.coroutines.Dispatchers
@@ -80,7 +88,6 @@ fun DailyReportScreen(
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
-
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
@@ -185,12 +192,13 @@ fun DailyReportScreen(
                         }
 
                         is ResultState.Success -> {
-                            val pagos = (paymentsState as ResultState.Success<List<Payment>>).data
-                            LaunchedEffect(pagos) {
-                                visiblePayments = pagos
+                            val payments =
+                                (paymentsState as ResultState.Success<List<Payment>>).data
+                            LaunchedEffect(payments) {
+                                visiblePayments = payments
                             }
 
-                            if (pagos.isEmpty()) {
+                            if (payments.isEmpty()) {
                                 Text("No hay pagos para esta fecha.")
                             } else {
                                 val formatter = DateTimeFormatter.ISO_DATE_TIME
@@ -244,7 +252,11 @@ fun DailyReportScreen(
                                         Spacer(modifier = Modifier.height(2.dp))
 
                                         visiblePayments.forEach { pago ->
-                                            PaymentItem(pago)
+                                            PaymentItem(
+                                            pago,
+                                            variant = PaymentItemVariant.DEFAULT,
+                                            navController = navController
+                                        )
                                         }
 
                                         Spacer(modifier = Modifier.height(16.dp))
@@ -312,7 +324,6 @@ fun DailyReportScreen(
                                     }
 
                                 }
-
                             }
                         }
 
@@ -330,54 +341,173 @@ fun DailyReportScreen(
     }
 }
 
-@Composable
-fun PaymentItem(payment: Payment) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-        ) {
-            Text(
-                text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = payment.NOMBRE_CLIENTE,
-                maxLines = 1,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyLarge,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
+enum class PaymentItemVariant {
+    DEFAULT,
+    COMPACT
+}
 
-        Box(
+@SuppressLint("DefaultLocale")
+@Composable
+fun PaymentItem(
+    payment: Payment,
+    variant: PaymentItemVariant = PaymentItemVariant.DEFAULT,
+    navController: NavController
+) {
+    val menuExpanded = remember { mutableStateOf(false) }
+
+    fun goToClientDetails() {
+        navController.navigate(
+            "sales/sale_details/${payment.DOCTO_CC_ACR_ID}"
+        )
+    }
+
+    if (variant == PaymentItemVariant.DEFAULT) {
+        Row(
             modifier = Modifier
-                .padding(start = 8.dp)
-                .align(Alignment.CenterVertically)
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = String.format("$%.0f", payment.IMPORTE),
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp,
-                color = MaterialTheme.colorScheme.primary
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+            ) {
+                Text(
+                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = payment.NOMBRE_CLIENTE,
+                    maxLines = 1,
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.bodyLarge,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .align(Alignment.CenterVertically)
+            ) {
+                Text(
+                    text = payment.IMPORTE.toCurrency(noDecimals = true),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Más opciones",
+                    modifier = Modifier
+                        .size(30.dp)
+                        .padding(start = 8.dp)
+                        .clickable { menuExpanded.value = true }
+                )
+                DropdownMenu(
+                    expanded = menuExpanded.value,
+                    onDismissRequest = { menuExpanded.value = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ver cliente") },
+                        onClick = {
+                            menuExpanded.value = false
+                            goToClientDetails()
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    if (variant == PaymentItemVariant.COMPACT) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(8.dp)
+                )
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+            ) {
+                Text(
+                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(0.dp))
+                Text(
+                    text = payment.NOMBRE_CLIENTE,
+                    maxLines = 1,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .align(Alignment.CenterVertically)
+            ) {
+                Text(
+                    text = payment.IMPORTE.toCurrency(noDecimals = true),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Más opciones",
+                    modifier = Modifier
+                        .size(30.dp)
+                        .padding(start = 8.dp)
+                        .clickable { menuExpanded.value = true }
+                )
+                DropdownMenu(
+                    expanded = menuExpanded.value,
+                    onDismissRequest = { menuExpanded.value = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Ver cliente") },
+                        onClick = {
+                            menuExpanded.value = false
+                            goToClientDetails()
+                        }
+                    )
+                }
+            }
         }
     }
 }
-
 data class PaymentTextData(
     val lines: List<Triple<String, String, Double>>,
     val totalCount: Int,

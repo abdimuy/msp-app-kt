@@ -4,7 +4,10 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.data.local.entities.PaymentEntity
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Dao
 interface PaymentDao {
@@ -53,28 +56,68 @@ interface PaymentDao {
 
     @Query(
         """SELECT 
-        ID,
-        COBRADOR,
-        DOCTO_CC_ACR_ID,
-        DOCTO_CC_ID,
-        FECHA_HORA_PAGO,
-        GUARDADO_EN_MICROSIP,
-        IMPORTE,
-        LAT,
-        LNG,
-        CLIENTE_ID,
-        COBRADOR_ID,
-        FORMA_COBRO_ID,
-        ZONA_CLIENTE_ID,
-        NOMBRE_CLIENTE
-    FROM Payment
-    WHERE FECHA_HORA_PAGO BETWEEN :start  AND :end 
-    ORDER BY FECHA_HORA_PAGO DESC"""
+                ID,
+                COBRADOR,
+                DOCTO_CC_ACR_ID,
+                DOCTO_CC_ID,
+                FECHA_HORA_PAGO,
+                GUARDADO_EN_MICROSIP,
+                IMPORTE,
+                LAT,
+                LNG,
+                CLIENTE_ID,
+                COBRADOR_ID,
+                FORMA_COBRO_ID,
+                ZONA_CLIENTE_ID,
+                NOMBRE_CLIENTE
+            FROM Payment
+            WHERE FECHA_HORA_PAGO BETWEEN :start  AND :end 
+            ORDER BY FECHA_HORA_PAGO DESC"""
     )
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity>
 
+    @Query(
+        """SELECT 
+                ID,
+                COBRADOR,
+                DOCTO_CC_ACR_ID,
+                DOCTO_CC_ID,
+                FECHA_HORA_PAGO,
+                GUARDADO_EN_MICROSIP,
+                IMPORTE,
+                LAT,
+                LNG,
+                CLIENTE_ID,
+                COBRADOR_ID,
+                FORMA_COBRO_ID,
+                ZONA_CLIENTE_ID,
+                NOMBRE_CLIENTE
+            FROM Payment
+            WHERE GUARDADO_EN_MICROSIP = 0
+            ORDER BY FECHA_HORA_PAGO ASC"""
+    )
+    suspend fun getPendingPayments(): List<PaymentEntity>
+
+    suspend fun getPaymentsGroupedByDaySince(startDate: String): Map<String, List<PaymentEntity>> {
+        val endDate = LocalDate
+            .now()
+            .plusDays(100)
+            .format(DateTimeFormatter.ISO_DATE)
+        val payments = getPaymentsByDate(startDate, endDate)
+
+        val paymentsByDay = payments.groupBy {
+            DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "yyyy-MM-dd")
+        }
+        return paymentsByDay.mapValues { (_, paymentList) ->
+            paymentList.sortedByDescending { it.FECHA_HORA_PAGO }
+        }.toSortedMap(compareByDescending { it })
+    }
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePayment(payment: PaymentEntity)
+
+    @Query("UPDATE Payment SET GUARDADO_EN_MICROSIP = :newEstado WHERE id = :id")
+    suspend fun updateEstado(id: String, newEstado: Int)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)

@@ -76,7 +76,7 @@ fun NewPaymentDialog(
     )
 
     val coroutineScope = rememberCoroutineScope()
-    
+
     val inputDouble = inputValue.toDoubleOrNull()
     errorMessage = when {
         inputValue.isBlank() -> null
@@ -207,7 +207,8 @@ fun NewPaymentDialog(
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
                 textStyle = TextStyle(fontSize = 20.sp),
-                isError = errorMessage != null
+                isError = errorMessage != null,
+                maxLines = 1,
             )
 
             if (errorMessage != null) {
@@ -371,7 +372,7 @@ fun NewPaymentDialog(
                                 style = TextStyle(
                                     fontSize = 36.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF4CAF50) // Cambia este color según tu preferencia
+                                    color = Color(0xFF4CAF50)
                                 ),
                                 textAlign = TextAlign.Center
                             )

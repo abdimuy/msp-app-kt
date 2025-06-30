@@ -20,7 +20,6 @@ import kotlinx.coroutines.launch
 
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
-
     private val api = ApiProvider.create(SalesApi::class.java)
     private val saleStore = SalesLocalDataSource(application.applicationContext)
     private val productStore = ProductsLocalDataSource(application.applicationContext)
@@ -49,16 +48,15 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val salesData = api.getAll()
 
-                val ventas = salesData.body.ventas
-                val productos = salesData.body.productos
-                val pagos = salesData.body.pagos
+                val sales = salesData.body.ventas
+                val products = salesData.body.productos
+                val payments = salesData.body.pagos
+                
+                saleStore.saveAll(sales.map { it.toEntity() })
+                productStore.saveAll(products.map { it.toEntity() })
+                paymentStore.saveAll(payments.map { it.toEntity() })
 
-                saleStore.saveAll(ventas.map { it.toEntity() })
-                productStore.saveAll(productos.map { it.toEntity() })
-                paymentStore.saveAll(pagos.map { it.toEntity() })
-
-                _salesState.value = ResultState.Success(ventas)
-                println("Ventas: ${ventas.size}, Productos: ${productos.size}, Pagos: ${pagos.size} sincronizados localmente")
+                _salesState.value = ResultState.Success(sales)
 
             } catch (e: Exception) {
                 if (_salesState.value !is ResultState.Success) {
