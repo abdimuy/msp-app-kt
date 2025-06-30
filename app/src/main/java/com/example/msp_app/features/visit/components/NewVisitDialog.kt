@@ -142,7 +142,7 @@ fun NewVisitDialog(
                 TextButton(
                     onClick = {}
                 ) {
-                    Text("No")
+                    Text("Cancelar")
                 }
             },
             title = {
