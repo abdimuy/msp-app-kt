@@ -11,7 +11,7 @@ import java.text.DecimalFormat
 import java.time.LocalDateTime
 import java.util.Locale
 
-object PaymentsPdfGenerator {
+object PdfGenerator {
 
     fun generatePdfFromLines(
         context: Context,

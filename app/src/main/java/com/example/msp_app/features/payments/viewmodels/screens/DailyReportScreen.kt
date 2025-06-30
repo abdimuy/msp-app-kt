@@ -54,7 +54,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
-import com.example.msp_app.core.utils.PaymentsPdfGenerator
+import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -257,7 +257,7 @@ fun DailyReportScreen(
                                                 )
 
                                                 val file = withContext(Dispatchers.IO) {
-                                                    PaymentsPdfGenerator.generatePdfFromLines(
+                                                    PdfGenerator.generatePdfFromLines(
                                                         context = context,
                                                         data = paymentTextData,
                                                         title = "REPORTE DE PAGOS DIARIOS",
