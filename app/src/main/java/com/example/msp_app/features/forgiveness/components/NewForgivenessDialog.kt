@@ -27,12 +27,14 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
 
 @Composable
@@ -45,7 +47,7 @@ fun NewForgivenessDialog(
     var inputValue by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAlertDialog by remember { mutableStateOf(false) }
-    
+
     LaunchedEffect(Unit) {
         if (inputValue.isBlank()) {
             inputValue = sale.SALDO_REST.toString()
@@ -101,7 +103,7 @@ fun NewForgivenessDialog(
                             color = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        append("$${sale.SALDO_REST.toInt()}")
+                        append(sale.SALDO_REST.toCurrency(noDecimals = true))
                     }
                 }
             )
@@ -117,7 +119,10 @@ fun NewForgivenessDialog(
                     .padding(bottom = 8.dp),
                 textStyle = TextStyle(fontSize = 20.sp),
                 isError = errorMessage != null,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done
+                )
             )
 
             if (errorMessage != null) {
@@ -141,7 +146,7 @@ fun NewForgivenessDialog(
     }
 
     if (showAlertDialog) {
-        val forgiveness = sale.SALDO_REST
+        val forgiveness = inputValue.toDoubleOrNull()?.toCurrency(noDecimals = true)
         AlertDialog(
             onDismissRequest = { showAlertDialog = false },
             confirmButton = {
@@ -187,7 +192,7 @@ fun NewForgivenessDialog(
                         )
                         Spacer(Modifier.height(10.dp))
                         Text(
-                            text = "$${forgiveness}",
+                            text = "$forgiveness",
                             color = MaterialTheme.colorScheme.primary,
                             style = TextStyle(
                                 fontSize = 30.sp,
