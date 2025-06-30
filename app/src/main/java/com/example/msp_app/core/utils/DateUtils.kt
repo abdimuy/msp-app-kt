@@ -6,6 +6,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Date
 import java.util.Locale
 
@@ -114,5 +115,22 @@ object DateUtils {
         if (date == null) return getIsoDateTime()
         val localDateTime = date.toInstant().atZone(ZoneOffset.UTC).toLocalDateTime()
         return getIsoDateTime(localDateTime)
+    }
+
+    fun parseLocalDateToIso(date: LocalDate?): String {
+        if (date == null) return getIsoDateTime()
+        val systemZone = ZoneId.systemDefault()
+        val instant = date.atStartOfDay(systemZone).toInstant()
+        return DateTimeFormatter.ISO_INSTANT.format(instant)
+    }
+
+    fun addToIsoDate(iso: String, amount: Long, unit: ChronoUnit): String {
+        return try {
+            val dateTime = parseIsoToDateTime(iso)
+            val updatedDateTime = dateTime.plus(amount, unit)
+            getIsoDateTime(updatedDateTime)
+        } catch (e: Exception) {
+            iso
+        }
     }
 }

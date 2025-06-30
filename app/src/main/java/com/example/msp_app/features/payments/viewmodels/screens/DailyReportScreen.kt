@@ -60,6 +60,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
@@ -73,6 +74,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,13 +94,17 @@ fun DailyReportScreen(
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
             val localDate = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
-            val isoDate = localDate.toString() + "T00:00:00"
+            val isoDate = DateUtils.parseLocalDateToIso(localDate)
             reportDateIso = isoDate
-            val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale.getDefault())
+            val startIso = isoDate
+            val endIso = DateUtils.addToIsoDate(
+                DateUtils.addToIsoDate(isoDate, 1, ChronoUnit.DAYS),
+                -1, ChronoUnit.SECONDS
+            )
+            val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale("es", "MX"))
             textDate = TextFieldValue(formattedText)
-            val startDateTime = "${localDate}T00:00:00"
-            val endDateTime = "${localDate}T23:59:59"
-            viewModel.getPaymentsByDate(startDateTime, endDateTime)
+
+            viewModel.getPaymentsByDate(startIso, endIso)
             showDatePicker = false
         }
     }
@@ -253,10 +259,10 @@ fun DailyReportScreen(
 
                                         visiblePayments.forEach { pago ->
                                             PaymentItem(
-                                            pago,
-                                            variant = PaymentItemVariant.DEFAULT,
-                                            navController = navController
-                                        )
+                                                pago,
+                                                variant = PaymentItemVariant.DEFAULT,
+                                                navController = navController
+                                            )
                                         }
 
                                         Spacer(modifier = Modifier.height(16.dp))
@@ -508,6 +514,7 @@ fun PaymentItem(
         }
     }
 }
+
 data class PaymentTextData(
     val lines: List<Triple<String, String, Double>>,
     val totalCount: Int,
