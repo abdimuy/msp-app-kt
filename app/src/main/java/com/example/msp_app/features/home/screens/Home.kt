@@ -520,7 +520,7 @@ fun HomeScreen(navController: NavController) {
                         }
                         Spacer(Modifier.height(14.dp))
 
-                        Buttons(text = "Descargar ventas", onClick = { salesViewModel.syncSales() })
+                        Button(text = "Descargar ventas", onClick = { salesViewModel.syncSales() })
 
                         when (salesState) {
                             is ResultState.Idle -> {
@@ -533,13 +533,13 @@ fun HomeScreen(navController: NavController) {
                             is ResultState.Error -> Text("Error: ${(salesState as ResultState.Error).message}")
                         }
 
-                        Buttons(text = "Enviar Pagos Pendientes", onClick = { salesViewModel })
+                        Button(text = "Enviar Pagos Pendientes", onClick = { salesViewModel })
 
-                        Buttons(text = "Reenviar todos los pagos", onClick = { salesViewModel })
+                        Button(text = "Reenviar todos los pagos", onClick = { salesViewModel })
 
-                        Buttons(text = "Cerrar sesión", onClick = { salesViewModel })
+                        Button(text = "Cerrar sesión", onClick = { salesViewModel })
 
-                        Buttons(text = "Inicializar semana de Cobro", onClick = { salesViewModel })
+                        Button(text = "Inicializar semana de Cobro", onClick = { salesViewModel })
                     }
                 }
             },
@@ -580,7 +580,7 @@ fun HomeScreen(navController: NavController) {
 }
 
 @Composable
-fun Buttons(
+fun Button(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
