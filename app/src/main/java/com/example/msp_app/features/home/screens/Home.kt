@@ -385,6 +385,8 @@ fun HomeScreen(navController: NavController) {
                                                 else -> emptyMap()
                                             }
 
+                                        Spacer(Modifier.width(1.dp))
+
                                         paymentsMap.forEach { (date, payments) ->
                                             val total = payments.sumOf { it.IMPORTE }
                                             val count = payments.size
@@ -440,6 +442,8 @@ fun HomeScreen(navController: NavController) {
                                                 }
                                             }
                                         }
+
+                                        Spacer(Modifier.width(1.dp))
                                     }
 
                                     else -> {}
