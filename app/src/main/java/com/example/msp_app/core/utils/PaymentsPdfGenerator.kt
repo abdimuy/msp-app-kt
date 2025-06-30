@@ -4,36 +4,14 @@ import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
-import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.features.payments.screens.PaymentTextData
 import java.io.File
 import java.io.FileOutputStream
 import java.text.DecimalFormat
 import java.time.LocalDateTime
 import java.util.Locale
 
-object CreatePaymentsPdf {
-
-    data class PaymentTextData(
-        val lines: List<Triple<String, String, Double>>,
-        val totalCount: Int,
-        val totalAmount: Double
-    )
-
-    fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
-        val lines = payments.map { pago ->
-            val formattedDate = DateUtils.formatIsoDate(
-                pago.FECHA_HORA_PAGO,
-                "dd/MM/yyyy hh:mm a",
-                Locale("es", "MX")
-            )
-            Triple(formattedDate, pago.NOMBRE_CLIENTE, pago.IMPORTE)
-        }
-
-        val totalCount = payments.size
-        val totalAmount = payments.sumOf { it.IMPORTE }
-
-        return PaymentTextData(lines, totalCount, totalAmount)
-    }
+object PaymentsPdfGenerator {
 
     fun generatePdfFromLines(
         context: Context,

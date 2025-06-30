@@ -53,8 +53,8 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
-import com.example.msp_app.core.utils.CreatePaymentsPdf
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
+import com.example.msp_app.core.utils.PaymentsPdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -252,13 +252,12 @@ fun DailyReportScreen(
                                             coroutineScope.launch {
                                                 isGeneratingPdf = true
 
-                                                val paymentTextData =
-                                                    CreatePaymentsPdf.formatPaymentsTextList(
-                                                        visiblePayments
-                                                    )
+                                                val paymentTextData = formatPaymentsTextList(
+                                                    visiblePayments
+                                                )
 
                                                 val file = withContext(Dispatchers.IO) {
-                                                    CreatePaymentsPdf.generatePdfFromLines(
+                                                    PaymentsPdfGenerator.generatePdfFromLines(
                                                         context = context,
                                                         data = paymentTextData,
                                                         title = "REPORTE DE PAGOS DIARIOS",
@@ -372,4 +371,26 @@ fun PaymentItem(payment: Payment) {
             )
         }
     }
+}
+
+data class PaymentTextData(
+    val lines: List<Triple<String, String, Double>>,
+    val totalCount: Int,
+    val totalAmount: Double
+)
+
+fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
+    val lines = payments.map { pago ->
+        val formattedDate = formatIsoDate(
+            pago.FECHA_HORA_PAGO,
+            "dd/MM/yyyy hh:mm a",
+            Locale("es", "MX")
+        )
+        Triple(formattedDate, pago.NOMBRE_CLIENTE, pago.IMPORTE)
+    }
+
+    val totalCount = payments.size
+    val totalAmount = payments.sumOf { it.IMPORTE }
+
+    return PaymentTextData(lines, totalCount, totalAmount)
 }
