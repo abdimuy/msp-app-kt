@@ -1,5 +1,7 @@
 package com.example.msp_app.features.payments.screens
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,23 +37,31 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.utils.CreatePaymentsPdf
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -73,9 +83,7 @@ fun DailyReportScreen(
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
-            val localDate = java.time.Instant.ofEpochMilli(millis)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDate()
+            val localDate = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
             val isoDate = localDate.toString() + "T00:00:00"
             val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale.getDefault())
             textDate = TextFieldValue(formattedText)
@@ -217,18 +225,92 @@ fun DailyReportScreen(
                                         Text("Ordenar por hora")
                                     }
                                 }
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .verticalScroll(scrollState)
-                                )
-                                {
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                val context = LocalContext.current
+                                val coroutineScope = rememberCoroutineScope()
+                                var isGeneratingPdf by remember { mutableStateOf(false) }
+                                val collectorName =
+                                    visiblePayments.firstOrNull()?.COBRADOR ?: "No especificado"
 
-                                    visiblePayments.forEach { pago ->
-                                        PaymentItem(pago)
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .verticalScroll(scrollState)
+                                    ) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+
+                                        visiblePayments.forEach { pago ->
+                                            PaymentItem(pago)
+                                        }
+
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                    }
+
+                                    Button(
+                                        enabled = !isGeneratingPdf,
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                isGeneratingPdf = true
+
+                                                val reportDate = textDate.text.ifEmpty {
+                                                    formatIsoDate(
+                                                        LocalDateTime.now().toString(),
+                                                        "dd/MM/yyyy",
+                                                        Locale.getDefault()
+                                                    )
+                                                }
+
+                                                val file = withContext(Dispatchers.IO) {
+                                                    CreatePaymentsPdf.createPaymentsPdf(
+                                                        context,
+                                                        visiblePayments,
+                                                        collectorName
+                                                    )
+                                                }
+
+                                                isGeneratingPdf = false
+
+                                                if (file != null && file.exists()) {
+                                                    val uri = FileProvider.getUriForFile(
+                                                        context,
+                                                        context.packageName + ".fileprovider",
+                                                        file
+                                                    )
+
+                                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                        setDataAndType(uri, "application/pdf")
+                                                        flags = Intent.FLAG_ACTIVITY_NO_HISTORY or
+                                                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                    }
+
+                                                    try {
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "No hay aplicación para abrir PDF",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                } else {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Error al generar PDF",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                    ) {
+                                        Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
                                     }
                                 }
+
                             }
                         }
 
