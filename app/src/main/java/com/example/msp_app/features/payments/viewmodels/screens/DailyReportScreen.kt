@@ -79,12 +79,14 @@ fun DailyReportScreen(
     val scrollState = rememberScrollState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
+    var reportDateIso by remember { mutableStateOf("") }
 
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
             val localDate = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
             val isoDate = localDate.toString() + "T00:00:00"
+            reportDateIso = isoDate
             val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale.getDefault())
             textDate = TextFieldValue(formattedText)
             val startDateTime = "${localDate}T00:00:00"
@@ -228,6 +230,8 @@ fun DailyReportScreen(
                                 val context = LocalContext.current
                                 val coroutineScope = rememberCoroutineScope()
                                 var isGeneratingPdf by remember { mutableStateOf(false) }
+                                val reportDate =
+                                    formatIsoDate(reportDateIso, "yyyy-MM-dd", Locale("es", "MX"))
 
                                 Column(
                                     modifier = Modifier.weight(1f)
@@ -263,7 +267,7 @@ fun DailyReportScreen(
                                                         title = "REPORTE DE PAGOS DIARIOS",
                                                         nameCollector = visiblePayments.firstOrNull()?.COBRADOR
                                                             ?: "No especificado",
-                                                        fileName = "reporte_diario.pdf"
+                                                        fileName = "reporte_diario_$reportDate.pdf"
                                                     )
                                                 }
 
