@@ -33,9 +33,19 @@
                     tools:ignore="ManifestOrder" />
             </intent-filter>
         </activity>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyCASwsCJvFm7dGajUWlVg19PmS8JVPqRaY" />
+            android:value="${MAPS_API_KEY}" />
     </application>
 
     <uses-permission android:name="android.permission.CALL_PHONE" />

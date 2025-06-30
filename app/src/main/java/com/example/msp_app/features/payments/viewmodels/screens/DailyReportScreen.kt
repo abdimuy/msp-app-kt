@@ -1,6 +1,8 @@
 package com.example.msp_app.features.payments.screens
 
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,24 +44,32 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
+import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -77,13 +87,13 @@ fun DailyReportScreen(
     val scrollState = rememberScrollState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
+    var reportDateIso by remember { mutableStateOf("") }
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
-            val localDate = java.time.Instant.ofEpochMilli(millis)
-                .atZone(java.time.ZoneId.systemDefault())
-                .toLocalDate()
+            val localDate = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
             val isoDate = localDate.toString() + "T00:00:00"
+            reportDateIso = isoDate
             val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale.getDefault())
             textDate = TextFieldValue(formattedText)
             val startDateTime = "${localDate}T00:00:00"
@@ -225,21 +235,94 @@ fun DailyReportScreen(
                                         Text("Ordenar por hora")
                                     }
                                 }
-                                Column(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .verticalScroll(scrollState)
-                                )
-                                {
-                                    Spacer(modifier = Modifier.height(2.dp))
+                                val context = LocalContext.current
+                                val coroutineScope = rememberCoroutineScope()
+                                var isGeneratingPdf by remember { mutableStateOf(false) }
+                                val reportDate =
+                                    formatIsoDate(reportDateIso, "yyyy-MM-dd", Locale("es", "MX"))
 
-                                    visiblePayments.forEach { pago ->
-                                        PaymentItem(
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .verticalScroll(scrollState)
+                                    ) {
+                                        Spacer(modifier = Modifier.height(2.dp))
+
+                                        visiblePayments.forEach { pago ->
+                                            PaymentItem(
                                             pago,
                                             variant = PaymentItemVariant.DEFAULT,
                                             navController = navController
                                         )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(16.dp))
                                     }
+
+                                    Button(
+                                        enabled = !isGeneratingPdf,
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                isGeneratingPdf = true
+
+                                                val paymentTextData = formatPaymentsTextList(
+                                                    visiblePayments
+                                                )
+
+                                                val file = withContext(Dispatchers.IO) {
+                                                    PdfGenerator.generatePdfFromLines(
+                                                        context = context,
+                                                        data = paymentTextData,
+                                                        title = "REPORTE DE PAGOS DIARIOS",
+                                                        nameCollector = visiblePayments.firstOrNull()?.COBRADOR
+                                                            ?: "No especificado",
+                                                        fileName = "reporte_diario_$reportDate.pdf"
+                                                    )
+                                                }
+
+                                                isGeneratingPdf = false
+
+                                                if (file != null && file.exists()) {
+                                                    val uri = FileProvider.getUriForFile(
+                                                        context,
+                                                        context.packageName + ".fileprovider",
+                                                        file
+                                                    )
+
+                                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                                        setDataAndType(uri, "application/pdf")
+                                                        flags =
+                                                            Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                    }
+
+                                                    try {
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "No hay aplicación para abrir PDF",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                } else {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Error al generar PDF",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp)
+                                    ) {
+                                        Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
+                                    }
+
                                 }
                             }
                         }
@@ -424,4 +507,25 @@ fun PaymentItem(
             }
         }
     }
+}
+data class PaymentTextData(
+    val lines: List<Triple<String, String, Double>>,
+    val totalCount: Int,
+    val totalAmount: Double
+)
+
+fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
+    val lines = payments.map { pago ->
+        val formattedDate = formatIsoDate(
+            pago.FECHA_HORA_PAGO,
+            "dd/MM/yyyy hh:mm a",
+            Locale("es", "MX")
+        )
+        Triple(formattedDate, pago.NOMBRE_CLIENTE, pago.IMPORTE)
+    }
+
+    val totalCount = payments.size
+    val totalAmount = payments.sumOf { it.IMPORTE }
+
+    return PaymentTextData(lines, totalCount, totalAmount)
 }
