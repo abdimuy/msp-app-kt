@@ -45,8 +45,7 @@ fun NewForgivenessDialog(
     var inputValue by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAlertDialog by remember { mutableStateOf(false) }
-
-    //Carga el valor de la condonacion al entrar al cuadro
+    
     LaunchedEffect(Unit) {
         if (inputValue.isBlank()) {
             inputValue = sale.SALDO_REST.toString()
