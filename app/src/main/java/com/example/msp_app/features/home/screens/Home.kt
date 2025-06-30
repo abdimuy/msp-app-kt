@@ -273,7 +273,7 @@ fun HomeScreen(navController: NavController) {
                                         )
                                         PaymentInfoCollector(
                                             label = "Pagos (Semanal)",
-                                            value = "$numberOfPaymentsWeekly",
+                                            value = "$numberOfPaymentsWeekly/$numberOfSales",
                                             horizontalAlignment = Alignment.End
                                         )
                                     }
@@ -455,6 +455,7 @@ fun HomeScreen(navController: NavController) {
                         Spacer(Modifier.height(20.dp))
 
                         Text(
+                            modifier = Modifier.padding(horizontal = 16.dp),
                             text = buildAnnotatedString {
                                 append("Inicio de semana: ")
                                 withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
