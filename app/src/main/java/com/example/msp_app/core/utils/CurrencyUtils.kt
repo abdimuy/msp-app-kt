@@ -15,3 +15,10 @@ fun Double.toCurrency(
     }
     return formatter.format(this)
 }
+
+fun Int.toCurrency(
+    locale: Locale = Locale("es", "MX"),
+    noDecimals: Boolean = false
+): String {
+    return this.toDouble().toCurrency(locale, noDecimals)
+}
