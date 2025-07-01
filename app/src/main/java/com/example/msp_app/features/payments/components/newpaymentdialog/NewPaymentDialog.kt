@@ -1,5 +1,6 @@
 package com.example.msp_app.features.payments.components.newpaymentdialog
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
@@ -34,21 +36,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.services.UpdateLocationService
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -58,9 +65,11 @@ fun NewPaymentDialog(
     onDismissRequest: () -> Unit,
     suggestions: List<Int> = emptyList(),
     suggestedPayment: Int = 0,
-    sale: Sale
+    sale: Sale,
 ) {
     if (!show) return
+
+    val context = LocalContext.current
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val savePaymentState by paymentsViewModel.savePaymentState.collectAsState()
@@ -88,27 +97,32 @@ fun NewPaymentDialog(
 
     fun handleSavePayment() {
         if (inputValue.isBlank() || errorMessage != null) return
-
-        val payment = Payment(
-            CLIENTE_ID = sale.CLIENTE_ID,
-            ID = UUID.randomUUID().toString(),
-            LAT = 0.0,
-            LNG = 0.0,
-            IMPORTE = inputValue.toDouble(),
-            NOMBRE_CLIENTE = sale.CLIENTE,
-            FECHA_HORA_PAGO = DateUtils.getIsoDateTime(),
-            COBRADOR = sale.NOMBRE_COBRADOR,
-            COBRADOR_ID = sale.COBRADOR_ID,
-            DOCTO_CC_ID = 0,
-            FORMA_COBRO_ID = selectedPaymentMethod,
-            DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,
-            ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
-            GUARDADO_EN_MICROSIP = false
-        )
-
         coroutineScope.launch {
             try {
+
+                val payment = Payment(
+                    CLIENTE_ID = sale.CLIENTE_ID,
+                    ID = UUID.randomUUID().toString(),
+                    LAT = 0.0,
+                    LNG = 0.0,
+                    IMPORTE = inputValue.toDouble(),
+                    NOMBRE_CLIENTE = sale.CLIENTE,
+                    FECHA_HORA_PAGO = DateUtils.getIsoDateTime(),
+                    COBRADOR = sale.NOMBRE_COBRADOR,
+                    COBRADOR_ID = sale.COBRADOR_ID,
+                    DOCTO_CC_ID = 0,
+                    FORMA_COBRO_ID = selectedPaymentMethod,
+                    DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,
+                    ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
+                    GUARDADO_EN_MICROSIP = false
+                )
+
                 paymentsViewModel.savePayment(payment)
+
+                val intent = Intent(context, UpdateLocationService::class.java).apply {
+                    putExtra("payment_id", payment.ID)
+                }
+                ContextCompat.startForegroundService(context, intent)
 
                 inputValue = ""
                 selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
@@ -164,7 +178,7 @@ fun NewPaymentDialog(
                             color = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        append("$${sale.SALDO_REST.toInt()}")
+                        append(sale.SALDO_REST.toCurrency(noDecimals = true))
                     }
                 }
             )
@@ -208,7 +222,8 @@ fun NewPaymentDialog(
                     .padding(bottom = 8.dp),
                 textStyle = TextStyle(fontSize = 20.sp),
                 isError = errorMessage != null,
-                maxLines = 1,
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
 
             if (errorMessage != null) {
@@ -229,7 +244,7 @@ fun NewPaymentDialog(
                         .align(Alignment.CenterHorizontally)
                 ) {
                     Text(
-                        text = "El pago es menor a la parcialidad acordada de $$suggestedPayment",
+                        text = "El pago es menor a la parcialidad acordada de ${suggestedPayment.toCurrency()}",
                         color = Color.Red,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -338,11 +353,11 @@ fun NewPaymentDialog(
                                 modifier = Modifier.height(8.dp)
                             )
                             Text(
-                                text = "$${amount.toInt()}",
+                                text = amount.toCurrency(noDecimals = true),
                                 style = TextStyle(
                                     fontSize = 36.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary // Cambia este color según tu preferencia
+                                    color = MaterialTheme.colorScheme.primary
                                 ),
                                 textAlign = TextAlign.Center
                             )
@@ -368,7 +383,7 @@ fun NewPaymentDialog(
                                 modifier = Modifier.height(8.dp)
                             )
                             Text(
-                                text = "$${saldoRestante.toInt()}",
+                                text = saldoRestante.toCurrency(noDecimals = true),
                                 style = TextStyle(
                                     fontSize = 36.sp,
                                     fontWeight = FontWeight.Bold,

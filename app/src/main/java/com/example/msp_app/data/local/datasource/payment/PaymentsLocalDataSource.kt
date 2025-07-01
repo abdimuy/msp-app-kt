@@ -5,7 +5,6 @@ import androidx.room.Transaction
 import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.models.sale.EstadoCobranza
-import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 
 class PaymentsLocalDataSource(private val context: Context) {
     private val paymentDao = AppDatabase.getInstance(context).paymentDao()
@@ -47,6 +46,14 @@ class PaymentsLocalDataSource(private val context: Context) {
         )
     }
 
+    suspend fun updatePaymentLocation(
+        id: String,
+        lat: Double,
+        lng: Double
+    ) {
+        paymentDao.updateLocation(id, lat, lng)
+    }
+
     @Transaction
     suspend fun insertPaymentAndUpdateSale(
         payment: PaymentEntity,
@@ -65,6 +72,5 @@ class PaymentsLocalDataSource(private val context: Context) {
         newEstadoCobranza: EstadoCobranza
     ) {
         insertPaymentAndUpdateSale(payment, saleId, newAmount, newEstadoCobranza)
-        enqueuePendingPaymentsWorker(context)
     }
 }

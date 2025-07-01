@@ -119,6 +119,9 @@ interface PaymentDao {
     @Query("UPDATE Payment SET GUARDADO_EN_MICROSIP = :newEstado WHERE id = :id")
     suspend fun updateEstado(id: String, newEstado: Int)
 
+    @Query("UPDATE Payment SET LAT = :lat, LNG = :lng WHERE id = :id")
+    suspend fun updateLocation(id: String, lat: Double, lng: Double)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)
 
