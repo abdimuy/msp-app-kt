@@ -1,6 +1,8 @@
 package com.example.msp_app.features.payments.screens
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
+import android.content.Context
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -59,11 +61,15 @@ import androidx.compose.ui.window.Popup
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.dantsu.escposprinter.EscPosPrinter
+import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -90,6 +96,7 @@ fun DailyReportScreen(
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
+    var showBluetoothDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
@@ -324,11 +331,47 @@ fun DailyReportScreen(
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 8.dp)
                                     ) {
                                         Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
                                     }
 
+                                    if (visiblePayments.isNotEmpty()) {
+                                        Button(
+                                            onClick = {
+                                                showBluetoothDialog = true
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                        ) {
+                                            Text("Imprimir ticket")
+                                        }
+                                    }
+                                    if (showBluetoothDialog) {
+                                        val ticketText =
+                                            ThermalPrinting.formatPaymentsTextForTicket(
+                                                payments = visiblePayments,
+                                                dateStr = textDate.text,
+                                                collectorName = visiblePayments.firstOrNull()?.COBRADOR
+                                                    ?: "No especificado",
+                                                title = "TICKET"
+                                            )
+
+                                        SelectBluetoothDevice(
+                                            textToPrint = ticketText,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            onPrintRequest = { device, text ->
+                                                coroutineScope.launch {
+                                                    try {
+                                                        printText(device, text, context)
+                                                    } catch (e: Exception) {
+                                                    } finally {
+                                                        showBluetoothDialog =
+                                                            false
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -535,4 +578,23 @@ fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
     val totalAmount = payments.sumOf { it.IMPORTE }
 
     return PaymentTextData(lines, totalCount, totalAmount)
+}
+
+suspend fun printText(device: BluetoothDevice, text: String, context: Context) {
+    withContext(Dispatchers.IO) {
+        try {
+            val connection = BluetoothConnection(device)
+            connection.connect()
+
+            val printer = EscPosPrinter(connection, 203, 48f, 32)
+            printer.printFormattedText(text)
+
+            connection.disconnect()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Error al imprimir: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 }
