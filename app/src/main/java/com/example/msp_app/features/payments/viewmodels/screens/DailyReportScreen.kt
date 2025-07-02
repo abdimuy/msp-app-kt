@@ -1,8 +1,6 @@
 package com.example.msp_app.features.payments.screens
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothDevice
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.widget.Toast
@@ -63,8 +61,6 @@ import androidx.compose.ui.window.Popup
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.dantsu.escposprinter.EscPosPrinter
-import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.utils.DateUtils
@@ -413,7 +409,11 @@ fun DailyReportScreen(
                                             onPrintRequest = { device, text ->
                                                 coroutineScope.launch {
                                                     try {
-                                                        printText(device, text, context)
+                                                        ThermalPrinting.printText(
+                                                            device,
+                                                            text,
+                                                            context
+                                                        )
                                                     } catch (e: Exception) {
                                                     } finally {
                                                         showBluetoothDialog =
@@ -631,21 +631,4 @@ fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
     return PaymentTextData(lines, totalCount, totalAmount)
 }
 
-suspend fun printText(device: BluetoothDevice, text: String, context: Context) {
-    withContext(Dispatchers.IO) {
-        try {
-            val connection = BluetoothConnection(device)
-            connection.connect()
 
-            val printer = EscPosPrinter(connection, 203, 48f, 32)
-            printer.printFormattedText(text)
-
-            connection.disconnect()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            withContext(Dispatchers.Main) {
-                Toast.makeText(context, "Error al imprimir: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }
-    }
-}
