@@ -144,15 +144,11 @@ fun SelectBluetoothDevice(
     LaunchedEffect(pairedDevices) {
         val deviceFound = savedAddress
             ?.let { address -> pairedDevices.firstOrNull { it.address == address } }
-        if (deviceFound != null && testDeviceConnection(deviceFound, bluetoothAdapter, context)) {
+        if (deviceFound != null) {
             selectedDevice = deviceFound
         } else {
             prefs.edit { remove("last_printer_address") }
             savedAddress = null
-            if (deviceFound != null) {
-                Toast.makeText(context, "La última impresora ya no responde", Toast.LENGTH_LONG)
-                    .show()
-            }
         }
     }
 
