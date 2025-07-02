@@ -37,7 +37,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.UUID
 
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,8 +52,8 @@ fun SelectBluetoothDevice(
     onPrintRequest: suspend (device: BluetoothDevice, text: String) -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = context.getSharedPreferences("printer_prefs", Context.MODE_PRIVATE)    // nuevo
-    var savedAddress by remember { mutableStateOf<String?>(null) }                     // nuevo
+    val prefs = context.getSharedPreferences("printer_prefs", Context.MODE_PRIVATE)
+    var savedAddress by remember { mutableStateOf<String?>(null) }
 
     val bluetoothManager = LocalContext.current.getSystemService(
         BluetoothManager::class.java
@@ -59,6 +63,7 @@ fun SelectBluetoothDevice(
 
     var pairedDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     var isPrinting by remember { mutableStateOf(false) }
+    var printRequestDevice by remember { mutableStateOf<BluetoothDevice?>(null) } // nuevo
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
     var showBluetoothDialog by remember { mutableStateOf(false) }
 
@@ -139,15 +144,43 @@ fun SelectBluetoothDevice(
     }
 
     LaunchedEffect(pairedDevices) {
-        val deviceFound = savedAddress?.let { addr ->
-            pairedDevices.firstOrNull { it.address == addr }
-        }
+        val deviceFound = savedAddress
+            ?.let { address -> pairedDevices.firstOrNull { it.address == address } }
         if (deviceFound != null) {
-            selectedDevice = deviceFound
+            try {
+                withContext(Dispatchers.IO) {
+                    val socket = deviceFound
+                        .createRfcommSocketToServiceRecord(UUID.fromString("00001101-0000-1000-8000-00805F9B34FB"))
+                    bluetoothAdapter?.cancelDiscovery()
+                    socket.connect()
+                    socket.close()
+                }
+                selectedDevice = deviceFound
+            } catch (e: Exception) {
+                prefs.edit { remove("last_printer_address") }
+                savedAddress = null
+                Toast.makeText(context, "La última impresora ya no responde", Toast.LENGTH_LONG)
+                    .show()
+            }
         } else {
-            // Impresora guardada no disponible: eliminar preferencia
-            prefs.edit().remove("last_printer_address").apply()
+            prefs.edit { remove("last_printer_address") }
             savedAddress = null
+        }
+    }
+
+    LaunchedEffect(printRequestDevice) {
+        printRequestDevice?.let { device ->
+            isPrinting = true
+            try {
+                withContext(Dispatchers.IO) {
+                    onPrintRequest(device, textToPrint)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error al imprimir: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                isPrinting = false
+                printRequestDevice = null
+            }
         }
     }
 
@@ -172,20 +205,7 @@ fun SelectBluetoothDevice(
                 Button(
                     onClick = {
                         selectedDevice?.let { device ->
-                            isPrinting = true
-                            coroutineScope.launch {
-                                try {
-                                    onPrintRequest(device, textToPrint)
-                                } catch (e: Exception) {
-                                    Toast.makeText(
-                                        context,
-                                        "Error al imprimir: ${e.message}",
-                                        Toast.LENGTH_LONG
-                                    )
-                                        .show()
-                                }
-                                isPrinting = false
-                            }
+                            printRequestDevice = device
                         }
                     },
                     modifier = Modifier
@@ -201,29 +221,46 @@ fun SelectBluetoothDevice(
                     onDismissRequest = { showBluetoothDialog = false },
                     title = { Text("Selecciona impresora Bluetooth") },
                     text = {
-                        if (pairedDevices.isEmpty()) {
-                            Text("No se encontraron dispositivos emparejados")
-                        } else {
-                            LazyColumn {
-                                items(pairedDevices) { device ->
-                                    Text(
-                                        text = device.name ?: "Dispositivo desconocido",
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                prefs.edit()                                                        // guardar
-                                                    .putString(
-                                                        "last_printer_address",
-                                                        device.address
-                                                    )
-                                                    .apply()
-                                                selectedDevice = device
-                                                showBluetoothDialog = false
+                        LazyColumn {
+                            items(pairedDevices) { device ->
+                                Text(
+                                    text = device.name ?: "Desconocido",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            coroutineScope.launch {
+                                                try {
+                                                    withContext(Dispatchers.IO) {
+                                                        val sock = device
+                                                            .createRfcommSocketToServiceRecord(
+                                                                UUID.fromString(
+                                                                    "00001101-0000-1000-8000-00805F9B34FB"
+                                                                )
+                                                            )
+                                                        bluetoothAdapter?.cancelDiscovery()
+                                                        sock.connect()
+                                                        sock.close()
+                                                    }
+                                                    prefs.edit {
+                                                        putString(
+                                                            "last_printer_address",
+                                                            device.address
+                                                        )
+                                                    }
+                                                    selectedDevice = device
+                                                    showBluetoothDialog = false
+                                                } catch (ex: Exception) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "No se pudo conectar a ${device.name}",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
                                             }
-                                            .padding(8.dp),
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                }
+                                        }
+                                        .padding(8.dp),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
                             }
                         }
                     },
