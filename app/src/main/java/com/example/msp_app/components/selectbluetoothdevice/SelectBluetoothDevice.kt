@@ -184,20 +184,4 @@ fun SelectBluetoothDevice(
             }
         }
     }
-
-    LaunchedEffect(selectedDevice) {
-        selectedDevice?.let { device ->
-            isPrinting = true
-            coroutineScope.launch {
-                try {
-                    onPrintRequest(device, textToPrint)
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Error al imprimir: ${e.message}", Toast.LENGTH_LONG)
-                        .show()
-                }
-                isPrinting = false
-                selectedDevice = null
-            }
-        }
-    }
 }
