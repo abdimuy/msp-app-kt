@@ -49,6 +49,7 @@ import com.example.msp_app.features.sales.components.CustomMap
 import com.example.msp_app.features.sales.components.paymentshistorysection.PaymentsHistory
 import com.example.msp_app.features.sales.components.saleactionssection.SaleActionSection
 import com.example.msp_app.features.sales.components.saleclientdetailssection.SaleClientDetailsSection
+import com.example.msp_app.features.sales.components.saleclientsettlement.SaleClienteSettlement
 import com.example.msp_app.features.sales.components.saleproductssection.SaleProductsSection
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.navigation.Screen
@@ -171,8 +172,12 @@ fun SaleDetailsContent(
                 Icon(Icons.Default.Menu, contentDescription = "Menú")
             }
         }
+        Spacer(Modifier.height(10.dp))
+        SaleClienteSettlement(
+            sale
+        )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         OutlinedCard(
             elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
             colors = CardDefaults.cardColors(
