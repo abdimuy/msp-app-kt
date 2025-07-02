@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.data.local.entities.PaymentEntity
 import java.time.LocalDate
@@ -71,8 +72,16 @@ interface PaymentDao {
                 ZONA_CLIENTE_ID,
                 NOMBRE_CLIENTE
             FROM Payment
-            WHERE FECHA_HORA_PAGO BETWEEN :start  AND :end 
-            ORDER BY FECHA_HORA_PAGO DESC"""
+            WHERE
+                FECHA_HORA_PAGO BETWEEN :start  AND :end
+                AND FORMA_COBRO_ID IN 
+                (
+                    ${Constants.PAGO_EN_EFECTIVO_ID},
+                    ${Constants.PAGO_CON_CHEQUE_ID},
+                    ${Constants.PAGO_CON_TRANSFERENCIA_ID}
+                )
+            ORDER BY FECHA_HORA_PAGO DESC
+        """
     )
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity>
 
@@ -93,7 +102,8 @@ interface PaymentDao {
                 ZONA_CLIENTE_ID,
                 NOMBRE_CLIENTE
             FROM Payment
-            WHERE GUARDADO_EN_MICROSIP = 0
+            WHERE 
+                GUARDADO_EN_MICROSIP = 0
             ORDER BY FECHA_HORA_PAGO ASC"""
     )
     suspend fun getPendingPayments(): List<PaymentEntity>

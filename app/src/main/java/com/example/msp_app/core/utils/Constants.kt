@@ -2,6 +2,7 @@ package com.example.msp_app.core.utils
 
 object Constants {
     const val PAGO_EN_EFECTIVO_ID = 157
+    const val PAGO_CON_CHEQUE_ID = 158
     const val PAGO_CON_TRANSFERENCIA_ID = 52569
     const val CONDONACION_ID = 137026
 
@@ -20,5 +21,4 @@ object Constants {
     const val NO_RESPONDE = "No responde aunque está"
     const val SE_ESCUCHAN_RUIDOS = "Se escuchan ruidos pero no abre"
     const val PIDE_REAGENDAR = "Pidió reagendar visita"
-
 }
