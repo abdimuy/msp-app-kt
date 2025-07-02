@@ -57,6 +57,22 @@ fun SelectBluetoothDevice(
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
     lateinit var checkBluetoothAndShowDevices: () -> Unit
 
+    LaunchedEffect(selectedDevice) {
+        selectedDevice?.let { device ->
+            isPrinting = true
+            coroutineScope.launch {
+                try {
+                    onPrintRequest(device, textToPrint)
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Error al imprimir: ${e.message}", Toast.LENGTH_LONG)
+                        .show()
+                }
+                isPrinting = false
+                selectedDevice = null
+            }
+        }
+    }
+
     fun loadPairedDevices() {
         pairedDevices = bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
         if (pairedDevices.isEmpty()) {
