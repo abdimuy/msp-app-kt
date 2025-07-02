@@ -80,6 +80,26 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
+private data class ReportDateData(
+    val iso: String,
+    val textField: TextFieldValue,
+    val startIso: String,
+    val endIso: String
+)
+
+private fun prepareReportDate(date: LocalDate): ReportDateData {
+    val iso = DateUtils.parseLocalDateToIso(date)
+    val text = TextFieldValue(
+        DateUtils.formatIsoDate(iso, "dd/MM/yyyy", Locale("es", "MX"))
+    )
+    val start = iso
+    val end = DateUtils.addToIsoDate(
+        DateUtils.addToIsoDate(iso, 1, ChronoUnit.DAYS),
+        -1, ChronoUnit.SECONDS
+    )
+    return ReportDateData(iso, text, start, end)
+}
+
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,21 +115,23 @@ fun DailyReportScreen(
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
 
+    LaunchedEffect(Unit) {
+        prepareReportDate(LocalDate.now()).let { data ->
+            reportDateIso = data.iso
+            textDate = data.textField
+            viewModel.getPaymentsByDate(data.startIso, data.endIso)
+        }
+    }
+
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
-            val localDate = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
-            val isoDate = DateUtils.parseLocalDateToIso(localDate)
-            reportDateIso = isoDate
-            val startIso = isoDate
-            val endIso = DateUtils.addToIsoDate(
-                DateUtils.addToIsoDate(isoDate, 1, ChronoUnit.DAYS),
-                -1, ChronoUnit.SECONDS
-            )
-            val formattedText = DateUtils.formatIsoDate(isoDate, "dd/MM/yyyy", Locale("es", "MX"))
-            textDate = TextFieldValue(formattedText)
-
-            viewModel.getPaymentsByDate(startIso, endIso)
-            showDatePicker = false
+            val selected = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
+            prepareReportDate(selected).let { data ->
+                reportDateIso = data.iso
+                textDate = data.textField
+                viewModel.getPaymentsByDate(data.startIso, data.endIso)
+                showDatePicker = false
+            }
         }
     }
 
@@ -165,7 +187,6 @@ fun DailyReportScreen(
                 ?: "No especificado",
             title = "TICKET"
         )
-
 
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -615,5 +636,3 @@ fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
 
     return PaymentTextData(lines, totalCount, totalAmount)
 }
-
-
