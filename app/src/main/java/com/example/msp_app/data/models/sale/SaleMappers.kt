@@ -1,9 +1,6 @@
 package com.example.msp_app.data.models.sale
 
 import com.example.msp_app.data.local.entities.SaleEntity
-import com.example.msp_app.data.models.sale.Sale
-import com.example.msp_app.data.models.sale.EstadoCobranza
-import com.example.msp_app.data.models.sale.FrecuenciaPago
 
 fun Sale.toEntity(): SaleEntity = SaleEntity(
     DOCTO_CC_ACR_ID,
@@ -42,7 +39,7 @@ fun Sale.toEntity(): SaleEntity = SaleEntity(
     DIA_TEMPORAL_COBRANZA,
     PRECIO_DE_CONTADO,
     AVAL_O_RESPONSABLE,
-    FREC_PAGO.name
+    FREC_PAGO?.name ?: FrecuenciaPago.SEMANAL.name
 )
 
 fun SaleEntity.toDomain(): Sale = Sale(
