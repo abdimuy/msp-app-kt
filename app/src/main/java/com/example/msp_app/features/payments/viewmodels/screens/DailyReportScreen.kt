@@ -4,7 +4,9 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -66,7 +68,6 @@ import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.utils.DateUtils
-import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
@@ -83,6 +84,7 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
+@RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyReportScreen(
@@ -108,13 +110,67 @@ fun DailyReportScreen(
                 DateUtils.addToIsoDate(isoDate, 1, ChronoUnit.DAYS),
                 -1, ChronoUnit.SECONDS
             )
-            val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale("es", "MX"))
+            val formattedText = DateUtils.formatIsoDate(isoDate, "dd/MM/yyyy", Locale("es", "MX"))
             textDate = TextFieldValue(formattedText)
 
             viewModel.getPaymentsByDate(startIso, endIso)
             showDatePicker = false
         }
     }
+
+    fun formatPaymentsTextForTicket(
+        payments: List<Payment>,
+        dateStr: String,
+        collectorName: String,
+        title: String
+    ): String {
+        val builder = StringBuilder()
+
+        builder.appendLine("=".repeat(32))
+        builder.appendLine(ThermalPrinting.centerText(title, 32))
+        builder.appendLine("Fecha: $dateStr")
+        builder.appendLine("Cobrador: $collectorName")
+        builder.appendLine("-".repeat(32))
+
+        builder.appendLine(String.format("%-6s %-16s %8s", "Fecha", "Cliente", "Importe"))
+
+        payments.forEach { pago ->
+            val date = DateUtils.formatIsoDate(
+                pago.FECHA_HORA_PAGO,
+                "HH:mm",
+                Locale("es", "MX")
+            )
+            val client =
+                if (pago.NOMBRE_CLIENTE.length > 16) pago.NOMBRE_CLIENTE.take(16) else pago.NOMBRE_CLIENTE
+            val amount = pago.IMPORTE
+
+            builder.appendLine(
+                String.format("%-6s %-16s %8s", date, client, "$%,d".format(amount.toInt()))
+            )
+        }
+
+        builder.appendLine("-".repeat(32))
+        builder.appendLine("Total pagos: ${payments.size}")
+        builder.appendLine(
+            "Total importe: $${
+                "%,d".format(payments.sumOf { it.IMPORTE }.toInt())
+            }"
+        )
+        builder.appendLine("=".repeat(32))
+        builder.appendLine("!!!GRACIAS POR SU PREFERENCIA!!!")
+
+        return builder.toString()
+    }
+
+    val ticketText =
+        formatPaymentsTextForTicket(
+            payments = visiblePayments,
+            dateStr = textDate.text,
+            collectorName = visiblePayments.firstOrNull()?.COBRADOR
+                ?: "No especificado",
+            title = "TICKET"
+        )
+
 
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -252,7 +308,11 @@ fun DailyReportScreen(
                                 val coroutineScope = rememberCoroutineScope()
                                 var isGeneratingPdf by remember { mutableStateOf(false) }
                                 val reportDate =
-                                    formatIsoDate(reportDateIso, "yyyy-MM-dd", Locale("es", "MX"))
+                                    DateUtils.formatIsoDate(
+                                        reportDateIso,
+                                        "yyyy-MM-dd",
+                                        Locale("es", "MX")
+                                    )
 
                                 Column(
                                     modifier = Modifier.weight(1f)
@@ -347,15 +407,6 @@ fun DailyReportScreen(
                                         }
                                     }
                                     if (showBluetoothDialog) {
-                                        val ticketText =
-                                            ThermalPrinting.formatPaymentsTextForTicket(
-                                                payments = visiblePayments,
-                                                dateStr = textDate.text,
-                                                collectorName = visiblePayments.firstOrNull()?.COBRADOR
-                                                    ?: "No especificado",
-                                                title = "TICKET"
-                                            )
-
                                         SelectBluetoothDevice(
                                             textToPrint = ticketText,
                                             modifier = Modifier.fillMaxWidth(),
@@ -427,7 +478,7 @@ fun PaymentItem(
                     .weight(1f)
             ) {
                 Text(
-                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    text = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -500,7 +551,7 @@ fun PaymentItem(
                     .weight(1f)
             ) {
                 Text(
-                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    text = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -566,7 +617,7 @@ data class PaymentTextData(
 
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
     val lines = payments.map { pago ->
-        val formattedDate = formatIsoDate(
+        val formattedDate = DateUtils.formatIsoDate(
             pago.FECHA_HORA_PAGO,
             "dd/MM/yyyy hh:mm a",
             Locale("es", "MX")

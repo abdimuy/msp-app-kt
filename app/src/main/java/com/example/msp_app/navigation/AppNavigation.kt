@@ -1,5 +1,7 @@
 package com.example.msp_app.navigation
 
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -34,6 +36,7 @@ sealed class Screen(val route: String) {
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation() {
@@ -79,7 +82,7 @@ fun AppNavigation() {
             composable(Screen.DailyReport.route) {
                 DailyReportScreen(navController = navController)
             }
-            
+
             composable(Screen.Map.route) { backStackEntry ->
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
