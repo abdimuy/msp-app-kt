@@ -2,7 +2,9 @@ package com.example.msp_app.features.payments.screens
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.Build
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -60,10 +62,11 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.utils.DateUtils
-import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -77,6 +80,27 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
+private data class ReportDateData(
+    val iso: String,
+    val textField: TextFieldValue,
+    val startIso: String,
+    val endIso: String
+)
+
+private fun prepareReportDate(date: LocalDate): ReportDateData {
+    val iso = DateUtils.parseLocalDateToIso(date)
+    val text = TextFieldValue(
+        DateUtils.formatIsoDate(iso, "dd/MM/yyyy", Locale("es", "MX"))
+    )
+    val start = iso
+    val end = DateUtils.addToIsoDate(
+        DateUtils.addToIsoDate(iso, 1, ChronoUnit.DAYS),
+        -1, ChronoUnit.SECONDS
+    )
+    return ReportDateData(iso, text, start, end)
+}
+
+@RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyReportScreen(
@@ -91,23 +115,78 @@ fun DailyReportScreen(
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
 
-    LaunchedEffect(datePickerState.selectedDateMillis) {
-        datePickerState.selectedDateMillis?.let { millis ->
-            val localDate = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
-            val isoDate = DateUtils.parseLocalDateToIso(localDate)
-            reportDateIso = isoDate
-            val startIso = isoDate
-            val endIso = DateUtils.addToIsoDate(
-                DateUtils.addToIsoDate(isoDate, 1, ChronoUnit.DAYS),
-                -1, ChronoUnit.SECONDS
-            )
-            val formattedText = formatIsoDate(isoDate, "dd/MM/yyyy", Locale("es", "MX"))
-            textDate = TextFieldValue(formattedText)
-
-            viewModel.getPaymentsByDate(startIso, endIso)
-            showDatePicker = false
+    LaunchedEffect(Unit) {
+        prepareReportDate(LocalDate.now()).let { data ->
+            reportDateIso = data.iso
+            textDate = data.textField
+            viewModel.getPaymentsByDate(data.startIso, data.endIso)
         }
     }
+
+    LaunchedEffect(datePickerState.selectedDateMillis) {
+        datePickerState.selectedDateMillis?.let { millis ->
+            val selected = LocalDate.ofEpochDay(millis / (24 * 60 * 60 * 1000))
+            prepareReportDate(selected).let { data ->
+                reportDateIso = data.iso
+                textDate = data.textField
+                viewModel.getPaymentsByDate(data.startIso, data.endIso)
+                showDatePicker = false
+            }
+        }
+    }
+
+    fun formatPaymentsTextForTicket(
+        payments: List<Payment>,
+        dateStr: String,
+        collectorName: String,
+        title: String
+    ): String {
+        val builder = StringBuilder()
+
+        builder.appendLine("=".repeat(32))
+        builder.appendLine(ThermalPrinting.centerText(title, 32))
+        builder.appendLine("Fecha: $dateStr")
+        builder.appendLine("Cobrador: $collectorName")
+        builder.appendLine("-".repeat(32))
+
+        builder.appendLine(String.format("%-6s %-16s %8s", "Fecha", "Cliente", "Importe"))
+
+        payments.forEach { pago ->
+            val date = DateUtils.formatIsoDate(
+                pago.FECHA_HORA_PAGO,
+                "HH:mm",
+                Locale("es", "MX")
+            )
+            val client =
+                if (pago.NOMBRE_CLIENTE.length > 16) pago.NOMBRE_CLIENTE.take(16) else pago.NOMBRE_CLIENTE
+            val amount = pago.IMPORTE
+
+            builder.appendLine(
+                String.format("%-6s %-16s %8s", date, client, "$%,d".format(amount.toInt()))
+            )
+        }
+
+        builder.appendLine("-".repeat(32))
+        builder.appendLine("Total pagos: ${payments.size}")
+        builder.appendLine(
+            "Total importe: $${
+                "%,d".format(payments.sumOf { it.IMPORTE }.toInt())
+            }"
+        )
+        builder.appendLine("=".repeat(32))
+        builder.appendLine("!!!GRACIAS POR SU PREFERENCIA!!!")
+
+        return builder.toString()
+    }
+
+    val ticketText =
+        formatPaymentsTextForTicket(
+            payments = visiblePayments,
+            dateStr = textDate.text,
+            collectorName = visiblePayments.firstOrNull()?.COBRADOR
+                ?: "No especificado",
+            title = "TICKET"
+        )
 
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -245,7 +324,11 @@ fun DailyReportScreen(
                                 val coroutineScope = rememberCoroutineScope()
                                 var isGeneratingPdf by remember { mutableStateOf(false) }
                                 val reportDate =
-                                    formatIsoDate(reportDateIso, "yyyy-MM-dd", Locale("es", "MX"))
+                                    DateUtils.formatIsoDate(
+                                        reportDateIso,
+                                        "yyyy-MM-dd",
+                                        Locale("es", "MX")
+                                    )
 
                                 Column(
                                     modifier = Modifier.weight(1f)
@@ -324,11 +407,28 @@ fun DailyReportScreen(
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 8.dp)
                                     ) {
                                         Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
                                     }
 
+                                    if (visiblePayments.isNotEmpty()) {
+                                        SelectBluetoothDevice(
+                                            textToPrint = ticketText,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            onPrintRequest = { device, text ->
+                                                coroutineScope.launch {
+                                                    try {
+                                                        ThermalPrinting.printText(
+                                                            device,
+                                                            text,
+                                                            context
+                                                        )
+                                                    } catch (e: Exception) {
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -384,7 +484,7 @@ fun PaymentItem(
                     .weight(1f)
             ) {
                 Text(
-                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    text = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -457,7 +557,7 @@ fun PaymentItem(
                     .weight(1f)
             ) {
                 Text(
-                    text = formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    text = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -523,7 +623,7 @@ data class PaymentTextData(
 
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
     val lines = payments.map { pago ->
-        val formattedDate = formatIsoDate(
+        val formattedDate = DateUtils.formatIsoDate(
             pago.FECHA_HORA_PAGO,
             "dd/MM/yyyy hh:mm a",
             Locale("es", "MX")
