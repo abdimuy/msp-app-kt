@@ -38,11 +38,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import kotlinx.coroutines.Dispatchers
+import com.example.msp_app.core.utils.performPrintRequest
+import com.example.msp_app.core.utils.testDeviceConnection
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.yield
-import java.util.UUID
 
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -139,7 +137,7 @@ fun SelectBluetoothDevice(
     }
 
     LaunchedEffect(Unit) {
-        savedAddress = prefs.getString("last_printer_address", null)  // cargar última
+        savedAddress = prefs.getString("last_printer_address", null)
         checkBluetoothAndShowDevices()
     }
 
@@ -181,20 +179,8 @@ fun SelectBluetoothDevice(
                         selectedDevice?.let { device ->
                             coroutineScope.launch {
                                 isPrinting = true
-                                yield()
-                                try {
-                                    withContext(Dispatchers.IO) {
-                                        onPrintRequest(device, textToPrint)
-                                    }
-                                } catch (e: Exception) {
-                                    Toast.makeText(
-                                        context,
-                                        "Error al imprimir: ${e.message}",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                } finally {
-                                    isPrinting = false
-                                }
+                                performPrintRequest(context, device, textToPrint, onPrintRequest)
+                                isPrinting = false
                             }
                         }
                     },
@@ -256,33 +242,5 @@ fun SelectBluetoothDevice(
                 )
             }
         }
-    }
-}
-
-private suspend fun testDeviceConnection(
-    device: BluetoothDevice,
-    adapter: BluetoothAdapter?,
-    context: Context
-): Boolean = withContext(Dispatchers.IO) {
-    if (ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.BLUETOOTH_CONNECT
-        ) != PackageManager.PERMISSION_GRANTED
-    ) {
-        return@withContext false
-    }
-    return@withContext try {
-        val socket = device
-            .createRfcommSocketToServiceRecord(
-                UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
-            )
-        adapter?.cancelDiscovery()
-        socket.connect()
-        socket.close()
-        true
-    } catch (e: SecurityException) {
-        false
-    } catch (_: Exception) {
-        false
     }
 }
