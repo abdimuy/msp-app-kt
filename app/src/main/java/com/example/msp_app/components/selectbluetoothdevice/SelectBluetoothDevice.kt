@@ -4,6 +4,7 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -47,13 +48,15 @@ fun SelectBluetoothDevice(
     onPrintRequest: suspend (device: BluetoothDevice, text: String) -> Unit
 ) {
     val context = LocalContext.current
+    val prefs = context.getSharedPreferences("printer_prefs", Context.MODE_PRIVATE)    // nuevo
+    var savedAddress by remember { mutableStateOf<String?>(null) }                     // nuevo
+
     val bluetoothManager = LocalContext.current.getSystemService(
         BluetoothManager::class.java
     )
     val bluetoothAdapter = bluetoothManager?.adapter
     val coroutineScope = rememberCoroutineScope()
 
-    var showDialog by remember { mutableStateOf(false) }
     var pairedDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     var isPrinting by remember { mutableStateOf(false) }
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
@@ -66,8 +69,6 @@ fun SelectBluetoothDevice(
         if (pairedDevices.isEmpty()) {
             Toast.makeText(context, "No hay dispositivos Bluetooth emparejados", Toast.LENGTH_SHORT)
                 .show()
-        } else {
-            showDialog = true
         }
     }
 
@@ -132,6 +133,24 @@ fun SelectBluetoothDevice(
         }
     }
 
+    LaunchedEffect(Unit) {
+        savedAddress = prefs.getString("last_printer_address", null)  // cargar última
+        checkBluetoothAndShowDevices()
+    }
+
+    LaunchedEffect(pairedDevices) {
+        val deviceFound = savedAddress?.let { addr ->
+            pairedDevices.firstOrNull { it.address == addr }
+        }
+        if (deviceFound != null) {
+            selectedDevice = deviceFound
+        } else {
+            // Impresora guardada no disponible: eliminar preferencia
+            prefs.edit().remove("last_printer_address").apply()
+            savedAddress = null
+        }
+    }
+
     Surface(modifier = modifier) {
         Column {
             LaunchedEffect(Unit) {
@@ -166,7 +185,6 @@ fun SelectBluetoothDevice(
                                         .show()
                                 }
                                 isPrinting = false
-                                selectedDevice = null
                             }
                         }
                     },
@@ -193,6 +211,12 @@ fun SelectBluetoothDevice(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
+                                                prefs.edit()                                                        // guardar
+                                                    .putString(
+                                                        "last_printer_address",
+                                                        device.address
+                                                    )
+                                                    .apply()
                                                 selectedDevice = device
                                                 showBluetoothDialog = false
                                             }
@@ -204,7 +228,7 @@ fun SelectBluetoothDevice(
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { showDialog = false }) {
+                        TextButton(onClick = { showBluetoothDialog = false }) {
                             Text("Cancelar")
                         }
                     }
