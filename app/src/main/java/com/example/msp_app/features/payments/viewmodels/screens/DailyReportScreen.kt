@@ -94,7 +94,6 @@ fun DailyReportScreen(
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
-    var showBluetoothDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
@@ -392,17 +391,6 @@ fun DailyReportScreen(
                                     }
 
                                     if (visiblePayments.isNotEmpty()) {
-                                        Button(
-                                            onClick = {
-                                                showBluetoothDialog = true
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                        ) {
-                                            Text("Imprimir ticket")
-                                        }
-                                    }
-                                    if (showBluetoothDialog) {
                                         SelectBluetoothDevice(
                                             textToPrint = ticketText,
                                             modifier = Modifier.fillMaxWidth(),
@@ -415,9 +403,6 @@ fun DailyReportScreen(
                                                             context
                                                         )
                                                     } catch (e: Exception) {
-                                                    } finally {
-                                                        showBluetoothDialog =
-                                                            false
                                                     }
                                                 }
                                             }

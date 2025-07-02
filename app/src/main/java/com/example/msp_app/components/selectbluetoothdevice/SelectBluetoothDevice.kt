@@ -13,11 +13,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -55,23 +57,9 @@ fun SelectBluetoothDevice(
     var pairedDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     var isPrinting by remember { mutableStateOf(false) }
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
-    lateinit var checkBluetoothAndShowDevices: () -> Unit
+    var showBluetoothDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(selectedDevice) {
-        selectedDevice?.let { device ->
-            isPrinting = true
-            coroutineScope.launch {
-                try {
-                    onPrintRequest(device, textToPrint)
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Error al imprimir: ${e.message}", Toast.LENGTH_LONG)
-                        .show()
-                }
-                isPrinting = false
-                selectedDevice = null
-            }
-        }
-    }
+    lateinit var checkBluetoothAndShowDevices: () -> Unit
 
     fun loadPairedDevices() {
         pairedDevices = bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
@@ -150,9 +138,49 @@ fun SelectBluetoothDevice(
                 checkBluetoothAndShowDevices()
             }
 
-            if (showDialog) {
+            Row {
+                Button(
+                    onClick = {
+                        showBluetoothDialog = true
+                    },
+                ) {
+                    if (selectedDevice != null) {
+                        Text("Imprimir en: ${selectedDevice?.name ?: "Selecciona dispositivo"}")
+                    } else {
+                        Text("Seleccionar impresora")
+                    }
+                }
+                Button(
+                    onClick = {
+                        selectedDevice?.let { device ->
+                            isPrinting = true
+                            coroutineScope.launch {
+                                try {
+                                    onPrintRequest(device, textToPrint)
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        "Error al imprimir: ${e.message}",
+                                        Toast.LENGTH_LONG
+                                    )
+                                        .show()
+                                }
+                                isPrinting = false
+                                selectedDevice = null
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 8.dp)
+                ) {
+                    Text(if (isPrinting) "Imprimiendo..." else "Imprimir")
+                }
+            }
+
+            if (showBluetoothDialog) {
                 AlertDialog(
-                    onDismissRequest = { showDialog = false },
+                    onDismissRequest = { showBluetoothDialog = false },
                     title = { Text("Selecciona impresora Bluetooth") },
                     text = {
                         if (pairedDevices.isEmpty()) {
@@ -166,7 +194,7 @@ fun SelectBluetoothDevice(
                                             .fillMaxWidth()
                                             .clickable {
                                                 selectedDevice = device
-                                                showDialog = false
+                                                showBluetoothDialog = false
                                             }
                                             .padding(8.dp),
                                         style = MaterialTheme.typography.bodyLarge
