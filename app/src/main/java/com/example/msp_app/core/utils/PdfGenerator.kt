@@ -7,7 +7,6 @@ import android.graphics.pdf.PdfDocument
 import com.example.msp_app.features.payments.screens.PaymentTextData
 import java.io.File
 import java.io.FileOutputStream
-import java.text.DecimalFormat
 import java.time.LocalDateTime
 import java.util.Locale
 
@@ -22,23 +21,21 @@ object PdfGenerator {
     ): File? {
         val pdfDocument = PdfDocument()
         val paint = Paint().apply {
-            textSize = 12f
-            typeface = Typeface.MONOSPACE
+            textSize = 10f
+            typeface = Typeface.SANS_SERIF
         }
 
         val pageWidth = 612
         val pageHeight = 792
         val marginLeft = 40f
         val rightMargin = 40f
-        val lineSpacing = 20
-        val importFormat = DecimalFormat("#,##0")
+        val lineSpacing = 15
 
         val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
         var page = pdfDocument.startPage(pageInfo)
         var canvas = page.canvas
         var yPos = 40
 
-        paint.textSize = 14f
         paint.isFakeBoldText = true
         canvas.drawText(title, pageWidth / 2f - 100, yPos.toFloat(), paint)
         yPos += 25
@@ -54,14 +51,24 @@ object PdfGenerator {
         canvas.drawText("Creado el: $printDate", marginLeft, yPos.toFloat(), paint)
         yPos += 30
 
-        val header = "Fecha/Hora             Cliente                              Importe"
-        canvas.drawText(header, marginLeft, yPos.toFloat(), paint)
+        val headerDate = "Fecha/Hora"
+        val headerClient = "Cliente"
+        val headerMethod = "Método de pago"
+        val headerAmount = "Importe"
+        val xDate = marginLeft
+        canvas.drawText(headerDate, xDate, yPos.toFloat(), paint)
+        val xClient = xDate + paint.measureText(headerDate) + 40f
+        canvas.drawText(headerClient, xClient, yPos.toFloat(), paint)
+        val xMethod = xClient + paint.measureText(headerClient) + 200f
+        canvas.drawText(headerMethod, xMethod, yPos.toFloat(), paint)
+        val xAmount = pageWidth - rightMargin - paint.measureText(headerAmount)
+        canvas.drawText(headerAmount, xAmount, yPos.toFloat(), paint)
         yPos += lineSpacing
         canvas.drawLine(marginLeft, yPos.toFloat(), pageWidth - marginLeft, yPos.toFloat(), paint)
         yPos += lineSpacing
 
         paint.isFakeBoldText = false
-        for ((fecha, cliente, importe) in data.lines) {
+        for ((date, client, amount, method) in data.lines) {
             if (yPos > pageHeight - 80) {
                 pdfDocument.finishPage(page)
                 page = pdfDocument.startPage(pageInfo)
@@ -69,15 +76,18 @@ object PdfGenerator {
                 yPos = 40
             }
 
-            val formattedImporte = "$${importFormat.format(importe)}"
-            val line = String.format(
-                Locale("es", "MX"),
-                "%-22s %-35s %8s",
-                fecha,
-                cliente.take(35),
-                formattedImporte
-            )
-            canvas.drawText(line, marginLeft, yPos.toFloat(), paint)
+            val formattedAmount = amount.toCurrency(noDecimals = true)
+            val xDateRow = xDate
+            canvas.drawText(date, xDateRow, yPos.toFloat(), paint)
+            val clientText = client.take(35)
+            val xClientRow = xClient
+            canvas.drawText(clientText, xClientRow, yPos.toFloat(), paint)
+            val methodText = method.label.uppercase().take(30)
+            val xMethodRow = xMethod
+            canvas.drawText(methodText, xMethodRow, yPos.toFloat(), paint)
+            val xAmountRow = xAmount
+            canvas.drawText(formattedAmount, xAmountRow, yPos.toFloat(), paint)
+
             yPos += lineSpacing
         }
 
@@ -88,14 +98,14 @@ object PdfGenerator {
 
         paint.isFakeBoldText = true
         val totalPaymentsText = "Total de pagos: ${data.totalCount}"
-        val totalAmountsText = "Total recaudado: $${importFormat.format(data.totalAmount)}"
+        val totalAmountsText = "Total recaudado: ${data.totalAmount.toCurrency(noDecimals = true)}"
 
-        val xTotalPagos = pageWidth - rightMargin - paint.measureText(totalPaymentsText)
-        val xTotalImportes = pageWidth - rightMargin - paint.measureText(totalAmountsText)
+        val xTotalPayments = pageWidth - rightMargin - paint.measureText(totalPaymentsText)
+        val xTotalAmounts = pageWidth - rightMargin - paint.measureText(totalAmountsText)
 
-        canvas.drawText(totalPaymentsText, xTotalPagos, yPos.toFloat(), paint)
+        canvas.drawText(totalPaymentsText, xTotalPayments, yPos.toFloat(), paint)
         yPos += lineSpacing
-        canvas.drawText(totalAmountsText, xTotalImportes, yPos.toFloat(), paint)
+        canvas.drawText(totalAmountsText, xTotalAmounts, yPos.toFloat(), paint)
 
         pdfDocument.finishPage(page)
 

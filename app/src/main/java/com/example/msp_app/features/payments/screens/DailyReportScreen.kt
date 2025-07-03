@@ -53,6 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
@@ -438,20 +439,32 @@ fun DailyReportScreen(
     }
 }
 
+data class PaymentLineData(
+    val date: String,
+    val client: String,
+    val amount: Double,
+    val paymentMethod: PaymentMethod,
+)
+
 data class PaymentTextData(
-    val lines: List<Triple<String, String, Double>>,
+    val lines: List<PaymentLineData>,
     val totalCount: Int,
     val totalAmount: Double
 )
 
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
-    val lines = payments.map { pago ->
+    val lines = payments.map { payment ->
         val formattedDate = DateUtils.formatIsoDate(
-            pago.FECHA_HORA_PAGO,
-            "dd/MM/yyyy hh:mm a",
+            payment.FECHA_HORA_PAGO,
+            "dd/MM/yy HH:mm",
             Locale("es", "MX")
         )
-        Triple(formattedDate, pago.NOMBRE_CLIENTE, pago.IMPORTE)
+        PaymentLineData(
+            date = formattedDate,
+            client = payment.NOMBRE_CLIENTE,
+            amount = payment.IMPORTE,
+            paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+        )
     }
 
     val totalCount = payments.size
