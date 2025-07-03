@@ -32,33 +32,33 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 data class Settlement(
-    val PRECIO_DE_CONTADO: Double,
-    val MONTO_A_CORTO_PLAZO: Double,
-    val PRECIO_TOTAL: Double,
-    val SALDO_REST: Double,
-    val FECHA: String
+    val cashPrice: Double,
+    val shortTermAmount: Double,
+    val totalPrice: Double,
+    val remainingBalance: Double,
+    val date: String
 )
 
-data class PagoResultado(
-    val monto: Double,
-    val etiqueta: String,
-    val fechaValidez: String
+data class PaymentResults(
+    val amount: Double,
+    val category: String,
+    val validUntil: String
 )
 
 @Composable
 fun SaleClienteSettlement(sale: Sale) {
 
     val settlement = Settlement(
-        PRECIO_DE_CONTADO = sale.PRECIO_DE_CONTADO,
-        MONTO_A_CORTO_PLAZO = sale.MONTO_A_CORTO_PLAZO,
-        PRECIO_TOTAL = sale.PRECIO_TOTAL,
-        SALDO_REST = sale.SALDO_REST,
-        FECHA = sale.FECHA
+        cashPrice = sale.PRECIO_DE_CONTADO,
+        shortTermAmount = sale.MONTO_A_CORTO_PLAZO,
+        totalPrice = sale.PRECIO_TOTAL,
+        remainingBalance = sale.SALDO_REST,
+        date = sale.FECHA
     )
 
-    val resultado = calcularPagoResultado(settlement)
+    val result = calculatePaymentResult(settlement)
 
-    if (resultado.monto != 0.0) {
+    if (result.amount != 0.0 && sale.SALDO_REST != 0.0) {
         Card(
             modifier = Modifier
                 .padding(12.dp)
@@ -91,7 +91,7 @@ fun SaleClienteSettlement(sale: Sale) {
                         style = MaterialTheme.typography.titleLarge
                     )
                     Text(
-                        text = resultado.monto.toCurrency(noDecimals = true),
+                        text = result.amount.toCurrency(noDecimals = true),
                         style = MaterialTheme.typography.bodyLarge.copy(
                             fontSize = 34.sp,
                             fontWeight = FontWeight.Bold,
@@ -99,7 +99,7 @@ fun SaleClienteSettlement(sale: Sale) {
                         )
                     )
                     Text(
-                        text = resultado.etiqueta,
+                        text = result.category,
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.White,
                         fontWeight = FontWeight.SemiBold,
@@ -108,7 +108,7 @@ fun SaleClienteSettlement(sale: Sale) {
                     )
                     HorizontalDivider(thickness = 1.dp, color = Color.White)
                     Text(
-                        text = "Válido hasta ${resultado.fechaValidez}",
+                        text = "Válido hasta ${result.validUntil}",
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Light,
@@ -120,50 +120,50 @@ fun SaleClienteSettlement(sale: Sale) {
     }
 }
 
-fun calcularPagoResultado(settlement: Settlement): PagoResultado {
-    if (settlement.PRECIO_DE_CONTADO == 0.0) {
-        return PagoResultado(
-            monto = 0.0,
-            etiqueta = "No disponible",
-            fechaValidez = "-"
+fun calculatePaymentResult(settlement: Settlement): PaymentResults {
+    if (settlement.cashPrice == 0.0) {
+        return PaymentResults(
+            amount = 0.0,
+            category = "No disponible",
+            validUntil = "-"
         )
     }
 
     val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-    val saleDate = LocalDate.parse(settlement.FECHA, formatter)
+    val saleDate = LocalDate.parse(settlement.date, formatter)
 
-    val tiempoTranscurrido = ChronoUnit.MONTHS.between(
+    val elapsedMonths = ChronoUnit.MONTHS.between(
         saleDate.withDayOfMonth(saleDate.lengthOfMonth()),
         LocalDate.now().minusDays(5)
     ) + 1
 
-    val interesesCorto = (settlement.MONTO_A_CORTO_PLAZO - settlement.PRECIO_DE_CONTADO) / 4
-    val interesesLargo = (settlement.PRECIO_TOTAL - settlement.MONTO_A_CORTO_PLAZO) / 7
-    val totalAbonado = settlement.PRECIO_TOTAL - settlement.SALDO_REST
+    val shortTermInteres = (settlement.shortTermAmount - settlement.cashPrice) / 4
+    val longTermInterest = (settlement.totalPrice - settlement.shortTermAmount) / 7
+    val totalPaid = settlement.totalPrice - settlement.remainingBalance
 
-    val monto = when {
-        tiempoTranscurrido <= 1 -> settlement.PRECIO_DE_CONTADO
-        tiempoTranscurrido <= 3 -> settlement.PRECIO_DE_CONTADO + tiempoTranscurrido * interesesCorto
-        tiempoTranscurrido in 4..5 -> settlement.MONTO_A_CORTO_PLAZO
-        tiempoTranscurrido <= 12 -> settlement.MONTO_A_CORTO_PLAZO + (tiempoTranscurrido - 4) * interesesLargo
-        else -> settlement.PRECIO_TOTAL
-    } - totalAbonado
+    val amount = when {
+        elapsedMonths <= 1 -> settlement.cashPrice
+        elapsedMonths <= 3 -> settlement.cashPrice + elapsedMonths * shortTermInteres
+        elapsedMonths in 4..5 -> settlement.shortTermAmount
+        elapsedMonths <= 12 -> settlement.shortTermAmount + (elapsedMonths - 4) * longTermInterest
+        else -> settlement.totalPrice
+    } - totalPaid
 
-    val etiqueta = when {
-        tiempoTranscurrido <= 1 -> "Precio de contado"
-        tiempoTranscurrido <= 3 -> "Precio a $tiempoTranscurrido meses"
-        tiempoTranscurrido in 4..5 -> "Precio a $tiempoTranscurrido meses"
-        tiempoTranscurrido <= 12 -> "Precio a ${tiempoTranscurrido - 4} meses"
+    val category = when {
+        elapsedMonths <= 1 -> "Precio de contado"
+        elapsedMonths <= 3 -> "Precio a $elapsedMonths meses"
+        elapsedMonths in 4..5 -> "Precio a $elapsedMonths meses"
+        elapsedMonths <= 12 -> "Precio a ${elapsedMonths - 4} meses"
         else -> "Precio total"
     }
 
-    val fechaValida = saleDate.plusMonths(tiempoTranscurrido).plusDays(14)
+    val validDate = saleDate.plusMonths(elapsedMonths).plusDays(14)
 
-    val fechaFormateada = DateUtils.formatIsoDate(
-        iso = fechaValida.toString(),
+    val formattedDate = DateUtils.formatIsoDate(
+        iso = validDate.toString(),
         pattern = "dd/MM/yyyy",
         locale = Locale("es", "MX")
     )
 
-    return PagoResultado(monto, etiqueta, fechaFormateada)
+    return PaymentResults(amount, category, formattedDate)
 }
