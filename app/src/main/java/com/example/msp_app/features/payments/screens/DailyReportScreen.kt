@@ -135,8 +135,8 @@ fun DailyReportScreen(
     ): String {
         val builder = StringBuilder()
 
-        builder.appendLine("=".repeat(32))
         builder.appendLine(ThermalPrinting.centerText(title, 32))
+        builder.appendLine()
         builder.appendLine("Fecha: $dateStr")
         builder.appendLine("Cobrador: $collectorName")
         builder.appendLine("-".repeat(32))
@@ -165,9 +165,6 @@ fun DailyReportScreen(
                 "%,d".format(payments.sumOf { it.IMPORTE }.toInt())
             }"
         )
-        builder.appendLine("=".repeat(32))
-        builder.appendLine("!!!GRACIAS POR SU PREFERENCIA!!!")
-
         return builder.toString()
     }
 
@@ -177,7 +174,7 @@ fun DailyReportScreen(
             dateStr = textDate.text,
             collectorName = visiblePayments.firstOrNull()?.COBRADOR
                 ?: "No especificado",
-            title = "TICKET"
+            title = "Reporte de Pagos Diarios"
         )
 
 
