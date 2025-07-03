@@ -16,6 +16,7 @@ import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
+import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.sales.screens.MapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
@@ -30,6 +31,7 @@ sealed class Screen(val route: String) {
     }
 
     object DailyReport : Screen("daily_reports")
+    object WeeklyReport : Screen("weekly_reports")
 
     object Map : Screen("map/{saleId}") {
         fun createRoute(saleId: Int) = "map/$saleId"
@@ -81,6 +83,10 @@ fun AppNavigation() {
 
             composable(Screen.DailyReport.route) {
                 DailyReportScreen(navController = navController)
+            }
+
+            composable(Screen.WeeklyReport.route) {
+                WeeklyReportScreen(navController = navController)
             }
 
             composable(Screen.Map.route) { backStackEntry ->
