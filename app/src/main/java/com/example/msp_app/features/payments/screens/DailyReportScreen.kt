@@ -136,7 +136,6 @@ fun DailyReportScreen(
         val builder = StringBuilder()
 
         builder.appendLine(ThermalPrinting.centerText(title, 32))
-        builder.appendLine()
         builder.appendLine("Fecha: $dateStr")
         builder.appendLine("Cobrador: $collectorName")
         builder.appendLine("-".repeat(32))
