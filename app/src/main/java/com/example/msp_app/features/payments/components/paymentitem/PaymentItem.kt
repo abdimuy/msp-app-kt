@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
@@ -48,6 +49,8 @@ fun PaymentItem(
 ) {
     val menuExpanded = remember { mutableStateOf(false) }
 
+    val paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID).label.uppercase()
+
     fun goToClientDetails() {
         navController.navigate(
             "sales/sale_details/${payment.DOCTO_CC_ACR_ID}"
@@ -58,12 +61,12 @@ fun PaymentItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp)
+                .padding(vertical = 4.dp)
                 .background(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp)
                 )
-                .padding(12.dp),
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
@@ -76,12 +79,21 @@ fun PaymentItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(0.dp))
                 Text(
                     text = payment.NOMBRE_CLIENTE,
                     maxLines = 1,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.bodyLarge,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(
+                    modifier = Modifier.height(0.dp)
+                )
+                Text(
+                    text = paymentMethod,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -131,7 +143,7 @@ fun PaymentItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 6.dp)
+                .padding(vertical = 4.dp)
                 .background(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp)
@@ -147,15 +159,23 @@ fun PaymentItem(
                     text = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
                     fontSize = 14.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 8.sp
                 )
-                Spacer(modifier = Modifier.height(0.dp))
                 Text(
                     text = payment.NOMBRE_CLIENTE,
                     maxLines = 1,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 8.sp
+                )
+                Text(
+                    text = paymentMethod,
+                    fontSize = 14.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 8.sp
                 )
             }
 
