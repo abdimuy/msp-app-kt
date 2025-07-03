@@ -70,8 +70,8 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
-import com.example.msp_app.features.payments.screens.PaymentItem
-import com.example.msp_app.features.payments.screens.PaymentItemVariant
+import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
+import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
