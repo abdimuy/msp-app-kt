@@ -42,6 +42,7 @@ import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
@@ -55,6 +56,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
@@ -87,7 +89,12 @@ fun WeeklyReportScreen(
         return PaymentTextData(
             lines = payments.map {
                 val date = DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "dd/MM/yyyy HH:mm a")
-                Triple(date, it.NOMBRE_CLIENTE, it.IMPORTE)
+                PaymentLineData(
+                    date = date,
+                    client = it.NOMBRE_CLIENTE,
+                    amount = it.IMPORTE,
+                    paymentMethod = PaymentMethod.fromId(it.FORMA_COBRO_ID)
+                )
             },
             totalCount = payments.size,
             totalAmount = payments.sumOf { it.IMPORTE }
