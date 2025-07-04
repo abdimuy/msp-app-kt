@@ -1,5 +1,7 @@
 package com.example.msp_app.features.home.screens
 
+import android.Manifest
+import android.location.Location
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,7 +26,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
@@ -51,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -64,16 +67,25 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.Coord
 import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.utils.LocationTracker
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.sortGroupsByClosestCentroid
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.features.sales.components.sale_item.SaleItem
+import com.example.msp_app.features.sales.components.sale_item.SaleItemVariant
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -81,7 +93,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(navController: NavController) {
     val systemUiController = rememberSystemUiController()
@@ -91,20 +103,63 @@ fun HomeScreen(navController: NavController) {
     }
 
     val authViewModel = LocalAuthViewModel.current
+    val userDataState by authViewModel.userData.collectAsState()
 
     val salesViewModel: SalesViewModel = viewModel()
     val salesState by salesViewModel.salesState.collectAsState()
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsGroupedByDayWeekly: ResultState<Map<String, List<Payment>>> by paymentsViewModel.paymentsGroupedByDayWeeklyState.collectAsState()
+    val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
 
-    val userDataState by authViewModel.userData.collectAsState()
+    var closestCentroidsSorted by remember {
+        mutableStateOf<List<Triple<Int, Coord, Long>>>(emptyList())
+    }
 
     var showPaymentsDialog by remember { mutableStateOf(false) }
     var selectedDateLabel by remember { mutableStateOf("") }
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
     val isDark = isSystemInDarkTheme()
+
+    val context = LocalContext.current
+    val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+    var currentLocation by remember { mutableStateOf<Location?>(null) }
+
+    LaunchedEffect(permissionState.status.isGranted) {
+        if (permissionState.status.isGranted) {
+            LocationTracker(context)
+                .locationUpdates()
+                .collect { loc -> currentLocation = loc }
+        } else {
+            permissionState.launchPermissionRequest()
+        }
+    }
+
+    LaunchedEffect(currentLocation) {
+        currentLocation?.let { it1 ->
+            when (centroidsBySaleState) {
+                is ResultState.Success -> {
+                    val groups =
+                        (centroidsBySaleState as ResultState.Success<List<PaymentLocationsGroup>>).data
+                    val currentCoord = Coord(
+                        currentLocation!!.latitude,
+                        currentLocation!!.longitude
+                    )
+                    closestCentroidsSorted = sortGroupsByClosestCentroid(
+                        groups,
+                        currentCoord
+                    ).take(10)
+                }
+
+                else -> Unit
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        paymentsViewModel.getCentroidsBySale()
+    }
 
     val initialDate = (userDataState as? ResultState.Success<User?>)
         ?.data
@@ -167,199 +222,216 @@ fun HomeScreen(navController: NavController) {
     val accountsPercentageRounded =
         String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
 
+    val salesMap = remember(salesState) {
+        (salesState as? ResultState.Success<List<Sale>>)
+            ?.data
+            ?.associateBy { it.DOCTO_CC_ID }
+            ?: emptyMap()
+    }
+
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             content = { innerPadding ->
 
-                Column(
+                LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(innerPadding)
-                        .verticalScroll(rememberScrollState())
+                        .padding(innerPadding),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .background(
-                                MaterialTheme.colorScheme.primary,
-                                RoundedCornerShape(bottomEnd = 18.dp, bottomStart = 18.dp)
-                            )
-                            .height(130.dp)
-                            .fillMaxWidth()
-                    ) {
-                        IconButton(onClick = openDrawer, modifier = Modifier.offset(y = (-16).dp)) {
-                            Icon(
-                                Icons.Default.Menu,
-                                contentDescription = "Menú",
-                                tint = Color.White
-                            )
-                        }
+                    item {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    primary,
+                                    RoundedCornerShape(bottomEnd = 18.dp, bottomStart = 18.dp),
+                                )
+                                .height(130.dp)
+                                .fillMaxWidth()
+                        ) {
+                            IconButton(
+                                onClick = openDrawer,
+                                modifier = Modifier.offset(y = (-16).dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Menu,
+                                    contentDescription = "Menú",
+                                    tint = Color.White
+                                )
+                            }
 
-                        Spacer(modifier = Modifier.width(0.dp))
+                            Spacer(modifier = Modifier.width(0.dp))
 
-                        Column(modifier = Modifier.offset(y = (-16).dp)) {
-                            Text(
-                                text = "Hola,",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = Color.LightGray
-                            )
-                            Text(
-                                text = userData?.NOMBRE ?: "-",
-                                fontSize = 20.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Column(modifier = Modifier.offset(y = (-16).dp)) {
+                                Text(
+                                    text = "Hola,",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = Color.LightGray
+                                )
+                                Text(
+                                    text = userData?.NOMBRE ?: "-",
+                                    fontSize = 20.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
 
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .offset(y = (-40).dp)
-                    ) {
-                        OutlinedCard(
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.background
-                            ),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (isDark) Color.Gray else Color.Transparent
-                            ),
+                    item {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .fillMaxWidth(0.92f)
-                                .background(
-                                    MaterialTheme.colorScheme.background,
-                                    RoundedCornerShape(16.dp)
-                                )
+                                .fillMaxWidth()
+                                .overlap(40.dp)
                         ) {
-                            Column(
+                            OutlinedCard(
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.background
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isDark) Color.Gray else Color.Transparent
+                                ),
                                 modifier = Modifier
-                                    .padding(vertical = 20.dp, horizontal = 16.dp)
-                                    .fillMaxWidth(),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    .fillMaxWidth(0.92f)
+                                    .background(
+                                        MaterialTheme.colorScheme.background,
+                                        RoundedCornerShape(16.dp)
+                                    )
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                Column(
+                                    modifier = Modifier
+                                        .padding(vertical = 20.dp, horizontal = 16.dp)
+                                        .fillMaxWidth(),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier.weight(1.1f)
-                                    ) {
-                                        PaymentInfoCollector(
-                                            label = "Total Cobrado (Hoy)",
-                                            value = totalTodayPayments.toCurrency(noDecimals = true),
-                                        )
-                                        Spacer(
-                                            modifier = Modifier.height(8.dp)
-                                        )
-                                        PaymentInfoCollector(
-                                            label = "Total cobrado (Semanal)",
-                                            value = totalWeeklyPayments.toCurrency(noDecimals = true),
-                                        )
-                                    }
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(0.9f),
-                                    ) {
-                                        PaymentInfoCollector(
-                                            label = "Pagos (Hoy)",
-                                            value = "$numberOfPaymentsToday",
-                                            horizontalAlignment = Alignment.End
-                                        )
-                                        Spacer(
-                                            modifier = Modifier.height(8.dp)
-                                        )
-                                        PaymentInfoCollector(
-                                            label = "Pagos (Semanal)",
-                                            value = "$numberOfPaymentsWeekly/$numberOfSales",
-                                            horizontalAlignment = Alignment.End
-                                        )
-                                    }
-                                }
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Card(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(100.dp),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = Color(
-                                                0xFFF06846
-                                            )
-                                        ),
-                                        elevation = CardDefaults.cardElevation(8.dp)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Column(
-                                            modifier = Modifier.fillMaxSize(),
+                                            modifier = Modifier.weight(1.1f)
                                         ) {
-                                            Text(
-                                                text = "Porcentaje (Cuentas)",
-                                                color = Color.White,
-                                                modifier = Modifier
-                                                    .padding(top = 8.dp),
-                                                fontSize = 14.sp,
-                                                textAlign = TextAlign.Center
+                                            PaymentInfoCollector(
+                                                label = "Total Cobrado (Hoy)",
+                                                value = totalTodayPayments.toCurrency(noDecimals = true),
                                             )
-                                            Text(
-                                                text = accountsPercentageRounded,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 22.sp,
-                                                color = Color.White,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(top = 10.dp)
-                                                    .align(Alignment.CenterHorizontally),
-                                                textAlign = TextAlign.Center
+                                            Spacer(
+                                                modifier = Modifier.height(8.dp)
+                                            )
+                                            PaymentInfoCollector(
+                                                label = "Total cobrado (Semanal)",
+                                                value = totalWeeklyPayments.toCurrency(noDecimals = true),
+                                            )
+                                        }
+                                        Column(
+                                            modifier = Modifier
+                                                .weight(0.9f),
+                                        ) {
+                                            PaymentInfoCollector(
+                                                label = "Pagos (Hoy)",
+                                                value = "$numberOfPaymentsToday",
+                                                horizontalAlignment = Alignment.End
+                                            )
+                                            Spacer(
+                                                modifier = Modifier.height(8.dp)
+                                            )
+                                            PaymentInfoCollector(
+                                                label = "Pagos (Semanal)",
+                                                value = "$numberOfPaymentsWeekly/$numberOfSales",
+                                                horizontalAlignment = Alignment.End
                                             )
                                         }
                                     }
 
-                                    Card(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(100.dp),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = Color(
-                                                0xFF56DA6A
-                                            )
-                                        ),
-                                        elevation = CardDefaults.cardElevation(8.dp)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Column(
-                                            modifier = Modifier.fillMaxSize(),
+                                        Card(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(100.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = Color(
+                                                    0xFFF06846
+                                                )
+                                            ),
+                                            elevation = CardDefaults.cardElevation(8.dp)
                                         ) {
-                                            Text(
-                                                text = "Porcentaje (Cuentas)",
-                                                color = Color.White,
-                                                modifier = Modifier
-                                                    .padding(top = 8.dp),
-                                                fontSize = 14.sp,
-                                                textAlign = TextAlign.Center
-                                            )
-                                            Text(
-                                                text = accountsPercentageRounded,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 22.sp,
-                                                color = Color.White,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(top = 10.dp)
-                                                    .align(Alignment.CenterHorizontally),
-                                                textAlign = TextAlign.Center
-                                            )
+                                            Column(
+                                                modifier = Modifier.fillMaxSize(),
+                                            ) {
+                                                Text(
+                                                    text = "Porcentaje (Cuentas)",
+                                                    color = Color.White,
+                                                    modifier = Modifier
+                                                        .padding(top = 8.dp),
+                                                    fontSize = 14.sp,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                Text(
+                                                    text = accountsPercentageRounded,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 22.sp,
+                                                    color = Color.White,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 10.dp)
+                                                        .align(Alignment.CenterHorizontally),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
+                                        }
+
+                                        Card(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(100.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = Color(
+                                                    0xFF56DA6A
+                                                )
+                                            ),
+                                            elevation = CardDefaults.cardElevation(8.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.fillMaxSize(),
+                                            ) {
+                                                Text(
+                                                    text = "Porcentaje (Cuentas)",
+                                                    color = Color.White,
+                                                    modifier = Modifier
+                                                        .padding(top = 8.dp),
+                                                    fontSize = 14.sp,
+                                                    textAlign = TextAlign.Center
+                                                )
+                                                Text(
+                                                    text = accountsPercentageRounded,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 22.sp,
+                                                    color = Color.White,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 10.dp)
+                                                        .align(Alignment.CenterHorizontally),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        Spacer(Modifier.height(20.dp))
+                        Spacer(Modifier.height(12.dp))
+                    }
 
+                    item {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(),
@@ -451,9 +523,10 @@ fun HomeScreen(navController: NavController) {
 
                             }
                         }
+                        Spacer(Modifier.height(8.dp))
+                    }
 
-                        Spacer(Modifier.height(20.dp))
-
+                    item {
                         Text(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             text = buildAnnotatedString {
@@ -464,9 +537,25 @@ fun HomeScreen(navController: NavController) {
                             },
                             fontSize = 16.sp,
                         )
+                    }
 
-                        Spacer(Modifier.height(20.dp))
+                    items(
+                        items = closestCentroidsSorted,
+                        key = { it.first }
+                    ) { (saleId, _, distanceToCurrentLocation) ->
+                        salesMap[saleId]?.let { sale ->
+                            SaleItem(
+                                sale = sale,
+                                onClick = {
+                                    navController.navigate("sales/sale_details/$saleId")
+                                },
+                                variant = SaleItemVariant.SECONDARY,
+                                distanceToCurrentLocation = distanceToCurrentLocation.toDouble()
+                            )
+                        }
+                    }
 
+                    item {
                         OutlinedCard(
                             elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
                             colors = CardDefaults.cardColors(
@@ -494,6 +583,7 @@ fun HomeScreen(navController: NavController) {
                         }
 
                         Spacer(Modifier.height(20.dp))
+
                         OutlinedCard(
                             elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
                             colors = CardDefaults.cardColors(
@@ -637,3 +727,14 @@ fun PaymentInfoCollector(
         )
     }
 }
+
+
+fun Modifier.overlap(offsetY: Dp) = this.then(
+    Modifier.layout { measurable, constraints ->
+        val placeable = measurable.measure(constraints)
+        val oy = offsetY.roundToPx()
+        layout(placeable.width, placeable.height - oy) {
+            placeable.placeRelative(0, -oy)
+        }
+    }
+)
