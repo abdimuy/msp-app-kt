@@ -54,7 +54,6 @@ import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -75,10 +74,7 @@ fun WeeklyReportScreen(
         DateUtils.parseDateToIso(startDate?.toDate())
     } ?: DateUtils.parseDateToIso(null)
 
-    val endIso = DateUtils.addToIsoDate(
-        DateUtils.addToIsoDate(startIso, 6, ChronoUnit.DAYS),
-        -1, ChronoUnit.SECONDS
-    )
+    val endIso = DateUtils.getIsoDateTime()
 
     LaunchedEffect(startIso) {
         viewModel.getPaymentsByDate(startIso, endIso)
@@ -110,7 +106,6 @@ fun WeeklyReportScreen(
     ): String {
         val builder = StringBuilder()
 
-        builder.appendLine("=".repeat(32))
         builder.appendLine(ThermalPrinting.centerText(title, 32))
         builder.appendLine("Fecha: $dateStr")
         builder.appendLine("Cobrador: $collectorName")
@@ -129,8 +124,6 @@ fun WeeklyReportScreen(
         builder.appendLine("-".repeat(32))
         builder.appendLine("Total pagos: ${payments.size}")
         builder.appendLine("Total importe: $${"%,d".format(payments.sumOf { it.IMPORTE }.toInt())}")
-        builder.appendLine("=".repeat(32))
-        builder.appendLine("!!!GRACIAS POR SU PREFERENCIA!!!")
 
         return builder.toString()
     }
