@@ -60,7 +60,7 @@ import java.util.Locale
 fun buildPaymentsTextList(payments: List<Payment>): PaymentTextData {
     return PaymentTextData(
         lines = payments.map {
-            val date = DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "dd/MM/yyyy HH:mm a")
+            val date = DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "dd/MM/yy HH:mm")
             PaymentLineData(
                 date = date,
                 client = it.NOMBRE_CLIENTE,
