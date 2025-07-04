@@ -440,6 +440,7 @@ fun HomeScreen(navController: NavController) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth(.92f)
+                                    .height(100.dp)
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
