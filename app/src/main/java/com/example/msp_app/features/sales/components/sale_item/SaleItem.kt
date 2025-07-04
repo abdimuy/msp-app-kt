@@ -20,7 +20,7 @@ fun SaleItem(
     sale: Sale,
     onClick: () -> Unit = {},
     variant: SaleItemVariant = SaleItemVariant.DEFAULT,
-    distanceToCurrentLocation: Double = 0.0
+    distanceToCurrentLocation: Double = 0.0,
 ) {
     val progress = ((sale.PRECIO_TOTAL - sale.SALDO_REST) / sale.PRECIO_TOTAL).toFloat()
     val parsedDate = OffsetDateTime.parse(sale.FECHA)

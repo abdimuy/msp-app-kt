@@ -237,7 +237,6 @@ fun HomeScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     item {
@@ -524,20 +523,45 @@ fun HomeScreen(navController: NavController) {
 
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(16.dp))
+                    }
+
+                    item {
+                        OutlinedCard(
+                            modifier = Modifier
+                                .fillMaxWidth(0.92f),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.background
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = if (isDark) Color.Gray else Color.LightGray
+                            ),
+                            shape = RoundedCornerShape(16.dp),
+                        ) {
+                            Text(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                text = buildAnnotatedString {
+                                    append("Inicio de semana: \n")
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                        append(startDate.uppercase())
+                                    }
+                                },
+                                fontSize = 16.sp,
+                            )
+                        }
+                        Spacer(Modifier.height(16.dp))
                     }
 
                     item {
                         Text(
                             modifier = Modifier.padding(horizontal = 16.dp),
-                            text = buildAnnotatedString {
-                                append("Inicio de semana: ")
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                    append(startDate.uppercase())
-                                }
-                            },
-                            fontSize = 16.sp,
+                            text = "VENTAS CERCANAS",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Start
                         )
+                        Spacer(Modifier.height(8.dp))
                     }
 
                     items(
@@ -545,14 +569,23 @@ fun HomeScreen(navController: NavController) {
                         key = { it.first }
                     ) { (saleId, _, distanceToCurrentLocation) ->
                         salesMap[saleId]?.let { sale ->
-                            SaleItem(
-                                sale = sale,
-                                onClick = {
-                                    navController.navigate("sales/sale_details/$saleId")
-                                },
-                                variant = SaleItemVariant.SECONDARY,
-                                distanceToCurrentLocation = distanceToCurrentLocation.toDouble()
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                SaleItem(
+                                    sale = sale,
+                                    onClick = {
+                                        navController.navigate("sales/sale_details/$saleId")
+                                    },
+                                    variant = SaleItemVariant.SECONDARY,
+                                    distanceToCurrentLocation = distanceToCurrentLocation.toDouble()
+                                )
+
+                            }
+                            Spacer(Modifier.height(8.dp))
                         }
                     }
 

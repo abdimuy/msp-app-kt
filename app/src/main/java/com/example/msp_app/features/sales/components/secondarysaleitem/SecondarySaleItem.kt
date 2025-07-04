@@ -74,8 +74,7 @@ fun SecondarySaleItem(
                 color = Color.DarkGray
             ),
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp),
+            .fillMaxWidth(),
         onClick = onClick
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
