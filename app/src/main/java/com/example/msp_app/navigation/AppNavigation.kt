@@ -14,6 +14,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
@@ -36,6 +37,8 @@ sealed class Screen(val route: String) {
     object Map : Screen("map/{saleId}") {
         fun createRoute(saleId: Int) = "map/$saleId"
     }
+
+    object Guarantee : Screen("guarantee")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -94,6 +97,10 @@ fun AppNavigation() {
                 if (saleId != null) {
                     MapScreen(navController = navController, saleId = saleId)
                 }
+            }
+
+            composable(Screen.Guarantee.route) {
+                GuaranteeScreen(navController = navController)
             }
         }
     }

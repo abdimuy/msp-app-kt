@@ -232,7 +232,7 @@ fun SaleDetailsContent(
 
         Spacer(modifier = Modifier.height(24.dp))
         TextButton(
-            onClick = { },
+            onClick = { navController.navigate(Screen.Guarantee.route) },
             modifier = Modifier
                 .background(
                     MaterialTheme.colorScheme.primary,

@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
@@ -27,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,55 +54,9 @@ import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
-fun buildPaymentsTextList(payments: List<Payment>): PaymentTextData {
-    return PaymentTextData(
-        lines = payments.map {
-            val date = DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "dd/MM/yy HH:mm")
-            PaymentLineData(
-                date = date,
-                client = it.NOMBRE_CLIENTE,
-                amount = it.IMPORTE,
-                paymentMethod = PaymentMethod.fromId(
-                    it.FORMA_COBRO_ID
-                )
-            )
-        },
-        totalCount = payments.size,
-        totalAmount = payments.sumOf { it.IMPORTE }
-    )
-}
-
-private fun formatPaymentsTextForTicket(
-    payments: List<Payment>,
-    dateStr: String,
-    collectorName: String,
-    title: String
-): String {
-    val builder = StringBuilder()
-
-    builder.appendLine(ThermalPrinting.centerText(title, 32))
-    builder.appendLine("Fecha: $dateStr")
-    builder.appendLine("Cobrador: $collectorName")
-    builder.appendLine("-".repeat(32))
-    builder.appendLine(String.format("%-8s %-14s %8s", "Fecha", "Cliente", "Importe"))
-
-    payments.forEach { pago ->
-        val date =
-            DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "dd/MM/yy", Locale("es", "MX"))
-        val client = pago.NOMBRE_CLIENTE.take(14)
-        val amount = "$%,d".format(pago.IMPORTE.toInt())
-
-        builder.appendLine(String.format("%-8s %-14s %8s", date, client, amount))
-    }
-
-    builder.appendLine("-".repeat(32))
-    builder.appendLine("Total pagos: ${payments.size}")
-    builder.appendLine("Total importe: $${"%,d".format(payments.sumOf { it.IMPORTE }.toInt())}")
-
-    return builder.toString()
-}
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
@@ -111,6 +64,7 @@ fun WeeklyReportScreen(
     navController: NavController,
     viewModel: PaymentsViewModel = viewModel()
 ) {
+    val scrollState = rememberScrollState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
 
@@ -122,31 +76,62 @@ fun WeeklyReportScreen(
         DateUtils.parseDateToIso(startDate?.toDate())
     } ?: DateUtils.parseDateToIso(null)
 
-    val endIso = DateUtils.getIsoDateTime()
+    val endIso = DateUtils.addToIsoDate(
+        DateUtils.addToIsoDate(startIso, 6, ChronoUnit.DAYS),
+        -1, ChronoUnit.SECONDS
+    )
 
     LaunchedEffect(startIso) {
         viewModel.getPaymentsByDate(startIso, endIso)
     }
 
-    val dateStr by remember(startIso, endIso) {
-        derivedStateOf {
-            "Del ${DateUtils.formatIsoDate(startIso, "dd/MM/yy")} al ${
-                DateUtils.formatIsoDate(
-                    endIso,
-                    "dd/MM/yy"
+    fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
+        return PaymentTextData(
+            lines = payments.map {
+                val date = DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "dd/MM/yyyy HH:mm a")
+                PaymentLineData(
+                    date = date,
+                    client = it.NOMBRE_CLIENTE,
+                    amount = it.IMPORTE,
+                    paymentMethod = PaymentMethod.fromId(it.FORMA_COBRO_ID)
                 )
-            }"
-        }
+            },
+            totalCount = payments.size,
+            totalAmount = payments.sumOf { it.IMPORTE }
+        )
     }
-    val ticketText by remember(visiblePayments) {
-        derivedStateOf {
-            formatPaymentsTextForTicket(
-                payments = visiblePayments,
-                dateStr = dateStr,
-                collectorName = visiblePayments.firstOrNull()?.COBRADOR ?: "No especificado",
-                title = "REPORTE SEMANAL"
-            )
+
+    fun formatPaymentsTextForTicket(
+        payments: List<Payment>,
+        dateStr: String,
+        collectorName: String,
+        title: String
+    ): String {
+        val builder = StringBuilder()
+
+        builder.appendLine("=".repeat(32))
+        builder.appendLine(ThermalPrinting.centerText(title, 32))
+        builder.appendLine("Fecha: $dateStr")
+        builder.appendLine("Cobrador: $collectorName")
+        builder.appendLine("-".repeat(32))
+        builder.appendLine(String.format("%-8s %-14s %8s", "Fecha", "Cliente", "Importe"))
+
+        payments.forEach { pago ->
+            val date =
+                DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "dd/MM/yy", Locale("es", "MX"))
+            val client = pago.NOMBRE_CLIENTE.take(14)
+            val amount = "$%,d".format(pago.IMPORTE.toInt())
+
+            builder.appendLine(String.format("%-8s %-14s %8s", date, client, amount))
         }
+
+        builder.appendLine("-".repeat(32))
+        builder.appendLine("Total pagos: ${payments.size}")
+        builder.appendLine("Total importe: $${"%,d".format(payments.sumOf { it.IMPORTE }.toInt())}")
+        builder.appendLine("=".repeat(32))
+        builder.appendLine("!!!GRACIAS POR SU PREFERENCIA!!!")
+
+        return builder.toString()
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -186,6 +171,20 @@ fun WeeklyReportScreen(
                             val coroutineScope = rememberCoroutineScope()
                             var isGeneratingPdf by remember { mutableStateOf(false) }
 
+                            val dateStr = "Del ${
+                                DateUtils.formatIsoDate(
+                                    startIso,
+                                    "dd/MM/yy"
+                                )
+                            } al ${DateUtils.formatIsoDate(endIso, "dd/MM/yy")}"
+                            val ticketText = formatPaymentsTextForTicket(
+                                payments = visiblePayments,
+                                dateStr = dateStr,
+                                collectorName = visiblePayments.firstOrNull()?.COBRADOR
+                                    ?: "No especificado",
+                                title = "REPORTE SEMANAL"
+                            )
+
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -213,19 +212,20 @@ fun WeeklyReportScreen(
                                     }
                                 }
 
-                                LazyColumn(modifier = Modifier.weight(1f)) {
-                                    item { Spacer(modifier = Modifier.height(2.dp)) }
-                                    items(
-                                        items = visiblePayments,
-                                        key = { it.hashCode() }
-                                    ) { pago ->
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .verticalScroll(scrollState)
+                                ) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    visiblePayments.forEach { pago ->
                                         PaymentItem(
                                             pago,
                                             variant = PaymentItemVariant.DEFAULT,
                                             navController = navController
                                         )
                                     }
-                                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                                    Spacer(modifier = Modifier.height(16.dp))
                                 }
 
                                 Button(
@@ -234,7 +234,7 @@ fun WeeklyReportScreen(
                                         coroutineScope.launch {
                                             isGeneratingPdf = true
                                             val paymentTextData =
-                                                buildPaymentsTextList(visiblePayments)
+                                                formatPaymentsTextList(visiblePayments)
                                             val file = withContext(Dispatchers.IO) {
                                                 PdfGenerator.generatePdfFromLines(
                                                     context = context,
@@ -310,3 +310,4 @@ fun WeeklyReportScreen(
         }
     }
 }
+
