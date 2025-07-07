@@ -77,10 +77,16 @@ fun SecondarySaleItem(
             .fillMaxWidth(),
         onClick = onClick
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier
+                .padding(14.dp)
+
+        ) {
+            Row(
+                verticalAlignment = Alignment.Top,
+            ) {
                 Column(
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
                 ) {
                     Text(
                         buildAnnotatedString {
@@ -119,6 +125,31 @@ fun SecondarySaleItem(
                     )
                 }
 
+                Text(
+                    text = "$distanceToCurrentLocation m",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                )
+            }
+            Row {
+                Text(
+                    text = "${sale.CALLE.replace("\n", " ")} ${
+                        sale.CIUDAD.replace(
+                            "\n",
+                            " "
+                        )
+                    } ${sale.ESTADO}",
+                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier =
+                        Modifier.weight(1f),
+                    lineHeight = 18.sp,
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -177,30 +208,7 @@ fun SecondarySaleItem(
                         }
                     }
                 }
-            }
-            Row {
-                Text(
-                    text = "${sale.CALLE.replace("\n", " ")} ${
-                        sale.CIUDAD.replace(
-                            "\n",
-                            " "
-                        )
-                    } ${sale.ESTADO}",
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier =
-                        Modifier.weight(1f),
-                    lineHeight = 18.sp,
-                )
 
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "$distanceToCurrentLocation m",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.End,
-                    modifier = Modifier.align(Alignment.CenterVertically)
-                )
             }
 
             Spacer(modifier = Modifier.height(4.dp))
