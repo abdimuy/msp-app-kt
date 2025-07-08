@@ -93,24 +93,17 @@ fun NewPaymentDialog(
     )
 
     val coroutineScope = rememberCoroutineScope()
-
-    val suggestionsListState = remember { mutableStateOf(suggestions) }
-
-    LaunchedEffect(suggestions) {
-        if (suggestions.isEmpty()) {
-            paymentsViewModel.getSuggestedAmountsBySaleId(sale.DOCTO_CC_ID)
+    
+    val suggestionsToShow = suggestions.ifEmpty {
+        when (val state = paymentsBySuggestedAmountsState) {
+            is ResultState.Success -> state.data
+            else -> emptyList()
         }
     }
 
-    LaunchedEffect(paymentsBySuggestedAmountsState) {
-        when (val state = paymentsBySuggestedAmountsState) {
-            is ResultState.Success -> {
-                suggestionsListState.value = state.data
-            }
-
-            is ResultState.Error, is ResultState.Loading, ResultState.Idle -> {
-                suggestionsListState.value = emptyList()
-            }
+    LaunchedEffect(suggestions, sale.DOCTO_CC_ID) {
+        if (suggestions.isEmpty()) {
+            paymentsViewModel.getSuggestedAmountsBySaleId(sale.DOCTO_CC_ID)
         }
     }
 
@@ -284,14 +277,14 @@ fun NewPaymentDialog(
                     )
                 }
             }
-            if (suggestionsListState.value.isNotEmpty()) {
+            if (suggestionsToShow.isNotEmpty()) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
                 ) {
-                    suggestionsListState.value.chunked(3).forEach { row ->
+                    suggestionsToShow.chunked(3).forEach { row ->
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
