@@ -18,6 +18,7 @@ import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
+import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.MapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
@@ -39,6 +40,7 @@ sealed class Screen(val route: String) {
     }
 
     object Guarantee : Screen("guarantee")
+    object RouteMap : Screen("route_map")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -101,6 +103,10 @@ fun AppNavigation() {
 
             composable(Screen.Guarantee.route) {
                 GuaranteeScreen(navController = navController)
+            }
+
+            composable(Screen.RouteMap.route) {
+                RouteMapScreen(navController = navController)
             }
         }
     }
