@@ -141,6 +141,17 @@ interface PaymentDao {
     )
     suspend fun getAllLocations(): List<PaymentLocation>
 
+    @Query(
+        """
+        SELECT 
+            DISTINCT CAST(IMPORTE AS INTEGER)
+        FROM Payment
+        WHERE DOCTO_CC_ACR_ID = :saleId
+        ORDER BY IMPORTE DESC
+        """
+    )
+    suspend fun getSuggestedAmountsBySaleId(saleId: Int): List<Int>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePayment(payment: PaymentEntity)
 

@@ -33,6 +33,10 @@ class PaymentsLocalDataSource(private val context: Context) {
             .map { (saleId, list) -> PaymentLocationsGroup(saleId, list) }
     }
 
+    suspend fun getSuggestedAmountsBySaleId(saleId: Int): List<Int> {
+        return paymentDao.getSuggestedAmountsBySaleId(saleId)
+    }
+
     suspend fun savePayment(payment: PaymentEntity) {
         paymentDao.savePayment(payment)
     }

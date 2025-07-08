@@ -25,6 +25,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -75,6 +76,7 @@ fun NewPaymentDialog(
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val savePaymentState by paymentsViewModel.savePaymentState.collectAsState()
+    val paymentsBySuggestedAmountsState by paymentsViewModel.paymentsBySuggestedAmountsState.collectAsState()
     val authViewModel: AuthViewModel = viewModel()
     val userData by authViewModel.userData.collectAsState()
 
@@ -91,6 +93,26 @@ fun NewPaymentDialog(
     )
 
     val coroutineScope = rememberCoroutineScope()
+
+    val suggestionsListState = remember { mutableStateOf(suggestions) }
+
+    LaunchedEffect(suggestions) {
+        if (suggestions.isEmpty()) {
+            paymentsViewModel.getSuggestedAmountsBySaleId(sale.DOCTO_CC_ID)
+        }
+    }
+
+    LaunchedEffect(paymentsBySuggestedAmountsState) {
+        when (val state = paymentsBySuggestedAmountsState) {
+            is ResultState.Success -> {
+                suggestionsListState.value = state.data
+            }
+
+            is ResultState.Error, is ResultState.Loading, ResultState.Idle -> {
+                suggestionsListState.value = emptyList()
+            }
+        }
+    }
 
     val inputDouble = inputValue.toDoubleOrNull()
     errorMessage = when {
@@ -262,14 +284,14 @@ fun NewPaymentDialog(
                     )
                 }
             }
-            if (suggestions.isNotEmpty()) {
+            if (suggestionsListState.value.isNotEmpty()) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
                 ) {
-                    suggestions.chunked(3).forEach { row ->
+                    suggestionsListState.value.chunked(3).forEach { row ->
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()

@@ -25,7 +25,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 class PaymentsViewModel(application: Application) : AndroidViewModel(application) {
-    val paymentStore = PaymentsLocalDataSource(application.applicationContext)
+    private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val api = ApiProvider.create(PaymentsApi::class.java)
 
     private val _paymentsBySaleIdState =
@@ -54,6 +54,10 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     val centroidsBySaleState: StateFlow<ResultState<List<PaymentLocationsGroup>>> =
         _centroidsBySaleState
 
+    private val _paymentsBySuggestedAmountsState =
+        MutableStateFlow<ResultState<List<Int>>>(ResultState.Idle)
+    val paymentsBySuggestedAmountsState: StateFlow<ResultState<List<Int>>> = _paymentsBySuggestedAmountsState
+
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
@@ -69,7 +73,7 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun groupPaymentsByMonthAndYear(payments: List<Payment>): Map<String, List<Payment>> {
+    private fun groupPaymentsByMonthAndYear(payments: List<Payment>): Map<String, List<Payment>> {
         val locale = java.util.Locale("es", "MX")
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX")
 
@@ -179,6 +183,21 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 _centroidsBySaleState.value =
                     ResultState.Error(e.message ?: "Error al cargar ubicaciones de pagos")
+            }
+        }
+    }
+
+    fun getSuggestedAmountsBySaleId(saleId: Int) {
+        viewModelScope.launch {
+            _paymentsBySuggestedAmountsState.value = ResultState.Loading
+            try {
+                val amounts = withContext(Dispatchers.IO) {
+                    paymentStore.getSuggestedAmountsBySaleId(saleId)
+                }
+                _paymentsBySuggestedAmountsState.value = ResultState.Success(amounts)
+            } catch (e: Exception) {
+                _paymentsBySuggestedAmountsState.value =
+                    ResultState.Error(e.message ?: "Error al cargar montos sugeridos")
             }
         }
     }
