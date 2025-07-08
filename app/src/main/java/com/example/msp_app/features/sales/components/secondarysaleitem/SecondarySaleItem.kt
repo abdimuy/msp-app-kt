@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
 
@@ -110,7 +111,7 @@ fun SecondarySaleItem(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             ) {
-                                append("SALDO:")
+                                append("SALDO: ")
                             }
                             withStyle(
                                 style = SpanStyle(
@@ -119,7 +120,7 @@ fun SecondarySaleItem(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             ) {
-                                append(" $${sale.SALDO_REST}")
+                                append(sale.SALDO_REST.toCurrency(noDecimals = true))
                             }
                         }
                     )
