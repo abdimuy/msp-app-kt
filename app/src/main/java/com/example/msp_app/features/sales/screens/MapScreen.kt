@@ -28,7 +28,7 @@ import com.example.msp_app.features.sales.components.map.MapView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(
+fun SaleMapScreen(
     navController: NavController,
     saleId: Int? = null,
     paymentsViewModel: PaymentsViewModel = viewModel(),

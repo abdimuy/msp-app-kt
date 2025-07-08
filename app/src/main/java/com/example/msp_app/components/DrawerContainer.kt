@@ -87,6 +87,16 @@ fun DrawerContainer(
                                 }
                             }
                         )
+
+                        NavigationDrawerItem(
+                            label = { Text("Mapa de rutas") },
+                            selected = true,
+                            onClick = {
+                                navController.navigate("route_map") {
+                                    popUpTo("home")
+                                }
+                            }
+                        )
                     }
 
                     NavigationDrawerItem(

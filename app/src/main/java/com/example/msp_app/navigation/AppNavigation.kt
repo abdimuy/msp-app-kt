@@ -18,8 +18,9 @@ import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
-import com.example.msp_app.features.sales.screens.MapScreen
+import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
+import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
 
 
@@ -34,11 +35,12 @@ sealed class Screen(val route: String) {
     object DailyReport : Screen("daily_reports")
     object WeeklyReport : Screen("weekly_reports")
 
-    object Map : Screen("map/{saleId}") {
-        fun createRoute(saleId: Int) = "map/$saleId"
+    object SaleMap : Screen("sales/sale_details/map/{saleId}") {
+        fun createRoute(saleId: Int) = "sales/sale_details/map/$saleId"
     }
 
     object Guarantee : Screen("guarantee")
+    object RouteMap : Screen("route_map")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -92,15 +94,19 @@ fun AppNavigation() {
                 WeeklyReportScreen(navController = navController)
             }
 
-            composable(Screen.Map.route) { backStackEntry ->
+            composable(Screen.SaleMap.route) { backStackEntry ->
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
-                    MapScreen(navController = navController, saleId = saleId)
+                    SaleMapScreen(navController = navController, saleId = saleId)
                 }
             }
 
             composable(Screen.Guarantee.route) {
                 GuaranteeScreen(navController = navController)
+            }
+
+            composable(Screen.RouteMap.route) {
+                RouteMapScreen(navController = navController)
             }
         }
     }
