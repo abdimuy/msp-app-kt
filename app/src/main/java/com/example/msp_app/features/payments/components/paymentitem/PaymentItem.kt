@@ -150,6 +150,7 @@ fun PaymentItem(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp)
                 )
+                .clickable { onClick() }
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
