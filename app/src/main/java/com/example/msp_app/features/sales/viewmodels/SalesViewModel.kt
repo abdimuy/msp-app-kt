@@ -9,6 +9,7 @@ import com.example.msp_app.data.api.services.sales.SalesApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
+import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
 import com.example.msp_app.data.models.sale.Sale
@@ -25,9 +26,13 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val productStore = ProductsLocalDataSource(application.applicationContext)
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
 
-
     private val _salesState = MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
     val salesState: StateFlow<ResultState<List<Sale>>> = _salesState
+
+    private val _paymentsLocationsState =
+        MutableStateFlow<ResultState<List<PaymentLocationsGroup>>>(ResultState.Idle)
+    val paymentsLocationsState: StateFlow<ResultState<List<PaymentLocationsGroup>>> =
+        _paymentsLocationsState
 
     fun getLocalSales() {
         viewModelScope.launch {
@@ -41,7 +46,6 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-
     fun syncSales() {
         viewModelScope.launch {
             _salesState.value = ResultState.Loading
@@ -51,7 +55,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 val sales = salesData.body.ventas
                 val products = salesData.body.productos
                 val payments = salesData.body.pagos
-                
+
                 saleStore.saveAll(sales.map { it.toEntity() })
                 productStore.saveAll(products.map { it.toEntity() })
                 paymentStore.saveAll(payments.map { it.toEntity() })

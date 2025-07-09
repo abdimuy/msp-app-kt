@@ -45,7 +45,8 @@ enum class PaymentItemVariant {
 fun PaymentItem(
     payment: Payment,
     variant: PaymentItemVariant = PaymentItemVariant.DEFAULT,
-    navController: NavController
+    navController: NavController,
+    onClick: () -> Unit = {}
 ) {
     val menuExpanded = remember { mutableStateOf(false) }
 
@@ -66,6 +67,7 @@ fun PaymentItem(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp)
                 )
+                .clickable { onClick() }
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -148,6 +150,7 @@ fun PaymentItem(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(8.dp)
                 )
+                .clickable { onClick() }
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

@@ -73,7 +73,27 @@ fun DrawerContainer(
                             selected = true,
                             onClick = {
                                 navController.navigate("daily_reports") {
-                                    popUpTo("Home")
+                                    popUpTo("home")
+                                }
+                            }
+                        )
+
+                        NavigationDrawerItem(
+                            label = { Text("Reportes Semanales") },
+                            selected = true,
+                            onClick = {
+                                navController.navigate("weekly_reports") {
+                                    popUpTo("home")
+                                }
+                            }
+                        )
+
+                        NavigationDrawerItem(
+                            label = { Text("Mapa de rutas") },
+                            selected = true,
+                            onClick = {
+                                navController.navigate("route_map") {
+                                    popUpTo("home")
                                 }
                             }
                         )

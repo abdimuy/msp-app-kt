@@ -5,11 +5,14 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.computeCentroids
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
 import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.data.models.payment.PaymentLocation
+import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.sale.EstadoCobranza
@@ -22,7 +25,7 @@ import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 class PaymentsViewModel(application: Application) : AndroidViewModel(application) {
-    val paymentStore = PaymentsLocalDataSource(application.applicationContext)
+    private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val api = ApiProvider.create(PaymentsApi::class.java)
 
     private val _paymentsBySaleIdState =
@@ -46,6 +49,15 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     val paymentsGroupedByDayWeeklyState: StateFlow<ResultState<Map<String, List<Payment>>>> =
         _paymentsGroupedByDayWeeklyState
 
+    private val _centroidsBySaleState =
+        MutableStateFlow<ResultState<List<PaymentLocationsGroup>>>(ResultState.Idle)
+    val centroidsBySaleState: StateFlow<ResultState<List<PaymentLocationsGroup>>> =
+        _centroidsBySaleState
+
+    private val _paymentsBySuggestedAmountsState =
+        MutableStateFlow<ResultState<List<Int>>>(ResultState.Idle)
+    val paymentsBySuggestedAmountsState: StateFlow<ResultState<List<Int>>> = _paymentsBySuggestedAmountsState
+
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
@@ -61,7 +73,7 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun groupPaymentsByMonthAndYear(payments: List<Payment>): Map<String, List<Payment>> {
+    private fun groupPaymentsByMonthAndYear(payments: List<Payment>): Map<String, List<Payment>> {
         val locale = java.util.Locale("es", "MX")
         val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX")
 
@@ -134,6 +146,58 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 _paymentsGroupedByDayWeeklyState.value =
                     ResultState.Error(e.message ?: "Error al cargar pagos")
+            }
+        }
+    }
+
+    fun getCentroidsBySale() {
+        viewModelScope.launch {
+            _centroidsBySaleState.value = ResultState.Loading
+            try {
+                val locations = paymentStore.getLocationsGroupedBySaleId()
+                val locationsSale = locations.map { group ->
+                    group.saleId to group.locations.map { loc ->
+                        loc.LAT to loc.LNG
+                    }
+                }
+
+                val centroidsBySale = locationsSale.map { (saleId, locations) ->
+                    val centroids = computeCentroids(
+                        locations,
+                        eps = 0.0005,
+                        minPts = 3
+                    )
+                    PaymentLocationsGroup(
+                        saleId = saleId,
+                        locations = centroids.map { point ->
+                            PaymentLocation(
+                                LAT = point.lat,
+                                LNG = point.lng,
+                                DOCTO_CC_ACR_ID = saleId
+                            )
+                        }
+                    )
+                }
+
+                _centroidsBySaleState.value = ResultState.Success(centroidsBySale)
+            } catch (e: Exception) {
+                _centroidsBySaleState.value =
+                    ResultState.Error(e.message ?: "Error al cargar ubicaciones de pagos")
+            }
+        }
+    }
+
+    fun getSuggestedAmountsBySaleId(saleId: Int) {
+        viewModelScope.launch {
+            _paymentsBySuggestedAmountsState.value = ResultState.Loading
+            try {
+                val amounts = withContext(Dispatchers.IO) {
+                    paymentStore.getSuggestedAmountsBySaleId(saleId)
+                }
+                _paymentsBySuggestedAmountsState.value = ResultState.Success(amounts)
+            } catch (e: Exception) {
+                _paymentsBySuggestedAmountsState.value =
+                    ResultState.Error(e.message ?: "Error al cargar montos sugeridos")
             }
         }
     }

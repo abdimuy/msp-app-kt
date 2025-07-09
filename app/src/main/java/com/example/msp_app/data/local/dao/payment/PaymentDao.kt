@@ -7,6 +7,7 @@ import androidx.room.Query
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.data.local.entities.PaymentEntity
+import com.example.msp_app.data.models.payment.PaymentLocation
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -122,6 +123,34 @@ interface PaymentDao {
             paymentList.sortedByDescending { it.FECHA_HORA_PAGO }
         }.toSortedMap(compareByDescending { it })
     }
+
+    @Query(
+        """
+        SELECT 
+            LAT,
+            LNG,
+            DOCTO_CC_ACR_ID
+        FROM
+            Payment
+        WHERE
+            LAT IS NOT NULL
+            AND LNG IS NOT NULL
+            AND LAT != 0
+            AND LNG != 0
+        """
+    )
+    suspend fun getAllLocations(): List<PaymentLocation>
+
+    @Query(
+        """
+        SELECT 
+            DISTINCT CAST(IMPORTE AS INTEGER)
+        FROM Payment
+        WHERE DOCTO_CC_ACR_ID = :saleId
+        ORDER BY IMPORTE DESC
+        """
+    )
+    suspend fun getSuggestedAmountsBySaleId(saleId: Int): List<Int>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun savePayment(payment: PaymentEntity)

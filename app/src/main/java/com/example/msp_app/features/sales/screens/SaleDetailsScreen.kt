@@ -148,7 +148,7 @@ fun SaleDetailsContent(
         ) {
             CustomMap(
                 onClick = {
-                    navController.navigate(Screen.Map.createRoute(saleId = sale.DOCTO_CC_ID))
+                    navController.navigate(Screen.SaleMap.createRoute(saleId = sale.DOCTO_CC_ID))
                 }
             )
 
@@ -232,7 +232,7 @@ fun SaleDetailsContent(
 
         Spacer(modifier = Modifier.height(24.dp))
         TextButton(
-            onClick = { },
+            onClick = { navController.navigate(Screen.Guarantee.route) },
             modifier = Modifier
                 .background(
                     MaterialTheme.colorScheme.primary,

@@ -17,9 +17,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Menu
@@ -36,6 +37,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,6 +94,36 @@ private fun prepareReportDate(date: LocalDate): ReportDateData {
     return ReportDateData(iso, text, start, end)
 }
 
+private fun buildPaymentsTicketText(
+    payments: List<Payment>,
+    dateStr: String,
+    collectorName: String,
+    title: String
+): String {
+    val builder = StringBuilder()
+    builder.appendLine(ThermalPrinting.centerText(title, 32))
+    builder.appendLine("Fecha: $dateStr")
+    builder.appendLine("Cobrador: $collectorName")
+    builder.appendLine("-".repeat(32))
+    builder.appendLine(String.format("%-6s %-16s %8s", "Fecha", "Cliente", "Importe"))
+    payments.forEach { pago ->
+        val date = DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "HH:mm", Locale("es", "MX"))
+        val client = pago.NOMBRE_CLIENTE.takeIf { it.length <= 16 } ?: pago.NOMBRE_CLIENTE.take(16)
+        builder.appendLine(
+            String.format(
+                "%-6s %-16s %8s",
+                date,
+                client,
+                "$%,d".format(pago.IMPORTE.toInt())
+            )
+        )
+    }
+    builder.appendLine("-".repeat(32))
+    builder.appendLine("Total pagos: ${payments.size}")
+    builder.appendLine("Total importe: $%,d".format(payments.sumOf { it.IMPORTE }.toInt()))
+    return builder.toString()
+}
+
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,56 +158,17 @@ fun DailyReportScreen(
             }
         }
     }
-
-    fun formatPaymentsTextForTicket(
-        payments: List<Payment>,
-        dateStr: String,
-        collectorName: String,
-        title: String
-    ): String {
-        val builder = StringBuilder()
-
-        builder.appendLine(ThermalPrinting.centerText(title, 32))
-        builder.appendLine("Fecha: $dateStr")
-        builder.appendLine("Cobrador: $collectorName")
-        builder.appendLine("-".repeat(32))
-
-        builder.appendLine(String.format("%-6s %-16s %8s", "Fecha", "Cliente", "Importe"))
-
-        payments.forEach { pago ->
-            val date = DateUtils.formatIsoDate(
-                pago.FECHA_HORA_PAGO,
-                "HH:mm",
-                Locale("es", "MX")
-            )
-            val client =
-                if (pago.NOMBRE_CLIENTE.length > 16) pago.NOMBRE_CLIENTE.take(16) else pago.NOMBRE_CLIENTE
-            val amount = pago.IMPORTE
-
-            builder.appendLine(
-                String.format("%-6s %-16s %8s", date, client, "$%,d".format(amount.toInt()))
+    
+    val ticketText by remember(visiblePayments, textDate.text) {
+        derivedStateOf {
+            buildPaymentsTicketText(
+                payments = visiblePayments,
+                dateStr = textDate.text,
+                collectorName = visiblePayments.firstOrNull()?.COBRADOR ?: "No especificado",
+                title = "Reporte de Pagos Diarios"
             )
         }
-
-        builder.appendLine("-".repeat(32))
-        builder.appendLine("Total pagos: ${payments.size}")
-        builder.appendLine(
-            "Total importe: $${
-                "%,d".format(payments.sumOf { it.IMPORTE }.toInt())
-            }"
-        )
-        return builder.toString()
     }
-
-    val ticketText =
-        formatPaymentsTextForTicket(
-            payments = visiblePayments,
-            dateStr = textDate.text,
-            collectorName = visiblePayments.firstOrNull()?.COBRADOR
-                ?: "No especificado",
-            title = "Reporte de Pagos Diarios"
-        )
-
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -322,109 +315,102 @@ fun DailyReportScreen(
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
-                                Column(
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .verticalScroll(scrollState)
-                                    ) {
-                                        Spacer(modifier = Modifier.height(2.dp))
-
-                                        visiblePayments.forEach { pago ->
-                                            PaymentItem(
-                                                pago,
-                                                variant = PaymentItemVariant.DEFAULT,
-                                                navController = navController
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                LazyColumn(modifier = Modifier.weight(1f)) {
+                                    item { Spacer(modifier = Modifier.height(2.dp)) }
+                                    items(
+                                        visiblePayments,
+                                        key = { it.hashCode() }
+                                    ) { pago ->
+                                        PaymentItem(
+                                            pago,
+                                            variant = PaymentItemVariant.DEFAULT,
+                                            navController = navController
+                                        )
                                     }
+                                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                                }
 
-                                    if (visiblePayments.isNotEmpty()) {
-                                        Button(
-                                            enabled = !isGeneratingPdf,
-                                            onClick = {
-                                                coroutineScope.launch {
-                                                    isGeneratingPdf = true
+                                if (visiblePayments.isNotEmpty()) {
+                                    Button(
+                                        enabled = !isGeneratingPdf,
+                                        onClick = {
+                                            coroutineScope.launch {
+                                                isGeneratingPdf = true
 
-                                                    val paymentTextData = formatPaymentsTextList(
-                                                        visiblePayments
+                                                val paymentTextData = formatPaymentsTextList(
+                                                    visiblePayments
+                                                )
+
+                                                val file = withContext(Dispatchers.IO) {
+                                                    PdfGenerator.generatePdfFromLines(
+                                                        context = context,
+                                                        data = paymentTextData,
+                                                        title = "REPORTE DE PAGOS DIARIOS",
+                                                        nameCollector = visiblePayments.firstOrNull()?.COBRADOR
+                                                            ?: "No especificado",
+                                                        fileName = "reporte_diario_$reportDate.pdf"
+                                                    )
+                                                }
+
+                                                isGeneratingPdf = false
+
+                                                if (file != null && file.exists()) {
+                                                    val uri = FileProvider.getUriForFile(
+                                                        context,
+                                                        context.packageName + ".fileprovider",
+                                                        file
                                                     )
 
-                                                    val file = withContext(Dispatchers.IO) {
-                                                        PdfGenerator.generatePdfFromLines(
-                                                            context = context,
-                                                            data = paymentTextData,
-                                                            title = "REPORTE DE PAGOS DIARIOS",
-                                                            nameCollector = visiblePayments.firstOrNull()?.COBRADOR
-                                                                ?: "No especificado",
-                                                            fileName = "reporte_diario_$reportDate.pdf"
-                                                        )
-                                                    }
-
-                                                    isGeneratingPdf = false
-
-                                                    if (file != null && file.exists()) {
-                                                        val uri = FileProvider.getUriForFile(
-                                                            context,
-                                                            context.packageName + ".fileprovider",
-                                                            file
-                                                        )
-
-                                                        val intent =
-                                                            Intent(Intent.ACTION_VIEW).apply {
-                                                                setDataAndType(
-                                                                    uri,
-                                                                    "application/pdf"
-                                                                )
-                                                                flags =
-                                                                    Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                                            }
-
-                                                        try {
-                                                            context.startActivity(intent)
-                                                        } catch (e: Exception) {
-                                                            Toast.makeText(
-                                                                context,
-                                                                "No hay aplicación para abrir PDF",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
+                                                    val intent =
+                                                        Intent(Intent.ACTION_VIEW).apply {
+                                                            setDataAndType(
+                                                                uri,
+                                                                "application/pdf"
+                                                            )
+                                                            flags =
+                                                                Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION
                                                         }
-                                                    } else {
+
+                                                    try {
+                                                        context.startActivity(intent)
+                                                    } catch (e: Exception) {
                                                         Toast.makeText(
                                                             context,
-                                                            "Error al generar PDF",
+                                                            "No hay aplicación para abrir PDF",
                                                             Toast.LENGTH_SHORT
                                                         ).show()
                                                     }
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                        ) {
-                                            Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
-                                        }
-
-                                        SelectBluetoothDevice(
-                                            textToPrint = ticketText,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            onPrintRequest = { device, text ->
-                                                coroutineScope.launch {
-                                                    try {
-                                                        ThermalPrinting.printText(
-                                                            device,
-                                                            text,
-                                                            context
-                                                        )
-                                                    } catch (e: Exception) {
-                                                    }
+                                                } else {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Error al generar PDF",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
                                                 }
                                             }
-                                        )
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                    ) {
+                                        Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
                                     }
+
+                                    SelectBluetoothDevice(
+                                        textToPrint = ticketText,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onPrintRequest = { device, text ->
+                                            coroutineScope.launch {
+                                                try {
+                                                    ThermalPrinting.printText(
+                                                        device,
+                                                        text,
+                                                        context
+                                                    )
+                                                } catch (e: Exception) {
+                                                }
+                                            }
+                                        }
+                                    )
                                 }
                             }
                         }
