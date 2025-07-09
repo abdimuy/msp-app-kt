@@ -51,7 +51,7 @@ fun MapView(
     modifier: Modifier = Modifier,
     context: Context,
     pins: List<MapPin> = emptyList(),
-    initialZoom: Float = 16f,
+    initialZoom: Float = 13f,
 ) {
     val location = rememberLocation(context)
     val cameraPositionState = rememberCameraPositionState()

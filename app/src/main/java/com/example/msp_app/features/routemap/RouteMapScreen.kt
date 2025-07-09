@@ -176,7 +176,11 @@ fun RouteMapScreen(
                 val pins = visiblePayments.mapNotNull { pago ->
                     val lat = pago.LAT
                     val lng = pago.LNG
-                    if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
+                    if (
+                        lat != null && lng != null &&
+                        lat in -90.0..90.0 && lng in -180.0..180.0 &&
+                        (lat != 0.0 || lng != 0.0)
+                    ) {
                         MapPin(
                             lat = lat,
                             lon = lng,
