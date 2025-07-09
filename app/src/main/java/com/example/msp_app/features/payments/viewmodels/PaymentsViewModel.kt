@@ -167,4 +167,27 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
+
+    private val _paymentState = MutableStateFlow<ResultState<Payment>>(ResultState.Idle)
+    val paymentState: StateFlow<ResultState<Payment>> = _paymentState
+
+
+    fun getPaymentById(paymentId: String) {
+        viewModelScope.launch {
+            _paymentState.value = ResultState.Loading
+            try {
+                val payment = withContext(Dispatchers.IO) {
+                    paymentStore.getPaymentById(paymentId)?.toDomain()
+                }
+                if (payment != null) {
+                    _paymentState.value = ResultState.Success(payment)
+                } else {
+                    _paymentState.value = ResultState.Error("Pago no encontrado")
+                }
+            } catch (e: Exception) {
+                _paymentState.value = ResultState.Error(e.message ?: "Error cargando pago")
+            }
+        }
+    }
+
 }
