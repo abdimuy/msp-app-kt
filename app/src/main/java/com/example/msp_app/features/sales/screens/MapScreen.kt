@@ -25,6 +25,7 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
+import com.google.maps.android.compose.rememberCameraPositionState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +62,8 @@ fun SaleMapScreen(
     }
 
     val context = LocalContext.current
+    val cameraPositionState = rememberCameraPositionState()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -69,11 +72,16 @@ fun SaleMapScreen(
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Atrás")
                     }
-                })
+                }
+            )
         }
     ) {
         Box(modifier = Modifier.padding(it)) {
-            Map(context = context, pins)
+            Map(
+                context = context,
+                pins = pins,
+                cameraPositionState = cameraPositionState
+            )
         }
     }
 }
@@ -82,11 +90,13 @@ fun SaleMapScreen(
 fun Map(
     context: Context,
     pins: List<MapPin> = emptyList(),
+    cameraPositionState: com.google.maps.android.compose.CameraPositionState
 ) {
     MapView(
         modifier = Modifier,
         context = context,
         pins = pins,
+        cameraPositionState = cameraPositionState
     )
 }
 

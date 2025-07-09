@@ -43,7 +43,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
@@ -55,6 +54,8 @@ import com.example.msp_app.features.payments.components.paymentitem.PaymentItemV
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -73,9 +74,8 @@ fun RouteMapScreen(
     var selectedDate by remember { mutableStateOf(DateUtils.getCurrentDate()) }
     var textDate by remember { mutableStateOf(TextFieldValue("")) }
     var reportDateIso by remember { mutableStateOf("") }
-    var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     val cameraPositionState = rememberCameraPositionState()
-
+    val context = LocalContext.current
 
     fun prepareReportDate(date: LocalDate) {
         val iso = DateUtils.parseLocalDateToIso(date)
@@ -93,6 +93,15 @@ fun RouteMapScreen(
         viewModel.getPaymentsByDate(start, end)
     }
 
+    fun moveCameraToLocation(lat: Double, lng: Double) {
+        cameraPositionState.move(
+            update = CameraUpdateFactory.newLatLngZoom(
+                LatLng(lat, lng),
+                17f
+            )
+        )
+    }
+
     LaunchedEffect(Unit) {
         prepareReportDate(selectedDate)
     }
@@ -105,7 +114,32 @@ fun RouteMapScreen(
         }
     }
 
-    val context = LocalContext.current
+    val visiblePayments = when (paymentsState) {
+        is ResultState.Success -> {
+            (paymentsState as ResultState.Success<List<Payment>>).data.filter { payment ->
+                val lat = payment.LAT
+                val lng = payment.LNG
+                lat != null && lng != null &&
+                        lat in -90.0..90.0 && lng in -180.0..180.0 &&
+                        (lat != 0.0 || lng != 0.0)
+            }
+        }
+
+        else -> emptyList()
+    }
+
+    val pins = visiblePayments.map { payment ->
+        MapPin(
+            lat = payment.LAT!!,
+            lon = payment.LNG!!,
+            description = "Pago: $${payment.IMPORTE} - ${
+                DateUtils.formatIsoDate(
+                    payment.FECHA_HORA_PAGO,
+                    "dd/MM/yyyy hh:mm a"
+                )
+            }"
+        )
+    }
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -151,7 +185,7 @@ fun RouteMapScreen(
                     }
 
                     if (showDatePicker) {
-                        Popup(
+                        androidx.compose.ui.window.Popup(
                             onDismissRequest = { showDatePicker = false },
                             alignment = Alignment.TopStart
                         ) {
@@ -173,48 +207,39 @@ fun RouteMapScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                val pins = visiblePayments.mapNotNull { pago ->
-                    val lat = pago.LAT
-                    val lng = pago.LNG
-                    if (lat != null && lng != null && lat in -90.0..90.0 && lng in -180.0..180.0) {
-                        MapPin(
-                            lat = lat,
-                            lon = lng,
-                            description = pago.NOMBRE_CLIENTE
-                        )
-                    } else null
-                }
-
                 MapView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(300.dp),
                     context = context,
                     pins = pins,
+                    cameraPositionState = cameraPositionState
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
                 when (paymentsState) {
                     is ResultState.Loading -> {
-                        Text("Cargando pagos...")
+                        Text("Cargando payments...")
                     }
 
                     is ResultState.Success -> {
-                        val payments = (paymentsState as ResultState.Success<List<Payment>>).data
-                        LaunchedEffect(payments) {
-                            visiblePayments = payments
-                        }
-
-                        if (payments.isEmpty()) {
-                            Text("No hay pagos para esta fecha.")
+                        if (visiblePayments.isEmpty()) {
+                            Text("No hay payments para esta fecha.")
                         } else {
                             LazyColumn(modifier = Modifier.weight(1f)) {
-                                items(visiblePayments, key = { it.hashCode() }) { pago ->
+                                items(visiblePayments, key = { it.hashCode() }) { payment ->
                                     PaymentItem(
-                                        pago,
+                                        payment = payment,
                                         variant = PaymentItemVariant.DEFAULT,
-                                        navController = navController
+                                        navController = navController,
+                                        onClick = {
+                                            val lat = payment.LAT
+                                            val lng = payment.LNG
+                                            if (lat != null && lng != null && lat != 0.0 && lng != 0.0) {
+                                                moveCameraToLocation(lat, lng)
+                                            }
+                                        }
                                     )
                                 }
                                 item { Spacer(modifier = Modifier.height(12.dp)) }
@@ -227,7 +252,7 @@ fun RouteMapScreen(
                     }
 
                     else -> {
-                        Text("Selecciona una fecha para ver los pagos.")
+                        Text("Selecciona una fecha para ver los payments.")
                     }
                 }
             }

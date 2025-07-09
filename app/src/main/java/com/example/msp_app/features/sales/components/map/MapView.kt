@@ -29,11 +29,11 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
-import com.google.maps.android.compose.rememberCameraPositionState
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
@@ -51,10 +51,10 @@ fun MapView(
     modifier: Modifier = Modifier,
     context: Context,
     pins: List<MapPin> = emptyList(),
-    initialZoom: Float = 16f,
+    initialZoom: Float = 13f,
+    cameraPositionState: CameraPositionState
 ) {
     val location = rememberLocation(context)
-    val cameraPositionState = rememberCameraPositionState()
 
     LaunchedEffect(pins) {
         if (pins.isNotEmpty()) {
