@@ -1,5 +1,6 @@
 package com.example.msp_app.features.forgiveness.components
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,13 +17,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -33,9 +37,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
+import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.services.UpdateLocationService
+import kotlinx.coroutines.launch
+import java.util.UUID
 
 @Composable
 fun NewForgivenessDialog(
@@ -44,13 +59,68 @@ fun NewForgivenessDialog(
     sale: Sale
 ) {
     if (!show) return
+
+    val context = LocalContext.current
+
+    val authViewModel: AuthViewModel = viewModel()
+    val paymentsViewModel: PaymentsViewModel = viewModel()
+
+    val userData by authViewModel.userData.collectAsState()
+
+    val currentUser = (userData as? ResultState.Success)?.data
+
     var inputValue by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showAlertDialog by remember { mutableStateOf(false) }
 
+    val coroutineScope = rememberCoroutineScope()
+
     LaunchedEffect(Unit) {
         if (inputValue.isBlank()) {
             inputValue = sale.SALDO_REST.toString()
+        }
+    }
+
+    fun handleSaveForgiveness() {
+        if (inputValue.isBlank() || errorMessage != null) {
+            return
+        }
+        val forgivenessAmount = inputValue.toDoubleOrNull()
+        if (forgivenessAmount != null && forgivenessAmount > 0) {
+            coroutineScope.launch {
+                val forgiveness = Payment(
+                    CLIENTE_ID = sale.CLIENTE_ID,
+                    ID = UUID.randomUUID().toString(),
+                    LAT = 0.0,
+                    LNG = 0.0,
+                    IMPORTE = inputValue.toDouble(),
+                    NOMBRE_CLIENTE = sale.CLIENTE,
+                    FECHA_HORA_PAGO = DateUtils.getIsoDateTime(),
+                    COBRADOR = sale.NOMBRE_COBRADOR,
+                    COBRADOR_ID = currentUser?.COBRADOR_ID ?: 0,
+                    DOCTO_CC_ID = 0,
+                    FORMA_COBRO_ID = Constants.CONDONACION_ID,
+                    DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,
+                    ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
+                    GUARDADO_EN_MICROSIP = false
+                )
+
+                paymentsViewModel.savePayment(forgiveness)
+
+                val intent = Intent(context, UpdateLocationService::class.java).apply {
+                    putExtra("payment_id", forgiveness.ID)
+                }
+                ContextCompat.startForegroundService(context, intent)
+
+                inputValue = ""
+
+                showAlertDialog = false
+                onDismissRequest()
+
+                paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
+            }
+        } else {
+            errorMessage = "Ingrese un monto válido"
         }
     }
 
@@ -151,7 +221,7 @@ fun NewForgivenessDialog(
             onDismissRequest = { showAlertDialog = false },
             confirmButton = {
                 TextButton(
-                    onClick = { }
+                    onClick = { handleSaveForgiveness() }
                 ) {
                     Text("Confirmar")
                 }

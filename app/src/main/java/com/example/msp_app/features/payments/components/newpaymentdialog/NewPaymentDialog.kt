@@ -93,7 +93,7 @@ fun NewPaymentDialog(
     )
 
     val coroutineScope = rememberCoroutineScope()
-    
+
     val suggestionsToShow = suggestions.ifEmpty {
         when (val state = paymentsBySuggestedAmountsState) {
             is ResultState.Success -> state.data
