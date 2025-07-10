@@ -21,4 +21,8 @@ object Constants {
     const val NO_RESPONDE = "No responde aunque está"
     const val SE_ESCUCHAN_RUIDOS = "Se escuchan ruidos pero no abre"
     const val PIDE_REAGENDAR = "Pidió reagendar visita"
+
+    //Datos para ticket
+    const val WHATSAPP = "238-374-06-84"
+    const val TELEFONO = "238-110-50-61"
 }
