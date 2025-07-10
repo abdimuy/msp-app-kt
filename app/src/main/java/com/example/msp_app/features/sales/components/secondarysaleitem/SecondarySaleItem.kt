@@ -58,6 +58,8 @@ fun SecondarySaleItem(
     onAddVisit: () -> Unit = {},
     progress: Float = 0f,
     distanceToCurrentLocation: Double = 0.0,
+    openVisitDialog: () -> Unit = {},
+    closeVisitDialog: () -> Unit = {},
 ) {
     val isDark = isSystemInDarkTheme()
 
@@ -254,7 +256,7 @@ fun SecondarySaleItem(
                             text = { Text("Agregar visita") },
                             onClick = {
                                 closeMenu()
-                                onAddVisit()
+                                openVisitDialog()
                             }
                         )
                     }

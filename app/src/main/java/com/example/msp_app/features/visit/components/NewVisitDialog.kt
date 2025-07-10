@@ -18,9 +18,11 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,9 +30,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.visit.Visit
+import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import kotlinx.coroutines.launch
+import java.util.UUID
 
 @Composable
 fun NewVisitDialog(
@@ -39,9 +49,19 @@ fun NewVisitDialog(
     sale: Sale
 ) {
     if (!show) return
-    var selectedOption by remember { mutableStateOf("") }
+
+    val visitsViewModel: VisitsViewModel = viewModel()
+    val authViewModel: AuthViewModel = viewModel()
+
+    val userData by authViewModel.userData.collectAsState()
+
+    var selectedOption by remember { mutableStateOf(Constants.NO_SE_ENCONTRABA) }
     var showAlertDialog by remember { mutableStateOf(false) }
-    var text by remember { mutableStateOf("") }
+    var note by remember { mutableStateOf("") }
+
+    val currentUser = (userData as? ResultState.Success)?.data
+
+    val coroutineScope = rememberCoroutineScope()
 
     val visitConditionForm = listOf(
         Constants.NO_SE_ENCONTRABA to "No se encontraba",
@@ -55,6 +75,35 @@ fun NewVisitDialog(
         Constants.NO_RESPONDE to "No responde aunque está",
         Constants.SE_ESCUCHAN_RUIDOS to "Se escuchan ruidos pero no habre"
     )
+
+    fun handleSaveVisit() {
+        coroutineScope.launch {
+            val id = UUID.randomUUID().toString()
+
+            val visit = Visit(
+                ID = id,
+                COBRADOR_ID = currentUser?.COBRADOR_ID ?: 0,
+                COBRADOR = sale.NOMBRE_COBRADOR,
+                LNG = 0.0,
+                LAT = 0.0,
+                FORMA_COBRO_ID = 0,
+                CLIENTE_ID = sale.CLIENTE_ID,
+                ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
+                GUARDADO_EN_MICROSIP = 0,
+                FECHA = DateUtils.getIsoDateTime(),
+                IMPTE_DOCTO_CC_ID = sale.DOCTO_CC_ACR_ID,
+                TIPO_VISITA = selectedOption,
+                NOTA = note,
+            )
+
+            visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID)
+
+            note = ""
+            selectedOption = Constants.NO_SE_ENCONTRABA
+
+            showAlertDialog = true
+        }
+    }
 
     FullScreenDialog(
         show = true,
@@ -108,8 +157,8 @@ fun NewVisitDialog(
             }
             Spacer(Modifier.height(16.dp))
             OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
+                value = note,
+                onValueChange = { note = it },
                 label = { Text("Mas información") },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -119,7 +168,9 @@ fun NewVisitDialog(
 
             Spacer(modifier = Modifier.height(20.dp))
             Button(
-                onClick = { showAlertDialog = true },
+                onClick = {
+                    handleSaveVisit()
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("Guardar")
@@ -133,14 +184,20 @@ fun NewVisitDialog(
             onDismissRequest = { showAlertDialog = false },
             confirmButton = {
                 TextButton(
-                    onClick = {}
+                    onClick = {
+                        showAlertDialog = false
+                        onDismissRequest()
+                    }
                 ) {
                     Text("Imprimir")
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick = {}
+                    onClick = {
+                        showAlertDialog = false
+                        onDismissRequest()
+                    }
                 ) {
                     Text("Cancelar")
                 }

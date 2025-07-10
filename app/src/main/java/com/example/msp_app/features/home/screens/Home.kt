@@ -83,6 +83,7 @@ import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.sale_item.SaleItemVariant
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
+import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -110,6 +111,10 @@ fun HomeScreen(navController: NavController) {
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsGroupedByDayWeekly: ResultState<Map<String, List<Payment>>> by paymentsViewModel.paymentsGroupedByDayWeeklyState.collectAsState()
+
+    val visitsViewModel: VisitsViewModel = viewModel()
+    val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
+
     val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
 
     var closestCentroidsSorted by remember {
@@ -159,6 +164,7 @@ fun HomeScreen(navController: NavController) {
 
     LaunchedEffect(Unit) {
         paymentsViewModel.getCentroidsBySale()
+        visitsViewModel.getPendingVisits()
     }
 
     val initialDate = (userDataState as? ResultState.Success<User?>)
@@ -590,6 +596,7 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
+                        Spacer(Modifier.height(22.dp))
                         OutlinedCard(
                             elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
                             colors = CardDefaults.cardColors(
@@ -602,18 +609,61 @@ fun HomeScreen(navController: NavController) {
                             modifier = Modifier
                                 .fillMaxWidth(0.92f)
                                 .background(Color.White, RoundedCornerShape(16.dp))
-                                .height(90.dp)
                         ) {
-                            Text(
-                                text = buildAnnotatedString {
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append("VISITAS SIN ENVIAR")
-                                    }
-                                    append("\nNO HAY VISITAS SIN ENVIAR")
-                                },
+                            Column(
                                 modifier = Modifier.padding(16.dp),
-                            )
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("VISITAS SIN ENVIAR")
+                                        }
+                                    },
+                                )
 
+                                when (val visitsResult = visitsPendingState) {
+                                    is ResultState.Loading -> {
+                                        Text(
+                                            text = "Cargando visitas pendientes...",
+                                        )
+                                    }
+
+                                    is ResultState.Error -> {
+                                        Text(
+                                            text = "Error al cargar visitas: ${visitsResult.message}",
+                                            color = Color.Red
+                                        )
+                                    }
+
+                                    is ResultState.Success -> {
+                                        val pendingVisits = visitsResult.data
+                                        if (pendingVisits.isEmpty()) {
+                                            Text(
+                                                text = "No hay visitas pendientes",
+                                            )
+                                        } else {
+                                            Text(
+                                                text = "Visitas Pendientes: ${pendingVisits.size}",
+                                            )
+                                            pendingVisits.forEach { visit ->
+                                                Text(
+                                                    text = "${visit.CLIENTE_ID} - ${
+                                                        DateUtils.formatIsoDate(
+                                                            visit.FECHA,
+                                                            "EEE dd/MM/yy hh:mm a",
+                                                        )
+                                                    } - ${visit.TIPO_VISITA}",
+                                                    modifier = Modifier.padding(vertical = 2.dp),
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    else -> {}
+                                }
+                            }
                         }
 
                         Spacer(Modifier.height(20.dp))

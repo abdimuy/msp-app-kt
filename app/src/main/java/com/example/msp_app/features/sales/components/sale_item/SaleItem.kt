@@ -7,6 +7,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
 import com.example.msp_app.features.sales.components.primarysaleitem.PrimarySaleItem
 import com.example.msp_app.features.sales.components.secondarysaleitem.SecondarySaleItem
+import com.example.msp_app.features.visit.components.NewVisitDialog
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
@@ -32,12 +33,16 @@ fun SaleItem(
 
     val menuExpanded = remember { mutableStateOf(false) }
     val showPaymentDialog = remember { mutableStateOf(false) }
+    val showVisitDialog = remember { mutableStateOf(false) }
 
     val openMenu: () -> Unit = { menuExpanded.value = true }
     val closeMenu: () -> Unit = { menuExpanded.value = false }
 
     val openPaymentDialog: () -> Unit = { showPaymentDialog.value = true }
     val closePaymentDialog: () -> Unit = { showPaymentDialog.value = false }
+
+    val openVisitDialog: () -> Unit = { showVisitDialog.value = true }
+    val closeVisitDialog: () -> Unit = { showVisitDialog.value = false }
 
     when (variant) {
         SaleItemVariant.DEFAULT -> {
@@ -53,6 +58,8 @@ fun SaleItem(
                 openPaymentDialog = openPaymentDialog,
                 closePaymentDialog = closePaymentDialog,
                 showPaymentDialog = showPaymentDialog.value,
+                openVisitDialog = openVisitDialog,
+                closeVisitDialog = closeVisitDialog,
             )
         }
 
@@ -69,7 +76,9 @@ fun SaleItem(
                 openPaymentDialog = openPaymentDialog,
                 closePaymentDialog = closePaymentDialog,
                 showPaymentDialog = showPaymentDialog.value,
-                distanceToCurrentLocation = distanceToCurrentLocation
+                distanceToCurrentLocation = distanceToCurrentLocation,
+                openVisitDialog = openVisitDialog,
+                closeVisitDialog = closeVisitDialog,
             )
         }
     }
@@ -82,6 +91,14 @@ fun SaleItem(
             onDismissRequest = { showPaymentDialog.value = false },
             sale = sale,
             suggestedPayment = sale.PARCIALIDAD
+        )
+    }
+
+    if (showVisitDialog.value) {
+        NewVisitDialog(
+            show = true,
+            onDismissRequest = { showVisitDialog.value = false },
+            sale = sale
         )
     }
 }

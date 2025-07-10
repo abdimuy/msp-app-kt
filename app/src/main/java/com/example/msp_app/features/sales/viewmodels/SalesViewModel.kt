@@ -9,6 +9,7 @@ import com.example.msp_app.data.api.services.sales.SalesApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
+import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
@@ -25,6 +26,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val saleStore = SalesLocalDataSource(application.applicationContext)
     private val productStore = ProductsLocalDataSource(application.applicationContext)
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
+    private val visitsStore = VisitsLocalDataSource(application.applicationContext)
 
     private val _salesState = MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
     val salesState: StateFlow<ResultState<List<Sale>>> = _salesState
@@ -59,6 +61,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 saleStore.saveAll(sales.map { it.toEntity() })
                 productStore.saveAll(products.map { it.toEntity() })
                 paymentStore.saveAll(payments.map { it.toEntity() })
+                visitsStore.deleteAllVisits()
 
                 _salesState.value = ResultState.Success(sales)
 

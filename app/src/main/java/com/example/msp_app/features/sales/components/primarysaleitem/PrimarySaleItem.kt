@@ -54,7 +54,9 @@ fun PrimarySaleItem(
     closePaymentDialog: () -> Unit = {},
     showPaymentDialog: Boolean = false,
     onAddVisit: () -> Unit = {},
-    progress: Float = 0f
+    progress: Float = 0f,
+    openVisitDialog: () -> Unit = {},
+    closeVisitDialog: () -> Unit = {},
 ) {
     val isDark = isSystemInDarkTheme()
 
@@ -190,7 +192,7 @@ fun PrimarySaleItem(
                             text = { Text("Agregar visita") },
                             onClick = {
                                 closeMenu()
-                                onAddVisit()
+                                openVisitDialog()
                             }
                         )
                     }

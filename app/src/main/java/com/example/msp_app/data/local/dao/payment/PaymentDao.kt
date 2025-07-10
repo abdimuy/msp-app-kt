@@ -15,23 +15,25 @@ import java.time.format.DateTimeFormatter
 interface PaymentDao {
 
     @Query(
-        """SELECT 
-        ID,
-        COBRADOR,
-        DOCTO_CC_ACR_ID,
-        DOCTO_CC_ID,
-        FECHA_HORA_PAGO,
-        GUARDADO_EN_MICROSIP,
-        IMPORTE,
-        LAT,
-        LNG,
-        CLIENTE_ID,
-        COBRADOR_ID,
-        FORMA_COBRO_ID,
-        ZONA_CLIENTE_ID,
-        NOMBRE_CLIENTE
-    FROM Payment
-    WHERE ID = :id"""
+        """
+        SELECT 
+            ID,
+            COBRADOR,
+            DOCTO_CC_ACR_ID,
+            DOCTO_CC_ID,
+            FECHA_HORA_PAGO,
+            GUARDADO_EN_MICROSIP,
+            IMPORTE,
+            LAT,
+            LNG,
+            CLIENTE_ID,
+            COBRADOR_ID,
+            FORMA_COBRO_ID,
+            ZONA_CLIENTE_ID,
+            NOMBRE_CLIENTE
+        FROM Payment
+        WHERE ID = :id
+        """
     )
     suspend fun getPaymentById(id: String): PaymentEntity
 
