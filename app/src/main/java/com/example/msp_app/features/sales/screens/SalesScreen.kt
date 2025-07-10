@@ -224,7 +224,8 @@ fun SalesScreen(
                                             sale = sale,
                                             onClick = {
                                                 navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
-                                            }
+                                            },
+                                            navController = navController
                                         )
                                     }
                                 }
