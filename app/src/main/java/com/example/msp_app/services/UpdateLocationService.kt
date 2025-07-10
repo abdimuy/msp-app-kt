@@ -8,6 +8,7 @@ import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import com.example.msp_app.R
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
+import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -27,12 +28,14 @@ class UpdateLocationService : Service(), CoroutineScope {
     private lateinit var client: FusedLocationProviderClient
     private lateinit var cts: CancellationTokenSource
     private lateinit var paymentsStore: PaymentsLocalDataSource
+    private lateinit var visitsStore: VisitsLocalDataSource
 
     override fun onCreate() {
         super.onCreate()
         client = LocationServices.getFusedLocationProviderClient(this)
         cts = CancellationTokenSource()
         paymentsStore = PaymentsLocalDataSource(applicationContext)
+        visitsStore = VisitsLocalDataSource(applicationContext)
 
         val chanId = "loc_service"
         val notify = NotificationCompat.Builder(this, chanId)
@@ -45,27 +48,28 @@ class UpdateLocationService : Service(), CoroutineScope {
 
     @RequiresPermission(allOf = [Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION])
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val paymentId = intent?.getStringExtra("payment_id") ?: return START_NOT_STICKY
+        val paymentId = intent?.getStringExtra("payment_id")
+        val visitId = intent?.getStringExtra("visit_id")
+        if (paymentId == null && visitId == null) return START_NOT_STICKY
 
         client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
             .addOnSuccessListener { loc ->
                 launch {
                     try {
-                        Log.d("UpdateLocationService", "Location received: $loc")
-                        paymentsStore.updatePaymentLocation(
-                            paymentId,
-                            loc.latitude,
-                            loc.longitude
-                        )
-                        enqueuePendingPaymentsWorker(applicationContext)
-
-                        Log.d("UpdateLocationService", "Location updated")
-                        paymentsStore.getPaymentById(paymentId).let { payment ->
-                            Log.d("UpdateLocationService", "Payment updated: $payment")
+                        if (paymentId != null) {
+                            paymentsStore.updatePaymentLocation(
+                                paymentId,
+                                loc.latitude,
+                                loc.longitude
+                            )
+                            enqueuePendingPaymentsWorker(applicationContext)
+                        } else {
+                            visitsStore.updateVisitLocation(visitId!!, loc.latitude, loc.longitude)
+                            // enqueuePendingVisitsWorker(applicationContext) // crea este worker si hace falta
                         }
+                        stopSelf()
                     } catch (e: Exception) {
                         Log.e("UpdateLocationService", "Error al actualizar ubicación", e)
-                    } finally {
                         stopSelf()
                     }
                 }
@@ -73,11 +77,11 @@ class UpdateLocationService : Service(), CoroutineScope {
             .addOnFailureListener {
                 launch {
                     try {
-                        Log.w(
-                            "UpdateLocationService",
-                            "No se pudo obtener ubicación, enviando igual"
-                        )
-                        enqueuePendingPaymentsWorker(applicationContext)
+                        if (paymentId != null) {
+                            enqueuePendingPaymentsWorker(applicationContext)
+                        } else {
+                            // enqueuePendingVisitsWorker(applicationContext)
+                        }
                     } catch (e: Exception) {
                         Log.e("UpdateLocationService", "Error en FailureListener", e)
                     } finally {

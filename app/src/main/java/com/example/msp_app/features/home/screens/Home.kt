@@ -655,7 +655,7 @@ fun HomeScreen(navController: NavController) {
                                                             visit.FECHA,
                                                             "EEE dd/MM/yy hh:mm a",
                                                         )
-                                                    } - ${visit.TIPO_VISITA}",
+                                                    } - ${visit.TIPO_VISITA} - ${visit.LAT} ${visit.LNG}",
                                                     modifier = Modifier.padding(vertical = 2.dp),
                                                 )
                                             }

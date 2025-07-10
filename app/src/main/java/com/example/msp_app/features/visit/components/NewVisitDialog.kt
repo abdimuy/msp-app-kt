@@ -1,5 +1,6 @@
 package com.example.msp_app.features.visit.components
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,10 +27,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
@@ -39,6 +42,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import com.example.msp_app.services.UpdateLocationService
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -49,6 +53,8 @@ fun NewVisitDialog(
     sale: Sale
 ) {
     if (!show) return
+
+    val context = LocalContext.current
 
     val visitsViewModel: VisitsViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
@@ -97,6 +103,11 @@ fun NewVisitDialog(
             )
 
             visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID)
+
+            val intent = Intent(context, UpdateLocationService::class.java).apply {
+                putExtra("visit_id", visit.ID)
+            }
+            ContextCompat.startForegroundService(context, intent)
 
             note = ""
             selectedOption = Constants.NO_SE_ENCONTRABA
