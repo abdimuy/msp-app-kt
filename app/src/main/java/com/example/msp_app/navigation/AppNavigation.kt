@@ -18,7 +18,6 @@ import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.PaymentTicketScreen
-import com.example.msp_app.features.sales.screens.MapScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
@@ -115,9 +114,9 @@ fun AppNavigation() {
                         paymentId = paymentId,
                         navController = navController
                     )
-                } else {
-
                 }
+            }
+
             composable(Screen.Guarantee.route) {
                 GuaranteeScreen(navController = navController)
             }
