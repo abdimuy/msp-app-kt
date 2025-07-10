@@ -69,13 +69,13 @@ fun NewPaymentDialog(
     suggestions: List<Int> = emptyList(),
     suggestedPayment: Int = 0,
     sale: Sale,
+    onPaymentSaved: (paymentId: String) -> Unit = {}
 ) {
     if (!show) return
 
     val context = LocalContext.current
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
-    val savePaymentState by paymentsViewModel.savePaymentState.collectAsState()
     val paymentsBySuggestedAmountsState by paymentsViewModel.paymentsBySuggestedAmountsState.collectAsState()
     val authViewModel: AuthViewModel = viewModel()
     val userData by authViewModel.userData.collectAsState()
@@ -121,9 +121,10 @@ fun NewPaymentDialog(
         coroutineScope.launch {
             try {
 
+                val idTicket = UUID.randomUUID().toString()
                 val payment = Payment(
                     CLIENTE_ID = sale.CLIENTE_ID,
-                    ID = UUID.randomUUID().toString(),
+                    ID = idTicket,
                     LAT = 0.0,
                     LNG = 0.0,
                     IMPORTE = inputValue.toDouble(),
@@ -144,6 +145,8 @@ fun NewPaymentDialog(
                     putExtra("payment_id", payment.ID)
                 }
                 ContextCompat.startForegroundService(context, intent)
+
+                onPaymentSaved(payment.ID)
 
                 inputValue = ""
                 selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID

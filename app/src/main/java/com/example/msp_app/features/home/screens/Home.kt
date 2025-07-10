@@ -644,7 +644,7 @@ fun HomeScreen(navController: NavController) {
                         }
                         Spacer(Modifier.height(14.dp))
 
-                        Button(text = "Descargar ventas", onClick = { salesViewModel.syncSales() })
+                        Button(text = "Actualizar datos", onClick = { salesViewModel.syncSales() })
 
                         when (salesState) {
                             is ResultState.Idle -> {

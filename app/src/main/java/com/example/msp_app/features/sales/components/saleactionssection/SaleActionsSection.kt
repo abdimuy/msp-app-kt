@@ -26,7 +26,7 @@ import com.example.msp_app.features.sales.components.SaleActionButton
 import com.example.msp_app.features.visit.components.NewVisitDialog
 
 @Composable
-fun SaleActionSection(sale: Sale) {
+fun SaleActionSection(sale: Sale, onNavigateToTicket: (String) -> Unit) {
     val viewModel: PaymentsViewModel = viewModel()
     val paymentsBySaleIdState by viewModel.paymentsBySaleIdState.collectAsState()
 
@@ -58,7 +58,10 @@ fun SaleActionSection(sale: Sale) {
             onDismissRequest = { closeDialog() },
             suggestions = paymentAmounts,
             suggestedPayment = sale.PARCIALIDAD,
-            sale
+            sale,
+            onPaymentSaved = { id ->
+                onNavigateToTicket(id)
+            }
         )
         SaleActionButton(
             text = "AGREGAR PAGO",

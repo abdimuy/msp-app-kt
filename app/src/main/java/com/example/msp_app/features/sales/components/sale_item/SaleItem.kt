@@ -21,12 +21,13 @@ fun SaleItem(
     onClick: () -> Unit = {},
     variant: SaleItemVariant = SaleItemVariant.DEFAULT,
     distanceToCurrentLocation: Double = 0.0,
+    onPaymentSaved: (String) -> Unit = {}
 ) {
     val progress = ((sale.PRECIO_TOTAL - sale.SALDO_REST) / sale.PRECIO_TOTAL).toFloat()
     val parsedDate = OffsetDateTime.parse(sale.FECHA)
     val dateFormatted = parsedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
-    fun onAgregarVisita(): Unit {
+    fun onAgregarVisita() {
         // Implementar la lógica para agregar una visita
     }
 
@@ -81,7 +82,10 @@ fun SaleItem(
             show = true,
             onDismissRequest = { showPaymentDialog.value = false },
             sale = sale,
-            suggestedPayment = sale.PARCIALIDAD
+            suggestedPayment = sale.PARCIALIDAD,
+            onPaymentSaved = { paymentId ->
+                onPaymentSaved(paymentId)
+            }
         )
     }
 }
