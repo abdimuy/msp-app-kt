@@ -17,6 +17,7 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
+import com.example.msp_app.features.payments.screens.PaymentTicketScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
@@ -37,6 +38,10 @@ sealed class Screen(val route: String) {
 
     object SaleMap : Screen("sales/sale_details/map/{saleId}") {
         fun createRoute(saleId: Int) = "sales/sale_details/map/$saleId"
+    }
+
+    object PaymentTicket : Screen("payment_ticket/{paymentId}") {
+        fun createRoute(paymentId: String) = "payment_ticket/$paymentId"
     }
 
     object Guarantee : Screen("guarantee")
@@ -98,6 +103,17 @@ fun AppNavigation() {
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
                     SaleMapScreen(navController = navController, saleId = saleId)
+                }
+            }
+
+
+            composable(Screen.PaymentTicket.route) { backStackEntry ->
+                val paymentId = backStackEntry.arguments?.getString("paymentId")
+                if (paymentId != null) {
+                    PaymentTicketScreen(
+                        paymentId = paymentId,
+                        navController = navController
+                    )
                 }
             }
 

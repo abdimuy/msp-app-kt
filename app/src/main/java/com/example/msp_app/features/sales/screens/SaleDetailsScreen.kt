@@ -275,7 +275,7 @@ fun SaleDetailsContent(
                     textAlign = TextAlign.Left,
                 )
 
-                PaymentsHistory(sale)
+                PaymentsHistory(sale, navController)
             }
         }
     }

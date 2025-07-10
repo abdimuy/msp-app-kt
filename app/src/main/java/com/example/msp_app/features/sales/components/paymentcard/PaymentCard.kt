@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales.components.paymentcard
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.example.msp_app.R
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
@@ -37,7 +39,11 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import java.time.ZoneOffset
 
 @Composable
-fun PaymentCard(payment: Payment) {
+fun PaymentCard(
+    payment: Payment,
+    navController: NavController,
+    isFirstPayment: Boolean = false
+) {
     val authViewModel: AuthViewModel = viewModel()
     val userState by authViewModel.userData.collectAsState()
 
@@ -67,9 +73,14 @@ fun PaymentCard(payment: Payment) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp)
-            .height(70.dp),
+            .height(70.dp)
+            .then(
+                if (isFirstPayment) Modifier.clickable {
+                    navController.navigate("payment_ticket/${payment.ID}")
+                } else Modifier
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(12.dp),
     ) {
         Box(
             modifier = Modifier
@@ -79,11 +90,11 @@ fun PaymentCard(payment: Payment) {
             Image(
                 painter = painterResource(
                     id = bgRes
-
                 ),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
             )
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,

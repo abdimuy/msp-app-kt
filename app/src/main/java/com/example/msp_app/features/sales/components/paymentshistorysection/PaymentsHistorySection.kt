@@ -16,13 +16,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.paymentcard.PaymentCard
 
 @Composable
-fun PaymentsHistory(sale: Sale) {
+fun PaymentsHistory(
+    sale: Sale,
+    navController: NavController
+) {
     val viewModel: PaymentsViewModel = viewModel()
     val paymentsBySaleIdGroupedState by viewModel.paymentsBySaleIdGroupedState.collectAsState()
 
@@ -37,6 +41,8 @@ fun PaymentsHistory(sale: Sale) {
         when (val result = paymentsBySaleIdGroupedState) {
             is ResultState.Success -> {
                 val groupedPayments = result.data
+                val firstPayment = groupedPayments.values.flatten().firstOrNull()
+
                 groupedPayments.forEach { (month, payments) ->
                     Text(
                         text = month,
@@ -46,7 +52,12 @@ fun PaymentsHistory(sale: Sale) {
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         payments.forEach { payment ->
-                            PaymentCard(payment)
+                            val isFirstPayment = payment == firstPayment
+                            PaymentCard(
+                                payment = payment,
+                                navController = navController,
+                                isFirstPayment = isFirstPayment
+                            )
                         }
                     }
                     Spacer(modifier = Modifier.height(16.dp))
