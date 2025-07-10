@@ -62,7 +62,7 @@ fun SaleActionSection(sale: Sale) {
         )
         SaleActionButton(
             text = "AGREGAR PAGO",
-            backgroundColor = MaterialTheme.colorScheme.primary,
+            backgroundColor = Color(0xFF388E3C),
             iconRes = R.drawable.money,
             onClick = { toggleDialog() },
         )
@@ -91,7 +91,7 @@ fun SaleActionSection(sale: Sale) {
             )
             SaleActionButton(
                 text = "AGREGAR VISITA",
-                backgroundColor = Color(0xFF388E3C),
+                backgroundColor = MaterialTheme.colorScheme.primary,
                 iconRes = R.drawable.visita,
                 modifier = Modifier.weight(0.3f),
                 onClick = { openVisitDialog = true }

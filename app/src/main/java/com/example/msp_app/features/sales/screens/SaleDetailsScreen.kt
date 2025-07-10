@@ -43,6 +43,7 @@ import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.CustomMap
@@ -51,6 +52,7 @@ import com.example.msp_app.features.sales.components.saleactionssection.SaleActi
 import com.example.msp_app.features.sales.components.saleclientdetailssection.SaleClientDetailsSection
 import com.example.msp_app.features.sales.components.saleclientsettlement.SaleClienteSettlement
 import com.example.msp_app.features.sales.components.saleproductssection.SaleProductsSection
+import com.example.msp_app.features.sales.components.salesummarybar.SaleSummaryBar
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.navigation.Screen
 
@@ -249,7 +251,15 @@ fun SaleDetailsContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(46.dp))
+
+        val porcentage = ((1 - (sale.SALDO_REST / sale.PRECIO_TOTAL)) * 100)
+
+        SaleSummaryBar(
+            balance = sale.SALDO_REST.toCurrency(noDecimals = true),
+            percentagePaid = String.format("%.2f%%", porcentage)
+        )
+        Spacer(modifier = Modifier.height(46.dp))
 
         SaleActionSection(sale)
 
