@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.example.msp_app.R
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
@@ -26,7 +27,7 @@ import com.example.msp_app.features.sales.components.SaleActionButton
 import com.example.msp_app.features.visit.components.NewVisitDialog
 
 @Composable
-fun SaleActionSection(sale: Sale, onNavigateToTicket: (String) -> Unit) {
+fun SaleActionSection(sale: Sale, navController: NavController) {
     val viewModel: PaymentsViewModel = viewModel()
     val paymentsBySaleIdState by viewModel.paymentsBySaleIdState.collectAsState()
 
@@ -59,9 +60,7 @@ fun SaleActionSection(sale: Sale, onNavigateToTicket: (String) -> Unit) {
             suggestions = paymentAmounts,
             suggestedPayment = sale.PARCIALIDAD,
             sale,
-            onPaymentSaved = { id ->
-                onNavigateToTicket(id)
-            }
+            navController = navController
         )
         SaleActionButton(
             text = "AGREGAR PAGO",

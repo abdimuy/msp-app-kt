@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.DateUtils
@@ -69,7 +70,7 @@ fun NewPaymentDialog(
     suggestions: List<Int> = emptyList(),
     suggestedPayment: Int = 0,
     sale: Sale,
-    onPaymentSaved: (paymentId: String) -> Unit = {}
+    navController: NavController
 ) {
     if (!show) return
 
@@ -146,7 +147,7 @@ fun NewPaymentDialog(
                 }
                 ContextCompat.startForegroundService(context, intent)
 
-                onPaymentSaved(payment.ID)
+                navController.navigate("payment_ticket/${payment.ID}")
 
                 inputValue = ""
                 selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID

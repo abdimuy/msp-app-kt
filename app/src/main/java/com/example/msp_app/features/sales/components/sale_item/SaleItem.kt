@@ -3,6 +3,7 @@ package com.example.msp_app.features.sales.components.sale_item
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.navigation.NavController
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
 import com.example.msp_app.features.sales.components.primarysaleitem.PrimarySaleItem
@@ -21,7 +22,7 @@ fun SaleItem(
     onClick: () -> Unit = {},
     variant: SaleItemVariant = SaleItemVariant.DEFAULT,
     distanceToCurrentLocation: Double = 0.0,
-    onPaymentSaved: (String) -> Unit = {}
+    navController: NavController
 ) {
     val progress = ((sale.PRECIO_TOTAL - sale.SALDO_REST) / sale.PRECIO_TOTAL).toFloat()
     val parsedDate = OffsetDateTime.parse(sale.FECHA)
@@ -83,9 +84,7 @@ fun SaleItem(
             onDismissRequest = { showPaymentDialog.value = false },
             sale = sale,
             suggestedPayment = sale.PARCIALIDAD,
-            onPaymentSaved = { paymentId ->
-                onPaymentSaved(paymentId)
-            }
+            navController = navController
         )
     }
 }

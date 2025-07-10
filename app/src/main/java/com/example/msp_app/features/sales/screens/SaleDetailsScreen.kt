@@ -263,9 +263,7 @@ fun SaleDetailsContent(
 
         SaleActionSection(
             sale,
-            onNavigateToTicket = { paymentId ->
-                navController.navigate("payment_ticket/$paymentId")
-            }
+            navController
         )
 
         Spacer(modifier = Modifier.height(15.dp))

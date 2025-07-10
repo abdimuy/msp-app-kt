@@ -581,7 +581,8 @@ fun HomeScreen(navController: NavController) {
                                         navController.navigate("sales/sale_details/$saleId")
                                     },
                                     variant = SaleItemVariant.SECONDARY,
-                                    distanceToCurrentLocation = distanceToCurrentLocation.toDouble()
+                                    distanceToCurrentLocation = distanceToCurrentLocation.toDouble(),
+                                    navController
                                 )
 
                             }
