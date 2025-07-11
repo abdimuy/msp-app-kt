@@ -51,6 +51,7 @@ import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -80,9 +81,12 @@ fun WeeklyReportScreen(
         DateUtils.addToIsoDate(startIso, 6, ChronoUnit.DAYS),
         -1, ChronoUnit.SECONDS
     )
+    val visitsViewModel: VisitsViewModel = viewModel()
+    val visitsState by visitsViewModel.visitsByDate.collectAsState()
 
     LaunchedEffect(startIso) {
         viewModel.getPaymentsByDate(startIso, endIso)
+        visitsViewModel.getVisitsByDate(startIso, endIso)
     }
 
     fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
@@ -257,10 +261,15 @@ fun WeeklyReportScreen(
                                             isGeneratingPdf = true
                                             val paymentTextData =
                                                 formatPaymentsTextList(visiblePayments)
+                                            val visitTextData = formatVisitsTextList(
+                                                (visitsState as? ResultState.Success)?.data
+                                                    ?: emptyList()
+                                            )
                                             val file = withContext(Dispatchers.IO) {
                                                 PdfGenerator.generatePdfFromLines(
                                                     context = context,
                                                     data = paymentTextData,
+                                                    visits = visitTextData,
                                                     title = "REPORTE DE PAGOS SEMANAL",
                                                     nameCollector = visiblePayments.firstOrNull()?.COBRADOR
                                                         ?: "No especificado",

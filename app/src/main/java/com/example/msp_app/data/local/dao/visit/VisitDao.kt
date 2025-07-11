@@ -57,6 +57,29 @@ interface VisitDao {
     )
     suspend fun getPendingVisits(): List<VisitEntity>
 
+    @Query(
+        """
+        SELECT 
+            ID,
+            CLIENTE_ID,
+            COBRADOR,
+            COBRADOR_ID,
+            FECHA,
+            FORMA_COBRO_ID,
+            LAT,
+            LNG,
+            NOTA,
+            TIPO_VISITA,
+            ZONA_CLIENTE_ID,
+            IMPTE_DOCTO_CC_ID,
+            GUARDADO_EN_MICROSIP
+        FROM Visit
+        WHERE FECHA BETWEEN :start AND :end
+        ORDER BY FECHA DESC
+        """
+    )
+    suspend fun getVisitsByDate(start: String, end: String): List<VisitEntity>
+
     @Query("UPDATE Visit SET GUARDADO_EN_MICROSIP = :newState WHERE id = :id")
     suspend fun updateState(id: String, newState: Int)
 

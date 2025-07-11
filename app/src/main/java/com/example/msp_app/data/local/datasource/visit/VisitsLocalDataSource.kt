@@ -22,6 +22,10 @@ class VisitsLocalDataSource(private val context: Context) {
         return visitDao.getPendingVisits()
     }
 
+    suspend fun getVisitsByDate(start: String, end: String): List<VisitEntity> {
+        return visitDao.getVisitsByDate(start, end)
+    }
+
     suspend fun updateVisitState(id: String, newState: Int) {
         visitDao.updateState(id, newState)
     }

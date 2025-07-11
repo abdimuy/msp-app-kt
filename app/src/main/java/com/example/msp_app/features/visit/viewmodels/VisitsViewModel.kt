@@ -28,6 +28,9 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
     private val _saveVisitState = MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
     val savePaymentState: StateFlow<ResultState<Unit>> = _saveVisitState
 
+    private val _visitsByDateState = MutableStateFlow<ResultState<List<Visit>>>(ResultState.Idle)
+    val visitsByDate: StateFlow<ResultState<List<Visit>>> = _visitsByDateState
+
     fun getPendingVisits() {
         viewModelScope.launch {
             _pendingVisits.value = ResultState.Loading
@@ -61,6 +64,18 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
             } catch (e: Exception) {
                 _saveVisitState.value = ResultState.Error(e.message ?: "Error guardando pago")
             }
+        }
+    }
+
+    fun getVisitsByDate(startDate: String, endDate: String) {
+        viewModelScope.launch {
+            _visitsByDateState.value = ResultState.Loading
+
+            val visits = withContext(Dispatchers.IO) {
+                visitStore.getVisitsByDate(startDate, endDate)
+                    .map { it.toDomain() }
+            }
+            _visitsByDateState.value = ResultState.Success(visits)
         }
     }
 }
