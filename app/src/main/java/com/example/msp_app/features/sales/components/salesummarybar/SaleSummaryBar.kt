@@ -33,7 +33,7 @@ fun SaleSummaryBar(
     Box(
         modifier = Modifier
             .fillMaxWidth(0.92f)
-            .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp))
             .padding(vertical = 16.dp)
     ) {
         Row(

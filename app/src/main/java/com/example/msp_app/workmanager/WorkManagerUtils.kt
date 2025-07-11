@@ -10,13 +10,16 @@ import androidx.work.workDataOf
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
 
-fun enqueuePendingPaymentsWorker(context: Context) {
+fun enqueuePendingPaymentsWorker(context: Context, paymentId: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
 
+    val input = workDataOf("payment_id" to paymentId)
+
     val request = OneTimeWorkRequestBuilder<PendingPaymentsWorker>()
         .setConstraints(constraints)
+        .setInputData(input)
         .build()
 
     WorkManager.getInstance(context)

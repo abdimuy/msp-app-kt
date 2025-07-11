@@ -63,7 +63,7 @@ class UpdateLocationService : Service(), CoroutineScope {
                                 loc.latitude,
                                 loc.longitude
                             )
-                            enqueuePendingPaymentsWorker(applicationContext)
+                            enqueuePendingPaymentsWorker(applicationContext, paymentId)
                         } else {
                             visitsStore.updateVisitLocation(visitId!!, loc.latitude, loc.longitude)
                             enqueuePendingVisitsWorker(applicationContext, visitId)
@@ -79,7 +79,7 @@ class UpdateLocationService : Service(), CoroutineScope {
                 launch {
                     try {
                         if (paymentId != null) {
-                            enqueuePendingPaymentsWorker(applicationContext)
+                            enqueuePendingPaymentsWorker(applicationContext, paymentId)
                         } else {
                             enqueuePendingVisitsWorker(applicationContext, visitId!!)
                         }

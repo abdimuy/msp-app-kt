@@ -1,9 +1,9 @@
 package com.example.msp_app.features.sales.components.saleclientsettlement
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -80,7 +80,6 @@ fun SaleClienteSettlement(sale: Sale) {
                 Column(
                     modifier = Modifier.padding(10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
                         text = "Hoy liquida con",
@@ -90,6 +89,9 @@ fun SaleClienteSettlement(sale: Sale) {
                         modifier = Modifier.padding(top = 8.dp),
                         style = MaterialTheme.typography.titleLarge
                     )
+                    Spacer(
+                        modifier = Modifier.height(8.dp)
+                    )
                     Text(
                         text = result.amount.toCurrency(noDecimals = true),
                         style = MaterialTheme.typography.bodyLarge.copy(
@@ -97,6 +99,9 @@ fun SaleClienteSettlement(sale: Sale) {
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
+                    )
+                    Spacer(
+                        modifier = Modifier.height(8.dp)
                     )
                     Text(
                         text = result.category,
@@ -106,13 +111,19 @@ fun SaleClienteSettlement(sale: Sale) {
                         fontSize = 20.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
+                    Spacer(
+                        modifier = Modifier.height(8.dp)
+                    )
                     HorizontalDivider(thickness = 1.dp, color = Color.White)
+                    Spacer(
+                        modifier = Modifier.height(8.dp)
+                    )
                     Text(
                         text = "Válido hasta ${result.validUntil}",
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Light,
-                        modifier = Modifier.padding(top = 5.dp)
+                        modifier = Modifier.padding(top = 0.dp, bottom = 8.dp),
                     )
                 }
             }
