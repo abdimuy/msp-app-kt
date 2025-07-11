@@ -52,7 +52,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
@@ -61,6 +60,7 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.util.UUID
 
 @Composable
@@ -123,6 +123,8 @@ fun NewPaymentDialog(
             try {
 
                 val idTicket = UUID.randomUUID().toString()
+                val date = Instant.now().toString()
+
                 val payment = Payment(
                     CLIENTE_ID = sale.CLIENTE_ID,
                     ID = idTicket,
@@ -130,7 +132,7 @@ fun NewPaymentDialog(
                     LNG = 0.0,
                     IMPORTE = inputValue.toDouble(),
                     NOMBRE_CLIENTE = sale.CLIENTE,
-                    FECHA_HORA_PAGO = DateUtils.getIsoDateTime(),
+                    FECHA_HORA_PAGO = date,
                     COBRADOR = sale.NOMBRE_COBRADOR,
                     COBRADOR_ID = currentUser?.COBRADOR_ID ?: 0,
                     DOCTO_CC_ID = 0,
