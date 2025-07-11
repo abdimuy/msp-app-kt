@@ -52,57 +52,43 @@ fun SelectBluetoothDevice(
 ) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("printer_prefs", Context.MODE_PRIVATE)
-    var savedAddress by remember { mutableStateOf<String?>(null) }
-
-    val bluetoothManager = LocalContext.current.getSystemService(
-        BluetoothManager::class.java
-    )
+    val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
     val bluetoothAdapter = bluetoothManager?.adapter
     val coroutineScope = rememberCoroutineScope()
 
+    var savedAddress by remember { mutableStateOf<String?>(null) }
     var pairedDevices by remember { mutableStateOf<List<BluetoothDevice>>(emptyList()) }
     var isPrinting by remember { mutableStateOf(false) }
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
     var showBluetoothDialog by remember { mutableStateOf(false) }
 
-    lateinit var checkBluetoothAndShowDevices: () -> Unit
+    val checkBluetoothRef = remember { mutableStateOf<() -> Unit>({}) }
 
-    fun loadPairedDevices() {
-        pairedDevices = bluetoothAdapter?.bondedDevices?.toList() ?: emptyList()
-        if (pairedDevices.isEmpty()) {
-            Toast.makeText(context, "No hay dispositivos Bluetooth emparejados", Toast.LENGTH_SHORT)
-                .show()
+    val permissionsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val granted = (perms[Manifest.permission.BLUETOOTH_CONNECT] == true
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) &&
+                (perms[Manifest.permission.BLUETOOTH_SCAN] == true
+                        || Build.VERSION.SDK_INT < Build.VERSION_CODES.S)
+        if (granted) {
+            checkBluetoothRef.value()
+        } else {
+            Toast.makeText(context, "Permisos Bluetooth requeridos", Toast.LENGTH_SHORT).show()
         }
     }
 
-    val permissionsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions(),
-        onResult = { permissions ->
-            val granted = (permissions[Manifest.permission.BLUETOOTH_CONNECT] == true
-                    || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) &&
-                    (permissions[Manifest.permission.BLUETOOTH_SCAN] == true
-                            || Build.VERSION.SDK_INT < Build.VERSION_CODES.S)
-
-            if (granted) {
-                checkBluetoothAndShowDevices()
-            } else {
-                Toast.makeText(context, "Permisos Bluetooth requeridos", Toast.LENGTH_SHORT).show()
-            }
+    val enableBtLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            checkBluetoothRef.value()
+        } else {
+            Toast.makeText(context, "Bluetooth no habilitado", Toast.LENGTH_SHORT).show()
         }
-    )
+    }
 
-    val launcherEnableBluetooth = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-        onResult = { result ->
-            if (result.resultCode == android.app.Activity.RESULT_OK) {
-                loadPairedDevices()
-            } else {
-                Toast.makeText(context, "Bluetooth no habilitado", Toast.LENGTH_SHORT).show()
-            }
-        }
-    )
-
-    fun checkBluetoothAndShowDevices() {
+    checkBluetoothRef.value = fun() {
         if (bluetoothAdapter == null) {
             Toast.makeText(context, "Dispositivo no soporta Bluetooth", Toast.LENGTH_SHORT).show()
             return
@@ -112,7 +98,6 @@ fun SelectBluetoothDevice(
             val hasConnect = ContextCompat.checkSelfPermission(
                 context, Manifest.permission.BLUETOOTH_CONNECT
             ) == PackageManager.PERMISSION_GRANTED
-
             val hasScan = ContextCompat.checkSelfPermission(
                 context, Manifest.permission.BLUETOOTH_SCAN
             ) == PackageManager.PERMISSION_GRANTED
@@ -127,25 +112,28 @@ fun SelectBluetoothDevice(
                 return
             }
         }
-
         if (!bluetoothAdapter.isEnabled) {
-            val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-            launcherEnableBluetooth.launch(enableBtIntent)
-        } else {
-            loadPairedDevices()
+            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            enableBtLauncher.launch(intent)
+            return
+        }
+        pairedDevices = bluetoothAdapter.bondedDevices?.toList() ?: emptyList()
+        if (pairedDevices.isEmpty()) {
+            Toast.makeText(context, "No hay dispositivos Bluetooth emparejados", Toast.LENGTH_SHORT)
+                .show()
         }
     }
 
     LaunchedEffect(Unit) {
         savedAddress = prefs.getString("last_printer_address", null)
-        checkBluetoothAndShowDevices()
+        checkBluetoothRef.value()
     }
-
+    
     LaunchedEffect(pairedDevices) {
-        val deviceFound = savedAddress
-            ?.let { address -> pairedDevices.firstOrNull { it.address == address } }
-        if (deviceFound != null) {
-            selectedDevice = deviceFound
+        val found = savedAddress
+            ?.let { addr -> pairedDevices.firstOrNull { it.address == addr } }
+        if (found != null) {
+            selectedDevice = found
         } else {
             prefs.edit { remove("last_printer_address") }
             savedAddress = null
@@ -154,21 +142,13 @@ fun SelectBluetoothDevice(
 
     Surface(modifier = modifier) {
         Column {
-            LaunchedEffect(Unit) {
-                checkBluetoothAndShowDevices()
-            }
-
             Row {
-                Button(
-                    onClick = {
-                        showBluetoothDialog = true
-                    },
-                ) {
-                    if (selectedDevice != null) {
-                        Text("Imprimir en: ${selectedDevice?.name ?: "Selecciona dispositivo"}")
-                    } else {
-                        Text("Seleccionar impresora")
-                    }
+                Button(onClick = { showBluetoothDialog = true }) {
+                    Text(
+                        selectedDevice
+                            ?.let { "Imprimir en: ${it.name}" }
+                            ?: "Seleccionar impresora"
+                    )
                 }
                 Button(
                     onClick = {
