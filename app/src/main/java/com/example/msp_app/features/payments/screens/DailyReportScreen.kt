@@ -127,7 +127,7 @@ private fun buildPaymentsTicketText(
     val totalCash = cash.sumOf { it.IMPORTE }.toInt()
     val totalTransfers = transfers.sumOf { it.IMPORTE }.toInt()
 
-    builder.appendLine("Total payments: ${payments.size}")
+    builder.appendLine("Total de pagos: ${payments.size}")
     builder.appendLine("Total importe: $%,d".format(total))
     builder.appendLine("Efectivo (${cash.size} pagos): $%,d".format(totalCash))
     builder.appendLine("Transferencia (${transfers.size} pagos): $%,d".format(totalTransfers))
@@ -264,7 +264,7 @@ fun DailyReportScreen(
                 ) {
                     when (paymentsState) {
                         is ResultState.Loading -> {
-                            Text("Cargando payments...")
+                            Text("Cargando pagos...")
                         }
 
                         is ResultState.Success -> {
@@ -285,7 +285,7 @@ fun DailyReportScreen(
                                 )
 
                             if (payments.isEmpty()) {
-                                Text("No hay payments para esta fecha.")
+                                Text("No hay pagos para esta fecha.")
                             } else {
                                 val formatter = DateTimeFormatter.ISO_DATE_TIME
 
@@ -430,7 +430,7 @@ fun DailyReportScreen(
                         }
 
                         else -> {
-                            Text("Selecciona una fecha para ver los payments.")
+                            Text("Selecciona una fecha para ver los pago.")
                         }
                     }
                 }
