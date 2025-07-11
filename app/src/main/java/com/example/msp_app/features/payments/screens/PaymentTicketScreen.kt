@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,7 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -25,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,9 +38,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.Constants
@@ -110,218 +113,267 @@ fun PaymentTicketScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Ticket de Pago") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Regresar")
-                    }
-                }
-            )
-        },
-        bottomBar = {
-            if (saleDisponible && ticket != null) {
-                SelectBluetoothDevice(
-                    textToPrint = ticket!!,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    onPrintRequest = { device, text ->
-                        coroutineScope.launch {
-                            try {
-                                ThermalPrinting.printText(device, text, context)
-                            } catch (_: Exception) {
-                            }
-                        }
-                    }
-                )
-            }
-        }
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(it)
-                .fillMaxSize(), contentAlignment = Alignment.TopCenter
-        ) {
-            when {
-                selectedPayment == null -> Text("Cargando pago...")
-                saleResult is ResultState.Loading -> Text("Cargando venta...")
-                productsResult is ResultState.Loading -> Text("Cargando productos...")
-                saleResult is ResultState.Error -> Text("Error: ${(saleResult as ResultState.Error).message}")
-                productsResult is ResultState.Error -> Text("Error: ${(productsResult as ResultState.Error).message}")
+    DrawerContainer(navController = navController) { openDrawer ->
+        Scaffold { innerPading ->
+            Box(
+                modifier = Modifier
+                    .padding(innerPading)
+                    .fillMaxSize(), contentAlignment = Alignment.TopCenter
+            ) {
+                when {
+                    selectedPayment == null -> Text("Cargando pago...")
+                    saleResult is ResultState.Loading -> Text("Cargando venta...")
+                    productsResult is ResultState.Loading -> Text("Cargando productos...")
+                    saleResult is ResultState.Error -> Text("Error: ${(saleResult as ResultState.Error).message}")
+                    productsResult is ResultState.Error -> Text("Error: ${(productsResult as ResultState.Error).message}")
 
-                saleResult is ResultState.Success && productsResult is ResultState.Success -> {
-                    val sale = (saleResult as ResultState.Success<Sale?>).data
-                    val products = (productsResult as ResultState.Success<List<Product>>).data
+                    saleResult is ResultState.Success && productsResult is ResultState.Success -> {
+                        val sale = (saleResult as ResultState.Success<Sale?>).data
+                        val products = (productsResult as ResultState.Success<List<Product>>).data
 
-                    val saldoAnterior = (selectedPayment?.IMPORTE ?: 0.0) +
-                            (sale?.SALDO_REST ?: 0.0)
+                        val saldoAnterior = (selectedPayment?.IMPORTE ?: 0.0) +
+                                (sale?.SALDO_REST ?: 0.0)
 
-                    val date = DateUtils.formatIsoDate(
-                        iso = selectedPayment!!.FECHA_HORA_PAGO,
-                        pattern = "dd/MM/yy hh:mm a",
-                        locale = Locale("es", "MX")
-                    )
-
-                    ticket = buildString {
-                        appendLine("-------- TICKET DE PAGO --------")
-                        appendLine("FOLIO: ${sale?.FOLIO}")
-                        appendLine("CLIENTE: ${sale?.CLIENTE}")
-                        appendLine("DIRECCION: ${sale?.CALLE} ${sale?.CIUDAD} ${sale?.ESTADO}")
-                        appendLine("TELEFONO: ${sale?.TELEFONO}")
-                        appendLine("FECHA VENTA: ${sale?.FECHA}")
-                        appendLine("PRECIO TOTAL: ${sale?.PRECIO_TOTAL?.toCurrency(noDecimals = true)}")
-                        appendLine(
-                            "PRECIO A ${sale?.TIEMPO_A_CORTO_PLAZOMESES} MESES: ${
-                                sale?.MONTO_A_CORTO_PLAZO?.toCurrency(
-                                    noDecimals = true
-                                )
-                            }"
+                        val date = DateUtils.formatIsoDate(
+                            iso = selectedPayment!!.FECHA_HORA_PAGO,
+                            pattern = "dd/MM/yy hh:mm a",
+                            locale = Locale("es", "MX")
                         )
-                        appendLine(
-                            "PRECIO DE CONTADO: ${
-                                sale?.PRECIO_DE_CONTADO?.toCurrency(
-                                    noDecimals = true
-                                )
-                            }"
-                        )
-                        appendLine("ENGANCHE: ${sale?.ENGANCHE?.toCurrency(noDecimals = true)}")
-                        appendLine("PARCIALIDAD: ${sale?.PARCIALIDAD?.toCurrency(noDecimals = true)}")
-                        appendLine("VENDEDORES: ${sale?.VENDEDOR_1}")
-                        appendLine("-".repeat(32))
-                        appendLine("---------- PRODUCTOS -----------")
-                        products.forEach { product ->
+                        val lineBlanck = (" ").repeat(32)
+
+                        ticket = buildString {
+                            appendLine(ThermalPrinting.centerText("TICKET DE PAGO", 32))
+                            appendLine(lineBlanck)
+                            appendLine("FOLIO: ${sale?.FOLIO}")
+                            appendLine("CLIENTE: ${sale?.CLIENTE}")
+                            appendLine("DIRECCION: ${sale?.CALLE} ${sale?.CIUDAD} ${sale?.ESTADO}")
+                            appendLine("TELEFONO: ${sale?.TELEFONO}")
+                            appendLine("FECHA VENTA: ${sale?.FECHA}")
+                            appendLine("PRECIO TOTAL: ${sale?.PRECIO_TOTAL?.toCurrency(noDecimals = true)}")
                             appendLine(
-                                "- ${product.ARTICULO}: ${
-                                    product.PRECIO_UNITARIO_IMPTO?.toCurrency(
+                                "PRECIO A ${sale?.TIEMPO_A_CORTO_PLAZOMESES} MESES: ${
+                                    sale?.MONTO_A_CORTO_PLAZO?.toCurrency(
                                         noDecimals = true
                                     )
-                                } x ${product.CANTIDAD}"
+                                }"
                             )
+                            appendLine(
+                                "PRECIO DE CONTADO: ${
+                                    sale?.PRECIO_DE_CONTADO?.toCurrency(
+                                        noDecimals = true
+                                    )
+                                }"
+                            )
+                            appendLine("ENGANCHE: ${sale?.ENGANCHE?.toCurrency(noDecimals = true)}")
+                            appendLine("PARCIALIDAD: ${sale?.PARCIALIDAD?.toCurrency(noDecimals = true)}")
+                            appendLine("VENDEDORES:${sale?.VENDEDOR_1}")
+                            appendLine(lineBlanck)
+                            appendLine("-".repeat(32))
+                            appendLine(ThermalPrinting.centerText("PRODUCTOS", 32))
+                            appendLine(lineBlanck)
+                            products.forEach { product ->
+                                appendLine(
+                                    "- ${product.ARTICULO}: ${
+                                        product.PRECIO_UNITARIO_IMPTO?.toCurrency(
+                                            noDecimals = true
+                                        )
+                                    } x ${product.CANTIDAD}"
+                                )
+                            }
+                            appendLine(lineBlanck)
+                            appendLine("-".repeat(32))
+                            appendLine(lineBlanck)
+                            appendLine("FECHA DE PAGO:${date}")
+                            appendLine("SALDO ANTERIOR: ${saldoAnterior?.toCurrency(noDecimals = true)}")
+                            appendLine("ABONADO: ${selectedPayment?.IMPORTE?.toCurrency(noDecimals = true)}")
+                            appendLine("SALDO ACTUAL: ${sale?.SALDO_REST?.toCurrency(noDecimals = true)}")
+                            appendLine(lineBlanck)
+                            appendLine("-".repeat(32))
+                            appendLine(ThermalPrinting.centerText("HISTORIAL DE PAGOS", 32))
+                            appendLine(lineBlanck)
+                            appendLine("-".repeat(32))
+                            appendLine(lineBlanck)
+                            appendLine(
+                                ThermalPrinting.centerText(
+                                    "EXIJA SU COMPROBANTE DE PAGO",
+                                    32
+                                )
+                            )
+                            appendLine("!!GRACIAS POR SU PREFERENCIA!!")
+                            appendLine(lineBlanck)
+                            appendLine("TELÉFONO: ${Constants.TELEFONO}")
+                            appendLine("WHATSAPP: ${Constants.WHATSAPP}")
+                            appendLine("AGENTE:${userData?.NOMBRE ?: ""}")
+                            appendLine("TELÉFONO DEL AGENTE: ${userData?.TELEFONO ?: ""}")
                         }
-                        appendLine("-".repeat(32))
-                        appendLine("FECHA DE PAGO:${date}")
-                        appendLine("SALDO ANTERIOR: ${saldoAnterior?.toCurrency(noDecimals = true)}")
-                        appendLine("ABONADO: ${selectedPayment?.IMPORTE?.toCurrency(noDecimals = true)}")
-                        appendLine("SALDO ACTUAL: ${sale?.SALDO_REST?.toCurrency(noDecimals = true)}")
-                        appendLine("-".repeat(32))
-                        appendLine("------ HISTORIAL DE PAGOS ------")
-                        appendLine("-".repeat(32))
-                        appendLine(" EXIJA SU COMPROBANTE DE PAGO ")
-                        appendLine("!!GRACIAS POR SU PREFERENCIA!!")
-                        appendLine("TELÉFONO: ${Constants.TELEFONO}")
-                        appendLine("WHATSAPP: ${Constants.WHATSAPP}")
-                        appendLine("AGENTE:${userData?.NOMBRE ?: ""}")
-                        appendLine("TELÉFONO DEL AGENTE: ${userData?.TELEFONO ?: ""}")
-                    }
 
-                    saleDisponible = true
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = 80.dp)
-                            .verticalScroll(rememberScrollState()),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        saleDisponible = true
 
-                    ) {
-                        OutlinedCard(
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.background
-                            ),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (isDark) Color.Gray else Color.Transparent
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth(0.92f)
-                                .background(Color.White, RoundedCornerShape(16.dp))
-                        ) {
-                            if (sale != null) {
-                                Column(modifier = Modifier.padding(5.dp)) {
-                                    InfoField(label = "FOLIO:", value = sale.FOLIO)
-                                    InfoField(label = "CLIENTE:", value = sale.CLIENTE)
-                                    InfoField(
-                                        label = "DIRECCIÓN:",
-                                        value = "${sale.CALLE} ${sale.CIUDAD} ${sale.ESTADO}"
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                IconButton(
+                                    onClick = openDrawer,
+                                    modifier = Modifier.padding(10.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Menu,
+                                        contentDescription = "Menú",
+                                        tint = Color.White
                                     )
-                                    InfoField(label = "TELÉFONO:", value = sale.TELEFONO)
-                                    InfoField(label = "FECHA VENTA:", value = sale.FECHA)
-                                    InfoField(
-                                        label = "PRECIO TOTAL:",
-                                        value = "${sale.PRECIO_TOTAL.toCurrency(noDecimals = true)}"
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 48.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Ticket de Pago",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
                                     )
-                                    InfoField(
-                                        label = "PRECIO A ${sale.TIEMPO_A_CORTO_PLAZOMESES} MESES:",
-                                        value = "${sale.MONTO_A_CORTO_PLAZO.toCurrency(noDecimals = true)}"
-                                    )
-                                    InfoField(
-                                        label = "PRECIO DE CONTADO:",
-                                        value = "${sale.PRECIO_DE_CONTADO.toCurrency(noDecimals = true)}"
-                                    )
-                                    InfoField(
-                                        label = "ENGANCHE:",
-                                        value = "${sale.ENGANCHE.toCurrency(noDecimals = true)}"
-                                    )
-                                    InfoField(
-                                        label = "PARCIALIDAD:",
-                                        value = "${sale.PARCIALIDAD.toCurrency(noDecimals = true)}"
-                                    )
-                                    InfoField(label = "VENDEDORES:", value = sale.VENDEDOR_1)
-                                    Spacer(Modifier.height(12.dp))
-                                    Text("PRODUCTOS", style = MaterialTheme.typography.titleMedium)
-                                    products.forEach { product ->
+                                }
+                            }
+                            OutlinedCard(
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.background
+                                ),
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isDark) Color.Gray else Color.Transparent
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth(0.92f)
+                                    .align(alignment = Alignment.CenterHorizontally)
+                                    .background(Color.White, RoundedCornerShape(16.dp))
+                                    .padding(bottom = 42.dp)
+                            ) {
+                                val scrollState = rememberScrollState()
+                                if (sale != null) {
+                                    Column(
+                                        modifier = Modifier
+                                            .verticalScroll(scrollState)
+                                            .padding(5.dp)
+                                    ) {
+                                        InfoField(label = "FOLIO:", value = sale.FOLIO)
+                                        InfoField(label = "CLIENTE:", value = sale.CLIENTE)
                                         InfoField(
-                                            label = "- ${product.ARTICULO}:",
+                                            label = "DIRECCIÓN:",
+                                            value = "${sale.CALLE} ${sale.CIUDAD} ${sale.ESTADO}"
+                                        )
+                                        InfoField(label = "TELÉFONO:", value = sale.TELEFONO)
+                                        InfoField(label = "FECHA VENTA:", value = sale.FECHA)
+                                        InfoField(
+                                            label = "PRECIO TOTAL:",
+                                            value = "${sale.PRECIO_TOTAL.toCurrency(noDecimals = true)}"
+                                        )
+                                        InfoField(
+                                            label = "PRECIO A ${sale.TIEMPO_A_CORTO_PLAZOMESES} MESES:",
                                             value = "${
-                                                product.PRECIO_UNITARIO_IMPTO.toCurrency(
+                                                sale.MONTO_A_CORTO_PLAZO.toCurrency(
                                                     noDecimals = true
                                                 )
-                                            } x ${product.CANTIDAD}"
+                                            }"
+                                        )
+                                        InfoField(
+                                            label = "PRECIO DE CONTADO:",
+                                            value = "${sale.PRECIO_DE_CONTADO.toCurrency(noDecimals = true)}"
+                                        )
+                                        InfoField(
+                                            label = "ENGANCHE:",
+                                            value = "${sale.ENGANCHE.toCurrency(noDecimals = true)}"
+                                        )
+                                        InfoField(
+                                            label = "PARCIALIDAD:",
+                                            value = "${sale.PARCIALIDAD.toCurrency(noDecimals = true)}"
+                                        )
+                                        InfoField(label = "VENDEDORES:", value = sale.VENDEDOR_1)
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(
+                                            "PRODUCTOS",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        products.forEach { product ->
+                                            InfoField(
+                                                label = "- ${product.ARTICULO}:",
+                                                value = "${
+                                                    product.PRECIO_UNITARIO_IMPTO.toCurrency(
+                                                        noDecimals = true
+                                                    )
+                                                } x ${product.CANTIDAD}"
+                                            )
+                                        }
+                                        Spacer(Modifier.height(12.dp))
+                                        InfoField(
+                                            label = "FECHA DE PAGO:",
+                                            value = date
+                                        )
+                                        InfoField(
+                                            label = "SALDO ANTERIOR:",
+                                            value = "${saldoAnterior.toCurrency(noDecimals = true)}"
+                                        )
+                                        InfoField(
+                                            label = "ABONADO:",
+                                            value = "${
+                                                selectedPayment?.IMPORTE?.toCurrency(
+                                                    noDecimals = true
+                                                ) ?: ""
+                                            }"
+                                        )
+                                        InfoField(
+                                            label = "SALDO ACTUAL:",
+                                            value = "${sale.SALDO_REST.toCurrency(noDecimals = true)}"
+                                        )
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(" HISTORIAL DE PAGOS ")
+                                        Spacer(Modifier.height(12.dp))
+                                        Text(" EXIJA SU COMPROBANTE DE PAGO ")
+                                        Text("!!GRACIAS POR SU PREFERENCIA!!")
+                                        Spacer(Modifier.height(12.dp))
+                                        InfoField(
+                                            label = "TELÉFONO:",
+                                            value = "${Constants.TELEFONO}"
+                                        )
+                                        InfoField(
+                                            label = "WHATSAPP:",
+                                            value = "${Constants.WHATSAPP}"
+                                        )
+                                        InfoField(label = "AGENTE:", value = userData?.NOMBRE ?: "")
+                                        InfoField(
+                                            label = "TELÉFONO DEL AGENTE:",
+                                            value = userData?.TELEFONO ?: ""
                                         )
                                     }
-                                    Spacer(Modifier.height(12.dp))
-                                    InfoField(
-                                        label = "FECHA DE PAGO:",
-                                        value = date
-                                    )
-                                    InfoField(
-                                        label = "SALDO ANTERIOR:",
-                                        value = "${saldoAnterior.toCurrency(noDecimals = true)}"
-                                    )
-                                    InfoField(
-                                        label = "ABONADO:",
-                                        value = "${selectedPayment?.IMPORTE?.toCurrency(noDecimals = true) ?: ""}"
-                                    )
-                                    InfoField(
-                                        label = "SALDO ACTUAL:",
-                                        value = "${sale.SALDO_REST.toCurrency(noDecimals = true)}"
-                                    )
-                                    Spacer(Modifier.height(12.dp))
-                                    Text(" HISTORIAL DE PAGOS ")
-                                    Spacer(Modifier.height(12.dp))
-                                    Text(" EXIJA SU COMPROBANTE DE PAGO ")
-                                    Text("!!GRACIAS POR SU PREFERENCIA!!")
-                                    Spacer(Modifier.height(12.dp))
-                                    InfoField(label = "TELÉFONO:", value = "${Constants.TELEFONO}")
-                                    InfoField(label = "WHATSAPP:", value = "${Constants.WHATSAPP}")
-                                    InfoField(label = "AGENTE:", value = userData?.NOMBRE ?: "")
-                                    InfoField(
-                                        label = "TELÉFONO DEL AGENTE:",
-                                        value = userData?.TELEFONO ?: ""
-                                    )
-
+                                } else {
+                                    Text("No se encontró la venta.")
                                 }
-                            } else {
-                                Text("No se encontró la venta.")
                             }
                         }
+
                     }
                 }
+                if (saleDisponible && ticket != null) {
+                    SelectBluetoothDevice(
+                        textToPrint = ticket!!,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .align(alignment = Alignment.BottomCenter),
+                        onPrintRequest = { device, text ->
+                            coroutineScope.launch {
+                                try {
+                                    ThermalPrinting.printText(device, text, context)
+                                } catch (_: Exception) {
+                                }
+                            }
+                        }
+                    )
+                }
             }
-
         }
     }
 }

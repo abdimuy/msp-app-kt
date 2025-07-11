@@ -128,7 +128,7 @@ fun SelectBluetoothDevice(
         savedAddress = prefs.getString("last_printer_address", null)
         checkBluetoothRef.value()
     }
-    
+
     LaunchedEffect(pairedDevices) {
         val found = savedAddress
             ?.let { addr -> pairedDevices.firstOrNull { it.address == addr } }
@@ -143,7 +143,10 @@ fun SelectBluetoothDevice(
     Surface(modifier = modifier) {
         Column {
             Row {
-                Button(onClick = { showBluetoothDialog = true }) {
+                Button(onClick = {
+                    checkBluetoothRef.value()
+                    showBluetoothDialog = true
+                }) {
                     Text(
                         selectedDevice
                             ?.let { "Imprimir en: ${it.name}" }
