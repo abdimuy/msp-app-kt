@@ -614,7 +614,6 @@ fun HomeScreen(navController: NavController) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.Center,
-                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
                                     text = buildAnnotatedString {
@@ -648,17 +647,6 @@ fun HomeScreen(navController: NavController) {
                                             Text(
                                                 text = "Visitas Pendientes: ${pendingVisits.size}",
                                             )
-                                            pendingVisits.forEach { visit ->
-                                                Text(
-                                                    text = "${visit.CLIENTE_ID} - ${
-                                                        DateUtils.formatIsoDate(
-                                                            visit.FECHA,
-                                                            "EEE dd/MM/yy hh:mm a",
-                                                        )
-                                                    } - ${visit.TIPO_VISITA} - ${visit.LAT} ${visit.LNG}",
-                                                    modifier = Modifier.padding(vertical = 2.dp),
-                                                )
-                                            }
                                         }
                                     }
 

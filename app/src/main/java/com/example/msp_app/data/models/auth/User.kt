@@ -1,7 +1,9 @@
 package com.example.msp_app.data.models.auth
 
+import androidx.annotation.Keep
 import com.google.firebase.Timestamp
 
+@Keep
 data class User(
     val ID: String = "",
     val NOMBRE: String = "",
