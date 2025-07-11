@@ -34,6 +34,13 @@ class VisitsLocalDataSource(private val context: Context) {
         visitDao.updateLocation(id, lat, lng)
     }
 
+    suspend fun changeVisitStatus(id: String, status: Boolean) {
+        visitDao.updateState(
+            id,
+            if (status) 1 else 0
+        )
+    }
+
     @Transaction
     suspend fun insertVisitAndUpdateState(
         saleId: Int,

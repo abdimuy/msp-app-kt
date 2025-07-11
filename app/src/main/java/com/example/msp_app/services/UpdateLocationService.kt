@@ -10,6 +10,7 @@ import com.example.msp_app.R
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
+import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -65,7 +66,7 @@ class UpdateLocationService : Service(), CoroutineScope {
                             enqueuePendingPaymentsWorker(applicationContext)
                         } else {
                             visitsStore.updateVisitLocation(visitId!!, loc.latitude, loc.longitude)
-                            // enqueuePendingVisitsWorker(applicationContext) // crea este worker si hace falta
+                            enqueuePendingVisitsWorker(applicationContext, visitId)
                         }
                         stopSelf()
                     } catch (e: Exception) {
@@ -80,7 +81,7 @@ class UpdateLocationService : Service(), CoroutineScope {
                         if (paymentId != null) {
                             enqueuePendingPaymentsWorker(applicationContext)
                         } else {
-                            // enqueuePendingVisitsWorker(applicationContext)
+                            enqueuePendingVisitsWorker(applicationContext, visitId!!)
                         }
                     } catch (e: Exception) {
                         Log.e("UpdateLocationService", "Error en FailureListener", e)
