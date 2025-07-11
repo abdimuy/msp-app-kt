@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -105,7 +104,7 @@ private fun buildPaymentsTicketText(
     builder.appendLine("Fecha: $dateStr")
     builder.appendLine("Cobrador: $collectorName")
     builder.appendLine("-".repeat(32))
-    builder.appendLine(String.format("%-6s %-16s %8s", "Fecha", "Cliente", "Importe"))
+    builder.appendLine(String.format("%-6s %-16s %8s", "Hora", "Cliente", "Importe"))
     payments.forEach { pago ->
         val date = DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "HH:mm", Locale("es", "MX"))
         val client = pago.NOMBRE_CLIENTE.takeIf { it.length <= 16 } ?: pago.NOMBRE_CLIENTE.take(16)
@@ -119,8 +118,20 @@ private fun buildPaymentsTicketText(
         )
     }
     builder.appendLine("-".repeat(32))
-    builder.appendLine("Total pagos: ${payments.size}")
-    builder.appendLine("Total importe: $%,d".format(payments.sumOf { it.IMPORTE }.toInt()))
+    val total = payments.sumOf { it.IMPORTE }.toInt()
+    val cash =
+        payments.filter { PaymentMethod.fromId(it.FORMA_COBRO_ID) == PaymentMethod.PAGO_EN_EFECTIVO }
+    val transfers =
+        payments.filter { PaymentMethod.fromId(it.FORMA_COBRO_ID) == PaymentMethod.PAGO_CON_TRANSFERENCIA }
+
+    val totalCash = cash.sumOf { it.IMPORTE }.toInt()
+    val totalTransfers = transfers.sumOf { it.IMPORTE }.toInt()
+
+    builder.appendLine("Total de pagos: ${payments.size}")
+    builder.appendLine("Total importe: $%,d".format(total))
+    builder.appendLine("Efectivo (${cash.size} pagos): $%,d".format(totalCash))
+    builder.appendLine("Transferencia (${transfers.size} pagos): $%,d".format(totalTransfers))
+
     return builder.toString()
 }
 
@@ -134,7 +145,6 @@ fun DailyReportScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var textDate by remember { mutableStateOf(TextFieldValue("")) }
     val datePickerState = rememberDatePickerState()
-    val scrollState = rememberScrollState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
@@ -158,7 +168,7 @@ fun DailyReportScreen(
             }
         }
     }
-    
+
     val ticketText by remember(visiblePayments, textDate.text) {
         derivedStateOf {
             buildPaymentsTicketText(
@@ -420,7 +430,7 @@ fun DailyReportScreen(
                         }
 
                         else -> {
-                            Text("Selecciona una fecha para ver los pagos.")
+                            Text("Selecciona una fecha para ver los pago.")
                         }
                     }
                 }
@@ -436,10 +446,17 @@ data class PaymentLineData(
     val paymentMethod: PaymentMethod,
 )
 
+data class PaymentMethodBreakdown(
+    val method: PaymentMethod,
+    val count: Int,
+    val amount: Double
+)
+
 data class PaymentTextData(
     val lines: List<PaymentLineData>,
     val totalCount: Int,
-    val totalAmount: Double
+    val totalAmount: Double,
+    val breakdownByMethod: List<PaymentMethodBreakdown> = emptyList()
 )
 
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
@@ -459,6 +476,15 @@ fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
 
     val totalCount = payments.size
     val totalAmount = payments.sumOf { it.IMPORTE }
+    val breakdownByMethod = payments
+        .groupBy { PaymentMethod.fromId(it.FORMA_COBRO_ID) }
+        .map { (method, payments) ->
+            PaymentMethodBreakdown(
+                method = method,
+                count = payments.size,
+                amount = payments.sumOf { it.IMPORTE }
+            )
+        }
 
-    return PaymentTextData(lines, totalCount, totalAmount)
+    return PaymentTextData(lines, totalCount, totalAmount, breakdownByMethod)
 }

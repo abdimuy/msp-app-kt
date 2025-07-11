@@ -86,19 +86,33 @@ fun WeeklyReportScreen(
     }
 
     fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
-        return PaymentTextData(
-            lines = payments.map {
-                val date = DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "dd/MM/yyyy HH:mm a")
-                PaymentLineData(
-                    date = date,
-                    client = it.NOMBRE_CLIENTE,
-                    amount = it.IMPORTE,
-                    paymentMethod = PaymentMethod.fromId(it.FORMA_COBRO_ID)
+        val lines = payments.map { payment ->
+            val formattedDate = DateUtils.formatIsoDate(
+                payment.FECHA_HORA_PAGO,
+                "dd/MM/yy HH:mm",
+                Locale("es", "MX")
+            )
+            PaymentLineData(
+                date = formattedDate,
+                client = payment.NOMBRE_CLIENTE,
+                amount = payment.IMPORTE,
+                paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+            )
+        }
+
+        val totalCount = payments.size
+        val totalAmount = payments.sumOf { it.IMPORTE }
+        val breakdownByMethod = payments
+            .groupBy { PaymentMethod.fromId(it.FORMA_COBRO_ID) }
+            .map { (method, payments) ->
+                PaymentMethodBreakdown(
+                    method = method,
+                    count = payments.size,
+                    amount = payments.sumOf { it.IMPORTE }
                 )
-            },
-            totalCount = payments.size,
-            totalAmount = payments.sumOf { it.IMPORTE }
-        )
+            }
+
+        return PaymentTextData(lines, totalCount, totalAmount, breakdownByMethod)
     }
 
     fun formatPaymentsTextForTicket(
@@ -124,12 +138,20 @@ fun WeeklyReportScreen(
 
             builder.appendLine(String.format("%-8s %-14s %8s", date, client, amount))
         }
-
         builder.appendLine("-".repeat(32))
+        val total = payments.sumOf { it.IMPORTE }.toInt()
+        val cash =
+            payments.filter { PaymentMethod.fromId(it.FORMA_COBRO_ID) == PaymentMethod.PAGO_EN_EFECTIVO }
+        val transfers =
+            payments.filter { PaymentMethod.fromId(it.FORMA_COBRO_ID) == PaymentMethod.PAGO_CON_TRANSFERENCIA }
+
+        val totalCash = cash.sumOf { it.IMPORTE }.toInt()
+        val totalTransfers = transfers.sumOf { it.IMPORTE }.toInt()
+
         builder.appendLine("Total pagos: ${payments.size}")
-        builder.appendLine("Total importe: $${"%,d".format(payments.sumOf { it.IMPORTE }.toInt())}")
-        builder.appendLine("=".repeat(32))
-        builder.appendLine("!!!GRACIAS POR SU PREFERENCIA!!!")
+        builder.appendLine("Total importe: $%,d".format(total))
+        builder.appendLine("Efectivo (${cash.size} pagos): $%,d".format(totalCash))
+        builder.appendLine("Transferencia (${transfers.size} pagos): $%,d".format(totalTransfers))
 
         return builder.toString()
     }
