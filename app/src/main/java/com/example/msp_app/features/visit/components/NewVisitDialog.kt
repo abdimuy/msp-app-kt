@@ -36,7 +36,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.visit.Visit
@@ -44,6 +43,7 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.util.UUID
 
 @Composable
@@ -85,6 +85,7 @@ fun NewVisitDialog(
     fun handleSaveVisit() {
         coroutineScope.launch {
             val id = UUID.randomUUID().toString()
+            val date = Instant.now().toString()
 
             val visit = Visit(
                 ID = id,
@@ -96,7 +97,7 @@ fun NewVisitDialog(
                 CLIENTE_ID = sale.CLIENTE_ID,
                 ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
                 GUARDADO_EN_MICROSIP = 0,
-                FECHA = DateUtils.getIsoDateTime(),
+                FECHA = date,
                 IMPTE_DOCTO_CC_ID = sale.DOCTO_CC_ACR_ID,
                 TIPO_VISITA = selectedOption,
                 NOTA = note,
