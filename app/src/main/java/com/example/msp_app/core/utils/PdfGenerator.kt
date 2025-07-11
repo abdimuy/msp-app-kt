@@ -5,6 +5,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import com.example.msp_app.features.payments.screens.PaymentTextData
+import com.example.msp_app.features.payments.screens.VisitTextData
 import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDateTime
@@ -15,6 +16,7 @@ object PdfGenerator {
     fun generatePdfFromLines(
         context: Context,
         data: PaymentTextData,
+        visits: VisitTextData,
         title: String,
         nameCollector: String,
         fileName: String
@@ -37,7 +39,7 @@ object PdfGenerator {
         var yPos = 40
 
         paint.isFakeBoldText = true
-        canvas.drawText(title, pageWidth / 2f - 100, yPos.toFloat(), paint)
+        canvas.drawText(title, pageWidth / 2f - 85, yPos.toFloat(), paint)
         yPos += 25
 
         canvas.drawText("Cobrador: $nameCollector", marginLeft, yPos.toFloat(), paint)
@@ -125,6 +127,61 @@ object PdfGenerator {
         }
 
         pdfDocument.finishPage(page)
+
+        var pageNumber = 2
+        var visitPage =
+            pdfDocument.startPage(
+                PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
+            )
+        var visitCanvas = visitPage.canvas
+        var y = 40
+
+        paint.isFakeBoldText = true
+        visitCanvas.drawText("REPORTE DE VISITAS", pageWidth / 2f - 70, y.toFloat(), paint)
+        y += 25
+        visitCanvas.drawText("Cobrador: $nameCollector", marginLeft, y.toFloat(), paint)
+        y += 20
+        visitCanvas.drawText("Total visitas: ${visits.totalCount}", marginLeft, y.toFloat(), paint)
+        y += 30
+
+        paint.isFakeBoldText = true
+        val hDate = "Fecha/Hora"
+        val hCollector = "Cobrador"
+        val hType = "Tipo"
+        val hNote = "Nota"
+        val xVisitDate = marginLeft
+        visitCanvas.drawText(hDate, xVisitDate, y.toFloat(), paint)
+        val xVisitCollector = xVisitDate + paint.measureText(hDate) + 30f
+        visitCanvas.drawText(hCollector, xVisitCollector, y.toFloat(), paint)
+        val xVisitType = xVisitCollector + 120f
+        visitCanvas.drawText(hType, xVisitType, y.toFloat(), paint)
+        val xVisitNote = xVisitType + 120f
+        visitCanvas.drawText(hNote, xVisitNote, y.toFloat(), paint)
+
+        y += lineSpacing
+        visitCanvas.drawLine(marginLeft, y.toFloat(), pageWidth - marginLeft, y.toFloat(), paint)
+        y += lineSpacing
+
+
+        paint.isFakeBoldText = false
+        for ((date, collector, type, note) in visits.lines) {
+            if (y > pageHeight - 80) {
+                pdfDocument.finishPage(visitPage)
+                val newPage = pdfDocument.startPage(
+                    PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 3).create()
+                )
+                visitCanvas = newPage.canvas
+                y = 40
+            }
+
+            visitCanvas.drawText(date, xVisitDate, y.toFloat(), paint)
+            visitCanvas.drawText(collector.take(30), xVisitCollector, y.toFloat(), paint)
+            visitCanvas.drawText(type.take(23), xVisitType, y.toFloat(), paint)
+            visitCanvas.drawText(note.take(40), xVisitNote, y.toFloat(), paint)
+            y += lineSpacing
+        }
+
+        pdfDocument.finishPage(visitPage)
 
         val file = File(context.cacheDir, fileName)
         pdfDocument.writeTo(FileOutputStream(file))

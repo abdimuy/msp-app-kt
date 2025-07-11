@@ -60,9 +60,11 @@ import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -148,12 +150,15 @@ fun DailyReportScreen(
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
+    val visitsViewModel: VisitsViewModel = viewModel()
+    val visitsState by visitsViewModel.visitsByDate.collectAsState()
 
     LaunchedEffect(Unit) {
         prepareReportDate(LocalDate.now()).let { data ->
             reportDateIso = data.iso
             textDate = data.textField
             viewModel.getPaymentsByDate(data.startIso, data.endIso)
+            visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
         }
     }
 
@@ -164,6 +169,7 @@ fun DailyReportScreen(
                 reportDateIso = data.iso
                 textDate = data.textField
                 viewModel.getPaymentsByDate(data.startIso, data.endIso)
+                visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
                 showDatePicker = false
             }
         }
@@ -350,11 +356,16 @@ fun DailyReportScreen(
                                                 val paymentTextData = formatPaymentsTextList(
                                                     visiblePayments
                                                 )
+                                                val visitTextData = formatVisitsTextList(
+                                                    (visitsState as? ResultState.Success)?.data
+                                                        ?: emptyList()
+                                                )
 
                                                 val file = withContext(Dispatchers.IO) {
                                                     PdfGenerator.generatePdfFromLines(
                                                         context = context,
                                                         data = paymentTextData,
+                                                        visits = visitTextData,
                                                         title = "REPORTE DE PAGOS DIARIOS",
                                                         nameCollector = visiblePayments.firstOrNull()?.COBRADOR
                                                             ?: "No especificado",
@@ -459,6 +470,18 @@ data class PaymentTextData(
     val breakdownByMethod: List<PaymentMethodBreakdown> = emptyList()
 )
 
+data class VisitLineData(
+    val date: String,
+    val collector: String,
+    val type: String,
+    val note: String,
+)
+
+data class VisitTextData(
+    val lines: List<VisitLineData>,
+    val totalCount: Int
+)
+
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
     val lines = payments.map { payment ->
         val formattedDate = DateUtils.formatIsoDate(
@@ -487,4 +510,16 @@ fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
         }
 
     return PaymentTextData(lines, totalCount, totalAmount, breakdownByMethod)
+}
+
+fun formatVisitsTextList(visits: List<Visit>): VisitTextData {
+    val lines = visits.map {
+        VisitLineData(
+            date = DateUtils.formatIsoDate(it.FECHA, "dd/MM/yy HH:mm", Locale("es", "MX")),
+            collector = it.COBRADOR,
+            type = it.TIPO_VISITA,
+            note = it.NOTA ?: "-"
+        )
+    }
+    return VisitTextData(lines, lines.size)
 }
