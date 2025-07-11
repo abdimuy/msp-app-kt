@@ -107,6 +107,23 @@ object PdfGenerator {
         yPos += lineSpacing
         canvas.drawText(totalAmountsText, xTotalAmounts, yPos.toFloat(), paint)
 
+        yPos += lineSpacing
+        data.breakdownByMethod.forEach { breakdown ->
+            if (yPos > pageHeight - 80) {
+                pdfDocument.finishPage(page)
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                yPos = 40
+            }
+
+            val label = "${breakdown.method.label} (${breakdown.count} pagos): ${
+                breakdown.amount.toCurrency(noDecimals = true)
+            }"
+            val xLabel = pageWidth - rightMargin - paint.measureText(label)
+            canvas.drawText(label, xLabel, yPos.toFloat(), paint)
+            yPos += lineSpacing
+        }
+
         pdfDocument.finishPage(page)
 
         val file = File(context.cacheDir, fileName)

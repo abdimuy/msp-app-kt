@@ -220,12 +220,12 @@ fun RouteMapScreen(
 
                 when (paymentsState) {
                     is ResultState.Loading -> {
-                        Text("Cargando payments...")
+                        Text("Cargando pagos...")
                     }
 
                     is ResultState.Success -> {
                         if (visiblePayments.isEmpty()) {
-                            Text("No hay payments para esta fecha.")
+                            Text("No hay pagos para esta fecha.")
                         } else {
                             LazyColumn(modifier = Modifier.weight(1f)) {
                                 items(visiblePayments, key = { it.hashCode() }) { payment ->
@@ -252,7 +252,7 @@ fun RouteMapScreen(
                     }
 
                     else -> {
-                        Text("Selecciona una fecha para ver los payments.")
+                        Text("Selecciona una fecha para ver los pagos.")
                     }
                 }
             }
