@@ -2,6 +2,8 @@ package com.example.msp_app.features.home.screens
 
 import android.Manifest
 import android.location.Location
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -89,11 +91,13 @@ import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(navController: NavController) {
@@ -234,6 +238,12 @@ fun HomeScreen(navController: NavController) {
             ?.associateBy { it.DOCTO_CC_ID }
             ?: emptyMap()
     }
+
+    val dateInitWeek = userData?.FECHA_CARGA_INICIAL?.toDate()?.let { date ->
+        val localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
+        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("es", "MX"))
+        localDate.format(formatter)
+    } ?: ""
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -683,7 +693,14 @@ fun HomeScreen(navController: NavController) {
                         }
                         Spacer(Modifier.height(14.dp))
 
-                        Button(text = "Actualizar datos", onClick = { salesViewModel.syncSales() })
+                        Button(
+                            text = "Actualizar datos",
+                            onClick = {
+                                salesViewModel.syncSales(
+                                    zona = userData?.ZONA_CLIENTE_ID ?: 0,
+                                    dateInit = dateInitWeek
+                                )
+                            })
 
                         when (salesState) {
                             is ResultState.Idle -> {

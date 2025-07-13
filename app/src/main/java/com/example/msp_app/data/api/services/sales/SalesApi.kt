@@ -16,6 +16,9 @@ data class SaleResponse(
 }
 
 interface SalesApi {
-    @GET("/ventas/getAllVentasByZona/21563?dateInit=2025-06-23")
-    suspend fun getAll(): SaleResponse
+    @GET("/ventas/getAllVentasByZona/{zona}")
+    suspend fun getAll(
+        @retrofit2.http.Path("zona") zona: Int,
+        @retrofit2.http.Query("dateInit") dateInit: String
+    ): SaleResponse
 }

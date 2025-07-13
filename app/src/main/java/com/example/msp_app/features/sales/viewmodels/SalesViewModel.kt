@@ -48,11 +48,14 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun syncSales() {
+    fun syncSales(zona: Int, dateInit: String) {
         viewModelScope.launch {
             _salesState.value = ResultState.Loading
             try {
-                val salesData = api.getAll()
+                val salesData = api.getAll(
+                    zona = zona,
+                    dateInit = dateInit
+                )
 
                 val sales = salesData.body.ventas
                 val products = salesData.body.productos
