@@ -115,6 +115,7 @@ fun HomeScreen(navController: NavController) {
 
     val salesViewModel: SalesViewModel = viewModel()
     val salesState by salesViewModel.salesState.collectAsState()
+    val syncSalesState by salesViewModel.syncSalesState.collectAsState()
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsGroupedByDayWeekly: ResultState<Map<String, List<Payment>>> by paymentsViewModel.paymentsGroupedByDayWeeklyState.collectAsState()
@@ -137,6 +138,38 @@ fun HomeScreen(navController: NavController) {
     val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
     var currentLocation by remember { mutableStateOf<Location?>(null) }
+
+    val initialDate = (userDataState as? ResultState.Success<User?>)
+        ?.data
+        ?.FECHA_CARGA_INICIAL
+
+    val startWeekDate = remember(initialDate) {
+        DateUtils.parseDateToIso(initialDate?.toDate())
+    }
+
+    LaunchedEffect(syncSalesState) {
+        when (syncSalesState) {
+            is ResultState.Loading -> {
+                // Show loading state if needed
+            }
+
+            is ResultState.Error -> {
+                // Handle error state
+                val errorMessage = (syncSalesState as ResultState.Error).message
+                println("Error syncing sales: $errorMessage")
+            }
+
+            is ResultState.Success -> {
+                // Handle success state
+                paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+                salesViewModel.getLocalSales()
+                paymentsViewModel.getCentroidsBySale()
+                visitsViewModel.getPendingVisits()
+            }
+
+            else -> Unit
+        }
+    }
 
     LaunchedEffect(permissionState.status.isGranted) {
         if (permissionState.status.isGranted) {
@@ -172,14 +205,6 @@ fun HomeScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         paymentsViewModel.getCentroidsBySale()
         visitsViewModel.getPendingVisits()
-    }
-
-    val initialDate = (userDataState as? ResultState.Success<User?>)
-        ?.data
-        ?.FECHA_CARGA_INICIAL
-
-    val startWeekDate = remember(initialDate) {
-        DateUtils.parseDateToIso(initialDate?.toDate())
     }
 
     LaunchedEffect(startWeekDate) {
@@ -749,15 +774,15 @@ fun HomeScreen(navController: NavController) {
                                 )
                             })
 
-                        when (salesState) {
+                        when (syncSalesState) {
                             is ResultState.Idle -> {
                                 Text("Presiona el botón para descargar ventas")
                             }
 
                             is ResultState.Loading -> CircularProgressIndicator()
 
-                            is ResultState.Success -> Text("Ventas descargadas: ${(salesState as ResultState.Success<List<*>>).data.size}")
-                            is ResultState.Error -> Text("Error: ${(salesState as ResultState.Error).message}")
+                            is ResultState.Success -> Text("Ventas descargadas: ${(syncSalesState as ResultState.Success<List<*>>).data.size}")
+                            is ResultState.Error -> Text("Error: ${(syncSalesState as ResultState.Error).message}")
                         }
 
                         Button(text = "Enviar Pagos Pendientes", onClick = { salesViewModel })

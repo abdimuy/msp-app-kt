@@ -31,6 +31,10 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val _salesState = MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
     val salesState: StateFlow<ResultState<List<Sale>>> = _salesState
 
+    private val _syncSalesState =
+        MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
+    val syncSalesState: StateFlow<ResultState<List<Sale>>> = _syncSalesState
+
     private val _paymentsLocationsState =
         MutableStateFlow<ResultState<List<PaymentLocationsGroup>>>(ResultState.Idle)
     val paymentsLocationsState: StateFlow<ResultState<List<PaymentLocationsGroup>>> =
@@ -50,7 +54,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
 
     fun syncSales(zona: Int, dateInit: String) {
         viewModelScope.launch {
-            _salesState.value = ResultState.Loading
+            _syncSalesState.value = ResultState.Loading
             try {
                 val salesData = api.getAll(
                     zona = zona,
@@ -66,11 +70,11 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 paymentStore.saveAll(payments.map { it.toEntity() })
                 visitsStore.deleteAllVisits()
 
-                _salesState.value = ResultState.Success(sales)
+                _syncSalesState.value = ResultState.Success(sales)
 
             } catch (e: Exception) {
-                if (_salesState.value !is ResultState.Success) {
-                    _salesState.value = ResultState.Error(e.message ?: "Error al cargar ventas")
+                if (_syncSalesState.value !is ResultState.Success) {
+                    _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar ventas")
                 }
             }
         }
