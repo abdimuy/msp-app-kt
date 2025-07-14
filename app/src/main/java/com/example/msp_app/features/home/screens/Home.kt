@@ -542,7 +542,7 @@ fun HomeScreen(navController: NavController) {
                                                     Text(
                                                         text = total.toCurrency(noDecimals = true),
                                                         fontSize = 18.sp,
-                                                        color = MaterialTheme.colorScheme.primary,
+                                                        color = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
                                                         fontWeight = FontWeight.Bold
                                                     )
                                                     Text(

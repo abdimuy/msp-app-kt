@@ -122,7 +122,7 @@ fun SecondarySaleItem(
                                 style = SpanStyle(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
                                 )
                             ) {
                                 append(sale.SALDO_REST.toCurrency(noDecimals = true))
@@ -135,7 +135,7 @@ fun SecondarySaleItem(
                     text = "$distanceToCurrentLocation m",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.End,
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
