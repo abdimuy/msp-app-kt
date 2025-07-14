@@ -150,17 +150,14 @@ fun HomeScreen(navController: NavController) {
     LaunchedEffect(syncSalesState) {
         when (syncSalesState) {
             is ResultState.Loading -> {
-                // Show loading state if needed
             }
 
             is ResultState.Error -> {
-                // Handle error state
                 val errorMessage = (syncSalesState as ResultState.Error).message
                 println("Error syncing sales: $errorMessage")
             }
 
             is ResultState.Success -> {
-                // Handle success state
                 paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
                 salesViewModel.getLocalSales()
                 paymentsViewModel.getCentroidsBySale()
@@ -182,7 +179,7 @@ fun HomeScreen(navController: NavController) {
     }
 
     LaunchedEffect(currentLocation) {
-        currentLocation?.let { it1 ->
+        currentLocation?.let {
             when (centroidsBySaleState) {
                 is ResultState.Success -> {
                     val groups =
