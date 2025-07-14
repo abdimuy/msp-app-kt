@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -38,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -59,6 +62,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
+import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
@@ -75,6 +79,8 @@ fun NewPaymentDialog(
     if (!show) return
 
     val context = LocalContext.current
+
+    val isDark = ThemeController.isDarkMode
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsBySuggestedAmountsState by paymentsViewModel.paymentsBySuggestedAmountsState.collectAsState()
@@ -202,7 +208,7 @@ fun NewPaymentDialog(
                         style = SpanStyle(
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
                         )
                     ) {
                         append(sale.SALDO_REST.toCurrency(noDecimals = true))
@@ -225,16 +231,23 @@ fun NewPaymentDialog(
                 paymentMethods.forEach { (id, name) ->
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .selectable(
+                                selected = selectedPaymentMethod == id,
+                                onClick = { selectedPaymentMethod = id },
+                                role = Role.RadioButton
+                            )
                     ) {
                         RadioButton(
                             selected = selectedPaymentMethod == id,
-                            onClick = { selectedPaymentMethod = id }
+                            onClick = null
                         )
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = name,
+                            text = name.uppercase(),
                             style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(start = 4.dp)
                         )
                     }
                 }
@@ -327,7 +340,7 @@ fun NewPaymentDialog(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = inputValue.isNotBlank() && errorMessage == null
             ) {
-                Text("Guardar")
+                Text("GUARDAR PAGO", color = Color.White)
             }
         }
     }
@@ -384,11 +397,10 @@ fun NewPaymentDialog(
                                 style = TextStyle(
                                     fontSize = 36.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
                                 ),
                                 textAlign = TextAlign.Center
                             )
-
                         }
 
                         Icon(
