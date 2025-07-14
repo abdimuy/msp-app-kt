@@ -5,11 +5,11 @@ import android.location.Location
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -67,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.Coord
@@ -86,6 +88,7 @@ import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.sale_item.SaleItemVariant
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
@@ -129,7 +132,7 @@ fun HomeScreen(navController: NavController) {
     var selectedDateLabel by remember { mutableStateOf("") }
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
-    val isDark = isSystemInDarkTheme()
+    val isDark = ThemeController.isDarkMode
 
     val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -257,39 +260,59 @@ fun HomeScreen(navController: NavController) {
                 ) {
                     item {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .background(
                                     primary,
                                     RoundedCornerShape(bottomEnd = 18.dp, bottomStart = 18.dp),
                                 )
-                                .height(130.dp)
-                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .height(130.dp)
+                            ) {
+                                IconButton(
+                                    onClick = openDrawer,
+                                    modifier = Modifier.offset(y = (-16).dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Menu,
+                                        contentDescription = "Menú",
+                                        tint = Color.White
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(0.dp))
+
+                                Column(modifier = Modifier.offset(y = (-16).dp)) {
+                                    Text(
+                                        text = "Hola,",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = Color.LightGray
+                                    )
+                                    Text(
+                                        text = userData?.NOMBRE ?: "-",
+                                        fontSize = 20.sp,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                             IconButton(
-                                onClick = openDrawer,
+                                onClick = { ThemeController.toggle() },
                                 modifier = Modifier.offset(y = (-16).dp)
                             ) {
-                                Icon(
-                                    Icons.Default.Menu,
-                                    contentDescription = "Menú",
-                                    tint = Color.White
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(0.dp))
-
-                            Column(modifier = Modifier.offset(y = (-16).dp)) {
-                                Text(
-                                    text = "Hola,",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = Color.LightGray
-                                )
-                                Text(
-                                    text = userData?.NOMBRE ?: "-",
-                                    fontSize = 20.sp,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
+                                Image(
+                                    modifier = Modifier.size(32.dp),
+                                    painter = painterResource(
+                                        id =
+                                            if (ThemeController.isDarkMode) R.drawable.light_mode_24px else R.drawable.dark_mode_24px
+                                    ),
+                                    contentDescription = "Toggle Theme"
                                 )
                             }
                         }

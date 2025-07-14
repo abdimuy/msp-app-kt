@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
+import com.example.msp_app.ui.theme.ThemeController
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.S)
@@ -25,6 +26,8 @@ class MainActivity : ComponentActivity() {
             val mgr = getSystemService(NotificationManager::class.java)
             mgr.createNotificationChannel(chan)
         }
+
+        ThemeController.init(this)
 
         enableEdgeToEdge()
 
