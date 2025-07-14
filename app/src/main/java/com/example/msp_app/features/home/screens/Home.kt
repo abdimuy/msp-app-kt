@@ -499,6 +499,27 @@ fun HomeScreen(navController: NavController) {
                                                 else -> emptyMap()
                                             }
 
+                                        if (paymentsMap.isEmpty()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = if (isDark) Color.Gray else Color.LightGray,
+                                                        shape = RoundedCornerShape(12.dp)
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "No hay pagos registrados esta semana",
+                                                    fontSize = 18.sp,
+                                                    color = Color.Gray,
+                                                    modifier = Modifier.padding(16.dp)
+                                                )
+                                            }
+                                            return@Row
+                                        }
+
                                         Spacer(Modifier.width(1.dp))
 
                                         paymentsMap.forEach { (date, payments) ->
