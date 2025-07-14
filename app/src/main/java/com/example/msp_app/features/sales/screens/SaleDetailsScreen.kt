@@ -2,7 +2,6 @@ package com.example.msp_app.features.sales.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,6 +54,7 @@ import com.example.msp_app.features.sales.components.saleproductssection.SalePro
 import com.example.msp_app.features.sales.components.salesummarybar.SaleSummaryBar
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.navigation.Screen
+import com.example.msp_app.ui.theme.ThemeController
 
 
 @Composable
@@ -126,7 +126,7 @@ fun SaleDetailsContent(
     navController: NavController,
     openDrawer: () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = ThemeController.isDarkMode
 
     val productsViewModel: ProductsViewModel = viewModel()
     val productsState by productsViewModel.productsByFolioState.collectAsState()
@@ -257,7 +257,7 @@ fun SaleDetailsContent(
 
         SaleSummaryBar(
             balance = sale.SALDO_REST.toCurrency(noDecimals = true),
-            percentagePaid = String.format("%.2f%%", porcentage)
+            percentagePaid = String.format("%.2f%%", porcentage),
         )
         Spacer(modifier = Modifier.height(46.dp))
 

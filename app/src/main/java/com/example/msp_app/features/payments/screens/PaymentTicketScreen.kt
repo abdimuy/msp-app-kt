@@ -4,7 +4,6 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -59,6 +58,7 @@ import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.infofield.InfoField
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -69,7 +69,7 @@ fun PaymentTicketScreen(
     paymentId: String,
     navController: NavController
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = ThemeController.isDarkMode
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val paymentsViewModel: PaymentsViewModel = viewModel()

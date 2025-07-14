@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.ui.theme.ThemeController
 
 @Composable
 fun PrimarySaleItem(
@@ -60,7 +60,7 @@ fun PrimarySaleItem(
     openVisitDialog: () -> Unit = {},
     closeVisitDialog: () -> Unit = {},
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = ThemeController.isDarkMode
 
     Card(
         elevation = CardDefaults.cardElevation(
