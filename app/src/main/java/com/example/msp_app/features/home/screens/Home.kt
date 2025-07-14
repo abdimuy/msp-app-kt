@@ -310,7 +310,10 @@ fun HomeScreen(navController: NavController) {
                                     modifier = Modifier.size(32.dp),
                                     painter = painterResource(
                                         id =
-                                            if (ThemeController.isDarkMode) R.drawable.light_mode_24px else R.drawable.dark_mode_24px
+                                            if (ThemeController.isDarkMode)
+                                                R.drawable.light_mode_24px
+                                            else
+                                                R.drawable.dark_mode_24px
                                     ),
                                     contentDescription = "Toggle Theme"
                                 )
