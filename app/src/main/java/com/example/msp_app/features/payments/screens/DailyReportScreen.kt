@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -204,7 +205,7 @@ fun DailyReportScreen(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Reporte de Pagos",
+                        text = "Reporte diario",
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
@@ -307,7 +308,7 @@ fun DailyReportScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Ord. por nombre")
+                                        Text(text = "ORD. POR NOMBRE", color = Color.White)
                                     }
 
                                     Button(
@@ -325,7 +326,7 @@ fun DailyReportScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Ord. por hora")
+                                        Text(text = "ORD. POR HORA", color = Color.White)
                                     }
                                 }
 
@@ -413,7 +414,10 @@ fun DailyReportScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                     ) {
-                                        Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
+                                        Text(
+                                            text = if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
+                                            color = Color.White
+                                        )
                                     }
 
                                     SelectBluetoothDevice(
