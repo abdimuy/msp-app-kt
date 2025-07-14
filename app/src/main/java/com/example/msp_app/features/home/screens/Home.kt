@@ -244,7 +244,7 @@ fun HomeScreen(navController: NavController) {
 
     val dateInitWeek = userData?.FECHA_CARGA_INICIAL?.toDate()?.let { date ->
         val localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("es", "MX"))
+        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale("es", "MX"))
         localDate.format(formatter)
     } ?: ""
 
