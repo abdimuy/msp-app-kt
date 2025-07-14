@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales.components.secondarysaleitem
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -15,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.MoreVert
@@ -32,6 +32,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.msp_app.R
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
@@ -174,10 +177,13 @@ fun SecondarySaleItem(
                 ) {
                     when (sale.ESTADO_COBRANZA) {
                         EstadoCobranza.PENDIENTE -> {
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
+                            Image(
+                                painter = painterResource(
+                                    id = R.drawable.horizontal_rule_24px
+                                ),
                                 contentDescription = "Pendiente",
-                                tint = Color.White,
+                                modifier = Modifier.size(24.dp),
+                                colorFilter = ColorFilter.tint(Color.White)
                             )
                         }
 
