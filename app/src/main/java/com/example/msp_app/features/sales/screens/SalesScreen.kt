@@ -60,16 +60,16 @@ fun SalesScreen(
     val state by viewModel.salesState.collectAsState()
     var query by remember { mutableStateOf("") }
     val sales = (state as? ResultState.Success<List<SaleWithProducts>>)?.data ?: emptyList()
-    val filteredSales: List<SaleWithProducts> = if (sales.isEmpty()) {
-        emptyList()
-    } else if (query.isBlank()) {
-        sales
-    } else {
-        searchSimilarItems(
+    val filteredSales: List<SaleWithProducts> = when {
+        sales.isEmpty() -> emptyList()
+        query.isBlank() -> sales
+        else -> searchSimilarItems(
             query = query,
             items = sales,
             threshold = 70
-        )
+        ) { sale ->
+            "${sale.CALLE} ${sale.CIUDAD} ${sale.ESTADO} ${sale.PRODUCTOS}"
+        }
     }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
