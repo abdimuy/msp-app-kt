@@ -55,7 +55,7 @@ import com.example.msp_app.core.utils.sortGroupsByClosestCentroid
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.home.components.homestartweeksection.HomeStartWeekSection
@@ -193,7 +193,7 @@ fun HomeScreen(navController: NavController) {
     }
 
     val numberOfSales: Int = when (salesState) {
-        is ResultState.Success -> (salesState as ResultState.Success<List<Sale>>).data.size
+        is ResultState.Success -> (salesState as ResultState.Success<List<SaleWithProducts>>).data.size
         else -> 0
     }
 
@@ -241,7 +241,7 @@ fun HomeScreen(navController: NavController) {
         String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
 
     val salesMap = remember(salesState) {
-        (salesState as? ResultState.Success<List<Sale>>)
+        (salesState as? ResultState.Success<List<SaleWithProducts>>)
             ?.data
             ?.associateBy { it.DOCTO_CC_ID }
             ?: emptyMap()

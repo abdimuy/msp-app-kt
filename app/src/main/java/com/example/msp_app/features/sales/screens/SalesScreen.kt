@@ -47,7 +47,7 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.data.models.sale.EstadoCobranza
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 
@@ -73,6 +73,7 @@ fun SalesScreen(
     }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var query by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
