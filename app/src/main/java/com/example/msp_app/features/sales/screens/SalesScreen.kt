@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
@@ -57,9 +58,21 @@ fun SalesScreen(
 ) {
     val viewModel: SalesViewModel = viewModel()
     val state by viewModel.salesState.collectAsState()
+    var query by remember { mutableStateOf("") }
+    val sales = (state as? ResultState.Success<List<Sale>>)?.data ?: emptyList()
+    val filteredSales = if (sales.isEmpty()) {
+        emptyList()
+    } else if (query.isBlank()) {
+        sales
+    } else {
+        searchSimilarItems(
+            query = query,
+            items = sales,
+            threshold = 70
+        )
+    }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
@@ -69,8 +82,6 @@ fun SalesScreen(
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             bottomBar = {
-                val sales = (state as? ResultState.Success<List<Sale>>)?.data ?: emptyList()
-                val filteredSales = sales.filter { it.CLIENTE.contains(query, ignoreCase = true) }
 
                 val salesToVisit = filteredSales.filter {
                     it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
@@ -151,7 +162,7 @@ fun SalesScreen(
                             onValueChange = { query = it },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(50.dp),
+                                .height(54.dp),
                             placeholder = { Text("Buscar venta...") },
                             singleLine = true,
                             shape = RoundedCornerShape(25.dp),
@@ -181,9 +192,6 @@ fun SalesScreen(
                         ) { CircularProgressIndicator() }
 
                         is ResultState.Success -> {
-                            val sales = (state as ResultState.Success<List<Sale>>).data
-                            val filteredSales =
-                                sales.filter { it.CLIENTE.contains(query, ignoreCase = true) }
 
                             val salesToVisit = filteredSales.filter {
                                 it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
