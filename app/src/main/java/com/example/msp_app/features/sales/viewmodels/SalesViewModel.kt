@@ -56,6 +56,20 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _syncSalesState.value = ResultState.Loading
             try {
+                //Primero validamos que no haya pagos pendientes y visitas pendientes
+                val pendingPayments = paymentStore.getPendingPayments()
+                if (pendingPayments.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay $pendingPayments pagos pendientes")
+                    return@launch
+                }
+                val pendingVisits = visitsStore.getPendingVisits()
+                if (pendingVisits.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay $pendingVisits visitas pendientes")
+                    return@launch
+                }
+
                 val salesData = api.getAll(
                     zona = zona,
                     dateInit = dateInit
