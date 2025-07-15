@@ -66,6 +66,7 @@ import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
+import com.example.msp_app.features.home.components.homestartweeksection.HomeStartWeekSection
 import com.example.msp_app.features.home.components.homesummary.HomeSummarySection
 import com.example.msp_app.features.home.components.homeweeklypaymentssection.HomeWeeklyPaymentsSection
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
@@ -305,30 +306,10 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
-                        OutlinedCard(
-                            modifier = Modifier
-                                .fillMaxWidth(0.92f),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.background
-                            ),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (isDark) Color.Gray else Color.LightGray
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                        ) {
-                            Text(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                text = buildAnnotatedString {
-                                    append("Inicio de semana: \n")
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append(startDate.uppercase())
-                                    }
-                                },
-                                fontSize = 16.sp,
-                            )
-                        }
-                        Spacer(Modifier.height(16.dp))
+                        HomeStartWeekSection(
+                            startDate = startDate,
+                            isDark = isDark
+                        )
                     }
 
                     item {
