@@ -45,6 +45,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
@@ -70,7 +71,11 @@ fun SalesScreen(
         Scaffold(
             bottomBar = {
                 val sales = (state as? ResultState.Success<List<Sale>>)?.data ?: emptyList()
-                val filteredSales = sales.filter { it.CLIENTE.contains(query, ignoreCase = true) }
+                val filteredSales = searchSimilarItems(
+                    query = query,
+                    items = sales,
+                    threshold = 70
+                )
 
                 val salesToVisit = filteredSales.filter {
                     it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
@@ -151,7 +156,7 @@ fun SalesScreen(
                             onValueChange = { query = it },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(50.dp),
+                                .height(54.dp),
                             placeholder = { Text("Buscar venta...") },
                             singleLine = true,
                             shape = RoundedCornerShape(25.dp),
@@ -182,8 +187,11 @@ fun SalesScreen(
 
                         is ResultState.Success -> {
                             val sales = (state as ResultState.Success<List<Sale>>).data
-                            val filteredSales =
-                                sales.filter { it.CLIENTE.contains(query, ignoreCase = true) }
+                            val filteredSales = searchSimilarItems(
+                                query = query,
+                                items = sales,
+                                threshold = 70
+                            )
 
                             val salesToVisit = filteredSales.filter {
                                 it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
