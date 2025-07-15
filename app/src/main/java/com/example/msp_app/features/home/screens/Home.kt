@@ -6,13 +6,9 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,15 +16,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,13 +61,13 @@ import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.LocationTracker
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.sortGroupsByClosestCentroid
-import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.home.components.homesummary.HomeSummarySection
+import com.example.msp_app.features.home.components.homeweeklypaymentssection.HomeWeeklyPaymentsSection
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -299,120 +292,16 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth(.92f)
-                                    .height(100.dp)
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                when (paymentsGroupedByDayWeekly) {
-                                    is ResultState.Loading -> CircularProgressIndicator()
-                                    is ResultState.Error -> Text(
-                                        text = "Error al cargar pagos: ${(paymentsGroupedByDayWeekly as ResultState.Error).message}",
-                                        color = Color.Red
-                                    )
-
-                                    is ResultState.Success -> {
-                                        val paymentsMap: Map<String, List<Payment>> =
-                                            when (val result = paymentsGroupedByDayWeekly) {
-                                                is ResultState.Success -> result.data
-                                                else -> emptyMap()
-                                            }
-
-                                        if (paymentsMap.isEmpty()) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxSize()
-                                                    .border(
-                                                        width = 1.dp,
-                                                        color = if (isDark) Color.Gray else Color.LightGray,
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = "No hay pagos registrados esta semana",
-                                                    fontSize = 18.sp,
-                                                    color = Color.Gray,
-                                                    modifier = Modifier.padding(16.dp)
-                                                )
-                                            }
-                                            return@Row
-                                        }
-
-                                        Spacer(Modifier.width(1.dp))
-
-                                        paymentsMap.forEach { (date, payments) ->
-                                            val total = payments.sumOf { it.IMPORTE }
-                                            val count = payments.size
-                                            val formattedDate = LocalDate.parse(date).format(
-                                                DateTimeFormatter.ofPattern(
-                                                    "EEE dd/MM", Locale("es", "MX")
-                                                )
-                                            ).uppercase()
-
-                                            Card(
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
-                                                ),
-                                                modifier = Modifier
-                                                    .width(100.dp)
-                                                    .height(100.dp)
-                                                    .clickable {
-                                                        selectedDateLabel = formattedDate
-                                                        selectedPayments = payments
-                                                        showPaymentsDialog = true
-                                                    }
-                                                    .border(
-                                                        width = 1.dp,
-                                                        color = if (isDark) Color.Gray else Color(
-                                                            0xFFE0E0E0
-                                                        ),
-                                                        shape = RoundedCornerShape(12.dp)
-                                                    ),
-                                                elevation = CardDefaults.cardElevation(4.dp),
-                                            ) {
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(8.dp),
-                                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                                ) {
-                                                    Text(
-                                                        text = formattedDate,
-                                                        fontSize = 14.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        text = total.toCurrency(noDecimals = true),
-                                                        fontSize = 18.sp,
-                                                        color = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                    Text(
-                                                        text = "$count pagos",
-                                                        fontSize = 14.sp,
-                                                        color = Color.Gray
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(Modifier.width(1.dp))
-                                    }
-
-                                    else -> {}
-                                }
-
+                        HomeWeeklyPaymentsSection(
+                            paymentsGroupedByDayWeekly = paymentsGroupedByDayWeekly,
+                            isDark = isDark,
+                            onPaymentDateClick = { label, list ->
+                                selectedDateLabel = label
+                                selectedPayments = list
+                                showPaymentsDialog = true
                             }
-                        }
-                        Spacer(Modifier.height(16.dp))
+                        )
+
                     }
 
                     item {
