@@ -58,9 +58,21 @@ fun SalesScreen(
 ) {
     val viewModel: SalesViewModel = viewModel()
     val state by viewModel.salesState.collectAsState()
+    var query by remember { mutableStateOf("") }
+    val sales = (state as? ResultState.Success<List<Sale>>)?.data ?: emptyList()
+    val filteredSales = if (sales.isEmpty()) {
+        emptyList()
+    } else if (query.isBlank()) {
+        sales
+    } else {
+        searchSimilarItems(
+            query = query,
+            items = sales,
+            threshold = 70
+        )
+    }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
@@ -70,12 +82,6 @@ fun SalesScreen(
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             bottomBar = {
-                val sales = (state as? ResultState.Success<List<Sale>>)?.data ?: emptyList()
-                val filteredSales = searchSimilarItems(
-                    query = query,
-                    items = sales,
-                    threshold = 70
-                )
 
                 val salesToVisit = filteredSales.filter {
                     it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
@@ -186,12 +192,6 @@ fun SalesScreen(
                         ) { CircularProgressIndicator() }
 
                         is ResultState.Success -> {
-                            val sales = (state as ResultState.Success<List<Sale>>).data
-                            val filteredSales = searchSimilarItems(
-                                query = query,
-                                items = sales,
-                                threshold = 70
-                            )
 
                             val salesToVisit = filteredSales.filter {
                                 it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
