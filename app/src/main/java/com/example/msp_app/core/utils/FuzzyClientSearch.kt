@@ -1,13 +1,14 @@
 package com.example.msp_app.core.utils
 
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import me.xdrop.fuzzywuzzy.FuzzySearch
+
 
 fun searchSimilarItems(
     query: String,
-    items: List<Sale>,
+    items: List<SaleWithProducts>,
     threshold: Int = 60
-): List<Sale> {
+): List<SaleWithProducts> {
     val cleanQuery = query.trim().lowercase()
 
     return items.mapNotNull { sale ->

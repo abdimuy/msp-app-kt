@@ -59,8 +59,8 @@ fun SalesScreen(
     val viewModel: SalesViewModel = viewModel()
     val state by viewModel.salesState.collectAsState()
     var query by remember { mutableStateOf("") }
-    val sales = (state as? ResultState.Success<List<Sale>>)?.data ?: emptyList()
-    val filteredSales = if (sales.isEmpty()) {
+    val sales = (state as? ResultState.Success<List<SaleWithProducts>>)?.data ?: emptyList()
+    val filteredSales: List<SaleWithProducts> = if (sales.isEmpty()) {
         emptyList()
     } else if (query.isBlank()) {
         sales
@@ -73,7 +73,6 @@ fun SalesScreen(
     }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
