@@ -120,6 +120,8 @@ fun HomeScreen(navController: NavController) {
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsGroupedByDayWeekly: ResultState<Map<String, List<Payment>>> by paymentsViewModel.paymentsGroupedByDayWeeklyState.collectAsState()
 
+    val pendingPaymentsState by paymentsViewModel.pendingPaymentsState.collectAsState()
+
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
 
@@ -150,17 +152,14 @@ fun HomeScreen(navController: NavController) {
     LaunchedEffect(syncSalesState) {
         when (syncSalesState) {
             is ResultState.Loading -> {
-                // Show loading state if needed
             }
 
             is ResultState.Error -> {
-                // Handle error state
                 val errorMessage = (syncSalesState as ResultState.Error).message
                 println("Error syncing sales: $errorMessage")
             }
 
             is ResultState.Success -> {
-                // Handle success state
                 paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
                 salesViewModel.getLocalSales()
                 paymentsViewModel.getCentroidsBySale()
@@ -205,6 +204,7 @@ fun HomeScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         paymentsViewModel.getCentroidsBySale()
         visitsViewModel.getPendingVisits()
+        paymentsViewModel.getPendingPayments()
     }
 
     LaunchedEffect(startWeekDate) {
@@ -758,10 +758,39 @@ fun HomeScreen(navController: NavController) {
                                     withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
                                         append("PAGOS SIN ENVIAR")
                                     }
-                                    append("\nNO HAY PAGOS SIN ENVIAR")
                                 },
                                 modifier = Modifier.padding(16.dp),
                             )
+
+                            when (val pendingPaymentsResult = pendingPaymentsState) {
+                                is ResultState.Loading -> {
+                                    Text(
+                                        text = "Cargando pagos pendientes...",
+                                    )
+                                }
+
+                                is ResultState.Error -> {
+                                    Text(
+                                        text = "Error al cargar pagos: ${pendingPaymentsResult.message}",
+                                        color = Color.Red
+                                    )
+                                }
+
+                                is ResultState.Success -> {
+                                    val pendingPayments = pendingPaymentsResult.data
+                                    if (pendingPayments.isEmpty()) {
+                                        Text(
+                                            text = "No hay pagos pendientes",
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "Pagos Pendientes: ${pendingPayments.size}",
+                                        )
+                                    }
+                                }
+
+                                else -> {}
+                            }
                         }
                         Spacer(Modifier.height(14.dp))
 
@@ -785,7 +814,13 @@ fun HomeScreen(navController: NavController) {
                             is ResultState.Error -> Text("Error: ${(syncSalesState as ResultState.Error).message}")
                         }
 
-                        Button(text = "Enviar Pagos Pendientes", onClick = { salesViewModel })
+                        Button(
+                            text = "Enviar Pagos Pendientes",
+                            onClick = {
+                                visitsViewModel.syncPendingVisits()
+                                paymentsViewModel.syncPendingPayments()
+                            }
+                        )
 
                         Button(text = "Reenviar todos los pagos", onClick = { salesViewModel })
 
