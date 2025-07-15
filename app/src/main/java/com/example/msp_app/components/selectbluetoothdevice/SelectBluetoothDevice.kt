@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -149,8 +150,9 @@ fun SelectBluetoothDevice(
                 }) {
                     Text(
                         selectedDevice
-                            ?.let { "Imprimir en: ${it.name}" }
-                            ?: "Seleccionar impresora"
+                            ?.let { "IMPRIMIR EN: ${it.name}" }
+                            ?: "SELECCIONAR IMPRESORA",
+                        color = Color.White
                     )
                 }
                 Button(
@@ -167,7 +169,7 @@ fun SelectBluetoothDevice(
                         .fillMaxWidth()
                         .padding(start = 8.dp)
                 ) {
-                    Text(if (isPrinting) "Imprimiendo..." else "Imprimir")
+                    Text(if (isPrinting) "IMPRIMIENDO..." else "IMPRIMIR", color = Color.White)
                 }
             }
 

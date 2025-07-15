@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -223,7 +224,7 @@ fun WeeklyReportScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Ord. por nombre")
+                                        Text(text = "ORD. POR NOMBRE", color = Color.White)
                                     }
 
                                     Button(
@@ -234,7 +235,7 @@ fun WeeklyReportScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("Ord. por fecha")
+                                        Text("ORD. POR FECHA", color = Color.White)
                                     }
                                 }
 
@@ -308,7 +309,10 @@ fun WeeklyReportScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
+                                    Text(
+                                        if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
+                                        color = Color.White
+                                    )
                                 }
 
                                 if (visiblePayments.isNotEmpty()) {
