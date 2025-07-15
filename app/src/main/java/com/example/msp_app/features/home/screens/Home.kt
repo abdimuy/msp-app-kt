@@ -4,9 +4,6 @@ import android.Manifest
 import android.location.Location
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -22,11 +19,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -43,12 +37,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,6 +56,7 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.home.components.homestartweeksection.HomeStartWeekSection
 import com.example.msp_app.features.home.components.homesummary.HomeSummarySection
@@ -350,154 +342,20 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
-                        Spacer(Modifier.height(22.dp))
-                        OutlinedCard(
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.background
-                            ),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (isDark) Color.Gray else Color.Transparent
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth(0.92f)
-                                .background(Color.White, RoundedCornerShape(16.dp))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Text(
-                                    text = buildAnnotatedString {
-                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                            append("VISITAS SIN ENVIAR")
-                                        }
-                                    },
-                                )
-
-                                when (val visitsResult = visitsPendingState) {
-                                    is ResultState.Loading -> {
-                                        Text(
-                                            text = "Cargando visitas pendientes...",
-                                        )
-                                    }
-
-                                    is ResultState.Error -> {
-                                        Text(
-                                            text = "Error al cargar visitas: ${visitsResult.message}",
-                                            color = Color.Red
-                                        )
-                                    }
-
-                                    is ResultState.Success -> {
-                                        val pendingVisits = visitsResult.data
-                                        if (pendingVisits.isEmpty()) {
-                                            Text(
-                                                text = "No hay visitas pendientes",
-                                            )
-                                        } else {
-                                            Text(
-                                                text = "Visitas Pendientes: ${pendingVisits.size}",
-                                            )
-                                        }
-                                    }
-
-                                    else -> {}
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.height(20.dp))
-
-                        OutlinedCard(
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.background
-                            ),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (isDark) Color.Gray else Color.Transparent
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth(0.92f)
-                                .background(Color.White, RoundedCornerShape(16.dp))
-                                .height(90.dp)
-                        ) {
-                            Text(
-                                text = buildAnnotatedString {
-                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                        append("PAGOS SIN ENVIAR")
-                                    }
-                                },
-                                modifier = Modifier.padding(16.dp),
-                            )
-
-                            when (val pendingPaymentsResult = pendingPaymentsState) {
-                                is ResultState.Loading -> {
-                                    Text(
-                                        text = "Cargando pagos pendientes...",
-                                    )
-                                }
-
-                                is ResultState.Error -> {
-                                    Text(
-                                        text = "Error al cargar pagos: ${pendingPaymentsResult.message}",
-                                        color = Color.Red
-                                    )
-                                }
-
-                                is ResultState.Success -> {
-                                    val pendingPayments = pendingPaymentsResult.data
-                                    if (pendingPayments.isEmpty()) {
-                                        Text(
-                                            text = "No hay pagos pendientes",
-                                        )
-                                    } else {
-                                        Text(
-                                            text = "Pagos Pendientes: ${pendingPayments.size}",
-                                        )
-                                    }
-                                }
-
-                                else -> {}
-                            }
-                        }
-                        Spacer(Modifier.height(14.dp))
-
-                        Button(
-                            text = "Actualizar datos",
-                            onClick = {
-                                salesViewModel.syncSales(
-                                    zona = userData?.ZONA_CLIENTE_ID ?: 0,
-                                    dateInit = dateInitWeek
-                                )
-                            })
-
-                        when (syncSalesState) {
-                            is ResultState.Idle -> {
-                                Text("Presiona el botón para descargar ventas")
-                            }
-
-                            is ResultState.Loading -> CircularProgressIndicator()
-
-                            is ResultState.Success -> Text("Ventas descargadas: ${(syncSalesState as ResultState.Success<List<*>>).data.size}")
-                            is ResultState.Error -> Text("Error: ${(syncSalesState as ResultState.Error).message}")
-                        }
-
-                        Button(
-                            text = "Enviar Pagos Pendientes",
-                            onClick = {
-                                visitsViewModel.syncPendingVisits()
-                                paymentsViewModel.syncPendingPayments()
-                            }
+                        HomeFooterSection(
+                            isDark = isDark,
+                            visitsPendingState = visitsPendingState,
+                            pendingPaymentsState = pendingPaymentsState,
+                            syncSalesState = syncSalesState,
+                            zonaClienteId = userData?.ZONA_CLIENTE_ID ?: 0,
+                            dateInitWeek = dateInitWeek,
+                            onSyncSales = { zona, date -> salesViewModel.syncSales(zona, date) },
+                            onSyncPendingVisits = { visitsViewModel.syncPendingVisits() },
+                            onSyncPendingPayments = { paymentsViewModel.syncPendingPayments() },
+                            onResendAllPayments = { /* TODO */ },
+                            onLogout = { /* TODO */ },
+                            onInitWeek = { /* TODO */ }
                         )
-
-                        Button(text = "Reenviar todos los pagos", onClick = { salesViewModel })
-
-                        Button(text = "Cerrar sesión", onClick = { salesViewModel })
-
-                        Button(text = "Inicializar semana de Cobro", onClick = { salesViewModel })
                     }
                 }
             },
