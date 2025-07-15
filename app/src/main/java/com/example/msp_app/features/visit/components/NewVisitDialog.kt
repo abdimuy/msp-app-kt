@@ -1,13 +1,17 @@
 package com.example.msp_app.features.visit.components
 
+import android.app.TimePickerDialog
 import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -15,12 +19,16 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,10 +44,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.visit.Visit
@@ -49,8 +59,11 @@ import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import java.util.UUID
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewVisitDialog(
     show: Boolean,
@@ -62,17 +75,20 @@ fun NewVisitDialog(
     val context = LocalContext.current
 
     val isDarkTheme = ThemeController.isDarkMode
-
+  
     val visitsViewModel: VisitsViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
-
     val userData by authViewModel.userData.collectAsState()
+    val currentUser = (userData as? ResultState.Success)?.data
 
     var selectedOption by remember { mutableStateOf(Constants.NO_SE_ENCONTRABA) }
     var showAlertDialog by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf("") }
 
-    val currentUser = (userData as? ResultState.Success)?.data
+    val datePickerState = rememberDatePickerState()
+    var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
+    var selectedDateTime by remember { mutableStateOf<LocalDateTime?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -88,6 +104,35 @@ fun NewVisitDialog(
         Constants.NO_RESPONDE to "No responde aunque está",
         Constants.SE_ESCUCHAN_RUIDOS to "Se escuchan ruidos pero no habre"
     )
+
+    LaunchedEffect(datePickerState.selectedDateMillis) {
+        datePickerState.selectedDateMillis?.let { millis ->
+            val selectedLocalDate = Instant.ofEpochMilli(millis)
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate()
+            selectedDateTime = selectedLocalDate.atTime(LocalDateTime.now().toLocalTime())
+            showDatePicker = false
+            showTimePicker = true
+        }
+    }
+
+    if (showTimePicker) {
+        val initialTime = selectedDateTime?.toLocalTime() ?: LocalDateTime.now().toLocalTime()
+        TimePickerDialog(
+            context,
+            { _, hour, minute ->
+                selectedDateTime = selectedDateTime?.withHour(hour)?.withMinute(minute)
+                selectedDateTime?.let {
+                    val formatted = DateUtils.formatLocalDateTime(it)
+                    note = "La cita ha sido reagendada para el $formatted"
+                }
+                showTimePicker = false
+            },
+            initialTime.hour,
+            initialTime.minute,
+            true
+        ).show()
+    }
 
     fun handleSaveVisit() {
         coroutineScope.launch {
@@ -119,7 +164,7 @@ fun NewVisitDialog(
 
             note = ""
             selectedOption = Constants.NO_SE_ENCONTRABA
-
+            selectedDateTime = null
             showAlertDialog = true
         }
     }
@@ -130,9 +175,9 @@ fun NewVisitDialog(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(24.dp),
-            verticalArrangement = Arrangement.Center
+            verticalArrangement = Arrangement.Top
         ) {
             Text(
                 text = "Agregar Visita",
@@ -150,9 +195,9 @@ fun NewVisitDialog(
 
             Column(
                 modifier = Modifier
-                    .height(250.dp)
+                    .fillMaxWidth()
+                    .heightIn(max = 250.dp)
                     .verticalScroll(rememberScrollState())
-                    .padding(vertical = 10.dp)
             ) {
                 visitConditionForm.forEach { (text) ->
                     Row(
@@ -161,7 +206,12 @@ fun NewVisitDialog(
                             .height(46.dp)
                             .selectable(
                                 selected = (text == selectedOption),
-                                onClick = { selectedOption = text },
+                                onClick = {
+                                  selectedOption = text
+                                  if (text == Constants.PIDE_REAGENDAR) {
+                                      showDatePicker = true
+                                  }
+                                },
                                 role = Role.RadioButton
                             ),
                         verticalAlignment = Alignment.CenterVertically,
@@ -181,11 +231,29 @@ fun NewVisitDialog(
                     }
                 }
             }
+
             Spacer(Modifier.height(16.dp))
+
+            if (selectedOption == Constants.PIDE_REAGENDAR) {
+                OutlinedTextField(
+                    value = selectedDateTime?.let {
+                        DateUtils.formatLocalDateTime(it)
+                    } ?: "",
+                    onValueChange = {},
+                    label = { Text("Fecha y hora de cita") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    enabled = false
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
-                label = { Text("Mas información") },
+                label = { Text("Observaciones (Opcional)") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -193,15 +261,30 @@ fun NewVisitDialog(
             )
 
             Spacer(modifier = Modifier.height(20.dp))
+
             Button(
-                onClick = {
-                    handleSaveVisit()
-                },
+                onClick = { handleSaveVisit() },
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(text = "GUARDAR VISITA", color = Color.White)
             }
+        }
 
+        if (showDatePicker) {
+            Popup(
+                alignment = Alignment.Center,
+                onDismissRequest = { showDatePicker = false }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surface)
+                ) {
+                    DatePicker(
+                        state = datePickerState,
+                        showModeToggle = false
+                    )
+                }
+            }
         }
     }
 
@@ -250,5 +333,4 @@ fun NewVisitDialog(
             }
         )
     }
-
 }

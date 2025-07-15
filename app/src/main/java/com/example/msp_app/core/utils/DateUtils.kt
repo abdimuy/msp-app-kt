@@ -133,4 +133,9 @@ object DateUtils {
             iso
         }
     }
+
+    fun formatLocalDateTime(localDateTime: LocalDateTime): String {
+        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale("es", "MX"))
+        return localDateTime.format(formatter)
+    }
 }
