@@ -55,8 +55,7 @@ import com.example.msp_app.services.UpdateLocationService
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.ZoneId
-import java.util.Locale
+import java.time.ZoneOffset
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -100,8 +99,10 @@ fun NewVisitDialog(
 
     LaunchedEffect(datePickerState.selectedDateMillis) {
         datePickerState.selectedDateMillis?.let { millis ->
-            val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
-            selectedDateTime = date.atTime(LocalDateTime.now().toLocalTime())
+            val selectedLocalDate = Instant.ofEpochMilli(millis)
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate()
+            selectedDateTime = selectedLocalDate.atTime(LocalDateTime.now().toLocalTime())
             showDatePicker = false
             showTimePicker = true
         }
@@ -114,9 +115,7 @@ fun NewVisitDialog(
             { _, hour, minute ->
                 selectedDateTime = selectedDateTime?.withHour(hour)?.withMinute(minute)
                 selectedDateTime?.let {
-                    val iso = DateUtils.getIsoDateTime(it)
-                    val formatted =
-                        DateUtils.formatIsoDate(iso, "dd/MM/yyyy HH:mm", Locale("es", "MX"))
+                    val formatted = DateUtils.formatLocalDateTime(it)
                     note = "La cita ha sido reagendada para el $formatted"
                 }
                 showTimePicker = false
@@ -206,9 +205,6 @@ fun NewVisitDialog(
                                 selectedOption = text
                                 if (text == Constants.PIDE_REAGENDAR) {
                                     showDatePicker = true
-                                } else {
-                                    selectedDateTime = null
-                                    note = ""
                                 }
                             }
                         )
@@ -226,8 +222,7 @@ fun NewVisitDialog(
             if (selectedOption == Constants.PIDE_REAGENDAR) {
                 OutlinedTextField(
                     value = selectedDateTime?.let {
-                        val iso = DateUtils.getIsoDateTime(it)
-                        DateUtils.formatIsoDate(iso, "dd/MM/yyyy HH:mm", Locale("es", "MX"))
+                        DateUtils.formatLocalDateTime(it)
                     } ?: "",
                     onValueChange = {},
                     label = { Text("Fecha y hora de cita") },
@@ -243,7 +238,7 @@ fun NewVisitDialog(
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
-                label = { Text("Más información") },
+                label = { Text("Observaciones (Opcional)") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
