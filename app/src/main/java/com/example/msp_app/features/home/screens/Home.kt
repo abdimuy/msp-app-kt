@@ -5,7 +5,6 @@ import android.location.Location
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,16 +26,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
@@ -56,7 +50,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -68,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.Coord
@@ -81,6 +73,7 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -284,66 +277,12 @@ fun HomeScreen(navController: NavController) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    primary,
-                                    RoundedCornerShape(bottomEnd = 18.dp, bottomStart = 18.dp),
-                                )
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .height(130.dp)
-                            ) {
-                                IconButton(
-                                    onClick = openDrawer,
-                                    modifier = Modifier.offset(y = (-16).dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Menu,
-                                        contentDescription = "Menú",
-                                        tint = Color.White
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.width(0.dp))
-
-                                Column(modifier = Modifier.offset(y = (-16).dp)) {
-                                    Text(
-                                        text = "Hola,",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = Color.LightGray
-                                    )
-                                    Text(
-                                        text = userData?.NOMBRE ?: "-",
-                                        fontSize = 20.sp,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            IconButton(
-                                onClick = { ThemeController.toggle() },
-                                modifier = Modifier.offset(y = (-16).dp)
-                            ) {
-                                Image(
-                                    modifier = Modifier.size(32.dp),
-                                    painter = painterResource(
-                                        id =
-                                            if (ThemeController.isDarkMode)
-                                                R.drawable.light_mode_24px
-                                            else
-                                                R.drawable.dark_mode_24px
-                                    ),
-                                    contentDescription = "Toggle Theme"
-                                )
-                            }
-                        }
+                        HomeHeader(
+                            userName = userData?.NOMBRE,
+                            onMenuClick = openDrawer,
+                            onToggleTheme = { ThemeController.toggle() },
+                            backgroundColor = primary
+                        )
                     }
 
                     item {
