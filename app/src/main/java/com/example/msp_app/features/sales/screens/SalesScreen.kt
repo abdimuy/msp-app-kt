@@ -104,7 +104,7 @@ fun SalesScreen(
                         ) {
                             Text(
                                 text = title,
-                                modifier = Modifier.padding(25.dp),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
