@@ -74,6 +74,7 @@ import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
+import com.example.msp_app.features.home.components.homesummary.HomeSummarySection
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
@@ -286,154 +287,15 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .overlap(40.dp)
-                        ) {
-                            OutlinedCard(
-                                elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.background
-                                ),
-                                border = BorderStroke(
-                                    width = 1.dp,
-                                    color = if (isDark) Color.Gray else Color.Transparent
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth(0.92f)
-                                    .background(
-                                        MaterialTheme.colorScheme.background,
-                                        RoundedCornerShape(16.dp)
-                                    )
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .padding(vertical = 20.dp, horizontal = 16.dp)
-                                        .fillMaxWidth(),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.weight(1.1f)
-                                        ) {
-                                            PaymentInfoCollector(
-                                                label = "Total Cobrado (Hoy)",
-                                                value = totalTodayPayments.toCurrency(noDecimals = true),
-                                            )
-                                            Spacer(
-                                                modifier = Modifier.height(8.dp)
-                                            )
-                                            PaymentInfoCollector(
-                                                label = "Total cobrado (Semanal)",
-                                                value = totalWeeklyPayments.toCurrency(noDecimals = true),
-                                            )
-                                        }
-                                        Column(
-                                            modifier = Modifier
-                                                .weight(0.9f),
-                                        ) {
-                                            PaymentInfoCollector(
-                                                label = "Pagos (Hoy)",
-                                                value = "$numberOfPaymentsToday",
-                                                horizontalAlignment = Alignment.End
-                                            )
-                                            Spacer(
-                                                modifier = Modifier.height(8.dp)
-                                            )
-                                            PaymentInfoCollector(
-                                                label = "Pagos (Semanal)",
-                                                value = "$numberOfPaymentsWeekly/$numberOfSales",
-                                                horizontalAlignment = Alignment.End
-                                            )
-                                        }
-                                    }
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Card(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(100.dp),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = Color(
-                                                    0xFFF06846
-                                                )
-                                            ),
-                                            elevation = CardDefaults.cardElevation(8.dp)
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.fillMaxSize(),
-                                            ) {
-                                                Text(
-                                                    text = "Porcentaje (Cuentas)",
-                                                    color = Color.White,
-                                                    modifier = Modifier
-                                                        .padding(top = 8.dp),
-                                                    fontSize = 14.sp,
-                                                    textAlign = TextAlign.Center
-                                                )
-                                                Text(
-                                                    text = accountsPercentageRounded,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 22.sp,
-                                                    color = Color.White,
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(top = 10.dp)
-                                                        .align(Alignment.CenterHorizontally),
-                                                    textAlign = TextAlign.Center
-                                                )
-                                            }
-                                        }
-
-                                        Card(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(100.dp),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = Color(
-                                                    0xFF56DA6A
-                                                )
-                                            ),
-                                            elevation = CardDefaults.cardElevation(8.dp)
-                                        ) {
-                                            Column(
-                                                modifier = Modifier.fillMaxSize(),
-                                            ) {
-                                                Text(
-                                                    text = "Porcentaje (Cuentas)",
-                                                    color = Color.White,
-                                                    modifier = Modifier
-                                                        .padding(top = 8.dp),
-                                                    fontSize = 14.sp,
-                                                    textAlign = TextAlign.Center
-                                                )
-                                                Text(
-                                                    text = accountsPercentageRounded,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    fontSize = 22.sp,
-                                                    color = Color.White,
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(top = 10.dp)
-                                                        .align(Alignment.CenterHorizontally),
-                                                    textAlign = TextAlign.Center
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(Modifier.height(12.dp))
+                        HomeSummarySection(
+                            isDark = isDark,
+                            totalTodayPayments = totalTodayPayments,
+                            totalWeeklyPayments = totalWeeklyPayments,
+                            numberOfPaymentsToday = numberOfPaymentsToday,
+                            numberOfPaymentsWeekly = numberOfPaymentsWeekly,
+                            numberOfSales = numberOfSales,
+                            accountsPercentageRounded = accountsPercentageRounded
+                        )
                     }
 
                     item {
