@@ -2,7 +2,6 @@ package com.example.msp_app.features.sales.components.saleclientdetailssection
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,10 +22,11 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.components.infofield.InfoField
 import com.example.msp_app.features.sales.components.salecontactactions.SaleContactActions
+import com.example.msp_app.ui.theme.ThemeController
 
 @Composable
 fun SaleClientDetailsSection(sale: Sale, modifier: Modifier = Modifier) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = ThemeController.isDarkMode
 
     OutlinedCard(
         elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),

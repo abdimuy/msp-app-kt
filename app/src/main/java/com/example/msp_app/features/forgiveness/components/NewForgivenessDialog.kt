@@ -49,6 +49,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
+import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -61,6 +62,8 @@ fun NewForgivenessDialog(
     if (!show) return
 
     val context = LocalContext.current
+
+    val isDark = ThemeController.isDarkMode
 
     val authViewModel: AuthViewModel = viewModel()
     val paymentsViewModel: PaymentsViewModel = viewModel()
@@ -170,7 +173,7 @@ fun NewForgivenessDialog(
                         style = SpanStyle(
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
                         )
                     ) {
                         append(sale.SALDO_REST.toCurrency(noDecimals = true))
@@ -210,7 +213,10 @@ fun NewForgivenessDialog(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = inputValue.isNotBlank() && errorMessage == null
             ) {
-                Text("Guardar")
+                Text(
+                    text = "GUARDAR CONDONACIÓN",
+                    color = Color.White
+                )
             }
         }
     }
@@ -263,7 +269,7 @@ fun NewForgivenessDialog(
                         Spacer(Modifier.height(10.dp))
                         Text(
                             text = "$forgiveness",
-                            color = MaterialTheme.colorScheme.primary,
+                            color = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
                             style = TextStyle(
                                 fontSize = 30.sp,
                                 fontWeight = FontWeight.Bold

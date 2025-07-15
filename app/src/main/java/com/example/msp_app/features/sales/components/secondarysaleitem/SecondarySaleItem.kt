@@ -1,9 +1,9 @@
 package com.example.msp_app.features.sales.components.secondarysaleitem
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.MoreVert
@@ -32,6 +31,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -40,9 +41,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.msp_app.R
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.ui.theme.ThemeController
 
 @Composable
 fun SecondarySaleItem(
@@ -61,7 +64,7 @@ fun SecondarySaleItem(
     openVisitDialog: () -> Unit = {},
     closeVisitDialog: () -> Unit = {},
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = ThemeController.isDarkMode
 
     Card(
         elevation = CardDefaults.cardElevation(
@@ -119,7 +122,7 @@ fun SecondarySaleItem(
                                 style = SpanStyle(
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
                                 )
                             ) {
                                 append(sale.SALDO_REST.toCurrency(noDecimals = true))
@@ -132,7 +135,7 @@ fun SecondarySaleItem(
                     text = "$distanceToCurrentLocation m",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.End,
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
@@ -174,10 +177,13 @@ fun SecondarySaleItem(
                 ) {
                     when (sale.ESTADO_COBRANZA) {
                         EstadoCobranza.PENDIENTE -> {
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
+                            Image(
+                                painter = painterResource(
+                                    id = R.drawable.horizontal_rule_24px
+                                ),
                                 contentDescription = "Pendiente",
-                                tint = Color.White,
+                                modifier = Modifier.size(24.dp),
+                                colorFilter = ColorFilter.tint(Color.White)
                             )
                         }
 

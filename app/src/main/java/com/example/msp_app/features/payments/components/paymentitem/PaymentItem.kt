@@ -25,6 +25,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,6 +35,7 @@ import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.ui.theme.ThemeController
 
 enum class PaymentItemVariant {
     DEFAULT,
@@ -48,6 +50,7 @@ fun PaymentItem(
     navController: NavController,
     onClick: () -> Unit = {}
 ) {
+    val isDark = ThemeController.isDarkMode
     val menuExpanded = remember { mutableStateOf(false) }
 
     val paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID).label.uppercase()
@@ -109,7 +112,7 @@ fun PaymentItem(
                     text = payment.IMPORTE.toCurrency(noDecimals = true),
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -191,7 +194,7 @@ fun PaymentItem(
                     text = payment.IMPORTE.toCurrency(noDecimals = true),
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
                 )
             }
 
