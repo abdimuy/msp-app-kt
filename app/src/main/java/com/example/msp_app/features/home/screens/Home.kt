@@ -90,7 +90,9 @@ fun HomeScreen(navController: NavController) {
     val systemUiController = rememberSystemUiController()
     val primary = MaterialTheme.colorScheme.primary
     SideEffect {
-        systemUiController.setStatusBarColor(color = primary)
+        systemUiController.setStatusBarColor(
+            color = primary,
+        )
     }
 
     val authViewModel = LocalAuthViewModel.current
