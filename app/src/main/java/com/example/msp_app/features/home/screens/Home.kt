@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -73,6 +74,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -188,8 +191,15 @@ fun HomeScreen(navController: NavController) {
     }
 
     LaunchedEffect(startWeekDate) {
-        paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+        if (startWeekDate == "null") return@LaunchedEffect
+
         salesViewModel.getLocalSales()
+
+        snapshotFlow { salesState }
+            .filter { it is ResultState.Success }
+            .first()
+
+        paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
     }
 
     val numberOfSales: Int = when (salesState) {
