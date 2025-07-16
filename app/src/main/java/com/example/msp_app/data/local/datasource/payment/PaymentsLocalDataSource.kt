@@ -33,6 +33,10 @@ class PaymentsLocalDataSource(private val context: Context) {
             .map { (saleId, list) -> PaymentLocationsGroup(saleId, list) }
     }
 
+    suspend fun getAdjustedPaymentPercentage(startDate: String): Double {
+        return paymentDao.getAdjustedPaymentPercentage(startDate) ?: 0.0
+    }
+
     suspend fun getSuggestedAmountsBySaleId(saleId: Int): List<Int> {
         return paymentDao.getSuggestedAmountsBySaleId(saleId)
     }

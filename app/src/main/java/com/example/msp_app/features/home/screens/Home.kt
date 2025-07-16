@@ -102,6 +102,7 @@ fun HomeScreen(navController: NavController) {
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsGroupedByDayWeekly: ResultState<Map<String, List<Payment>>> by paymentsViewModel.paymentsGroupedByDayWeeklyState.collectAsState()
+    val adjustedPaymentPercentageState by paymentsViewModel.adjustedPaymentPercentageState.collectAsState()
 
     val pendingPaymentsState by paymentsViewModel.pendingPaymentsState.collectAsState()
 
@@ -194,6 +195,7 @@ fun HomeScreen(navController: NavController) {
         if (startWeekDate == "null") return@LaunchedEffect
 
         salesViewModel.getLocalSales()
+        paymentsViewModel.getAdjustedPaymentPercentage(startWeekDate)
 
         snapshotFlow { salesState }
             .filter { it is ResultState.Success }
@@ -263,6 +265,10 @@ fun HomeScreen(navController: NavController) {
         localDate.format(formatter)
     } ?: ""
 
+    val adjustedTotal =
+        (adjustedPaymentPercentageState as? ResultState.Success<Double>)?.data ?: 0.0
+    val accountsPercentageAjusted = if (numberOfSales > 0) adjustedTotal / numberOfSales else 0.0
+
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             content = { innerPadding ->
@@ -290,7 +296,8 @@ fun HomeScreen(navController: NavController) {
                             numberOfPaymentsToday = numberOfPaymentsToday,
                             numberOfPaymentsWeekly = numberOfPaymentsWeekly,
                             numberOfSales = numberOfSales,
-                            accountsPercentageRounded = accountsPercentageRounded
+                            accountsPercentageRounded = accountsPercentageRounded,
+                            accountsPercentageAjusted = accountsPercentageAjusted.toString()
                         )
                     }
 
