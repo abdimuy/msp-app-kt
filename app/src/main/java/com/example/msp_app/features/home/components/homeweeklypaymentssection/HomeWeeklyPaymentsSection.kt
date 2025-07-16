@@ -65,7 +65,7 @@ fun HomeWeeklyPaymentsSection(
 
                     is ResultState.Loading -> CircularProgressIndicator()
                     is ResultState.Error -> Text(
-                        text = "Error al cargar pagos: ${(paymentsGroupedByDayWeekly as ResultState.Error).message}",
+                        text = "Error al cargar pagos: ${paymentsGroupedByDayWeekly.message}",
                         color = Color.Red
                     )
 
