@@ -40,4 +40,6 @@ object ThermalPrinting {
         val padding = (width - text.length) / 2
         return " ".repeat(padding.coerceAtLeast(0)) + text
     }
+
+    fun bold(text: String): String = "<b>$text</b>"
 }
