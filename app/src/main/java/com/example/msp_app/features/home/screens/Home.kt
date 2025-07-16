@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,10 +89,32 @@ import java.util.Locale
 @Composable
 fun HomeScreen(navController: NavController) {
     val systemUiController = rememberSystemUiController()
+    val isDark = ThemeController.isDarkMode
+    val listState = rememberLazyListState()
     val primary = MaterialTheme.colorScheme.primary
+    val scrollThresholdDp = 100.dp
+
+    val scrollThresholdPx = with(LocalDensity.current) {
+        scrollThresholdDp.toPx().toInt()
+    }
+
+    LaunchedEffect(listState, isDark) {
+        snapshotFlow {
+            listState.firstVisibleItemIndex > 0 ||
+                    listState.firstVisibleItemScrollOffset > scrollThresholdPx
+        }.collect { scrolled ->
+            val backgroundColor = if (scrolled) Color.Black else primary
+            systemUiController.setStatusBarColor(
+                color = backgroundColor,
+                darkIcons = false
+            )
+        }
+    }
+
     SideEffect {
         systemUiController.setStatusBarColor(
             color = primary,
+            darkIcons = false
         )
     }
 
@@ -121,8 +144,6 @@ fun HomeScreen(navController: NavController) {
     var selectedDateLabel by remember { mutableStateOf("") }
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
-    val isDark = ThemeController.isDarkMode
-
     val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
     var currentLocation by remember { mutableStateOf<Location?>(null) }
@@ -150,6 +171,9 @@ fun HomeScreen(navController: NavController) {
                 salesViewModel.getLocalSales()
                 paymentsViewModel.getCentroidsBySale()
                 visitsViewModel.getPendingVisits()
+                paymentsViewModel.getAdjustedPaymentPercentage(
+                    startWeekDate
+                )
             }
 
             else -> Unit
@@ -279,6 +303,7 @@ fun HomeScreen(navController: NavController) {
             content = { innerPadding ->
 
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
