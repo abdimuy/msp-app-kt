@@ -44,12 +44,12 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.EstadoCobranza
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.ui.theme.ThemeController
 
 @Composable
 fun SecondarySaleItem(
-    sale: Sale,
+    sale: SaleWithProducts,
     onClick: () -> Unit = {},
     date: String = sale.FECHA,
     openMenu: () -> Unit = {},
@@ -218,6 +218,16 @@ fun SecondarySaleItem(
                     }
                 }
 
+            }
+
+            Row {
+                Text(
+                    text = sale.PRODUCTOS,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             Spacer(modifier = Modifier.height(4.dp))

@@ -309,7 +309,10 @@ fun WeeklyReportScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
+                                    Text(
+                                        if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
+                                        color = Color.White
+                                    )
                                 }
 
                                 if (visiblePayments.isNotEmpty()) {

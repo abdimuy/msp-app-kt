@@ -205,7 +205,7 @@ fun DailyReportScreen(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "Reporte diario",
+                        text = "Reporte de Pagos",
                         style = MaterialTheme.typography.titleLarge
                     )
                 }

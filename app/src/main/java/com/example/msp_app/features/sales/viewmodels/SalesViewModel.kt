@@ -14,6 +14,7 @@ import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,8 +29,9 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
 
-    private val _salesState = MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
-    val salesState: StateFlow<ResultState<List<Sale>>> = _salesState
+    private val _salesState =
+        MutableStateFlow<ResultState<List<SaleWithProducts>>>(ResultState.Idle)
+    val salesState: StateFlow<ResultState<List<SaleWithProducts>>> = _salesState
 
     private val _syncSalesState =
         MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
@@ -56,6 +58,19 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _syncSalesState.value = ResultState.Loading
             try {
+                val pendingPayments = paymentStore.getPendingPayments()
+                if (pendingPayments.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay ${pendingPayments.size} pagos pendientes")
+                    return@launch
+                }
+                val pendingVisits = visitsStore.getPendingVisits()
+                if (pendingVisits.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
+                    return@launch
+                }
+
                 val salesData = api.getAll(
                     zona = zona,
                     dateInit = dateInit

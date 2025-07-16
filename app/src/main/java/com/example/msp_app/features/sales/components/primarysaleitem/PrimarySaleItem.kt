@@ -41,12 +41,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
 import com.example.msp_app.data.models.sale.EstadoCobranza
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.ui.theme.ThemeController
 
 @Composable
 fun PrimarySaleItem(
-    sale: Sale,
+    sale: SaleWithProducts,
     onClick: () -> Unit = {},
     date: String = sale.FECHA,
     openMenu: () -> Unit = {},
@@ -200,17 +200,24 @@ fun PrimarySaleItem(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "${sale.CALLE.replace("\n", " ")} ${
                     sale.CIUDAD.replace(
                         "\n",
                         " "
                     )
-                } ${sale.ESTADO}", maxLines = 2, overflow = TextOverflow.Ellipsis
+                } ${sale.ESTADO}",
+                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                lineHeight = 18.sp,
             )
-
-            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = sale.PRODUCTOS,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 18.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(4.dp))
             LinearProgressIndicator(
                 color = MaterialTheme.colorScheme.primary,
                 progress = { progress },

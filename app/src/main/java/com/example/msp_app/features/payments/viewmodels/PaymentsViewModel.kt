@@ -16,6 +16,7 @@ import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.sale.EstadoCobranza
+import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -56,7 +57,16 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
 
     private val _paymentsBySuggestedAmountsState =
         MutableStateFlow<ResultState<List<Int>>>(ResultState.Idle)
-    val paymentsBySuggestedAmountsState: StateFlow<ResultState<List<Int>>> = _paymentsBySuggestedAmountsState
+    val paymentsBySuggestedAmountsState: StateFlow<ResultState<List<Int>>> =
+        _paymentsBySuggestedAmountsState
+
+    private val _pendingPaymentsState =
+        MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
+    val pendingPaymentsState: StateFlow<ResultState<List<Payment>>> = _pendingPaymentsState
+
+    private val _syncPendingPaymentsState =
+        MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
+    val syncPendingPaymentsState: StateFlow<ResultState<Unit>> = _syncPendingPaymentsState
 
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
@@ -198,6 +208,51 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 _paymentsBySuggestedAmountsState.value =
                     ResultState.Error(e.message ?: "Error al cargar montos sugeridos")
+            }
+        }
+    }
+
+    fun getPendingPayments() {
+        viewModelScope.launch {
+            _pendingPaymentsState.value = ResultState.Loading
+            try {
+                val payments = withContext(Dispatchers.IO) {
+                    paymentStore.getPendingPayments().map { it.toDomain() }
+                }
+                _pendingPaymentsState.value = ResultState.Success(payments)
+            } catch (e: Exception) {
+                _pendingPaymentsState.value =
+                    ResultState.Error(e.message ?: "Error obteniendo pagos pendientes")
+            }
+        }
+    }
+
+    fun syncPendingPayments() {
+        viewModelScope.launch {
+            _syncPendingPaymentsState.value = ResultState.Loading
+            try {
+                val pending = withContext(Dispatchers.IO) {
+                    paymentStore.getPendingPayments()
+                }
+                if (pending.isEmpty()) {
+                    _syncPendingPaymentsState.value = ResultState.Success(Unit)
+                } else {
+                    pending.forEach { payment ->
+                        enqueuePendingPaymentsWorker(
+                            getApplication(),
+                            payment.ID,
+                            replace = true
+                        )
+                    }
+                    _syncPendingPaymentsState.value = ResultState.Success(Unit)
+                }
+                val newPendingPayments = withContext(Dispatchers.IO) {
+                    paymentStore.getPendingPayments().map { it.toDomain() }
+                }
+                _pendingPaymentsState.value = ResultState.Success(newPendingPayments)
+            } catch (e: Exception) {
+                _syncPendingPaymentsState.value =
+                    ResultState.Error(e.message ?: "Error sincronizando pagos pendientes")
             }
         }
     }

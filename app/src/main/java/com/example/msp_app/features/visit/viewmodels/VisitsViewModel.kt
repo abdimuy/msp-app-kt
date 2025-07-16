@@ -11,6 +11,7 @@ import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.data.models.visit.toDomain
 import com.example.msp_app.data.models.visit.toEntity
+import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +43,36 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
             } catch (e: Exception) {
                 _pendingVisits.value =
                     ResultState.Error(e.message ?: "Error obteniendo visitas pendientes")
+            }
+        }
+    }
+
+    fun syncPendingVisits() {
+        viewModelScope.launch {
+            _pendingVisits.value = ResultState.Loading
+            try {
+                val pendingVisits = withContext(Dispatchers.IO) {
+                    visitStore.getPendingVisits().map { it.toDomain() }
+                }
+
+                if (pendingVisits.isEmpty()) {
+                    _pendingVisits.value = ResultState.Success(emptyList())
+                    return@launch
+                }
+
+                for (visit in pendingVisits) {
+                    enqueuePendingVisitsWorker(
+                        visitId = visit.ID,
+                        context = getApplication(),
+                        replace = true
+                    )
+                }
+
+                val newPendingVisits = visitStore.getPendingVisits().map { it.toDomain() }
+                _pendingVisits.value = ResultState.Success(newPendingVisits)
+            } catch (e: Exception) {
+                _pendingVisits.value =
+                    ResultState.Error(e.message ?: "Error sincronizando visitas pendientes")
             }
         }
     }
