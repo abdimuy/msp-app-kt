@@ -267,7 +267,10 @@ fun HomeScreen(navController: NavController) {
 
     val adjustedTotal =
         (adjustedPaymentPercentageState as? ResultState.Success<Double>)?.data ?: 0.0
-    val accountsPercentageAjusted = if (numberOfSales > 0) adjustedTotal / numberOfSales else 0.0
+    val accountsPercentageAjusted =
+        if (numberOfSales > 0) (adjustedTotal / numberOfSales) * 100 else 0.0
+    val accountsPercentageAjustedRounded =
+        String.format(Locale.getDefault(), "%.2f", accountsPercentageAjusted) + "%"
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -297,7 +300,7 @@ fun HomeScreen(navController: NavController) {
                             numberOfPaymentsWeekly = numberOfPaymentsWeekly,
                             numberOfSales = numberOfSales,
                             accountsPercentageRounded = accountsPercentageRounded,
-                            accountsPercentageAjusted = accountsPercentageAjusted.toString()
+                            accountsPercentageAjusted = accountsPercentageAjustedRounded
                         )
                     }
 
