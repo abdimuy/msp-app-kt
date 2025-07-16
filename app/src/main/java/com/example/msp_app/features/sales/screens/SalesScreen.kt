@@ -133,7 +133,7 @@ fun SalesScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp, top = 8.dp),
+                            .padding(bottom = 0.dp, top = 0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
