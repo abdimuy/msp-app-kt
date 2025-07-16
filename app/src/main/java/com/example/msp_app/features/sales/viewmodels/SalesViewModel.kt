@@ -42,6 +42,10 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     val paymentsLocationsState: StateFlow<ResultState<List<PaymentLocationsGroup>>> =
         _paymentsLocationsState
 
+    private val _salesByClientState =
+        MutableStateFlow<ResultState<List<SaleWithProducts>>>(ResultState.Idle)
+    val salesByClientState: StateFlow<ResultState<List<SaleWithProducts>>> = _salesByClientState
+
     fun getLocalSales() {
         viewModelScope.launch {
             _salesState.value = ResultState.Loading
@@ -50,6 +54,19 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 _salesState.value = ResultState.Success(cached)
             } catch (e: Exception) {
                 _salesState.value = ResultState.Error(e.message ?: "Error leyendo ventas locales")
+            }
+        }
+    }
+
+    fun getSalesByClientId(clientId: Int) {
+        viewModelScope.launch {
+            _salesByClientState.value = ResultState.Loading
+            try {
+                val cached = saleStore.getByClientId(clientId).map { it.toDomain() }
+                _salesByClientState.value = ResultState.Success(cached)
+            } catch (e: Exception) {
+                _salesByClientState.value =
+                    ResultState.Error(e.message ?: "Error leyendo ventas locales")
             }
         }
     }

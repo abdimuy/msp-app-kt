@@ -10,6 +10,10 @@ class SalesLocalDataSource(context: Context) {
 
     suspend fun getAll(): List<SaleWithProductsEntity> = saleDao.getAll()
 
+    suspend fun getByClientId(clientId: Int): List<SaleWithProductsEntity> {
+        return saleDao.getByClientId(clientId)
+    }
+
     suspend fun saveAll(sales: List<SaleEntity>) {
         saleDao.clearAll()
         saleDao.insertAll(sales)

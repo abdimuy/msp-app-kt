@@ -47,14 +47,18 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.CustomMap
 import com.example.msp_app.features.sales.components.paymentshistorysection.PaymentsHistory
+import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.saleactionssection.SaleActionSection
 import com.example.msp_app.features.sales.components.saleclientdetailssection.SaleClientDetailsSection
 import com.example.msp_app.features.sales.components.saleclientsettlement.SaleClienteSettlement
 import com.example.msp_app.features.sales.components.saleproductssection.SaleProductsSection
 import com.example.msp_app.features.sales.components.salesummarybar.SaleSummaryBar
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 
 
 @Composable
@@ -63,10 +67,20 @@ fun SaleDetailsScreen(
     navController: NavHostController,
 ) {
     val viewModel: SaleDetailsViewModel = viewModel()
+    val salesViewModel: SalesViewModel = viewModel()
+
     val state by viewModel.saleState.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadSaleDetails(saleId)
+
+        val saleSuccess = viewModel.saleState
+            .filterIsInstance<ResultState.Success<Sale>>()
+            .first()
+
+        saleSuccess.data.CLIENTE_ID.let { clientId ->
+            salesViewModel.getSalesByClientId(clientId)
+        }
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -129,7 +143,9 @@ fun SaleDetailsContent(
     val isDark = ThemeController.isDarkMode
 
     val productsViewModel: ProductsViewModel = viewModel()
+    val salesViewModel: SalesViewModel = viewModel()
     val productsState by productsViewModel.productsByFolioState.collectAsState()
+    val salesByClientIdState by salesViewModel.salesByClientState.collectAsState()
 
     LaunchedEffect(sale.FOLIO) {
         productsViewModel.getProductsByFolio(sale.FOLIO)
@@ -179,7 +195,59 @@ fun SaleDetailsContent(
             sale
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Otras ventas del cliente",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        when (val result = salesByClientIdState) {
+            is ResultState.Idle -> {
+                Text("No hay ventas del cliente")
+            }
+
+            is ResultState.Loading -> {
+                Text("Cargando ventas del cliente...")
+            }
+
+            is ResultState.Error -> {
+                Text("Error: ${result.message}")
+            }
+
+            is ResultState.Success -> {
+                if (result.data.size <= 1) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .padding(horizontal = 16.dp)
+                            .background(
+                                Color.LightGray.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(16.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No hay otras ventas del cliente")
+                    }
+                } else {
+                    result.data.forEach { saleItem ->
+                        if (saleItem.DOCTO_CC_ID == sale.DOCTO_CC_ID) return@forEach
+                        SaleItem(
+                            sale = saleItem,
+                            onClick = {
+                                navController.navigate(Screen.SaleDetails.createRoute(saleId = sale.DOCTO_CC_ID))
+                            },
+                            navController = navController,
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(26.dp))
         OutlinedCard(
             elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
             colors = CardDefaults.cardColors(
