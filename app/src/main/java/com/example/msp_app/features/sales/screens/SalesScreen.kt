@@ -68,7 +68,7 @@ fun SalesScreen(
             items = sales,
             threshold = 70
         ) { sale ->
-            "${sale.CALLE} ${sale.CIUDAD} ${sale.ESTADO} ${sale.PRODUCTOS}"
+            sale.CLIENTE
         }
     }
 
