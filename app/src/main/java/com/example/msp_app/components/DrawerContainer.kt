@@ -58,7 +58,7 @@ fun DrawerContainer(
                         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
                         NavigationDrawerItem(
                             label = { Text("Inicio") },
-                            selected = true,
+                            selected = false,
                             onClick = {
                                 navController.navigate("home") {
                                     popUpTo("home") { inclusive = true }
@@ -68,7 +68,7 @@ fun DrawerContainer(
 
                         NavigationDrawerItem(
                             label = { Text("Clientes") },
-                            selected = true,
+                            selected = false,
                             onClick = {
                                 navController.navigate("sales") {
                                     popUpTo("sales") { inclusive = true }
@@ -78,7 +78,7 @@ fun DrawerContainer(
 
                         NavigationDrawerItem(
                             label = { Text("Reportes Diarios") },
-                            selected = true,
+                            selected = false,
                             onClick = {
                                 navController.navigate("daily_reports") {
                                     popUpTo("home")
@@ -88,7 +88,7 @@ fun DrawerContainer(
 
                         NavigationDrawerItem(
                             label = { Text("Reportes Semanales") },
-                            selected = true,
+                            selected = false,
                             onClick = {
                                 navController.navigate("weekly_reports") {
                                     popUpTo("home")
@@ -98,7 +98,7 @@ fun DrawerContainer(
 
                         NavigationDrawerItem(
                             label = { Text("Mapa de rutas") },
-                            selected = true,
+                            selected = false,
                             onClick = {
                                 navController.navigate("route_map") {
                                     popUpTo("home")
