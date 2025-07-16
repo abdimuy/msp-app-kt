@@ -75,7 +75,7 @@ fun NewVisitDialog(
     val context = LocalContext.current
 
     val isDarkTheme = ThemeController.isDarkMode
-  
+
     val visitsViewModel: VisitsViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
     val userData by authViewModel.userData.collectAsState()
@@ -89,6 +89,7 @@ fun NewVisitDialog(
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var selectedDateTime by remember { mutableStateOf<LocalDateTime?>(null) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -135,13 +136,17 @@ fun NewVisitDialog(
     }
 
     fun handleSaveVisit() {
+        if (currentUser?.COBRADOR_ID == null || currentUser.COBRADOR_ID == 0) {
+            errorMessage = "No se pudo obtener el ID del cobrador. Intenta nuevamente."
+            return
+        }
         coroutineScope.launch {
             val id = UUID.randomUUID().toString()
             val date = Instant.now().toString()
 
             val visit = Visit(
                 ID = id,
-                COBRADOR_ID = currentUser?.COBRADOR_ID ?: 0,
+                COBRADOR_ID = currentUser.COBRADOR_ID,
                 COBRADOR = sale.NOMBRE_COBRADOR,
                 LNG = 0.0,
                 LAT = 0.0,
@@ -207,10 +212,10 @@ fun NewVisitDialog(
                             .selectable(
                                 selected = (text == selectedOption),
                                 onClick = {
-                                  selectedOption = text
-                                  if (text == Constants.PIDE_REAGENDAR) {
-                                      showDatePicker = true
-                                  }
+                                    selectedOption = text
+                                    if (text == Constants.PIDE_REAGENDAR) {
+                                        showDatePicker = true
+                                    }
                                 },
                                 role = Role.RadioButton
                             ),
@@ -245,6 +250,15 @@ fun NewVisitDialog(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                     enabled = false
+                )
+            }
+
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage ?: "",
+                    color = Color.Red,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
 
