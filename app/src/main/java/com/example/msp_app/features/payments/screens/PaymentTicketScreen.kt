@@ -168,7 +168,7 @@ fun PaymentTicketScreen(
 
                             val date = DateUtils.formatIsoDate(
                                 iso = selectedPayment!!.FECHA_HORA_PAGO,
-                                pattern = "dd/MM/yy hh:mm a",
+                                pattern = "dd/MM/yy HH:mm",
                                 locale = Locale("es", "MX")
                             )
                             finalFormattedDate = date
@@ -203,12 +203,13 @@ fun PaymentTicketScreen(
                                     }
                                 appendLine("ENGANCHE: ${sale?.ENGANCHE?.toCurrency(noDecimals = true)}")
                                 appendLine("PARCIALIDAD: ${sale?.PARCIALIDAD?.toCurrency(noDecimals = true)}")
-                                appendLine("VENDEDORES:${sale?.VENDEDOR_1}")
+                                appendLine("VENDEDORES:")
+                                appendLine("- ${sale?.VENDEDOR_1}")
                                 sale?.VENDEDOR_2?.takeIf { it.isNotBlank() }?.let {
-                                    appendLine(it)
+                                    appendLine("- $it")
                                 }
                                 sale?.VENDEDOR_3?.takeIf { it.isNotBlank() }?.let {
-                                    appendLine(it)
+                                    appendLine("- $it")
                                 }
                                 appendLine(lineBlanck)
                                 appendLine("-".repeat(32))
@@ -226,16 +227,34 @@ fun PaymentTicketScreen(
                                 appendLine(lineBlanck)
                                 appendLine("-".repeat(32))
                                 appendLine(lineBlanck)
-                                appendLine("FECHA DE PAGO:${date}")
-                                appendLine("SALDO ANTERIOR: ${saldoAnterior?.toCurrency(noDecimals = true)}")
+                                appendLine("FECHA DE PAGO: ${date}")
                                 appendLine(
-                                    "ABONADO: ${
-                                        selectedPayment?.IMPORTE?.toCurrency(
-                                            noDecimals = true
+                                    "SALDO ANTERIOR: ${
+                                        ThermalPrinting.bold(
+                                            saldoAnterior?.toCurrency(
+                                                noDecimals = true
+                                            ) ?: ""
                                         )
                                     }"
                                 )
-                                appendLine("SALDO ACTUAL: ${sale?.SALDO_REST?.toCurrency(noDecimals = true)}")
+                                appendLine(
+                                    "ABONADO: ${
+                                        ThermalPrinting.bold(
+                                            selectedPayment?.IMPORTE?.toCurrency(
+                                                noDecimals = true
+                                            ) ?: ""
+                                        )
+                                    }"
+                                )
+                                appendLine(
+                                    "SALDO ACTUAL: ${
+                                        ThermalPrinting.bold(
+                                            sale?.SALDO_REST?.toCurrency(
+                                                noDecimals = true
+                                            ) ?: ""
+                                        )
+                                    }"
+                                )
                                 appendLine(lineBlanck)
                                 appendLine("-".repeat(32))
                                 appendLine(ThermalPrinting.centerText("HISTORIAL DE PAGOS", 32))
@@ -556,7 +575,10 @@ fun PaymentTicketScreen(
                                         }
                                     }
                                 ) {
-                                    Text(if (isGeneratingPdf) "Generando PDF..." else "Generar PDF")
+                                    Text(
+                                        text = if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
+                                        color = Color.White
+                                    )
                                 }
 
                                 SelectBluetoothDevice(
