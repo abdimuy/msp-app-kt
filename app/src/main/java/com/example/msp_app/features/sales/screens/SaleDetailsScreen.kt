@@ -238,7 +238,11 @@ fun SaleDetailsContent(
                         SaleItem(
                             sale = saleItem,
                             onClick = {
-                                navController.navigate(Screen.SaleDetails.createRoute(saleId = sale.DOCTO_CC_ID))
+                                navController.navigate(
+                                    Screen.SaleDetails.createRoute(
+                                        saleId = saleItem.DOCTO_CC_ID
+                                    )
+                                )
                             },
                             navController = navController,
                         )
@@ -321,11 +325,11 @@ fun SaleDetailsContent(
 
         Spacer(modifier = Modifier.height(46.dp))
 
-        val porcentage = ((1 - (sale.SALDO_REST / sale.PRECIO_TOTAL)) * 100)
+        val percentage = ((1 - (sale.SALDO_REST / sale.PRECIO_TOTAL)) * 100)
 
         SaleSummaryBar(
             balance = sale.SALDO_REST.toCurrency(noDecimals = true),
-            percentagePaid = String.format("%.2f%%", porcentage),
+            percentagePaid = String.format("%.2f%%", percentage),
         )
         Spacer(modifier = Modifier.height(46.dp))
 
