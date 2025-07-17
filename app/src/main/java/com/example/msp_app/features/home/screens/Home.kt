@@ -140,6 +140,8 @@ fun HomeScreen(navController: NavController) {
         mutableStateOf<List<Triple<Int, Coord, Long>>>(emptyList())
     }
 
+    val updateStartOfWeekDateState by authViewModel.updateStartOfWeekDateState.collectAsState()
+
     var showPaymentsDialog by remember { mutableStateOf(false) }
     var selectedDateLabel by remember { mutableStateOf("") }
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
@@ -147,6 +149,10 @@ fun HomeScreen(navController: NavController) {
     val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
     var currentLocation by remember { mutableStateOf<Location?>(null) }
+
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var dialogTitle by remember { mutableStateOf("") }
+    var dialogMessage by remember { mutableStateOf("") }
 
     val initialDate = (userDataState as? ResultState.Success<User?>)
         ?.data
@@ -228,6 +234,25 @@ fun HomeScreen(navController: NavController) {
             .first()
 
         paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+    }
+
+    LaunchedEffect(updateStartOfWeekDateState) {
+        when (updateStartOfWeekDateState) {
+            is ResultState.Error -> {
+                dialogTitle = "Error"
+                dialogMessage = (updateStartOfWeekDateState as ResultState.Error).message
+                showUpdateDialog = true
+            }
+
+            is ResultState.Success -> {
+                dialogTitle = "Listo"
+                dialogMessage = "Inicio de semana actualizado correctamente"
+                showUpdateDialog = true
+                paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+            }
+
+            else -> Unit
+        }
     }
 
     val numberOfSales: Int = when (salesState) {
@@ -401,7 +426,7 @@ fun HomeScreen(navController: NavController) {
                             onSyncPendingPayments = { paymentsViewModel.syncPendingPayments() },
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
-                            onInitWeek = { /* TODO */ }
+                            onInitWeek = { authViewModel.updateStartOfWeekDate() },
                         )
                     }
                 }
@@ -439,6 +464,25 @@ fun HomeScreen(navController: NavController) {
                 }
             )
         }
+    }
+
+    if (showUpdateDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showUpdateDialog = false
+                authViewModel.clearUpdateStartOfWeekDateState()
+            },
+            title = { Text(dialogTitle) },
+            text = { Text(dialogMessage) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUpdateDialog = false
+                    authViewModel.clearUpdateStartOfWeekDateState()
+                }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 

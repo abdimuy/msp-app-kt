@@ -9,6 +9,10 @@ object Constants {
     // Firebase Firestore collection names
     const val USERS_COLLECTION = "users"
 
+    // Firebase Firestore field names
+    const val EMAIL_FIELD = "EMAIL"
+    const val START_OF_WEEK_DATE_FIELD = "FECHA_CARGA_INICIAL"
+
     // Opciones de los datos de Visita
     const val NO_SE_ENCONTRABA = "No se encontraba"
     const val CASA_CERRADA = "Casa cerrada con candado"
