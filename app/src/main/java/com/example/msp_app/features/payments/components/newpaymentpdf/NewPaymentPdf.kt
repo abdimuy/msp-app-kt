@@ -3,6 +3,8 @@ package com.example.msp_app.features.payments.components.newpaymentpdf
 import android.content.Context
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
+import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.features.payments.screens.PaymentLine
 import java.io.File
 import java.io.FileOutputStream
 
@@ -27,13 +29,14 @@ object PaymentPdfGenerator {
         saldoActual: String,
         onComplete: (Boolean, String?) -> Unit,
         numeroMeses: String,
-        historialpago: List<String>
+        historialpago: List<PaymentLine>
     ) {
         try {
             val pdf = PdfDocument()
             val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
-            val page = pdf.startPage(pageInfo)
-            val canvas = page.canvas
+            var page = pdf.startPage(pageInfo)
+            var canvas = page.canvas
+            val pageHeight = 842
 
             val paint = Paint().apply {
                 color = android.graphics.Color.BLACK
@@ -54,6 +57,19 @@ object PaymentPdfGenerator {
             val leftX = 40f
             val rightX = 320f
             var y = 50
+
+            val pageWidth = 595f
+            val margin = 40f
+            val contentWidth = pageWidth - (margin * 2)
+            val columnWidth = contentWidth / 3 // ≈ 171.66f
+            val xDate = margin
+            val xMethod = margin + columnWidth
+            val xAmount = margin + columnWidth * 2
+            val centerX = margin + (contentWidth / 2)
+            val textWidthH = titlePaint.measureText("Historial de pagos")
+
+            val centeredX = centerX - (textWidthH / 2)
+            val lineSpacing = 20
 
             canvas.drawText("Muebles San Pablo", leftX, y.toFloat(), titlePaint)
             canvas.drawText("Ticket de Pago", rightX, y.toFloat(), titlePaint)
@@ -150,12 +166,57 @@ object PaymentPdfGenerator {
             y += 20
             canvas.drawLine(40f, y.toFloat(), 550f, y.toFloat(), dividerPaint)
             y += 20
-            canvas.drawText("Historial de pagos", leftX, y.toFloat(), titlePaint)
-            y += 20
-            historialpago.forEach { pago ->
-                canvas.drawText(pago, leftX, y.toFloat(), paint)
-                y += 20
+            canvas.drawText("Historial de pagos", (centeredX), y.toFloat(), titlePaint)
+            y += 30
+
+            val columnTitlePaint = Paint().apply {
+                color = android.graphics.Color.BLACK
+                textSize = 13f
+                isFakeBoldText = true
             }
+
+            val titleDate = "Fecha de Pago"
+            val titleMethod = "Método de Pago"
+            val titleAmount = "Monto"
+
+            val titleDateX = xDate + (columnWidth - columnTitlePaint.measureText(titleDate)) / 2
+            val titleMethodX =
+                xMethod + (columnWidth - columnTitlePaint.measureText(titleMethod)) / 2
+            val titleAmountX =
+                xAmount + (columnWidth - columnTitlePaint.measureText(titleAmount)) / 2
+
+            canvas.drawText(titleDate, titleDateX, (y).toFloat(), columnTitlePaint)
+            canvas.drawText(titleMethod, titleMethodX, (y).toFloat(), columnTitlePaint)
+            canvas.drawText(titleAmount, titleAmountX, (y).toFloat(), columnTitlePaint)
+            y += lineSpacing
+
+            for ((date, amount, method) in historialpago) {
+                if (y > pageHeight - 80) {
+                    pdf.finishPage(page)
+                    page = pdf.startPage(pageInfo)
+                    canvas = page.canvas
+                    y = 40
+
+                    canvas.drawText(titleDate, titleDateX, y.toFloat(), columnTitlePaint)
+                    canvas.drawText(titleMethod, titleMethodX, y.toFloat(), columnTitlePaint)
+                    canvas.drawText(titleAmount, titleAmountX, y.toFloat(), columnTitlePaint)
+                    y += lineSpacing
+                }
+
+                val formattedAmount = amount.toCurrency(noDecimals = true)
+
+                val dateX = xDate + (columnWidth - paint.measureText(date)) / 2
+                val methodX = xMethod + (columnWidth - paint.measureText(method)) / 2
+                val amountX = xAmount + (columnWidth - paint.measureText(formattedAmount)) / 2
+
+                canvas.drawText(date, dateX, y.toFloat(), paint)
+                canvas.drawText(method.take(30), methodX, y.toFloat(), paint)
+                canvas.drawText(formattedAmount, amountX, y.toFloat(), paint)
+
+                y += lineSpacing
+            }
+
+
 
             pdf.finishPage(page)
 

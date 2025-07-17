@@ -50,6 +50,7 @@ import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
@@ -68,6 +69,12 @@ import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
+
+data class PaymentLine(
+    val date: String,
+    val amount: Double,
+    val method: String
+)
 
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -129,6 +136,24 @@ fun PaymentTicketScreen(
                 locale = Locale("es", "MX")
             )
             "ABONO: $datepayment - ${pago.IMPORTE.toCurrency(noDecimals = true)}"
+        }
+    }
+
+    fun buildPaymentLineData(payments: List<Payment>): List<PaymentLine> {
+        return payments.asReversed().map { pago ->
+            val date = DateUtils.formatIsoDate(
+                iso = pago.FECHA_HORA_PAGO,
+                pattern = "EEEE, dd/MM/yyyy",
+                locale = Locale("es", "MX")
+            ).replaceFirstChar { it.uppercaseChar() }
+
+            val method = PaymentMethod.fromId(pago.FORMA_COBRO_ID).label
+
+            PaymentLine(
+                date = date,
+                amount = pago.IMPORTE,
+                method = method
+            )
         }
     }
 
@@ -534,7 +559,7 @@ fun PaymentTicketScreen(
                                                     noDecimals = true
                                                 )
                                                     .orEmpty(),
-                                                historialpago = buildPaymentLines(pagos),
+                                                historialpago = buildPaymentLineData(pagos),
                                                 onComplete = { success, path ->
                                                     if (success && path != null) {
                                                         val file = File(path)
