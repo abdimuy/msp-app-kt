@@ -101,7 +101,8 @@ fun SaleItem(
         NewVisitDialog(
             show = true,
             onDismissRequest = { showVisitDialog.value = false },
-            sale = sale
+            sale = sale,
+            navController = navController
         )
     }
 }

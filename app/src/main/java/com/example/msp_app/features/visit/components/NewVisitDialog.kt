@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.DateUtils
@@ -55,6 +56,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import com.example.msp_app.navigation.Screen
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
@@ -68,14 +70,15 @@ import java.util.UUID
 fun NewVisitDialog(
     show: Boolean,
     onDismissRequest: () -> Unit,
-    sale: Sale
+    sale: Sale,
+    navController: NavController
 ) {
     if (!show) return
 
     val context = LocalContext.current
 
     val isDarkTheme = ThemeController.isDarkMode
-  
+
     val visitsViewModel: VisitsViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
     val userData by authViewModel.userData.collectAsState()
@@ -207,10 +210,10 @@ fun NewVisitDialog(
                             .selectable(
                                 selected = (text == selectedOption),
                                 onClick = {
-                                  selectedOption = text
-                                  if (text == Constants.PIDE_REAGENDAR) {
-                                      showDatePicker = true
-                                  }
+                                    selectedOption = text
+                                    if (text == Constants.PIDE_REAGENDAR) {
+                                        showDatePicker = true
+                                    }
                                 },
                                 role = Role.RadioButton
                             ),
@@ -296,6 +299,7 @@ fun NewVisitDialog(
                     onClick = {
                         showAlertDialog = false
                         onDismissRequest()
+                        navController.navigate(Screen.VisitTicket.createRoute(sale.DOCTO_CC_ACR_ID.toString()))
                     }
                 ) {
                     Text("Imprimir")
