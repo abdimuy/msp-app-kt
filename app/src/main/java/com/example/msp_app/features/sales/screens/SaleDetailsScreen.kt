@@ -41,6 +41,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.components.badges.AlertBadge
+import com.example.msp_app.components.badges.BadgesType
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
@@ -59,6 +61,10 @@ import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 
 @Composable
@@ -81,6 +87,9 @@ fun SaleDetailsScreen(
         saleSuccess.data.CLIENTE_ID.let { clientId ->
             salesViewModel.getSalesByClientId(clientId)
         }
+        salesViewModel.getOverduePayments()
+        salesViewModel.getOverduePaymentBySaleId(saleId)
+
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -146,6 +155,7 @@ fun SaleDetailsContent(
     val salesViewModel: SalesViewModel = viewModel()
     val productsState by productsViewModel.productsByFolioState.collectAsState()
     val salesByClientIdState by salesViewModel.salesByClientState.collectAsState()
+    val overduePaymentBySaleState by salesViewModel.overduePaymentBySaleState.collectAsState()
 
     LaunchedEffect(sale.FOLIO) {
         productsViewModel.getProductsByFolio(sale.FOLIO)
@@ -319,45 +329,126 @@ fun SaleDetailsContent(
             )
         }
 
-        Spacer(modifier = Modifier.height(46.dp))
+        Box {
+            Column {
+                Spacer(modifier = Modifier.height(26.dp))
 
-        val porcentage = ((1 - (sale.SALDO_REST / sale.PRECIO_TOTAL)) * 100)
+                val porcentage = ((1 - (sale.SALDO_REST / sale.PRECIO_TOTAL)) * 100)
 
-        SaleSummaryBar(
-            balance = sale.SALDO_REST.toCurrency(noDecimals = true),
-            percentagePaid = String.format("%.2f%%", porcentage),
-        )
-        Spacer(modifier = Modifier.height(46.dp))
-
-        SaleActionSection(
-            sale,
-            navController
-        )
-
-        Spacer(modifier = Modifier.height(15.dp))
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .background(Color.Transparent, RoundedCornerShape(16.dp))
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(
-                    modifier = Modifier.height(12.dp)
+                SaleSummaryBar(
+                    balance = sale.SALDO_REST.toCurrency(noDecimals = true),
+                    percentagePaid = String.format("%.2f%%", porcentage),
                 )
-                Text(
-                    "Historial de pagos",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp,
-                    textAlign = TextAlign.Left,
+                Spacer(modifier = Modifier.height(26.dp))
+
+                Column(
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    when (overduePaymentBySaleState) {
+                        is ResultState.Loading -> {
+                            Text("Cargando pagos atrasados de esta venta...")
+                        }
+
+                        is ResultState.Error -> {
+                            Text("Error: ${(overduePaymentBySaleState as ResultState.Error).message}")
+                        }
+
+                        is ResultState.Success -> {
+                            val latePayment =
+                                (overduePaymentBySaleState as ResultState.Success).data
+
+                            if (latePayment != null) {
+                                val latePayments = latePayment.NUM_PAGOS_ATRASADOS.toInt()
+                                when {
+                                    latePayments < 1 -> {
+                                        AlertBadge("No tiene pagos atrasados", BadgesType.Success)
+                                    }
+
+                                    latePayments < 5 -> {
+                                        AlertBadge(
+                                            "Pagos atrasados: ${latePayments}",
+                                            BadgesType.Warning
+                                        )
+                                    }
+
+                                    else -> {
+                                        AlertBadge(
+                                            "Pagos atrasados: ${latePayments}",
+                                            BadgesType.Danger
+                                        )
+                                    }
+                                }
+                            }
+                            ElapsedTimeAlert(latePayment?.FECHA_ULT_PAGO.toString())
+                        }
+
+                        else -> {}
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                SaleActionSection(
+                    sale,
+                    navController
                 )
 
-                PaymentsHistory(sale, navController)
+                Spacer(modifier = Modifier.height(15.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth(0.92f)
+                        .background(Color.Transparent, RoundedCornerShape(16.dp))
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Spacer(
+                            modifier = Modifier.height(12.dp)
+                        )
+                        Text(
+                            "Historial de pagos",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp,
+                            textAlign = TextAlign.Left,
+                        )
+
+                        PaymentsHistory(sale, navController)
+                    }
+                }
             }
         }
     }
 }
+
+@Composable
+fun ElapsedTimeAlert(lastPaymentDateIso: String) {
+    val parsedInstant = Instant.parse(lastPaymentDateIso)
+    val lastPaymentDate = parsedInstant.atZone(ZoneId.systemDefault()).toLocalDateTime()
+    val now = LocalDateTime.now()
+
+    val duration = Duration.between(lastPaymentDate, now)
+    val totalMinutes = duration.toMinutes()
+    val totalHours = duration.toHours()
+    val totalDays = duration.toDays()
+    val weeks = totalDays / 7
+    val months = totalDays / 30
+    val years = totalDays / 365
+
+    val message = when {
+        years > 0 -> "$years año${if (years > 1) "s" else ""}"
+        months > 0 -> "$months mes${if (months > 1) "es" else ""}"
+        weeks > 0 -> "$weeks semana${if (weeks > 1) "s" else ""}"
+        totalDays > 0 -> "$totalDays día${if (totalDays > 1) "s" else ""}"
+        totalHours > 0 -> "${totalHours % 24} hora${if ((totalHours % 24) > 1) "s" else ""}"
+        totalMinutes > 0 -> "${totalMinutes % 60} minuto${if ((totalMinutes % 60) > 1) "s" else ""}"
+        else -> "Hace unos segundos"
+    }
+
+    AlertBadge("Último pago: hace $message", BadgesType.Primary)
+}
+
+
+

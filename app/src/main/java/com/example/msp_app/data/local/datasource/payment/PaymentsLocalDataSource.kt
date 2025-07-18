@@ -3,6 +3,7 @@ package com.example.msp_app.data.local.datasource.payment
 import android.content.Context
 import androidx.room.Transaction
 import com.example.msp_app.data.local.AppDatabase
+import com.example.msp_app.data.local.entities.OverduePaymentsEntity
 import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.EstadoCobranza
@@ -39,6 +40,14 @@ class PaymentsLocalDataSource(private val context: Context) {
 
     suspend fun getSuggestedAmountsBySaleId(saleId: Int): List<Int> {
         return paymentDao.getSuggestedAmountsBySaleId(saleId)
+    }
+
+    suspend fun getOverduePayments(): List<OverduePaymentsEntity> {
+        return paymentDao.getOverduePayments()
+    }
+
+    suspend fun getPagosAtrasadosBySaleId(saleId: Int): OverduePaymentsEntity? {
+        return paymentDao.getOverduePaymentBySaleId(saleId)
     }
 
     suspend fun savePayment(payment: PaymentEntity) {
