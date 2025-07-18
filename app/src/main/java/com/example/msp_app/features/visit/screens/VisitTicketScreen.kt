@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -200,7 +201,12 @@ fun VisitTicketScreen(
             ) {
                 when {
                     saleResult is ResultState.Loading || userDataState is ResultState.Loading -> {
-                        Text("Cargando datos...", modifier = Modifier.padding(16.dp))
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
 
                     saleResult is ResultState.Error -> {
