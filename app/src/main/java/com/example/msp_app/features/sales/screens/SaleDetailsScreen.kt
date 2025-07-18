@@ -248,7 +248,11 @@ fun SaleDetailsContent(
                         SaleItem(
                             sale = saleItem,
                             onClick = {
-                                navController.navigate(Screen.SaleDetails.createRoute(saleId = sale.DOCTO_CC_ID))
+                                navController.navigate(
+                                    Screen.SaleDetails.createRoute(
+                                        saleId = saleItem.DOCTO_CC_ID
+                                    )
+                                )
                             },
                             navController = navController,
                         )

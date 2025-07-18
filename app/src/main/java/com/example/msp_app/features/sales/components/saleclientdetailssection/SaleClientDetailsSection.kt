@@ -112,7 +112,10 @@ fun SaleClientDetailsSection(sale: Sale, modifier: Modifier = Modifier) {
                 value = sale.AVAL_O_RESPONSABLE.toString()
             )
             InfoField(label = "Notas:", value = sale.NOTAS)
-            InfoField(label = "Vendedores:", value = sale.VENDEDOR_1)
+            InfoField(
+                label = "Vendedores:", value =
+                    "${sale.VENDEDOR_1}\n${sale.VENDEDOR_2}\n${sale.VENDEDOR_3}".trim()
+            )
         }
     }
 }

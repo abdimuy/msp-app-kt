@@ -89,7 +89,8 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
             NewVisitDialog(
                 show = openVisitDialog,
                 onDismissRequest = { openVisitDialog = false },
-                sale
+                sale = sale,
+                navController = navController
             )
             SaleActionButton(
                 text = "AGREGAR VISITA",
