@@ -10,6 +10,7 @@ import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
+import com.example.msp_app.data.local.entities.OverduePaymentsEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
@@ -19,6 +20,7 @@ import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 
@@ -45,6 +47,41 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val _salesByClientState =
         MutableStateFlow<ResultState<List<SaleWithProducts>>>(ResultState.Idle)
     val salesByClientState: StateFlow<ResultState<List<SaleWithProducts>>> = _salesByClientState
+
+    private val _overduePaymentsState =
+        MutableStateFlow<ResultState<List<OverduePaymentsEntity>>>(ResultState.Loading)
+    val overduePaymentsState = _overduePaymentsState.asStateFlow()
+
+    private val _overduePaymentBySaleState =
+        MutableStateFlow<ResultState<OverduePaymentsEntity?>>(ResultState.Loading)
+    val overduePaymentBySaleState = _overduePaymentBySaleState.asStateFlow()
+
+    fun getOverduePayments() {
+        viewModelScope.launch {
+            _overduePaymentsState.value = ResultState.Loading
+            try {
+                val result = paymentStore.getOverduePayments()
+                _overduePaymentsState.value = ResultState.Success(result)
+            } catch (e: Exception) {
+                _overduePaymentsState.value =
+                    ResultState.Error(e.message ?: "Error al obtener pagos atrasados")
+            }
+        }
+    }
+
+    fun getOverduePaymentBySaleId(saleId: Int) {
+        viewModelScope.launch {
+            _overduePaymentBySaleState.value = ResultState.Loading
+            try {
+                val result = paymentStore.getPagosAtrasadosBySaleId(saleId)
+                _overduePaymentBySaleState.value = ResultState.Success(result)
+            } catch (e: Exception) {
+                _overduePaymentBySaleState.value =
+                    ResultState.Error(e.message ?: "Error al obtener pago atrasado por venta")
+            }
+        }
+    }
+
 
     fun getLocalSales() {
         viewModelScope.launch {
