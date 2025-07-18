@@ -68,10 +68,17 @@ fun VisitTicketScreen(
     val saleViewModel: SaleDetailsViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val userDataState by authViewModel.userData.collectAsState()
-    val user = (userDataState as? ResultState.Success<User?>)?.data
-
     val saleResult by saleViewModel.saleState.collectAsState()
-    val sale = (saleResult as? ResultState.Success<Sale?>)?.data
+
+    val user = when (userDataState) {
+        is ResultState.Success -> (userDataState as ResultState.Success<User?>).data
+        else -> null
+    }
+
+    val sale = when (saleResult) {
+        is ResultState.Success -> (saleResult as ResultState.Success<Sale?>).data
+        else -> null
+    }
 
     var ticketText by remember { mutableStateOf<String?>(null) }
     var saleLoaded by remember { mutableStateOf(false) }
@@ -87,10 +94,6 @@ fun VisitTicketScreen(
         if (saleResult is ResultState.Success && sale != null && user != null) {
             val expirationDate =
                 LocalDateTime.now().plusYears(1).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-            val overduePayments = 0
-            val installment = 0
-            val suggestedAmount = 0
-
             val separator = (" ".repeat(32))
             val lines = "-".repeat(32)
             val currentDateFormatted = ThermalPrinting.centerText(currentDate, 32)
@@ -145,9 +148,9 @@ fun VisitTicketScreen(
                         appendLine(separator)
                         appendLine("TOTAL DE COMPRA: ${sale.PRECIO_TOTAL.toCurrency()}")
                         appendLine("SALDO ACTUAL: ${sale.SALDO_REST.toCurrency()}")
-                        appendLine("PAGOS VENCIDOS: $overduePayments")
+                        appendLine("PAGOS VENCIDOS: $0")
                         appendLine("SUGERIDO PARA")
-                        appendLine("REGULARIZARSE: ${suggestedAmount.toCurrency()}")
+                        appendLine("REGULARIZARSE: $0")
                     }
 
                     3 -> {
@@ -165,9 +168,9 @@ fun VisitTicketScreen(
                         appendLine(separator)
                         appendLine("TOTAL DE COMPRA: ${sale.PRECIO_TOTAL.toCurrency()}")
                         appendLine("SALDO ACTUAL: ${sale.SALDO_REST.toCurrency()}")
-                        appendLine("PAGOS VENCIDOS: $overduePayments")
+                        appendLine("PAGOS VENCIDOS: $0")
                         appendLine("SUGERIDO PARA")
-                        appendLine("REGULARIZARSE: ${suggestedAmount.toCurrency()}")
+                        appendLine("REGULARIZARSE: $0")
                     }
                 }
 
@@ -195,65 +198,87 @@ fun VisitTicketScreen(
                     .fillMaxSize(),
                 contentAlignment = Alignment.TopCenter
             ) {
-                if (saleResult is ResultState.Success && sale != null) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            IconButton(
-                                onClick = openDrawer,
-                                modifier = Modifier.padding(10.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "Menú",
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 48.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Ticket de Visita",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                            }
-                        }
+                when {
+                    saleResult is ResultState.Loading || userDataState is ResultState.Loading -> {
+                        Text("Cargando datos...", modifier = Modifier.padding(16.dp))
+                    }
 
+                    saleResult is ResultState.Error -> {
+                        val msg = (saleResult as ResultState.Error).message
+                        Text(
+                            "Error al cargar venta: $msg",
+                            color = Color.Red,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+
+                    userDataState is ResultState.Error -> {
+                        val msg = (userDataState as ResultState.Error).message
+                        Text(
+                            "Error al cargar usuario: $msg",
+                            color = Color.Red,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+
+                    saleLoaded && ticketText != null -> {
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth(1f)
-                                .padding(horizontal = 16.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-
-                            Text("Seleccione el tipo:", fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            DropdownMenuWithOptions(
-                                options = listOf(
-                                    "Ticket de Visita",
-                                    "Ticket de Cliente Moroso",
-                                    "Ticket de no Pago"
-                                ),
-                                selectedIndex = ticketType - 1,
-                                onSelected = { ticketType = it + 1 },
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .verticalScroll(rememberScrollState())
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                if (saleLoaded && ticketText != null) {
+                                IconButton(
+                                    onClick = openDrawer,
+                                    modifier = Modifier.padding(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "Menú",
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 48.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Ticket de Visita",
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                            }
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth(1f)
+                                    .padding(horizontal = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+
+                                Text("Seleccione el tipo:", fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                DropdownMenuWithOptions(
+                                    options = listOf(
+                                        "Ticket de Visita",
+                                        "Ticket de Cliente Moroso",
+                                        "Ticket de no Pago"
+                                    ),
+                                    selectedIndex = ticketType - 1,
+                                    onSelected = { ticketType = it + 1 },
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .verticalScroll(rememberScrollState())
+                                ) {
                                     OutlinedCard(
                                         shape = RoundedCornerShape(12.dp),
                                         border = BorderStroke(1.5.dp, Color.Black),
@@ -270,13 +295,10 @@ fun VisitTicketScreen(
                                             )
                                         }
                                     }
-
                                 }
-                            }
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(16.dp))
 
-                            if (saleLoaded && ticketText != null) {
                                 SelectBluetoothDevice(
                                     textToPrint = ticketText!!,
                                     modifier = Modifier.fillMaxWidth(),
@@ -292,8 +314,10 @@ fun VisitTicketScreen(
                             }
                         }
                     }
-                } else {
-                    Text("Loading...", modifier = Modifier.padding(16.dp))
+
+                    else -> {
+                        Text("Loading...", modifier = Modifier.padding(16.dp))
+                    }
                 }
             }
         }
