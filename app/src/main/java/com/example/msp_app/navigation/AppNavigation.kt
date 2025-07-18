@@ -23,6 +23,7 @@ import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
+import com.example.msp_app.features.visit.screens.VisitTicketScreen
 
 
 sealed class Screen(val route: String) {
@@ -42,6 +43,10 @@ sealed class Screen(val route: String) {
 
     object PaymentTicket : Screen("payment_ticket/{paymentId}") {
         fun createRoute(paymentId: String) = "payment_ticket/$paymentId"
+    }
+
+    object VisitTicket : Screen("visit_ticket/{saleId}") {
+        fun createRoute(saleId: String) = "visit_ticket/$saleId"
     }
 
     object Guarantee : Screen("guarantee")
@@ -114,6 +119,14 @@ fun AppNavigation() {
                         paymentId = paymentId,
                         navController = navController
                     )
+                }
+            }
+
+            composable(Screen.VisitTicket.route) { backStackEntry ->
+                val saleIdString = backStackEntry.arguments?.getString("saleId")
+                val saleId = saleIdString?.toIntOrNull()
+                if (saleId != null) {
+                    VisitTicketScreen(saleId = saleId, navController = navController)
                 }
             }
 
