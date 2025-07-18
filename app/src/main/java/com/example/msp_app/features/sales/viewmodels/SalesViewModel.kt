@@ -14,6 +14,7 @@ import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,8 +29,9 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
 
-    private val _salesState = MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
-    val salesState: StateFlow<ResultState<List<Sale>>> = _salesState
+    private val _salesState =
+        MutableStateFlow<ResultState<List<SaleWithProducts>>>(ResultState.Idle)
+    val salesState: StateFlow<ResultState<List<SaleWithProducts>>> = _salesState
 
     private val _syncSalesState =
         MutableStateFlow<ResultState<List<Sale>>>(ResultState.Idle)
@@ -40,6 +42,10 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     val paymentsLocationsState: StateFlow<ResultState<List<PaymentLocationsGroup>>> =
         _paymentsLocationsState
 
+    private val _salesByClientState =
+        MutableStateFlow<ResultState<List<SaleWithProducts>>>(ResultState.Idle)
+    val salesByClientState: StateFlow<ResultState<List<SaleWithProducts>>> = _salesByClientState
+
     fun getLocalSales() {
         viewModelScope.launch {
             _salesState.value = ResultState.Loading
@@ -48,6 +54,19 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 _salesState.value = ResultState.Success(cached)
             } catch (e: Exception) {
                 _salesState.value = ResultState.Error(e.message ?: "Error leyendo ventas locales")
+            }
+        }
+    }
+
+    fun getSalesByClientId(clientId: Int) {
+        viewModelScope.launch {
+            _salesByClientState.value = ResultState.Loading
+            try {
+                val cached = saleStore.getByClientId(clientId).map { it.toDomain() }
+                _salesByClientState.value = ResultState.Success(cached)
+            } catch (e: Exception) {
+                _salesByClientState.value =
+                    ResultState.Error(e.message ?: "Error leyendo ventas locales")
             }
         }
     }

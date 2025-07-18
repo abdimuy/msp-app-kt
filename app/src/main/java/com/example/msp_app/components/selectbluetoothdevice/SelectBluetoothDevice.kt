@@ -149,7 +149,7 @@ fun SelectBluetoothDevice(
                     showBluetoothDialog = true
                 }) {
                     Text(
-                        selectedDevice
+                        text = selectedDevice
                             ?.let { "IMPRIMIR EN: ${it.name}" }
                             ?: "SELECCIONAR IMPRESORA",
                         color = Color.White
@@ -169,7 +169,10 @@ fun SelectBluetoothDevice(
                         .fillMaxWidth()
                         .padding(start = 8.dp)
                 ) {
-                    Text(if (isPrinting) "IMPRIMIENDO..." else "IMPRIMIR", color = Color.White)
+                    Text(
+                        text = if (isPrinting) "IMPRIMIENDO..." else "IMPRIMIR",
+                        color = Color.White
+                    )
                 }
             }
 

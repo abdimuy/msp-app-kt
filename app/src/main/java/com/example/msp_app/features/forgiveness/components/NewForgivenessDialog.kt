@@ -88,6 +88,10 @@ fun NewForgivenessDialog(
         if (inputValue.isBlank() || errorMessage != null) {
             return
         }
+        if (currentUser?.COBRADOR_ID == null || currentUser.COBRADOR_ID == 0) {
+            errorMessage = "No se pudo obtener el ID del cobrador. Intenta nuevamente."
+            return
+        }
         val forgivenessAmount = inputValue.toDoubleOrNull()
         if (forgivenessAmount != null && forgivenessAmount > 0) {
             coroutineScope.launch {
@@ -100,7 +104,7 @@ fun NewForgivenessDialog(
                     NOMBRE_CLIENTE = sale.CLIENTE,
                     FECHA_HORA_PAGO = DateUtils.getIsoDateTime(),
                     COBRADOR = sale.NOMBRE_COBRADOR,
-                    COBRADOR_ID = currentUser?.COBRADOR_ID ?: 0,
+                    COBRADOR_ID = currentUser.COBRADOR_ID,
                     DOCTO_CC_ID = 0,
                     FORMA_COBRO_ID = Constants.CONDONACION_ID,
                     DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,

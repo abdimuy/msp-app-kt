@@ -1,10 +1,14 @@
 package com.example.msp_app.features.auth.viewModels
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
+import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
@@ -13,13 +17,20 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class AuthViewModel : ViewModel() {
+class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
     private val _userData = MutableStateFlow<ResultState<User?>>(ResultState.Idle)
     val userData: StateFlow<ResultState<User?>> = _userData
 
+    private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
+    private val visitsStore = VisitsLocalDataSource(application.applicationContext)
+
     private val _currentUser = MutableStateFlow<FirebaseUser?>(auth.currentUser)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser
+
+    private val _updateStartOfWeekDateState =
+        MutableStateFlow<ResultState<User?>>(ResultState.Idle)
+    val updateStartOfWeekDateState: StateFlow<ResultState<User?>> = _updateStartOfWeekDateState
 
     init {
         auth.addAuthStateListener {
@@ -56,4 +67,53 @@ class AuthViewModel : ViewModel() {
             }
         }
     }
+
+    fun updateStartOfWeekDate() {
+        viewModelScope.launch {
+            val current = _userData.value
+            if (current is ResultState.Success && current.data != null) {
+                val pendingPayments = paymentStore.getPendingPayments()
+                if (pendingPayments.isNotEmpty()) {
+                    _updateStartOfWeekDateState.value =
+                        ResultState.Error("Hay ${pendingPayments.size} pagos pendientes")
+                    return@launch
+                }
+                val pendingVisits = visitsStore.getPendingVisits()
+                if (pendingVisits.isNotEmpty()) {
+                    _updateStartOfWeekDateState.value =
+                        ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
+                    return@launch
+                }
+
+                val startOfWeekDate = Timestamp.now()
+
+                try {
+                    FirebaseFirestore.getInstance()
+                        .collection(Constants.USERS_COLLECTION)
+                        .document(current.data.ID)
+                        .update(Constants.START_OF_WEEK_DATE_FIELD, startOfWeekDate)
+                        .await()
+                    _userData.value = ResultState.Success(
+                        current.data.copy(FECHA_CARGA_INICIAL = startOfWeekDate)
+                    )
+                    _updateStartOfWeekDateState.value = ResultState.Success(
+                        current.data.copy(FECHA_CARGA_INICIAL = startOfWeekDate)
+                    )
+                } catch (e: Exception) {
+                    _updateStartOfWeekDateState.value = ResultState.Error(
+                        e.message ?: "Error al actualizar la fecha de inicio de semana"
+                    )
+                }
+            } else {
+                _updateStartOfWeekDateState.value = ResultState.Error(
+                    "No se pudo actualizar la fecha de inicio de semana"
+                )
+            }
+        }
+    }
+
+    fun clearUpdateStartOfWeekDateState() {
+        _updateStartOfWeekDateState.value = ResultState.Idle
+    }
 }
+

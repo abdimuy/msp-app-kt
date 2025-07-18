@@ -42,7 +42,11 @@ fun HomeStartWeekSection(
             text = buildAnnotatedString {
                 append("Inicio de semana: \n")
                 withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                    append(startDate.uppercase())
+                    if (startDate == "null") {
+                        append("Cargando...")
+                    } else {
+                        append(startDate.uppercase())
+                    }
                 }
             },
             fontSize = 16.sp

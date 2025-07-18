@@ -68,6 +68,11 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
     val syncPendingPaymentsState: StateFlow<ResultState<Unit>> = _syncPendingPaymentsState
 
+    private val _adjustedPaymentPercentageState =
+        MutableStateFlow<ResultState<Double>>(ResultState.Idle)
+    val adjustedPaymentPercentageState: StateFlow<ResultState<Double>> =
+        _adjustedPaymentPercentageState
+
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
             _paymentsBySaleIdState.value = ResultState.Loading
@@ -253,6 +258,21 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             } catch (e: Exception) {
                 _syncPendingPaymentsState.value =
                     ResultState.Error(e.message ?: "Error sincronizando pagos pendientes")
+            }
+        }
+    }
+
+    fun getAdjustedPaymentPercentage(startDate: String) {
+        viewModelScope.launch {
+            _adjustedPaymentPercentageState.value = ResultState.Loading
+            try {
+                val percentage = withContext(Dispatchers.IO) {
+                    paymentStore.getAdjustedPaymentPercentage(startDate)
+                }
+                _adjustedPaymentPercentageState.value = ResultState.Success(percentage)
+            } catch (e: Exception) {
+                _adjustedPaymentPercentageState.value =
+                    ResultState.Error(e.message ?: "Error obteniendo porcentaje de pagos ajustados")
             }
         }
     }

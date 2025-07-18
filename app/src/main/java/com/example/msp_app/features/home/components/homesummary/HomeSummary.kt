@@ -37,6 +37,7 @@ fun HomeSummarySection(
     numberOfPaymentsWeekly: Int,
     numberOfSales: Int,
     accountsPercentageRounded: String,
+    accountsPercentageAjusted: String,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -133,14 +134,14 @@ fun HomeSummarySection(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                "Porcentaje (Cuentas)",
+                                "Porcentaje (Cobro)",
                                 color = Color.White,
                                 fontSize = 14.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(top = 8.dp)
                             )
                             Text(
-                                accountsPercentageRounded,
+                                accountsPercentageAjusted,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 22.sp,
                                 color = Color.White,

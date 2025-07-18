@@ -47,7 +47,7 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.data.models.sale.EstadoCobranza
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 
@@ -59,17 +59,17 @@ fun SalesScreen(
     val viewModel: SalesViewModel = viewModel()
     val state by viewModel.salesState.collectAsState()
     var query by remember { mutableStateOf("") }
-    val sales = (state as? ResultState.Success<List<Sale>>)?.data ?: emptyList()
-    val filteredSales = if (sales.isEmpty()) {
-        emptyList()
-    } else if (query.isBlank()) {
-        sales
-    } else {
-        searchSimilarItems(
+    val sales = (state as? ResultState.Success<List<SaleWithProducts>>)?.data ?: emptyList()
+    val filteredSales: List<SaleWithProducts> = when {
+        sales.isEmpty() -> emptyList()
+        query.isBlank() -> sales
+        else -> searchSimilarItems(
             query = query,
             items = sales,
             threshold = 70
-        )
+        ) { sale ->
+            sale.CLIENTE
+        }
     }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
@@ -133,7 +133,7 @@ fun SalesScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp, top = 8.dp),
+                            .padding(bottom = 0.dp, top = 0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(

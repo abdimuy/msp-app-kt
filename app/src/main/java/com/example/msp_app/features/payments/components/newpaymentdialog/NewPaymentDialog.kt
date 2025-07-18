@@ -125,11 +125,16 @@ fun NewPaymentDialog(
 
     fun handleSavePayment() {
         if (inputValue.isBlank() || errorMessage != null) return
+        if (currentUser?.COBRADOR_ID == null || currentUser.COBRADOR_ID == 0) {
+            errorMessage = "No se pudo obtener el ID del cobrador. Intenta nuevamente."
+            return
+        }
         coroutineScope.launch {
             try {
 
                 val idTicket = UUID.randomUUID().toString()
                 val date = Instant.now().toString()
+
 
                 val payment = Payment(
                     CLIENTE_ID = sale.CLIENTE_ID,
@@ -140,7 +145,7 @@ fun NewPaymentDialog(
                     NOMBRE_CLIENTE = sale.CLIENTE,
                     FECHA_HORA_PAGO = date,
                     COBRADOR = sale.NOMBRE_COBRADOR,
-                    COBRADOR_ID = currentUser?.COBRADOR_ID ?: 0,
+                    COBRADOR_ID = currentUser.COBRADOR_ID,
                     DOCTO_CC_ID = 0,
                     FORMA_COBRO_ID = selectedPaymentMethod,
                     DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,

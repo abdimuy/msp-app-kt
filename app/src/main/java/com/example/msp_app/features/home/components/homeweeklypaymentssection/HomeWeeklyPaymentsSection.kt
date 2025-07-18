@@ -46,49 +46,69 @@ fun HomeWeeklyPaymentsSection(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth(.92f)
+                .height(100.dp),
             contentAlignment = Alignment.Center
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth(.92f)
-                    .height(100.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                when (paymentsGroupedByDayWeekly) {
-                    is ResultState.Idle -> Text(
-                        text = "No hay pagos registrados esta semana",
-                        color = Color.Gray,
-                        modifier = Modifier.padding(16.dp)
-                    )
 
-                    is ResultState.Loading -> CircularProgressIndicator()
-                    is ResultState.Error -> Text(
-                        text = "Error al cargar pagos: ${(paymentsGroupedByDayWeekly as ResultState.Error).message}",
-                        color = Color.Red
-                    )
+            when (paymentsGroupedByDayWeekly) {
+                is ResultState.Idle ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .border(
+                                1.dp,
+                                if (isDark) Color.Gray else Color.LightGray,
+                                RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No hay pagos registrados esta semana",
+                            color = Color.Gray,
+                            modifier = Modifier.padding(16.dp)
 
-                    is ResultState.Success -> {
-                        val paymentsMap = paymentsGroupedByDayWeekly.data
-                        if (paymentsMap.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .border(
-                                        1.dp,
-                                        if (isDark) Color.Gray else Color.LightGray,
-                                        RoundedCornerShape(12.dp)
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("No hay pagos registrados esta semana", color = Color.Gray)
-                            }
-                            return@Row
+                        )
+                    }
+
+                is ResultState.Loading -> CircularProgressIndicator()
+                is ResultState.Error -> Text(
+                    text = "Error al cargar pagos: ${paymentsGroupedByDayWeekly.message}",
+                    color = Color.Red
+                )
+
+                is ResultState.Success -> {
+                    val paymentsMap = paymentsGroupedByDayWeekly.data
+                    if (paymentsMap.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(
+                                    1.dp,
+                                    if (isDark) Color.Gray else Color.LightGray,
+                                    RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No hay pagos registrados esta semana", color = Color.Gray)
                         }
+                        return@Box
+                    }
 
-                        Spacer(Modifier.width(1.dp))
+                    Spacer(Modifier.width(1.dp))
 
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(100.dp)
+                            .horizontalScroll(rememberScrollState())
+                            .padding(
+                                horizontal =
+                                    8.dp
+                            ),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         paymentsMap.forEach { (date, payments) ->
                             val total = payments.sumOf { it.IMPORTE }
                             val count = payments.size
@@ -133,9 +153,8 @@ fun HomeWeeklyPaymentsSection(
                                 }
                             }
                         }
-
-                        Spacer(Modifier.width(1.dp))
                     }
+                    Spacer(Modifier.width(1.dp))
                 }
             }
         }

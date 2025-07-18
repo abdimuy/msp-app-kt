@@ -128,7 +128,7 @@ fun HomeFooterSection(
             onClick = { onSyncSales(zonaClienteId, dateInitWeek) },
             modifier = Modifier.fillMaxWidth(0.92f)
         ) {
-            Text("Actualizar datos")
+            Text("ACTUALIZAR DATOS", color = Color.White)
         }
 
         when (syncSalesState) {
@@ -145,19 +145,15 @@ fun HomeFooterSection(
             },
             modifier = Modifier.fillMaxWidth(0.92f)
         ) {
-            Text("Enviar Pagos Pendientes")
+            Text("ENVIAR PAGOS PENDIENTES", color = Color.White)
         }
 
         Button(onClick = onResendAllPayments, modifier = Modifier.fillMaxWidth(0.92f)) {
-            Text("Reenviar todos los pagos")
-        }
-
-        Button(onClick = onLogout, modifier = Modifier.fillMaxWidth(0.92f)) {
-            Text("Cerrar sesión")
+            Text("REENVIAR TODOS LOS PAGOS", color = Color.White)
         }
 
         Button(onClick = onInitWeek, modifier = Modifier.fillMaxWidth(0.92f)) {
-            Text("Inicializar semana de Cobro")
+            Text("INICIALIZAR SEMANA", color = Color.White)
         }
     }
 }

@@ -4,7 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.navigation.NavController
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
+import com.example.msp_app.data.models.sale.toSale
 import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
 import com.example.msp_app.features.sales.components.primarysaleitem.PrimarySaleItem
 import com.example.msp_app.features.sales.components.secondarysaleitem.SecondarySaleItem
@@ -19,7 +20,7 @@ enum class SaleItemVariant {
 
 @Composable
 fun SaleItem(
-    sale: Sale,
+    sale: SaleWithProducts,
     onClick: () -> Unit = {},
     variant: SaleItemVariant = SaleItemVariant.DEFAULT,
     distanceToCurrentLocation: Double = 0.0,
@@ -91,7 +92,7 @@ fun SaleItem(
         NewPaymentDialog(
             show = true,
             onDismissRequest = { showPaymentDialog.value = false },
-            sale = sale,
+            sale = sale.toSale(),
             suggestedPayment = sale.PARCIALIDAD,
             navController = navController
         )
@@ -101,7 +102,7 @@ fun SaleItem(
         NewVisitDialog(
             show = true,
             onDismissRequest = { showVisitDialog.value = false },
-            sale = sale,
+            sale = sale.toSale(),
             navController = navController
         )
     }

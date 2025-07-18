@@ -32,11 +32,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,7 +57,7 @@ import com.example.msp_app.core.utils.sortGroupsByClosestCentroid
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
-import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.home.components.homestartweeksection.HomeStartWeekSection
@@ -73,6 +75,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -85,9 +89,33 @@ import java.util.Locale
 @Composable
 fun HomeScreen(navController: NavController) {
     val systemUiController = rememberSystemUiController()
+    val isDark = ThemeController.isDarkMode
+    val listState = rememberLazyListState()
     val primary = MaterialTheme.colorScheme.primary
+    val scrollThresholdDp = 100.dp
+
+    val scrollThresholdPx = with(LocalDensity.current) {
+        scrollThresholdDp.toPx().toInt()
+    }
+
+    LaunchedEffect(listState, isDark) {
+        snapshotFlow {
+            listState.firstVisibleItemIndex > 0 ||
+                    listState.firstVisibleItemScrollOffset > scrollThresholdPx
+        }.collect { scrolled ->
+            val backgroundColor = if (scrolled) Color.Black else primary
+            systemUiController.setStatusBarColor(
+                color = backgroundColor,
+                darkIcons = false
+            )
+        }
+    }
+
     SideEffect {
-        systemUiController.setStatusBarColor(color = primary)
+        systemUiController.setStatusBarColor(
+            color = primary,
+            darkIcons = false
+        )
     }
 
     val authViewModel = LocalAuthViewModel.current
@@ -99,6 +127,7 @@ fun HomeScreen(navController: NavController) {
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsGroupedByDayWeekly: ResultState<Map<String, List<Payment>>> by paymentsViewModel.paymentsGroupedByDayWeeklyState.collectAsState()
+    val adjustedPaymentPercentageState by paymentsViewModel.adjustedPaymentPercentageState.collectAsState()
 
     val pendingPaymentsState by paymentsViewModel.pendingPaymentsState.collectAsState()
 
@@ -111,15 +140,19 @@ fun HomeScreen(navController: NavController) {
         mutableStateOf<List<Triple<Int, Coord, Long>>>(emptyList())
     }
 
+    val updateStartOfWeekDateState by authViewModel.updateStartOfWeekDateState.collectAsState()
+
     var showPaymentsDialog by remember { mutableStateOf(false) }
     var selectedDateLabel by remember { mutableStateOf("") }
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
-    val isDark = ThemeController.isDarkMode
-
     val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
     var currentLocation by remember { mutableStateOf<Location?>(null) }
+
+    var showUpdateDialog by remember { mutableStateOf(false) }
+    var dialogTitle by remember { mutableStateOf("") }
+    var dialogMessage by remember { mutableStateOf("") }
 
     val initialDate = (userDataState as? ResultState.Success<User?>)
         ?.data
@@ -144,6 +177,9 @@ fun HomeScreen(navController: NavController) {
                 salesViewModel.getLocalSales()
                 paymentsViewModel.getCentroidsBySale()
                 visitsViewModel.getPendingVisits()
+                paymentsViewModel.getAdjustedPaymentPercentage(
+                    startWeekDate
+                )
             }
 
             else -> Unit
@@ -161,7 +197,7 @@ fun HomeScreen(navController: NavController) {
     }
 
     LaunchedEffect(currentLocation) {
-        currentLocation?.let { it1 ->
+        currentLocation?.let {
             when (centroidsBySaleState) {
                 is ResultState.Success -> {
                     val groups =
@@ -188,12 +224,39 @@ fun HomeScreen(navController: NavController) {
     }
 
     LaunchedEffect(startWeekDate) {
-        paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+        if (startWeekDate == "null") return@LaunchedEffect
+
         salesViewModel.getLocalSales()
+        paymentsViewModel.getAdjustedPaymentPercentage(startWeekDate)
+
+        snapshotFlow { salesState }
+            .filter { it is ResultState.Success }
+            .first()
+
+        paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+    }
+
+    LaunchedEffect(updateStartOfWeekDateState) {
+        when (updateStartOfWeekDateState) {
+            is ResultState.Error -> {
+                dialogTitle = "Error"
+                dialogMessage = (updateStartOfWeekDateState as ResultState.Error).message
+                showUpdateDialog = true
+            }
+
+            is ResultState.Success -> {
+                dialogTitle = "Listo"
+                dialogMessage = "Inicio de semana actualizado correctamente"
+                showUpdateDialog = true
+                paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+            }
+
+            else -> Unit
+        }
     }
 
     val numberOfSales: Int = when (salesState) {
-        is ResultState.Success -> (salesState as ResultState.Success<List<Sale>>).data.size
+        is ResultState.Success -> (salesState as ResultState.Success<List<SaleWithProducts>>).data.size
         else -> 0
     }
 
@@ -241,7 +304,7 @@ fun HomeScreen(navController: NavController) {
         String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
 
     val salesMap = remember(salesState) {
-        (salesState as? ResultState.Success<List<Sale>>)
+        (salesState as? ResultState.Success<List<SaleWithProducts>>)
             ?.data
             ?.associateBy { it.DOCTO_CC_ID }
             ?: emptyMap()
@@ -253,11 +316,19 @@ fun HomeScreen(navController: NavController) {
         localDate.format(formatter)
     } ?: ""
 
+    val adjustedTotal =
+        (adjustedPaymentPercentageState as? ResultState.Success<Double>)?.data ?: 0.0
+    val accountsPercentageAjusted =
+        if (numberOfSales > 0) (adjustedTotal / numberOfSales) * 100 else 0.0
+    val accountsPercentageAjustedRounded =
+        String.format(Locale.getDefault(), "%.2f", accountsPercentageAjusted) + "%"
+
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             content = { innerPadding ->
 
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
@@ -280,7 +351,8 @@ fun HomeScreen(navController: NavController) {
                             numberOfPaymentsToday = numberOfPaymentsToday,
                             numberOfPaymentsWeekly = numberOfPaymentsWeekly,
                             numberOfSales = numberOfSales,
-                            accountsPercentageRounded = accountsPercentageRounded
+                            accountsPercentageRounded = accountsPercentageRounded,
+                            accountsPercentageAjusted = accountsPercentageAjustedRounded
                         )
                     }
 
@@ -354,7 +426,7 @@ fun HomeScreen(navController: NavController) {
                             onSyncPendingPayments = { paymentsViewModel.syncPendingPayments() },
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
-                            onInitWeek = { /* TODO */ }
+                            onInitWeek = { authViewModel.updateStartOfWeekDate() },
                         )
                     }
                 }
@@ -392,6 +464,25 @@ fun HomeScreen(navController: NavController) {
                 }
             )
         }
+    }
+
+    if (showUpdateDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showUpdateDialog = false
+                authViewModel.clearUpdateStartOfWeekDateState()
+            },
+            title = { Text(dialogTitle) },
+            text = { Text(dialogMessage) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showUpdateDialog = false
+                    authViewModel.clearUpdateStartOfWeekDateState()
+                }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }
 

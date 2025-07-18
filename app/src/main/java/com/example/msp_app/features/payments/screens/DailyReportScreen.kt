@@ -308,7 +308,7 @@ fun DailyReportScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("ORD. POR NOMBRE", color = Color.White)
+                                        Text(text = "ORD. POR NOMBRE", color = Color.White)
                                     }
 
                                     Button(
@@ -326,7 +326,7 @@ fun DailyReportScreen(
                                         },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Text("ORD. POR HORA", color = Color.White)
+                                        Text(text = "ORD. POR HORA", color = Color.White)
                                     }
                                 }
 
@@ -415,7 +415,7 @@ fun DailyReportScreen(
                                             .fillMaxWidth()
                                     ) {
                                         Text(
-                                            if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
+                                            text = if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
                                             color = Color.White
                                         )
                                     }
