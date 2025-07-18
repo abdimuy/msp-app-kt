@@ -102,7 +102,8 @@ fun SaleItem(
         NewVisitDialog(
             show = true,
             onDismissRequest = { showVisitDialog.value = false },
-            sale = sale.toSale()
+            sale = sale.toSale(),
+            navController = navController
         )
     }
 }
