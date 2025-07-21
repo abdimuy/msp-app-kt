@@ -19,6 +19,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -80,6 +81,7 @@ fun NewVisitDialog(
     val authViewModel: AuthViewModel = viewModel()
     val userData by authViewModel.userData.collectAsState()
     val currentUser = (userData as? ResultState.Success)?.data
+    val isLoadingUser = userData is ResultState.Loading
 
     var selectedOption by remember { mutableStateOf(Constants.NO_SE_ENCONTRABA) }
     var showAlertDialog by remember { mutableStateOf(false) }
@@ -136,17 +138,20 @@ fun NewVisitDialog(
     }
 
     fun handleSaveVisit() {
-        if (currentUser?.COBRADOR_ID == null || currentUser.COBRADOR_ID == 0) {
+        val user = currentUser
+        if (user?.COBRADOR_ID == 0) {
             errorMessage = "No se pudo obtener el ID del cobrador. Intenta nuevamente."
             return
         }
+
+        val cobradorId = user?.COBRADOR_ID ?: 0
         coroutineScope.launch {
             val id = UUID.randomUUID().toString()
             val date = Instant.now().toString()
 
             val visit = Visit(
                 ID = id,
-                COBRADOR_ID = currentUser.COBRADOR_ID,
+                COBRADOR_ID = cobradorId,
                 COBRADOR = sale.NOMBRE_COBRADOR,
                 LNG = 0.0,
                 LAT = 0.0,
@@ -178,125 +183,162 @@ fun NewVisitDialog(
         show = true,
         onDismissRequest = onDismissRequest
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Top
-        ) {
-            Text(
-                text = "Agregar Visita",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-            Text(
-                text = sale.CLIENTE,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 250.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                visitConditionForm.forEach { (text) ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .selectable(
-                                selected = (text == selectedOption),
-                                onClick = {
-                                    selectedOption = text
-                                    if (text == Constants.PIDE_REAGENDAR) {
-                                        showDatePicker = true
-                                    }
-                                },
-                                role = Role.RadioButton
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = (text == selectedOption),
-                            onClick = null
-                        )
-                        Spacer(
-                            modifier = Modifier.width(12.dp)
-                        )
-                        Text(
-                            text = text,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
+        when (userData) {
+            is ResultState.Idle -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
+                    )
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            if (selectedOption == Constants.PIDE_REAGENDAR) {
-                OutlinedTextField(
-                    value = selectedDateTime?.let {
-                        DateUtils.formatLocalDateTime(it)
-                    } ?: "",
-                    onValueChange = {},
-                    label = { Text("Fecha y hora de cita") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    enabled = false
-                )
-            }
-
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage ?: "",
-                    color = Color.Red,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text("Observaciones (Opcional)") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(90.dp)
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = { handleSaveVisit() },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(text = "GUARDAR VISITA", color = Color.White)
-            }
-        }
-
-        if (showDatePicker) {
-            Popup(
-                alignment = Alignment.Center,
-                onDismissRequest = { showDatePicker = false }
-            ) {
+            is ResultState.Loading -> {
                 Box(
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.surface)
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    DatePicker(
-                        state = datePickerState,
-                        showModeToggle = false
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
                     )
+                }
+            }
+
+            is ResultState.Error -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Error: Error al cargar datos del cobrador")
+                }
+            }
+
+            is ResultState.Success -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    Text(
+                        text = "Agregar Visita",
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+                    Text(
+                        text = sale.CLIENTE,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 250.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        visitConditionForm.forEach { (text) ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp)
+                                    .selectable(
+                                        selected = (text == selectedOption),
+                                        onClick = {
+                                            selectedOption = text
+                                            if (text == Constants.PIDE_REAGENDAR) {
+                                                showDatePicker = true
+                                            }
+                                        },
+                                        role = Role.RadioButton
+                                    ),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(
+                                    selected = (text == selectedOption),
+                                    onClick = null
+                                )
+                                Spacer(
+                                    modifier = Modifier.width(12.dp)
+                                )
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    if (selectedOption == Constants.PIDE_REAGENDAR) {
+                        OutlinedTextField(
+                            value = selectedDateTime?.let {
+                                DateUtils.formatLocalDateTime(it)
+                            } ?: "",
+                            onValueChange = {},
+                            label = { Text("Fecha y hora de cita") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            enabled = false
+                        )
+                    }
+
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage ?: "",
+                            color = Color.Red,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("Observaciones (Opcional)") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .height(90.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { handleSaveVisit() },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(text = "GUARDAR VISITA", color = Color.White)
+                    }
+                }
+
+                if (showDatePicker) {
+                    Popup(
+                        alignment = Alignment.Center,
+                        onDismissRequest = { showDatePicker = false }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.surface)
+                        ) {
+                            DatePicker(
+                                state = datePickerState,
+                                showModeToggle = false
+                            )
+                        }
+                    }
                 }
             }
         }
