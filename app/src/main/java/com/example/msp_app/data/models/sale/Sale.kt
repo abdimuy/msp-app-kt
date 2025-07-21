@@ -37,7 +37,7 @@ data class Sale(
     val DIA_TEMPORAL_COBRANZA: String,
     val PRECIO_DE_CONTADO: Double,
     val AVAL_O_RESPONSABLE: String,
-    val FREC_PAGO: FrecuenciaPago
+    val FREC_PAGO: FrecuenciaPago?
 )
 
 enum class EstadoCobranza {

@@ -53,7 +53,7 @@ data class SaleEntity(
     val DIA_TEMPORAL_COBRANZA: String,
     val PRECIO_DE_CONTADO: Double,
     val AVAL_O_RESPONSABLE: String,
-    val FREC_PAGO: String
+    val FREC_PAGO: String?
 )
 
 data class SaleWithProductsEntity(
@@ -93,7 +93,7 @@ data class SaleWithProductsEntity(
     val DIA_TEMPORAL_COBRANZA: String,
     val PRECIO_DE_CONTADO: Double,
     val AVAL_O_RESPONSABLE: String,
-    val FREC_PAGO: String,
+    val FREC_PAGO: String?,
     @ColumnInfo(name = "PRODUCTOS")
     val PRODUCTOS: String?
 )

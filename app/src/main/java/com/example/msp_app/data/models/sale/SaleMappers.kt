@@ -80,7 +80,7 @@ fun SaleEntity.toDomain(): Sale = Sale(
     DIA_TEMPORAL_COBRANZA,
     PRECIO_DE_CONTADO,
     AVAL_O_RESPONSABLE,
-    FrecuenciaPago.valueOf(FREC_PAGO)
+    FrecuenciaPago.valueOf(FREC_PAGO.toString())
 )
 
 fun SaleWithProductsEntity.toDomain(): SaleWithProducts =
@@ -121,7 +121,7 @@ fun SaleWithProductsEntity.toDomain(): SaleWithProducts =
         DIA_TEMPORAL_COBRANZA,
         PRECIO_DE_CONTADO,
         AVAL_O_RESPONSABLE,
-        FREC_PAGO = FrecuenciaPago.valueOf(FREC_PAGO),
+        FREC_PAGO = FrecuenciaPago.valueOf(FREC_PAGO.toString()),
         PRODUCTOS = PRODUCTOS.toString()
     )
 

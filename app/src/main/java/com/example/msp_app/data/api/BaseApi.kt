@@ -9,8 +9,8 @@ open class BaseApi {
 
     protected fun createClient(baseUrl: String): Retrofit {
         val client = OkHttpClient.Builder()
-            .connectTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
+            .connectTimeout(300, TimeUnit.SECONDS)
+            .readTimeout(300, TimeUnit.SECONDS)
             .build()
 
 

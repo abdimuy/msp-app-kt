@@ -14,6 +14,7 @@ import com.example.msp_app.data.local.entities.OverduePaymentsEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
+import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
@@ -134,7 +135,21 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 val products = salesData.body.productos
                 val payments = salesData.body.pagos
 
-                saleStore.saveAll(sales.map { it.toEntity() })
+                val currentSales = saleStore.getAll().map { it.toDomain() }
+
+                val salesToSave = sales.map { apiSale ->
+                    val previous = currentSales.find { it.DOCTO_CC_ID == apiSale.DOCTO_CC_ID }
+                    val safeSale = apiSale.copy(
+                        FREC_PAGO = apiSale.FREC_PAGO ?: previous?.FREC_PAGO
+                        ?: FrecuenciaPago.SEMANAL
+                    )
+
+                    val saleWithState = previous
+                        ?.let { safeSale.copy(ESTADO_COBRANZA = it.ESTADO_COBRANZA) }
+                        ?: safeSale
+                    saleWithState.toEntity()
+                }
+                saleStore.saveAll(salesToSave)
                 productStore.saveAll(products.map { it.toEntity() })
                 paymentStore.saveAll(payments.map { it.toEntity() })
                 visitsStore.deleteAllVisits()
