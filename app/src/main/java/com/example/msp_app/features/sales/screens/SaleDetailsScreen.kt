@@ -372,14 +372,14 @@ fun SaleDetailsContent(
 
                                     latePayments < 5 -> {
                                         AlertBadge(
-                                            "Pagos atrasados: ${latePayments}",
+                                            "Pagos atrasados: $latePayments",
                                             BadgesType.Warning
                                         )
                                     }
 
                                     else -> {
                                         AlertBadge(
-                                            "Pagos atrasados: ${latePayments}",
+                                            "Pagos atrasados: $latePayments",
                                             BadgesType.Danger
                                         )
                                     }
