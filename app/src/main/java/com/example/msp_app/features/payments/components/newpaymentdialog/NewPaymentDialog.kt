@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -179,173 +181,198 @@ fun NewPaymentDialog(
         show = true,
         onDismissRequest = onDismissRequest,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Agregar Pago",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-            Text(
-                text = sale.CLIENTE,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp)
-            )
-
-            Text(
-                buildAnnotatedString {
-                    withStyle(
-                        style = SpanStyle(
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    ) {
-                        append("Saldo actual: ")
-                    }
-                    withStyle(
-                        style = SpanStyle(
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        append(sale.SALDO_REST.toCurrency(noDecimals = true))
-                    }
-                }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp)
-            ) {
-                Text(
-                    text = "Forma de pago",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                paymentMethods.forEach { (id, name) ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .selectable(
-                                selected = selectedPaymentMethod == id,
-                                onClick = { selectedPaymentMethod = id },
-                                role = Role.RadioButton
-                            )
-                    ) {
-                        RadioButton(
-                            selected = selectedPaymentMethod == id,
-                            onClick = null
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = name.uppercase(),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = inputValue,
-                onValueChange = { inputValue = it },
-                label = { Text("Ingrese monto") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                textStyle = TextStyle(fontSize = 20.sp),
-                isError = errorMessage != null,
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage ?: "",
-                    color = Color.Red,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-            }
-
-            val inputInt = inputValue.toIntOrNull()
-            if (suggestedPayment > 0 && inputInt != null && inputInt < suggestedPayment) {
+        when (val state = userData) {
+            is ResultState.Idle, is ResultState.Loading -> {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .align(Alignment.CenterHorizontally)
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "El pago es menor a la parcialidad acordada de ${suggestedPayment.toCurrency()}",
-                        color = Color.Red,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.Center)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x1AFF0000))
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        textAlign = TextAlign.Center
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
                     )
                 }
             }
-            if (suggestionsToShow.isNotEmpty()) {
+
+            is ResultState.Error -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Error: ${state.message}")
+                }
+            }
+
+            is ResultState.Success -> {
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp)
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    suggestionsToShow.chunked(3).forEach { row ->
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            row.forEach { amount ->
-                                val isSelected = inputValue == amount.toString()
-                                Button(
-                                    onClick = { inputValue = amount.toString() },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isSelected) Color(0xFF4CAF50) else Color(
-                                            0xFFBBDEFB
-                                        ),
-                                        contentColor = if (isSelected) Color.White else Color.Black
-                                    )
-                                ) {
-                                    Text(
-                                        "$amount",
-                                        fontSize = 18.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                            }
+                    Text(
+                        text = "Agregar Pago",
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+                    Text(
+                        text = sale.CLIENTE,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp)
+                    )
 
-                            repeat(3 - row.size) {
-                                Spacer(modifier = Modifier.weight(1f))
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(
+                                style = SpanStyle(
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            ) {
+                                append("Saldo actual: ")
+                            }
+                            withStyle(
+                                style = SpanStyle(
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                append(sale.SALDO_REST.toCurrency(noDecimals = true))
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp)
+                    ) {
+                        Text(
+                            text = "Forma de pago",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        paymentMethods.forEach { (id, name) ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .selectable(
+                                        selected = selectedPaymentMethod == id,
+                                        onClick = { selectedPaymentMethod = id },
+                                        role = Role.RadioButton
+                                    )
+                            ) {
+                                RadioButton(
+                                    selected = selectedPaymentMethod == id,
+                                    onClick = null
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = name.uppercase(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
                             }
                         }
                     }
+
+                    OutlinedTextField(
+                        value = inputValue,
+                        onValueChange = { inputValue = it },
+                        label = { Text("Ingrese monto") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        textStyle = TextStyle(fontSize = 20.sp),
+                        isError = errorMessage != null,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage ?: "",
+                            color = Color.Red,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
+                    val inputInt = inputValue.toIntOrNull()
+                    if (suggestedPayment > 0 && inputInt != null && inputInt < suggestedPayment) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                                .align(Alignment.CenterHorizontally)
+                        ) {
+                            Text(
+                                text = "El pago es menor a la parcialidad acordada de ${suggestedPayment.toCurrency()}",
+                                color = Color.Red,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.Center)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0x1AFF0000))
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    if (suggestionsToShow.isNotEmpty()) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp)
+                        ) {
+                            suggestionsToShow.chunked(3).forEach { row ->
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    row.forEach { amount ->
+                                        val isSelected = inputValue == amount.toString()
+                                        Button(
+                                            onClick = { inputValue = amount.toString() },
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (isSelected) Color(0xFF4CAF50) else Color(
+                                                    0xFFBBDEFB
+                                                ),
+                                                contentColor = if (isSelected) Color.White else Color.Black
+                                            )
+                                        ) {
+                                            Text(
+                                                "$amount",
+                                                fontSize = 18.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+
+                                    repeat(3 - row.size) {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = { showConfirmDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = inputValue.isNotBlank() && errorMessage == null
+                    ) {
+                        Text("GUARDAR PAGO", color = Color.White)
+                    }
                 }
-            }
-            Button(
-                onClick = { showConfirmDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = inputValue.isNotBlank() && errorMessage == null
-            ) {
-                Text("GUARDAR PAGO", color = Color.White)
             }
         }
     }
