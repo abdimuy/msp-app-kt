@@ -11,11 +11,24 @@ import androidx.annotation.RequiresApi
 import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
 import com.example.msp_app.ui.theme.ThemeController
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreSettings
+import com.google.firebase.firestore.persistentCacheSettings
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val settings = FirebaseFirestoreSettings.Builder()
+            .setLocalCacheSettings(
+                persistentCacheSettings {
+                    setSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                }
+            )
+            .build()
+
+        FirebaseFirestore.getInstance().firestoreSettings = settings
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val chan = NotificationChannel(
