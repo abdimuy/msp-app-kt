@@ -28,6 +28,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -66,6 +67,10 @@ fun SecondarySaleItem(
 ) {
     val isDark = ThemeController.isDarkMode
 
+    val isNew = remember(sale.SALDO_REST, sale.TOTAL_IMPORTE, sale.ENGANCHE) {
+        sale.SALDO_REST == sale.TOTAL_IMPORTE - sale.ENGANCHE
+    }
+
     Card(
         elevation = CardDefaults.cardElevation(
             defaultElevation =
@@ -94,20 +99,42 @@ fun SecondarySaleItem(
                 Column(
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(
-                        buildAnnotatedString {
-                            withStyle(
-                                style = SpanStyle(
-                                    fontSize = 18.sp,
+                    Row {
+                        if (isNew) {
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = Color(0xFF4CAF50),
+                                        shape = MaterialTheme.shapes.small
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Nuevo",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                            ) {
-                                append(sale.CLIENTE + " ")
                             }
-                        },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                ) {
+                                    append(sale.CLIENTE + " ")
+                                }
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
                     Text(
                         text = buildAnnotatedString {
                             withStyle(
@@ -130,7 +157,7 @@ fun SecondarySaleItem(
                         }
                     )
                 }
-
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "$distanceToCurrentLocation m",
                     fontSize = 20.sp,

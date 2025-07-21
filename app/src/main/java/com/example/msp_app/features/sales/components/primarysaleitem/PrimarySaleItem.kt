@@ -62,6 +62,8 @@ fun PrimarySaleItem(
 ) {
     val isDark = ThemeController.isDarkMode
 
+    val isNew = sale.SALDO_REST == sale.PRECIO_TOTAL - sale.ENGANCHE
+
     Card(
         elevation = CardDefaults.cardElevation(
             defaultElevation =
@@ -81,10 +83,10 @@ fun PrimarySaleItem(
         onClick = onClick
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(45.dp)
                         .background(
                             if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) Color(0xFF4CAF50)
                             else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) Color(
@@ -144,20 +146,42 @@ fun PrimarySaleItem(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        buildAnnotatedString {
-                            withStyle(
-                                style = SpanStyle(
-                                    fontSize = 18.sp,
+                    Row(
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        if (isNew) {
+                            Box(
+                                modifier = Modifier
+                                    .background(
+                                        color = Color(0xFF4CAF50),
+                                        shape = MaterialTheme.shapes.small
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Nuevo",
+                                    color = Color.White,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                            ) {
-                                append(sale.CLIENTE + " ")
                             }
-                        },
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                ) {
+                                    append(sale.CLIENTE + " ")
+                                }
+                            },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                     Text(
                         text = "${sale.FOLIO} - $date",
                         fontSize = 16.sp,
