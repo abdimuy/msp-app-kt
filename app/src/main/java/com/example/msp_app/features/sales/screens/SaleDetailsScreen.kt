@@ -63,6 +63,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -429,11 +430,17 @@ fun SaleDetailsContent(
 
 @Composable
 fun ElapsedTimeAlert(lastPaymentDateIso: String) {
-    val parsedInstant = Instant.parse(lastPaymentDateIso)
-    val lastPaymentDate = parsedInstant.atZone(ZoneId.systemDefault()).toLocalDateTime()
-    val now = LocalDateTime.now()
+    val lastPaymentDateTime = runCatching {
+        Instant.parse(lastPaymentDateIso)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDateTime()
+    }.getOrElse {
+        LocalDate.parse(lastPaymentDateIso)
+            .atStartOfDay()
+    }
 
-    val duration = Duration.between(lastPaymentDate, now)
+    val now = LocalDateTime.now()
+    val duration = Duration.between(lastPaymentDateTime, now)
     val totalMinutes = duration.toMinutes()
     val totalHours = duration.toHours()
     val totalDays = duration.toDays()
