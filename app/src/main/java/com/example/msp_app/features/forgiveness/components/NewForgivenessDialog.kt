@@ -43,7 +43,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
@@ -53,6 +52,7 @@ import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.util.UUID
 
 @Composable
@@ -97,6 +97,8 @@ fun NewForgivenessDialog(
         val forgivenessAmount = inputValue.toDoubleOrNull()
         if (forgivenessAmount != null && forgivenessAmount > 0) {
             coroutineScope.launch {
+                val date = Instant.now().toString()
+
                 val forgiveness = Payment(
                     CLIENTE_ID = sale.CLIENTE_ID,
                     ID = UUID.randomUUID().toString(),
@@ -104,7 +106,7 @@ fun NewForgivenessDialog(
                     LNG = 0.0,
                     IMPORTE = inputValue.toDouble(),
                     NOMBRE_CLIENTE = sale.CLIENTE,
-                    FECHA_HORA_PAGO = DateUtils.getIsoDateTime(),
+                    FECHA_HORA_PAGO = date,
                     COBRADOR = sale.NOMBRE_COBRADOR,
                     COBRADOR_ID = currentUser.COBRADOR_ID,
                     DOCTO_CC_ID = 0,
