@@ -193,11 +193,17 @@ fun SalesScreen(
 
                         is ResultState.Success -> {
 
-                            val salesToVisit = filteredSales.filter {
-                                it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
-                                        it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE ||
-                                        it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
-                            }
+                            val salesToVisit = filteredSales
+                                .filter {
+                                    it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
+                                            it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE ||
+                                            it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
+                                }
+                                .sortedWith(
+                                    compareByDescending<SaleWithProducts> { it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE }
+                                        .thenBy { it.FECHA }
+                                )
+
                             val visitedSales =
                                 filteredSales.filter { it.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO }
                             val paidSale =
