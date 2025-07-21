@@ -58,7 +58,6 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.services.UpdateLocationService
-import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
@@ -76,8 +75,6 @@ fun NewVisitDialog(
     if (!show) return
 
     val context = LocalContext.current
-
-    val isDarkTheme = ThemeController.isDarkMode
 
     val visitsViewModel: VisitsViewModel = viewModel()
     val authViewModel: AuthViewModel = viewModel()
