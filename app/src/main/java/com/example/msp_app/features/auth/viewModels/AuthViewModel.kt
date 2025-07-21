@@ -6,8 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
+import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
+import com.example.msp_app.data.models.sale.EstadoCobranza
+import com.example.msp_app.data.models.sale.toDomain
+import com.example.msp_app.data.models.sale.toEntity
+import com.example.msp_app.data.models.sale.toSale
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -24,6 +29,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
+    private val salesStore = SalesLocalDataSource(application.applicationContext)
 
     private val _currentUser = MutableStateFlow<FirebaseUser?>(auth.currentUser)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser
@@ -93,6 +99,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         .document(current.data.ID)
                         .update(Constants.START_OF_WEEK_DATE_FIELD, startOfWeekDate)
                         .await()
+
+                    val sales = salesStore.getAll().map {
+                        it.toDomain()
+                    }
+                    val salesWithoutStatus = sales.map {
+                        it.copy(
+                            ESTADO_COBRANZA = EstadoCobranza.PENDIENTE
+                        ).toSale().toEntity()
+                    }
+                    salesStore.saveAll(salesWithoutStatus)
+
                     _userData.value = ResultState.Success(
                         current.data.copy(FECHA_CARGA_INICIAL = startOfWeekDate)
                     )
