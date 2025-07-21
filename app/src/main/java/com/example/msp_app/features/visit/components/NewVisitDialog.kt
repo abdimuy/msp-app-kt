@@ -62,6 +62,7 @@ import com.example.msp_app.services.UpdateLocationService
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -165,7 +166,19 @@ fun NewVisitDialog(
                 NOTA = note,
             )
 
-            visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID)
+            if (selectedOption == Constants.PIDE_REAGENDAR) {
+                val dateTime = selectedDateTime
+                if (dateTime != null) {
+                    val isoDate = dateTime
+                        .atZone(ZoneId.systemDefault())
+                        .toInstant()
+                        .toString()
+
+                    visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID, isoDate)
+                }
+            } else {
+                visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID, null)
+            }
 
             val intent = Intent(context, UpdateLocationService::class.java).apply {
                 putExtra("visit_id", visit.ID)

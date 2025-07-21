@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,6 +44,9 @@ import com.example.msp_app.R
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.ui.theme.ThemeController
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun PrimarySaleItem(
@@ -63,6 +67,13 @@ fun PrimarySaleItem(
     val isDark = ThemeController.isDarkMode
 
     val isNew = sale.SALDO_REST == sale.PRECIO_TOTAL - sale.ENGANCHE
+
+    val formattedDiaCobranza = runCatching {
+        ZonedDateTime
+            .parse(sale.DIA_TEMPORAL_COBRANZA, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            .withZoneSameInstant(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("dd MMM HH:mm"))
+    }.getOrDefault(sale.DIA_TEMPORAL_COBRANZA).uppercase()
 
     Card(
         elevation = CardDefaults.cardElevation(
@@ -252,27 +263,60 @@ fun PrimarySaleItem(
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    buildAnnotatedString {
-                        withStyle(style = SpanStyle(fontSize = 16.sp)) {
-                            append("Abonado: ")
-                        }
-                        withStyle(
-                            style = SpanStyle(
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                if (sale.DIA_TEMPORAL_COBRANZA.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = Color(0xFFFF9800),
+                                shape = MaterialTheme.shapes.small
                             )
-                        ) {
-                            append(text = "$${(sale.PRECIO_TOTAL - sale.SALDO_REST).toInt()}")
-                        }
-                    },
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                ) {
+                                    append("Visitar: ")
+                                }
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                ) {
+                                    append(formattedDiaCobranza)
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(style = SpanStyle(fontSize = 16.sp)) {
+                                append("Abonado: ")
+                            }
+                            withStyle(
+                                style = SpanStyle(
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            ) {
+                                append(text = "$${(sale.PRECIO_TOTAL - sale.SALDO_REST).toInt()}")
+                            }
+                        },
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 Text(
                     buildAnnotatedString {
                         withStyle(style = SpanStyle(fontSize = 16.sp)) {

@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 
 class VisitsViewModel(application: Application) : AndroidViewModel(application) {
     private val visitStore = VisitsLocalDataSource(application.applicationContext)
+    private val saleStore = VisitsLocalDataSource(application.applicationContext)
 
     private val api = ApiProvider.create(VisitsApi::class.java)
 
@@ -77,7 +78,7 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun saveVisit(visit: Visit, saleId: Int) {
+    fun saveVisit(visit: Visit, saleId: Int, newDate: String?) {
         viewModelScope.launch {
             _saveVisitState.value = ResultState.Loading
 
@@ -90,6 +91,14 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
                         visit = visit.toEntity(),
                         newState = status
                     )
+                    if (
+                        newDate != null && newDate.isNotEmpty()
+                    ) {
+                        saleStore.updateTemporaryCollectionDate(
+                            saleId = saleId,
+                            newDate = newDate
+                        )
+                    }
                 }
                 _saveVisitState.value = ResultState.Success(Unit)
             } catch (e: Exception) {

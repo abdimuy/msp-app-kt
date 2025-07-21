@@ -166,6 +166,17 @@ interface SaleDao {
     )
     suspend fun updateTotal(saleId: Int, amount: Double, estadoCobranza: EstadoCobranza)
 
+    @Query(
+        """
+        UPDATE sales
+        SET 
+            DIA_TEMPORAL_COBRANZA = :newDate
+        WHERE 
+            DOCTO_CC_ACR_ID = :saleId
+    """
+    )
+    suspend fun updateTemporaryCollectionDate(saleId: Int, newDate: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(sales: List<SaleEntity>)
 

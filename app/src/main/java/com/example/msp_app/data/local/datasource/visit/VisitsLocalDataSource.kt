@@ -59,6 +59,13 @@ class VisitsLocalDataSource(private val context: Context) {
         )
     }
 
+    suspend fun updateTemporaryCollectionDate(
+        saleId: Int,
+        newDate: String,
+    ) {
+        saleDao.updateTemporaryCollectionDate(saleId, newDate)
+    }
+
     suspend fun deleteAllVisits() {
         visitDao.deleteAllVisits()
     }
