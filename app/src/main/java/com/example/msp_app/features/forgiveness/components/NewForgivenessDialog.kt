@@ -5,12 +5,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -144,83 +146,108 @@ fun NewForgivenessDialog(
         show = true,
         onDismissRequest = onDismissRequest
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "Agregar Condonación",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.padding(bottom = 24.dp)
-            )
-            Text(
-                text = sale.CLIENTE,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp)
-            )
-            Text(
-                buildAnnotatedString {
-                    withStyle(
-                        style = SpanStyle(
-                            fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    ) {
-                        append("Saldo actual: ")
-                    }
-                    withStyle(
-                        style = SpanStyle(
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        append(sale.SALDO_REST.toCurrency(noDecimals = true))
-                    }
+        when (val state = userData) {
+            is ResultState.Idle, is ResultState.Loading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
+                    )
                 }
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            OutlinedTextField(
-                value = inputValue,
-                onValueChange = { inputValue = it },
-                label = { Text("Ingrese monto") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                textStyle = TextStyle(fontSize = 20.sp),
-                isError = errorMessage != null,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done
-                )
-            )
-
-            if (errorMessage != null) {
-                Text(
-                    text = errorMessage ?: "",
-                    color = Color.Red,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
             }
 
-            Spacer(Modifier.height(20.dp))
-            Button(
-                onClick = { showAlertDialog = true },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = inputValue.isNotBlank() && errorMessage == null
-            ) {
-                Text(
-                    text = "GUARDAR CONDONACIÓN",
-                    color = Color.White
-                )
+            is ResultState.Error -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Error: ${state.message}")
+                }
+            }
+
+            is ResultState.Success -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = "Agregar Condonación",
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.padding(bottom = 24.dp)
+                    )
+                    Text(
+                        text = sale.CLIENTE,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 4.dp)
+                    )
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(
+                                style = SpanStyle(
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            ) {
+                                append("Saldo actual: ")
+                            }
+                            withStyle(
+                                style = SpanStyle(
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                append(sale.SALDO_REST.toCurrency(noDecimals = true))
+                            }
+                        }
+                    )
+
+                    Spacer(Modifier.height(20.dp))
+
+                    OutlinedTextField(
+                        value = inputValue,
+                        onValueChange = { inputValue = it },
+                        label = { Text("Ingrese monto") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
+                        textStyle = TextStyle(fontSize = 20.sp),
+                        isError = errorMessage != null,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        )
+                    )
+
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage ?: "",
+                            color = Color.Red,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+                    Button(
+                        onClick = { showAlertDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = inputValue.isNotBlank() && errorMessage == null
+                    ) {
+                        Text(
+                            text = "GUARDAR CONDONACIÓN",
+                            color = Color.White
+                        )
+                    }
+                }
             }
         }
     }
