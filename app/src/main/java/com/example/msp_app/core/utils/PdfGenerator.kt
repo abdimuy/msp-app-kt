@@ -128,11 +128,10 @@ object PdfGenerator {
 
         pdfDocument.finishPage(page)
 
-        var pageNumber = 2
-        var visitPage =
-            pdfDocument.startPage(
-                PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
-            )
+        var visitPageNumber = 2
+        var visitPage = pdfDocument.startPage(
+            PdfDocument.PageInfo.Builder(pageWidth, pageHeight, visitPageNumber).create()
+        )
         var visitCanvas = visitPage.canvas
         var y = 40
 
@@ -146,14 +145,12 @@ object PdfGenerator {
 
         paint.isFakeBoldText = true
         val hDate = "Fecha/Hora"
-        val hCollector = "Cobrador"
         val hType = "Tipo"
         val hNote = "Nota"
         val xVisitDate = marginLeft
         visitCanvas.drawText(hDate, xVisitDate, y.toFloat(), paint)
         val xVisitCollector = xVisitDate + paint.measureText(hDate) + 30f
-        visitCanvas.drawText(hCollector, xVisitCollector, y.toFloat(), paint)
-        val xVisitType = xVisitCollector + 120f
+        val xVisitType = xVisitCollector + 0f
         visitCanvas.drawText(hType, xVisitType, y.toFloat(), paint)
         val xVisitNote = xVisitType + 120f
         visitCanvas.drawText(hNote, xVisitNote, y.toFloat(), paint)
@@ -167,15 +164,16 @@ object PdfGenerator {
         for ((date, collector, type, note) in visits.lines) {
             if (y > pageHeight - 80) {
                 pdfDocument.finishPage(visitPage)
-                val newPage = pdfDocument.startPage(
-                    PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 3).create()
+                visitPageNumber++
+                visitPage = pdfDocument.startPage(
+                    PdfDocument.PageInfo.Builder(pageWidth, pageHeight, visitPageNumber).create()
                 )
-                visitCanvas = newPage.canvas
+                visitCanvas = visitPage.canvas
                 y = 40
             }
 
             visitCanvas.drawText(date, xVisitDate, y.toFloat(), paint)
-            visitCanvas.drawText(collector.take(30), xVisitCollector, y.toFloat(), paint)
+//            visitCanvas.drawText(collector.take(30), xVisitCollector, y.toFloat(), paint)
             visitCanvas.drawText(type.take(23), xVisitType, y.toFloat(), paint)
             visitCanvas.drawText(note.take(40), xVisitNote, y.toFloat(), paint)
             y += lineSpacing
