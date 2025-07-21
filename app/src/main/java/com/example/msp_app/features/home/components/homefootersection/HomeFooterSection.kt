@@ -169,11 +169,7 @@ fun HomeFooterSection(
             AlertDialog(
                 onDismissRequest = { showDialogInitWeek.value = false },
                 title = { Text("Confirmación") },
-                text = {
-                    Text(
-                        "Esta acción no se puede revertir y no debe ejecutarse diariamente. ¿Desea continuar?"
-                    )
-                },
+                text = { Text("¿Están seguros de inicializar semana?") },
                 confirmButton = {
                     TextButton(onClick = {
                         showDialogInitWeek.value = false
