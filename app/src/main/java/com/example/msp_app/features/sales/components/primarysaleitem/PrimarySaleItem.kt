@@ -28,6 +28,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -66,7 +67,9 @@ fun PrimarySaleItem(
 ) {
     val isDark = ThemeController.isDarkMode
 
-    val isNew = sale.SALDO_REST == sale.PRECIO_TOTAL - sale.ENGANCHE
+    val isNew = remember(sale.SALDO_REST, sale.TOTAL_IMPORTE, sale.ENGANCHE) {
+        sale.SALDO_REST == sale.PRECIO_TOTAL - sale.ENGANCHE
+    }
 
     val formattedDiaCobranza = runCatching {
         ZonedDateTime

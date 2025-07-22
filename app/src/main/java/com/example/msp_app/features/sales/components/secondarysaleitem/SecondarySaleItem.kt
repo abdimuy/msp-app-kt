@@ -68,7 +68,7 @@ fun SecondarySaleItem(
     val isDark = ThemeController.isDarkMode
 
     val isNew = remember(sale.SALDO_REST, sale.TOTAL_IMPORTE, sale.ENGANCHE) {
-        sale.SALDO_REST == sale.TOTAL_IMPORTE - sale.ENGANCHE
+        sale.SALDO_REST == sale.PRECIO_TOTAL - sale.ENGANCHE
     }
 
     Card(
