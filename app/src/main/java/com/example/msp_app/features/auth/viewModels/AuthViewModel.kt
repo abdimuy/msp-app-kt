@@ -17,10 +17,12 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
@@ -57,15 +59,24 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _userData.value = ResultState.Loading
             try {
-                val querySnapshot = FirebaseFirestore.getInstance()
-                    .collection(Constants.USERS_COLLECTION)
-                    .whereEqualTo("EMAIL", email)
-                    .get()
-                    .await()
+                val firestore = FirebaseFirestore.getInstance()
+                val TIMEOUT_MS = 3000L
+
+                val serverSnapshot = withTimeoutOrNull(TIMEOUT_MS) {
+                    firestore.collection(Constants.USERS_COLLECTION)
+                        .whereEqualTo("EMAIL", email)
+                        .get()
+                        .await()
+                }
+
+                val querySnapshot = serverSnapshot
+                    ?: firestore.collection(Constants.USERS_COLLECTION)
+                        .whereEqualTo("EMAIL", email)
+                        .get(Source.CACHE)
+                        .await()
 
                 val data = querySnapshot.documents.firstOrNull()?.let { doc ->
-                    doc.toObject(User::class.java)
-                        ?.copy(ID = doc.id)
+                    doc.toObject(User::class.java)?.copy(ID = doc.id)
                 }
                 _userData.value = ResultState.Success(data)
             } catch (e: Exception) {
