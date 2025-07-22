@@ -66,7 +66,7 @@ fun SalesScreen(
         else -> searchSimilarItems(
             query = query,
             items = sales,
-            threshold = 70
+            threshold = 90
         ) { sale ->
             "${sale.CLIENTE} ${sale.FOLIO} ${sale.CALLE} ${sale.CIUDAD} ${sale.ESTADO} ${sale.TELEFONO}"
         }
