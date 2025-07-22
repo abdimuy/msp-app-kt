@@ -92,7 +92,10 @@ fun AppNavigation() {
                         navController = navController
                     )
                 } else {
-                    // Manejar el caso en que no se proporciona un ID de venta válido
+                    // Handle the case where saleId is null, maybe show an error or navigate back
+                    navController.navigate(Screen.Sales.route) {
+                        popUpTo(Screen.Sales.route) { inclusive = true }
+                    }
                 }
             }
 
