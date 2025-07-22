@@ -149,6 +149,7 @@ fun DailyReportScreen(
     var textDate by remember { mutableStateOf(TextFieldValue("")) }
     val datePickerState = rememberDatePickerState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
+    val forgivenessState by viewModel.forgivenessByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
     val visitsViewModel: VisitsViewModel = viewModel()
@@ -160,6 +161,7 @@ fun DailyReportScreen(
             textDate = data.textField
             viewModel.getPaymentsByDate(data.startIso, data.endIso)
             visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
+            viewModel.getForgivenessByDate(data.startIso, data.endIso)
         }
     }
 
@@ -171,6 +173,7 @@ fun DailyReportScreen(
                 textDate = data.textField
                 viewModel.getPaymentsByDate(data.startIso, data.endIso)
                 visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
+                viewModel.getForgivenessByDate(data.startIso, data.endIso)
                 showDatePicker = false
             }
         }
@@ -186,6 +189,19 @@ fun DailyReportScreen(
             )
         }
     }
+
+    val paymentTextData = formatPaymentsTextList(
+        visiblePayments
+    )
+    val visitTextData = formatVisitsTextList(
+        (visitsState as? ResultState.Success)?.data
+            ?: emptyList()
+    )
+
+    val forgivenessTextData = formatForgivenessTextList(
+        (forgivenessState as? ResultState.Success)?.data
+            ?: emptyList()
+    )
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -354,20 +370,13 @@ fun DailyReportScreen(
                                             coroutineScope.launch {
                                                 isGeneratingPdf = true
 
-                                                val paymentTextData = formatPaymentsTextList(
-                                                    visiblePayments
-                                                )
-                                                val visitTextData = formatVisitsTextList(
-                                                    (visitsState as? ResultState.Success)?.data
-                                                        ?: emptyList()
-                                                )
-
                                                 val file = withContext(Dispatchers.IO) {
                                                     PdfGenerator.generatePdfFromLines(
                                                         context = context,
                                                         data = paymentTextData,
                                                         visits = visitTextData,
                                                         title = "REPORTE DE PAGOS DIARIOS",
+                                                        forgiveness = forgivenessTextData,
                                                         nameCollector = visiblePayments.firstOrNull()?.COBRADOR
                                                             ?: "No especificado",
                                                         fileName = "reporte_diario_$reportDate.pdf"
@@ -486,6 +495,12 @@ data class VisitTextData(
     val totalCount: Int
 )
 
+data class ForgivenessTextData(
+    val lines: List<PaymentLineData>,
+    val totalCount: Int,
+    val totalAmount: Double
+)
+
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
     val lines = payments.map { payment ->
         val formattedDate = DateUtils.formatIsoDate(
@@ -526,4 +541,22 @@ fun formatVisitsTextList(visits: List<Visit>): VisitTextData {
         )
     }
     return VisitTextData(lines, lines.size)
+}
+
+fun formatForgivenessTextList(forgiveness: List<Payment>): ForgivenessTextData {
+    val lines = forgiveness.map { payment ->
+        PaymentLineData(
+            date = DateUtils.formatIsoDate(
+                payment.FECHA_HORA_PAGO,
+                "dd/MM/yy HH:mm",
+                Locale("es", "MX")
+            ),
+            client = payment.NOMBRE_CLIENTE,
+            amount = payment.IMPORTE,
+            paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+        )
+    }
+    val totalCount = forgiveness.size
+    val totalAmount = forgiveness.sumOf { it.IMPORTE }
+    return ForgivenessTextData(lines, totalCount, totalAmount)
 }

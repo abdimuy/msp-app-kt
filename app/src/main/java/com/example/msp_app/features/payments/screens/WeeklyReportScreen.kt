@@ -68,6 +68,7 @@ fun WeeklyReportScreen(
 ) {
     val scrollState = rememberScrollState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
+    val forgivenessState by viewModel.forgivenessByDateState.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
 
     val authViewModel = LocalAuthViewModel.current
@@ -88,6 +89,7 @@ fun WeeklyReportScreen(
     LaunchedEffect(startIso) {
         viewModel.getPaymentsByDate(startIso, endIso)
         visitsViewModel.getVisitsByDate(startIso, endIso)
+        viewModel.getForgivenessByDate(startIso, endIso)
     }
 
     fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
@@ -160,6 +162,41 @@ fun WeeklyReportScreen(
 
         return builder.toString()
     }
+
+    fun formatForgivenessTextList(
+        forgiveness: List<Payment>
+    ): ForgivenessTextData {
+        val lines = forgiveness.map { payment ->
+            val formattedDate = DateUtils.formatIsoDate(
+                payment.FECHA_HORA_PAGO,
+                "dd/MM/yy HH:mm",
+                Locale("es", "MX")
+            )
+            PaymentLineData(
+                date = formattedDate,
+                client = payment.NOMBRE_CLIENTE,
+                amount = payment.IMPORTE,
+                paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+            )
+        }
+
+        val totalCount = forgiveness.size
+        val totalAmount = forgiveness.sumOf { it.IMPORTE }
+
+        return ForgivenessTextData(lines, totalCount, totalAmount)
+    }
+
+
+    val paymentTextData =
+        formatPaymentsTextList(visiblePayments)
+    val visitTextData = formatVisitsTextList(
+        (visitsState as? ResultState.Success)?.data
+            ?: emptyList()
+    )
+    val forgivenessTextData = formatForgivenessTextList(
+        (forgivenessState as? ResultState.Success)?.data
+            ?: emptyList()
+    )
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -260,17 +297,12 @@ fun WeeklyReportScreen(
                                     onClick = {
                                         coroutineScope.launch {
                                             isGeneratingPdf = true
-                                            val paymentTextData =
-                                                formatPaymentsTextList(visiblePayments)
-                                            val visitTextData = formatVisitsTextList(
-                                                (visitsState as? ResultState.Success)?.data
-                                                    ?: emptyList()
-                                            )
                                             val file = withContext(Dispatchers.IO) {
                                                 PdfGenerator.generatePdfFromLines(
                                                     context = context,
                                                     data = paymentTextData,
                                                     visits = visitTextData,
+                                                    forgiveness = forgivenessTextData,
                                                     title = "REPORTE DE PAGOS SEMANAL",
                                                     nameCollector = visiblePayments.firstOrNull()?.COBRADOR
                                                         ?: "No especificado",

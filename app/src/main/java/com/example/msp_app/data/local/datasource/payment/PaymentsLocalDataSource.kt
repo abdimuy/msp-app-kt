@@ -24,6 +24,10 @@ class PaymentsLocalDataSource(private val context: Context) {
         return paymentDao.getPaymentsByDate(start, end)
     }
 
+    suspend fun getForgivenessByDate(start: String, end: String): List<PaymentEntity> {
+        return paymentDao.getForgivenessByDate(start, end)
+    }
+
     suspend fun getPaymentsGroupedByDaySince(startDate: String): Map<String, List<PaymentEntity>> {
         return paymentDao.getPaymentsGroupedByDaySince(startDate)
     }

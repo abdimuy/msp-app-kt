@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import com.example.msp_app.features.payments.screens.ForgivenessTextData
 import com.example.msp_app.features.payments.screens.PaymentTextData
 import com.example.msp_app.features.payments.screens.VisitTextData
 import java.io.File
@@ -17,6 +18,7 @@ object PdfGenerator {
         context: Context,
         data: PaymentTextData,
         visits: VisitTextData,
+        forgiveness: ForgivenessTextData,
         title: String,
         nameCollector: String,
         fileName: String
@@ -93,6 +95,41 @@ object PdfGenerator {
             yPos += lineSpacing
         }
 
+        yPos += lineSpacing
+        canvas.drawLine(marginLeft, yPos.toFloat(), pageWidth - marginLeft, yPos.toFloat(), paint)
+        yPos += lineSpacing
+        yPos += lineSpacing
+
+        if (forgiveness.lines.isNotEmpty()) {
+            if (yPos > pageHeight - 80) {
+                pdfDocument.finishPage(page)
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                yPos = 40
+            }
+
+            paint.isFakeBoldText = true
+            canvas.drawText("Condonaciones", marginLeft, yPos.toFloat(), paint)
+            yPos += 20
+
+            paint.isFakeBoldText = false
+            for ((date, client, amount, method) in forgiveness.lines) {
+                if (yPos > pageHeight - 80) {
+                    pdfDocument.finishPage(page)
+                    page = pdfDocument.startPage(pageInfo)
+                    canvas = page.canvas
+                    yPos = 40
+                }
+
+                val formattedAmount = amount.toCurrency(noDecimals = true)
+                canvas.drawText(date, xDate, yPos.toFloat(), paint)
+                canvas.drawText(client.take(35), xClient, yPos.toFloat(), paint)
+                canvas.drawText(method.label.uppercase().take(30), xMethod, yPos.toFloat(), paint)
+                canvas.drawText(formattedAmount, xAmount, yPos.toFloat(), paint)
+
+                yPos += lineSpacing
+            }
+        }
 
         yPos += lineSpacing
         canvas.drawLine(marginLeft, yPos.toFloat(), pageWidth - marginLeft, yPos.toFloat(), paint)

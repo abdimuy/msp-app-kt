@@ -45,6 +45,10 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
     val paymentsByDateState: StateFlow<ResultState<List<Payment>>> = _paymentsByDateState
 
+    private val _forgivenessByDateState =
+        MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
+    val forgivenessByDateState: StateFlow<ResultState<List<Payment>>> = _forgivenessByDateState
+
     private val _paymentsGroupedByDayWeeklyState =
         MutableStateFlow<ResultState<Map<String, List<Payment>>>>(ResultState.Idle)
     val paymentsGroupedByDayWeeklyState: StateFlow<ResultState<Map<String, List<Payment>>>> =
@@ -146,6 +150,18 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                     .map { it.toDomain() }
             }
             _paymentsByDateState.value = ResultState.Success(payments)
+        }
+    }
+
+    fun getForgivenessByDate(startDate: String, endDate: String) {
+        viewModelScope.launch {
+            _forgivenessByDateState.value = ResultState.Loading
+
+            val payments = withContext(Dispatchers.IO) {
+                paymentStore.getForgivenessByDate(startDate, endDate)
+                    .map { it.toDomain() }
+            }
+            _forgivenessByDateState.value = ResultState.Success(payments)
         }
     }
 
