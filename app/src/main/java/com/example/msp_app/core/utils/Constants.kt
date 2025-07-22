@@ -1,6 +1,8 @@
 package com.example.msp_app.core.utils
 
 object Constants {
+    const val APP_VERSION = "2.0.1"
+
     const val PAGO_EN_EFECTIVO_ID = 157
     const val PAGO_CON_CHEQUE_ID = 158
     const val PAGO_CON_TRANSFERENCIA_ID = 52569

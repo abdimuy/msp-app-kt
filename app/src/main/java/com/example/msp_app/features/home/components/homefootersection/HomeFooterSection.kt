@@ -24,6 +24,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.msp_app.core.utils.Constants.APP_VERSION
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
@@ -185,5 +187,12 @@ fun HomeFooterSection(
                 }
             )
         }
+
+        Text(
+            text = "Versión $APP_VERSION",
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(8.dp),
+            fontSize = 16.sp
+        )
     }
 }
