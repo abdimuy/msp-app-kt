@@ -94,7 +94,6 @@ fun NewVisitDialog(
     val datePickerState = rememberDatePickerState()
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDateTime by remember { mutableStateOf<LocalDateTime?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
@@ -203,7 +202,8 @@ fun NewVisitDialog(
 
             note = ""
             selectedOption = Constants.NO_SE_ENCONTRABA
-            selectedDateTime = null
+            selectedTime = null
+            selectedDate = null
             showAlertDialog = true
         }
     }
