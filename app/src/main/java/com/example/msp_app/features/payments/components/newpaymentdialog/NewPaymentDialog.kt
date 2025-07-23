@@ -1,6 +1,8 @@
 package com.example.msp_app.features.payments.components.newpaymentdialog
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,6 +71,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
 
+@SuppressLint("ContextCastToActivity")
 @Composable
 fun NewPaymentDialog(
     show: Boolean,
@@ -86,7 +89,8 @@ fun NewPaymentDialog(
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsBySuggestedAmountsState by paymentsViewModel.paymentsBySuggestedAmountsState.collectAsState()
-    val authViewModel: AuthViewModel = viewModel()
+    val activity = LocalContext.current as ComponentActivity
+    val authViewModel: AuthViewModel = viewModel(activity)
     val userData by authViewModel.userData.collectAsState()
 
     val currentUser = (userData as? ResultState.Success)?.data
