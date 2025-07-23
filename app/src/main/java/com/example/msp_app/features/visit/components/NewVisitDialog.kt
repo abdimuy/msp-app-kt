@@ -2,6 +2,7 @@ package com.example.msp_app.features.visit.components
 
 import android.app.TimePickerDialog
 import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,7 +80,8 @@ fun NewVisitDialog(
     val context = LocalContext.current
 
     val visitsViewModel: VisitsViewModel = viewModel()
-    val authViewModel: AuthViewModel = viewModel()
+    val activity = LocalContext.current as ComponentActivity
+    val authViewModel: AuthViewModel = viewModel(activity)
     val userData by authViewModel.userData.collectAsState()
     val currentUser = (userData as? ResultState.Success)?.data
     val isLoadingUser = userData is ResultState.Loading

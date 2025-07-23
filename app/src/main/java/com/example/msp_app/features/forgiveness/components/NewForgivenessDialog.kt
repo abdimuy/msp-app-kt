@@ -1,6 +1,8 @@
 package com.example.msp_app.features.forgiveness.components
 
+import android.annotation.SuppressLint
 import android.content.Intent
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,6 +57,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
 
+@SuppressLint("ContextCastToActivity")
 @Composable
 fun NewForgivenessDialog(
     show: Boolean,
@@ -67,7 +70,8 @@ fun NewForgivenessDialog(
 
     val isDark = ThemeController.isDarkMode
 
-    val authViewModel: AuthViewModel = viewModel()
+    val activity = LocalContext.current as ComponentActivity
+    val authViewModel: AuthViewModel = viewModel(activity)
     val paymentsViewModel: PaymentsViewModel = viewModel()
 
     val userData by authViewModel.userData.collectAsState()
