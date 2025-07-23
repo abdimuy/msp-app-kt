@@ -35,7 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,7 +58,7 @@ fun SalesScreen(
 ) {
     val viewModel: SalesViewModel = viewModel()
     val state by viewModel.salesState.collectAsState()
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     val sales = (state as? ResultState.Success<List<SaleWithProducts>>)?.data ?: emptyList()
     val filteredSales: List<SaleWithProducts> = when {
         sales.isEmpty() -> emptyList()
@@ -72,7 +72,7 @@ fun SalesScreen(
         }
     }
 
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var selectedTabIndex by rememberSaveable { mutableIntStateOf(0) }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
@@ -238,7 +238,10 @@ fun SalesScreen(
                                         SaleItem(
                                             sale = sale,
                                             onClick = {
-                                                navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}")
+                                                navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}") {
+                                                    launchSingleTop = true
+                                                    restoreState = true
+                                                }
                                             },
                                             navController = navController
                                         )
