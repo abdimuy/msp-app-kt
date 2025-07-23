@@ -62,9 +62,12 @@ import com.example.msp_app.navigation.Screen
 import com.example.msp_app.services.UpdateLocationService
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,8 +87,6 @@ fun NewVisitDialog(
     val authViewModel: AuthViewModel = viewModel(activity)
     val userData by authViewModel.userData.collectAsState()
     val currentUser = (userData as? ResultState.Success)?.data
-    val isLoadingUser = userData is ResultState.Loading
-
     var selectedOption by remember { mutableStateOf(Constants.NO_SE_ENCONTRABA) }
     var showAlertDialog by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf("") }
@@ -93,8 +94,10 @@ fun NewVisitDialog(
     val datePickerState = rememberDatePickerState()
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
-    var selectedDateTime by remember { mutableStateOf<LocalDateTime?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var selectedTime by remember { mutableStateOf<LocalTime?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -111,33 +114,44 @@ fun NewVisitDialog(
         Constants.SE_ESCUCHAN_RUIDOS to "Se escuchan ruidos pero no habre"
     )
 
-    LaunchedEffect(datePickerState.selectedDateMillis) {
-        datePickerState.selectedDateMillis?.let { millis ->
-            val selectedLocalDate = Instant.ofEpochMilli(millis)
-                .atZone(ZoneOffset.UTC)
-                .toLocalDate()
-            selectedDateTime = selectedLocalDate.atTime(LocalDateTime.now().toLocalTime())
-            showDatePicker = false
-            showTimePicker = true
+    fun updateNoteWithDateTime() {
+        if (selectedDate != null) {
+            val timeToUse = selectedTime ?: LocalTime.MIDNIGHT // 00:00 por defecto
+            val dateTime = LocalDateTime.of(selectedDate, timeToUse)
+            val formatted = DateUtils.formatLocalDateTime(dateTime)
+            note = "La cita ha sido reagendada para el $formatted"
         }
     }
 
-    if (showTimePicker) {
-        val initialTime = selectedDateTime?.toLocalTime() ?: LocalDateTime.now().toLocalTime()
-        TimePickerDialog(
-            context,
-            { _, hour, minute ->
-                selectedDateTime = selectedDateTime?.withHour(hour)?.withMinute(minute)
-                selectedDateTime?.let {
-                    val formatted = DateUtils.formatLocalDateTime(it)
-                    note = "La cita ha sido reagendada para el $formatted"
-                }
+    LaunchedEffect(datePickerState.selectedDateMillis) {
+        datePickerState.selectedDateMillis?.let { millis ->
+            selectedDate = Instant.ofEpochMilli(millis)
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate()
+            updateNoteWithDateTime()
+            showDatePicker = false
+        }
+    }
+
+    LaunchedEffect(showTimePicker) {
+        if (showTimePicker) {
+            val dialog = TimePickerDialog(
+                context,
+                { _, hour, minute ->
+                    selectedTime = LocalTime.of(hour, minute)
+                    updateNoteWithDateTime()
+                    showTimePicker = false
+                },
+                selectedTime?.hour ?: 0,
+                selectedTime?.minute ?: 0,
+                true
+            )
+            dialog.setOnDismissListener {
                 showTimePicker = false
-            },
-            initialTime.hour,
-            initialTime.minute,
-            true
-        ).show()
+            }
+
+            dialog.show()
+        }
     }
 
     fun handleSaveVisit() {
@@ -169,15 +183,14 @@ fun NewVisitDialog(
             )
 
             if (selectedOption == Constants.PIDE_REAGENDAR) {
-                val dateTime = selectedDateTime
-                if (dateTime != null) {
-                    val isoDate = dateTime
-                        .atZone(ZoneId.systemDefault())
-                        .toInstant()
-                        .toString()
-
-                    visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID, isoDate)
-                }
+                val date = selectedDate ?: return@launch
+                val time = selectedTime ?: LocalTime.MIDNIGHT
+                val dateTime = LocalDateTime.of(date, time)
+                val isoDate = dateTime
+                    .atZone(ZoneId.systemDefault())
+                    .toInstant()
+                    .toString()
+                visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID, isoDate)
             } else {
                 visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID, null)
             }
@@ -189,10 +202,17 @@ fun NewVisitDialog(
 
             note = ""
             selectedOption = Constants.NO_SE_ENCONTRABA
-            selectedDateTime = null
+            selectedTime = null
+            selectedDate = null
             showAlertDialog = true
         }
     }
+
+    fun formatLocalTime(time: LocalTime): String =
+        time.format(DateTimeFormatter.ofPattern("HH:mm"))
+
+    fun formatLocalDate(date: LocalDate): String =
+        date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
     FullScreenDialog(
         show = true,
@@ -268,9 +288,7 @@ fun NewVisitDialog(
                                         selected = (text == selectedOption),
                                         onClick = {
                                             selectedOption = text
-                                            if (text == Constants.PIDE_REAGENDAR) {
-                                                showDatePicker = true
-                                            }
+                                            text == Constants.PIDE_REAGENDAR
                                         },
                                         role = Role.RadioButton
                                     ),
@@ -295,17 +313,33 @@ fun NewVisitDialog(
                     Spacer(Modifier.height(16.dp))
 
                     if (selectedOption == Constants.PIDE_REAGENDAR) {
-                        OutlinedTextField(
-                            value = selectedDateTime?.let {
-                                DateUtils.formatLocalDateTime(it)
-                            } ?: "",
-                            onValueChange = {},
-                            label = { Text("Fecha y hora de cita") },
+                        Button(
+                            onClick = {
+                                showDatePicker = true
+                            },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            enabled = false
-                        )
+                        ) {
+                            Text(
+                                text = selectedDate?.let {
+                                    formatLocalDate(it)
+                                } ?: "Seleccionar Fecha"
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Button(
+                            onClick = { showTimePicker = true },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                        ) {
+                            Text(
+                                text = selectedTime?.let {
+                                    formatLocalTime(it)
+                                } ?: "Seleccionar hora"
+                            )
+                        }
                     }
 
                     if (errorMessage != null) {
