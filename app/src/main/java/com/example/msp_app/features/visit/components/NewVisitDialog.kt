@@ -85,8 +85,6 @@ fun NewVisitDialog(
     val authViewModel: AuthViewModel = viewModel()
     val userData by authViewModel.userData.collectAsState()
     val currentUser = (userData as? ResultState.Success)?.data
-    userData is ResultState.Loading
-
     var selectedOption by remember { mutableStateOf(Constants.NO_SE_ENCONTRABA) }
     var showAlertDialog by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf("") }
