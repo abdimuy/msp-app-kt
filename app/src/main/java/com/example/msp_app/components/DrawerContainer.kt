@@ -60,8 +60,11 @@ fun DrawerContainer(
                             label = { Text("Inicio") },
                             selected = false,
                             onClick = {
-                                navController.navigate("home") {
-                                    popUpTo("home") { inclusive = true }
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
                                 }
                             }
                         )
@@ -70,8 +73,11 @@ fun DrawerContainer(
                             label = { Text("Clientes") },
                             selected = false,
                             onClick = {
-                                navController.navigate("sales") {
-                                    popUpTo("sales") { inclusive = true }
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("sales") {
+                                        popUpTo("sales") { inclusive = true }
+                                    }
                                 }
                             }
                         )
@@ -80,8 +86,11 @@ fun DrawerContainer(
                             label = { Text("Reportes Diarios") },
                             selected = false,
                             onClick = {
-                                navController.navigate("daily_reports") {
-                                    popUpTo("home")
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("daily_reports") {
+                                        popUpTo("home")
+                                    }
                                 }
                             }
                         )
@@ -90,8 +99,11 @@ fun DrawerContainer(
                             label = { Text("Reportes Semanales") },
                             selected = false,
                             onClick = {
-                                navController.navigate("weekly_reports") {
-                                    popUpTo("home")
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("weekly_reports") {
+                                        popUpTo("home")
+                                    }
                                 }
                             }
                         )
@@ -100,8 +112,11 @@ fun DrawerContainer(
                             label = { Text("Mapa de rutas") },
                             selected = false,
                             onClick = {
-                                navController.navigate("route_map") {
-                                    popUpTo("home")
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("route_map") {
+                                        popUpTo("home")
+                                    }
                                 }
                             }
                         )
