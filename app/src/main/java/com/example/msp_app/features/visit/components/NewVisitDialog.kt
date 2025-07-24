@@ -279,30 +279,25 @@ fun NewVisitDialog(
                             .heightIn(max = 250.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        visitConditionForm.forEach { (text) ->
+                        visitConditionForm.forEach { (option, label) ->
                             Row(
                                 Modifier
                                     .fillMaxWidth()
                                     .height(46.dp)
                                     .selectable(
-                                        selected = (text == selectedOption),
-                                        onClick = {
-                                            selectedOption = text
-                                            text == Constants.PIDE_REAGENDAR
-                                        },
+                                        selected = (option == selectedOption),
+                                        onClick = { selectedOption = option },
                                         role = Role.RadioButton
                                     ),
-                                verticalAlignment = Alignment.CenterVertically,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
-                                    selected = (text == selectedOption),
+                                    selected = (option == selectedOption),
                                     onClick = null
                                 )
-                                Spacer(
-                                    modifier = Modifier.width(12.dp)
-                                )
+                                Spacer(modifier = Modifier.width(12.dp))
                                 Text(
-                                    text = text,
+                                    text = label,
                                     style = MaterialTheme.typography.bodyLarge,
                                     modifier = Modifier.padding(start = 4.dp)
                                 )
