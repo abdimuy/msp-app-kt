@@ -100,7 +100,8 @@ private fun buildPaymentsTicketText(
     payments: List<Payment>,
     dateStr: String,
     collectorName: String,
-    title: String
+    title: String,
+    forgiveness: List<Payment>
 ): String {
     val builder = StringBuilder()
     builder.appendLine(ThermalPrinting.centerText(title, 32))
@@ -134,6 +135,24 @@ private fun buildPaymentsTicketText(
     builder.appendLine("Total importe: $%,d".format(total))
     builder.appendLine("Efectivo (${cash.size} pagos): $%,d".format(totalCash))
     builder.appendLine("Transferencia (${transfers.size} pagos): $%,d".format(totalTransfers))
+
+    if (forgiveness.isNotEmpty()) {
+        builder.appendLine("-".repeat(32))
+        builder.appendLine("Condonaciones:")
+        builder.appendLine(" ".repeat(32))
+        forgiveness.forEach { pago ->
+            val date = DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "HH:mm", Locale("es", "MX"))
+            val client =
+                pago.NOMBRE_CLIENTE.takeIf { it.length <= 16 } ?: pago.NOMBRE_CLIENTE.take(16)
+            builder.appendLine(
+                String.format("%-6s %-16s %8s", date, client, "$%,d".format(pago.IMPORTE.toInt()))
+            )
+        }
+        builder.appendLine("".repeat(32))
+        val totalForgiveness = forgiveness.sumOf { it.IMPORTE }.toInt()
+        builder.appendLine("Total condonaciones: ${forgiveness.size}")
+        builder.appendLine("Importe condonado: $%,d".format(totalForgiveness))
+    }
 
     return builder.toString()
 }
@@ -179,11 +198,14 @@ fun DailyReportScreen(
         }
     }
 
-    val ticketText by remember(visiblePayments, textDate.text) {
+    val forgivenessList = (forgivenessState as? ResultState.Success)?.data ?: emptyList()
+
+    val ticketText by remember(visiblePayments, forgivenessList, textDate.text) {
         derivedStateOf {
             buildPaymentsTicketText(
                 payments = visiblePayments,
                 dateStr = textDate.text,
+                forgiveness = forgivenessList,
                 collectorName = visiblePayments.firstOrNull()?.COBRADOR ?: "No especificado",
                 title = "Reporte de Pagos Diarios"
             )
