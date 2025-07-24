@@ -205,7 +205,7 @@ fun PaymentTicketScreen(
                             ticket = buildString {
                                 appendLine(
                                     ThermalPrinting.centerText(
-                                        if (isCondonacion) "TICKET DE CONDONACIÓN" else "TICKET DE PAGO",
+                                        if (isCondonacion) "TICKET DE CONDONACION" else "TICKET DE PAGO",
                                         32
                                     )
                                 )
@@ -260,7 +260,7 @@ fun PaymentTicketScreen(
                                 appendLine(lineBlanck)
                                 appendLine("-".repeat(32))
                                 appendLine(lineBlanck)
-                                appendLine(if (isCondonacion) "FECHA DE CONDONACIÓN: ${date}" else "FECHA DE PAGO: ${date}")
+                                appendLine(if (isCondonacion) "FECHA DE CONDONACION: ${date}" else "FECHA DE PAGO: ${date}")
                                 appendLine(
                                     "SALDO ANTERIOR: ${
                                         ThermalPrinting.bold(
