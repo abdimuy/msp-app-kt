@@ -260,7 +260,7 @@ fun PaymentTicketScreen(
                                 appendLine(lineBlanck)
                                 appendLine("-".repeat(32))
                                 appendLine(lineBlanck)
-                                appendLine("FECHA DE PAGO: ${date}")
+                                appendLine(if (isCondonacion) "FECHA DE CONDONACIÓN: ${date}" else "FECHA DE PAGO: ${date}")
                                 appendLine(
                                     "SALDO ANTERIOR: ${
                                         ThermalPrinting.bold(
