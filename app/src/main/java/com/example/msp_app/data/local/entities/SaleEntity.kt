@@ -95,5 +95,7 @@ data class SaleWithProductsEntity(
     val AVAL_O_RESPONSABLE: String,
     val FREC_PAGO: String?,
     @ColumnInfo(name = "PRODUCTOS")
-    val PRODUCTOS: String?
+    val PRODUCTOS: String?,
+    @ColumnInfo(name = "NUM_PAGOS_ATRASADOS")
+    val NUM_PAGOS_ATRASADOS: Int? = null
 )

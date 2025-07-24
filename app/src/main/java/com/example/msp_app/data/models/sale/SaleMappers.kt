@@ -122,7 +122,8 @@ fun SaleWithProductsEntity.toDomain(): SaleWithProducts =
         PRECIO_DE_CONTADO,
         AVAL_O_RESPONSABLE,
         FREC_PAGO = FrecuenciaPago.valueOf(FREC_PAGO.toString()),
-        PRODUCTOS = PRODUCTOS.toString()
+        PRODUCTOS = PRODUCTOS.toString(),
+        NUM_PAGOS_ATRASADOS = NUM_PAGOS_ATRASADOS ?: 0
     )
 
 fun SaleWithProducts.toSale(): Sale =

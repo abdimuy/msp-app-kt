@@ -2,6 +2,7 @@ package com.example.msp_app.components.badges
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -20,7 +21,8 @@ enum class BadgesType {
 fun AlertBadge(
     message: String,
     type: BadgesType,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    padding: PaddingValues = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
 ) {
     val (bgColor, textColor) = when (type) {
         BadgesType.Success -> Color(0xFFDFF5E1) to Color(0xFF1B5E20)
@@ -31,9 +33,8 @@ fun AlertBadge(
 
     Box(
         modifier = modifier
-            .padding(8.dp)
             .background(bgColor, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(padding)
     ) {
         Text(
             text = message,

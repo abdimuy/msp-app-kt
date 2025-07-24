@@ -92,5 +92,6 @@ data class SaleWithProducts(
     val PRECIO_DE_CONTADO: Double,
     val AVAL_O_RESPONSABLE: String,
     val FREC_PAGO: FrecuenciaPago,
-    val PRODUCTOS: String
+    val PRODUCTOS: String,
+    val NUM_PAGOS_ATRASADOS: Int = 0
 )

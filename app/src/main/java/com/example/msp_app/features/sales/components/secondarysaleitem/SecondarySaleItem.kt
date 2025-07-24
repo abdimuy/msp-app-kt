@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,10 +44,16 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
+import com.example.msp_app.components.badges.AlertBadge
+import com.example.msp_app.components.badges.BadgesType
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.ui.theme.ThemeController
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun SecondarySaleItem(
@@ -70,6 +77,34 @@ fun SecondarySaleItem(
     val isNew = remember(sale.SALDO_REST, sale.TOTAL_IMPORTE, sale.ENGANCHE) {
         sale.SALDO_REST == sale.PRECIO_TOTAL - sale.ENGANCHE
     }
+
+    val latePayments = sale.NUM_PAGOS_ATRASADOS
+    val message = when {
+        latePayments < 1 -> "No tiene atrasa."
+        latePayments < 5 -> "Pagos atrasa: $latePayments"
+        else -> "Pagos atrasa: $latePayments"
+    }
+    val badgeType = when {
+        latePayments < 1 -> BadgesType.Success
+        latePayments < 5 -> BadgesType.Warning
+        else -> BadgesType.Danger
+    }
+
+    val formattedFechaUltPago = sale.FECHA_ULT_PAGO
+        .takeIf { !it.isNullOrEmpty() }
+        ?.let { iso ->
+            runCatching {
+                ZonedDateTime
+                    .parse(iso, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                    .withZoneSameInstant(ZoneId.systemDefault())
+                    .format(
+                        DateTimeFormatter.ofPattern(
+                            "dd MMM yy",
+                            Locale.getDefault()
+                        )
+                    )
+            }.getOrNull()
+        } ?: "Sin Fecha"
 
     Card(
         elevation = CardDefaults.cardElevation(
@@ -303,6 +338,28 @@ fun SecondarySaleItem(
                             }
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AlertBadge(
+                    message = message,
+                    type = badgeType,
+                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                )
+
+                if (formattedFechaUltPago != "Sin Fecha") {
+                    AlertBadge(
+                        message = "Ult Pag $formattedFechaUltPago",
+                        type = BadgesType.Primary,
+                        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    )
                 }
             }
         }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -88,9 +89,7 @@ fun SaleDetailsScreen(
         saleSuccess.data.CLIENTE_ID.let { clientId ->
             salesViewModel.getSalesByClientId(clientId)
         }
-        salesViewModel.getOverduePayments()
         salesViewModel.getOverduePaymentBySaleId(saleId)
-
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -365,26 +364,26 @@ fun SaleDetailsContent(
 
                             if (latePayment != null) {
                                 val latePayments = latePayment.NUM_PAGOS_ATRASADOS.toInt()
-                                when {
-                                    latePayments < 1 -> {
-                                        AlertBadge("No tiene pagos atrasados", BadgesType.Success)
-                                    }
-
-                                    latePayments < 5 -> {
-                                        AlertBadge(
-                                            "Pagos atrasados: $latePayments",
-                                            BadgesType.Warning
-                                        )
-                                    }
-
-                                    else -> {
-                                        AlertBadge(
-                                            "Pagos atrasados: $latePayments",
-                                            BadgesType.Danger
-                                        )
-                                    }
+                                val message = when {
+                                    latePayments < 1 -> "No tiene pagos atrasados"
+                                    latePayments < 5 -> "Pagos atrasados: $latePayments"
+                                    else -> "Pagos atrasados: $latePayments"
                                 }
+                                val badgeType = when {
+                                    latePayments < 1 -> BadgesType.Success
+                                    latePayments < 5 -> BadgesType.Warning
+                                    else -> BadgesType.Danger
+                                }
+
+                                AlertBadge(
+                                    message = message,
+                                    type = badgeType,
+                                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                )
                             }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
                             ElapsedTimeAlert(latePayment?.FECHA_ULT_PAGO.toString())
                         }
 
@@ -458,7 +457,10 @@ fun ElapsedTimeAlert(lastPaymentDateIso: String) {
         else -> "Hace unos segundos"
     }
 
-    AlertBadge("Último pago: hace $message", BadgesType.Primary)
+    AlertBadge(
+        "Último pago: hace $message", BadgesType.Primary,
+        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+    )
 }
 
 
