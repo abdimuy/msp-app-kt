@@ -76,7 +76,8 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
             NewForgivenessDialog(
                 show = openForgivenessDialog,
                 onDismissRequest = { openForgivenessDialog = false },
-                sale
+                sale,
+                navController = navController
             )
             SaleActionButton(
                 text = "AGREGAR CONDONACIÓN",

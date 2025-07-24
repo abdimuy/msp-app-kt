@@ -96,8 +96,11 @@ fun PaymentTicketScreen(
 
     var selectedPayment by remember { mutableStateOf<Payment?>(null) }
     val isCondonacion = selectedPayment?.let {
-        PaymentMethod.fromId(it.FORMA_COBRO_ID).label.equals("Condonación", ignoreCase = true)
-    } ?: false
+        PaymentMethod.fromId(it.FORMA_COBRO_ID).label.equals(
+            PaymentMethod.CONDONACION.label,
+            ignoreCase = true
+        )
+    } == true
     var ticket by remember { mutableStateOf<String?>(null) }
     var saleDisponible by remember { mutableStateOf(false) }
 
@@ -428,7 +431,7 @@ fun PaymentTicketScreen(
                                             }
                                             Spacer(Modifier.height(12.dp))
                                             InfoField(
-                                                label = "FECHA DE PAGO:",
+                                                label = if (isCondonacion) "FECHA DE CONDONACIÓN:" else "FECHA DE PAGO: ",
                                                 value = date
                                             )
                                             InfoField(
@@ -436,7 +439,7 @@ fun PaymentTicketScreen(
                                                 value = "${saldoAnterior.toCurrency(noDecimals = true)}"
                                             )
                                             InfoField(
-                                                label = "ABONADO:",
+                                                label = if (isCondonacion) "CONDONACIÓN:" else "ABONADO:",
                                                 value = "${
                                                     selectedPayment?.IMPORTE?.toCurrency(
                                                         noDecimals = true
