@@ -1,5 +1,6 @@
 package com.example.msp_app.features.visit.components
 
+import android.annotation.SuppressLint
 import android.app.TimePickerDialog
 import android.content.Intent
 import androidx.activity.ComponentActivity
@@ -70,6 +71,7 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 
+@SuppressLint("ContextCastToActivity")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewVisitDialog(
