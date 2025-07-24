@@ -5,8 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.VisitStatusMapper
-import com.example.msp_app.data.api.ApiProvider
-import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.data.models.visit.toDomain
@@ -21,8 +19,6 @@ import kotlinx.coroutines.withContext
 class VisitsViewModel(application: Application) : AndroidViewModel(application) {
     private val visitStore = VisitsLocalDataSource(application.applicationContext)
     private val saleStore = VisitsLocalDataSource(application.applicationContext)
-
-    private val api = ApiProvider.create(VisitsApi::class.java)
 
     private val _pendingVisits = MutableStateFlow<ResultState<List<Visit>>>(ResultState.Idle)
     val pendingVisits: StateFlow<ResultState<List<Visit>>> = _pendingVisits
