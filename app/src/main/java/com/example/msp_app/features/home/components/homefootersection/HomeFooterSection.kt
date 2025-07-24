@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -48,6 +49,7 @@ fun HomeFooterSection(
     modifier: Modifier = Modifier
 ) {
     val showDialogInitWeek = remember { mutableStateOf(false) }
+    val baseURL = ApiProvider.baseURL.collectAsState()
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -197,7 +199,7 @@ fun HomeFooterSection(
         )
 
         Text(
-            text = "URL base: ${ApiProvider.baseURL.value}",
+            text = "URL base: ${baseURL.value}",
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(bottom = 8.dp),
             fontSize = 14.sp
