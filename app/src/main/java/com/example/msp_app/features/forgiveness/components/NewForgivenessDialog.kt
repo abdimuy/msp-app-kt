@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
@@ -62,7 +63,8 @@ import java.util.UUID
 fun NewForgivenessDialog(
     show: Boolean,
     onDismissRequest: () -> Unit,
-    sale: Sale
+    sale: Sale,
+    navController: NavController
 ) {
     if (!show) return
 
@@ -126,6 +128,8 @@ fun NewForgivenessDialog(
                     putExtra("payment_id", forgiveness.ID)
                 }
                 ContextCompat.startForegroundService(context, intent)
+
+                navController.navigate("payment_ticket/${forgiveness.ID}")
 
                 inputValue = ""
 
