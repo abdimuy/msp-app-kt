@@ -85,8 +85,8 @@ fun PrimarySaleItem(
     val latePayments = sale.NUM_PAGOS_ATRASADOS
     val message = when {
         latePayments < 1 -> "No tiene atrasa."
-        latePayments < 5 -> "Pagos atrasa: $latePayments"
-        else -> "Pagos atrasa: $latePayments"
+        latePayments < 5 -> "$latePayments pag atrasa"
+        else -> "$latePayments pag atrasa"
     }
     val badgeType = when {
         latePayments < 1 -> BadgesType.Success
