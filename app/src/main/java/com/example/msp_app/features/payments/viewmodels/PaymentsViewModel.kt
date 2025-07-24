@@ -27,7 +27,7 @@ import java.time.format.DateTimeFormatter
 
 class PaymentsViewModel(application: Application) : AndroidViewModel(application) {
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
-    private val api = ApiProvider.create(PaymentsApi::class.java)
+    private val api: PaymentsApi get() = ApiProvider.create(PaymentsApi::class.java)
 
     private val _paymentsBySaleIdState =
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
