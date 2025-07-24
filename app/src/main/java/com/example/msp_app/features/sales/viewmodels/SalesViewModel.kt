@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
 
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
-    private val api = ApiProvider.create(SalesApi::class.java)
+    private val api: SalesApi get() = ApiProvider.create(SalesApi::class.java)
     private val saleStore = SalesLocalDataSource(application.applicationContext)
     private val productStore = ProductsLocalDataSource(application.applicationContext)
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)

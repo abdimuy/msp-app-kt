@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.utils.Constants.APP_VERSION
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
 
@@ -47,6 +49,7 @@ fun HomeFooterSection(
     modifier: Modifier = Modifier
 ) {
     val showDialogInitWeek = remember { mutableStateOf(false) }
+    val baseURL = ApiProvider.baseURL.collectAsState()
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -193,6 +196,13 @@ fun HomeFooterSection(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(8.dp),
             fontSize = 16.sp
+        )
+
+        Text(
+            text = "URL base: ${baseURL.value}",
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 8.dp),
+            fontSize = 14.sp
         )
     }
 }
