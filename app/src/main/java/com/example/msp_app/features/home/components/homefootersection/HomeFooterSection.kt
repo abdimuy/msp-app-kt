@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.utils.Constants.APP_VERSION
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
 
@@ -193,6 +194,13 @@ fun HomeFooterSection(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             modifier = Modifier.padding(8.dp),
             fontSize = 16.sp
+        )
+
+        Text(
+            text = "URL base: ${ApiProvider.baseURL.value}",
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.padding(bottom = 8.dp),
+            fontSize = 14.sp
         )
     }
 }
