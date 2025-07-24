@@ -95,6 +95,9 @@ fun PaymentTicketScreen(
     val productsResult by productsViewModel.productsByFolioState.collectAsState()
 
     var selectedPayment by remember { mutableStateOf<Payment?>(null) }
+    val isCondonacion = selectedPayment?.let {
+        PaymentMethod.fromId(it.FORMA_COBRO_ID).label.equals("Condonación", ignoreCase = true)
+    } ?: false
     var ticket by remember { mutableStateOf<String?>(null) }
     var saleDisponible by remember { mutableStateOf(false) }
 
@@ -200,7 +203,12 @@ fun PaymentTicketScreen(
                             val lineBlanck = (" ").repeat(32)
 
                             ticket = buildString {
-                                appendLine(ThermalPrinting.centerText("TICKET DE PAGO", 32))
+                                appendLine(
+                                    ThermalPrinting.centerText(
+                                        if (isCondonacion) "TICKET DE CONDONACION" else "TICKET DE PAGO",
+                                        32
+                                    )
+                                )
                                 appendLine(lineBlanck)
                                 appendLine("FOLIO: ${sale?.FOLIO}")
                                 appendLine("CLIENTE: ${sale?.CLIENTE}")
@@ -252,7 +260,7 @@ fun PaymentTicketScreen(
                                 appendLine(lineBlanck)
                                 appendLine("-".repeat(32))
                                 appendLine(lineBlanck)
-                                appendLine("FECHA DE PAGO: ${date}")
+                                appendLine(if (isCondonacion) "FECHA DE CONDONACION: ${date}" else "FECHA DE PAGO: ${date}")
                                 appendLine(
                                     "SALDO ANTERIOR: ${
                                         ThermalPrinting.bold(
@@ -329,7 +337,7 @@ fun PaymentTicketScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = "Ticket de Pago",
+                                            text = if (isCondonacion) "Ticket de Condonación" else "Ticket de Pago",
                                             fontSize = 24.sp,
                                             fontWeight = FontWeight.Bold,
                                         )
