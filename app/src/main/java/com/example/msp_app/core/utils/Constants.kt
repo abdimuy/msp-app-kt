@@ -31,4 +31,13 @@ object Constants {
     //Datos para ticket
     const val WHATSAPP = "238-374-06-84"
     const val TELEFONO = "238-110-50-61"
+
+    //Firebase Collection
+    const val COLLECTION_CONFIG = "config"
+
+    //Firebase Document
+    const val DOCUMENT_API_SETTINGS = "api_settings"
+
+    //Firebase Field
+    const val FIELD_BASE_URL = "baseURL"
 }
