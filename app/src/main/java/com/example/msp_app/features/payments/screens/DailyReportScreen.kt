@@ -148,7 +148,7 @@ private fun buildPaymentsTicketText(
                 String.format("%-6s %-16s %8s", date, client, "$%,d".format(pago.IMPORTE.toInt()))
             )
         }
-        builder.appendLine("".repeat(32))
+        builder.appendLine(" ".repeat(32))
         val totalForgiveness = forgiveness.sumOf { it.IMPORTE }.toInt()
         builder.appendLine("Total condonaciones: ${forgiveness.size}")
         builder.appendLine("Importe condonado: $%,d".format(totalForgiveness))
