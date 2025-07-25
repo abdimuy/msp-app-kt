@@ -191,7 +191,9 @@ fun VisitTicketScreen(
         }
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController
+    ) { openDrawer ->
         Scaffold { innerPadding ->
             Box(
                 modifier = Modifier

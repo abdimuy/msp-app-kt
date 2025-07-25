@@ -224,7 +224,9 @@ fun WeeklyReportScreen(
             ?: emptyList()
     )
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController
+    ) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             topBar = {

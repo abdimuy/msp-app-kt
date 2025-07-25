@@ -323,7 +323,9 @@ fun HomeScreen(navController: NavController) {
     val accountsPercentageAjustedRounded =
         String.format(Locale.getDefault(), "%.2f", accountsPercentageAjusted) + "%"
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController
+    ) { openDrawer ->
         Scaffold(
             content = { innerPadding ->
 

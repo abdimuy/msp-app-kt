@@ -79,7 +79,9 @@ fun SalesScreen(
         viewModel.getLocalSales()
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController
+    ) { openDrawer ->
         Scaffold(
             bottomBar = {
 

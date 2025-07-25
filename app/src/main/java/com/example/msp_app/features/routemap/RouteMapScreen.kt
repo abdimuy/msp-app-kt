@@ -141,7 +141,9 @@ fun RouteMapScreen(
         )
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController
+    ) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             topBar = {

@@ -163,7 +163,9 @@ fun PaymentTicketScreen(
         }
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController
+    ) { openDrawer ->
         Scaffold { innerPading ->
             Box(
                 modifier = Modifier
