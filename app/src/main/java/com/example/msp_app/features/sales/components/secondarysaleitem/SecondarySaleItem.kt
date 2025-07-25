@@ -90,6 +90,13 @@ fun SecondarySaleItem(
         else -> BadgesType.Danger
     }
 
+    val formattedDiaCobranza = runCatching {
+        ZonedDateTime
+            .parse(sale.DIA_TEMPORAL_COBRANZA, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+            .withZoneSameInstant(ZoneId.systemDefault())
+            .format(DateTimeFormatter.ofPattern("dd MMM HH:mm"))
+    }.getOrDefault(sale.DIA_TEMPORAL_COBRANZA).uppercase()
+
     val formattedFechaUltPago = sale.FECHA_ULT_PAGO
         .takeIf { !it.isNullOrEmpty() }
         ?.let { iso ->
@@ -353,6 +360,41 @@ fun SecondarySaleItem(
                     type = badgeType,
                     padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 )
+
+                if (formattedDiaCobranza.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = Color(0xFFFF9800),
+                                shape = MaterialTheme.shapes.small
+                            )
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            buildAnnotatedString {
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                ) {
+                                    append("Visitar: ")
+                                }
+                                withStyle(
+                                    style = SpanStyle(
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                ) {
+                                    append(formattedDiaCobranza)
+                                }
+                            }
+                        )
+                    }
+
+                    return@Row
+                }
 
                 if (formattedFechaUltPago != "Sin Fecha") {
                     AlertBadge(
