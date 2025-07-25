@@ -93,8 +93,8 @@ fun SaleDetailsScreen(
     }
 
     DrawerContainer(
-        navController = navController,
-        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
+        navController = navController
+    ) { openDrawer ->
         Scaffold { paddingValues ->
             Box(
                 modifier = Modifier

@@ -54,7 +54,6 @@ import com.example.msp_app.features.payments.components.paymentitem.PaymentItemV
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
-import com.example.msp_app.ui.theme.ThemeController
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
@@ -143,8 +142,8 @@ fun RouteMapScreen(
     }
 
     DrawerContainer(
-        navController = navController,
-        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
+        navController = navController
+    ) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             topBar = {

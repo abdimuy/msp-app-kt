@@ -324,8 +324,8 @@ fun HomeScreen(navController: NavController) {
         String.format(Locale.getDefault(), "%.2f", accountsPercentageAjusted) + "%"
 
     DrawerContainer(
-        navController = navController,
-        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
+        navController = navController
+    ) { openDrawer ->
         Scaffold(
             content = { innerPadding ->
 

@@ -50,7 +50,6 @@ import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
-import com.example.msp_app.ui.theme.ThemeController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,8 +80,8 @@ fun SalesScreen(
     }
 
     DrawerContainer(
-        navController = navController,
-        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
+        navController = navController
+    ) { openDrawer ->
         Scaffold(
             bottomBar = {
 

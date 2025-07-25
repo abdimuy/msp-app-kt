@@ -42,7 +42,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun DrawerContainer(
     navController: NavController,
-    onToggleTheme: () -> Unit,
     content: @Composable (openDrawer: () -> Unit) -> Unit,
 ) {
     val authViewModel = LocalAuthViewModel.current
@@ -73,7 +72,7 @@ fun DrawerContainer(
                                 text = "Menú",
                                 style = MaterialTheme.typography.titleLarge,
                             )
-                            IconButton(onClick = onToggleTheme) {
+                            IconButton(onClick = { ThemeController.toggle() }) {
                                 Image(
                                     painter = painterResource(
                                         id = if (ThemeController.isDarkMode)

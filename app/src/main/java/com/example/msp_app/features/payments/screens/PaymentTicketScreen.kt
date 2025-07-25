@@ -164,8 +164,8 @@ fun PaymentTicketScreen(
     }
 
     DrawerContainer(
-        navController = navController,
-        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
+        navController = navController
+    ) { openDrawer ->
         Scaffold { innerPading ->
             Box(
                 modifier = Modifier
