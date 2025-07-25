@@ -320,11 +320,12 @@ fun NewVisitDialog(
                             Text(
                                 text = selectedDate?.let {
                                     formatLocalDate(it)
-                                } ?: "Seleccionar Fecha"
+                                } ?: "SELECCIONAR FECHA",
+                                color = Color.White
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         Button(
                             onClick = { showTimePicker = true },
@@ -334,7 +335,7 @@ fun NewVisitDialog(
                             Text(
                                 text = selectedTime?.let {
                                     formatLocalTime(it)
-                                } ?: "Seleccionar hora"
+                                } ?: "SELECCIONAR HORA", color = Color.White
                             )
                         }
                     }
