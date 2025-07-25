@@ -53,6 +53,7 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -191,7 +192,9 @@ fun VisitTicketScreen(
         }
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController,
+        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
         Scaffold { innerPadding ->
             Box(
                 modifier = Modifier

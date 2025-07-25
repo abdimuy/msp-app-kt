@@ -66,6 +66,7 @@ import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -225,7 +226,9 @@ fun DailyReportScreen(
             ?: emptyList()
     )
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController,
+        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             topBar = {

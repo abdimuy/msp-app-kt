@@ -92,7 +92,9 @@ fun SaleDetailsScreen(
         salesViewModel.getOverduePaymentBySaleId(saleId)
     }
 
-    DrawerContainer(navController = navController) { openDrawer ->
+    DrawerContainer(
+        navController = navController,
+        onToggleTheme = { ThemeController.toggle() }) { openDrawer ->
         Scaffold { paddingValues ->
             Box(
                 modifier = Modifier
