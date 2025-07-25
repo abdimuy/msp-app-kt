@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.msp_app.data.local.dao.guarantee.GuaranteeDao
 import com.example.msp_app.data.local.dao.payment.PaymentDao
 import com.example.msp_app.data.local.dao.product.ProductDao
 import com.example.msp_app.data.local.dao.sale.SaleDao
@@ -27,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun paymentDao(): PaymentDao
     abstract fun productDao(): ProductDao
     abstract fun visitDao(): VisitDao
+    abstract fun guaranteeDao(): GuaranteeDao
 
     companion object {
         @Volatile
