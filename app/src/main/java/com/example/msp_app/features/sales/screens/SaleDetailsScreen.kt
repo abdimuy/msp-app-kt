@@ -186,7 +186,7 @@ fun SaleDetailsContent(
                 sale,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(top = 56.dp)
+                    .padding(top = 100.dp)
             )
 
             IconButton(
