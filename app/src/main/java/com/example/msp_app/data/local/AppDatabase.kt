@@ -9,6 +9,9 @@ import com.example.msp_app.data.local.dao.payment.PaymentDao
 import com.example.msp_app.data.local.dao.product.ProductDao
 import com.example.msp_app.data.local.dao.sale.SaleDao
 import com.example.msp_app.data.local.dao.visit.VisitDao
+import com.example.msp_app.data.local.entities.GuaranteeEntity
+import com.example.msp_app.data.local.entities.GuaranteeEventEntity
+import com.example.msp_app.data.local.entities.GuaranteeImageEntity
 import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.local.entities.ProductEntity
 import com.example.msp_app.data.local.entities.SaleEntity
@@ -19,9 +22,12 @@ import com.example.msp_app.data.local.entities.VisitEntity
         SaleEntity::class,
         PaymentEntity::class,
         ProductEntity::class,
-        VisitEntity::class
+        VisitEntity::class,
+        GuaranteeEntity::class,
+        GuaranteeImageEntity::class,
+        GuaranteeEventEntity::class
     ],
-    version = 5,
+    version = 6,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao

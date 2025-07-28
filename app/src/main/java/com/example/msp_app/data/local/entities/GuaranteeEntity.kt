@@ -8,7 +8,8 @@ import androidx.room.PrimaryKey
     tableName = "garantias",
     indices = [
         Index(value = ["EXTERNAL_ID"], unique = true),
-        Index(value = ["DOCTO_CC_ID"])
+        Index(value = ["DOCTO_CC_ID"]),
+        Index(value = ["FECHA_SOLICITUD"])
     ]
 )
 data class GuaranteeEntity(

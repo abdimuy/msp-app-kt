@@ -1,5 +1,6 @@
 package com.example.msp_app.data.local.dao.guarantee
 
+import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -7,6 +8,7 @@ import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.local.entities.GuaranteeEventEntity
 import com.example.msp_app.data.local.entities.GuaranteeImageEntity
 
+@Dao
 interface GuaranteeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGuarantees(guarantee: GuaranteeEntity)
