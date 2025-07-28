@@ -26,11 +26,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavController
 import com.example.msp_app.core.utils.Constants.APP_VERSION
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
+import com.example.msp_app.navigation.Screen
 
 @Composable
 fun HomeFooterSection(
@@ -46,7 +48,8 @@ fun HomeFooterSection(
     onResendAllPayments: () -> Unit,
     onLogout: () -> Unit,
     onInitWeek: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    navController: NavController
 ) {
     val showDialogInitWeek = remember { mutableStateOf(false) }
     val baseURL = ApiProvider.baseURL.collectAsState()
@@ -147,6 +150,13 @@ fun HomeFooterSection(
             is ResultState.Loading -> CircularProgressIndicator()
             is ResultState.Success -> Text("Ventas descargadas: ${syncSalesState.data.size}")
             is ResultState.Error -> Text("Error: ${syncSalesState.message}")
+        }
+
+        Button(
+            onClick = { navController.navigate(Screen.ProductsCatalog.route) },
+            modifier = Modifier.fillMaxWidth(0.92f)
+        ) {
+            Text("CATALOGO DE PRODUCTOS", color = Color.White)
         }
 
         Button(
