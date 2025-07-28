@@ -100,7 +100,7 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.10.2")
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.30.1")
-    implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:2.0.6")
+    implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.4.0")
     implementation("com.google.accompanist:accompanist-permissions:0.30.1")
     implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("org.apache.commons:commons-math3:3.6.1")
