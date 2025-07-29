@@ -400,7 +400,7 @@ fun WeeklyReportScreen(
                                                 showDialog = false
                                                 pdfUri = null
                                             }) {
-                                                Text("Abrir")
+                                                Text("Abrir", color = Color.White)
                                             }
                                         },
                                         dismissButton = {
