@@ -14,6 +14,8 @@ object Constants {
     // Firebase Firestore field names
     const val EMAIL_FIELD = "EMAIL"
     const val START_OF_WEEK_DATE_FIELD = "FECHA_CARGA_INICIAL"
+    const val VERSION_APP = "VERSION_APP"
+    const val FECHA_VERSION_APP = "FECHA_VERSION_APP"
 
     // Opciones de los datos de Visita
     const val NO_SE_ENCONTRABA = "No se encontraba"
