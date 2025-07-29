@@ -79,6 +79,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     doc.toObject(User::class.java)?.copy(ID = doc.id)
                 }
                 _userData.value = ResultState.Success(data)
+
+                data?.let {
+                    updateAppVersion()
+                }
             } catch (e: Exception) {
                 _userData.value = ResultState.Error(e.message ?: "Error desconocido")
             }
@@ -136,6 +140,35 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _updateStartOfWeekDateState.value = ResultState.Error(
                     "No se pudo actualizar la fecha de inicio de semana"
                 )
+            }
+        }
+    }
+
+    fun updateAppVersion() {
+        viewModelScope.launch {
+            val currentResult = _userData.value
+            if (currentResult is ResultState.Success && currentResult.data != null) {
+                val userId = currentResult.data.ID
+                val appVersion = Constants.APP_VERSION
+                val versionDate = Timestamp.now()
+
+                try {
+                    FirebaseFirestore.getInstance()
+                        .collection(Constants.USERS_COLLECTION)
+                        .document(userId)
+                        .update(
+                            "VERSION_APP", appVersion,
+                            "FECHA_VERSION_APP", versionDate
+                        ).await()
+
+                    val updatedUser = currentResult.data.copy(
+                        VERSION_APP = appVersion,
+                        FECHA_VERSION_APP = versionDate
+                    )
+                    _userData.value = ResultState.Success(updatedUser)
+
+                } catch (e: Exception) {
+                }
             }
         }
     }
