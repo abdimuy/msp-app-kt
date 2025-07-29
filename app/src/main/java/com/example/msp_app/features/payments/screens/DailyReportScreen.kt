@@ -1,6 +1,7 @@
 package com.example.msp_app.features.payments.screens
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -322,6 +323,8 @@ fun DailyReportScreen(
                             val context = LocalContext.current
                             val coroutineScope = rememberCoroutineScope()
                             var isGeneratingPdf by remember { mutableStateOf(false) }
+                            var pdfUri by remember { mutableStateOf<Uri?>(null) }
+                            var showDialog by remember { mutableStateOf(false) }
                             val reportDate =
                                 DateUtils.formatIsoDate(
                                     reportDateIso,
@@ -414,25 +417,8 @@ fun DailyReportScreen(
                                                         file
                                                     )
 
-                                                    val intent =
-                                                        Intent(Intent.ACTION_VIEW).apply {
-                                                            setDataAndType(
-                                                                uri,
-                                                                "application/pdf"
-                                                            )
-                                                            flags =
-                                                                Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                                        }
-
-                                                    try {
-                                                        context.startActivity(intent)
-                                                    } catch (e: Exception) {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "No hay aplicación para abrir PDF",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                    }
+                                                    pdfUri = uri
+                                                    showDialog = true
                                                 } else {
                                                     Toast.makeText(
                                                         context,
@@ -448,6 +434,56 @@ fun DailyReportScreen(
                                         Text(
                                             text = if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
                                             color = Color.White
+                                        )
+                                    }
+
+                                    if (showDialog && pdfUri != null) {
+                                        androidx.compose.material3.AlertDialog(
+                                            onDismissRequest = {
+                                                showDialog = false
+                                                pdfUri = null
+                                            },
+                                            title = { Text("PDF Generado") },
+                                            text = { Text("¿Deseas abrirlo o compartirlo?") },
+                                            confirmButton = {
+                                                Button(onClick = {
+                                                    val openIntent =
+                                                        Intent(Intent.ACTION_VIEW).apply {
+                                                            setDataAndType(
+                                                                pdfUri,
+                                                                "application/pdf"
+                                                            )
+                                                            flags =
+                                                                Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                        }
+                                                    context.startActivity(openIntent)
+                                                    showDialog = false
+                                                    pdfUri = null
+                                                }) {
+                                                    Text("Abrir", color = Color.White)
+                                                }
+                                            },
+                                            dismissButton = {
+                                                Button(onClick = {
+                                                    val shareIntent =
+                                                        Intent(Intent.ACTION_SEND).apply {
+                                                            type = "application/pdf"
+                                                            putExtra(Intent.EXTRA_STREAM, pdfUri)
+                                                            flags =
+                                                                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                        }
+                                                    context.startActivity(
+                                                        Intent.createChooser(
+                                                            shareIntent,
+                                                            "Compartir PDF"
+                                                        )
+                                                    )
+                                                    showDialog = false
+                                                    pdfUri = null
+                                                }) {
+                                                    Text("Compartir", color = Color.White)
+                                                }
+                                            }
                                         )
                                     }
 
