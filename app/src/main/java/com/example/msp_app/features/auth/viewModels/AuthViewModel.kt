@@ -146,9 +146,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateAppVersion() {
         viewModelScope.launch {
-            val currentResult = _userData.value
-            if (currentResult is ResultState.Success && currentResult.data != null) {
-                val userId = currentResult.data.ID
+            val user = (_userData.value as? ResultState.Success)?.data
+
+            user?.let {
+                val userId = it.ID
                 val appVersion = Constants.APP_VERSION
                 val versionDate = Timestamp.now()
 
@@ -161,13 +162,15 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                             "FECHA_VERSION_APP", versionDate
                         ).await()
 
-                    val updatedUser = currentResult.data.copy(
+                    val updatedUser = it.copy(
                         VERSION_APP = appVersion,
                         FECHA_VERSION_APP = versionDate
                     )
                     _userData.value = ResultState.Success(updatedUser)
 
                 } catch (e: Exception) {
+                    _userData.value =
+                        ResultState.Error("Error al actualizar la versión de la app: ${e.message}")
                 }
             }
         }
