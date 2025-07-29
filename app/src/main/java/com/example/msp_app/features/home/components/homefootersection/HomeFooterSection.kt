@@ -160,6 +160,13 @@ fun HomeFooterSection(
         }
 
         Button(
+            onClick = {},
+            modifier = Modifier.fillMaxWidth(0.92f)
+        ) {
+            Text("ACTUALIZAR CATALOGO", color = Color.White)
+        }
+
+        Button(
             onClick = {
                 onSyncPendingVisits()
                 onSyncPendingPayments()
