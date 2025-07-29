@@ -1,6 +1,7 @@
 package com.example.msp_app.features.auth.viewModels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants
@@ -154,8 +155,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     .collection(Constants.USERS_COLLECTION)
                     .document(userId)
                     .update(
-                        "VERSION_APP", appVersion,
-                        "FECHA_VERSION_APP", versionDate
+                        Constants.VERSION_APP, appVersion,
+                        Constants.FECHA_VERSION_APP, versionDate
                     ).await()
 
                 val updatedUser = userData.copy(
@@ -165,7 +166,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _userData.value = ResultState.Success(updatedUser)
 
             } catch (e: Exception) {
-                ResultState.Error("Error al actualizar la versión de la app: ${e.message}")
+                Log.e("APPVERSION", "Error al actualizar la versión: ${e.message}")
             }
         }
     }
