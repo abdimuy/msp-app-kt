@@ -81,7 +81,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _userData.value = ResultState.Success(data)
 
                 data?.let {
-                    updateAppVersion()
+                    updateAppVersion(it.ID, it)
                 }
             } catch (e: Exception) {
                 _userData.value = ResultState.Error(e.message ?: "Error desconocido")
@@ -144,34 +144,28 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateAppVersion() {
+    fun updateAppVersion(userId: String, userData: User) {
         viewModelScope.launch {
-            val user = (_userData.value as? ResultState.Success)?.data
+            val appVersion = Constants.APP_VERSION
+            val versionDate = Timestamp.now()
 
-            user?.let {
-                val userId = it.ID
-                val appVersion = Constants.APP_VERSION
-                val versionDate = Timestamp.now()
+            try {
+                FirebaseFirestore.getInstance()
+                    .collection(Constants.USERS_COLLECTION)
+                    .document(userId)
+                    .update(
+                        "VERSION_APP", appVersion,
+                        "FECHA_VERSION_APP", versionDate
+                    ).await()
 
-                try {
-                    FirebaseFirestore.getInstance()
-                        .collection(Constants.USERS_COLLECTION)
-                        .document(userId)
-                        .update(
-                            "VERSION_APP", appVersion,
-                            "FECHA_VERSION_APP", versionDate
-                        ).await()
+                val updatedUser = userData.copy(
+                    VERSION_APP = appVersion,
+                    FECHA_VERSION_APP = versionDate
+                )
+                _userData.value = ResultState.Success(updatedUser)
 
-                    val updatedUser = it.copy(
-                        VERSION_APP = appVersion,
-                        FECHA_VERSION_APP = versionDate
-                    )
-                    _userData.value = ResultState.Success(updatedUser)
-
-                } catch (e: Exception) {
-                    _userData.value =
-                        ResultState.Error("Error al actualizar la versión de la app: ${e.message}")
-                }
+            } catch (e: Exception) {
+                ResultState.Error("Error al actualizar la versión de la app: ${e.message}")
             }
         }
     }
