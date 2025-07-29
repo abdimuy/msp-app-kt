@@ -1,6 +1,8 @@
 package com.example.msp_app.features.sales.viewmodels
 
 import android.app.Application
+import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.ResultState
@@ -23,6 +25,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
@@ -156,11 +161,28 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
 
                 _syncSalesState.value = ResultState.Success(sales)
 
+                val lastSync = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    .format(Date())
+                saveLastSyncDate(lastSync)
             } catch (e: Exception) {
                 if (_syncSalesState.value !is ResultState.Success) {
                     _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar ventas")
                 }
             }
         }
+    }
+
+    private fun saveLastSyncDate(date: String) {
+        val prefs = getApplication<Application>()
+            .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+        prefs.edit {
+            putString("last_sync_date", date)
+        }
+    }
+    
+    fun getLastSyncDate(): String {
+        val prefs = getApplication<Application>()
+            .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("last_sync_date", "") ?: ""
     }
 }
