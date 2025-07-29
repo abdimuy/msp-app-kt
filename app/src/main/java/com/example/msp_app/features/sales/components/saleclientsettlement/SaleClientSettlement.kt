@@ -162,7 +162,7 @@ fun calculatePaymentResult(settlement: Settlement): PaymentResults {
 
     val category = when {
         elapsedMonths <= 1 -> "Precio de contado"
-        elapsedMonths <= 12 -> "Precio a ${elapsedMonths} meses"
+        elapsedMonths <= 12 -> "Precio a $elapsedMonths meses"
         else -> "Precio total"
     }
 
