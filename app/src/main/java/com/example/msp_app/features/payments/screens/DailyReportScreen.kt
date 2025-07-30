@@ -65,6 +65,11 @@ import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
+import com.example.msp_app.features.payments.models.ForgivenessTextData
+import com.example.msp_app.features.payments.models.PaymentLineData
+import com.example.msp_app.features.payments.models.PaymentTextData
+import com.example.msp_app.features.payments.models.VisitLineData
+import com.example.msp_app.features.payments.models.VisitTextData
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import kotlinx.coroutines.Dispatchers
@@ -521,42 +526,10 @@ fun DailyReportScreen(
     }
 }
 
-data class PaymentLineData(
-    val date: String,
-    val client: String,
-    val amount: Double,
-    val paymentMethod: PaymentMethod,
-)
-
 data class PaymentMethodBreakdown(
     val method: PaymentMethod,
     val count: Int,
     val amount: Double
-)
-
-data class PaymentTextData(
-    val lines: List<PaymentLineData>,
-    val totalCount: Int,
-    val totalAmount: Double,
-    val breakdownByMethod: List<PaymentMethodBreakdown> = emptyList()
-)
-
-data class VisitLineData(
-    val date: String,
-    val collector: String,
-    val type: String,
-    val note: String,
-)
-
-data class VisitTextData(
-    val lines: List<VisitLineData>,
-    val totalCount: Int
-)
-
-data class ForgivenessTextData(
-    val lines: List<PaymentLineData>,
-    val totalCount: Int,
-    val totalAmount: Double
 )
 
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
