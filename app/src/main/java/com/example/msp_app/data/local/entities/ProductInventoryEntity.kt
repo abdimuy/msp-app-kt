@@ -17,5 +17,5 @@ data class ProductInventoryEntity(
     val EXISTENCIAS: Int,
     val LINEA_ARTICULO_ID: Int,
     val LINEA_ARTICULO: String,
-    val PRECIOS: String
+    val PRECIOS: String?
 )

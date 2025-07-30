@@ -25,6 +25,25 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
     val productInventoryState: StateFlow<ResultState<List<ProductInventory>>> =
         _productInventoryState
 
+    fun fetchRemoteInventory() {
+        viewModelScope.launch {
+            _productInventoryState.value = ResultState.Loading
+            try {
+                val response = withContext(Dispatchers.IO) {
+                    api.getProductInventory()
+                }
+
+                val productsList = response.body
+
+                _productInventoryState.value = ResultState.Success(productsList)
+                saveProductsInventoryLocally(productsList)
+            } catch (e: Exception) {
+                _productInventoryState.value =
+                    ResultState.Error(e.message ?: "Error")
+            }
+        }
+    }
+
     fun saveProductsInventoryLocally(products: List<ProductInventory>) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

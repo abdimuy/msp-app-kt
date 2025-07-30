@@ -8,7 +8,7 @@ fun ProductInventory.toEntity(): ProductInventoryEntity = ProductInventoryEntity
     EXISTENCIAS = EXISTENCIAS,
     LINEA_ARTICULO_ID = LINEA_ARTICULO_ID,
     LINEA_ARTICULO = LINEA_ARTICULO,
-    PRECIOS = PRECIOS
+    PRECIOS = PRECIOS ?: ""
 )
 
 fun ProductInventoryEntity.toDomain(): ProductInventory = ProductInventory(
@@ -17,5 +17,5 @@ fun ProductInventoryEntity.toDomain(): ProductInventory = ProductInventory(
     EXISTENCIAS = EXISTENCIAS,
     LINEA_ARTICULO_ID = LINEA_ARTICULO_ID,
     LINEA_ARTICULO = LINEA_ARTICULO,
-    PRECIOS = PRECIOS
+    PRECIOS = PRECIOS ?: ""
 )
