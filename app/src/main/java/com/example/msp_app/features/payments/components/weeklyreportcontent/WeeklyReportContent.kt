@@ -1,4 +1,4 @@
-package com.example.msp_app.features.payments.components.weeklyreport
+package com.example.msp_app.features.payments.components.weeklyreportcontent
 
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -17,6 +17,8 @@ import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.components.paymentslist.PaymentsList
+import com.example.msp_app.features.payments.components.reportactions.ReportActions
+import com.example.msp_app.features.payments.components.sortingbuttons.SortingButtons
 import com.example.msp_app.features.payments.models.VisitTextData
 import com.example.msp_app.features.payments.utils.ReportFormatters
 

@@ -1,4 +1,4 @@
-package com.example.msp_app.features.payments.components.weeklyreport
+package com.example.msp_app.features.payments.components.reportactions
 
 import android.net.Uri
 import android.os.Build

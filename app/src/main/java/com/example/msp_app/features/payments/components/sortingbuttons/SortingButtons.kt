@@ -1,4 +1,4 @@
-package com.example.msp_app.features.payments.components.weeklyreport
+package com.example.msp_app.features.payments.components.sortingbuttons
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row

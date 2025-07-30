@@ -31,7 +31,7 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.features.payments.components.weeklyreport.WeeklyReportContent
+import com.example.msp_app.features.payments.components.weeklyreportcontent.WeeklyReportContent
 import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
