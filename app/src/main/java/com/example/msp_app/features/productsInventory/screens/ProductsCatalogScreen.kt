@@ -44,7 +44,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.searchSimilarItems
+import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 
@@ -147,12 +149,12 @@ fun ProductCard(product: ProductInventory) {
                 shape = RoundedCornerShape(8.dp)
             )
             .clickable { pressed = !pressed }
-            .alpha(if (pressed) 0.9f else 1f)
+            .alpha(if (pressed) 1f else 1f)
             .padding(8.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp)
+                .size(115.dp)
                 .background(Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
         )
 
@@ -178,10 +180,10 @@ fun ProductCard(product: ProductInventory) {
                 color = Color(0xFF0056B3),
                 lineHeight = 16.sp
             )
-            val price = product.PRECIOS?.split(",") ?: emptyList()
-            price.forEach { price ->
+            val priceMap = parsePriceJsonToMap(product.PRECIOS)
+            priceMap.forEach { (label, value) ->
                 Text(
-                    text = price,
+                    text = "$label: ${value.toCurrency(noDecimals = false)}",
                     fontSize = 14.sp,
                     color = Color(0xFF334155),
                     lineHeight = 16.sp

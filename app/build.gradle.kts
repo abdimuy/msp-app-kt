@@ -106,4 +106,5 @@ dependencies {
     implementation("org.apache.commons:commons-math3:3.6.1")
     implementation("me.xdrop:fuzzywuzzy:1.4.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
+    implementation("com.google.code.gson:gson:2.8.9")
 }
