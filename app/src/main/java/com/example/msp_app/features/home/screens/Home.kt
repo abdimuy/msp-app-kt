@@ -429,7 +429,6 @@ fun HomeScreen(navController: NavController) {
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
                             onInitWeek = { authViewModel.updateStartOfWeekDate() },
-                            navController = navController
                         )
                     }
                 }

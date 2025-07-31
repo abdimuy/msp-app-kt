@@ -20,6 +20,7 @@ import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.PaymentTicketScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.products.screens.ProductsCatalogScreen
+import com.example.msp_app.features.productsInventory.screens.BlankScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
@@ -53,6 +54,7 @@ sealed class Screen(val route: String) {
     object Guarantee : Screen("guarantee")
     object RouteMap : Screen("route_map")
     object ProductsCatalog : Screen("products_catalog")
+    object BlankScreen : Screen("blank_screen")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -145,6 +147,10 @@ fun AppNavigation() {
 
             composable(Screen.ProductsCatalog.route) {
                 ProductsCatalogScreen(navController = navController)
+            }
+
+            composable(Screen.BlankScreen.route) {
+                BlankScreen(navController = navController)
             }
         }
     }

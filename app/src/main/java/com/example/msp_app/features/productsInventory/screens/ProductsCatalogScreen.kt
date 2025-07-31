@@ -31,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.searchSimilarItems
@@ -56,7 +58,7 @@ fun ProductsCatalogScreen(navController: NavController) {
 
     val viewModel: ProductsInventoryViewModel = viewModel()
     val productState by viewModel.productInventoryState.collectAsState()
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
 
     val products = when (productState) {
@@ -78,57 +80,61 @@ fun ProductsCatalogScreen(navController: NavController) {
         ) { product -> "${product.ARTICULO}, ${product.LINEA_ARTICULO}" }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .statusBarsPadding()
-    ) {
-        Text(
-            text = "Productos",
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color(0xFF003366),
+    DrawerContainer(
+        navController = navController
+    ) { openDrawer ->
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            textAlign = TextAlign.Center
-        )
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            placeholder = { Text("Buscar Producto...") },
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = "Buscar")
-            },
-            trailingIcon = {
-                if (query.isNotEmpty()) {
-                    IconButton(onClick = {
-                        query = ""
-                        focusManager.clearFocus()
-                    }) {
-                        Icon(Icons.Default.Close, contentDescription = "Eliminar busqueda")
-                    }
-                }
-            },
-            shape = RoundedCornerShape(25.dp)
-        )
-
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(bottom = 24.dp)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .statusBarsPadding()
         ) {
-            items(
-                items = filteredProducts,
-                key = { it.ARTICULO_ID }
-            ) { product ->
-                ProductCard(product = product)
+            Text(
+                text = "Productos",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFF003366),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                textAlign = TextAlign.Center
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Buscar Producto...") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = "Buscar")
+                },
+                trailingIcon = {
+                    if (query.isNotEmpty()) {
+                        IconButton(onClick = {
+                            query = ""
+                            focusManager.clearFocus()
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = "Eliminar busqueda")
+                        }
+                    }
+                },
+                shape = RoundedCornerShape(25.dp)
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                items(
+                    items = filteredProducts,
+                    key = { it.ARTICULO_ID }
+                ) { product ->
+                    ProductCard(product = product)
+                }
             }
         }
     }
