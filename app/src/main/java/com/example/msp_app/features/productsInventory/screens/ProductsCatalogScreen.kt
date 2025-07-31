@@ -74,8 +74,8 @@ fun ProductsCatalogScreen(navController: NavController) {
         searchSimilarItems(
             query = query,
             items = products.filter { it.EXISTENCIAS > 0 },
-            threshold = 60
-        ) { it.ARTICULO }
+            threshold = 90
+        ) { product -> "${product.ARTICULO}, ${product.LINEA_ARTICULO}" }
     }
 
     Column(
@@ -124,7 +124,10 @@ fun ProductsCatalogScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            items(filteredProducts) { product ->
+            items(
+                items = filteredProducts,
+                key = { it.ARTICULO_ID }
+            ) { product ->
                 ProductCard(product = product)
             }
         }
