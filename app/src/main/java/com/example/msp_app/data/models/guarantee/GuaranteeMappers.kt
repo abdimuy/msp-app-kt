@@ -9,7 +9,7 @@ fun Guarantee.toEntity(): GuaranteeEntity = GuaranteeEntity(
     EXTERNAL_ID,
     DOCTO_CC_ID,
     ESTADO,
-    DESCRIPCION,
+    DESCRIPCION_FALLA,
     OBSERVACIONES,
     UPLOADED,
     FECHA_SOLICITUD
@@ -20,7 +20,7 @@ fun GuaranteeEntity.toDomain(): Guarantee = Guarantee(
     EXTERNAL_ID,
     DOCTO_CC_ID,
     ESTADO,
-    DESCRIPCION,
+    DESCRIPCION_FALLA,
     OBSERVACIONES,
     UPLOADED,
     FECHA_SOLICITUD

@@ -12,7 +12,7 @@ import androidx.room.PrimaryKey
 )
 data class GuaranteeImageEntity(
     @PrimaryKey val ID: String,
-    val GARANTIA_ID: Int,
+    val GARANTIA_ID: String,
     val IMG_PATH: String,
     val IMG_MIME: String,
     val IMG_DESC: String?,

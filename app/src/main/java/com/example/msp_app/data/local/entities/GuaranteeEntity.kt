@@ -13,11 +13,12 @@ import androidx.room.PrimaryKey
     ]
 )
 data class GuaranteeEntity(
-    @PrimaryKey(autoGenerate = true) val ID: Int = 0,
+    @PrimaryKey(autoGenerate = true)
+    val ID: Int = 0,
     val EXTERNAL_ID: String,
     val DOCTO_CC_ID: Int,
     val ESTADO: String,
-    val DESCRIPCION: String,
+    val DESCRIPCION_FALLA: String,
     val OBSERVACIONES: String?,
     val UPLOADED: Int,
     val FECHA_SOLICITUD: String

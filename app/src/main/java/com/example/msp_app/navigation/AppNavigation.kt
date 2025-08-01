@@ -49,7 +49,10 @@ sealed class Screen(val route: String) {
         fun createRoute(saleId: String) = "visit_ticket/$saleId"
     }
 
-    object Guarantee : Screen("guarantee")
+    object Guarantee : Screen("guarantee/{saleId}") {
+        fun createRoute(saleId: String) = "guarantee/$saleId"
+    }
+
     object RouteMap : Screen("route_map")
 }
 
@@ -133,8 +136,12 @@ fun AppNavigation() {
                 }
             }
 
-            composable(Screen.Guarantee.route) {
-                GuaranteeScreen(navController = navController)
+            composable(Screen.Guarantee.route) { backStackEntry ->
+                val saleIdString = backStackEntry.arguments?.getString("saleId")
+                val saleId = saleIdString?.toIntOrNull()
+                if (saleId != null) {
+                    GuaranteeScreen(saleId = saleId, navController = navController)
+                }
             }
 
             composable(Screen.RouteMap.route) {

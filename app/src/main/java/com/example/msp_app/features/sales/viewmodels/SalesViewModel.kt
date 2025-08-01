@@ -6,11 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.sales.SalesApi
+import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.local.entities.OverduePaymentsEntity
+import com.example.msp_app.data.models.guarantee.toEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
@@ -31,6 +33,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val productStore = ProductsLocalDataSource(application.applicationContext)
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
+    private val guaranteeStore = GuaranteesLocalDataSource(application.applicationContext)
 
     private val _salesState =
         MutableStateFlow<ResultState<List<SaleWithProducts>>>(ResultState.Idle)
@@ -134,6 +137,8 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 val sales = salesData.body.ventas
                 val products = salesData.body.productos
                 val payments = salesData.body.pagos
+                val guarantees = salesData.body.garantias
+                val guaranteesEvent = salesData.body.eventosGarantias
 
                 val currentSales = saleStore.getAll().map { it.toDomain() }
 
@@ -152,6 +157,8 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 saleStore.saveAll(salesToSave)
                 productStore.saveAll(products.map { it.toEntity() })
                 paymentStore.saveAll(payments.map { it.toEntity() })
+                guaranteeStore.saveAllGurantees(guarantees.map { it.toEntity() })
+                guaranteeStore.saveAllGuaranteeEvents(guaranteesEvent.map { it.toEntity() })
                 visitsStore.deleteAllVisits()
 
                 _syncSalesState.value = ResultState.Success(sales)

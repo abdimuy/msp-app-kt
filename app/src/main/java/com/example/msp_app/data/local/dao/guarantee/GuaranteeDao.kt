@@ -13,13 +13,16 @@ interface GuaranteeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertGuarantees(guarantee: GuaranteeEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllGuarantees(guarantees: List<GuaranteeEntity>)
+
     @Query(
         """
         SELECT
             EXTERNAL_ID,
             DOCTO_CC_ID,
             ESTADO,
-            DESCRIPCION,
+            DESCRIPCION_FALLA,
             OBSERVACIONES,
             UPLOADED,
             FECHA_SOLICITUD,
@@ -36,7 +39,7 @@ interface GuaranteeDao {
             EXTERNAL_ID,
             DOCTO_CC_ID,
             ESTADO,
-            DESCRIPCION,
+            DESCRIPCION_FALLA,
             OBSERVACIONES,
             UPLOADED,
             FECHA_SOLICITUD,
@@ -55,11 +58,20 @@ interface GuaranteeDao {
     )
     suspend fun updateUploadedStatus(id: Int, uploaded: Int)
 
+    @Query(
+        """
+        UPDATE garantias
+        SET ESTADO = :estado
+        WHERE ID = :id
+    """
+    )
+    suspend fun updateGuaranteeEstado(id: Int, estado: String)
+
     @Query("DELETE FROM garantias")
     suspend fun deleteAllGuarantees()
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertGuaranteesImagen(image: GuaranteeImageEntity)
+    suspend fun insertGuaranteesImagen(images: List<GuaranteeImageEntity>)
 
     @Query(
         """
@@ -82,6 +94,9 @@ interface GuaranteeDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvento(event: GuaranteeEventEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllEvents(events: List<GuaranteeEventEntity>)
+
     @Query(
         """
         SELECT
@@ -99,6 +114,20 @@ interface GuaranteeDao {
 
     @Query(
         """
+    SELECT
+        ID,
+        GARANTIA_ID,
+        TIPO_EVENTO,
+        FECHA_EVENTO,
+        COMENTARIO,
+        ENVIADO
+    FROM garantia_eventos
+    """
+    )
+    suspend fun getAllEventos(): List<GuaranteeEventEntity>
+
+    @Query(
+        """
         UPDATE garantia_eventos
         SET ENVIADO = :sent
         WHERE GARANTIA_ID = :id
@@ -108,4 +137,22 @@ interface GuaranteeDao {
 
     @Query("DELETE FROM garantia_eventos")
     suspend fun deleteAllGuaranteesEvents()
+
+    @Query(
+        """
+    SELECT 
+        EXTERNAL_ID,
+        DOCTO_CC_ID,
+        ESTADO,
+        DESCRIPCION_FALLA,
+        OBSERVACIONES,
+        UPLOADED,
+        FECHA_SOLICITUD,
+        ID
+    FROM garantias
+    WHERE DOCTO_CC_ID = :doctoCcId
+    LIMIT 1
+    """
+    )
+    suspend fun getGuaranteeByDoctoCcId(doctoCcId: Int): GuaranteeEntity?
 }

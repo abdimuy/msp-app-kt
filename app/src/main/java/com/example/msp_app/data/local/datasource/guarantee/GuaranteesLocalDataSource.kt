@@ -1,10 +1,14 @@
 package com.example.msp_app.data.local.datasource.guarantee
 
 import android.content.Context
+import android.util.Log
 import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.local.entities.GuaranteeEventEntity
 import com.example.msp_app.data.local.entities.GuaranteeImageEntity
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 class GuaranteesLocalDataSource(private val context: Context) {
     private val guaranteesDao = AppDatabase.getInstance(context).guaranteeDao()
@@ -17,6 +21,11 @@ class GuaranteesLocalDataSource(private val context: Context) {
         return guaranteesDao.getAllGuarantees()
     }
 
+    suspend fun saveAllGurantees(guarantees: List<GuaranteeEntity>) {
+        guaranteesDao.deleteAllGuarantees()
+        guaranteesDao.insertAllGuarantees(guarantees)
+    }
+
     suspend fun insertGuarantee(guarantee: GuaranteeEntity) {
         guaranteesDao.insertGuarantees(guarantee)
     }
@@ -25,8 +34,13 @@ class GuaranteesLocalDataSource(private val context: Context) {
         guaranteesDao.updateUploadedStatus(id, uploaded)
     }
 
-    suspend fun insertGuaranteeImage(image: GuaranteeImageEntity) {
+    suspend fun getGuaranteeByDoctoCcId(doctoCcId: Int): GuaranteeEntity? {
+        return guaranteesDao.getGuaranteeByDoctoCcId(doctoCcId)
+    }
+
+    suspend fun insertGuaranteeImage(image: List<GuaranteeImageEntity>) {
         guaranteesDao.insertGuaranteesImagen(image)
+        Log.d("MI_PRUEBA", "${image.size}")
     }
 
     suspend fun getImagesByGuaranteeId(guaranteeId: Int): List<GuaranteeImageEntity> {
@@ -35,6 +49,16 @@ class GuaranteesLocalDataSource(private val context: Context) {
 
     suspend fun insertGuaranteeEvent(event: GuaranteeEventEntity) {
         guaranteesDao.insertEvento(event)
+    }
+
+    suspend fun saveAllGuaranteeEvents(events: List<GuaranteeEventEntity>) {
+        guaranteesDao.deleteAllGuaranteesEvents()
+        guaranteesDao.insertAllEvents(events)
+        guaranteesDao.getAllEventos()
+    }
+
+    suspend fun getAllGuaranteeEvents(): List<GuaranteeEventEntity> {
+        return guaranteesDao.getAllEventos()
     }
 
     suspend fun getEventsByGuaranteeId(guaranteeId: String): List<GuaranteeEventEntity> {
@@ -50,4 +74,26 @@ class GuaranteesLocalDataSource(private val context: Context) {
         guaranteesDao.deleteAllGuaranteesEvents()
         guaranteesDao.deleteAllGuarantees()
     }
+
+    suspend fun updateGuaranteeStatusAndInsertEvent(
+        guaranteeId: Int,
+        externalId: String,
+        newEstado: String,
+        tipoEvento: String,
+        comentario: String? = null
+    ) {
+        guaranteesDao.updateGuaranteeEstado(guaranteeId, newEstado)
+
+        val newEvent = GuaranteeEventEntity(
+            ID = UUID.randomUUID().toString(),
+            GARANTIA_ID = externalId,
+            TIPO_EVENTO = tipoEvento,
+            FECHA_EVENTO = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+            COMENTARIO = comentario,
+            ENVIADO = 0
+        )
+        Log.d("NEW_EVE", "${newEvent}")
+        guaranteesDao.insertEvento(newEvent)
+    }
+
 }
