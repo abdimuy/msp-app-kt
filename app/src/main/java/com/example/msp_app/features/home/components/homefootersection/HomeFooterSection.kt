@@ -46,7 +46,7 @@ fun HomeFooterSection(
     onResendAllPayments: () -> Unit,
     onLogout: () -> Unit,
     onInitWeek: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val showDialogInitWeek = remember { mutableStateOf(false) }
     val baseURL = ApiProvider.baseURL.collectAsState()
@@ -148,7 +148,6 @@ fun HomeFooterSection(
             is ResultState.Success -> Text("Ventas descargadas: ${syncSalesState.data.size}")
             is ResultState.Error -> Text("Error: ${syncSalesState.message}")
         }
-
         Button(
             onClick = {
                 onSyncPendingVisits()
