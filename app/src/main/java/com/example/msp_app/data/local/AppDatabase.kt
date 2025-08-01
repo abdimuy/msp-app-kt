@@ -7,11 +7,13 @@ import androidx.room.RoomDatabase
 import com.example.msp_app.data.local.dao.payment.PaymentDao
 import com.example.msp_app.data.local.dao.product.ProductDao
 import com.example.msp_app.data.local.dao.productInventory.ProductInventoryDao
+import com.example.msp_app.data.local.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.data.local.dao.sale.SaleDao
 import com.example.msp_app.data.local.dao.visit.VisitDao
 import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.local.entities.ProductEntity
 import com.example.msp_app.data.local.entities.ProductInventoryEntity
+import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
 import com.example.msp_app.data.local.entities.SaleEntity
 import com.example.msp_app.data.local.entities.VisitEntity
 
@@ -21,9 +23,10 @@ import com.example.msp_app.data.local.entities.VisitEntity
         PaymentEntity::class,
         ProductEntity::class,
         VisitEntity::class,
-        ProductInventoryEntity::class
+        ProductInventoryEntity::class,
+        ProductInventoryImageEntity::class
     ],
-    version = 7,
+    version = 8,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
@@ -31,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun productDao(): ProductDao
     abstract fun visitDao(): VisitDao
     abstract fun productInventoryDao(): ProductInventoryDao
+    abstract fun productInventoryImageDao(): ProductInventoryImageDao
 
     companion object {
         @Volatile
