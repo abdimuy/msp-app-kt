@@ -49,6 +49,10 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    suspend fun getGuaranteeSaleById(doctoCcId: Int): GuaranteeEntity? {
+        return guaranteeStore.getGuaranteeByDoctoCcId(doctoCcId)
+    }
+
     fun insertGuarantee(guarantee: GuaranteeEntity) {
         viewModelScope.launch {
             guaranteeStore.insertGuarantee(guarantee)

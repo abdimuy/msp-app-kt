@@ -3,7 +3,6 @@ package com.example.msp_app.features.sales.components.guaranteeSection
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -117,7 +116,7 @@ fun GuaranteeSection(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     TextButton(
-                        onClick = {},
+                        onClick = { navController.navigate(Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())) },
                         modifier = Modifier
                             .background(
                                 MaterialTheme.colorScheme.primary,
@@ -171,7 +170,7 @@ fun GuaranteeSection(
             )
         }
     }
-    
+
     if (showConfirmDialog && guarantee != null) {
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
