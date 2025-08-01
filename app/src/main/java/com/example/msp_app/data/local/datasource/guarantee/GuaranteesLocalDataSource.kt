@@ -22,7 +22,8 @@ class GuaranteesLocalDataSource(private val context: Context) {
 
     suspend fun saveAllGurantees(guarantees: List<GuaranteeEntity>) {
         guaranteesDao.deleteAllGuarantees()
-        guaranteesDao.insertAllGuarantees(guarantees)
+        val guaranteesAsUploaded = guarantees.map { it.copy(UPLOADED = 1) }
+        guaranteesDao.insertAllGuarantees(guaranteesAsUploaded)
     }
 
     suspend fun insertGuarantee(guarantee: GuaranteeEntity) {
@@ -45,13 +46,18 @@ class GuaranteesLocalDataSource(private val context: Context) {
         return guaranteesDao.getImagenesByGuaranteesId(guaranteeId)
     }
 
+    suspend fun getImagesByExternalId(externalId: String): List<GuaranteeImageEntity> {
+        return guaranteesDao.getImagesByExternalId(externalId)
+    }
+
     suspend fun insertGuaranteeEvent(event: GuaranteeEventEntity) {
         guaranteesDao.insertEvento(event)
     }
 
     suspend fun saveAllGuaranteeEvents(events: List<GuaranteeEventEntity>) {
         guaranteesDao.deleteAllGuaranteesEvents()
-        guaranteesDao.insertAllEvents(events)
+        val eventsAsSent = events.map { it.copy(ENVIADO = 1) }
+        guaranteesDao.insertAllEvents(eventsAsSent)
         guaranteesDao.getAllEventos()
     }
 
@@ -93,4 +99,19 @@ class GuaranteesLocalDataSource(private val context: Context) {
         guaranteesDao.insertEvento(newEvent)
     }
 
+    suspend fun getGuaranteeByExternalId(externalId: String): GuaranteeEntity? {
+        return guaranteesDao.getGuaranteeByExternalId(externalId)
+    }
+
+    suspend fun markGuaranteeAsUploaded(externalId: String) {
+        guaranteesDao.markGuaranteeAsUploaded(externalId)
+    }
+
+    suspend fun getPendingGuarantees(): List<GuaranteeEntity> {
+        return guaranteesDao.getPendingGuarantees()
+    }
+
+    suspend fun getPendingGuaranteeEvents(): List<GuaranteeEventEntity> {
+        return guaranteesDao.getPendingGuaranteeEvents()
+    }
 }

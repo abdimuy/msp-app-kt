@@ -10,3 +10,9 @@ data class Guarantee(
     val UPLOADED: Int,
     val FECHA_SOLICITUD: String
 )
+
+data class GuaranteeApi(
+    val externalId: String,
+    val descripcionFalla: String,
+    val observaciones: String?
+)

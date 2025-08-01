@@ -128,6 +128,20 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                         ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
                     return@launch
                 }
+                
+                val pendingGuarantees = guaranteeStore.getPendingGuarantees()
+                if (pendingGuarantees.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay ${pendingGuarantees.size} garantías pendientes")
+                    return@launch
+                }
+                
+                val pendingGuaranteeEvents = guaranteeStore.getPendingGuaranteeEvents()
+                if (pendingGuaranteeEvents.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay ${pendingGuaranteeEvents.size} eventos de garantías pendientes")
+                    return@launch
+                }
 
                 val salesData = api.getAll(
                     zona = zona,
