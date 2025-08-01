@@ -42,4 +42,10 @@ object Constants {
 
     //Firebase Field
     const val FIELD_BASE_URL = "baseURL"
+
+    //Estados de garantias
+    const val NOTIFICADO = "NOTIFICADO"
+    const val LISTO_PARA_ENTREGAR = "LISTO_PARA_ENTREGAR"
+    const val ENTREGADO = "ENTREGADO"
+    const val RECOLECTADO = "RECOLECTADO"
 }

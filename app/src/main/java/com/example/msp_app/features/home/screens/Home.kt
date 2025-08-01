@@ -65,6 +65,7 @@ import com.example.msp_app.features.home.components.homesummary.HomeSummarySecti
 import com.example.msp_app.features.home.components.homeweeklypaymentssection.HomeWeeklyPaymentsSection
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
+import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.sale_item.SaleItemVariant
@@ -133,6 +134,8 @@ fun HomeScreen(navController: NavController) {
 
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
+
+    val guaranteesViewModel: GuaranteesViewModel = viewModel()
 
     val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
 
@@ -425,7 +428,11 @@ fun HomeScreen(navController: NavController) {
                             dateInitWeek = dateInitWeek,
                             onSyncSales = { zona, date -> salesViewModel.syncSales(zona, date) },
                             onSyncPendingVisits = { visitsViewModel.syncPendingVisits() },
-                            onSyncPendingPayments = { paymentsViewModel.syncPendingPayments() },
+                            onSyncPendingPayments = { 
+                                paymentsViewModel.syncPendingPayments()
+                                guaranteesViewModel.syncPendingGuarantees()
+                                guaranteesViewModel.syncPendingGuaranteeEvents()
+                            },
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
                             onInitWeek = { authViewModel.updateStartOfWeekDate() },

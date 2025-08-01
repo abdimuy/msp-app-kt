@@ -1,0 +1,232 @@
+package com.example.msp_app.data.local.dao.guarantee
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import com.example.msp_app.data.local.entities.GuaranteeEntity
+import com.example.msp_app.data.local.entities.GuaranteeEventEntity
+import com.example.msp_app.data.local.entities.GuaranteeImageEntity
+
+@Dao
+interface GuaranteeDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGuarantees(guarantee: GuaranteeEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllGuarantees(guarantees: List<GuaranteeEntity>)
+
+    @Query(
+        """
+        SELECT
+            EXTERNAL_ID,
+            DOCTO_CC_ID,
+            ESTADO,
+            DESCRIPCION_FALLA,
+            OBSERVACIONES,
+            UPLOADED,
+            FECHA_SOLICITUD,
+            ID
+        FROM garantias
+        WHERE ID = :id
+    """
+    )
+    suspend fun getGuaranteesById(id: Int): GuaranteeEntity?
+
+    @Query(
+        """
+        SELECT
+            EXTERNAL_ID,
+            DOCTO_CC_ID,
+            ESTADO,
+            DESCRIPCION_FALLA,
+            OBSERVACIONES,
+            UPLOADED,
+            FECHA_SOLICITUD,
+            ID
+        FROM garantias
+    """
+    )
+    suspend fun getAllGuarantees(): List<GuaranteeEntity>
+
+    @Query(
+        """
+        UPDATE garantias
+        SET UPLOADED = :uploaded
+        WHERE ID = :id
+    """
+    )
+    suspend fun updateUploadedStatus(id: Int, uploaded: Int)
+
+    @Query(
+        """
+        UPDATE garantias
+        SET ESTADO = :estado
+        WHERE ID = :id
+    """
+    )
+    suspend fun updateGuaranteeEstado(id: Int, estado: String)
+
+    @Query("DELETE FROM garantias")
+    suspend fun deleteAllGuarantees()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertGuaranteesImagen(images: List<GuaranteeImageEntity>)
+
+    @Query(
+        """
+        SELECT
+            ID,
+            GARANTIA_ID,
+            IMG_PATH,
+            IMG_MIME,
+            IMG_DESC,
+            FECHA_SUBIDA
+        FROM garantia_imagenes
+        WHERE GARANTIA_ID = :guaranteeId
+    """
+    )
+    suspend fun getImagenesByGuaranteesId(guaranteeId: Int): List<GuaranteeImageEntity>
+
+    @Query(
+        """
+        SELECT
+            ID,
+            GARANTIA_ID,
+            IMG_PATH,
+            IMG_MIME,
+            IMG_DESC,
+            FECHA_SUBIDA
+        FROM garantia_imagenes
+        WHERE GARANTIA_ID = :externalId
+    """
+    )
+    suspend fun getImagesByExternalId(externalId: String): List<GuaranteeImageEntity>
+
+    @Query("DELETE FROM garantia_imagenes")
+    suspend fun deleteAllGuaranteesImages()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertEvento(event: GuaranteeEventEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllEvents(events: List<GuaranteeEventEntity>)
+
+    @Query(
+        """
+        SELECT
+            ID,
+            GARANTIA_ID,
+            TIPO_EVENTO,
+            FECHA_EVENTO,
+            COMENTARIO,
+            ENVIADO
+        FROM garantia_eventos
+        WHERE GARANTIA_ID = :guaranteeId
+    """
+    )
+    suspend fun getEventosByGuaranteesId(guaranteeId: String): List<GuaranteeEventEntity>
+
+    @Query(
+        """
+    SELECT
+        ID,
+        GARANTIA_ID,
+        TIPO_EVENTO,
+        FECHA_EVENTO,
+        COMENTARIO,
+        ENVIADO
+    FROM garantia_eventos
+    """
+    )
+    suspend fun getAllEventos(): List<GuaranteeEventEntity>
+
+    @Query(
+        """
+        UPDATE garantia_eventos
+        SET ENVIADO = :sent
+        WHERE ID = :id
+    """
+    )
+    suspend fun updateEventoEnviado(id: String, sent: Int)
+
+    @Query("DELETE FROM garantia_eventos")
+    suspend fun deleteAllGuaranteesEvents()
+
+    @Query(
+        """
+    SELECT 
+        EXTERNAL_ID,
+        DOCTO_CC_ID,
+        ESTADO,
+        DESCRIPCION_FALLA,
+        OBSERVACIONES,
+        UPLOADED,
+        FECHA_SOLICITUD,
+        ID
+    FROM garantias
+    WHERE DOCTO_CC_ID = :doctoCcId
+    LIMIT 1
+    """
+    )
+    suspend fun getGuaranteeByDoctoCcId(doctoCcId: Int): GuaranteeEntity?
+
+    @Query(
+        """
+    SELECT 
+        EXTERNAL_ID,
+        DOCTO_CC_ID,
+        ESTADO,
+        DESCRIPCION_FALLA,
+        OBSERVACIONES,
+        UPLOADED,
+        FECHA_SOLICITUD,
+        ID
+    FROM garantias
+    WHERE EXTERNAL_ID = :externalId
+    LIMIT 1
+    """
+    )
+    suspend fun getGuaranteeByExternalId(externalId: String): GuaranteeEntity?
+
+    @Query(
+        """
+        UPDATE garantias
+        SET UPLOADED = 1
+        WHERE EXTERNAL_ID = :externalId
+    """
+    )
+    suspend fun markGuaranteeAsUploaded(externalId: String)
+
+    @Query(
+        """
+        SELECT 
+            EXTERNAL_ID,
+            DOCTO_CC_ID,
+            ESTADO,
+            DESCRIPCION_FALLA,
+            OBSERVACIONES,
+            UPLOADED,
+            FECHA_SOLICITUD,
+            ID
+        FROM garantias
+        WHERE UPLOADED = 0
+        """
+    )
+    suspend fun getPendingGuarantees(): List<GuaranteeEntity>
+
+    @Query(
+        """
+        SELECT
+            ID,
+            GARANTIA_ID,
+            TIPO_EVENTO,
+            FECHA_EVENTO,
+            COMENTARIO,
+            ENVIADO
+        FROM garantia_eventos
+        WHERE ENVIADO = 0
+        """
+    )
+    suspend fun getPendingGuaranteeEvents(): List<GuaranteeEventEntity>
+}
