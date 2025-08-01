@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -27,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -48,9 +46,9 @@ import com.example.msp_app.components.badges.BadgesType
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
-import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.CustomMap
+import com.example.msp_app.features.sales.components.guaranteeSection.GuaranteeSection
 import com.example.msp_app.features.sales.components.paymentshistorysection.PaymentsHistory
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.saleactionssection.SaleActionSection
@@ -155,25 +153,12 @@ fun SaleDetailsContent(
 
     val productsViewModel: ProductsViewModel = viewModel()
     val salesViewModel: SalesViewModel = viewModel()
-    val guaranteesViewModel: GuaranteesViewModel = viewModel()
     val productsState by productsViewModel.productsByFolioState.collectAsState()
     val salesByClientIdState by salesViewModel.salesByClientState.collectAsState()
     val overduePaymentBySaleState by salesViewModel.overduePaymentBySaleState.collectAsState()
 
     LaunchedEffect(sale.FOLIO) {
         productsViewModel.getProductsByFolio(sale.FOLIO)
-    }
-
-    LaunchedEffect(sale.DOCTO_CC_ID) {
-        guaranteesViewModel.loadGuaranteeBySaleId(sale.DOCTO_CC_ID)
-    }
-
-    val guarantees by guaranteesViewModel.guaranteeBySale.collectAsState()
-
-    LaunchedEffect(guarantees?.ID) {
-        guarantees?.ID?.let { id ->
-            guaranteesViewModel.loadEventsByGuaranteeId(id.toString())
-        }
     }
 
     Column(
@@ -331,126 +316,10 @@ fun SaleDetailsContent(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Column(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier
-                .padding(horizontal = 20.dp)
-        ) {
-            guarantees?.let {
-                Card(
-                    shape = RoundedCornerShape(10.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF198754)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(15.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Garantía Activa",
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            text = "Se encuentra una garantía actualmente activa.",
-                            fontSize = 18.sp,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            text = guarantees!!.ESTADO,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                when (guarantees!!.ESTADO) {
-                    "NOTIFICADO" -> {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        TextButton(
-                            onClick = { guaranteesViewModel.onRecolectarProductoClick(it) },
-                            modifier = Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.primary,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .height(40.dp)
-                                .fillMaxSize()
-                        ) {
-                            Text(
-                                "Recolectar producto del cliente",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        TextButton(
-                            onClick = {},
-                            modifier = Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.primary,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .height(40.dp)
-                                .fillMaxSize()
-                        ) {
-                            Text(
-                                "Imprimir aviso de garantía",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
-                            )
-                        }
-                    }
-
-                    "LISTO_PARA_ENTREGAR" -> {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        TextButton(
-                            onClick = {},
-                            modifier = Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.primary,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .height(40.dp)
-                                .fillMaxSize()
-                        ) {
-                            Text(
-                                "Entregar producto al cliente",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
-                            )
-                        }
-                    }
-                }
-            } ?: TextButton(
-                onClick = { navController.navigate(Screen.Guarantee.createRoute(sale.DOCTO_CC_ACR_ID.toString())) },
-                modifier = Modifier
-                    .background(
-                        MaterialTheme.colorScheme.primary,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .height(40.dp)
-                    .fillMaxWidth()
-            ) {
-                Text(
-                    "INICIAR GARANTIA",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
-                )
-            }
-        }
+        GuaranteeSection(
+            sale,
+            navController,
+        )
 
         Box {
             Column {

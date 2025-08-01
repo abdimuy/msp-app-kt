@@ -3,10 +3,10 @@ package com.example.msp_app.features.guarantees.screens.viewmodels
 import android.app.Application
 import android.content.Context
 import android.net.Uri
-import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.msp_app.core.utils.Constants.LISTO_PARA_ENTREGAR
+import com.example.msp_app.core.utils.Constants.ENTREGADO
+import com.example.msp_app.core.utils.Constants.RECOLECTADO
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
 import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.local.entities.GuaranteeEventEntity
@@ -125,7 +125,6 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 )
             }
             guaranteeStore.insertGuaranteeImage(images)
-            Log.d("MI_PR", "${images.size}")
         }
     }
 
@@ -134,11 +133,22 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
             guaranteeStore.updateGuaranteeStatusAndInsertEvent(
                 guaranteeId = guarantee.ID,
                 externalId = guarantee.EXTERNAL_ID,
-                newEstado = LISTO_PARA_ENTREGAR,
-                tipoEvento = LISTO_PARA_ENTREGAR,
+                newEstado = RECOLECTADO,
+                tipoEvento = RECOLECTADO,
                 comentario = "El producto fue recolectado del cliente"
             )
-            Log.d("EVENTOS", "${guarantee.ID}")
+        }
+    }
+
+    fun onEntregarProducto(guarantee: GuaranteeEntity) {
+        viewModelScope.launch {
+            guaranteeStore.updateGuaranteeStatusAndInsertEvent(
+                guaranteeId = guarantee.ID,
+                externalId = guarantee.EXTERNAL_ID,
+                newEstado = ENTREGADO,
+                tipoEvento = ENTREGADO,
+                comentario = "El producto fue entregado al cliente"
+            )
         }
     }
 

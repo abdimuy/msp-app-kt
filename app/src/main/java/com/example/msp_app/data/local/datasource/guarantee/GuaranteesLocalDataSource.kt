@@ -1,7 +1,6 @@
 package com.example.msp_app.data.local.datasource.guarantee
 
 import android.content.Context
-import android.util.Log
 import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.local.entities.GuaranteeEventEntity
@@ -40,7 +39,6 @@ class GuaranteesLocalDataSource(private val context: Context) {
 
     suspend fun insertGuaranteeImage(image: List<GuaranteeImageEntity>) {
         guaranteesDao.insertGuaranteesImagen(image)
-        Log.d("MI_PRUEBA", "${image.size}")
     }
 
     suspend fun getImagesByGuaranteeId(guaranteeId: Int): List<GuaranteeImageEntity> {
@@ -92,7 +90,6 @@ class GuaranteesLocalDataSource(private val context: Context) {
             COMENTARIO = comentario,
             ENVIADO = 0
         )
-        Log.d("NEW_EVE", "${newEvent}")
         guaranteesDao.insertEvento(newEvent)
     }
 
