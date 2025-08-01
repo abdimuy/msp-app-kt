@@ -9,6 +9,8 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
+import com.example.msp_app.workers.PendingGuaranteesWorker
+import com.example.msp_app.workers.PendingGuaranteeEventsWorker
 
 fun enqueuePendingPaymentsWorker(
     context: Context,
@@ -50,6 +52,49 @@ fun enqueuePendingVisitsWorker(
 
     val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_visit_$visitId"
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(uniqueName, policy, request)
+}
+
+fun enqueuePendingGuaranteesWorker(
+    context: Context,
+    guaranteeExternalId: String,
+    replace: Boolean = false
+) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val input = workDataOf("guarantee_external_id" to guaranteeExternalId)
+    val request = OneTimeWorkRequestBuilder<PendingGuaranteesWorker>()
+        .setConstraints(constraints)
+        .setInputData(input)
+        .build()
+
+    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+    val uniqueName = "sync_pending_guarantee_$guaranteeExternalId"
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(uniqueName, policy, request)
+}
+
+fun enqueuePendingGuaranteeEventsWorker(
+    context: Context,
+    replace: Boolean = false
+) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val input = workDataOf("event_id" to "batch_events")
+    val request = OneTimeWorkRequestBuilder<PendingGuaranteeEventsWorker>()
+        .setConstraints(constraints)
+        .setInputData(input)
+        .build()
+
+    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+    val uniqueName = "sync_pending_guarantee_events"
 
     WorkManager.getInstance(context)
         .enqueueUniqueWork(uniqueName, policy, request)

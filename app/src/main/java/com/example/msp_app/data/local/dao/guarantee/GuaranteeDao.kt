@@ -88,6 +88,21 @@ interface GuaranteeDao {
     )
     suspend fun getImagenesByGuaranteesId(guaranteeId: Int): List<GuaranteeImageEntity>
 
+    @Query(
+        """
+        SELECT
+            ID,
+            GARANTIA_ID,
+            IMG_PATH,
+            IMG_MIME,
+            IMG_DESC,
+            FECHA_SUBIDA
+        FROM garantia_imagenes
+        WHERE GARANTIA_ID = :externalId
+    """
+    )
+    suspend fun getImagesByExternalId(externalId: String): List<GuaranteeImageEntity>
+
     @Query("DELETE FROM garantia_imagenes")
     suspend fun deleteAllGuaranteesImages()
 
@@ -130,7 +145,7 @@ interface GuaranteeDao {
         """
         UPDATE garantia_eventos
         SET ENVIADO = :sent
-        WHERE GARANTIA_ID = :id
+        WHERE ID = :id
     """
     )
     suspend fun updateEventoEnviado(id: String, sent: Int)
@@ -155,4 +170,63 @@ interface GuaranteeDao {
     """
     )
     suspend fun getGuaranteeByDoctoCcId(doctoCcId: Int): GuaranteeEntity?
+
+    @Query(
+        """
+    SELECT 
+        EXTERNAL_ID,
+        DOCTO_CC_ID,
+        ESTADO,
+        DESCRIPCION_FALLA,
+        OBSERVACIONES,
+        UPLOADED,
+        FECHA_SOLICITUD,
+        ID
+    FROM garantias
+    WHERE EXTERNAL_ID = :externalId
+    LIMIT 1
+    """
+    )
+    suspend fun getGuaranteeByExternalId(externalId: String): GuaranteeEntity?
+
+    @Query(
+        """
+        UPDATE garantias
+        SET UPLOADED = 1
+        WHERE EXTERNAL_ID = :externalId
+    """
+    )
+    suspend fun markGuaranteeAsUploaded(externalId: String)
+
+    @Query(
+        """
+        SELECT 
+            EXTERNAL_ID,
+            DOCTO_CC_ID,
+            ESTADO,
+            DESCRIPCION_FALLA,
+            OBSERVACIONES,
+            UPLOADED,
+            FECHA_SOLICITUD,
+            ID
+        FROM garantias
+        WHERE UPLOADED = 0
+        """
+    )
+    suspend fun getPendingGuarantees(): List<GuaranteeEntity>
+
+    @Query(
+        """
+        SELECT
+            ID,
+            GARANTIA_ID,
+            TIPO_EVENTO,
+            FECHA_EVENTO,
+            COMENTARIO,
+            ENVIADO
+        FROM garantia_eventos
+        WHERE ENVIADO = 0
+        """
+    )
+    suspend fun getPendingGuaranteeEvents(): List<GuaranteeEventEntity>
 }

@@ -61,3 +61,31 @@ fun GuaranteeEventEntity.toDomain(): GuaranteeEvent = GuaranteeEvent(
     COMENTARIO,
     ENVIADO
 )
+
+fun GuaranteeEntity.toApi(): GuaranteeApi = GuaranteeApi(
+    externalId = EXTERNAL_ID,
+    descripcionFalla = DESCRIPCION_FALLA,
+    observaciones = OBSERVACIONES
+)
+
+fun Guarantee.toApi(): GuaranteeApi = GuaranteeApi(
+    externalId = EXTERNAL_ID,
+    descripcionFalla = DESCRIPCION_FALLA,
+    observaciones = OBSERVACIONES
+)
+
+fun GuaranteeEventEntity.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest = 
+    com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest(
+        id = ID,
+        fechaEvento = FECHA_EVENTO,
+        comentario = COMENTARIO ?: "",
+        tipoEvento = TIPO_EVENTO
+    )
+
+fun GuaranteeEvent.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest = 
+    com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest(
+        id = ID,
+        fechaEvento = FECHA_EVENTO,
+        comentario = COMENTARIO ?: "",
+        tipoEvento = TIPO_EVENTO
+    )
