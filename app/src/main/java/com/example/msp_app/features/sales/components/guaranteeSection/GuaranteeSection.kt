@@ -41,6 +41,8 @@ fun GuaranteeSection(
 ) {
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
     var showConfirmDialog by remember { mutableStateOf(false) }
+    var showPrintDialog by remember { mutableStateOf(false) }
+    var showDeliveryDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(sale.DOCTO_CC_ID) {
         guaranteesViewModel.loadGuaranteeBySaleId(sale.DOCTO_CC_ID)
@@ -116,7 +118,7 @@ fun GuaranteeSection(
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     TextButton(
-                        onClick = { navController.navigate(Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())) },
+                        onClick = { showPrintDialog = true },
                         modifier = Modifier
                             .background(
                                 MaterialTheme.colorScheme.primary,
@@ -137,7 +139,7 @@ fun GuaranteeSection(
                 "LISTO_PARA_ENTREGAR" -> {
                     Spacer(modifier = Modifier.height(8.dp))
                     TextButton(
-                        onClick = { guaranteesViewModel.onEntregarProducto(it) },
+                        onClick = { showDeliveryDialog = true },
                         modifier = Modifier
                             .background(
                                 MaterialTheme.colorScheme.primary,
@@ -186,7 +188,9 @@ fun GuaranteeSection(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        guaranteesViewModel.onRecolectarProductoClick(guarantee!!)
+                        guaranteesViewModel.onRecolectarProductoClick(guarantee!!) {
+                            guaranteesViewModel.loadGuaranteeBySaleId(sale.DOCTO_CC_ID)
+                        }
                         showConfirmDialog = false
                     }
                 ) {
@@ -196,6 +200,72 @@ fun GuaranteeSection(
             dismissButton = {
                 TextButton(
                     onClick = { showConfirmDialog = false }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showPrintDialog && guarantee != null) {
+        AlertDialog(
+            onDismissRequest = { showPrintDialog = false },
+            title = {
+                Text(
+                    text = "Confirmar Impresión",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("¿Está seguro de que desea imprimir el aviso de garantía?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        navController.navigate(Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString()))
+                        showPrintDialog = false
+                    }
+                ) {
+                    Text("Sí, imprimir")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showPrintDialog = false }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    if (showDeliveryDialog && guarantee != null) {
+        AlertDialog(
+            onDismissRequest = { showDeliveryDialog = false },
+            title = {
+                Text(
+                    text = "Confirmar Entrega",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("¿Está seguro de que desea entregar el producto al cliente?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        guaranteesViewModel.onEntregarProducto(guarantee!!) {
+                            guaranteesViewModel.loadGuaranteeBySaleId(sale.DOCTO_CC_ID)
+                        }
+                        showDeliveryDialog = false
+                    }
+                ) {
+                    Text("Sí, entregar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeliveryDialog = false }
                 ) {
                     Text("Cancelar")
                 }

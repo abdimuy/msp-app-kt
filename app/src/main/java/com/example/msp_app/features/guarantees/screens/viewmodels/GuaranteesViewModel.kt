@@ -142,7 +142,7 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun onRecolectarProductoClick(guarantee: GuaranteeEntity) {
+    fun onRecolectarProductoClick(guarantee: GuaranteeEntity, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             guaranteeStore.updateGuaranteeStatusAndInsertEvent(
                 guaranteeId = guarantee.ID,
@@ -152,10 +152,11 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 comentario = "El producto fue recolectado del cliente"
             )
             enqueuePendingGuaranteeEventsWorker(getApplication())
+            onComplete()
         }
     }
 
-    fun onEntregarProducto(guarantee: GuaranteeEntity) {
+    fun onEntregarProducto(guarantee: GuaranteeEntity, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             guaranteeStore.updateGuaranteeStatusAndInsertEvent(
                 guaranteeId = guarantee.ID,
@@ -165,6 +166,7 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 comentario = "El producto fue entregado al cliente"
             )
             enqueuePendingGuaranteeEventsWorker(getApplication())
+            onComplete()
         }
     }
 
