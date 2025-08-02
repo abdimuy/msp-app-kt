@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
@@ -26,9 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.msp_app.components.ModernLoadingOverlay
 import com.example.msp_app.core.utils.Constants.APP_VERSION
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
+import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
 
@@ -38,6 +39,8 @@ fun HomeFooterSection(
     visitsPendingState: ResultState<List<Visit>>,
     pendingPaymentsState: ResultState<List<Payment>>,
     syncSalesState: ResultState<List<*>>,
+    syncPendingPaymentsState: ResultState<Unit>,
+    updateStartOfWeekDateState: ResultState<User?>,
     zonaClienteId: Int,
     dateInitWeek: String,
     onSyncSales: (Int, String) -> Unit,
@@ -142,12 +145,11 @@ fun HomeFooterSection(
             Text("ACTUALIZAR DATOS", color = Color.White)
         }
 
-        when (syncSalesState) {
-            is ResultState.Idle -> Text("Presiona el botón para descargar ventas")
-            is ResultState.Loading -> CircularProgressIndicator()
-            is ResultState.Success -> Text("Ventas descargadas: ${syncSalesState.data.size}")
-            is ResultState.Error -> Text("Error: ${syncSalesState.message}")
-        }
+        ModernLoadingOverlay(
+            isLoading = syncSalesState is ResultState.Loading,
+            message = "Actualizando datos",
+            subMessage = "Por favor espere mientras se sincronizan las ventas..."
+        )
 
         Button(
             onClick = {
@@ -159,6 +161,12 @@ fun HomeFooterSection(
             Text("ENVIAR PAGOS PENDIENTES", color = Color.White)
         }
 
+        ModernLoadingOverlay(
+            isLoading = syncPendingPaymentsState is ResultState.Loading,
+            message = "Enviando pagos pendientes",
+            subMessage = "Sincronizando con el servidor..."
+        )
+
         Button(onClick = onResendAllPayments, modifier = Modifier.fillMaxWidth(0.92f)) {
             Text("REENVIAR TODOS LOS PAGOS", color = Color.White)
         }
@@ -169,6 +177,12 @@ fun HomeFooterSection(
         ) {
             Text("INICIALIZAR SEMANA", color = Color.White)
         }
+
+        ModernLoadingOverlay(
+            isLoading = updateStartOfWeekDateState is ResultState.Loading,
+            message = "Inicializando semana",
+            subMessage = "Actualizando fecha de inicio..."
+        )
 
         if (showDialogInitWeek.value) {
             AlertDialog(

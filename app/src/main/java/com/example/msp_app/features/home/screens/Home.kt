@@ -58,6 +58,7 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.SaleWithProducts
+import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.home.components.homestartweeksection.HomeStartWeekSection
@@ -65,7 +66,6 @@ import com.example.msp_app.features.home.components.homesummary.HomeSummarySecti
 import com.example.msp_app.features.home.components.homeweeklypaymentssection.HomeWeeklyPaymentsSection
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
-import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.sale_item.SaleItemVariant
@@ -131,6 +131,7 @@ fun HomeScreen(navController: NavController) {
     val adjustedPaymentPercentageState by paymentsViewModel.adjustedPaymentPercentageState.collectAsState()
 
     val pendingPaymentsState by paymentsViewModel.pendingPaymentsState.collectAsState()
+    val syncPendingPaymentsState by paymentsViewModel.syncPendingPaymentsState.collectAsState()
 
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
@@ -424,11 +425,13 @@ fun HomeScreen(navController: NavController) {
                             visitsPendingState = visitsPendingState,
                             pendingPaymentsState = pendingPaymentsState,
                             syncSalesState = syncSalesState,
+                            syncPendingPaymentsState = syncPendingPaymentsState,
+                            updateStartOfWeekDateState = updateStartOfWeekDateState,
                             zonaClienteId = userData?.ZONA_CLIENTE_ID ?: 0,
                             dateInitWeek = dateInitWeek,
                             onSyncSales = { zona, date -> salesViewModel.syncSales(zona, date) },
                             onSyncPendingVisits = { visitsViewModel.syncPendingVisits() },
-                            onSyncPendingPayments = { 
+                            onSyncPendingPayments = {
                                 paymentsViewModel.syncPendingPayments()
                                 guaranteesViewModel.syncPendingGuarantees()
                                 guaranteesViewModel.syncPendingGuaranteeEvents()
