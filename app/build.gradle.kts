@@ -14,16 +14,33 @@ val localProps = Properties().apply {
     }
 }
 
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.example.msp_app"
     compileSdk = 35
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.0.3"
+        versionCode = 8
+        versionName = "2.0.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = localProps.getProperty("MAPS_API_KEY", "")
@@ -35,9 +52,13 @@ android {
             isShrinkResources = false
         }
         getByName("release") {
-            signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
-            isShrinkResources = false
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -100,11 +121,10 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.10.2")
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.30.1")
-    implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:2.0.6")
+    implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.4.0")
     implementation("com.google.accompanist:accompanist-permissions:0.30.1")
     implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("org.apache.commons:commons-math3:3.6.1")
-    implementation("me.xdrop:fuzzywuzzy:1.4.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("com.google.code.gson:gson:2.8.9")
 }

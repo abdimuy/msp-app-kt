@@ -4,9 +4,9 @@ import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
-import com.example.msp_app.features.payments.screens.ForgivenessTextData
-import com.example.msp_app.features.payments.screens.PaymentTextData
-import com.example.msp_app.features.payments.screens.VisitTextData
+import com.example.msp_app.features.payments.models.ForgivenessTextData
+import com.example.msp_app.features.payments.models.PaymentTextData
+import com.example.msp_app.features.payments.models.VisitTextData
 import java.io.File
 import java.io.FileOutputStream
 import java.time.LocalDateTime

@@ -1,6 +1,7 @@
 package com.example.msp_app.features.auth.viewModels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants
@@ -79,6 +80,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     doc.toObject(User::class.java)?.copy(ID = doc.id)
                 }
                 _userData.value = ResultState.Success(data)
+
+                data?.let {
+                    updateAppVersion(it.ID, it)
+                }
             } catch (e: Exception) {
                 _userData.value = ResultState.Error(e.message ?: "Error desconocido")
             }
@@ -136,6 +141,32 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _updateStartOfWeekDateState.value = ResultState.Error(
                     "No se pudo actualizar la fecha de inicio de semana"
                 )
+            }
+        }
+    }
+
+    fun updateAppVersion(userId: String, userData: User) {
+        viewModelScope.launch {
+            val appVersion = Constants.APP_VERSION
+            val versionDate = Timestamp.now()
+
+            try {
+                FirebaseFirestore.getInstance()
+                    .collection(Constants.USERS_COLLECTION)
+                    .document(userId)
+                    .update(
+                        Constants.VERSION_APP, appVersion,
+                        Constants.FECHA_VERSION_APP, versionDate
+                    ).await()
+
+                val updatedUser = userData.copy(
+                    VERSION_APP = appVersion,
+                    FECHA_VERSION_APP = versionDate
+                )
+                _userData.value = ResultState.Success(updatedUser)
+
+            } catch (e: Exception) {
+                Log.e("APPVERSION", "Error al actualizar la versión: ${e.message}")
             }
         }
     }

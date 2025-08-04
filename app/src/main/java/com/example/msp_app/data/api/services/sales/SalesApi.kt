@@ -1,5 +1,7 @@
 package com.example.msp_app.data.api.services.sales
 
+import com.example.msp_app.data.models.guarantee.Guarantee
+import com.example.msp_app.data.models.guarantee.GuaranteeEvent
 import com.example.msp_app.data.models.payment.PaymentApi
 import com.example.msp_app.data.models.product.Product
 import com.example.msp_app.data.models.sale.Sale
@@ -11,7 +13,9 @@ data class SaleResponse(
     data class Body(
         val ventas: List<Sale>,
         val productos: List<Product>,
-        val pagos: List<PaymentApi>
+        val pagos: List<PaymentApi>,
+        val garantias: List<Guarantee>,
+        val eventosGarantias: List<GuaranteeEvent>
     )
 }
 

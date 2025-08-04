@@ -26,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,6 +48,7 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.CustomMap
+import com.example.msp_app.features.sales.components.guaranteeSection.GuaranteeSection
 import com.example.msp_app.features.sales.components.paymentshistorysection.PaymentsHistory
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.saleactionssection.SaleActionSection
@@ -186,7 +186,7 @@ fun SaleDetailsContent(
                 sale,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(top = 56.dp)
+                    .padding(top = 100.dp)
             )
 
             IconButton(
@@ -317,23 +317,11 @@ fun SaleDetailsContent(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
-        TextButton(
-            onClick = { navController.navigate(Screen.Guarantee.route) },
-            modifier = Modifier
-                .background(
-                    MaterialTheme.colorScheme.primary,
-                    shape = RoundedCornerShape(8.dp)
-                )
-                .height(40.dp)
-                .fillMaxWidth(0.92f)
-        ) {
-            Text(
-                "INICIAR GARANTIA",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
-        }
+
+        GuaranteeSection(
+            sale,
+            navController,
+        )
 
         Box {
             Column {
