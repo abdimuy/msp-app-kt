@@ -154,6 +154,32 @@ fun DrawerContainer(
                                 }
                             }
                         )
+
+                        NavigationDrawerItem(
+                            label = { Text("Catalogo de Productos") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("products_catalog") {
+                                        popUpTo("home")
+                                    }
+                                }
+                            }
+                        )
+
+                        NavigationDrawerItem(
+                            label = { Text("Pantalla") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("blank_screen") {
+                                        popUpTo("home")
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     NavigationDrawerItem(

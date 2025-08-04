@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
@@ -161,12 +162,6 @@ fun HomeFooterSection(
             Text("ENVIAR PAGOS PENDIENTES", color = Color.White)
         }
 
-        ModernLoadingOverlay(
-            isLoading = syncPendingPaymentsState is ResultState.Loading,
-            message = "Enviando pagos pendientes",
-            subMessage = "Sincronizando con el servidor..."
-        )
-
         Button(onClick = onResendAllPayments, modifier = Modifier.fillMaxWidth(0.92f)) {
             Text("REENVIAR TODOS LOS PAGOS", color = Color.White)
         }
@@ -177,12 +172,6 @@ fun HomeFooterSection(
         ) {
             Text("INICIALIZAR SEMANA", color = Color.White)
         }
-
-        ModernLoadingOverlay(
-            isLoading = updateStartOfWeekDateState is ResultState.Loading,
-            message = "Inicializando semana",
-            subMessage = "Actualizando fecha de inicio..."
-        )
 
         if (showDialogInitWeek.value) {
             AlertDialog(
