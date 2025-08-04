@@ -1,7 +1,7 @@
 package com.example.msp_app.core.utils
 
 object Constants {
-    const val APP_VERSION = "2.0.6"
+    const val APP_VERSION = "2.0.8"
 
     const val PAGO_EN_EFECTIVO_ID = 157
     const val PAGO_CON_CHEQUE_ID = 158
@@ -42,4 +42,10 @@ object Constants {
 
     //Firebase Field
     const val FIELD_BASE_URL = "baseURL"
+
+    //Estados de garantias
+    const val NOTIFICADO = "NOTIFICADO"
+    const val LISTO_PARA_ENTREGAR = "LISTO_PARA_ENTREGAR"
+    const val ENTREGADO = "ENTREGADO"
+    const val RECOLECTADO = "RECOLECTADO"
 }
