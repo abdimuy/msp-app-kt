@@ -2,6 +2,7 @@ package com.example.msp_app.features.sales.viewmodels
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -133,14 +134,14 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                         ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
                     return@launch
                 }
-                
+
                 val pendingGuarantees = guaranteeStore.getPendingGuarantees()
                 if (pendingGuarantees.isNotEmpty()) {
                     _syncSalesState.value =
                         ResultState.Error("Hay ${pendingGuarantees.size} garantías pendientes")
                     return@launch
                 }
-                
+
                 val pendingGuaranteeEvents = guaranteeStore.getPendingGuaranteeEvents()
                 if (pendingGuaranteeEvents.isNotEmpty()) {
                     _syncSalesState.value =
@@ -186,6 +187,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                     .format(Date())
                 saveLastSyncDate(lastSync)
             } catch (e: Exception) {
+                Log.e("SalesViewModel", "Error en syncSales", e)
                 if (_syncSalesState.value !is ResultState.Success) {
                     _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar ventas")
                 }
@@ -200,7 +202,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
             putString("last_sync_date", date)
         }
     }
-    
+
     fun getLastSyncDate(): String {
         val prefs = getApplication<Application>()
             .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)

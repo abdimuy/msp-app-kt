@@ -3,6 +3,7 @@ package com.example.msp_app.features.home.screens
 import android.Manifest
 import android.location.Location
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -173,6 +174,7 @@ fun HomeScreen(navController: NavController) {
 
             is ResultState.Error -> {
                 val errorMessage = (syncSalesState as ResultState.Error).message
+                Log.e("HomeScreen", "Error sincronizando ventas: $errorMessage")
                 println("Error syncing sales: $errorMessage")
             }
 
