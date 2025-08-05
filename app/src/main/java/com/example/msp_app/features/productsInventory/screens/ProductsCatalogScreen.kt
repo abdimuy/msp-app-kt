@@ -60,6 +60,7 @@ import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
+import com.example.msp_app.navigation.Screen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,7 +154,7 @@ fun ProductsCatalogScreen(navController: NavController) {
                         items = filteredProducts,
                         key = { it.ARTICULO_ID }
                     ) { product ->
-                        ProductCard(product = product)
+                        ProductCard(product = product, navController = navController)
                     }
                 }
             }
@@ -162,7 +163,7 @@ fun ProductsCatalogScreen(navController: NavController) {
 }
 
 @Composable
-fun ProductCard(product: ProductInventory) {
+fun ProductCard(product: ProductInventory, navController: NavController) {
     var pressed by remember { mutableStateOf(false) }
 
     Row(
@@ -178,7 +179,9 @@ fun ProductCard(product: ProductInventory) {
                 color = Color(0xFFE2E8F0),
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable { pressed = !pressed }
+            .clickable {
+                navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString()))
+            }
             .alpha(if (pressed) 1f else 1f)
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
