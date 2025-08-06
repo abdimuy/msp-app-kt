@@ -8,16 +8,27 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-val localProps = Properties().apply {
-    rootProject.file("local.properties").inputStream().use { input ->
-        load(input)
+fun loadProperties(file: File): Properties {
+    val properties = Properties()
+    if (file.exists()) {
+        file.inputStream().use { input ->
+            properties.load(input)
+        }
     }
+    return properties
 }
 
+val localProps = loadProperties(rootProject.file("local.properties"))
+
 val keystorePropertiesFile = rootProject.file("keystore.properties")
-val keystoreProperties = Properties()
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(keystorePropertiesFile.inputStream())
+val keystoreProperties = loadProperties(keystorePropertiesFile)
+
+val mapsApiKey = localProps.getProperty("MAPS_API_KEY", "")!!
+if (mapsApiKey.isEmpty()) {
+    logger.warn("MAPS_API_KEY not found in local.properties")
+    logger.warn("Please add your Google Maps API Key to local.properties:")
+    logger.warn("MAPS_API_KEY=your_api_key_here")
+    throw GradleException("MAPS_API_KEY is required in local.properties")
 }
 
 android {
@@ -43,7 +54,8 @@ android {
         versionName = "2.0.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["MAPS_API_KEY"] = localProps.getProperty("MAPS_API_KEY", "")
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
     }
 
     buildTypes {
@@ -52,10 +64,10 @@ android {
             isShrinkResources = false
         }
         getByName("release") {
-            if (keystorePropertiesFile.exists()) {
-                signingConfig = signingConfigs.getByName("release")
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
             } else {
-                signingConfig = signingConfigs.getByName("debug")
+                signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
             isShrinkResources = true
@@ -63,6 +75,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+            buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
         }
     }
 
@@ -76,6 +90,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
