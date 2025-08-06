@@ -349,9 +349,9 @@ fun NewPaymentDialog(
                                             modifier = Modifier.weight(1f),
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = if (isSelected) Color(0xFF4CAF50) else Color(
-                                                    0xFFBBDEFB
+                                                    0xFF009AE8
                                                 ),
-                                                contentColor = if (isSelected) Color.White else Color.Black
+                                                contentColor = if (isSelected) Color.White else Color.White
                                             )
                                         ) {
                                             Text(
@@ -387,17 +387,27 @@ fun NewPaymentDialog(
         AlertDialog(
             onDismissRequest = { showConfirmDialog = false },
             confirmButton = {
-                TextButton(
+                Button(
                     onClick = {
                         handleSavePayment()
                     }
                 ) {
-                    Text("Confirmar")
+                    Text(
+                        text = "Confirmar",
+                        color = Color.White
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showConfirmDialog = false }) {
-                    Text("Cancelar")
+                    Text(
+                        text = "Cancelar",
+                        color = if (isDark) {
+                            Color.White
+                        } else {
+                            Color.Blue
+                        }
+                    )
                 }
             },
             title = {
