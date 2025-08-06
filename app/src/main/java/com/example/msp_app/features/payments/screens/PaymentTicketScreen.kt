@@ -334,8 +334,7 @@ fun PaymentTicketScreen(
                                     ) {
                                         Icon(
                                             Icons.Default.Menu,
-                                            contentDescription = "Menú",
-                                            tint = Color.White
+                                            contentDescription = "Menú"
                                         )
                                     }
                                     Box(
