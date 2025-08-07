@@ -21,6 +21,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +49,15 @@ fun DrawerContainer(
     val authViewModel = LocalAuthViewModel.current
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+
+    val userRoles by authViewModel.userRoles.collectAsState()
+
+    LaunchedEffect(Unit) {
+        authViewModel.loadUserRoles()
+    }
+
+    val isCollection = "Collection" in userRoles
+    val isSale = "Sale" in userRoles
 
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -90,96 +101,100 @@ fun DrawerContainer(
                             }
                         }
                         HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-                        NavigationDrawerItem(
-                            label = { Text("Inicio") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    navController.navigate("home") {
-                                        popUpTo("home") { inclusive = true }
+                        if (isCollection) {
+                            NavigationDrawerItem(
+                                label = { Text("Inicio") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("home") {
+                                            popUpTo("home") { inclusive = true }
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
 
-                        NavigationDrawerItem(
-                            label = { Text("Clientes") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    navController.navigate("sales") {
-                                        popUpTo("sales") { inclusive = true }
+                            NavigationDrawerItem(
+                                label = { Text("Clientes") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("sales") {
+                                            popUpTo("sales") { inclusive = true }
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
 
-                        NavigationDrawerItem(
-                            label = { Text("Reportes Diarios") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    navController.navigate("daily_reports") {
-                                        popUpTo("home")
+                            NavigationDrawerItem(
+                                label = { Text("Reportes Diarios") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("daily_reports") {
+                                            popUpTo("home")
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
 
-                        NavigationDrawerItem(
-                            label = { Text("Reportes Semanales") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    navController.navigate("weekly_reports") {
-                                        popUpTo("home")
+                            NavigationDrawerItem(
+                                label = { Text("Reportes Semanales") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("weekly_reports") {
+                                            popUpTo("home")
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
 
-                        NavigationDrawerItem(
-                            label = { Text("Mapa de rutas") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    navController.navigate("route_map") {
-                                        popUpTo("home")
+                            NavigationDrawerItem(
+                                label = { Text("Mapa de rutas") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("route_map") {
+                                            popUpTo("home")
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
 
-                        NavigationDrawerItem(
-                            label = { Text("Catalogo de Productos") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    navController.navigate("products_catalog") {
-                                        popUpTo("home")
+                        if (isSale) {
+                            NavigationDrawerItem(
+                                label = { Text("Catalogo de Productos") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("products_catalog") {
+                                            popUpTo("home")
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
 
-                        NavigationDrawerItem(
-                            label = { Text("Pantalla") },
-                            selected = false,
-                            onClick = {
-                                scope.launch {
-                                    drawerState.close()
-                                    navController.navigate("blank_screen") {
-                                        popUpTo("home")
+                            NavigationDrawerItem(
+                                label = { Text("Pantalla") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("blank_screen") {
+                                            popUpTo("home")
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
 
                     NavigationDrawerItem(

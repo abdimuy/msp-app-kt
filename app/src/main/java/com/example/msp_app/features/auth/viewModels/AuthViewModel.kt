@@ -37,6 +37,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentUser = MutableStateFlow<FirebaseUser?>(auth.currentUser)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser
 
+    private val _userRoles = MutableStateFlow<List<String>>(emptyList())
+    val userRoles: StateFlow<List<String>> = _userRoles
+
     private val _updateStartOfWeekDateState =
         MutableStateFlow<ResultState<User?>>(ResultState.Idle)
     val updateStartOfWeekDateState: StateFlow<ResultState<User?>> = _updateStartOfWeekDateState
@@ -173,6 +176,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearUpdateStartOfWeekDateState() {
         _updateStartOfWeekDateState.value = ResultState.Idle
+    }
+
+    fun loadUserRoles() {
+        _userRoles.value = listOf("Collection", "Sale")
     }
 }
 

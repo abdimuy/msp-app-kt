@@ -5,6 +5,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -65,13 +66,27 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavigation() {
     val authViewModel: AuthViewModel = viewModel()
+    val userRole by authViewModel.userRoles.collectAsState()
+
+    LaunchedEffect(Unit) {
+        authViewModel.loadUserRoles()
+    }
+
     val currentUser by authViewModel.currentUser.collectAsState()
     val navController = rememberNavController()
+    val isCollection = "Collection" in userRole
 
     CompositionLocalProvider(LocalAuthViewModel provides authViewModel) {
         NavHost(
             navController = navController,
-            startDestination = if (currentUser != null) Screen.Home.route else Screen.Login.route
+            startDestination = when {
+                currentUser != null && isCollection -> {
+                    Screen.Home.route
+                }
+
+                currentUser != null -> Screen.BlankScreen.route
+                else -> Screen.Login.route
+            }
         ) {
             composable(Screen.Login.route) {
                 LoginScreen(
