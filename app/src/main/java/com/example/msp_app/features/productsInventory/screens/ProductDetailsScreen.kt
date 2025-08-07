@@ -1,6 +1,7 @@
 package com.example.msp_app.features.productsInventory.screens
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -56,6 +57,7 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
+import com.example.msp_app.ui.theme.ThemeController
 
 @Composable
 fun ProductDetailsScreen(productId: String, navController: NavController) {
@@ -63,10 +65,11 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
 
     LaunchedEffect(productId) {
-        productId?.toIntOrNull()?.let { productsInventoryViewModel.loadProductById(it) }
+        productId.toIntOrNull()?.let { productsInventoryViewModel.loadProductById(it) }
     }
 
     val product by productsInventoryViewModel.product.collectAsState()
+    val isDark = ThemeController.isDarkMode
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -118,9 +121,21 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                     Spacer(Modifier.height(12.dp))
                     val priceMap = parsePriceJsonToMap(it.PRECIOS)
                     Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8FA)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation =
+                                if (!isDark) 8.dp else 0.dp
+                        ),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border =
+                            if (!isDark) null else BorderStroke(
+                                width = 1.dp,
+                                color = Color.DarkGray
+                            ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(6.dp),
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
@@ -138,6 +153,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                                 ) {
                                     Text(
                                         text = "$label: ",
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         style = MaterialTheme.typography.bodyLarge,
                                         modifier = Modifier.alignByBaseline()
                                     )
