@@ -169,12 +169,12 @@ fun DrawerContainer(
                         )
 
                         NavigationDrawerItem(
-                            label = { Text("Pantalla") },
+                            label = { Text("Ventas") },
                             selected = false,
                             onClick = {
                                 scope.launch {
                                     drawerState.close()
-                                    navController.navigate("blank_screen") {
+                                    navController.navigate("sale_home") {
                                         popUpTo("home")
                                     }
                                 }

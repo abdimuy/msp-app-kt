@@ -42,7 +42,7 @@ import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductIn
 import kotlinx.coroutines.delay
 
 @Composable
-fun BlankScreen(navController: NavController) {
+fun SaleHomeScreen(navController: NavController) {
     val productsViewModel: ProductsInventoryViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
 
@@ -103,7 +103,7 @@ fun BlankScreen(navController: NavController) {
                         Icon(imageVector = Icons.Default.Menu, contentDescription = "Menú")
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("Pantalla", style = MaterialTheme.typography.titleLarge)
+                    Text("Ventas", style = MaterialTheme.typography.titleLarge)
                 }
             }
         ) { innerPadding ->
