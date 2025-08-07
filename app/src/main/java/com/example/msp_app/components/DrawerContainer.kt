@@ -186,20 +186,20 @@ fun DrawerContainer(
                                     }
                                 }
                             )
-
-                            NavigationDrawerItem(
-                                label = { Text("Pantalla") },
-                                selected = false,
-                                onClick = {
-                                    scope.launch {
-                                        drawerState.close()
-                                        navController.navigate("blank_screen") {
-                                            popUpTo("home")
-                                        }
+                            
+                        }
+                        NavigationDrawerItem(
+                            label = { Text("Ventas") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("sale_home") {
+                                        popUpTo("home")
                                     }
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
 
                     NavigationDrawerItem(

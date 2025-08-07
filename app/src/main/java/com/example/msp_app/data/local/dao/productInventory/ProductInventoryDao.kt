@@ -38,6 +38,9 @@ interface ProductInventoryDao {
     )
     suspend fun getProductInventoryById(id: Int): ProductInventoryEntity
 
+    @Query("SELECT EXISTS(SELECT 1 FROM product_inventory WHERE ARTICULO_ID = :id)")
+    suspend fun existsById(id: Int): Boolean
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(products: List<ProductInventoryEntity>)
 

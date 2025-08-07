@@ -29,8 +29,8 @@ import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.PaymentTicketScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
-import com.example.msp_app.features.products.screens.ProductsCatalogScreen
-import com.example.msp_app.features.productsInventory.screens.BlankScreen
+import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
+import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
@@ -70,7 +70,7 @@ sealed class Screen(val route: String) {
 
     object RouteMap : Screen("route_map")
     object ProductsCatalog : Screen("products_catalog")
-    object BlankScreen : Screen("blank_screen")
+    object SaleHome : Screen("sale_home")
 
     object ProductDetails : Screen("productDetails/{productId}") {
         fun createRoute(productId: String) = "productDetails/$productId"
@@ -115,7 +115,7 @@ fun AppNavigation() {
                             val destination = when {
                                 modulos.isEmpty() -> Screen.NoModules.route
                                 modulos.contains("COBRO") -> Screen.Home.route
-                                modulos.contains("VENTAS") && !modulos.contains("COBRO") -> Screen.BlankScreen.route
+                                modulos.contains("VENTAS") && !modulos.contains("COBRO") -> Screen.SaleHome.route
                                 else -> Screen.NoModules.route
                             }
 
@@ -214,8 +214,8 @@ fun AppNavigation() {
                 ProductsCatalogScreen(navController = navController)
             }
 
-            composable(Screen.BlankScreen.route) {
-                BlankScreen(navController = navController)
+            composable(Screen.SaleHome.route) {
+                SaleHomeScreen(navController = navController)
             }
 
             composable("productDetails/{productId}") { backStackEntry ->
