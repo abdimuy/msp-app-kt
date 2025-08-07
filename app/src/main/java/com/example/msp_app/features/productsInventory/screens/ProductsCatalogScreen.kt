@@ -158,7 +158,7 @@ fun ProductsCatalogScreen(navController: NavController) {
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 24.dp)
                 ) {
                     items(
@@ -200,8 +200,7 @@ fun ProductCard(
                 color = Color.DarkGray
             ),
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(6.dp),
+            .fillMaxWidth(),
         onClick = { navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())) }
     ) {
 
