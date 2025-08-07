@@ -25,8 +25,13 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
     val productInventoryState: StateFlow<ResultState<List<ProductInventory>>> =
         _productInventoryState
 
+    private val _productsLoaded = MutableStateFlow(false)
+    val productsLoaded: StateFlow<Boolean> = _productsLoaded
+
+
     fun fetchRemoteInventory() {
         viewModelScope.launch {
+            _productsLoaded.value = false
             _productInventoryState.value = ResultState.Loading
             try {
                 val response = withContext(Dispatchers.IO) {
@@ -47,8 +52,8 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
     fun saveProductsInventoryLocally(products: List<ProductInventory>) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                localDataSource.deleteAll()
                 localDataSource.insertAll(products.map { it.toEntity() })
+                _productsLoaded.value = true
             } catch (e: Exception) {
             }
         }

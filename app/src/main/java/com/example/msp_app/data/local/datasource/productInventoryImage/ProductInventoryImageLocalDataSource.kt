@@ -2,9 +2,13 @@ package com.example.msp_app.data.local.datasource.productInventoryImage
 
 import android.content.Context
 import com.example.msp_app.data.local.AppDatabase
+import com.example.msp_app.data.local.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
 
-class ProductInventoryImageLocalDataSource(context: Context) {
+class ProductInventoryImageLocalDataSource(
+    context: Context,
+    private val productDao: ProductInventoryDao
+) {
 
     private val productInventoryImageDao =
         AppDatabase.getInstance(context).productInventoryImageDao()
@@ -31,6 +35,19 @@ class ProductInventoryImageLocalDataSource(context: Context) {
 
     suspend fun getImageById(imageId: Int): ProductInventoryImageEntity? {
         return productInventoryImageDao.getImageById(imageId)
+    }
+
+    suspend fun existsByProductId(id: Int): Boolean {
+        return productDao.existsById(id)
+    }
+
+    suspend fun insertSafeImages(
+        images: List<ProductInventoryImageEntity>,
+    ) {
+        val validImages = images.filter { image ->
+            productDao.existsById(image.ARTICULO_ID)
+        }
+        productInventoryImageDao.insertAllImages(validImages)
     }
 
     suspend fun deleteAllImages() {

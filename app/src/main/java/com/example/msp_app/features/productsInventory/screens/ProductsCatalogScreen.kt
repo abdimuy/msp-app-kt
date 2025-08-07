@@ -42,7 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -53,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
@@ -60,6 +63,7 @@ import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
+import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +73,8 @@ fun ProductsCatalogScreen(navController: NavController) {
     val productState by viewModel.productInventoryState.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
     val focusManager = LocalFocusManager.current
+    val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
+    val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
 
     val products = when (productState) {
         is ResultState.Success -> (productState as ResultState.Success).data
@@ -76,6 +82,11 @@ fun ProductsCatalogScreen(navController: NavController) {
     }
 
     LaunchedEffect(Unit) {
+        viewModel.loadLocalProductsInventory()
+    }
+
+    LaunchedEffect(Unit) {
+        imagesViewModel.loadLocalImages()
         viewModel.loadLocalProductsInventory()
     }
 
@@ -153,7 +164,8 @@ fun ProductsCatalogScreen(navController: NavController) {
                         items = filteredProducts,
                         key = { it.ARTICULO_ID }
                     ) { product ->
-                        ProductCard(product = product)
+                        val imageUrls = imagesByProduct[product.ARTICULO_ID] ?: emptyList()
+                        ProductCard(product = product, imageUrls = imageUrls)
                     }
                 }
             }
@@ -162,7 +174,7 @@ fun ProductsCatalogScreen(navController: NavController) {
 }
 
 @Composable
-fun ProductCard(product: ProductInventory) {
+fun ProductCard(product: ProductInventory, imageUrls: List<String> = emptyList()) {
     var pressed by remember { mutableStateOf(false) }
 
     Row(
@@ -183,11 +195,22 @@ fun ProductCard(product: ProductInventory) {
             .padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(90.dp)
-                .background(Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
-        )
+        if (imageUrls.isNotEmpty()) {
+            AsyncImage(
+                model = imageUrls.first(),
+                contentDescription = "Imagen del producto",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(90.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(90.dp)
+                    .background(Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
+            )
+        }
 
         Column(
             modifier = Modifier
