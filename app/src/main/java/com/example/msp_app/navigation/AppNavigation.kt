@@ -2,18 +2,28 @@ package com.example.msp_app.navigation
 
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.common.NoModulesScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
@@ -29,6 +39,8 @@ import com.example.msp_app.features.visit.screens.VisitTicketScreen
 
 
 sealed class Screen(val route: String) {
+    object Loading : Screen("loading")
+    object NoModules : Screen("no_modules")
     object Login : Screen("login")
     object Home : Screen("home")
     object Sales : Screen("sales")
@@ -66,17 +78,57 @@ sealed class Screen(val route: String) {
 fun AppNavigation() {
     val authViewModel: AuthViewModel = viewModel()
     val currentUser by authViewModel.currentUser.collectAsState()
+    val userDataState by authViewModel.userData.collectAsState()
     val navController = rememberNavController()
 
     CompositionLocalProvider(LocalAuthViewModel provides authViewModel) {
         NavHost(
             navController = navController,
-            startDestination = if (currentUser != null) Screen.Home.route else Screen.Login.route
+            startDestination = Screen.Loading.route
         ) {
+            composable(Screen.Loading.route) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ModernSpinner(size = 80.dp)
+                }
+
+                LaunchedEffect(currentUser, userDataState) {
+                    when {
+                        currentUser == null -> {
+                            navController.navigate(Screen.Login.route) {
+                                popUpTo(Screen.Loading.route) { inclusive = true }
+                            }
+                        }
+
+                        userDataState is ResultState.Success -> {
+                            val userData = (userDataState as ResultState.Success<User?>).data
+                            val modulos = userData?.MODULOS ?: emptyList()
+
+                            val destination = when {
+                                modulos.isEmpty() -> Screen.NoModules.route
+                                modulos.contains("COBRO") -> Screen.Home.route
+                                modulos.contains("VENTAS") && !modulos.contains("COBRO") -> Screen.BlankScreen.route
+                                else -> Screen.NoModules.route
+                            }
+
+                            navController.navigate(destination) {
+                                popUpTo(Screen.Loading.route) { inclusive = true }
+                            }
+                        }
+                    }
+                }
+            }
+
+            composable(Screen.NoModules.route) {
+                NoModulesScreen()
+            }
+
             composable(Screen.Login.route) {
                 LoginScreen(
                     onLoginSuccess = {
-                        navController.navigate(Screen.Home.route) {
+                        navController.navigate(Screen.Loading.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
                     }
