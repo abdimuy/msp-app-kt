@@ -58,6 +58,7 @@ import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
+import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,7 +153,7 @@ fun ProductsCatalogScreen(navController: NavController) {
                         items = filteredProducts,
                         key = { it.ARTICULO_ID }
                     ) { product ->
-                        ProductCard(product = product)
+                        ProductCard(product = product, navController = navController)
                     }
                 }
             }
@@ -161,7 +162,7 @@ fun ProductsCatalogScreen(navController: NavController) {
 }
 
 @Composable
-fun ProductCard(product: ProductInventory) {
+fun ProductCard(product: ProductInventory, navController: NavController) {
     val isDark = ThemeController.isDarkMode
 
     Card(
@@ -180,7 +181,7 @@ fun ProductCard(product: ProductInventory) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(6.dp),
-        onClick = {}
+        onClick = {navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString()))}
     ) {
         Row(
             modifier = Modifier.padding(8.dp),
