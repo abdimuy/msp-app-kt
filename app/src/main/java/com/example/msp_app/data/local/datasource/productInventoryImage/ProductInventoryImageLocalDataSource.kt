@@ -41,13 +41,12 @@ class ProductInventoryImageLocalDataSource(
         return productDao.existsById(id)
     }
 
+    suspend fun getAllProducts() = productDao.getAll()
+
     suspend fun insertSafeImages(
         images: List<ProductInventoryImageEntity>,
     ) {
-        val validImages = images.filter { image ->
-            productDao.existsById(image.ARTICULO_ID)
-        }
-        productInventoryImageDao.insertAllImages(validImages)
+        productInventoryImageDao.insertAllImages(images)
     }
 
     suspend fun deleteAllImages() {

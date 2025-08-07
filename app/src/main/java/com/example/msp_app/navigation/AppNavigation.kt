@@ -19,8 +19,8 @@ import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.PaymentTicketScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
-import com.example.msp_app.features.products.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.BlankScreen
+import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen

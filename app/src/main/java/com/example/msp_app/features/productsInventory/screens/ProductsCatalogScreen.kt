@@ -1,4 +1,4 @@
-package com.example.msp_app.features.products.screens
+package com.example.msp_app.features.productsInventory.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,6 +64,7 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -196,8 +197,11 @@ fun ProductCard(product: ProductInventory, imageUrls: List<String> = emptyList()
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (imageUrls.isNotEmpty()) {
+            val imagePath = imageUrls.first()
+            val imageFile = File(imagePath)
+
             AsyncImage(
-                model = imageUrls.first(),
+                model = imageFile,
                 contentDescription = "Imagen del producto",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

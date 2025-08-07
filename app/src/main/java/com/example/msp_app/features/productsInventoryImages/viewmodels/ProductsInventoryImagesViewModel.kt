@@ -1,8 +1,6 @@
 package com.example.msp_app.features.productsInventoryImages.viewmodels
 
 import android.app.Application
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,9 +11,12 @@ import com.example.msp_app.data.local.datasource.productInventoryImage.ProductIn
 import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -47,6 +48,13 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
         viewModelScope.launch {
             try {
                 val response = api.getAllImages()
+
+                // Obtener los IDs de productos que existen localmente
+                val localProducts = withContext(Dispatchers.IO) {
+                    localDataSource.getAllProducts()
+                }
+                val existingProductIds = localProducts.map { it.ARTICULO_ID }.toSet()
+
                 val newImages = response.flatMap { item ->
                     item.urls.mapIndexed { index, url ->
                         ProductInventoryImageEntity(
@@ -55,6 +63,8 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
                             RUTA_LOCAL = url
                         )
                     }
+                }.filter { image ->
+                    existingProductIds.contains(image.ARTICULO_ID)
                 }
 
                 val localImages = localDataSource.getAllImages()
@@ -76,28 +86,45 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
             try {
                 val newImagesToDownload = cachedApiImages
 
-                val imagesWithLocalPaths = mutableListOf<ProductInventoryImageEntity>()
-
                 _downloadProgress.value = 0
                 val total = newImagesToDownload.size
                 var downloaded = 0
 
-                for ((index, imageEntity) in newImagesToDownload.withIndex()) {
-                    val remoteUrl = imageEntity.RUTA_LOCAL
-                    val localPath = downloadAndSaveImage(remoteUrl, imageEntity.IMAGEN_ID)
+                val semaphore = Semaphore(5)
 
-                    if (localPath != null) {
-                        val productExists =
-                            localDataSource.existsByProductId(imageEntity.ARTICULO_ID)
-                        if (productExists) {
-                            imagesWithLocalPaths.add(
-                                imageEntity.copy(RUTA_LOCAL = localPath)
-                            )
+                val imagesWithLocalPaths = mutableListOf<ProductInventoryImageEntity>()
+
+                val downloadTasks = newImagesToDownload.map { imageEntity ->
+                    async(Dispatchers.IO) {
+                        semaphore.acquire()
+                        try {
+                            val remoteUrl = imageEntity.RUTA_LOCAL
+                            val localPath =
+                                downloadAndSaveImageOptimized(remoteUrl, imageEntity.IMAGEN_ID)
+
+                            if (localPath != null) {
+                                synchronized(imagesWithLocalPaths) {
+                                    imagesWithLocalPaths.add(
+                                        imageEntity.copy(RUTA_LOCAL = localPath)
+                                    )
+                                }
+                            }
+
+                            synchronized(this@launch) {
+                                downloaded++
+                                _downloadProgress.value =
+                                    if (total > 0) (downloaded * 100 / total) else 100
+                            }
+
+                            localPath
+                        } finally {
+                            semaphore.release()
                         }
                     }
-                    downloaded++
-                    _downloadProgress.value = if (total > 0) (downloaded * 100 / total) else 100
                 }
+
+                downloadTasks.awaitAll()
+
                 if (imagesWithLocalPaths.isNotEmpty()) {
                     localDataSource.insertSafeImages(imagesWithLocalPaths)
                 }
@@ -116,23 +143,19 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
         }
     }
 
-    private suspend fun downloadAndSaveImage(remoteUrl: String, imageId: Int): String? {
+    private suspend fun downloadAndSaveImageOptimized(remoteUrl: String, imageId: Int): String? {
         return withContext(Dispatchers.IO) {
             try {
                 val url = URL(remoteUrl)
                 val connection = url.openConnection() as HttpURLConnection
+
+                connection.connectTimeout = 10000 // 10 segundos
+                connection.readTimeout = 15000 // 15 segundos
+                connection.setRequestProperty("User-Agent", "Android")
+
                 connection.connect()
 
                 if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                    return@withContext null
-                }
-
-                val inputStream = connection.inputStream
-                val bitmap = BitmapFactory.decodeStream(inputStream)
-                inputStream.close()
-                connection.disconnect()
-
-                if (bitmap == null) {
                     return@withContext null
                 }
 
@@ -143,20 +166,28 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
                 }
 
                 val imageFile = File(imagesDir, "image_$imageId.jpg")
-                val outputStream = FileOutputStream(imageFile)
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-                outputStream.flush()
-                outputStream.close()
+
+                connection.inputStream.use { input ->
+                    FileOutputStream(imageFile).use { output ->
+                        input.copyTo(output, bufferSize = 8192)
+                    }
+                }
+
+                connection.disconnect()
+
+                if (!imageFile.exists() || imageFile.length() == 0L) {
+                    return@withContext null
+                }
 
                 return@withContext imageFile.absolutePath
 
             } catch (e: Exception) {
-                Log.e("ProductImagesVM", "Error descargando o guardando imagen $remoteUrl", e)
+                Log.e("ProductImagesVM", "Error descargando imagen $remoteUrl", e)
                 null
             }
         }
     }
-
+    
     fun loadLocalImages() {
         viewModelScope.launch {
             val allImages = localDataSource.getAllImages()
@@ -171,5 +202,4 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
         downloadJob?.cancel()
         _downloadProgress.value = 0
     }
-
 }

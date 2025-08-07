@@ -16,7 +16,7 @@ import androidx.room.PrimaryKey
             entity = ProductInventoryEntity::class,
             parentColumns = ["ARTICULO_ID"],
             childColumns = ["ARTICULO_ID"],
-            onDelete = ForeignKey.CASCADE
+            onDelete = ForeignKey.NO_ACTION
         )
     ]
 )

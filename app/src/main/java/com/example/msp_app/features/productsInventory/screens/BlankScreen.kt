@@ -58,14 +58,16 @@ fun BlankScreen(navController: NavController) {
 
     val context = LocalContext.current
 
-    LaunchedEffect(productsLoaded) {
-        if (productsLoaded) {
+    LaunchedEffect(productsLoaded, shouldCheckImages) {
+        if (productsLoaded && shouldCheckImages) {
+            delay(1000)
             imagesViewModel.checkForNewImages()
+            shouldCheckImages = false
         }
     }
-    LaunchedEffect(shouldCheckImages) {
-        if (shouldCheckImages) {
-            delay(500)
+
+    LaunchedEffect(newImagesCount) {
+        if (productsLoaded && newImagesCount > 0) {
             if (newImagesCount > 20) {
                 showConfirmDialog = true
             } else if (newImagesCount in 1..20) {
@@ -76,14 +78,7 @@ fun BlankScreen(navController: NavController) {
                     "Descargando $newImagesCount imágenes automáticamente...",
                     Toast.LENGTH_SHORT
                 ).show()
-            } else if (newImagesCount == 0) {
-                Toast.makeText(
-                    context,
-                    "No hay imágenes nuevas para descargar.",
-                    Toast.LENGTH_SHORT
-                ).show()
             }
-            shouldCheckImages = false
         }
     }
 
@@ -124,7 +119,6 @@ fun BlankScreen(navController: NavController) {
                     onClick = {
                         productsViewModel.fetchRemoteInventory()
                         shouldCheckImages = true
-                        imagesViewModel.checkForNewImages()
                     },
                     enabled = !loading,
                     modifier = Modifier.fillMaxWidth(0.92f)
@@ -165,15 +159,22 @@ fun BlankScreen(navController: NavController) {
         )
     }
 
-    if (showProgressDialog && downloadProgress in 1..99) {
+    if (showProgressDialog) {
         AlertDialog(
             onDismissRequest = { },
             title = { Text("Descargando imágenes") },
             text = {
                 Column {
-                    Text("Descargando imágenes: $downloadProgress%")
+                    Text(
+                        if (downloadProgress == 0) "Preparando descarga..."
+                        else "Descargando imágenes: $downloadProgress%"
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    CircularProgressIndicator(progress = downloadProgress / 100f)
+                    if (downloadProgress == 0) {
+                        CircularProgressIndicator()
+                    } else {
+                        CircularProgressIndicator(progress = downloadProgress / 100f)
+                    }
                 }
             },
             confirmButton = {},
