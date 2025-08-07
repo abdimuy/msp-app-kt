@@ -1,16 +1,20 @@
 package com.example.msp_app.features.sales.viewmodels
 
 import android.app.Application
+import android.content.Context
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.sales.SalesApi
+import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.local.entities.OverduePaymentsEntity
+import com.example.msp_app.data.models.guarantee.toEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
@@ -23,6 +27,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
@@ -31,6 +38,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val productStore = ProductsLocalDataSource(application.applicationContext)
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
+    private val guaranteeStore = GuaranteesLocalDataSource(application.applicationContext)
 
     private val _salesState =
         MutableStateFlow<ResultState<List<SaleWithProducts>>>(ResultState.Idle)
@@ -125,6 +133,20 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                         ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
                     return@launch
                 }
+                
+                val pendingGuarantees = guaranteeStore.getPendingGuarantees()
+                if (pendingGuarantees.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay ${pendingGuarantees.size} garantías pendientes")
+                    return@launch
+                }
+                
+                val pendingGuaranteeEvents = guaranteeStore.getPendingGuaranteeEvents()
+                if (pendingGuaranteeEvents.isNotEmpty()) {
+                    _syncSalesState.value =
+                        ResultState.Error("Hay ${pendingGuaranteeEvents.size} eventos de garantías pendientes")
+                    return@launch
+                }
 
                 val salesData = api.getAll(
                     zona = zona,
@@ -134,6 +156,8 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 val sales = salesData.body.ventas
                 val products = salesData.body.productos
                 val payments = salesData.body.pagos
+                val guarantees = salesData.body.garantias
+                val guaranteesEvent = salesData.body.eventosGarantias
 
                 val currentSales = saleStore.getAll().map { it.toDomain() }
 
@@ -152,15 +176,34 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 saleStore.saveAll(salesToSave)
                 productStore.saveAll(products.map { it.toEntity() })
                 paymentStore.saveAll(payments.map { it.toEntity() })
+                guaranteeStore.saveAllGurantees(guarantees.map { it.toEntity() })
+                guaranteeStore.saveAllGuaranteeEvents(guaranteesEvent.map { it.toEntity() })
                 visitsStore.deleteAllVisits()
 
                 _syncSalesState.value = ResultState.Success(sales)
 
+                val lastSync = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    .format(Date())
+                saveLastSyncDate(lastSync)
             } catch (e: Exception) {
                 if (_syncSalesState.value !is ResultState.Success) {
                     _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar ventas")
                 }
             }
         }
+    }
+
+    private fun saveLastSyncDate(date: String) {
+        val prefs = getApplication<Application>()
+            .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+        prefs.edit {
+            putString("last_sync_date", date)
+        }
+    }
+    
+    fun getLastSyncDate(): String {
+        val prefs = getApplication<Application>()
+            .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
+        return prefs.getString("last_sync_date", "") ?: ""
     }
 }

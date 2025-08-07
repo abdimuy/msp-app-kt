@@ -22,6 +22,10 @@ object ThermalPrinting {
                 val connection = BluetoothConnection(device)
                 connection.connect()
 
+                connection.write(byteArrayOf(0x1B, 0x40))
+                connection.write(byteArrayOf(0x1B, 0x4D, 0x00))
+                connection.write(byteArrayOf(0x1D, 0x21, 0x00))
+
                 val printer = EscPosPrinter(connection, dpi, widthMm, charactersPerLine)
                 printer.printFormattedText(text)
 

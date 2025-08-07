@@ -8,25 +8,54 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-val localProps = Properties().apply {
-    rootProject.file("local.properties").inputStream().use { input ->
-        load(input)
+fun loadProperties(file: File): Properties {
+    val properties = Properties()
+    if (file.exists()) {
+        file.inputStream().use { input ->
+            properties.load(input)
+        }
     }
+    return properties
+}
+
+val localProps = loadProperties(rootProject.file("local.properties"))
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties = loadProperties(keystorePropertiesFile)
+
+val mapsApiKey = localProps.getProperty("MAPS_API_KEY", "")!!
+if (mapsApiKey.isEmpty()) {
+    logger.warn("MAPS_API_KEY not found in local.properties")
+    logger.warn("Please add your Google Maps API Key to local.properties:")
+    logger.warn("MAPS_API_KEY=your_api_key_here")
+    throw GradleException("MAPS_API_KEY is required in local.properties")
 }
 
 android {
     namespace = "com.example.msp_app"
     compileSdk = 35
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.0.3"
+        versionCode = 8
+        versionName = "2.0.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        manifestPlaceholders["MAPS_API_KEY"] = localProps.getProperty("MAPS_API_KEY", "")
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
     }
 
     buildTypes {
@@ -35,13 +64,19 @@ android {
             isShrinkResources = false
         }
         getByName("release") {
-            signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
-            isShrinkResources = false
+            signingConfig = if (keystorePropertiesFile.exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+            buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
         }
     }
 
@@ -55,6 +90,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -100,11 +136,10 @@ dependencies {
 
     implementation("androidx.work:work-runtime-ktx:2.10.2")
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.30.1")
-    implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:2.0.6")
+    implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.4.0")
     implementation("com.google.accompanist:accompanist-permissions:0.30.1")
     implementation("io.coil-kt:coil-compose:2.4.0")
     implementation("org.apache.commons:commons-math3:3.6.1")
-    implementation("me.xdrop:fuzzywuzzy:1.4.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("com.google.code.gson:gson:2.8.9")
 }

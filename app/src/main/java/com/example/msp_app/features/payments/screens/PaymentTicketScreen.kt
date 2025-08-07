@@ -1,6 +1,7 @@
 package com.example.msp_app.features.payments.screens
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
@@ -166,15 +167,17 @@ fun PaymentTicketScreen(
     DrawerContainer(
         navController = navController
     ) { openDrawer ->
-        Scaffold { innerPading ->
+        Scaffold { innerPadding ->
             Box(
                 modifier = Modifier
-                    .padding(innerPading)
+                    .padding(innerPadding)
                     .fillMaxSize(), contentAlignment = Alignment.TopCenter
             ) {
                 var finalSale: Sale? = null
                 var finalProductos: List<Product> = emptyList()
                 var finalSaldo: Double
+                var pdfUri by remember { mutableStateOf<Uri?>(null) }
+                var showDialog by remember { mutableStateOf(false) }
                 var finalFormattedDate by remember { mutableStateOf("") }
                 var isGeneratingPdf by remember { mutableStateOf(false) }
                 val pagos = (paymentsState as? ResultState.Success)?.data ?: emptyList()
@@ -331,8 +334,7 @@ fun PaymentTicketScreen(
                                     ) {
                                         Icon(
                                             Icons.Default.Menu,
-                                            contentDescription = "Menú",
-                                            tint = Color.White
+                                            contentDescription = "Menú"
                                         )
                                     }
                                     Box(
@@ -524,7 +526,6 @@ fun PaymentTicketScreen(
                                     onClick = {
                                         coroutineScope.launch {
                                             isGeneratingPdf = true
-
                                             PaymentPdfGenerator.paymentStructuredPdf(
                                                 context = context,
                                                 folio = finalSale?.FOLIO ?: "",
@@ -582,24 +583,8 @@ fun PaymentTicketScreen(
                                                             file
                                                         )
 
-                                                        val intent =
-                                                            Intent(Intent.ACTION_VIEW).apply {
-                                                                setDataAndType(
-                                                                    uri,
-                                                                    "application/pdf"
-                                                                )
-                                                                addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                            }
-
-                                                        try {
-                                                            context.startActivity(intent)
-                                                        } catch (e: Exception) {
-                                                            Toast.makeText(
-                                                                context,
-                                                                "No hay aplicación para abrir PDF",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                        }
+                                                        pdfUri = uri
+                                                        showDialog = true
                                                     } else {
                                                         Toast.makeText(
                                                             context,
@@ -632,6 +617,50 @@ fun PaymentTicketScreen(
                                         }
                                     }
                                 )
+
+                                if (showDialog && pdfUri != null) {
+                                    androidx.compose.material3.AlertDialog(
+                                        onDismissRequest = {
+                                            showDialog = false
+                                            pdfUri = null
+                                        },
+                                        title = { Text("PDF Generado") },
+                                        text = { Text("¿Deseas abrirlo o compartirlo?") },
+                                        confirmButton = {
+                                            Button(onClick = {
+                                                val openIntent = Intent(Intent.ACTION_VIEW).apply {
+                                                    setDataAndType(pdfUri, "application/pdf")
+                                                    flags =
+                                                        Intent.FLAG_ACTIVITY_NO_HISTORY or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                }
+                                                context.startActivity(openIntent)
+                                                showDialog = false
+                                                pdfUri = null
+                                            }) {
+                                                Text("Abrir", color = Color.White)
+                                            }
+                                        },
+                                        dismissButton = {
+                                            Button(onClick = {
+                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                    type = "application/pdf"
+                                                    putExtra(Intent.EXTRA_STREAM, pdfUri)
+                                                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                }
+                                                context.startActivity(
+                                                    Intent.createChooser(
+                                                        shareIntent,
+                                                        "Compartir PDF"
+                                                    )
+                                                )
+                                                showDialog = false
+                                                pdfUri = null
+                                            }) {
+                                                Text("Compartir", color = Color.White)
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

@@ -16,9 +16,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.msp_app.features.sales.viewmodels.SalesViewModel
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @Composable
 fun HomeStartWeekSection(
@@ -26,6 +31,8 @@ fun HomeStartWeekSection(
     isDark: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val salesViewModel: SalesViewModel = viewModel()
+    val lastSyncDate = salesViewModel.getLastSyncDate()
     OutlinedCard(
         modifier = modifier.fillMaxWidth(0.92f),
         colors = CardDefaults.cardColors(
@@ -52,5 +59,31 @@ fun HomeStartWeekSection(
             fontSize = 16.sp
         )
     }
+
+    Spacer(Modifier.height(16.dp))
+
+    Text(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        text = "Última actualización de datos:\n ${
+            if (lastSyncDate.isBlank())
+                "No se ha sincronizado aún"
+            else {
+                val originalFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                val parsed = originalFormat.parse(lastSyncDate)
+                if (parsed != null) {
+                    val targetFormat = SimpleDateFormat(
+                        "dd/MM/yyyy hh:mm a", Locale.getDefault()
+                    )
+                    targetFormat.format(parsed)
+                } else {
+                    lastSyncDate
+                }
+            }
+        }",
+        fontSize = 14.sp,
+        color = if (isDark) Color.LightGray else Color.DarkGray,
+        textAlign = TextAlign.Center,
+    )
+
     Spacer(Modifier.height(16.dp))
 }

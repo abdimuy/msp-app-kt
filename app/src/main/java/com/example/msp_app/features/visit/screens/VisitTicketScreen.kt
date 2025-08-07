@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +54,7 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
+import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -67,9 +69,11 @@ fun VisitTicketScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val saleViewModel: SaleDetailsViewModel = viewModel()
+    val viewModel: SalesViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val userDataState by authViewModel.userData.collectAsState()
     val saleResult by saleViewModel.saleState.collectAsState()
+    val overduePaymentBySaleState by viewModel.overduePaymentBySaleState.collectAsState()
 
     val user = when (userDataState) {
         is ResultState.Success -> (userDataState as ResultState.Success<User?>).data
@@ -81,14 +85,20 @@ fun VisitTicketScreen(
         else -> null
     }
 
+    val latePayment = when (overduePaymentBySaleState) {
+        is ResultState.Success -> (overduePaymentBySaleState as ResultState.Success).data
+        else -> null
+    }
+
     var ticketText by remember { mutableStateOf<String?>(null) }
     var saleLoaded by remember { mutableStateOf(false) }
-    var ticketType by remember { mutableStateOf(1) }
+    var ticketType by remember { mutableIntStateOf(1) }
 
     val currentDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy hh:mm a"))
 
     LaunchedEffect(saleId) {
         saleViewModel.loadSaleDetails(saleId)
+        viewModel.getOverduePaymentBySaleId(saleId)
     }
 
     LaunchedEffect(saleResult, ticketType) {
@@ -147,11 +157,16 @@ fun VisitTicketScreen(
                         appendLine("SU FECHA DE VENCIMIENTO DE SU")
                         appendLine("CREDITO ES EL DIA: $expirationDate")
                         appendLine(separator)
-                        appendLine("TOTAL DE COMPRA: ${sale.PRECIO_TOTAL.toCurrency()}")
-                        appendLine("SALDO ACTUAL: ${sale.SALDO_REST.toCurrency()}")
-                        appendLine("PAGOS VENCIDOS: $0")
-                        appendLine("SUGERIDO PARA")
-                        appendLine("REGULARIZARSE: $0")
+                        appendLine("TOTAL DE COMPRA: ${sale.PRECIO_TOTAL.toCurrency(noDecimals = true)}")
+                        appendLine("SALDO ACTUAL: ${sale.SALDO_REST.toCurrency(noDecimals = true)}")
+                        if (latePayment != null) {
+                            val lost = latePayment.NUM_PAGOS_ATRASADOS.toInt()
+                            val regularized =
+                                (lost * sale.PARCIALIDAD).toCurrency(noDecimals = true)
+                            appendLine("PAGOS VENCIDOS: $lost")
+                            appendLine("SUGERIDO PARA")
+                            appendLine("REGULARIZARSE: $regularized")
+                        }
                     }
 
                     3 -> {
@@ -167,11 +182,16 @@ fun VisitTicketScreen(
                         appendLine("SU FECHA DE VENCIMIENTO DE SU")
                         appendLine("CREDITO ES EL DIA: $expirationDate")
                         appendLine(separator)
-                        appendLine("TOTAL DE COMPRA: ${sale.PRECIO_TOTAL.toCurrency()}")
-                        appendLine("SALDO ACTUAL: ${sale.SALDO_REST.toCurrency()}")
-                        appendLine("PAGOS VENCIDOS: $0")
-                        appendLine("SUGERIDO PARA")
-                        appendLine("REGULARIZARSE: $0")
+                        appendLine("TOTAL DE COMPRA: ${sale.PRECIO_TOTAL.toCurrency(noDecimals = true)}")
+                        appendLine("SALDO ACTUAL: ${sale.SALDO_REST.toCurrency(noDecimals = true)}")
+                        if (latePayment != null) {
+                            val lost = latePayment.NUM_PAGOS_ATRASADOS.toInt()
+                            val regularized =
+                                (lost * sale.PARCIALIDAD).toCurrency(noDecimals = true)
+                            appendLine("PAGOS VENCIDOS: $lost")
+                            appendLine("SUGERIDO PARA")
+                            appendLine("REGULARIZARSE: $regularized")
+                        }
                     }
                 }
 
@@ -289,14 +309,13 @@ fun VisitTicketScreen(
                                 ) {
                                     OutlinedCard(
                                         shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.5.dp, Color.Black),
+                                        border = BorderStroke(1.5.dp, Color.LightGray),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(modifier = Modifier.padding(16.dp)) {
                                             Text(
                                                 text = ticketText!!,
                                                 fontSize = 14.sp,
-                                                color = Color.Black,
                                                 textAlign = TextAlign.Start,
                                                 lineHeight = 20.sp,
                                                 modifier = Modifier.fillMaxWidth()

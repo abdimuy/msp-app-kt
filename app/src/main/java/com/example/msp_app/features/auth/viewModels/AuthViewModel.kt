@@ -1,6 +1,7 @@
 package com.example.msp_app.features.auth.viewModels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants
@@ -17,12 +18,11 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Source
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.withTimeoutOrNull
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
@@ -40,12 +40,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         MutableStateFlow<ResultState<User?>>(ResultState.Idle)
     val updateStartOfWeekDateState: StateFlow<ResultState<User?>> = _updateStartOfWeekDateState
 
+    private var userDataListener: ListenerRegistration? = null
+    private var hasCheckedVersion = false
+
     init {
         auth.addAuthStateListener {
             _currentUser.value = it.currentUser
             val email = it.currentUser?.email
             if (email != null) {
                 getUserDataByEmail(email)
+            } else {
+                userDataListener?.remove()
+                userDataListener = null
+                _userData.value = ResultState.Idle
             }
         }
     }
@@ -56,33 +63,37 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun getUserDataByEmail(email: String) {
-        viewModelScope.launch {
-            _userData.value = ResultState.Loading
-            try {
-                val firestore = FirebaseFirestore.getInstance()
-                val TIMEOUT_MS = 3000L
+        userDataListener?.remove()
+        hasCheckedVersion = false
 
-                val serverSnapshot = withTimeoutOrNull(TIMEOUT_MS) {
-                    firestore.collection(Constants.USERS_COLLECTION)
-                        .whereEqualTo("EMAIL", email)
-                        .get()
-                        .await()
+        _userData.value = ResultState.Loading
+
+        val firestore = FirebaseFirestore.getInstance()
+
+        userDataListener = firestore.collection(Constants.USERS_COLLECTION)
+            .whereEqualTo("EMAIL", email)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    _userData.value = ResultState.Error(error.message ?: "Error desconocido")
+                    Log.e("AuthViewModel", "Error al escuchar datos del usuario: ${error.message}")
+                    return@addSnapshotListener
                 }
 
-                val querySnapshot = serverSnapshot
-                    ?: firestore.collection(Constants.USERS_COLLECTION)
-                        .whereEqualTo("EMAIL", email)
-                        .get(Source.CACHE)
-                        .await()
+                if (snapshot != null && !snapshot.isEmpty) {
+                    val doc = snapshot.documents.firstOrNull()
+                    val data = doc?.let {
+                        it.toObject(User::class.java)?.copy(ID = it.id)
+                    }
+                    _userData.value = ResultState.Success(data)
 
-                val data = querySnapshot.documents.firstOrNull()?.let { doc ->
-                    doc.toObject(User::class.java)?.copy(ID = doc.id)
+                    if (!hasCheckedVersion && data != null) {
+                        hasCheckedVersion = true
+                        updateAppVersion(data.ID, data)
+                    }
+                } else {
+                    _userData.value = ResultState.Success(null)
                 }
-                _userData.value = ResultState.Success(data)
-            } catch (e: Exception) {
-                _userData.value = ResultState.Error(e.message ?: "Error desconocido")
             }
-        }
     }
 
     fun updateStartOfWeekDate() {
@@ -140,8 +151,33 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateAppVersion(userId: String, userData: User) {
+        viewModelScope.launch {
+            val appVersion = Constants.APP_VERSION
+            val versionDate = Timestamp.now()
+
+            try {
+                FirebaseFirestore.getInstance()
+                    .collection(Constants.USERS_COLLECTION)
+                    .document(userId)
+                    .update(
+                        Constants.VERSION_APP, appVersion,
+                        Constants.FECHA_VERSION_APP, versionDate
+                    ).await()
+            } catch (e: Exception) {
+                Log.e("APPVERSION", "Error al actualizar la versión: ${e.message}")
+            }
+        }
+    }
+
     fun clearUpdateStartOfWeekDateState() {
         _updateStartOfWeekDateState.value = ResultState.Idle
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        userDataListener?.remove()
+        userDataListener = null
     }
 }
 

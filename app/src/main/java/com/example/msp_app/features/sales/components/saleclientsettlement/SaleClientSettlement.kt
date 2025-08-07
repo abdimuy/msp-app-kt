@@ -27,6 +27,8 @@ import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -143,10 +145,9 @@ fun calculatePaymentResult(settlement: Settlement): PaymentResults {
     val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     val saleDate = LocalDate.parse(settlement.date, formatter)
 
-    val elapsedMonths = ChronoUnit.MONTHS.between(
-        saleDate.withDayOfMonth(saleDate.lengthOfMonth()),
-        LocalDate.now().minusDays(5)
-    ) + 1
+    val saleEndOfDay = saleDate.atTime(LocalTime.MAX)                     // endOf('day')
+    val fiveDaysAgo = LocalDateTime.now().minusDays(5)                 // subtract(5, 'day')
+    val elapsedMonths = ChronoUnit.MONTHS.between(saleEndOfDay, fiveDaysAgo) + 1
 
     val shortTermInteres = (settlement.shortTermAmount - settlement.cashPrice) / 4
     val longTermInterest = (settlement.totalPrice - settlement.shortTermAmount) / 7
@@ -156,13 +157,13 @@ fun calculatePaymentResult(settlement: Settlement): PaymentResults {
         elapsedMonths <= 1 -> settlement.cashPrice
         elapsedMonths <= 3 -> settlement.cashPrice + elapsedMonths * shortTermInteres
         elapsedMonths in 4..5 -> settlement.shortTermAmount
-        elapsedMonths <= 12 -> settlement.shortTermAmount + (elapsedMonths - 4) * longTermInterest
+        elapsedMonths < 12 -> settlement.shortTermAmount + (elapsedMonths - 4) * longTermInterest
         else -> settlement.totalPrice
     } - totalPaid
 
     val category = when {
         elapsedMonths <= 1 -> "Precio de contado"
-        elapsedMonths <= 12 -> "Precio a ${elapsedMonths} meses"
+        elapsedMonths < 12 -> "Precio a $elapsedMonths meses"
         else -> "Precio total"
     }
 
