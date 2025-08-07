@@ -177,9 +177,5 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun clearUpdateStartOfWeekDateState() {
         _updateStartOfWeekDateState.value = ResultState.Idle
     }
-
-    fun loadUserRoles() {
-        _userRoles.value = listOf("Collection", "Sale")
-    }
 }
 

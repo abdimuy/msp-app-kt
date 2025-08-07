@@ -21,8 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,11 +48,7 @@ fun DrawerContainer(
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
-    val userRoles by authViewModel.userRoles.collectAsState()
-
-    LaunchedEffect(Unit) {
-        authViewModel.loadUserRoles()
-    }
+    val userRoles = listOf("Cobro", "Venta")
 
     val isCollection = "Collection" in userRoles
     val isSale = "Sale" in userRoles
