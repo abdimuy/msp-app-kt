@@ -14,5 +14,6 @@ data class User(
     val FECHA_CARGA_INICIAL: Timestamp? = null,
     val ZONA_CLIENTE_ID: Int = 0,
     val VERSION_APP: String = "",
-    val FECHA_VERSION_APP: Timestamp? = null
+    val FECHA_VERSION_APP: Timestamp? = null,
+    val MODULOS: List<String> = emptyList()
 )

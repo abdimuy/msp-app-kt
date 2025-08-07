@@ -157,13 +157,13 @@ fun calculatePaymentResult(settlement: Settlement): PaymentResults {
         elapsedMonths <= 1 -> settlement.cashPrice
         elapsedMonths <= 3 -> settlement.cashPrice + elapsedMonths * shortTermInteres
         elapsedMonths in 4..5 -> settlement.shortTermAmount
-        elapsedMonths <= 12 -> settlement.shortTermAmount + (elapsedMonths - 4) * longTermInterest
+        elapsedMonths < 12 -> settlement.shortTermAmount + (elapsedMonths - 4) * longTermInterest
         else -> settlement.totalPrice
     } - totalPaid
 
     val category = when {
         elapsedMonths <= 1 -> "Precio de contado"
-        elapsedMonths <= 12 -> "Precio a $elapsedMonths meses"
+        elapsedMonths < 12 -> "Precio a $elapsedMonths meses"
         else -> "Precio total"
     }
 

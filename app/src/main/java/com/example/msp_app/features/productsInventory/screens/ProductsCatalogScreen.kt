@@ -1,8 +1,7 @@
 package com.example.msp_app.features.productsInventory.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -24,6 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,12 +36,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -64,6 +62,8 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
+import com.example.msp_app.navigation.Screen
+import com.example.msp_app.ui.theme.ThemeController
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -166,7 +166,11 @@ fun ProductsCatalogScreen(navController: NavController) {
                         key = { it.ARTICULO_ID }
                     ) { product ->
                         val imageUrls = imagesByProduct[product.ARTICULO_ID] ?: emptyList()
-                        ProductCard(product = product, imageUrls = imageUrls)
+                        ProductCard(
+                            product = product,
+                            imageUrls = imageUrls,
+                            navController = navController
+                        )
                     }
                 }
             }
@@ -175,86 +179,104 @@ fun ProductsCatalogScreen(navController: NavController) {
 }
 
 @Composable
-fun ProductCard(product: ProductInventory, imageUrls: List<String> = emptyList()) {
-    var pressed by remember { mutableStateOf(false) }
+fun ProductCard(
+    product: ProductInventory,
+    imageUrls: List<String> = emptyList(),
+    navController: NavController
+) {
+    val isDark = ThemeController.isDarkMode
 
-    Row(
+    Card(
+        elevation = CardDefaults.cardElevation(
+            defaultElevation =
+                if (!isDark) 8.dp else 0.dp
+        ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border =
+            if (!isDark) null else BorderStroke(
+                width = 1.dp,
+                color = Color.DarkGray
+            ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(130.dp)
-            .background(
-                color = Color(0xFFF8FAFC),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(
-                width = 1.dp,
-                color = Color(0xFFE2E8F0),
-                shape = RoundedCornerShape(8.dp)
-            )
-            .clickable { pressed = !pressed }
-            .alpha(if (pressed) 1f else 1f)
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(6.dp),
+        onClick = { navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())) }
     ) {
-        if (imageUrls.isNotEmpty()) {
-            val imagePath = imageUrls.first()
-            val imageFile = File(imagePath)
 
-            AsyncImage(
-                model = imageFile,
-                contentDescription = "Imagen del producto",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(90.dp)
-                    .clip(RoundedCornerShape(8.dp))
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(90.dp)
-                    .background(Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
-            )
-        }
+        Row(
+            modifier = Modifier.padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        )
+        {
+            if (imageUrls.isNotEmpty()) {
+                val imagePath = imageUrls.first()
+                val imageFile = File(imagePath)
 
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .padding(start = 12.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = product.ARTICULO,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF003366),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                lineHeight = 16.sp
-            )
-            Text(
-                text = buildAnnotatedString {
-                    append("Stock: ")
-                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                        append("${product.EXISTENCIAS}")
-                    }
-                },
-                fontSize = 14.sp,
-                color = Color(0xFF0056B3),
-                lineHeight = 16.sp
-            )
-            val priceMap = parsePriceJsonToMap(product.PRECIOS)
-            priceMap.forEach { (label, value) ->
+                AsyncImage(
+                    model = imageFile,
+                    contentDescription = "Imagen del producto",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(90.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(90.dp)
+                        .background(Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(start = 12.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = product.ARTICULO,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isDark) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        Color(0xFF003366)
+                    },
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 16.sp
+                )
                 Text(
                     text = buildAnnotatedString {
-                        append("$label: ")
+                        append("Stock: ")
                         withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append(value.toCurrency(noDecimals = false))
+                            append("${product.EXISTENCIAS}")
                         }
                     },
                     fontSize = 14.sp,
-                    color = Color(0xFF334155),
+                    color = if (isDark) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        Color(0xFF0056B3)
+                    },
                     lineHeight = 16.sp
                 )
+                val priceMap = parsePriceJsonToMap(product.PRECIOS)
+                priceMap.forEach { (label, value) ->
+                    Text(
+                        text = buildAnnotatedString {
+                            append("$label: ")
+                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                append(value.toCurrency(noDecimals = false))
+                            }
+                        },
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        lineHeight = 16.sp
+                    )
+                }
             }
         }
     }

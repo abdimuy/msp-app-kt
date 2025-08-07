@@ -29,6 +29,9 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
     val productsLoaded: StateFlow<Boolean> = _productsLoaded
 
 
+    private val _product = MutableStateFlow<ProductInventory?>(null)
+    val product: StateFlow<ProductInventory?> = _product
+
     fun fetchRemoteInventory() {
         viewModelScope.launch {
             _productsLoaded.value = false
@@ -70,6 +73,19 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
             } catch (e: Exception) {
                 _productInventoryState.value =
                     ResultState.Error(e.message ?: "Error loading local inventory")
+            }
+        }
+    }
+
+    fun loadProductById(id: Int) {
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    localDataSource.getProductInventoryById(id).toDomain()
+                }
+                _product.value = result
+            } catch (e: Exception) {
+                _product.value = null
             }
         }
     }
