@@ -201,10 +201,16 @@ fun SalesScreen(
                                             it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE ||
                                             it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
                                 }
-                                .sortedWith(
-                                    compareByDescending<SaleWithProducts> { it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE }
-                                        .thenBy { it.FECHA }
-                                )
+                                .let { list ->
+                                    if (query.isBlank()) {
+                                        list.sortedWith(
+                                            compareByDescending<SaleWithProducts> { it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE }
+                                                .thenBy { it.FECHA }
+                                        )
+                                    } else {
+                                        list
+                                    }
+                                }
 
                             val visitedSales =
                                 filteredSales.filter { it.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO }

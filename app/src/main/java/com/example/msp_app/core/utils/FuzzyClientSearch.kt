@@ -28,8 +28,12 @@ fun <T> searchSimilarItems(
     return normalizedItems
         .mapNotNull { (text, item) ->
             val matchLen = longestCommonSubstring(cleanQuery, text)
-            val score = matchLen * 100 / qLen
-            if (score >= threshold) item to score else null
+            val baseScore = matchLen * 100 / qLen
+            if (baseScore >= threshold) {
+                val positionBonus = calculatePositionBonus(cleanQuery, text)
+                val finalScore = baseScore + positionBonus
+                item to finalScore
+            } else null
         }
         .sortedByDescending { it.second }
         .map { it.first }
@@ -88,4 +92,28 @@ private fun longestCommonSubstring(s1: String, s2: String): Int {
         if (hasCommon(mid)) low = mid else high = mid
     }
     return low
+}
+
+private fun calculatePositionBonus(query: String, text: String): Int {
+    if (query.isEmpty() || text.isEmpty()) return 0
+
+    if (text.startsWith(query)) {
+        return 50 // Bonus alto para coincidencia exacta al principio
+    }
+
+    val words = text.split(" ", "-", "_", ".")
+    for (word in words) {
+        if (word.startsWith(query)) {
+            return 30 // Bonus medio para coincidencia al principio de palabra
+        }
+    }
+
+    val position = text.indexOf(query)
+    if (position >= 0) {
+        val maxBonus = 20
+        val positionPenalty = (position.toDouble() / text.length) * maxBonus
+        return (maxBonus - positionPenalty).toInt()
+    }
+
+    return 0
 }
