@@ -1,6 +1,7 @@
 package com.example.msp_app.features.productsInventory.viewmodels
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.ResultState
@@ -52,12 +53,13 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
         }
     }
 
-    fun saveProductsInventoryLocally(products: List<ProductInventory>) {
-        viewModelScope.launch(Dispatchers.IO) {
+    private suspend fun saveProductsInventoryLocally(products: List<ProductInventory>) {
+        withContext(Dispatchers.IO) {
             try {
                 localDataSource.insertAll(products.map { it.toEntity() })
                 _productsLoaded.value = true
             } catch (e: Exception) {
+                Log.e("ProductsInventoryViewModel", "Error saving products locally: ${e.message}")
             }
         }
     }
