@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,7 +65,6 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.ui.theme.ThemeController
-import kotlinx.coroutines.delay
 import java.io.File
 
 @Composable
@@ -76,23 +76,16 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
     val product by productsInventoryViewModel.product.collectAsState()
     val isDark = ThemeController.isDarkMode
 
-    var imageReloadTrigger by remember { mutableStateOf(0) }
-
-    LaunchedEffect(Unit) {
-        imagesViewModel.loadLocalImages()
-    }
+    var imageReloadTrigger by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(productId) {
         productId.toIntOrNull()?.let { id ->
             productsInventoryViewModel.loadProductById(id)
-            delay(100)
-            imagesViewModel.loadLocalImages()
         }
     }
 
-    LaunchedEffect(product) {
-        product?.let {
-            delay(200)
+    LaunchedEffect(product?.ARTICULO_ID) {
+        product?.ARTICULO_ID?.let {
             imagesViewModel.loadLocalImages()
         }
     }
@@ -311,7 +304,6 @@ fun Carousel(
                     .data(file)
                     .memoryCacheKey("${file.absolutePath}_${reloadTrigger}")
                     .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
-                    .crossfade(300)
                     .build(),
                 contentDescription = item.description,
                 contentScale = ContentScale.Crop,
@@ -403,7 +395,6 @@ fun ZoomableImageDialog1(
                                 .data(file)
                                 .memoryCacheKey("${file.absolutePath}_dialog_${reloadTrigger}")
                                 .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
-                                .crossfade(300)
                                 .build(),
                             contentDescription = item.description,
                             contentScale = ContentScale.Fit,
