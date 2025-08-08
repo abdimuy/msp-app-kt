@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
@@ -225,8 +227,23 @@ fun ProductCard(
                 Box(
                     modifier = Modifier
                         .size(90.dp)
-                        .background(Color(0xFFCBD5E1), RoundedCornerShape(8.dp))
-                )
+                        .background(
+                            color = if (isDark) {
+                                Color.Transparent
+                            } else {
+                                Color(0xFFCBD5E1)
+                            }, RoundedCornerShape(8.dp)
+                        )
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.images_photo),
+                        contentDescription = "Sin imagen disponible",
+                        modifier = Modifier
+                            .size(74.dp)
+                            .align(Alignment.Center),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
             Column(
                 modifier = Modifier
