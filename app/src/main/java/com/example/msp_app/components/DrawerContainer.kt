@@ -198,6 +198,19 @@ fun DrawerContainer(
                                     }
                                 }
                             )
+
+                            NavigationDrawerItem(
+                                label = { Text("Nueva Venta") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("new_sale") {
+                                            popUpTo("sale_home")
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
 

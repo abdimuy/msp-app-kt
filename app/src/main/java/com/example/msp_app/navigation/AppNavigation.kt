@@ -29,10 +29,11 @@ import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.PaymentTicketScreen
 import com.example.msp_app.features.payments.screens.WeeklyReportScreen
+import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
-import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
+import com.example.msp_app.features.sales.screens.NewSaleScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
@@ -75,6 +76,8 @@ sealed class Screen(val route: String) {
     object ProductDetails : Screen("productDetails/{productId}") {
         fun createRoute(productId: String) = "productDetails/$productId"
     }
+
+    object NewSale : Screen("new_sale")
 
 }
 
@@ -224,6 +227,10 @@ fun AppNavigation() {
                     productId = productId.toString(),
                     navController = navController
                 )
+            }
+
+            composable(Screen.NewSale.route) {
+                NewSaleScreen(navController = navController)
             }
 
         }
