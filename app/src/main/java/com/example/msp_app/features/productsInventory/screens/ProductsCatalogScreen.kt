@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -111,19 +112,31 @@ fun ProductsCatalogScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    IconButton(onClick = openDrawer) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Menú"
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = openDrawer) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Menú"
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = "Productos",
+                            style = MaterialTheme.typography.titleLarge
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "Productos",
-                        style = MaterialTheme.typography.titleLarge
-                    )
+
+                    IconButton(onClick = {
+                        navController.navigate(Screen.Cart.route)
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.ShoppingCart,
+                            contentDescription = "Carrito"
+                        )
+                    }
                 }
             }
         ) { innerPadding ->
@@ -231,7 +244,7 @@ fun ProductCard(
                             color = if (isDark) {
                                 Color.Transparent
                             } else {
-                                Color(0xFFCBD5E1)
+                                Color(0xFFE2E3E5)
                             }, RoundedCornerShape(8.dp)
                         )
                 ) {
@@ -239,9 +252,9 @@ fun ProductCard(
                         painter = painterResource(id = R.drawable.images_photo),
                         contentDescription = "Sin imagen disponible",
                         modifier = Modifier
-                            .size(74.dp)
+                            .size(154.dp)
                             .align(Alignment.Center),
-                        tint = MaterialTheme.colorScheme.onSurface
+                        tint = Color(0xFFB8C3D4)
                     )
                 }
             }
@@ -285,7 +298,7 @@ fun ProductCard(
                         text = buildAnnotatedString {
                             append("$label: ")
                             withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                append(value.toCurrency(noDecimals = false))
+                                append(value.toCurrency(noDecimals = true))
                             }
                         },
                         fontSize = 14.sp,

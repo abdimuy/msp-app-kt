@@ -1,5 +1,7 @@
 package com.example.msp_app.features.productsInventory.screens
 
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -62,19 +65,31 @@ import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.ui.theme.ThemeController
 import java.io.File
 
 @Composable
-fun ProductDetailsScreen(productId: String, navController: NavController) {
+fun ProductDetailsScreen(
+    productId: String,
+    navController: NavController,
+) {
 
-    val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
-    val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
+    val activity = LocalActivity.current as? ComponentActivity
+        ?: error("Se requiere ComponentActivity para obtener ViewModel")
+
+    val productsInventoryViewModel: ProductsInventoryViewModel =
+        viewModel(viewModelStoreOwner = activity)
+    val cartViewModel: CartViewModel = viewModel(viewModelStoreOwner = activity)
+    val imagesViewModel: ProductInventoryImagesViewModel = viewModel(viewModelStoreOwner = activity)
+
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val product by productsInventoryViewModel.product.collectAsState()
     val isDark = ThemeController.isDarkMode
+    var showDialogAdd by remember { mutableStateOf(false) }
+
 
     var imageReloadTrigger by remember { mutableIntStateOf(0) }
 
@@ -178,7 +193,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                                         painter = painterResource(id = R.drawable.images_photo),
                                         contentDescription = "Sin imagen disponible",
                                         modifier = Modifier.size(154.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        tint = Color(0xFFB8C3D4)
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     Text(
@@ -238,11 +253,85 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                             }
                         }
                     }
+                    if (showDialogAdd) {
+                        val currentQuantity =
+                            product?.let { cartViewModel.getQuantityForProduct(it) } ?: 0
+                        var amount by remember { mutableStateOf(if (currentQuantity > 0) currentQuantity else 1) }
+
+                        val maxStock = product?.EXISTENCIAS ?: 1
+
+                        val maxAddable = maxStock - currentQuantity
+
+                        AlertDialog(
+                            onDismissRequest = { showDialogAdd = false },
+                            title = { Text("Agregar al carrito") },
+                            text = {
+                                Column {
+                                    Text("¿Cuántas unidades deseas agregar de este Producto?")
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        IconButton(
+                                            onClick = { if (amount > 1) amount-- },
+                                            enabled = amount > 1,
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Text("-", style = MaterialTheme.typography.titleLarge)
+                                        }
+
+                                        Spacer(modifier = Modifier.width(16.dp))
+
+                                        Text(
+                                            text = amount.toString(),
+                                            style = MaterialTheme.typography.titleLarge,
+                                            modifier = Modifier.width(40.dp),
+                                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                        )
+
+                                        Spacer(modifier = Modifier.width(16.dp))
+
+                                        IconButton(
+                                            onClick = { if (amount < maxAddable) amount++ },
+                                            enabled = amount < maxAddable,
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Text("+", style = MaterialTheme.typography.titleLarge)
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showDialogAdd = false
+                                        product?.let { cartViewModel.addProduct(it, amount) }
+                                    },
+                                    enabled = amount > 0 && amount <= maxAddable
+                                ) {
+                                    Text("Sí")
+                                }
+                            },
+                            dismissButton = {
+                                Button(onClick = { showDialogAdd = false }) {
+                                    Text("No")
+                                }
+                            }
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(onClick = { }) {
                         Text("Vender")
+                    }
+                    Button(onClick = {
+                        showDialogAdd = true
+                    }) {
+                        Text("Añadir al Carrito")
                     }
                 }
             } ?: run {
