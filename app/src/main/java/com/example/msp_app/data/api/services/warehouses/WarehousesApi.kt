@@ -22,14 +22,21 @@ data class WarehouseResponse(
     )
 }
 
+data class AddProductRequest(
+    val ALMACEN_ID: Int,
+    val ARTICULO: String,
+    val EXISTENCIAS: Int
+)
+
+
 interface WarehousesApi {
     @GET("/almacenes/{almacenId}")
     suspend fun getWarehouseProducts(
-        @Path("almacenId") almacenId: Int
+        @Path("almacenId") warehouseId: Int
     ): WarehouseResponse
 
-    @POST("/almacenes/addProduct")
+    @POST("/almacenes/products")
     suspend fun addProductToWarehouse(
-        @Body product: ProductInventory
+        @Body product: AddProductRequest
     ): WarehouseResponse
 }

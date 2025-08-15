@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,16 +27,21 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,13 +57,16 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.viewmodels.CartItem
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
+import com.example.msp_app.features.warehouses.WarehouseViewModel
+import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,16 +76,52 @@ fun CartScreen(navController: NavController) {
         ?: error("Se requiere una ComponentActivity para obtener ViewModel")
 
     val cartViewModel: CartViewModel = viewModel(viewModelStoreOwner = activity)
+    val warehouseViewModel: WarehouseViewModel = viewModel(viewModelStoreOwner = activity)
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel(viewModelStoreOwner = activity)
 
     val cartProducts = cartViewModel.cartProducts
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
+    val saveCartState by warehouseViewModel.saveCartState.collectAsState()
+    val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
+    val hasUnsavedChanges by cartViewModel.hasUnsavedChanges.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(Unit) {
+        warehouseViewModel.getWarehouseProducts()
+        imagesViewModel.loadLocalImages()
+    }
+
+    LaunchedEffect(warehouseState) {
+        val state = warehouseState
+        if (state is ResultState.Success) {
+            val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
+            cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
+        }
+    }
+
+    LaunchedEffect(saveCartState) {
+        when (saveCartState) {
+            is ResultState.Success -> {
+                snackbarHostState.showSnackbar("Carrito guardado en el almacén exitosamente")
+                cartViewModel.markAsSaved()
+                warehouseViewModel.resetSaveCartState()
+            }
+
+            is ResultState.Error -> {
+                warehouseViewModel.resetSaveCartState()
+            }
+
+            else -> {}
+        }
+    }
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text("Carrito (${cartViewModel.getTotalItems()})") },
+                    title = { Text("Almacén (${cartViewModel.getTotalItems()})") },
                     navigationIcon = {
                         IconButton(onClick = openDrawer) {
                             Icon(
@@ -90,42 +135,101 @@ fun CartScreen(navController: NavController) {
             bottomBar = {
                 if (cartProducts.isNotEmpty()) {
                     Button(
-                        onClick = {},
+                        onClick = {
+                            val cartItems = cartViewModel.getCartItemsForWarehouse()
+                            warehouseViewModel.saveCartToWarehouse(cartItems)
+                        },
+                        enabled = hasUnsavedChanges && saveCartState !is ResultState.Loading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding()
-                            .padding(16.dp)
+                            .padding(6.dp)
                     ) {
-                        Text(text = "Guardar")
+                        if (saveCartState is ResultState.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(
+                            text = when {
+                                saveCartState is ResultState.Loading -> "Guardando..."
+                                hasUnsavedChanges -> "Guardar Cambios"
+                                else -> "Sin Cambios"
+                            }
+                        )
                     }
                 }
             }
         ) { paddingValues ->
-            if (cartProducts.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "El carrito está vacío")
+            when (warehouseState) {
+                is ResultState.Loading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = paddingValues,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    items(cartProducts) { cartItem ->
-                        val imageUrls = imagesByProduct[cartItem.product.ARTICULO_ID] ?: emptyList()
-                        CartItemCard(
-                            cartItem = cartItem,
-                            imageUrls = imageUrls,
-                            onRemove = { cartViewModel.removeProduct(cartItem.product) },
-                            onIncreaseQuantity = { cartViewModel.increaseQuantity(cartItem.product) },
-                            onDecreaseQuantity = { cartViewModel.decreaseQuantity(cartItem.product) }
-                        )
+
+                is ResultState.Error -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Error al cargar el almacén",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+                }
+
+                else -> {
+                    if (cartProducts.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "El almacén está vacío")
+                        }
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(
+                                top = 8.dp,
+                                start = 16.dp,
+                                end = 16.dp,
+                                bottom = 16.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(paddingValues)
+                        ) {
+                            items(cartProducts) { cartItem ->
+                                val imageUrls =
+                                    imagesByProduct[cartItem.product.ARTICULO_ID] ?: emptyList()
+                                CartItemCard(
+                                    cartItem = cartItem,
+                                    imageUrls = imageUrls,
+                                    onRemove = { cartViewModel.removeProduct(cartItem.product) },
+                                    onIncreaseQuantity = { cartViewModel.increaseQuantity(cartItem.product) },
+                                    onDecreaseQuantity = { cartViewModel.decreaseQuantity(cartItem.product) },
+                                    navController = navController,
+                                    product = cartItem.product
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -139,7 +243,9 @@ fun CartItemCard(
     imageUrls: List<String>,
     onRemove: () -> Unit,
     onIncreaseQuantity: () -> Unit,
-    onDecreaseQuantity: () -> Unit
+    onDecreaseQuantity: () -> Unit,
+    navController: NavController,
+    product: ProductInventory
 ) {
     val isDark = ThemeController.isDarkMode
 
@@ -147,7 +253,9 @@ fun CartItemCard(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = if (!isDark) 8.dp else 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = if (!isDark) null else BorderStroke(1.dp, Color.DarkGray)
+        border = if (!isDark) null else BorderStroke(1.dp, Color.DarkGray),
+        onClick = { navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())) }
+
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
 
@@ -157,7 +265,7 @@ fun CartItemCard(
             ) {
                 if (imageUrls.isNotEmpty()) {
                     AsyncImage(
-                        model = File(imageUrls.first()),
+                        model = "file://${imageUrls.first()}",
                         contentDescription = "Imagen del producto",
                         modifier = Modifier
                             .size(90.dp)
@@ -271,10 +379,6 @@ fun CartItemCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(
-                        if (isDark) Color(0xFF1E293B) else Color(0xFFF0F9FF),
-                        RoundedCornerShape(8.dp)
-                    )
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -300,6 +404,3 @@ fun CartItemCard(
         }
     }
 }
-
-
-
