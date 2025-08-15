@@ -198,6 +198,32 @@ fun DrawerContainer(
                                     }
                                 }
                             )
+
+                            NavigationDrawerItem(
+                                label = { Text("Nueva Venta") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("new_sale") {
+                                            popUpTo("sale_home")
+                                        }
+                                    }
+                                }
+                            )
+
+                            NavigationDrawerItem(
+                                label = { Text("Ventas Realizadas") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("sales/details_list") {
+                                            popUpTo("sale_home")
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
 
