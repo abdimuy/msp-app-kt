@@ -46,9 +46,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -141,6 +145,8 @@ fun NewSaleScreen(navController: NavController) {
             direccion = direccion,
             context = context
         )
+        defectName = TextFieldValue("")
+        imageUris = emptyList()
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -180,6 +186,9 @@ fun NewSaleScreen(navController: NavController) {
                             16.dp
                         )
                 ) {
+                    val focusManager = LocalFocusManager.current
+                    val focusRequester = remember { FocusRequester() }
+
                     OutlinedTextField(
                         value = defectName,
                         onValueChange = {
@@ -188,7 +197,14 @@ fun NewSaleScreen(navController: NavController) {
                         },
                         label = { Text("Nombre completo del cliente") },
                         isError = showError,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focusRequester)
+                            .onFocusChanged { focusState ->
+                                if (!focusState.isFocused) {
+                                    focusManager.clearFocus()
+                                }
+                            },
                         singleLine = false,
                         maxLines = 2,
                         shape = RoundedCornerShape(15.dp)
@@ -284,6 +300,7 @@ fun NewSaleScreen(navController: NavController) {
                     ) {
                         items(imageUris.size) { index ->
                             val uri = imageUris[index]
+                            showImageError = false
                             Box(modifier = Modifier.size(80.dp)) {
                                 Image(
                                     painter = rememberAsyncImagePainter(uri),

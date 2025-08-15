@@ -34,6 +34,7 @@ import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScr
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
+import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
@@ -78,6 +79,7 @@ sealed class Screen(val route: String) {
     }
 
     object NewSale : Screen("new_sale")
+    object SaleDetailsList : Screen("sales/details_list")
 
 }
 
@@ -233,6 +235,9 @@ fun AppNavigation() {
                 NewSaleScreen(navController = navController)
             }
 
+            composable(Screen.SaleDetailsList.route) {
+                SaleDetailsListScreen(navController = navController)
+            }
         }
     }
 }

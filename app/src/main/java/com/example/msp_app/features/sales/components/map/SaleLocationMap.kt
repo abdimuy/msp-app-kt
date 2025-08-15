@@ -94,81 +94,89 @@ fun LocationMap(
             permissionState.launchPermissionRequest()
         }
     }
-
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .height(220.dp)) {
-        if (permissionState.status.isGranted) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState,
-                properties = MapProperties(
-                    isMyLocationEnabled = true,
-                    mapType = MapType.NORMAL
-                ),
-                uiSettings = MapUiSettings(
-                    myLocationButtonEnabled = false,
-                    zoomControlsEnabled = true
-                )
-            ) {
-                currentLocation?.let { loc ->
-                    Marker(
-                        state = MarkerState(
-                            position = LatLng(loc.latitude, loc.longitude)
-                        ),
-                        title = "Ubicación actual",
-                        snippet = "Aquí te encuentras"
-                    )
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    "Se requieren permisos de ubicación",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedButton(onClick = { permissionState.launchPermissionRequest() }) {
-                    Text("Conceder permisos")
-                }
-            }
-        }
-
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
-        }
-
-        locationError?.let { error ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(300.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+        ) {
+            if (permissionState.status.isGranted) {
+                GoogleMap(
+                    modifier = Modifier.fillMaxSize(),
+                    cameraPositionState = cameraPositionState,
+                    properties = MapProperties(
+                        isMyLocationEnabled = true,
+                        mapType = MapType.NORMAL
+                    ),
+                    uiSettings = MapUiSettings(
+                        myLocationButtonEnabled = false,
+                        zoomControlsEnabled = true
                     )
                 ) {
+                    currentLocation?.let { loc ->
+                        Marker(
+                            state = MarkerState(
+                                position = LatLng(loc.latitude, loc.longitude)
+                            ),
+                            title = "Ubicación actual",
+                            snippet = "Aquí te encuentras"
+                        )
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Text(
-                        text = error,
-                        modifier = Modifier.padding(12.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer
+                        "Se requieren permisos de ubicación",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
                     )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(onClick = { permissionState.launchPermissionRequest() }) {
+                        Text("Conceder permisos")
+                    }
+                }
+            }
+
+            if (isLoading) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+
+            locationError?.let { error ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Text(
+                            text = error,
+                            modifier = Modifier.padding(12.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
                 }
             }
         }
