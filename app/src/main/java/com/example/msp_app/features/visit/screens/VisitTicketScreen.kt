@@ -56,6 +56,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -104,7 +105,9 @@ fun VisitTicketScreen(
     LaunchedEffect(saleResult, ticketType) {
         if (saleResult is ResultState.Success && sale != null && user != null) {
             val expirationDate =
-                LocalDateTime.now().plusYears(1).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                LocalDate.parse(sale.FECHA, DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    .plusYears(1)
+                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
             val separator = (" ".repeat(32))
             val lines = "-".repeat(32)
             val currentDateFormatted = ThermalPrinting.centerText(currentDate, 32)
