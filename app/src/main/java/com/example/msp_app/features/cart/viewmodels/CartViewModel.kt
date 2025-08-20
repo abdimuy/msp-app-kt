@@ -40,29 +40,24 @@ class CartViewModel : ViewModel() {
         markAsModified()
     }
 
-    fun increaseQuantity(product: ProductInventory) {
+    private fun changeQuantity(product: ProductInventory, increase: Boolean) {
         val itemIndex = _cartItems.indexOfFirst { it.product.ARTICULO_ID == product.ARTICULO_ID }
         if (itemIndex != -1) {
             val item = _cartItems[itemIndex]
-            if (item.quantity < item.product.EXISTENCIAS) {
-                _cartItems[itemIndex] = item.copy(quantity = item.quantity + 1)
-                markAsModified()
-            }
-        }
-    }
+            val newQuantity = if (increase) item.quantity + 1 else item.quantity - 1
 
-    fun decreaseQuantity(product: ProductInventory) {
-        val itemIndex = _cartItems.indexOfFirst { it.product.ARTICULO_ID == product.ARTICULO_ID }
-        if (itemIndex != -1) {
-            val item = _cartItems[itemIndex]
-            if (item.quantity > 1) {
-                _cartItems[itemIndex] = item.copy(quantity = item.quantity - 1)
-            } else {
-                _cartItems.removeAt(itemIndex)
+            when {
+                newQuantity > item.product.EXISTENCIAS -> return
+                newQuantity < 1 -> _cartItems.removeAt(itemIndex)
+                else -> _cartItems[itemIndex] = item.copy(quantity = newQuantity)
             }
+
             markAsModified()
         }
     }
+
+    fun increaseQuantity(product: ProductInventory) = changeQuantity(product, true)
+    fun decreaseQuantity(product: ProductInventory) = changeQuantity(product, false)
 
     fun getQuantityForProduct(product: ProductInventory): Int {
         val item = _cartItems.find { it.product.ARTICULO_ID == product.ARTICULO_ID }
