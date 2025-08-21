@@ -46,7 +46,6 @@ import com.example.msp_app.features.warehouses.WarehouseViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CartScreen(navController: NavController) {
-
     val cartViewModel: CartViewModel = viewModel()
     val warehouseViewModel: WarehouseViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
@@ -109,7 +108,7 @@ fun CartScreen(navController: NavController) {
                     Button(
                         onClick = {
                             val cartItems = cartViewModel.getCartItemsForWarehouse()
-                            warehouseViewModel.saveCartToWarehouse(cartItems)
+                            warehouseViewModel.sendCartToWarehouseServer(cartItems)
                         },
                         enabled = hasUnsavedChanges && saveCartState !is ResultState.Loading,
                         modifier = Modifier
@@ -189,13 +188,19 @@ fun CartScreen(navController: NavController) {
                                 .padding(paddingValues)
                         ) {
                             items(cartViewModel.cartProducts) { cartItem ->
+                                val stockLimit = cartItem.product.EXISTENCIAS
                                 val imageUrls =
                                     imagesByProduct[cartItem.product.ARTICULO_ID] ?: emptyList()
                                 CartItemCard(
                                     cartItem = cartItem,
                                     imageUrls = imageUrls,
                                     onRemove = { cartViewModel.removeProduct(cartItem.product) },
-                                    onIncreaseQuantity = { cartViewModel.increaseQuantity(cartItem.product) },
+                                    onIncreaseQuantity = {
+                                        cartViewModel.increaseQuantity(
+                                            cartItem.product,
+                                            stockLimit
+                                        )
+                                    },
                                     onDecreaseQuantity = { cartViewModel.decreaseQuantity(cartItem.product) },
                                     navController = navController,
                                     product = cartItem.product

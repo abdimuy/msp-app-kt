@@ -12,7 +12,7 @@ class WarehouseRemoteDataSource @Inject constructor(
         return warehousesApi.getWarehouseProducts(warehouseId)
     }
 
-    suspend fun addProductToWarehouse(product: AddProductRequest): WarehouseResponse {
-        return warehousesApi.addProductToWarehouse(product)
+    suspend fun postProductsToWarehouse(product: List<AddProductRequest>): WarehouseResponse {
+        return warehousesApi.postProductsToWarehouse(product)
     }
 }

@@ -28,7 +28,6 @@ data class AddProductRequest(
     val EXISTENCIAS: Int
 )
 
-
 interface WarehousesApi {
     @GET("/almacenes/{almacenId}")
     suspend fun getWarehouseProducts(
@@ -36,7 +35,7 @@ interface WarehousesApi {
     ): WarehouseResponse
 
     @POST("/almacenes/products")
-    suspend fun addProductToWarehouse(
-        @Body product: AddProductRequest
+    suspend fun postProductsToWarehouse(
+        @Body product: List<AddProductRequest>
     ): WarehouseResponse
 }

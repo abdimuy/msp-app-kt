@@ -62,10 +62,13 @@ import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.data.api.ApiProvider
+import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.features.cart.components.AddToCartDialog
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
-import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
+import com.example.msp_app.features.productsInventory.viewmodels.ProductDetailsViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
+import com.example.msp_app.features.warehouses.WarehouseViewModel
 import com.example.msp_app.ui.theme.ThemeController
 import java.io.File
 
@@ -74,19 +77,21 @@ fun ProductDetailsScreen(
     productId: String,
     navController: NavController,
 ) {
-    val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
+    val detailsViewModel: ProductDetailsViewModel = viewModel()
     val cartViewModel: CartViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
 
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
-    val product by productsInventoryViewModel.product.collectAsState()
+    val product by detailsViewModel.product.collectAsState()
     val isDark = ThemeController.isDarkMode
     var showDialogAdd by remember { mutableStateOf(false) }
     var imageReloadTrigger by remember { mutableIntStateOf(0) }
+    val warehouseViewModel: WarehouseViewModel = viewModel()
+    val warehouseId = warehouseViewModel.warehouseId
 
     LaunchedEffect(productId) {
         productId.toIntOrNull()?.let { id ->
-            productsInventoryViewModel.loadProductById(id)
+            detailsViewModel.loadProductById(id)
         }
     }
 
@@ -245,10 +250,13 @@ fun ProductDetailsScreen(
                         }
                     }
                     if (showDialogAdd) {
+                        val api = ApiProvider.create(WarehousesApi::class.java)
                         AddToCartDialog(
                             product = product,
+                            api = api,
+                            warehouseId = warehouseId,
                             cartViewModel = cartViewModel,
-                            onDismiss = { showDialogAdd = false }
+                            onDismiss = { showDialogAdd = false },
                         )
                     }
 

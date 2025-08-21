@@ -78,17 +78,4 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
             }
         }
     }
-
-    fun loadProductById(id: Int) {
-        viewModelScope.launch {
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    localDataSource.getProductInventoryById(id).toDomain()
-                }
-                _product.value = result
-            } catch (e: Exception) {
-                _product.value = null
-            }
-        }
-    }
 }

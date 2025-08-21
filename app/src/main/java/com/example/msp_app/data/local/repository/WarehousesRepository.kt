@@ -27,21 +27,19 @@ class WarehouseRepository @Inject constructor(
         }
     }
 
-    suspend fun addMultipleProductsToWarehouse(products: List<AddProductRequest>): Result<List<WarehouseResponse>> {
+    suspend fun postProductsToWarehouse(products: List<AddProductRequest>): Result<WarehouseResponse> {
         return withContext(Dispatchers.IO) {
             try {
-                val responses = mutableListOf<WarehouseResponse>()
-                products.forEach { product ->
-                    val response = remoteDataSource.addProductToWarehouse(product)
-                    if (!response.error.isNullOrEmpty()) {
-                        return@withContext Result.failure(Exception("Error adding product ${product.ARTICULO}: ${response.error}"))
-                    }
-                    responses.add(response)
+                val response = remoteDataSource.postProductsToWarehouse(products)
+                if (!response.error.isNullOrEmpty()) {
+                    Result.failure(Exception(response.error))
+                } else {
+                    Result.success(response)
                 }
-                Result.success(responses)
             } catch (e: Exception) {
                 Result.failure(e)
             }
         }
     }
+
 }

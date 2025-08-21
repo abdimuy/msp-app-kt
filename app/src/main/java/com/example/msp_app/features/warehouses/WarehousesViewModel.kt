@@ -45,7 +45,7 @@ class WarehouseViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun saveCartToWarehouse(cartItems: List<Pair<ProductInventory, Int>>) {
+    fun sendCartToWarehouseServer(cartItems: List<Pair<ProductInventory, Int>>) {
         viewModelScope.launch {
             _saveCartState.value = ResultState.Loading
             try {
@@ -57,7 +57,7 @@ class WarehouseViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
 
-                repository.addMultipleProductsToWarehouse(productsToSave).fold(
+                repository.postProductsToWarehouse(productsToSave).fold(
                     onSuccess = { responses ->
                         _saveCartState.value = ResultState.Success("Carrito guardado exitosamente")
                     },

@@ -21,12 +21,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
 
 @Composable
 fun AddToCartDialog(
     product: ProductInventory?,
+    api: WarehousesApi,
+    warehouseId: Int,
     cartViewModel: CartViewModel,
     onDismiss: () -> Unit
 ) {
@@ -82,7 +85,14 @@ fun AddToCartDialog(
             Button(
                 onClick = {
                     onDismiss()
-                    product?.let { cartViewModel.addProduct(it, amount) }
+                    product?.let {
+                        cartViewModel.addProductValidated(
+                            product = it,
+                            api = api,
+                            warehouseId = warehouseId,
+                            amount = amount
+                        )
+                    }
                 },
                 enabled = amount > 0 && amount <= maxStock
             ) {
