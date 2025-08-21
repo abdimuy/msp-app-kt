@@ -35,6 +35,8 @@ import com.example.msp_app.features.payments.components.weeklyreportcontent.Week
 import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import java.time.Instant
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 
@@ -55,10 +57,7 @@ fun WeeklyReportScreen(
         DateUtils.parseDateToIso(startDate?.toDate())
     } ?: DateUtils.parseDateToIso(null)
 
-    val endIso = DateUtils.addToIsoDate(
-        DateUtils.addToIsoDate(startIso, 6, ChronoUnit.DAYS),
-        -1, ChronoUnit.SECONDS
-    )
+    val endIso = Instant.now().toString()
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
 
