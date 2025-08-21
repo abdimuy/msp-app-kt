@@ -38,7 +38,7 @@ import com.example.msp_app.data.local.entities.VisitEntity
         LocalSaleEntity::class,
         LocalSaleImageEntity::class
     ],
-    version = 12,
+    version = 13,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao

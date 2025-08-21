@@ -121,20 +121,15 @@ fun SaleDetailsListScreen(navController: NavController) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .align(Alignment.CenterHorizontally)
-                                .clickable {
-                                    if (expandedSaleId == sale.LOCAL_SALE_ID) {
-                                        expandedSaleId = ""
-                                    } else {
-                                        expandedSaleId = sale.LOCAL_SALE_ID
-                                        viewModel.loadImagesBySaleId(sale.LOCAL_SALE_ID)
-                                    }
-                                },
+                                .align(Alignment.CenterHorizontally),
                             elevation = CardDefaults.cardElevation(4.dp),
                             shape = RoundedCornerShape(8.dp),
                             colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surface
                             ),
+                            onClick = {
+                                navController.navigate("saleDescription/${sale.LOCAL_SALE_ID}")
+                            },
                             border =
                                 if (!isDark) null else BorderStroke(
                                     width = 1.dp,
@@ -151,9 +146,6 @@ fun SaleDetailsListScreen(navController: NavController) {
                                 Text(text = dateSale)
 
                                 if (expandedSaleId == sale.LOCAL_SALE_ID) {
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(text = sale.DIRECCION)
-
                                     Spacer(Modifier.height(8.dp))
                                     if (saleImages.isNotEmpty()) {
                                         saleImages.map { it.IMAGE_URI }

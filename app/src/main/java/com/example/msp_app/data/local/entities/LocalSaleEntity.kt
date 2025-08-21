@@ -15,5 +15,16 @@ class LocalSaleEntity(
     val FECHA_VENTA: String,
     val LATITUD: Double,
     val LONGITUD: Double,
-    val DIRECCION: String
+    val DIRECCION: String,
+    val PARCIALIDAD: Double,
+    val ENGANCHE: Double?,
+    val TELEFONO: String,
+    val FREC_PAGO: String,
+    val AVAL_O_RESPONSABLE: String?,
+    val NOTA: String?,
+    val DIA_COBRANZA: String,
+    val PRECIO_TOTAL: Double,
+    val TIEMPO_A_CORTO_PLAZOMESES: Int,
+    val MONTO_A_CORTO_PLAZO: Double,
+    val ENVIADO: Boolean
 )

@@ -23,11 +23,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,14 +50,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -87,9 +88,26 @@ fun NewSaleScreen(navController: NavController) {
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
-    var direccion by remember { mutableStateOf("") }
-    var latitud by remember { mutableDoubleStateOf(0.0) }
-    var longitud by remember { mutableDoubleStateOf(0.0) }
+    var address by remember { mutableStateOf("") }
+    var location by remember { mutableStateOf("") }
+    var latitude by remember { mutableDoubleStateOf(0.0) }
+    var longitude by remember { mutableDoubleStateOf(0.0) }
+
+    var phone by remember { mutableStateOf(TextFieldValue("")) }
+    var downpayment by remember { mutableStateOf(TextFieldValue("")) }
+    var installment by remember { mutableStateOf(TextFieldValue("")) }
+    var guarantor by remember { mutableStateOf(TextFieldValue("")) }
+    var note by remember { mutableStateOf(TextFieldValue("")) }
+    var collectionday by remember { mutableStateOf("") }
+    var paymentfrequency by remember { mutableStateOf("") }
+    var showPhoneError by remember { mutableStateOf(false) }
+
+    var expandedfrequency by remember { mutableStateOf(false) }
+    var expandedDia by remember { mutableStateOf(false) }
+
+    val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
+    val dayOptions =
+        listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
 
     rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
@@ -140,13 +158,28 @@ fun NewSaleScreen(navController: NavController) {
             clientName = defectName.text,
             saleDate = saleDate,
             imageUris = imageUris,
-            latitude = latitud,
-            longitude = longitud,
-            direccion = direccion,
+            latitude = latitude,
+            longitude = longitude,
+            address = location,
+            installment = installment.text.toDoubleOrNull() ?: 0.0,
+            downpayment = downpayment.text.toDoubleOrNull() ?: 0.0,
+            phone = phone.text,
+            paymentfrequency = paymentfrequency,
+            avaloresponsable = guarantor.text,
+            note = note.text,
+            collectionday = collectionday,
+            enviado = false,
             context = context
         )
         defectName = TextFieldValue("")
         imageUris = emptyList()
+        phone = TextFieldValue("")
+        downpayment = TextFieldValue("")
+        installment = TextFieldValue("")
+        guarantor = TextFieldValue("")
+        note = TextFieldValue("")
+        collectionday = ""
+        paymentfrequency = ""
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -178,6 +211,15 @@ fun NewSaleScreen(navController: NavController) {
                     .padding(innerPadding)
                     .fillMaxSize(),
             ) {
+                fun validateFields(): Boolean {
+                    return defectName.text.isNotBlank() &&
+                            phone.text.isNotBlank() &&
+                            installment.text.toDoubleOrNull()?.let { it > 0 } == true &&
+                            paymentfrequency.isNotBlank() &&
+                            collectionday.isNotBlank() &&
+                            imageUris.isNotEmpty()
+                }
+
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -186,64 +228,216 @@ fun NewSaleScreen(navController: NavController) {
                             16.dp
                         )
                 ) {
-                    val focusManager = LocalFocusManager.current
-                    val focusRequester = remember { FocusRequester() }
+                    if (showError) {
+                        Text(
+                            "Todos los campos con * son obligatorios",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyLarge,
+
+                            )
+                    }
+                    Text(
+                        "Información del Cliente",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
 
                     OutlinedTextField(
                         value = defectName,
                         onValueChange = {
                             defectName = it
-                            if (it.text.isNotBlank()) showError = false
                         },
-                        label = { Text("Nombre completo del cliente") },
+                        label = { Text("Nombre completo del cliente *") },
                         isError = showError,
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(focusRequester)
-                            .onFocusChanged { focusState ->
-                                if (!focusState.isFocused) {
-                                    focusManager.clearFocus()
-                                }
-                            },
+                            .fillMaxWidth(),
                         singleLine = false,
                         maxLines = 2,
                         shape = RoundedCornerShape(15.dp)
                     )
-                    if (showError) {
-                        Text(
-                            "Este campo es obligatorio",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp, start = 8.dp)
-                        )
-                    }
+
                     Spacer(Modifier.height(12.dp))
 
-                    Text(
-                        "Dirección",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Medium
+                    OutlinedTextField(
+                        value = phone,
+                        onValueChange = {
+                            phone = it
+                        },
+                        label = { Text("Teléfono *") },
+                        isError = showError,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        shape = RoundedCornerShape(15.dp)
                     )
-                    Text(direccion)
+
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = location,
+                        onValueChange = { location = it },
+                        label = { Text("Direccion *") },
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        singleLine = false,
+                        maxLines = 2,
+                        shape = RoundedCornerShape(15.dp)
+
+                    )
 
                     Spacer(Modifier.height(8.dp))
 
                     LocationMap(
-                        onAddressChange = { direccion = it },
+                        onAddressChange = { address = it },
                         onLocationChange = { loc ->
-                            latitud = loc.latitude
-                            longitud = loc.longitude
+                            latitude = loc.latitude
+                            longitude = loc.longitude
                         }
                     )
 
                     Spacer(Modifier.height(12.dp))
 
+                    OutlinedTextField(
+                        value = guarantor,
+                        onValueChange = { guarantor = it },
+                        label = { Text("Aval o Responsable (Opcional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+
                     Text(
-                        "Agregar imágenes",
+                        "Información de Venta",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = downpayment,
+                            onValueChange = { downpayment = it },
+                            label = { Text("Enganche") },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(15.dp),
+                            prefix = { Text("$") }
+                        )
+
+                        OutlinedTextField(
+                            value = installment,
+                            onValueChange = {
+                                installment = it
+                            },
+                            isError = showError,
+                            label = { Text("Parcialidad *") },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            shape = RoundedCornerShape(15.dp),
+                            prefix = { Text("$") }
+                        )
+                    }
+                    Spacer(Modifier.height(16.dp))
+
+                    Text(
+                        "Información de Pago",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+
+                    Box {
+                        OutlinedTextField(
+                            value = paymentfrequency,
+                            onValueChange = { },
+                            isError = showError,
+                            label = { Text("Frecuencia de Pago *") },
+                            readOnly = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { expandedfrequency = true },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.clickable { expandedfrequency = true }
+                                )
+                            },
+                            shape = RoundedCornerShape(15.dp)
+                        )
+                        DropdownMenu(
+                            expanded = expandedfrequency,
+                            onDismissRequest = { expandedfrequency = false }
+                        ) {
+                            frequencyOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        paymentfrequency = option
+                                        expandedfrequency = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Box {
+                        OutlinedTextField(
+                            value = collectionday,
+                            onValueChange = { },
+                            isError = showError,
+                            label = { Text("Día de Cobranza *") },
+                            readOnly = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { expandedDia = true },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.clickable { expandedDia = true }
+                                )
+                            },
+                            shape = RoundedCornerShape(15.dp)
+                        )
+                        DropdownMenu(
+                            expanded = expandedDia,
+                            onDismissRequest = { expandedDia = false }
+                        ) {
+                            dayOptions.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option) },
+                                    onClick = {
+                                        collectionday = option
+                                        expandedDia = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("Notas (Opcional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 4,
+                        shape = RoundedCornerShape(15.dp)
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    Text(
+                        "Agregar imágenes *",
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -337,16 +531,18 @@ fun NewSaleScreen(navController: NavController) {
                         }
                     }
                 }
-
                 Button(
                     onClick = {
-                        val isDescriptionValid = defectName.text.isNotBlank()
+                        defectName.text.isNotBlank()
                         val isImageValid = imageUris.isNotEmpty()
+                        val isPhoneValid = phone.text.isNotBlank()
+                        val valid = validateFields()
 
-                        showError = !isDescriptionValid
+                        showError = !valid
                         showImageError = !isImageValid
+                        showPhoneError = !isPhoneValid
 
-                        if (!showError && !showImageError) {
+                        if (valid) {
                             saveSale()
                         }
 
@@ -356,7 +552,10 @@ fun NewSaleScreen(navController: NavController) {
                         .padding(16.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Generar Venta")
+                    Text(
+                        "Generar Venta",
+                        color = Color.White
+                    )
                 }
             }
         }

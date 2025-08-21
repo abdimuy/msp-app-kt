@@ -12,10 +12,56 @@ interface LocalSaleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSale(localsale: LocalSaleEntity)
 
-    @Query("SELECT LOCAL_SALE_ID, NOMBRE_CLIENTE, FECHA_VENTA, LATITUD, LONGITUD, DIRECCION FROM local_sale ORDER BY FECHA_VENTA DESC")
+    @Query(
+        """
+        SELECT 
+            LOCAL_SALE_ID, 
+            NOMBRE_CLIENTE, 
+            FECHA_VENTA, 
+            LATITUD, 
+            LONGITUD, 
+            DIRECCION, 
+            PARCIALIDAD, 
+            ENGANCHE, 
+            TELEFONO, 
+            FREC_PAGO, 
+            AVAL_O_RESPONSABLE, 
+            NOTA, 
+            DIA_COBRANZA, 
+            PRECIO_TOTAL,
+            TIEMPO_A_CORTO_PLAZOMESES, 
+            MONTO_A_CORTO_PLAZO,
+            ENVIADO
+            FROM local_sale 
+            ORDER BY FECHA_VENTA DESC
+        """
+    )
     suspend fun getAllSales(): List<LocalSaleEntity>
 
-    @Query("SELECT LOCAL_SALE_ID, NOMBRE_CLIENTE, FECHA_VENTA, LATITUD, LONGITUD, DIRECCION FROM local_sale WHERE LOCAL_SALE_ID = :sale_Id")
+    @Query(
+        """
+            SELECT 
+            LOCAL_SALE_ID, 
+            NOMBRE_CLIENTE, 
+            FECHA_VENTA, 
+            LATITUD, 
+            LONGITUD, 
+            DIRECCION,
+            PARCIALIDAD, 
+            ENGANCHE, 
+            TELEFONO, 
+            FREC_PAGO, 
+            AVAL_O_RESPONSABLE, 
+            NOTA, 
+            DIA_COBRANZA, 
+            PRECIO_TOTAL,
+            TIEMPO_A_CORTO_PLAZOMESES, 
+            MONTO_A_CORTO_PLAZO,
+            ENVIADO
+            FROM local_sale 
+            WHERE LOCAL_SALE_ID = :sale_Id
+        """
+    )
     suspend fun getSaleById(sale_Id: String): LocalSaleEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

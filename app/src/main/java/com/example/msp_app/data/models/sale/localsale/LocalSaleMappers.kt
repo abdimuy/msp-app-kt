@@ -11,7 +11,18 @@ class LocalSaleMappers {
             FECHA_VENTA = this.FECHA_VENTA,
             LATITUD = this.LATITUD,
             LONGITUD = this.LONGITUD,
-            DIRECCION = this.DIRECCION
+            DIRECCION = this.DIRECCION,
+            PARCIALIDAD = this.PARCIALIDAD,
+            ENGANCHE = this.ENGANCHE,
+            TELEFONO = this.TELEFONO,
+            FREC_PAGO = this.FREC_PAGO,
+            AVAL_O_RESPONSABLE = this.FREC_PAGO,
+            NOTA = this.NOTA,
+            DIA_COBRANZA = this.DIA_COBRANZA,
+            PRECIO_TOTAL = this.PRECIO_TOTAL,
+            TIEMPO_A_CORTO_PLAZOMESES = this.TIEMPO_A_CORTO_PLAZOMESES,
+            MONTO_A_CORTO_PLAZO = this.MONTO_A_CORTO_PLAZO,
+            ENVIADO = this.ENVIADO
         )
     }
 
@@ -22,7 +33,18 @@ class LocalSaleMappers {
             FECHA_VENTA = this.FECHA_VENTA,
             LATITUD = this.LATITUD,
             LONGITUD = this.LONGITUD,
-            DIRECCION = this.DIRECCION
+            DIRECCION = this.DIRECCION,
+            PARCIALIDAD = this.PARCIALIDAD,
+            ENGANCHE = this.ENGANCHE,
+            TELEFONO = this.TELEFONO,
+            FREC_PAGO = this.FREC_PAGO,
+            AVAL_O_RESPONSABLE = this.FREC_PAGO,
+            NOTA = this.NOTA,
+            DIA_COBRANZA = this.DIA_COBRANZA,
+            PRECIO_TOTAL = this.PRECIO_TOTAL,
+            TIEMPO_A_CORTO_PLAZOMESES = this.TIEMPO_A_CORTO_PLAZOMESES,
+            MONTO_A_CORTO_PLAZO = this.MONTO_A_CORTO_PLAZO,
+            ENVIADO = this.ENVIADO
         )
     }
 

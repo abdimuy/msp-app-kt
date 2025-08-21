@@ -117,7 +117,18 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         imageUris: List<Uri>,
         latitude: Double,
         longitude: Double,
-        direccion: String,
+        address: String,
+        installment: Double,
+        downpayment: Double,
+        phone: String,
+        paymentfrequency: String,
+        avaloresponsable: String,
+        note: String,
+        collectionday: String,
+        totalprice: Double = 0.0,
+        shorttermtime: Int = 0,
+        shorttermamount: Double = 0.0,
+        enviado: Boolean,
         context: Context
     ) {
         viewModelScope.launch {
@@ -130,7 +141,18 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     FECHA_VENTA = saleDate,
                     LATITUD = latitude,
                     LONGITUD = longitude,
-                    DIRECCION = direccion
+                    DIRECCION = address,
+                    PARCIALIDAD = installment,
+                    ENGANCHE = downpayment,
+                    TELEFONO = phone,
+                    FREC_PAGO = paymentfrequency,
+                    AVAL_O_RESPONSABLE = avaloresponsable,
+                    NOTA = note,
+                    DIA_COBRANZA = collectionday,
+                    PRECIO_TOTAL = totalprice,
+                    TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
+                    MONTO_A_CORTO_PLAZO = shorttermamount,
+                    ENVIADO = enviado
                 )
 
                 localSaleStore.insertSale(saleEntity)
