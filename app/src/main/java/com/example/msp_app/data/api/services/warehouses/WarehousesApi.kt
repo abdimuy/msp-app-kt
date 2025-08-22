@@ -6,15 +6,10 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
 
-data class WarehouseResponse(
-    val body: Body,
+data class WarehouseListResponse(
+    val body: List<Warehouse>,
     val error: String?
 ) {
-    data class Body(
-        val ALMACEN: Warehouse,
-        val ARTICULOS: List<ProductInventory>
-    )
-
     data class Warehouse(
         val ALMACEN_ID: Int,
         val ALMACEN: String,
@@ -22,20 +17,49 @@ data class WarehouseResponse(
     )
 }
 
-data class AddProductRequest(
-    val ALMACEN_ID: Int,
-    val ARTICULO: String,
-    val EXISTENCIAS: Int
+data class WarehouseResponse(
+    val body: Body,
+    val error: String?
+) {
+    data class Body(
+        val ALMACEN: WarehouseListResponse.Warehouse,
+        val ARTICULOS: List<ProductInventory>
+    )
+}
+
+data class TransferRequest(
+    val almacenOrigenId: Int,
+    val almacenDestinoId: Int,
+    val descripcion: String,
+    val detalles: List<TransferDetail>
+)
+
+data class TransferDetail(
+    val articuloId: Int,
+    val unidades: Int
+)
+
+data class TransferResponse(
+    val body: TransferResult?,
+    val error: String?
+)
+
+data class TransferResult(
+    val transferId: Int,
+    val mensaje: String
 )
 
 interface WarehousesApi {
+    @GET("/almacenes")
+    suspend fun getAllWarehouses(): WarehouseListResponse
+
     @GET("/almacenes/{almacenId}")
     suspend fun getWarehouseProducts(
         @Path("almacenId") warehouseId: Int
     ): WarehouseResponse
 
-    @POST("/almacenes/products")
-    suspend fun postProductsToWarehouse(
-        @Body product: List<AddProductRequest>
-    ): WarehouseResponse
+    @POST("/traspasos")
+    suspend fun createTransfer(
+        @Body transferRequest: TransferRequest
+    ): TransferResponse
 }

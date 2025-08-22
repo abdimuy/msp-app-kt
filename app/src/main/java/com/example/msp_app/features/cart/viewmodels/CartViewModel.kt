@@ -3,12 +3,9 @@ package com.example.msp_app.features.cart.viewmodels
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 
 data class CartItem(
     val product: ProductInventory,
@@ -24,39 +21,19 @@ class CartViewModel : ViewModel() {
     val hasUnsavedChanges: StateFlow<Boolean> = _hasUnsavedChanges
     private var forceUnsaved = false
 
-    suspend fun getValidatedQuantity(
-        product: ProductInventory,
-        api: WarehousesApi,
-        warehouseId: Int
-    ): Int {
-        val warehouseProducts = api.getWarehouseProducts(warehouseId).body.ARTICULOS
-        val serverProduct = warehouseProducts.find { it.ARTICULO_ID == product.ARTICULO_ID }
-        return serverProduct?.EXISTENCIAS ?: 0
-    }
+    fun addProductToCart(product: ProductInventory, quantity: Int = 1) {
+        val existingIndex =
+            _cartItems.indexOfFirst { it.product.ARTICULO_ID == product.ARTICULO_ID }
 
-    fun addProductValidated(
-        product: ProductInventory,
-        api: WarehousesApi,
-        warehouseId: Int,
-        amount: Int = 1
-    ) {
-        viewModelScope.launch {
-            val validQuantity = getValidatedQuantity(product, api, warehouseId)
-            val existingIndex =
-                _cartItems.indexOfFirst { it.product.ARTICULO_ID == product.ARTICULO_ID }
-
-            if (existingIndex != -1) {
-                val existingItem = _cartItems[existingIndex]
-                val newQuantity = (existingItem.quantity + amount).coerceAtMost(validQuantity)
-                _cartItems[existingIndex] = existingItem.copy(quantity = newQuantity)
-            } else {
-                val newQuantity = amount.coerceAtMost(validQuantity)
-                if (newQuantity > 0) _cartItems.add(CartItem(product, newQuantity))
-            }
-            markAsModified()
+        if (existingIndex != -1) {
+            val existingItem = _cartItems[existingIndex]
+            _cartItems[existingIndex] =
+                existingItem.copy(quantity = existingItem.quantity + quantity)
+        } else {
+            _cartItems.add(CartItem(product, quantity))
         }
+        markAsModified()
     }
-
 
     fun removeProduct(product: ProductInventory) {
         _cartItems.removeAll { it.product.ARTICULO_ID == product.ARTICULO_ID }
@@ -113,18 +90,29 @@ class CartViewModel : ViewModel() {
         isInitialLoad: Boolean = false
     ) {
         val isReallyInitial = isInitialLoad && _cartItems.isEmpty() && !forceUnsaved
+        if (!isReallyInitial) {
+            _cartItems.clear()
+            _savedCartState.clear()
+        }
+
         warehouseProducts.forEach { (product, quantity) ->
-            val existingIndex =
-                _cartItems.indexOfFirst { it.product.ARTICULO_ID == product.ARTICULO_ID }
-            if (existingIndex != -1) {
-                val existingItem = _cartItems[existingIndex]
-                _cartItems[existingIndex] = existingItem.copy(quantity = quantity)
-            } else {
+            if (quantity > 0) {
                 _cartItems.add(CartItem(product, quantity))
             }
         }
-        if (isReallyInitial) markAsSaved()
-        else if (forceUnsaved || checkForUnsavedChanges()) _hasUnsavedChanges.value = true
+
+        if (isReallyInitial) {
+            markAsSaved()
+        } else {
+            markAsSaved()
+        }
+    }
+
+    fun clearCartForNewWarehouse() {
+        _cartItems.clear()
+        _savedCartState.clear()
+        forceUnsaved = false
+        _hasUnsavedChanges.value = false
     }
 
     private fun markAsModified() {

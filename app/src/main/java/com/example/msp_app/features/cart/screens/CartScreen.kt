@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,10 +18,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -30,9 +35,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -55,11 +63,15 @@ fun CartScreen(navController: NavController) {
     val saveCartState by warehouseViewModel.saveCartState.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
     val hasUnsavedChanges by cartViewModel.hasUnsavedChanges.collectAsState()
+    var expanded by remember { mutableStateOf(false) }
+    var selectedWarehouseId by remember { mutableStateOf<Int?>(null) }
+    val warehouseList by warehouseViewModel.warehouseList.collectAsState()
+
 
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        warehouseViewModel.getWarehouseProducts()
+        warehouseViewModel.loadAllWarehouses()
         imagesViewModel.loadLocalImages()
     }
 
@@ -108,7 +120,14 @@ fun CartScreen(navController: NavController) {
                     Button(
                         onClick = {
                             val cartItems = cartViewModel.getCartItemsForWarehouse()
-                            warehouseViewModel.sendCartToWarehouseServer(cartItems)
+                            val warehouseId = selectedWarehouseId ?: return@Button
+
+                            warehouseViewModel.createTransfer(
+                                originWarehouseId = warehouseId,
+                                destinationWarehouseId = warehouseId,
+                                products = cartItems,
+                                description = "Actualización de inventario desde carrito"
+                            )
                         },
                         enabled = hasUnsavedChanges && saveCartState !is ResultState.Loading,
                         modifier = Modifier
@@ -131,80 +150,133 @@ fun CartScreen(navController: NavController) {
                             }
                         )
                     }
+
                 }
             }
         ) { paddingValues ->
-            when (warehouseState) {
-                is ResultState.Loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Seleccione el almacén:", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
 
-                is ResultState.Error -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
-                        contentAlignment = Alignment.Center
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded }
                     ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        val selectedWarehouseName =
+                            warehouseList.find { it.ALMACEN_ID == selectedWarehouseId }?.ALMACEN
+                                ?: "Selecciona un almacén"
+
+                        OutlinedTextField(
+                            value = selectedWarehouseName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Almacén") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
                         ) {
-                            Text(
-                                text = "Error al cargar el almacén",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                            warehouseList.forEach { warehouse ->
+                                DropdownMenuItem(
+                                    text = { Text("${warehouse.ALMACEN} (${warehouse.EXISTENCIAS})") },
+                                    onClick = {
+                                        if (selectedWarehouseId != null && selectedWarehouseId != warehouse.ALMACEN_ID) {
+                                            cartViewModel.clearCartForNewWarehouse()
+                                        }
+
+                                        selectedWarehouseId = warehouse.ALMACEN_ID
+                                        expanded = false
+                                        warehouseViewModel.selectWarehouse(warehouse.ALMACEN_ID)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
-
-                else -> {
-                    if (cartProducts.isEmpty()) {
+                when (warehouseState) {
+                    is ResultState.Loading -> {
                         Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(paddingValues),
+                            modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(text = "El almacén está vacío")
+                            CircularProgressIndicator()
                         }
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(
-                                top = 8.dp,
-                                start = 16.dp,
-                                end = 16.dp,
-                                bottom = 16.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(paddingValues)
+                    }
+
+                    is ResultState.Error -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            items(cartViewModel.cartProducts) { cartItem ->
-                                val stockLimit = cartItem.product.EXISTENCIAS
-                                val imageUrls =
-                                    imagesByProduct[cartItem.product.ARTICULO_ID] ?: emptyList()
-                                CartItemCard(
-                                    cartItem = cartItem,
-                                    imageUrls = imageUrls,
-                                    onRemove = { cartViewModel.removeProduct(cartItem.product) },
-                                    onIncreaseQuantity = {
-                                        cartViewModel.increaseQuantity(
-                                            cartItem.product,
-                                            stockLimit
-                                        )
-                                    },
-                                    onDecreaseQuantity = { cartViewModel.decreaseQuantity(cartItem.product) },
-                                    navController = navController,
-                                    product = cartItem.product
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "Error al cargar el almacén",
+                                    style = MaterialTheme.typography.bodyLarge
                                 )
+                            }
+                        }
+                    }
+
+                    else -> {
+                        if (cartProducts.isEmpty()) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(text = "El almacén está vacío")
+                            }
+                        } else {
+                            LazyColumn(
+                                contentPadding = PaddingValues(
+                                    top = 8.dp,
+                                    start = 16.dp,
+                                    end = 16.dp,
+                                    bottom = 16.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(cartViewModel.cartProducts) { cartItem ->
+                                    val stockLimit = cartItem.product.EXISTENCIAS
+                                    val imageUrls =
+                                        imagesByProduct[cartItem.product.ARTICULO_ID] ?: emptyList()
+                                    CartItemCard(
+                                        cartItem = cartItem,
+                                        imageUrls = imageUrls,
+                                        onRemove = { cartViewModel.removeProduct(cartItem.product) },
+                                        onIncreaseQuantity = {
+                                            cartViewModel.increaseQuantity(
+                                                cartItem.product,
+                                                stockLimit
+                                            )
+                                        },
+                                        onDecreaseQuantity = {
+                                            cartViewModel.decreaseQuantity(
+                                                cartItem.product
+                                            )
+                                        },
+                                        navController = navController,
+                                        product = cartItem.product
+                                    )
+                                }
                             }
                         }
                     }

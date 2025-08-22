@@ -21,15 +21,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
 
 @Composable
 fun AddToCartDialog(
     product: ProductInventory?,
-    api: WarehousesApi,
-    warehouseId: Int,
     cartViewModel: CartViewModel,
     onDismiss: () -> Unit
 ) {
@@ -44,7 +41,7 @@ fun AddToCartDialog(
         title = { Text("Agregar al carrito") },
         text = {
             Column {
-                Text("¿Cuántas unidades deseas agregar de este Producto?")
+                Text("¿Cuántas unidades deseas agregar de este producto?")
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
@@ -56,9 +53,7 @@ fun AddToCartDialog(
                         onClick = { if (amount > 1) amount-- },
                         enabled = amount > 1,
                         modifier = Modifier.size(36.dp)
-                    ) {
-                        Text("-", style = MaterialTheme.typography.titleLarge)
-                    }
+                    ) { Text("-", style = MaterialTheme.typography.titleLarge) }
 
                     Spacer(modifier = Modifier.width(16.dp))
 
@@ -75,34 +70,27 @@ fun AddToCartDialog(
                         onClick = { if (amount < maxAddable) amount++ },
                         enabled = amount < maxAddable,
                         modifier = Modifier.size(36.dp)
-                    ) {
-                        Text("+", style = MaterialTheme.typography.titleLarge)
-                    }
+                    ) { Text("+", style = MaterialTheme.typography.titleLarge) }
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onDismiss()
                     product?.let {
-                        cartViewModel.addProductValidated(
+                        cartViewModel.addProductToCart(
                             product = it,
-                            api = api,
-                            warehouseId = warehouseId,
-                            amount = amount
+                            quantity = amount
                         )
                     }
+                    onDismiss()
                 },
                 enabled = amount > 0 && amount <= maxStock
-            ) {
-                Text("Sí")
-            }
+            ) { Text("Sí") }
         },
         dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("No")
-            }
+            Button(onClick = onDismiss) { Text("No") }
         }
     )
 }
+
