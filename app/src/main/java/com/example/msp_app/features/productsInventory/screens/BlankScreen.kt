@@ -131,6 +131,16 @@ fun SaleHomeScreen(navController: NavController) {
                 if (loading) {
                     LinearProgressIndicator(modifier = Modifier.padding(8.dp))
                 }
+                Button(
+                    onClick = {
+                        navController.navigate("new_sale") {
+                            popUpTo("sale_home")
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(0.92f)
+                ) {
+                    Text("GENERAR NUEVA VENTA", color = Color.White)
+                }
             }
         }
     }

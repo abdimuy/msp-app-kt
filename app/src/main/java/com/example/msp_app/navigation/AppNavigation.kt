@@ -33,6 +33,9 @@ import com.example.msp_app.features.productsInventory.screens.ProductDetailsScre
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
+import com.example.msp_app.features.sales.screens.NewSaleScreen
+import com.example.msp_app.features.sales.screens.SaleDescriptionScreen
+import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
@@ -74,6 +77,13 @@ sealed class Screen(val route: String) {
 
     object ProductDetails : Screen("productDetails/{productId}") {
         fun createRoute(productId: String) = "productDetails/$productId"
+    }
+
+    object NewSale : Screen("new_sale")
+    object SaleDetailsList : Screen("sales/details_list")
+
+    object SaleDescripction : Screen("saleDescription/{localSaleId}") {
+        fun creatRoute(localSaleId: String) = "saleDescription/$localSaleId"
     }
 
 }
@@ -226,6 +236,21 @@ fun AppNavigation() {
                 )
             }
 
+            composable(Screen.NewSale.route) {
+                NewSaleScreen(navController = navController)
+            }
+
+            composable(Screen.SaleDetailsList.route) {
+                SaleDetailsListScreen(navController = navController)
+            }
+
+            composable("saleDescription/{localSaleId}") { backStackEntry ->
+                val localSaleId = backStackEntry.arguments?.getString("localSaleId")
+                SaleDescriptionScreen(
+                    localSaleId = localSaleId.toString(),
+                    navController = navController
+                )
+            }
         }
     }
 }
