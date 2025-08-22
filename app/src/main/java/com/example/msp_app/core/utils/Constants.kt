@@ -48,4 +48,7 @@ object Constants {
     const val LISTO_PARA_ENTREGAR = "LISTO_PARA_ENTREGAR"
     const val ENTREGADO = "ENTREGADO"
     const val RECOLECTADO = "RECOLECTADO"
+
+    //ID de Almacen General
+    const val ALMACEN_GENERAL_ID = 19
 }

@@ -3,6 +3,7 @@ package com.example.msp_app.features.warehouses
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.utils.Constants.ALMACEN_GENERAL_ID
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.warehouses.TransferDetail
@@ -43,7 +44,7 @@ class WarehouseViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             repository.getAllWarehouses().fold(
                 onSuccess = { list ->
-                    _warehouseList.value = list
+                    _warehouseList.value = list.filter { it.ALMACEN_ID != ALMACEN_GENERAL_ID }
                 },
                 onFailure = {
                     _warehouseList.value = emptyList()
