@@ -240,7 +240,11 @@ fun ProductDetailsScreen(
                     }
 
                     Spacer(Modifier.height(12.dp))
-                    val priceMap = parsePriceJsonToMap(currentProduct.PRECIOS)
+                    val priceMap = try {
+                        parsePriceJsonToMap(currentProduct.PRECIOS)
+                    } catch (e: Exception) {
+                        emptyMap()
+                    }
                     Card(
                         elevation = CardDefaults.cardElevation(
                             defaultElevation = if (!isDark) 8.dp else 0.dp

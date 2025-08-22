@@ -188,7 +188,11 @@ fun CartItemCard(
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                val priceMap = parsePriceJsonToMap(cartItem.product.PRECIOS)
+                val priceMap = try {
+                    parsePriceJsonToMap(cartItem.product.PRECIOS)
+                } catch (e: Exception) {
+                    emptyMap()
+                }
                 priceMap.toList().asReversed().forEach { (label, value) ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally

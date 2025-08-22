@@ -21,22 +21,28 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -67,6 +73,7 @@ import com.example.msp_app.features.productsInventory.viewmodels.ProductsInvento
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
+import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,6 +86,9 @@ fun ProductsCatalogScreen(navController: NavController) {
     val focusManager = LocalFocusManager.current
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    var isRefreshing by remember { mutableStateOf(false) }
 
     val products = when (productState) {
         is ResultState.Success -> (productState as ResultState.Success).data
@@ -86,12 +96,9 @@ fun ProductsCatalogScreen(navController: NavController) {
     }
 
     LaunchedEffect(Unit) {
-        viewModel.loadLocalProductsInventory()
-    }
-
-    LaunchedEffect(Unit) {
+        // Cargar productos con fallback automático (remoto primero, local si falla)
+        viewModel.loadProductsWithFallback()
         imagesViewModel.loadLocalImages()
-        viewModel.loadLocalProductsInventory()
     }
 
     val filteredProducts = if (query.isBlank()) {
@@ -107,6 +114,7 @@ fun ProductsCatalogScreen(navController: NavController) {
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
                 Row(
                     modifier = Modifier
@@ -129,13 +137,40 @@ fun ProductsCatalogScreen(navController: NavController) {
                         )
                     }
 
-                    IconButton(onClick = {
-                        navController.navigate(Screen.Cart.route)
-                    }) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = "Carrito"
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = {
+                                scope.launch {
+                                    isRefreshing = true
+                                    viewModel.loadProductsWithFallback()
+                                    imagesViewModel.loadLocalImages()
+                                    isRefreshing = false
+                                    snackbarHostState.showSnackbar("Catálogo actualizado")
+                                }
+                            },
+                            enabled = !isRefreshing && productState !is ResultState.Loading
+                        ) {
+                            if (isRefreshing || productState is ResultState.Loading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Actualizar catálogo"
+                                )
+                            }
+                        }
+
+                        IconButton(onClick = {
+                            navController.navigate(Screen.Cart.route)
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = "Carrito"
+                            )
+                        }
                     }
                 }
             }
@@ -146,6 +181,28 @@ fun ProductsCatalogScreen(navController: NavController) {
                     .padding(horizontal = 16.dp)
                     .fillMaxSize()
             ) {
+                // Mostrar mensaje de error si hay problemas
+                when (productState) {
+                    is ResultState.Error -> {
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ Modo sin conexión - Mostrando datos locales",
+                                modifier = Modifier.padding(12.dp),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+
+                    else -> {}
+                }
+
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
@@ -292,19 +349,26 @@ fun ProductCard(
                     },
                     lineHeight = 16.sp
                 )
-                val priceMap = parsePriceJsonToMap(product.PRECIOS)
-                priceMap.forEach { (label, value) ->
-                    Text(
-                        text = buildAnnotatedString {
-                            append("$label: ")
-                            withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                append(value.toCurrency(noDecimals = true))
-                            }
-                        },
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        lineHeight = 16.sp
-                    )
+                val priceMap = try {
+                    parsePriceJsonToMap(product.PRECIOS)
+                } catch (e: Exception) {
+                    emptyMap()
+                }
+
+                if (priceMap.isNotEmpty()) {
+                    priceMap.forEach { (label, value) ->
+                        Text(
+                            text = buildAnnotatedString {
+                                append("$label: ")
+                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                    append(value.toCurrency(noDecimals = true))
+                                }
+                            },
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            lineHeight = 16.sp
+                        )
+                    }
                 }
             }
         }
