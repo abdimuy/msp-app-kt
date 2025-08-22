@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -30,6 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.carousel.HorizontalUncontainedCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
@@ -41,6 +45,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +65,7 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.features.cart.components.AddToCartDialog
@@ -67,6 +73,7 @@ import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductDetailsViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.ui.theme.ThemeController
+import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
@@ -77,12 +84,19 @@ fun ProductDetailsScreen(
     val detailsViewModel: ProductDetailsViewModel = viewModel()
     val cartViewModel: CartViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
+    val warehouseViewModel: com.example.msp_app.features.warehouses.WarehouseViewModel = viewModel()
 
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val product by detailsViewModel.product.collectAsState()
+    val transferState by warehouseViewModel.transferState.collectAsState()
     val isDark = ThemeController.isDarkMode
     var showDialogAdd by remember { mutableStateOf(false) }
     var imageReloadTrigger by remember { mutableIntStateOf(0) }
+    var showTransferDialog by remember { mutableStateOf(false) }
+    var transferQuantity by remember { mutableIntStateOf(1) }
+    var transferErrorMessage by remember { mutableStateOf<String?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(productId) {
         productId.toIntOrNull()?.let { id ->
@@ -96,9 +110,37 @@ fun ProductDetailsScreen(
         }
     }
 
+    LaunchedEffect(transferState) {
+        when (val state = transferState) {
+            is ResultState.Success -> {
+                showTransferDialog = false
+                transferErrorMessage = null
+                transferQuantity = 1
+                snackbarHostState.showSnackbar("Transferencia realizada exitosamente")
+                warehouseViewModel.resetTransferState()
+            }
+
+            is ResultState.Error -> {
+                if (state.message.contains("422") || state.message.contains(
+                        "existencias",
+                        ignoreCase = true
+                    )
+                ) {
+                    transferErrorMessage = "No hay existencias suficientes en el almacén origen"
+                } else {
+                    transferErrorMessage = state.message
+                }
+                warehouseViewModel.resetTransferState()
+            }
+
+            else -> {}
+        }
+    }
+
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
             topBar = {
                 Row(
                     modifier = Modifier
@@ -254,13 +296,135 @@ fun ProductDetailsScreen(
                         }
                     }
 
+                    if (showTransferDialog) {
+                        product?.let { currentProduct ->
+                            AlertDialog(
+                                onDismissRequest = {
+                                    showTransferDialog = false
+                                    transferErrorMessage = null
+                                },
+                                title = { Text("Transferir a Almacén") },
+                                text = {
+                                    Column {
+                                        Text("Producto: ${currentProduct.ARTICULO}")
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text("Transferencia desde Almacén 19 hacia Almacén 11341")
+                                        Spacer(modifier = Modifier.height(12.dp))
+
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            IconButton(
+                                                onClick = { if (transferQuantity > 1) transferQuantity-- },
+                                                enabled = transferQuantity > 1 && transferState !is ResultState.Loading,
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Text(
+                                                    "-",
+                                                    style = MaterialTheme.typography.titleLarge
+                                                )
+                                            }
+
+                                            Spacer(modifier = Modifier.width(16.dp))
+
+                                            Text(
+                                                text = transferQuantity.toString(),
+                                                style = MaterialTheme.typography.titleLarge,
+                                                modifier = Modifier.width(40.dp),
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                            )
+
+                                            Spacer(modifier = Modifier.width(16.dp))
+
+                                            IconButton(
+                                                onClick = { transferQuantity++ },
+                                                enabled = transferState !is ResultState.Loading,
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Text(
+                                                    "+",
+                                                    style = MaterialTheme.typography.titleLarge
+                                                )
+                                            }
+                                        }
+
+                                        transferErrorMessage?.let { errorMsg ->
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Card(
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(12.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Warning,
+                                                        contentDescription = "Error",
+                                                        tint = MaterialTheme.colorScheme.error,
+                                                        modifier = Modifier.size(24.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = errorMsg,
+                                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                warehouseViewModel.createTransfer(
+                                                    originWarehouseId = 19,
+                                                    destinationWarehouseId = 11341,
+                                                    products = listOf(currentProduct to transferQuantity),
+                                                    description = "Transferencia de ${currentProduct.ARTICULO}"
+                                                )
+                                            }
+                                        },
+                                        enabled = transferState !is ResultState.Loading
+                                    ) {
+                                        if (transferState is ResultState.Loading) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(16.dp),
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        } else {
+                                            Text("Transferir")
+                                        }
+                                    }
+                                },
+                                dismissButton = {
+                                    Button(
+                                        onClick = {
+                                            showTransferDialog = false
+                                            transferErrorMessage = null
+                                        },
+                                        enabled = transferState !is ResultState.Loading
+                                    ) {
+                                        Text("Cancelar")
+                                    }
+                                }
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(onClick = { }) {
                         Text("Vender")
                     }
                     Button(onClick = {
-                        showDialogAdd = true
+                        showTransferDialog = true
                     }) {
                         Text("Añadir al Carrito")
                     }
