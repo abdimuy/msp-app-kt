@@ -79,6 +79,16 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
         }
     }
 
+    suspend fun getProductStock(productId: Int): Int? {
+        return try {
+            withContext(Dispatchers.IO) {
+                localDataSource.getStockById(productId)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     fun loadProductsWithFallback() {
         viewModelScope.launch {
             _productInventoryState.value = ResultState.Loading

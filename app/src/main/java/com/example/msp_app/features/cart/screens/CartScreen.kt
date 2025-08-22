@@ -16,16 +16,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -44,11 +41,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.components.CartItemCard
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
+import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,29 +59,127 @@ fun CartScreen(navController: NavController) {
     val cartViewModel: CartViewModel = viewModel()
     val warehouseViewModel: WarehouseViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
+    val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
+    val authViewModel = LocalAuthViewModel.current
+    val coroutineScope = rememberCoroutineScope()
 
     val cartProducts = cartViewModel.cartProducts
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val saveCartState by warehouseViewModel.saveCartState.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
     val hasUnsavedChanges by cartViewModel.hasUnsavedChanges.collectAsState()
-    var expanded by remember { mutableStateOf(false) }
-    var selectedWarehouseId by remember { mutableStateOf<Int?>(null) }
-    val warehouseList by warehouseViewModel.warehouseList.collectAsState()
-
+    val userData by authViewModel.userData.collectAsState()
+    val loadingOperations by cartViewModel.loadingOperations.collectAsState()
+    val transferState by warehouseViewModel.transferState.collectAsState()
+    
+    val camionetaAsignada = when (val userState = userData) {
+        is ResultState.Success -> userState.data?.CAMIONETA_ASIGNADA
+        else -> null
+    }
+    
+    var nombreAlmacenAsignado by remember { mutableStateOf<String?>(null) }
+    
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var productToDelete by remember { mutableStateOf<ProductInventory?>(null) }
+    
+    var generalWarehouseStock by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
 
     val snackbarHostState = remember { SnackbarHostState() }
-
-    LaunchedEffect(Unit) {
-        warehouseViewModel.loadAllWarehouses()
-        imagesViewModel.loadLocalImages()
+    
+    fun handleTransfer(
+        product: ProductInventory,
+        quantity: Int,
+        isIncrease: Boolean,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        camionetaAsignada?.let { camionetaId ->
+            if (isIncrease) {
+                warehouseViewModel.createTransfer(
+                    originWarehouseId = 19,
+                    destinationWarehouseId = camionetaId,
+                    products = listOf(product to quantity),
+                    description = "➕ ${product.ARTICULO}"
+                )
+            } else {
+                warehouseViewModel.createTransfer(
+                    originWarehouseId = camionetaId,
+                    destinationWarehouseId = 19,
+                    products = listOf(product to quantity),
+                    description = "➖ ${product.ARTICULO}"
+                )
+            }
+            onSuccess()
+        } ?: onError("No hay camioneta asignada")
+    }
+    
+    fun handleRemoveProduct(product: ProductInventory, quantity: Int) {
+        camionetaAsignada?.let { camionetaId ->
+            warehouseViewModel.createTransfer(
+                originWarehouseId = camionetaId,
+                destinationWarehouseId = 19,
+                products = listOf(product to quantity),
+                description = "🗑️ Eliminado: ${product.ARTICULO}"
+            )
+        }
     }
 
+    LaunchedEffect(camionetaAsignada) {
+        if (camionetaAsignada != null) {
+            try {
+                warehouseViewModel.selectWarehouse(camionetaAsignada)
+            } catch (e: Exception) {
+                nombreAlmacenAsignado = "Almacén ID: $camionetaAsignada"
+            }
+        } else {
+            nombreAlmacenAsignado = null
+        }
+    }
+    
     LaunchedEffect(warehouseState) {
-        val state = warehouseState
-        if (state is ResultState.Success) {
-            val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
-            cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
+        when (val state = warehouseState) {
+            is ResultState.Success -> {
+                nombreAlmacenAsignado = state.data.body.ALMACEN.ALMACEN
+                val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
+                cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
+            }
+            is ResultState.Error -> {
+                nombreAlmacenAsignado = camionetaAsignada?.let { "Almacén ID: $it" }
+            }
+            else -> {}
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        imagesViewModel.loadLocalImages()
+    }
+    
+    LaunchedEffect(cartProducts.size) {
+        if (cartProducts.isNotEmpty()) {
+            val stockMap = mutableMapOf<Int, Int>()
+            cartProducts.forEach { cartItem ->
+                val stock = productsInventoryViewModel.getProductStock(cartItem.product.ARTICULO_ID)
+                if (stock != null) {
+                    stockMap[cartItem.product.ARTICULO_ID] = stock
+                }
+            }
+            generalWarehouseStock = stockMap
+        } else {
+            generalWarehouseStock = emptyMap()
+        }
+    }
+    
+    LaunchedEffect(transferState) {
+        when (val state = transferState) {
+            is ResultState.Success -> {
+                snackbarHostState.showSnackbar("✅ Transferencia completada")
+                warehouseViewModel.resetTransferState()
+            }
+            is ResultState.Error -> {
+                snackbarHostState.showSnackbar("❌ Error: ${state.message}")
+                warehouseViewModel.resetTransferState()
+            }
+            else -> {}
         }
     }
 
@@ -104,7 +204,26 @@ fun CartScreen(navController: NavController) {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { Text("Almacén (${cartViewModel.getTotalItems()})") },
+                    title = { 
+                        Column {
+                            Text("Carrito (${cartViewModel.getTotalItems()})")
+                            nombreAlmacenAsignado?.let { nombre ->
+                                Text(
+                                    text = "🚚 $nombre",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } ?: run {
+                                if (camionetaAsignada == null) {
+                                    Text(
+                                        text = "⚠️ Sin camioneta asignada",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                        }
+                    },
                     navigationIcon = {
                         IconButton(onClick = openDrawer) {
                             Icon(
@@ -115,98 +234,32 @@ fun CartScreen(navController: NavController) {
                     }
                 )
             },
-            bottomBar = {
-                if (cartProducts.isNotEmpty()) {
-                    Button(
-                        onClick = {
-                            val cartItems = cartViewModel.getCartItemsForWarehouse()
-                            val warehouseId = selectedWarehouseId ?: return@Button
-
-                            warehouseViewModel.createTransfer(
-                                originWarehouseId = warehouseId,
-                                destinationWarehouseId = warehouseId,
-                                products = cartItems,
-                                description = "Actualización de inventario desde carrito"
-                            )
-                        },
-                        enabled = hasUnsavedChanges && saveCartState !is ResultState.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(6.dp)
-                    ) {
-                        if (saveCartState is ResultState.Loading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(
-                            text = when {
-                                saveCartState is ResultState.Loading -> "Guardando..."
-                                hasUnsavedChanges -> "Guardar Cambios"
-                                else -> "Sin Cambios"
-                            }
-                        )
-                    }
-
-                }
-            }
         ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Seleccione el almacén:", fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    ExposedDropdownMenuBox(
-                        expanded = expanded,
-                        onExpandedChange = { expanded = !expanded }
+                if (camionetaAsignada == null) {
+                    // Mostrar mensaje cuando no hay camioneta asignada
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        val selectedWarehouseName =
-                            warehouseList.find { it.ALMACEN_ID == selectedWarehouseId }?.ALMACEN
-                                ?: "Selecciona un almacén"
-
-                        OutlinedTextField(
-                            value = selectedWarehouseName,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Almacén") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .menuAnchor(),
-                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                        Text(
+                            text = "⚠️ No tienes una camioneta asignada",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
                         )
-
-                        ExposedDropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            warehouseList.forEach { warehouse ->
-                                DropdownMenuItem(
-                                    text = { Text("${warehouse.ALMACEN} (${warehouse.EXISTENCIAS})") },
-                                    onClick = {
-                                        if (selectedWarehouseId != null && selectedWarehouseId != warehouse.ALMACEN_ID) {
-                                            cartViewModel.clearCartForNewWarehouse()
-                                        }
-
-                                        selectedWarehouseId = warehouse.ALMACEN_ID
-                                        expanded = false
-                                        warehouseViewModel.selectWarehouse(warehouse.ALMACEN_ID)
-                                    }
-                                )
-                            }
-                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Contacta al administrador para que te asigne una camioneta antes de poder transferir productos.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
                 when (warehouseState) {
@@ -255,23 +308,53 @@ fun CartScreen(navController: NavController) {
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 items(cartViewModel.cartProducts) { cartItem ->
-                                    val stockLimit = cartItem.product.EXISTENCIAS
+                                    val stockLimit = generalWarehouseStock[cartItem.product.ARTICULO_ID] ?: cartItem.product.EXISTENCIAS
                                     val imageUrls =
                                         imagesByProduct[cartItem.product.ARTICULO_ID] ?: emptyList()
                                     CartItemCard(
                                         cartItem = cartItem,
                                         imageUrls = imageUrls,
-                                        onRemove = { cartViewModel.removeProduct(cartItem.product) },
+                                        onRemove = { 
+                                            productToDelete = cartItem.product
+                                            showDeleteDialog = true 
+                                        },
+                                        generalWarehouseStock = generalWarehouseStock[cartItem.product.ARTICULO_ID],
+                                        isIncreaseLoading = loadingOperations.contains("inc_${cartItem.product.ARTICULO_ID}"),
+                                        isDecreaseLoading = loadingOperations.contains("dec_${cartItem.product.ARTICULO_ID}"),
+                                        isRemoveLoading = loadingOperations.contains("remove_${cartItem.product.ARTICULO_ID}"),
                                         onIncreaseQuantity = {
                                             cartViewModel.increaseQuantity(
                                                 cartItem.product,
                                                 stockLimit
-                                            )
+                                            ) { product, quantityChange, isIncrease, onSuccess, onError ->
+                                                handleTransfer(product, 1, isIncrease, onSuccess, onError)
+                                            }
                                         },
                                         onDecreaseQuantity = {
                                             cartViewModel.decreaseQuantity(
                                                 cartItem.product
-                                            )
+                                            ) { product, quantityChange, isIncrease, onSuccess, onError ->
+                                                handleTransfer(product, 1, isIncrease, onSuccess, onError)
+                                            }
+                                        },
+                                        onBatchIncrease = { quantity ->
+                                            repeat(quantity) {
+                                                cartViewModel.increaseQuantity(
+                                                    cartItem.product,
+                                                    stockLimit
+                                                ) { product, quantityChange, isIncrease, onSuccess, onError ->
+                                                    handleTransfer(product, 1, isIncrease, onSuccess, onError)
+                                                }
+                                            }
+                                        },
+                                        onBatchDecrease = { quantity ->
+                                            repeat(quantity) {
+                                                cartViewModel.decreaseQuantity(
+                                                    cartItem.product
+                                                ) { product, quantityChange, isIncrease, onSuccess, onError ->
+                                                    handleTransfer(product, 1, isIncrease, onSuccess, onError)
+                                                }
+                                            }
                                         },
                                         navController = navController,
                                         product = cartItem.product
@@ -282,6 +365,78 @@ fun CartScreen(navController: NavController) {
                     }
                 }
             }
+        }
+        
+        // Diálogo de confirmación para eliminar producto
+        if (showDeleteDialog && productToDelete != null) {
+            val product = productToDelete!!
+            val cartItem = cartViewModel.cartProducts.find { it.product.ARTICULO_ID == product.ARTICULO_ID }
+            
+            AlertDialog(
+                onDismissRequest = { 
+                    showDeleteDialog = false
+                    productToDelete = null
+                },
+                title = { Text("Eliminar producto") },
+                text = { 
+                    Column {
+                        Text("¿Estás seguro de que quieres eliminar este producto del carrito?")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Producto: ${product.ARTICULO}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        cartItem?.let {
+                            Text(
+                                text = "Cantidad: ${it.quantity}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Los productos se devolverán al almacén general.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            cartItem?.let { item ->
+                                cartViewModel.removeProduct(product) { prod, quantity, onSuccess, onError ->
+                                    handleRemoveProduct(prod, quantity)
+                                    onSuccess()
+                                }
+                            }
+                            showDeleteDialog = false
+                            productToDelete = null
+                        },
+                        enabled = !loadingOperations.contains("remove_${product.ARTICULO_ID}")
+                    ) { 
+                        if (loadingOperations.contains("remove_${product.ARTICULO_ID}")) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("Eliminar")
+                        }
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = { 
+                            showDeleteDialog = false
+                            productToDelete = null
+                        },
+                        enabled = !loadingOperations.contains("remove_${product.ARTICULO_ID}")
+                    ) { 
+                        Text("Cancelar") 
+                    }
+                }
+            )
         }
     }
 }
