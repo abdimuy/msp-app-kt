@@ -15,5 +15,6 @@ data class User(
     val ZONA_CLIENTE_ID: Int = 0,
     val VERSION_APP: String = "",
     val FECHA_VERSION_APP: Timestamp? = null,
-    val MODULOS: List<String> = emptyList()
+    val MODULOS: List<String> = emptyList(),
+    val CAMIONETA_ASIGNADA: Int? = null
 )

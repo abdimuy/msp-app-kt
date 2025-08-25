@@ -79,15 +79,59 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
         }
     }
 
-    fun loadProductById(id: Int) {
+    suspend fun getProductStock(productId: Int): Int? {
+        return try {
+            withContext(Dispatchers.IO) {
+                localDataSource.getStockById(productId)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun loadProductsWithFallback() {
         viewModelScope.launch {
+            _productInventoryState.value = ResultState.Loading
             try {
-                val result = withContext(Dispatchers.IO) {
-                    localDataSource.getProductInventoryById(id).toDomain()
+                val response = withContext(Dispatchers.IO) {
+                    api.getProductInventory()
                 }
-                _product.value = result
+
+                val productsList = response.body
+
+                _productInventoryState.value = ResultState.Success(productsList)
+                saveProductsInventoryLocally(productsList)
+
+                Log.d(
+                    "ProductsInventoryViewModel",
+                    "Productos obtenidos remotamente: ${productsList.size}"
+                )
             } catch (e: Exception) {
-                _product.value = null
+                // Si falla la obtención remota, cargar desde la base de datos local
+                Log.e(
+                    "ProductsInventoryViewModel",
+                    "Error obteniendo productos remotos: ${e.message}"
+                )
+
+                try {
+                    val localProducts = withContext(Dispatchers.IO) {
+                        localDataSource.getAll().map { it.toDomain() }
+                    }
+
+                    if (localProducts.isNotEmpty()) {
+                        _productInventoryState.value = ResultState.Success(localProducts)
+                        Log.d(
+                            "ProductsInventoryViewModel",
+                            "Productos cargados localmente: ${localProducts.size}"
+                        )
+                    } else {
+                        _productInventoryState.value =
+                            ResultState.Error("No hay productos disponibles. Verifique su conexión a internet.")
+                    }
+                } catch (localError: Exception) {
+                    _productInventoryState.value =
+                        ResultState.Error("Error al cargar productos: ${localError.message}")
+                }
             }
         }
     }

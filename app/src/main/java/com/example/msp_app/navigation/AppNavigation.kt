@@ -23,6 +23,7 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.cart.screens.CartScreen
 import com.example.msp_app.features.common.NoModulesScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
@@ -75,6 +76,8 @@ sealed class Screen(val route: String) {
     object ProductDetails : Screen("productDetails/{productId}") {
         fun createRoute(productId: String) = "productDetails/$productId"
     }
+
+    object Cart : Screen("cart")
 
 }
 
@@ -222,10 +225,15 @@ fun AppNavigation() {
                 val productId = backStackEntry.arguments?.getString("productId")
                 ProductDetailsScreen(
                     productId = productId.toString(),
-                    navController = navController
+                    navController = navController,
                 )
             }
 
+            composable(Screen.Cart.route) {
+                CartScreen(
+                    navController = navController,
+                )
+            }
         }
     }
 }
