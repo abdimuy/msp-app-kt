@@ -8,10 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -34,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,16 +40,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.components.CartItemCard
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
-import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
+import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,21 +68,21 @@ fun CartScreen(navController: NavController) {
     val userData by authViewModel.userData.collectAsState()
     val loadingOperations by cartViewModel.loadingOperations.collectAsState()
     val transferState by warehouseViewModel.transferState.collectAsState()
-    
+
     val camionetaAsignada = when (val userState = userData) {
         is ResultState.Success -> userState.data?.CAMIONETA_ASIGNADA
         else -> null
     }
-    
+
     var nombreAlmacenAsignado by remember { mutableStateOf<String?>(null) }
-    
+
     var showDeleteDialog by remember { mutableStateOf(false) }
     var productToDelete by remember { mutableStateOf<ProductInventory?>(null) }
-    
+
     var generalWarehouseStock by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
 
     val snackbarHostState = remember { SnackbarHostState() }
-    
+
     fun handleTransfer(
         product: ProductInventory,
         quantity: Int,
@@ -112,7 +109,7 @@ fun CartScreen(navController: NavController) {
             onSuccess()
         } ?: onError("No hay camioneta asignada")
     }
-    
+
     fun handleRemoveProduct(product: ProductInventory, quantity: Int) {
         camionetaAsignada?.let { camionetaId ->
             warehouseViewModel.createTransfer(
@@ -135,7 +132,7 @@ fun CartScreen(navController: NavController) {
             nombreAlmacenAsignado = null
         }
     }
-    
+
     LaunchedEffect(warehouseState) {
         when (val state = warehouseState) {
             is ResultState.Success -> {
@@ -143,9 +140,11 @@ fun CartScreen(navController: NavController) {
                 val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
                 cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
             }
+
             is ResultState.Error -> {
                 nombreAlmacenAsignado = camionetaAsignada?.let { "Almacén ID: $it" }
             }
+
             else -> {}
         }
     }
@@ -153,7 +152,7 @@ fun CartScreen(navController: NavController) {
     LaunchedEffect(Unit) {
         imagesViewModel.loadLocalImages()
     }
-    
+
     LaunchedEffect(cartProducts.size) {
         if (cartProducts.isNotEmpty()) {
             val stockMap = mutableMapOf<Int, Int>()
@@ -168,17 +167,19 @@ fun CartScreen(navController: NavController) {
             generalWarehouseStock = emptyMap()
         }
     }
-    
+
     LaunchedEffect(transferState) {
         when (val state = transferState) {
             is ResultState.Success -> {
                 snackbarHostState.showSnackbar("✅ Transferencia completada")
                 warehouseViewModel.resetTransferState()
             }
+
             is ResultState.Error -> {
                 snackbarHostState.showSnackbar("❌ Error: ${state.message}")
                 warehouseViewModel.resetTransferState()
             }
+
             else -> {}
         }
     }
@@ -204,7 +205,7 @@ fun CartScreen(navController: NavController) {
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
-                    title = { 
+                    title = {
                         Column {
                             Text("Carrito (${cartViewModel.getTotalItems()})")
                             nombreAlmacenAsignado?.let { nombre ->
@@ -308,15 +309,17 @@ fun CartScreen(navController: NavController) {
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 items(cartViewModel.cartProducts) { cartItem ->
-                                    val stockLimit = generalWarehouseStock[cartItem.product.ARTICULO_ID] ?: cartItem.product.EXISTENCIAS
+                                    val stockLimit =
+                                        generalWarehouseStock[cartItem.product.ARTICULO_ID]
+                                            ?: cartItem.product.EXISTENCIAS
                                     val imageUrls =
                                         imagesByProduct[cartItem.product.ARTICULO_ID] ?: emptyList()
                                     CartItemCard(
                                         cartItem = cartItem,
                                         imageUrls = imageUrls,
-                                        onRemove = { 
+                                        onRemove = {
                                             productToDelete = cartItem.product
-                                            showDeleteDialog = true 
+                                            showDeleteDialog = true
                                         },
                                         generalWarehouseStock = generalWarehouseStock[cartItem.product.ARTICULO_ID],
                                         isIncreaseLoading = loadingOperations.contains("inc_${cartItem.product.ARTICULO_ID}"),
@@ -327,24 +330,40 @@ fun CartScreen(navController: NavController) {
                                                 cartItem.product,
                                                 stockLimit
                                             ) { product, quantityChange, isIncrease, onSuccess, onError ->
-                                                handleTransfer(product, 1, isIncrease, onSuccess, onError)
+                                                handleTransfer(
+                                                    product,
+                                                    1,
+                                                    isIncrease,
+                                                    onSuccess,
+                                                    onError
+                                                )
                                             }
                                         },
                                         onDecreaseQuantity = {
                                             cartViewModel.decreaseQuantity(
                                                 cartItem.product
                                             ) { product, quantityChange, isIncrease, onSuccess, onError ->
-                                                handleTransfer(product, 1, isIncrease, onSuccess, onError)
+                                                handleTransfer(
+                                                    product,
+                                                    1,
+                                                    isIncrease,
+                                                    onSuccess,
+                                                    onError
+                                                )
                                             }
                                         },
                                         onBatchIncrease = { quantity ->
-                                            repeat(quantity) {
-                                                cartViewModel.increaseQuantity(
-                                                    cartItem.product,
-                                                    stockLimit
-                                                ) { product, quantityChange, isIncrease, onSuccess, onError ->
-                                                    handleTransfer(product, 1, isIncrease, onSuccess, onError)
-                                                }
+                                            cartViewModel.increaseQuantity(
+                                                cartItem.product,
+                                                stockLimit
+                                            ) { product, quantityChange, isIncrease, onSuccess, onError ->
+                                                handleTransfer(
+                                                    product,
+                                                    quantity,
+                                                    isIncrease,
+                                                    onSuccess,
+                                                    onError
+                                                )
                                             }
                                         },
                                         onBatchDecrease = { quantity ->
@@ -352,7 +371,13 @@ fun CartScreen(navController: NavController) {
                                                 cartViewModel.decreaseQuantity(
                                                     cartItem.product
                                                 ) { product, quantityChange, isIncrease, onSuccess, onError ->
-                                                    handleTransfer(product, 1, isIncrease, onSuccess, onError)
+                                                    handleTransfer(
+                                                        product,
+                                                        1,
+                                                        isIncrease,
+                                                        onSuccess,
+                                                        onError
+                                                    )
                                                 }
                                             }
                                         },
@@ -366,19 +391,20 @@ fun CartScreen(navController: NavController) {
                 }
             }
         }
-        
+
         // Diálogo de confirmación para eliminar producto
         if (showDeleteDialog && productToDelete != null) {
             val product = productToDelete!!
-            val cartItem = cartViewModel.cartProducts.find { it.product.ARTICULO_ID == product.ARTICULO_ID }
-            
+            val cartItem =
+                cartViewModel.cartProducts.find { it.product.ARTICULO_ID == product.ARTICULO_ID }
+
             AlertDialog(
-                onDismissRequest = { 
+                onDismissRequest = {
                     showDeleteDialog = false
                     productToDelete = null
                 },
                 title = { Text("Eliminar producto") },
-                text = { 
+                text = {
                     Column {
                         Text("¿Estás seguro de que quieres eliminar este producto del carrito?")
                         Spacer(modifier = Modifier.height(8.dp))
@@ -414,7 +440,7 @@ fun CartScreen(navController: NavController) {
                             productToDelete = null
                         },
                         enabled = !loadingOperations.contains("remove_${product.ARTICULO_ID}")
-                    ) { 
+                    ) {
                         if (loadingOperations.contains("remove_${product.ARTICULO_ID}")) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
@@ -427,13 +453,13 @@ fun CartScreen(navController: NavController) {
                 },
                 dismissButton = {
                     Button(
-                        onClick = { 
+                        onClick = {
                             showDeleteDialog = false
                             productToDelete = null
                         },
                         enabled = !loadingOperations.contains("remove_${product.ARTICULO_ID}")
-                    ) { 
-                        Text("Cancelar") 
+                    ) {
+                        Text("Cancelar")
                     }
                 }
             )
