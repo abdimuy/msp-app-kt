@@ -6,20 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -35,7 +29,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.BuildConfig
@@ -318,13 +311,6 @@ fun LocationMap(
     }
 
     Column(modifier = modifier) {
-        if (currentLocation != null || geocodingResult != null) {
-            AddressCard(
-                geocodingResult = geocodingResult,
-                currentLocation = currentLocation,
-                onRecenterClick = ::recenterMap
-            )
-        }
 
         MapCard(
             permissionState = permissionState,
@@ -334,97 +320,6 @@ fun LocationMap(
             locationError = locationError,
             geocodingResult = geocodingResult
         )
-    }
-}
-
-@Composable
-private fun AddressCard(
-    geocodingResult: GeocodingResult?,
-    currentLocation: Location?,
-    onRecenterClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when (geocodingResult) {
-                is GeocodingResult.Loading -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                is GeocodingResult.Error -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-            }
-        )
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Dirección:",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                if (currentLocation != null) {
-                    IconButton(
-                        onClick = onRecenterClick,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LocationOn,
-                            contentDescription = "Recentrar mapa",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-
-            when (geocodingResult) {
-                is GeocodingResult.Loading -> {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Text(
-                            "Obteniendo dirección...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                is GeocodingResult.Success -> {
-                    Text(
-                        geocodingResult.address,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                is GeocodingResult.Error -> {
-                    Text(
-                        geocodingResult.message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                }
-
-                null -> {
-                    Text(
-                        "Ubicación no disponible",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
     }
 }
 
