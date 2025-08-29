@@ -11,11 +11,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +42,6 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
-import kotlinx.coroutines.delay
 
 @Composable
 fun SaleHomeScreen(navController: NavController) {
@@ -51,6 +53,8 @@ fun SaleHomeScreen(navController: NavController) {
     val newImagesCount by imagesViewModel.newImagesCount.collectAsState()
     val productsLoaded by productsViewModel.productsLoaded.collectAsState()
     val downloadProgress by imagesViewModel.downloadProgress.collectAsState()
+    val downloadedCount by imagesViewModel.downloadedCount.collectAsState()
+    val totalToDownload by imagesViewModel.totalToDownload.collectAsState()
 
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showProgressDialog by remember { mutableStateOf(false) }
@@ -60,7 +64,6 @@ fun SaleHomeScreen(navController: NavController) {
 
     LaunchedEffect(productsLoaded, shouldCheckImages) {
         if (productsLoaded && shouldCheckImages) {
-            delay(1000)
             imagesViewModel.checkForNewImages()
             shouldCheckImages = false
         }
@@ -126,7 +129,7 @@ fun SaleHomeScreen(navController: NavController) {
                     Text("ACTUALIZAR CATALOGO", color = Color.White)
                 }
                 if (loading) {
-                    CircularProgressIndicator(modifier = Modifier.padding(8.dp))
+                    LinearProgressIndicator(modifier = Modifier.padding(8.dp))
                 }
                 Button(
                     onClick = {
@@ -174,17 +177,58 @@ fun SaleHomeScreen(navController: NavController) {
             onDismissRequest = { },
             title = { Text("Descargando imágenes") },
             text = {
-                Column {
-                    Text(
-                        if (downloadProgress == 0) "Preparando descarga..."
-                        else "Descargando imágenes: $downloadProgress%"
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    if (downloadProgress == 0) {
-                        CircularProgressIndicator()
-                    } else {
-                        CircularProgressIndicator(progress = downloadProgress / 100f)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            if (downloadProgress == 0) "Preparando..."
+                            else "$downloadedCount de $totalToDownload",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "$downloadProgress%",
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Custom progress bar
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp),
+                        shape = RoundedCornerShape(4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        LinearProgressIndicator(
+                            progress = if (downloadProgress == 0) 0f else downloadProgress / 100f,
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = if (downloadProgress == 0) 
+                            "Iniciando descarga..." 
+                        else if (downloadProgress < 100)
+                            "Descargando imágenes..."
+                        else 
+                            "¡Descarga completada!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {},

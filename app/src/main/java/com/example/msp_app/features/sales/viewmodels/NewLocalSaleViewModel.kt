@@ -7,8 +7,10 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
+import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
+import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -17,6 +19,7 @@ import java.util.UUID
 
 class NewLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
+    private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
 
     private val _sales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val sales: StateFlow<List<LocalSaleEntity>> = _sales
@@ -32,6 +35,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
     private val _saveResult = MutableStateFlow<SaveResult?>(null)
     val saveResult: StateFlow<SaveResult?> = _saveResult
+
+    private val _saleProducts = MutableStateFlow<List<LocalSaleProductEntity>>(emptyList())
+    val saleProducts: StateFlow<List<LocalSaleProductEntity>> = _saleProducts
 
     fun loadAllSales() {
         viewModelScope.launch {
@@ -129,11 +135,23 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         shorttermtime: Int = 0,
         shorttermamount: Double = 0.0,
         enviado: Boolean,
+        saleProducts: List<SaleItem>,
         context: Context
     ) {
         viewModelScope.launch {
             try {
                 _isLoading.value = true
+                _saveResult.value = null
+
+                if (saleProducts.isEmpty()) {
+                    _saveResult.value = SaveResult.Error("La venta debe tener al menos un producto")
+                    return@launch
+                }
+
+                if (clientName.isBlank()) {
+                    _saveResult.value = SaveResult.Error("El nombre del cliente es requerido")
+                    return@launch
+                }
 
                 val saleEntity = LocalSaleEntity(
                     LOCAL_SALE_ID = saleId,
@@ -157,12 +175,52 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
                 localSaleStore.insertSale(saleEntity)
 
+                val productEntities = saleProducts.map { saleItem ->
+                    LocalSaleProductEntity(
+                        LOCAL_SALE_ID = saleId,
+                        ARTICULO_ID = saleItem.product.ARTICULO_ID,
+                        ARTICULO = saleItem.product.ARTICULO,
+                        CANTIDAD = saleItem.quantity,
+                        PRECIO_LISTA = 0.0,
+                        PRECIO_CORTO_PLAZO = 0.0,
+                        PRECIO_CONTADO = 0.0
+                    )
+                }
+
+                if (productEntities.isNotEmpty()) {
+                    saleProduct.insertSaleProducts(productEntities)
+                }
+
                 if (imageUris.isNotEmpty()) {
                     saveSaleImages(context, imageUris, saleId, saleDate)
                 }
+
                 _saveResult.value = SaveResult.Success(saleId)
+                loadAllSales()
+
             } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error creating sale: ${e.message}", e)
                 _saveResult.value = SaveResult.Error(e.message ?: "Error desconocido")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun deleteSale(saleId: String) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                saleProduct.deleteProductsForSale(saleId)
+                localSaleStore.deleteImagesForSale(saleId)
+
+                loadAllSales()
+                _saveResult.value = SaveResult.Success("Venta eliminada correctamente")
+
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error deleting sale: ${e.message}", e)
+                _saveResult.value = SaveResult.Error("Error al eliminar la venta")
             } finally {
                 _isLoading.value = false
             }
@@ -173,13 +231,17 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         _saveResult.value = null
     }
 
-    fun deleteSale(saleId: String) {
+    fun loadProductsBySaleId(saleId: String) {
         viewModelScope.launch {
             try {
-                localSaleStore.deleteImagesForSale(saleId)
-                loadAllSales()
+                val products = saleProduct.getProductsForSale(saleId)
+                _saleProducts.value = products
             } catch (e: Exception) {
-
+                Log.e(
+                    "NewLocalSaleViewModel",
+                    "Error loading products for sale $saleId: ${e.message}"
+                )
+                _saleProducts.value = emptyList()
             }
         }
     }

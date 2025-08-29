@@ -2,6 +2,7 @@ package com.example.msp_app.data.models.sale.localsale
 
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
+import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 
 class LocalSaleMappers {
     fun LocalSale.toEntity(): LocalSaleEntity {
@@ -63,6 +64,30 @@ class LocalSaleMappers {
             LOCAL_SALE_ID = this.LOCAL_SALE_ID,
             IMAGE_URI = this.IMAGE_URI,
             FECHA_SUBIDA = this.FECHA_SUBIDA
+        )
+    }
+
+    fun LocalSaleProduct.toEntity(): LocalSaleProductEntity {
+        return LocalSaleProductEntity(
+            LOCAL_SALE_ID = this.LOCAL_SALE_ID,
+            ARTICULO_ID = this.ARTICULO_ID,
+            ARTICULO = this.ARTICULO,
+            CANTIDAD = this.CANTIDAD,
+            PRECIO_LISTA = this.PRECIO_LISTA,
+            PRECIO_CORTO_PLAZO = this.PRECIO_CORTO_PLAZO,
+            PRECIO_CONTADO = this.PRECIO_CONTADO
+        )
+    }
+
+    fun LocalSaleProductEntity.toDomain(): LocalSaleProduct {
+        return LocalSaleProduct(
+            LOCAL_SALE_ID = this.LOCAL_SALE_ID,
+            ARTICULO_ID = this.ARTICULO_ID,
+            ARTICULO = this.ARTICULO,
+            CANTIDAD = this.CANTIDAD,
+            PRECIO_LISTA = this.PRECIO_LISTA,
+            PRECIO_CORTO_PLAZO = this.PRECIO_CORTO_PLAZO,
+            PRECIO_CONTADO = this.PRECIO_CONTADO
         )
     }
 }

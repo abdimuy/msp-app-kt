@@ -33,6 +33,15 @@ fun parsePrice(pricesStr: String?): Map<String, Double> {
 
 fun parsePriceJsonToMap(json: String?): Map<String, Double> {
     if (json.isNullOrBlank()) return emptyMap()
-    val type = object : TypeToken<Map<String, Double>>() {}.type
-    return Gson().fromJson(json, type)
+
+    return try {
+        val type = object : TypeToken<Map<String, Double>>() {}.type
+        Gson().fromJson(json, type)
+    } catch (e: Exception) {
+        try {
+            parsePrice(json)
+        } catch (e2: Exception) {
+            emptyMap()
+        }
+    }
 }

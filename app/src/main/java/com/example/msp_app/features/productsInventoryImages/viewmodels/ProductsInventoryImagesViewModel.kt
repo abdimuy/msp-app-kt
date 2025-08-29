@@ -39,6 +39,11 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
 
     private val _downloadProgress = MutableStateFlow(0)
     val downloadProgress: StateFlow<Int> = _downloadProgress
+    private val _downloadedCount = MutableStateFlow(0)
+    val downloadedCount: StateFlow<Int> = _downloadedCount
+
+    private val _totalToDownload = MutableStateFlow(0)
+    val totalToDownload: StateFlow<Int> = _totalToDownload
 
     private var cachedApiImages: List<ProductInventoryImageEntity> = emptyList()
     private var downloadJob: Job? = null
@@ -87,12 +92,15 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
                 val newImagesToDownload = cachedApiImages
 
                 _downloadProgress.value = 0
+                _downloadedCount.value = 0
                 val total = newImagesToDownload.size
-                var downloaded = 0
+                _totalToDownload.value = total
+                val downloaded = java.util.concurrent.atomic.AtomicInteger(0)
 
-                val semaphore = Semaphore(5)
+                val semaphore = Semaphore(10)
 
-                val imagesWithLocalPaths = mutableListOf<ProductInventoryImageEntity>()
+                val imagesWithLocalPaths =
+                    java.util.concurrent.CopyOnWriteArrayList<ProductInventoryImageEntity>()
 
                 val downloadTasks = newImagesToDownload.map { imageEntity ->
                     async(Dispatchers.IO) {
@@ -103,18 +111,15 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
                                 downloadAndSaveImageOptimized(remoteUrl, imageEntity.IMAGEN_ID)
 
                             if (localPath != null) {
-                                synchronized(imagesWithLocalPaths) {
-                                    imagesWithLocalPaths.add(
-                                        imageEntity.copy(RUTA_LOCAL = localPath)
-                                    )
-                                }
+                                imagesWithLocalPaths.add(
+                                    imageEntity.copy(RUTA_LOCAL = localPath)
+                                )
                             }
 
-                            synchronized(this@launch) {
-                                downloaded++
-                                _downloadProgress.value =
-                                    if (total > 0) (downloaded * 100 / total) else 100
-                            }
+                            val currentCount = downloaded.incrementAndGet()
+                            _downloadedCount.value = currentCount
+                            _downloadProgress.value =
+                                if (total > 0) (currentCount * 100 / total) else 100
 
                             localPath
                         } finally {
@@ -149,8 +154,8 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
                 val url = URL(remoteUrl)
                 val connection = url.openConnection() as HttpURLConnection
 
-                connection.connectTimeout = 10000 // 10 segundos
-                connection.readTimeout = 15000 // 15 segundos
+                connection.connectTimeout = 5000 // 5 segundos
+                connection.readTimeout = 10000 // 10 segundos
                 connection.setRequestProperty("User-Agent", "Android")
 
                 connection.connect()
@@ -169,7 +174,7 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
 
                 connection.inputStream.use { input ->
                     FileOutputStream(imageFile).use { output ->
-                        input.copyTo(output, bufferSize = 8192)
+                        input.copyTo(output, bufferSize = 16384) // Increased buffer size
                     }
                 }
 
@@ -187,7 +192,7 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
             }
         }
     }
-    
+
     fun loadLocalImages() {
         viewModelScope.launch {
             val allImages = localDataSource.getAllImages()
@@ -201,5 +206,7 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
     fun cancelDownload() {
         downloadJob?.cancel()
         _downloadProgress.value = 0
+        _downloadedCount.value = 0
+        _totalToDownload.value = 0
     }
 }

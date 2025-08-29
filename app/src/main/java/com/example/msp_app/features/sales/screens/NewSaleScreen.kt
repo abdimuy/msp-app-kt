@@ -28,7 +28,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -40,10 +44,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,9 +72,16 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.sales.components.map.LocationMap
+import com.example.msp_app.features.sales.components.productselector.ProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
+import com.example.msp_app.features.sales.viewmodels.SaveResult
+import com.example.msp_app.features.warehouses.WarehouseViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -79,6 +94,11 @@ import java.util.UUID
 @Composable
 fun NewSaleScreen(navController: NavController) {
     val viewModel: NewLocalSaleViewModel = viewModel()
+    val warehouseViewModel: WarehouseViewModel = viewModel()
+    val cartViewModel: CartViewModel = viewModel()
+    val authViewModel = LocalAuthViewModel.current
+    val saleProductsViewModel: SaleProductsViewModel = viewModel()
+
     var defectName by remember { mutableStateOf(TextFieldValue("")) }
     var showError by remember { mutableStateOf(false) }
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -100,14 +120,36 @@ fun NewSaleScreen(navController: NavController) {
     var note by remember { mutableStateOf(TextFieldValue("")) }
     var collectionday by remember { mutableStateOf("") }
     var paymentfrequency by remember { mutableStateOf("") }
-    var showPhoneError by remember { mutableStateOf(false) }
-
+    var showSuccessDialog by remember { mutableStateOf(false) }
     var expandedfrequency by remember { mutableStateOf(false) }
     var expandedDia by remember { mutableStateOf(false) }
+    cartViewModel.cartProducts
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
         listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+
+    remember { mutableStateListOf<Pair<Int, Int>>() }
+
+    val userData by authViewModel.userData.collectAsState()
+    val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
+    cartViewModel.cartProducts
+
+    val camionetaId = when (val userState = userData) {
+        is ResultState.Success -> userState.data?.CAMIONETA_ASIGNADA
+        else -> null
+    }
+
+    val productosCamioneta = when (val s = warehouseState) {
+        is ResultState.Success -> s.data.body.ARTICULOS
+        else -> emptyList()
+    }
+
+    LaunchedEffect(camionetaId) {
+        if (camionetaId != null) {
+            warehouseViewModel.selectWarehouse(camionetaId)
+        }
+    }
 
     rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(
@@ -149,6 +191,86 @@ fun NewSaleScreen(navController: NavController) {
         )
     }
 
+    fun validateFields(): Boolean {
+        return defectName.text.isNotBlank() &&
+                phone.text.isNotBlank() &&
+                installment.text.toDoubleOrNull()?.let { it > 0 } == true &&
+                paymentfrequency.isNotBlank() &&
+                collectionday.isNotBlank() &&
+                imageUris.isNotEmpty() &&
+                saleProductsViewModel.hasItems()
+    }
+
+    val saveResult by viewModel.saveResult.collectAsState()
+
+    LaunchedEffect(saveResult) {
+        when (saveResult) {
+            is SaveResult.Success -> {
+                showSuccessDialog = true
+            }
+
+            null -> { /* No hacer nada */
+            }
+
+            is SaveResult.Error -> {}
+        }
+    }
+
+    fun clearAllFields() {
+        saleProductsViewModel.clearSale()
+        defectName = TextFieldValue("")
+        imageUris = emptyList()
+        phone = TextFieldValue("")
+        downpayment = TextFieldValue("")
+        installment = TextFieldValue("")
+        guarantor = TextFieldValue("")
+        note = TextFieldValue("")
+        location = ""
+        collectionday = ""
+        paymentfrequency = ""
+        location = ""
+        latitude = 0.0
+        longitude = 0.0
+        showError = false
+        showImageError = false
+    }
+
+    if (showSuccessDialog) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = {
+                Text(
+                    text = "¡Venta Guardada!",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            text = {
+                Text("La venta se ha guardado correctamente. ¿Deseas crear una nueva venta?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showSuccessDialog = false
+                        clearAllFields()
+                    }
+                ) {
+                    Text("Crear Nueva Venta")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showSuccessDialog = false
+                        navController.navigate("sales/details_list")
+                    }
+                ) {
+                    Text("Ver Ventas")
+                }
+            }
+        )
+    }
+
     fun saveSale() {
         val saleId = UUID.randomUUID().toString()
         val saleDate = java.time.Instant.now().toString()
@@ -169,17 +291,17 @@ fun NewSaleScreen(navController: NavController) {
             note = note.text,
             collectionday = collectionday,
             enviado = false,
+            saleProducts = saleProductsViewModel.saleItems,
             context = context
         )
-        defectName = TextFieldValue("")
-        imageUris = emptyList()
-        phone = TextFieldValue("")
-        downpayment = TextFieldValue("")
-        installment = TextFieldValue("")
-        guarantor = TextFieldValue("")
-        note = TextFieldValue("")
-        collectionday = ""
-        paymentfrequency = ""
+    }
+
+    if (showImageViewer && imageUris.isNotEmpty()) {
+        ImageViewerDialog(
+            imageUris = imageUris,
+            initialIndex = selectedImageIndex,
+            onDismiss = { showImageViewer = false }
+        )
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -211,15 +333,6 @@ fun NewSaleScreen(navController: NavController) {
                     .padding(innerPadding)
                     .fillMaxSize(),
             ) {
-                fun validateFields(): Boolean {
-                    return defectName.text.isNotBlank() &&
-                            phone.text.isNotBlank() &&
-                            installment.text.toDoubleOrNull()?.let { it > 0 } == true &&
-                            paymentfrequency.isNotBlank() &&
-                            collectionday.isNotBlank() &&
-                            imageUris.isNotEmpty()
-                }
-
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -329,9 +442,7 @@ fun NewSaleScreen(navController: NavController) {
 
                         OutlinedTextField(
                             value = installment,
-                            onValueChange = {
-                                installment = it
-                            },
+                            onValueChange = { installment = it },
                             isError = showError,
                             label = { Text("Parcialidad *") },
                             modifier = Modifier.weight(1f),
@@ -340,6 +451,7 @@ fun NewSaleScreen(navController: NavController) {
                             prefix = { Text("$") }
                         )
                     }
+
                     Spacer(Modifier.height(16.dp))
 
                     Text(
@@ -530,17 +642,96 @@ fun NewSaleScreen(navController: NavController) {
                             }
                         }
                     }
+
+                    ProductSelector(
+                        warehouseViewModel = warehouseViewModel,
+                        saleProductsViewModel = saleProductsViewModel,
+                        onAddProduct = { articuloId, cantidad ->
+                            val producto = productosCamioneta.find { it.ARTICULO_ID == articuloId }
+                            if (producto != null) {
+                                saleProductsViewModel.addProductToSale(producto, cantidad)
+                            }
+                        }
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+                    val saleItems = saleProductsViewModel.saleItems
+
+                    if (saleItems.isNotEmpty()) {
+                        Text(
+                            "Productos seleccionados:",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        saleItems.forEach { saleItem ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("${saleItem.product.ARTICULO} x${saleItem.quantity}")
+                                Row {
+                                    IconButton(
+                                        onClick = {
+                                            val newQuantity = saleItem.quantity - 1
+                                            saleProductsViewModel.updateQuantity(
+                                                saleItem.product,
+                                                newQuantity
+                                            )
+                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "Disminuir"
+                                        )
+                                    }
+                                    Text(
+                                        text = saleItem.quantity.toString(),
+                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            val cantidadEnVenta =
+                                                saleProductsViewModel.getQuantityForProduct(saleItem.product)
+                                            val disponible =
+                                                saleItem.product.EXISTENCIAS - cantidadEnVenta + saleItem.quantity
+
+                                            if (saleItem.quantity < disponible) {
+                                                val newQuantity = saleItem.quantity + 1
+                                                saleProductsViewModel.updateQuantity(
+                                                    saleItem.product,
+                                                    newQuantity
+                                                )
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowUp,
+                                            contentDescription = "Aumentar"
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            saleProductsViewModel.removeProductFromSale(saleItem.product)
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Modifier.height(12.dp)
                 }
+
                 Button(
                     onClick = {
-                        defectName.text.isNotBlank()
-                        val isImageValid = imageUris.isNotEmpty()
-                        val isPhoneValid = phone.text.isNotBlank()
                         val valid = validateFields()
-
                         showError = !valid
-                        showImageError = !isImageValid
-                        showPhoneError = !isPhoneValid
+                        showImageError = imageUris.isEmpty()
 
                         if (valid) {
                             saveSale()

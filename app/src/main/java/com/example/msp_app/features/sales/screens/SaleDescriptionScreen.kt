@@ -35,22 +35,47 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.components.CarouselItem
 import com.example.msp_app.features.productsInventory.components.CarrouselImage
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
+import com.example.msp_app.features.sales.components.productinfocard.ProductsInfoCard
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
 fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
     val viewModel: NewLocalSaleViewModel = viewModel()
+    val productsViewModel: SaleProductsViewModel = viewModel()
+
     val sale by viewModel.selectedSale.collectAsState()
+    val saleProducts by viewModel.saleProducts.collectAsState()
     val saleImages by viewModel.saleImages.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.getSaleById(localSaleId)
         viewModel.loadImagesBySaleId(localSaleId)
+        viewModel.loadProductsBySaleId(localSaleId)
+    }
+
+    LaunchedEffect(saleProducts) {
+        if (saleProducts.isNotEmpty()) {
+            productsViewModel.clearSale()
+
+            saleProducts.forEach { productEntity ->
+                val productInventory = ProductInventory(
+                    ARTICULO_ID = productEntity.ARTICULO_ID,
+                    ARTICULO = productEntity.ARTICULO,
+                    PRECIOS = "${productEntity.PRECIO_LISTA},${productEntity.PRECIO_CORTO_PLAZO},${productEntity.PRECIO_CONTADO}",
+                    EXISTENCIAS = 0,
+                    LINEA_ARTICULO_ID = 0,
+                    LINEA_ARTICULO = "",
+                )
+                productsViewModel.addProductToSale(productInventory, productEntity.CANTIDAD)
+            }
+        }
     }
 
     DrawerContainer(
@@ -82,6 +107,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
             val scrollState = rememberScrollState()
             val context = LocalContext.current
             val cameraPositionState = rememberCameraPositionState()
+
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
@@ -166,6 +192,11 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                         Text(sale?.NOTA ?: "")
                     }
                 }
+
+                ProductsInfoCard(
+                    saleProducts = saleProducts,
+                    productsViewModel = productsViewModel
+                )
                 Spacer(Modifier.height(8.dp))
 
                 val carouselItems = remember(saleImages) {
@@ -220,4 +251,3 @@ fun InfoRow(
         )
     }
 }
-
