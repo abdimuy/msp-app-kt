@@ -11,6 +11,7 @@ import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
+import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -195,6 +196,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     saveSaleImages(context, imageUris, saleId, saleDate)
                 }
 
+                enqueuePendingLocalSalesWorker(context, saleId)
+
                 _saveResult.value = SaveResult.Success(saleId)
                 loadAllSales()
 
@@ -242,6 +245,38 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     "Error loading products for sale $saleId: ${e.message}"
                 )
                 _saleProducts.value = emptyList()
+            }
+        }
+    }
+
+    fun retryPendingSales() {
+        viewModelScope.launch {
+            try {
+                val pendingSales = localSaleStore.getPendingSales()
+                pendingSales.forEach { sale ->
+                    enqueuePendingLocalSalesWorker(
+                        getApplication<Application>().applicationContext,
+                        sale.LOCAL_SALE_ID,
+                        replace = true
+                    )
+                }
+                Log.d(
+                    "NewLocalSaleViewModel",
+                    "Reintentando envío de ${pendingSales.size} ventas pendientes"
+                )
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error al reintentar ventas pendientes", e)
+            }
+        }
+    }
+
+    fun getPendingSalesCount() {
+        viewModelScope.launch {
+            try {
+                val pendingSales = localSaleStore.getPendingSales()
+                Log.d("NewLocalSaleViewModel", "Ventas pendientes por enviar: ${pendingSales.size}")
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error al obtener ventas pendientes", e)
             }
         }
     }

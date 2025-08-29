@@ -72,4 +72,34 @@ interface LocalSaleDao {
 
     @Query("DELETE FROM sale_image WHERE LOCAL_SALE_ID = :saleId")
     suspend fun deleteImagesForSale(saleId: String)
+
+    @Query("UPDATE local_sale SET ENVIADO = :enviado WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun updateSaleStatus(saleId: String, enviado: Boolean)
+
+    @Query(
+        """
+        SELECT 
+            LOCAL_SALE_ID, 
+            NOMBRE_CLIENTE, 
+            FECHA_VENTA, 
+            LATITUD, 
+            LONGITUD, 
+            DIRECCION, 
+            PARCIALIDAD, 
+            ENGANCHE, 
+            TELEFONO, 
+            FREC_PAGO, 
+            AVAL_O_RESPONSABLE, 
+            NOTA, 
+            DIA_COBRANZA, 
+            PRECIO_TOTAL,
+            TIEMPO_A_CORTO_PLAZOMESES, 
+            MONTO_A_CORTO_PLAZO,
+            ENVIADO
+            FROM local_sale 
+            WHERE ENVIADO = :enviado 
+            ORDER BY FECHA_VENTA DESC
+        """
+    )
+    suspend fun getSalesByStatus(enviado: Boolean): List<LocalSaleEntity>
 }

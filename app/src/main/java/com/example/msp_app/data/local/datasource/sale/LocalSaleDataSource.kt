@@ -19,7 +19,7 @@ class LocalSaleDataSource(context: Context) {
     suspend fun getSaleById(saleId: String): LocalSaleEntity? {
         return localSaleDao.getSaleById(saleId)
     }
-    
+
     suspend fun insertSaleImage(saleImage: LocalSaleImageEntity) {
         localSaleDao.insertSaleImage(saleImage)
     }
@@ -40,5 +40,13 @@ class LocalSaleDataSource(context: Context) {
         images.forEach { image ->
             insertSaleImage(image)
         }
+    }
+
+    suspend fun changeSaleStatus(saleId: String, enviado: Boolean) {
+        localSaleDao.updateSaleStatus(saleId, enviado)
+    }
+
+    suspend fun getPendingSales(): List<LocalSaleEntity> {
+        return localSaleDao.getSalesByStatus(false)
     }
 }
