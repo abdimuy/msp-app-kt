@@ -40,7 +40,7 @@ interface ProductInventoryDao {
 
     @Query("SELECT EXISTS(SELECT 1 FROM product_inventory WHERE ARTICULO_ID = :id)")
     suspend fun existsById(id: Int): Boolean
-    
+
     @Query("SELECT EXISTENCIAS FROM product_inventory WHERE ARTICULO_ID = :id LIMIT 1")
     suspend fun getStockById(id: Int): Int?
 
