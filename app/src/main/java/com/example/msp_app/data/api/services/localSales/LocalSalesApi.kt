@@ -1,7 +1,10 @@
 package com.example.msp_app.data.api.services.localSales
 
-import retrofit2.http.Body
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 
 data class LocalSaleRequest(
     val localSaleId: String,
@@ -40,6 +43,10 @@ data class LocalSaleResponse(
 )
 
 interface LocalSalesApi {
+    @Multipart
     @POST("ventas-locales")
-    suspend fun saveLocalSale(@Body request: LocalSaleRequest): LocalSaleResponse
+    suspend fun saveLocalSale(
+        @Part("datos") datos: RequestBody,
+        @Part imagenes: List<MultipartBody.Part>
+    ): LocalSaleResponse
 }
