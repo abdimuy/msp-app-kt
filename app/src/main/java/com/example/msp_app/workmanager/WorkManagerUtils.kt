@@ -104,13 +104,17 @@ fun enqueuePendingGuaranteeEventsWorker(
 fun enqueuePendingLocalSalesWorker(
     context: Context,
     localSaleId: String,
+    userEmail: String,
     replace: Boolean = false
 ) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
 
-    val input = workDataOf("local_sale_id" to localSaleId)
+    val input = workDataOf(
+        "local_sale_id" to localSaleId,
+        "user_email" to userEmail
+    )
 
     val request = OneTimeWorkRequestBuilder<PendingLocalSalesWorker>()
         .setConstraints(constraints)

@@ -28,9 +28,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -76,7 +73,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.sales.components.map.LocationMap
-import com.example.msp_app.features.sales.components.productselector.ProductSelector
+import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
@@ -274,6 +271,11 @@ fun NewSaleScreen(navController: NavController) {
     fun saveSale() {
         val saleId = UUID.randomUUID().toString()
         val saleDate = java.time.Instant.now().toString()
+        
+        val userEmail = when (val userState = userData) {
+            is ResultState.Success -> userState.data?.EMAIL ?: ""
+            else -> ""
+        }
 
         viewModel.createSaleWithImages(
             saleId = saleId,
@@ -292,7 +294,8 @@ fun NewSaleScreen(navController: NavController) {
             collectionday = collectionday,
             enviado = false,
             saleProducts = saleProductsViewModel.saleItems,
-            context = context
+            context = context,
+            userEmail = userEmail
         )
     }
 
@@ -643,7 +646,7 @@ fun NewSaleScreen(navController: NavController) {
                         }
                     }
 
-                    ProductSelector(
+                    SimpleProductSelector(
                         warehouseViewModel = warehouseViewModel,
                         saleProductsViewModel = saleProductsViewModel,
                         onAddProduct = { articuloId, cantidad ->
@@ -653,76 +656,6 @@ fun NewSaleScreen(navController: NavController) {
                             }
                         }
                     )
-
-                    Spacer(Modifier.height(12.dp))
-                    val saleItems = saleProductsViewModel.saleItems
-
-                    if (saleItems.isNotEmpty()) {
-                        Text(
-                            "Productos seleccionados:",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        saleItems.forEach { saleItem ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("${saleItem.product.ARTICULO} x${saleItem.quantity}")
-                                Row {
-                                    IconButton(
-                                        onClick = {
-                                            val newQuantity = saleItem.quantity - 1
-                                            saleProductsViewModel.updateQuantity(
-                                                saleItem.product,
-                                                newQuantity
-                                            )
-                                        }
-                                    ) {
-                                        Icon(
-                                            Icons.Default.KeyboardArrowDown,
-                                            contentDescription = "Disminuir"
-                                        )
-                                    }
-                                    Text(
-                                        text = saleItem.quantity.toString(),
-                                        modifier = Modifier.padding(horizontal = 8.dp)
-                                    )
-                                    IconButton(
-                                        onClick = {
-                                            val cantidadEnVenta =
-                                                saleProductsViewModel.getQuantityForProduct(saleItem.product)
-                                            val disponible =
-                                                saleItem.product.EXISTENCIAS - cantidadEnVenta + saleItem.quantity
-
-                                            if (saleItem.quantity < disponible) {
-                                                val newQuantity = saleItem.quantity + 1
-                                                saleProductsViewModel.updateQuantity(
-                                                    saleItem.product,
-                                                    newQuantity
-                                                )
-                                            }
-                                        }
-                                    ) {
-                                        Icon(
-                                            Icons.Default.KeyboardArrowUp,
-                                            contentDescription = "Aumentar"
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            saleProductsViewModel.removeProductFromSale(saleItem.product)
-                                        }
-                                    ) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Eliminar")
-                                    }
-                                }
-                            }
-                        }
-                    }
 
                     Modifier.height(12.dp)
                 }

@@ -93,9 +93,10 @@ class LocalSaleMappers {
         )
     }
     
-    fun LocalSaleEntity.toServerRequest(products: List<LocalSaleProductEntity>): LocalSaleRequest {
+    fun LocalSaleEntity.toServerRequest(products: List<LocalSaleProductEntity>, userEmail: String): LocalSaleRequest {
         return LocalSaleRequest(
             localSaleId = this.LOCAL_SALE_ID,
+            userEmail = userEmail,
             nombreCliente = this.NOMBRE_CLIENTE,
             fechaVenta = this.FECHA_VENTA,
             latitud = this.LATITUD,

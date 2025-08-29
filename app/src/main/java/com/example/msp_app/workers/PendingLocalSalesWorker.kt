@@ -26,18 +26,23 @@ class PendingLocalSalesWorker(
                 Log.e("PendingLocalSalesWorker", "No se proporcionó local_sale_id")
             }
 
+        val userEmail = inputData.getString("user_email")
+            ?: return Result.failure().also {
+                Log.e("PendingLocalSalesWorker", "No se proporcionó user_email")
+            }
+
         val sale = localSaleStore.getSaleById(saleId)
             ?: return Result.failure().also {
                 Log.e("PendingLocalSalesWorker", "Venta local no encontrada: $saleId")
             }
 
         return try {
-            Log.d("PendingLocalSalesWorker", "Enviando venta local: ${sale.LOCAL_SALE_ID}")
+            Log.d("PendingLocalSalesWorker", "Enviando venta local: ${sale.LOCAL_SALE_ID} para usuario: $userEmail")
 
             val products = saleProductStore.getProductsForSale(saleId)
 
             val request = with(mappers) {
-                sale.toServerRequest(products)
+                sale.toServerRequest(products, userEmail)
             }
 
             val response = api.saveLocalSale(request)

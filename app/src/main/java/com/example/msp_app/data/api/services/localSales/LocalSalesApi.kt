@@ -5,6 +5,7 @@ import retrofit2.http.POST
 
 data class LocalSaleRequest(
     val localSaleId: String,
+    val userEmail: String,
     val nombreCliente: String,
     val fechaVenta: String,
     val latitud: Double,
