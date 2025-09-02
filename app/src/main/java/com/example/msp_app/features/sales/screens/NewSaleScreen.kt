@@ -48,7 +48,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -71,7 +70,6 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
@@ -92,7 +90,6 @@ import java.util.UUID
 fun NewSaleScreen(navController: NavController) {
     val viewModel: NewLocalSaleViewModel = viewModel()
     val warehouseViewModel: WarehouseViewModel = viewModel()
-    val cartViewModel: CartViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
 
@@ -120,17 +117,23 @@ fun NewSaleScreen(navController: NavController) {
     var showSuccessDialog by remember { mutableStateOf(false) }
     var expandedfrequency by remember { mutableStateOf(false) }
     var expandedDia by remember { mutableStateOf(false) }
-    cartViewModel.cartProducts
+
+    var defectNameError by remember { mutableStateOf(false) }
+    var phoneError by remember { mutableStateOf(false) }
+    var locationError by remember { mutableStateOf(false) }
+    var installmentError by remember { mutableStateOf(false) }
+    var paymentFrequencyError by remember { mutableStateOf(false) }
+    var collectionDayError by remember { mutableStateOf(false) }
+    var imageError by remember { mutableStateOf(false) }
+    var productsError by remember { mutableStateOf(false) }
+    var showImageSizeError by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
         listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
 
-    remember { mutableStateListOf<Pair<Int, Int>>() }
-
     val userData by authViewModel.userData.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
-    cartViewModel.cartProducts
 
     val camionetaId = when (val userState = userData) {
         is ResultState.Success -> userState.data?.CAMIONETA_ASIGNADA
@@ -155,10 +158,33 @@ fun NewSaleScreen(navController: NavController) {
         )
     }
 
+    fun getImageSizeFromUri(context: Context, uri: Uri): Long {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                inputStream.available().toLong()
+            } ?: 0L
+        } catch (e: Exception) {
+            0L
+        }
+    }
+
+    fun validateImageSize(context: Context, uri: Uri): Boolean {
+        val maxSizeInBytes = 5 * 1000 * 1000
+        val imageSize = getImageSizeFromUri(context, uri)
+        return imageSize <= maxSizeInBytes
+    }
+
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { imageUris = imageUris + it }
+        uri?.let {
+            if (validateImageSize(context, it)) {
+                imageUris = imageUris + it
+                showImageSizeError = false
+            } else {
+                showImageSizeError = true
+            }
+        }
         showImageSourceDialog = false
     }
 
@@ -166,7 +192,12 @@ fun NewSaleScreen(navController: NavController) {
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
         if (success && cameraImageUri != null) {
-            imageUris = imageUris + cameraImageUri!!
+            if (validateImageSize(context, cameraImageUri!!)) {
+                imageUris = imageUris + cameraImageUri!!
+                showImageSizeError = false
+            } else {
+                showImageSizeError = true
+            }
         }
         showImageSourceDialog = false
     }
@@ -188,14 +219,68 @@ fun NewSaleScreen(navController: NavController) {
         )
     }
 
+    fun validateClientName(name: String): Boolean {
+        val isValid = name.isNotBlank() && name.length >= 3
+        defectNameError = !isValid
+        return isValid
+    }
+
+    fun validatePhone(phoneNumber: String): Boolean {
+        val isValid = phoneNumber.isNotBlank() && phoneNumber.length == 10
+        phoneError = !isValid
+        return isValid
+    }
+
+    fun validateLocation(loc: String): Boolean {
+        val isValid = loc.isNotBlank() && loc.length >= 5
+        locationError = !isValid
+        return isValid
+    }
+
+    fun validateInstallment(amount: String): Boolean {
+        val amountDouble = amount.toDoubleOrNull()
+        val isValid = amountDouble != null && amountDouble > 0
+        installmentError = !isValid
+        return isValid
+    }
+
+    fun validatePaymentFrequency(frequency: String): Boolean {
+        val isValid = frequency.isNotBlank()
+        paymentFrequencyError = !isValid
+        return isValid
+    }
+
+    fun validateCollectionDay(day: String): Boolean {
+        val isValid = day.isNotBlank()
+        collectionDayError = !isValid
+        return isValid
+    }
+
+    fun validateImages(): Boolean {
+        val isValid = imageUris.isNotEmpty()
+        imageError = !isValid
+        return isValid
+    }
+
+    fun validateProducts(): Boolean {
+        val isValid = saleProductsViewModel.hasItems()
+        productsError = !isValid
+        return isValid
+    }
+
     fun validateFields(): Boolean {
-        return defectName.text.isNotBlank() &&
-                phone.text.isNotBlank() &&
-                installment.text.toDoubleOrNull()?.let { it > 0 } == true &&
-                paymentfrequency.isNotBlank() &&
-                collectionday.isNotBlank() &&
-                imageUris.isNotEmpty() &&
-                saleProductsViewModel.hasItems()
+        val clientNameValid = validateClientName(defectName.text)
+        val phoneValid = validatePhone(phone.text)
+        val locationValid = validateLocation(location)
+        val installmentValid = validateInstallment(installment.text)
+        val paymentFrequencyValid = validatePaymentFrequency(paymentfrequency)
+        val collectionDayValid = validateCollectionDay(collectionday)
+        val imagesValid = validateImages()
+        val productsValid = validateProducts()
+
+        return clientNameValid && phoneValid && locationValid &&
+                installmentValid && paymentFrequencyValid && collectionDayValid &&
+                imagesValid && productsValid
     }
 
     val saveResult by viewModel.saveResult.collectAsState()
@@ -216,20 +301,25 @@ fun NewSaleScreen(navController: NavController) {
     fun clearAllFields() {
         saleProductsViewModel.clearSale()
         defectName = TextFieldValue("")
-        imageUris = emptyList()
         phone = TextFieldValue("")
-        downpayment = TextFieldValue("")
+        location = ""
         installment = TextFieldValue("")
         guarantor = TextFieldValue("")
         note = TextFieldValue("")
-        location = ""
         collectionday = ""
         paymentfrequency = ""
-        location = ""
         latitude = 0.0
         longitude = 0.0
-        showError = false
-        showImageError = false
+        imageUris = emptyList()
+
+        defectNameError = false
+        phoneError = false
+        locationError = false
+        installmentError = false
+        paymentFrequencyError = false
+        collectionDayError = false
+        imageError = false
+        productsError = false
     }
 
     if (showSuccessDialog) {
@@ -271,7 +361,7 @@ fun NewSaleScreen(navController: NavController) {
     fun saveSale() {
         val saleId = UUID.randomUUID().toString()
         val saleDate = java.time.Instant.now().toString()
-        
+
         val userEmail = when (val userState = userData) {
             is ResultState.Success -> userState.data?.EMAIL ?: ""
             else -> ""
@@ -361,11 +451,22 @@ fun NewSaleScreen(navController: NavController) {
 
                     OutlinedTextField(
                         value = defectName,
-                        onValueChange = {
-                            defectName = it
+                        onValueChange = { newValue ->
+                            defectName = newValue
+                            if (newValue.text.isNotEmpty() || defectNameError) {
+                                validateClientName(newValue.text)
+                            }
                         },
                         label = { Text("Nombre completo del cliente *") },
-                        isError = showError,
+                        isError = defectNameError,
+                        supportingText = if (defectNameError) {
+                            {
+                                Text(
+                                    "Favor de colocar el nombre",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else null,
                         modifier = Modifier
                             .fillMaxWidth(),
                         singleLine = false,
@@ -377,13 +478,24 @@ fun NewSaleScreen(navController: NavController) {
 
                     OutlinedTextField(
                         value = phone,
-                        onValueChange = {
-                            phone = it
+                        onValueChange = { newValue ->
+                            phone = newValue
+                            if (newValue.text.isNotEmpty() || phoneError) {
+                                validatePhone(newValue.text)
+                            }
                         },
                         label = { Text("Teléfono *") },
-                        isError = showError,
+                        isError = phoneError,
+                        supportingText = if (phoneError) {
+                            {
+                                Text(
+                                    "El teléfono debe tener al menos 10 dígitos",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else null,
                         modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         shape = RoundedCornerShape(15.dp)
                     )
 
@@ -391,14 +503,27 @@ fun NewSaleScreen(navController: NavController) {
 
                     OutlinedTextField(
                         value = location,
-                        onValueChange = { location = it },
+                        onValueChange = { newValue ->
+                            location = newValue
+                            if (newValue.isNotEmpty() || locationError) {
+                                validateLocation(newValue)
+                            }
+                        },
                         label = { Text("Direccion *") },
                         modifier = Modifier
                             .fillMaxWidth(),
                         singleLine = false,
                         maxLines = 2,
-                        shape = RoundedCornerShape(15.dp)
-
+                        shape = RoundedCornerShape(15.dp),
+                        isError = locationError,
+                        supportingText = if (locationError) {
+                            {
+                                Text(
+                                    "Coloque al menos el nombre de la calle",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else null,
                     )
 
                     Spacer(Modifier.height(16.dp))
@@ -445,8 +570,21 @@ fun NewSaleScreen(navController: NavController) {
 
                         OutlinedTextField(
                             value = installment,
-                            onValueChange = { installment = it },
-                            isError = showError,
+                            onValueChange = { newValue ->
+                                installment = newValue
+                                if (newValue.text.isNotEmpty() || installmentError) {
+                                    validateInstallment(newValue.text)
+                                }
+                            },
+                            isError = installmentError,
+                            supportingText = if (installmentError) {
+                                {
+                                    Text(
+                                        "La parcialidad debe ser mayor a 0",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else null,
                             label = { Text("Parcialidad *") },
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -468,8 +606,16 @@ fun NewSaleScreen(navController: NavController) {
                         OutlinedTextField(
                             value = paymentfrequency,
                             onValueChange = { },
-                            isError = showError,
+                            isError = paymentFrequencyError,
                             label = { Text("Frecuencia de Pago *") },
+                            supportingText = if (paymentFrequencyError) {
+                                {
+                                    Text(
+                                        "Selecciona una frecuencia de pago",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else null,
                             readOnly = true,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -493,6 +639,7 @@ fun NewSaleScreen(navController: NavController) {
                                     onClick = {
                                         paymentfrequency = option
                                         expandedfrequency = false
+                                        validatePaymentFrequency(option)
                                     }
                                 )
                             }
@@ -504,7 +651,15 @@ fun NewSaleScreen(navController: NavController) {
                         OutlinedTextField(
                             value = collectionday,
                             onValueChange = { },
-                            isError = showError,
+                            isError = collectionDayError,
+                            supportingText = if (collectionDayError) {
+                                {
+                                    Text(
+                                        "Selecciona un día de cobranza",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else null,
                             label = { Text("Día de Cobranza *") },
                             readOnly = true,
                             modifier = Modifier
@@ -529,6 +684,7 @@ fun NewSaleScreen(navController: NavController) {
                                     onClick = {
                                         collectionday = option
                                         expandedDia = false
+                                        validateCollectionDay(option)
                                     }
                                 )
                             }
@@ -600,6 +756,14 @@ fun NewSaleScreen(navController: NavController) {
                             modifier = Modifier.padding(top = 4.dp, start = 8.dp)
                         )
                     }
+                    if (showImageSizeError) {
+                        Text(
+                            "La imagen es muy grande (máximo 5MB). Por favor, toma otra foto o selecciona una imagen más pequeña.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp)
+                        )
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
@@ -662,11 +826,10 @@ fun NewSaleScreen(navController: NavController) {
 
                 Button(
                     onClick = {
-                        val valid = validateFields()
-                        showError = !valid
+                        val isvalid = validateFields()
                         showImageError = imageUris.isEmpty()
 
-                        if (valid) {
+                        if (isvalid) {
                             saveSale()
                         }
 
