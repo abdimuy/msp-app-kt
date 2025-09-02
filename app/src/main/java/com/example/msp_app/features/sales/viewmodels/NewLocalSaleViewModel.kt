@@ -12,8 +12,6 @@ import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
-import com.example.msp_app.core.context.LocalAuthViewModel
-import com.example.msp_app.core.utils.ResultState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -42,10 +40,20 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     private val _saleProducts = MutableStateFlow<List<LocalSaleProductEntity>>(emptyList())
     val saleProducts: StateFlow<List<LocalSaleProductEntity>> = _saleProducts
 
+    private val _pendingSales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
+    val pendingSales: StateFlow<List<LocalSaleEntity>> = _pendingSales
+
     fun loadAllSales() {
         viewModelScope.launch {
             val result = localSaleStore.getAllSales()
             _sales.value = result
+        }
+    }
+
+    fun loadPendingSales() {
+        viewModelScope.launch {
+            val result = localSaleStore.getPendingSales()
+            _pendingSales.value = result
         }
     }
 

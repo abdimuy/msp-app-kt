@@ -85,19 +85,36 @@ class PendingLocalSalesWorker(
 
             val response = api.saveLocalSale(datosRequestBody, imageParts)
 
-            if (response.success) {
-                localSaleStore.changeSaleStatus(saleId, true)
-                Log.d(
+            Log.d(
+                "PendingLocalSalesWorker",
+                "Respuesta exitosa del servidor - Success: ${response.success}, Message: ${response.message}"
+            )
+
+            localSaleStore.changeSaleStatus(saleId, true)
+            Log.d(
+                "PendingLocalSalesWorker",
+                "Venta local marcada como enviada: ${sale.LOCAL_SALE_ID}"
+            )
+
+            if (!response.success && response.message != null) {
+                Log.w(
                     "PendingLocalSalesWorker",
-                    "Venta local marcada como enviada: ${sale.LOCAL_SALE_ID}"
+                    "Servidor procesó la venta pero reportó: ${response.message}"
                 )
-                Result.success()
-            } else {
-                Log.e("PendingLocalSalesWorker", "Error del servidor: ${response.message}")
-                Result.retry()
             }
 
+            Result.success()
+
         } catch (e: Exception) {
+            if (e is retrofit2.HttpException && e.code() == 409) {
+                Log.w(
+                    "PendingLocalSalesWorker",
+                    "Venta ${sale.LOCAL_SALE_ID} ya existe en el servidor (409 Conflict), marcando como enviada"
+                )
+                localSaleStore.changeSaleStatus(saleId, true)
+                return Result.success()
+            }
+
             Log.e("PendingLocalSalesWorker", "Error al enviar venta local ${sale.LOCAL_SALE_ID}", e)
             Result.retry()
         }
