@@ -12,15 +12,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,11 +42,14 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
+import com.example.msp_app.features.sales.components.pendingSalesCards.PendingSalesCards
+import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 
 @Composable
 fun SaleHomeScreen(navController: NavController) {
     val productsViewModel: ProductsInventoryViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
+    val salesViewModel: NewLocalSaleViewModel = viewModel()
 
     val productState = productsViewModel.productInventoryState.collectAsState().value
     val loading = productState is ResultState.Loading
@@ -55,6 +58,9 @@ fun SaleHomeScreen(navController: NavController) {
     val downloadProgress by imagesViewModel.downloadProgress.collectAsState()
     val downloadedCount by imagesViewModel.downloadedCount.collectAsState()
     val totalToDownload by imagesViewModel.totalToDownload.collectAsState()
+
+    val pendingSalesState = salesViewModel.pendingSalesState.collectAsState().value
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showProgressDialog by remember { mutableStateOf(false) }
@@ -92,6 +98,10 @@ fun SaleHomeScreen(navController: NavController) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        salesViewModel.getPendingSales()
+    }
+
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
@@ -118,6 +128,12 @@ fun SaleHomeScreen(navController: NavController) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                PendingSalesCards(
+                    isDark = isDark,
+                    pendingSalesState = pendingSalesState,
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
                 Button(
                     onClick = {
                         productsViewModel.fetchRemoteInventory()
@@ -196,9 +212,9 @@ fun SaleHomeScreen(navController: NavController) {
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(16.dp))
-                    
+
                     // Custom progress bar
                     Card(
                         modifier = Modifier
@@ -216,15 +232,15 @@ fun SaleHomeScreen(navController: NavController) {
                             trackColor = MaterialTheme.colorScheme.surfaceVariant
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(12.dp))
-                    
+
                     Text(
-                        text = if (downloadProgress == 0) 
-                            "Iniciando descarga..." 
+                        text = if (downloadProgress == 0)
+                            "Iniciando descarga..."
                         else if (downloadProgress < 100)
                             "Descargando imágenes..."
-                        else 
+                        else
                             "¡Descarga completada!",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
