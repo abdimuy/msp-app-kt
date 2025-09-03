@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,7 +74,7 @@ fun SaleDetailsListScreen(navController: NavController) {
     DrawerContainer(
         navController = navController
     ) { openDrawer ->
-        val isDark = ThemeController.isDarkMode
+        ThemeController.isDarkMode
 
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
@@ -118,6 +121,8 @@ fun SaleDetailsListScreen(navController: NavController) {
                             pattern = "dd/MM/yyyy HH:mm a"
                         )
 
+                        val isExpanded = expandedSaleId == sale.LOCAL_SALE_ID
+
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -131,12 +136,7 @@ fun SaleDetailsListScreen(navController: NavController) {
                                 containerColor = MaterialTheme.colorScheme.surface
                             ),
                             onClick = {
-                                if (expandedSaleId == sale.LOCAL_SALE_ID) {
-                                    expandedSaleId = ""
-                                } else {
-                                    expandedSaleId = sale.LOCAL_SALE_ID
-                                    viewModel.loadImagesBySaleId(sale.LOCAL_SALE_ID)
-                                }
+                                navController.navigate("saleDescription/${sale.LOCAL_SALE_ID}")
                             }
                         ) {
                             Column(
@@ -158,9 +158,9 @@ fun SaleDetailsListScreen(navController: NavController) {
                                         val radius = size.minDimension / 2
 
                                         val statusColor = if (sale.ENVIADO)
-                                            androidx.compose.ui.graphics.Color(0xFF4CAF50)
+                                            Color(0xFF4CAF50)
                                         else
-                                            androidx.compose.ui.graphics.Color(0xFFFF5722)
+                                            Color(0xFFFF5722)
 
                                         drawCircle(
                                             color = statusColor,
@@ -212,15 +212,6 @@ fun SaleDetailsListScreen(navController: NavController) {
                                         verticalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
                                         Text(
-                                            text = "$${String.format("%.0f", sale.PRECIO_TOTAL)}",
-                                            style = MaterialTheme.typography.titleMedium.copy(
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 18.sp
-                                            ),
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-
-                                        Text(
                                             text = if (sale.ENVIADO) "Enviado" else "Pendiente",
                                             modifier = Modifier
                                                 .background(
@@ -244,7 +235,53 @@ fun SaleDetailsListScreen(navController: NavController) {
                                             else
                                                 MaterialTheme.colorScheme.error
                                         )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "$${
+                                                    String.format(
+                                                        "%.0f",
+                                                        sale.PRECIO_TOTAL
+                                                    )
+                                                }",
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 18.sp
+                                                ),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                            Spacer(Modifier.width(10.dp))
+                                            Icon(
+                                                imageVector = if (isExpanded)
+                                                    Icons.Default.KeyboardArrowUp
+                                                else
+                                                    Icons.Default.KeyboardArrowDown,
+                                                contentDescription = if (isExpanded) "Contraer" else "Expandir",
+                                                tint = MaterialTheme.colorScheme.surface,
+                                                modifier = Modifier
+                                                    .size(30.dp)
+                                                    .clickable {
+                                                        if (expandedSaleId == sale.LOCAL_SALE_ID) {
+                                                            expandedSaleId = ""
+                                                        } else {
+                                                            expandedSaleId = sale.LOCAL_SALE_ID
+                                                            viewModel.loadImagesBySaleId(sale.LOCAL_SALE_ID)
+                                                        }
+                                                    }
+                                                    .background(
+                                                        color = Color.LightGray,
+                                                        shape = RoundedCornerShape(10.dp)
+                                                    )
+                                            )
+                                        }
                                     }
+                                }
+                                if (isExpanded) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(horizontal = 20.dp),
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                    )
                                 }
 
                                 if (expandedSaleId == sale.LOCAL_SALE_ID) {

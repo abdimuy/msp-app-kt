@@ -143,22 +143,57 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                         InfoRow("Aval o Responsable:", sale?.AVAL_O_RESPONSABLE.toString())
 
                         Spacer(Modifier.height(12.dp))
-                        val pins = listOf(
-                            MapPin(
-                                lat = sale?.LONGITUD ?: 0.0,
-                                lon = sale?.LATITUD ?: 0.0,
-                                sale?.DIRECCION ?: ""
+                        val pins = remember(sale) {
+                            if (sale != null &&
+                                sale!!.LATITUD != null &&
+                                sale!!.LONGITUD != null &&
+                                sale!!.LATITUD != 0.0 &&
+                                sale!!.LONGITUD != 0.0
+                            ) {
+                                listOf(
+                                    MapPin(
+                                        lat = sale!!.LATITUD,
+                                        lon = sale!!.LONGITUD,
+                                        sale!!.DIRECCION ?: "Ubicación de venta"
+                                    )
+                                )
+                            } else {
+                                emptyList()
+                            }
+                        }
+
+                        if (pins.isNotEmpty()) {
+                            MapView(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(250.dp),
+                                context = context,
+                                pins = pins,
+                                initialZoom = 15f,
+                                cameraPositionState = cameraPositionState
                             )
-                        )
-                        MapView(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(250.dp),
-                            context = context,
-                            pins = pins,
-                            initialZoom = 13f,
-                            cameraPositionState = cameraPositionState
-                        )
+                        } else {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(100.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = "No hay ubicación registrada",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                         Spacer(Modifier.height(12.dp))
 
                         Text(
