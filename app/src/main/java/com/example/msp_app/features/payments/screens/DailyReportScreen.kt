@@ -382,7 +382,7 @@ fun DailyReportScreen(
                                     item { Spacer(modifier = Modifier.height(2.dp)) }
                                     items(
                                         visiblePayments,
-                                        key = { it.hashCode() }
+                                        key = { it.ID }
                                     ) { pago ->
                                         PaymentItem(
                                             pago,
