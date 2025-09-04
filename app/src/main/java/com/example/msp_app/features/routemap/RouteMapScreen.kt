@@ -230,7 +230,7 @@ fun RouteMapScreen(
                             Text("No hay pagos para esta fecha.")
                         } else {
                             LazyColumn(modifier = Modifier.weight(1f)) {
-                                items(visiblePayments, key = { it.hashCode() }) { payment ->
+                                items(visiblePayments, key = { it.ID }) { payment ->
                                     PaymentItem(
                                         payment = payment,
                                         variant = PaymentItemVariant.DEFAULT,
