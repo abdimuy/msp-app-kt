@@ -117,6 +117,8 @@ fun NewSaleScreen(navController: NavController) {
     var showSuccessDialog by remember { mutableStateOf(false) }
     var expandedfrequency by remember { mutableStateOf(false) }
     var expandedDia by remember { mutableStateOf(false) }
+    var hasValidLocation by remember { mutableStateOf(false) }
+    var locationPermissionGranted by remember { mutableStateOf(false) }
 
     var defectNameError by remember { mutableStateOf(false) }
     var phoneError by remember { mutableStateOf(false) }
@@ -166,6 +168,12 @@ fun NewSaleScreen(navController: NavController) {
         } catch (e: Exception) {
             0L
         }
+    }
+
+    fun validateLocationData(): Boolean {
+        val isValid = latitude != 0.0 && longitude != 0.0 && locationPermissionGranted
+        hasValidLocation = isValid
+        return isValid
     }
 
     fun validateImageSize(context: Context, uri: Uri): Boolean {
@@ -272,13 +280,14 @@ fun NewSaleScreen(navController: NavController) {
         val clientNameValid = validateClientName(defectName.text)
         val phoneValid = validatePhone(phone.text)
         val locationValid = validateLocation(location)
+        val locationDataValid = validateLocationData()
         val installmentValid = validateInstallment(installment.text)
         val paymentFrequencyValid = validatePaymentFrequency(paymentfrequency)
         val collectionDayValid = validateCollectionDay(collectionday)
         val imagesValid = validateImages()
         val productsValid = validateProducts()
 
-        return clientNameValid && phoneValid && locationValid &&
+        return clientNameValid && phoneValid && locationValid && locationDataValid &&
                 installmentValid && paymentFrequencyValid && collectionDayValid &&
                 imagesValid && productsValid
     }
@@ -533,8 +542,18 @@ fun NewSaleScreen(navController: NavController) {
                         onLocationChange = { loc ->
                             latitude = loc.latitude
                             longitude = loc.longitude
+                            locationPermissionGranted = true
+                            validateLocationData()
                         }
                     )
+                    if (!locationPermissionGranted || !hasValidLocation) {
+                        Text(
+                            text = "* Se requieren permisos de ubicación para generar la venta",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
@@ -834,6 +853,7 @@ fun NewSaleScreen(navController: NavController) {
                         }
 
                     },
+                    enabled = hasValidLocation,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(16.dp),
