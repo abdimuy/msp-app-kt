@@ -15,18 +15,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
-import androidx.compose.ui.window.Dialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,22 +36,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.msp_app.R
+import com.example.msp_app.components.stock.ProductStock
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
@@ -136,12 +136,16 @@ fun CartItemCard(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    Text(
-                        text = "Stock almacén general: ${generalWarehouseStock ?: "Cargando..."}",
-                        fontSize = 12.sp,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(-6.dp)
+                    ) {
+                        Text(
+                            text = "Stock almacen general:",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp
+                        )
+                        ProductStock(stock = generalWarehouseStock)
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -192,7 +196,7 @@ fun CartItemCard(
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .combinedClickable(
-                                    onClick = { 
+                                    onClick = {
                                         showQuantityDialog = true
                                         isIncreaseMode = true
                                     },
@@ -283,7 +287,7 @@ fun CartItemCard(
 
             if (!cartItem.product.PRECIOS.isNullOrEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -325,14 +329,14 @@ fun CartItemCard(
             }
         }
     }
-    
+
     if (showQuantityDialog) {
         var inputQuantity by remember { mutableStateOf("") }
         val maxAvailable = if (isIncreaseMode) (generalWarehouseStock ?: 0) else cartItem.quantity
-        
+
         Dialog(
-            onDismissRequest = { 
-                showQuantityDialog = false 
+            onDismissRequest = {
+                showQuantityDialog = false
                 inputQuantity = ""
             }
         ) {
@@ -357,17 +361,17 @@ fun CartItemCard(
                             modifier = Modifier
                                 .size(32.dp)
                                 .background(
-                                    color = if (isIncreaseMode) MaterialTheme.colorScheme.primaryContainer 
-                                           else MaterialTheme.colorScheme.errorContainer,
+                                    color = if (isIncreaseMode) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.errorContainer,
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .padding(6.dp),
                             tint = if (isIncreaseMode) MaterialTheme.colorScheme.onPrimaryContainer
-                                  else MaterialTheme.colorScheme.onErrorContainer
+                            else MaterialTheme.colorScheme.onErrorContainer
                         )
-                        
+
                         Spacer(modifier = Modifier.width(12.dp))
-                        
+
                         Text(
                             text = if (isIncreaseMode) "Agregar productos" else "Quitar productos",
                             style = MaterialTheme.typography.titleLarge,
@@ -375,10 +379,10 @@ fun CartItemCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(20.dp))
-                    
-                        Card(
+
+                    Card(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ),
@@ -393,9 +397,9 @@ fun CartItemCard(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            
+
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -412,7 +416,7 @@ fun CartItemCard(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                            
+
                             if (isIncreaseMode) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -433,9 +437,9 @@ fun CartItemCard(
                             }
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(20.dp))
-                    
+
                     OutlinedTextField(
                         value = inputQuantity,
                         onValueChange = { value ->
@@ -453,13 +457,13 @@ fun CartItemCard(
                             unfocusedIndicatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                         )
                     )
-                    
+
                     if (inputQuantity.isNotEmpty()) {
                         val quantity = inputQuantity.toIntOrNull() ?: 0
                         val isValid = quantity > 0 && quantity <= maxAvailable
-                        
+
                         Spacer(modifier = Modifier.height(8.dp))
-                        
+
                         Text(
                             text = if (isValid) {
                                 if (isIncreaseMode) "Se agregarán $quantity productos"
@@ -469,18 +473,18 @@ fun CartItemCard(
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = if (isValid) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.error
                         )
                     }
-                    
+
                     Spacer(modifier = Modifier.height(24.dp))
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Button(
-                            onClick = { 
+                            onClick = {
                                 showQuantityDialog = false
                                 inputQuantity = ""
                             },
@@ -492,21 +496,24 @@ fun CartItemCard(
                         ) {
                             Text("Cancelar")
                         }
-                        
+
                         Button(
                             onClick = {
                                 val quantity = inputQuantity.toIntOrNull() ?: 0
                                 if (quantity > 0) {
                                     if (isIncreaseMode) {
-                                        onBatchIncrease?.invoke(quantity) ?: repeat(quantity) { onIncreaseQuantity() }
+                                        onBatchIncrease?.invoke(quantity)
+                                            ?: repeat(quantity) { onIncreaseQuantity() }
                                     } else {
-                                        onBatchDecrease?.invoke(quantity) ?: repeat(quantity) { onDecreaseQuantity() }
+                                        onBatchDecrease?.invoke(quantity)
+                                            ?: repeat(quantity) { onDecreaseQuantity() }
                                     }
                                 }
                                 showQuantityDialog = false
                                 inputQuantity = ""
                             },
-                            enabled = inputQuantity.toIntOrNull()?.let { it > 0 && it <= maxAvailable } ?: false,
+                            enabled = inputQuantity.toIntOrNull()
+                                ?.let { it > 0 && it <= maxAvailable } == true,
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(if (isIncreaseMode) "Agregar" else "Quitar")
