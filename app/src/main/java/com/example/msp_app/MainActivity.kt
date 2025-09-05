@@ -23,7 +23,7 @@ class MainActivity : FragmentActivity() {
 
     private var isAuthenticated by mutableStateOf(false)
     private var lastActivityTime = System.currentTimeMillis()
-    private val inactivityTimeoutMs = 10 * 60 * 1000L // 10 minutos
+    private val inactivityTimeoutMs = 5 * 60 * 1000L // 5 minutos
 
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
