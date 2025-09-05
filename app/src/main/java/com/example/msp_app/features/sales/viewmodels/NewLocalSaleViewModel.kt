@@ -11,6 +11,7 @@ import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
+import com.example.msp_app.utils.PriceParser
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -188,14 +189,15 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 localSaleStore.insertSale(saleEntity)
 
                 val productEntities = saleProducts.map { saleItem ->
+                    val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
                     LocalSaleProductEntity(
                         LOCAL_SALE_ID = saleId,
                         ARTICULO_ID = saleItem.product.ARTICULO_ID,
                         ARTICULO = saleItem.product.ARTICULO,
                         CANTIDAD = saleItem.quantity,
-                        PRECIO_LISTA = 0.0,
-                        PRECIO_CORTO_PLAZO = 0.0,
-                        PRECIO_CONTADO = 0.0
+                        PRECIO_LISTA = parsedPrices.precioLista,
+                        PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
+                        PRECIO_CONTADO = parsedPrices.precioContado
                     )
                 }
 
