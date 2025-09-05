@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import com.example.msp_app.data.models.productInventory.ProductInventory
+import com.example.msp_app.utils.PriceParser
 
 data class SaleItem(
     val product: ProductInventory,
@@ -78,5 +79,15 @@ class SaleProductsViewModel : ViewModel() {
             it.product.PRECIOS?.toDoubleOrNull() != null &&
                     it.product.PRECIOS.toDouble() > 0
         }
+    }
+    
+    fun getTotalPrecioLista(): Double = _saleItems.sumOf { saleItem ->
+        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+        parsedPrices.precioLista * saleItem.quantity
+    }
+    
+    fun getTotalMontoCortoplazo(): Double = _saleItems.sumOf { saleItem ->
+        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+        parsedPrices.precioCortoplazo * saleItem.quantity
     }
 }
