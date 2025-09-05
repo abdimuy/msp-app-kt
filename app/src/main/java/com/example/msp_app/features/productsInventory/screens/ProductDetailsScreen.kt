@@ -72,11 +72,11 @@ import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.components.stock.ProductStock
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.toCurrency
-import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductDetailsViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
@@ -91,7 +91,6 @@ fun ProductDetailsScreen(
     navController: NavController,
 ) {
     val detailsViewModel: ProductDetailsViewModel = viewModel()
-    val cartViewModel: CartViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
     val warehouseViewModel: com.example.msp_app.features.warehouses.WarehouseViewModel = viewModel()
@@ -331,12 +330,7 @@ fun ProductDetailsScreen(
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Text(
-                                    text = generalWarehouseStock?.toString() ?: "Cargando...",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                ProductStock(stock = generalWarehouseStock)
                             }
 
                             Column(
@@ -722,9 +716,6 @@ fun ProductDetailsScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Button(onClick = { }) {
-                        Text("Vender")
-                    }
                     Button(
                         onClick = {
                             if (camionetaAsignada != null) {

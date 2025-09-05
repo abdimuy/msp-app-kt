@@ -164,6 +164,12 @@ fun PaymentTicketScreen(
         }
     }
 
+    val date = DateUtils.formatIsoDate(
+        iso = selectedPayment!!.FECHA_HORA_PAGO,
+        pattern = "dd/MM/yy HH:mm",
+        locale = Locale("es", "MX")
+    )
+
     DrawerContainer(
         navController = navController
     ) { openDrawer ->
@@ -202,11 +208,6 @@ fun PaymentTicketScreen(
 
                             finalSaldo = saldoAnterior
 
-                            val date = DateUtils.formatIsoDate(
-                                iso = selectedPayment!!.FECHA_HORA_PAGO,
-                                pattern = "dd/MM/yy HH:mm",
-                                locale = Locale("es", "MX")
-                            )
                             finalFormattedDate = date
                             val lineBlanck = (" ").repeat(32)
 
@@ -529,7 +530,7 @@ fun PaymentTicketScreen(
                                             PaymentPdfGenerator.paymentStructuredPdf(
                                                 context = context,
                                                 folio = finalSale?.FOLIO ?: "",
-                                                fechaVenta = finalSale?.FECHA ?: "",
+                                                fechaVenta = date ?: "",
                                                 cliente = finalSale?.CLIENTE ?: "",
                                                 direccion = "${finalSale?.CALLE} ${finalSale?.CIUDAD} ${finalSale?.ESTADO}",
                                                 telefono = finalSale?.TELEFONO ?: "",

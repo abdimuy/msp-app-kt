@@ -6,9 +6,15 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.api.ApiProvider
+import com.example.msp_app.data.api.services.warehouses.WarehousesApi
+import com.example.msp_app.data.cache.ProductsCache
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
+import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
+import com.example.msp_app.data.local.entities.ProductInventoryEntity
+import com.example.msp_app.data.local.repository.WarehouseRepository
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.toDomain
@@ -19,10 +25,12 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
@@ -32,6 +40,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
     private val salesStore = SalesLocalDataSource(application.applicationContext)
+    private val productsCache = ProductsCache(application.applicationContext)
+    private val warehousesApi = ApiProvider.create(WarehousesApi::class.java)
+    private val warehouseRepository = WarehouseRepository(WarehouseRemoteDataSource(warehousesApi))
 
     private val _currentUser = MutableStateFlow<FirebaseUser?>(auth.currentUser)
     val currentUser: StateFlow<FirebaseUser?> = _currentUser
@@ -89,6 +100,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     if (!hasCheckedVersion && data != null) {
                         hasCheckedVersion = true
                         updateAppVersion(data.ID, data)
+                        loadProductsToCache(data.CAMIONETA_ASIGNADA)
                     }
                 } else {
                     _userData.value = ResultState.Success(null)
@@ -172,6 +184,38 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearUpdateStartOfWeekDateState() {
         _updateStartOfWeekDateState.value = ResultState.Idle
+    }
+
+    private fun loadProductsToCache(camionetaId: Int?) {
+        if (camionetaId == null) return
+        
+        viewModelScope.launch {
+            try {
+                warehouseRepository.getWarehouseProducts(camionetaId).fold(
+                    onSuccess = { response ->
+                        val entities = response.body.ARTICULOS.map { product ->
+                            ProductInventoryEntity(
+                                ARTICULO_ID = product.ARTICULO_ID,
+                                ARTICULO = product.ARTICULO ?: "Sin nombre",
+                                EXISTENCIAS = product.EXISTENCIAS ?: 0,
+                                LINEA_ARTICULO_ID = product.LINEA_ARTICULO_ID ?: 0,
+                                LINEA_ARTICULO = product.LINEA_ARTICULO ?: "Sin categoría",
+                                PRECIOS = product.PRECIOS
+                            )
+                        }
+                        withContext(Dispatchers.IO) {
+                            productsCache.saveProducts(entities)
+                        }
+                        Log.d("AuthViewModel", "Productos guardados en cache al iniciar sesión: ${entities.size}")
+                    },
+                    onFailure = { exception ->
+                        Log.e("AuthViewModel", "Error cargando productos al cache", exception)
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Error guardando productos en cache", e)
+            }
+        }
     }
 
     override fun onCleared() {

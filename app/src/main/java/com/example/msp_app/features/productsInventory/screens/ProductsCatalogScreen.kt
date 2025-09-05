@@ -64,6 +64,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.components.stock.ProductStock
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
 import com.example.msp_app.core.utils.searchSimilarItems
@@ -334,21 +335,21 @@ fun ProductCard(
                     overflow = TextOverflow.Ellipsis,
                     lineHeight = 16.sp
                 )
-                Text(
-                    text = buildAnnotatedString {
-                        append("Stock: ")
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append("${product.EXISTENCIAS}")
-                        }
-                    },
-                    fontSize = 14.sp,
-                    color = if (isDark) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        Color(0xFF0056B3)
-                    },
-                    lineHeight = 16.sp
-                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Stock:",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    ProductStock(stock = product.EXISTENCIAS)
+                }
+
                 val priceMap = try {
                     parsePriceJsonToMap(product.PRECIOS)
                 } catch (e: Exception) {
