@@ -71,6 +71,7 @@ fun SimpleProductSelector(
 
     val userData by authViewModel.userData.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
+    val isOfflineMode by warehouseViewModel.isOfflineMode.collectAsState()
 
     val camionetaId = when (val userState = userData) {
         is ResultState.Success -> userState.data?.CAMIONETA_ASIGNADA
@@ -147,12 +148,32 @@ fun SimpleProductSelector(
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    "Seleccionar producto",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Seleccionar producto",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    
+                    if (isOfflineMode) {
+                        Text(
+                            text = "OFFLINE",
+                            modifier = Modifier
+                                .background(
+                                    color = Color.Red.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Red,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
 
                 Box {
                     OutlinedTextField(

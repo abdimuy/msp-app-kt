@@ -1,5 +1,6 @@
 package com.example.msp_app.features.sales.screens
 
+import android.annotation.SuppressLint
 import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -54,6 +55,7 @@ import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewe
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.ui.theme.ThemeController
 
+@SuppressLint("DefaultLocale")
 @Composable
 fun SaleDetailsListScreen(navController: NavController) {
     val viewModel: NewLocalSaleViewModel = viewModel()

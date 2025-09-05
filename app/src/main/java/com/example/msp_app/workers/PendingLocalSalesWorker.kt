@@ -43,11 +43,6 @@ class PendingLocalSalesWorker(
             }
 
         return try {
-            Log.d(
-                "PendingLocalSalesWorker",
-                "Enviando venta local: ${sale.LOCAL_SALE_ID} para usuario: $userEmail"
-            )
-
             val products = saleProductStore.getProductsForSale(saleId)
             val images = localSaleStore.getImagesForSale(saleId)
 
@@ -65,52 +60,22 @@ class PendingLocalSalesWorker(
                         "jpg", "jpeg" -> "image/jpeg"
                         "png" -> "image/png"
                         "gif" -> "image/gif"
-                        else -> {
-                            Log.w(
-                                "PendingLocalSalesWorker",
-                                "Formato no soportado: ${file.extension} para ${file.name}"
-                            )
-                            "image/jpeg" // fallback
-                        }
+                        else -> "image/jpeg"
                     }
 
                     val requestFile = file.asRequestBody(mimeType.toMediaTypeOrNull())
                     val imagePart =
                         MultipartBody.Part.createFormData("imagenes", file.name, requestFile)
                     imageParts.add(imagePart)
-                } else {
-                    Log.w("PendingLocalSalesWorker", "Imagen no encontrada: ${image.IMAGE_URI}")
                 }
             }
 
             val response = api.saveLocalSale(datosRequestBody, imageParts)
-
-            Log.d(
-                "PendingLocalSalesWorker",
-                "Respuesta exitosa del servidor - Success: ${response.success}, Message: ${response.message}"
-            )
-
             localSaleStore.changeSaleStatus(saleId, true)
-            Log.d(
-                "PendingLocalSalesWorker",
-                "Venta local marcada como enviada: ${sale.LOCAL_SALE_ID}"
-            )
-
-            if (!response.success && response.message != null) {
-                Log.w(
-                    "PendingLocalSalesWorker",
-                    "Servidor procesó la venta pero reportó: ${response.message}"
-                )
-            }
-
             Result.success()
 
         } catch (e: Exception) {
             if (e is retrofit2.HttpException && e.code() == 409) {
-                Log.w(
-                    "PendingLocalSalesWorker",
-                    "Venta ${sale.LOCAL_SALE_ID} ya existe en el servidor (409 Conflict), marcando como enviada"
-                )
                 localSaleStore.changeSaleStatus(saleId, true)
                 return Result.success()
             }
