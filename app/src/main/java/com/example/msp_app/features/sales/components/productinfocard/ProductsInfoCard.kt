@@ -23,7 +23,8 @@ import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 @Composable
 fun ProductsInfoCard(
     saleProducts: List<LocalSaleProductEntity>,
-    productsViewModel: SaleProductsViewModel
+    productsViewModel: SaleProductsViewModel,
+    total: Double
 ) {
     Card(
         modifier = Modifier
@@ -111,7 +112,7 @@ fun ProductsInfoCard(
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Text(
-                                productsViewModel.getTotalPrice().toCurrency(),
+                                if (total != null) total.toCurrency(noDecimals = true) else "0.0",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )

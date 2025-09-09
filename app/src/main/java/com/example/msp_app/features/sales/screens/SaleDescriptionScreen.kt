@@ -228,9 +228,11 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     }
                 }
 
+                val calculatedTotal = saleProducts.sumOf { it.PRECIO_LISTA * it.CANTIDAD }
                 ProductsInfoCard(
                     saleProducts = saleProducts,
-                    productsViewModel = productsViewModel
+                    productsViewModel = productsViewModel,
+                    total = calculatedTotal
                 )
                 Spacer(Modifier.height(8.dp))
 
