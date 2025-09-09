@@ -65,7 +65,7 @@ class SaleProductsViewModel : ViewModel() {
 
     fun getSaleItemsForWarehouse(): List<Pair<ProductInventory, Int>> =
         _saleItems.map { it.product to it.quantity }
-    
+
     fun getSaleItemsList(): List<SaleItem> = _saleItems.toList()
 
     fun clearSale() {
@@ -80,14 +80,19 @@ class SaleProductsViewModel : ViewModel() {
                     it.product.PRECIOS.toDouble() > 0
         }
     }
-    
+
     fun getTotalPrecioLista(): Double = _saleItems.sumOf { saleItem ->
         val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
         parsedPrices.precioLista * saleItem.quantity
     }
-    
+
     fun getTotalMontoCortoplazo(): Double = _saleItems.sumOf { saleItem ->
         val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
         parsedPrices.precioCortoplazo * saleItem.quantity
+    }
+
+    fun getTotalMontoContado(): Double = _saleItems.sumOf { saleItem ->
+        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+        parsedPrices.precioContado * saleItem.quantity
     }
 }

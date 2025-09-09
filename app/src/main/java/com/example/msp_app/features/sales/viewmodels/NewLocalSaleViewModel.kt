@@ -143,9 +143,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         avaloresponsable: String,
         note: String,
         collectionday: String,
-        totalprice: Double = 0.0,
-        shorttermtime: Int = 0,
-        shorttermamount: Double = 0.0,
+        totalprice: Double,
+        shorttermtime: Int,
+        shorttermamount: Double,
+        cashamount: Double,
         enviado: Boolean,
         saleProducts: List<SaleItem>,
         context: Context,
@@ -183,6 +184,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     PRECIO_TOTAL = totalprice,
                     TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
                     MONTO_A_CORTO_PLAZO = shorttermamount,
+                    MONTO_DE_CONTADO = cashamount,
                     ENVIADO = enviado
                 )
 

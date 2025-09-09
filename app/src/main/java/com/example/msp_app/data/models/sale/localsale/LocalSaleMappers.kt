@@ -1,7 +1,7 @@
 package com.example.msp_app.data.models.sale.localsale
 
-import com.example.msp_app.data.api.services.localSales.LocalSaleRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleProductRequest
+import com.example.msp_app.data.api.services.localSales.LocalSaleRequest
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
@@ -19,12 +19,13 @@ class LocalSaleMappers {
             ENGANCHE = this.ENGANCHE,
             TELEFONO = this.TELEFONO,
             FREC_PAGO = this.FREC_PAGO,
-            AVAL_O_RESPONSABLE = this.FREC_PAGO,
+            AVAL_O_RESPONSABLE = this.AVAL_O_RESPONSABLE,
             NOTA = this.NOTA,
             DIA_COBRANZA = this.DIA_COBRANZA,
             PRECIO_TOTAL = this.PRECIO_TOTAL,
             TIEMPO_A_CORTO_PLAZOMESES = this.TIEMPO_A_CORTO_PLAZOMESES,
             MONTO_A_CORTO_PLAZO = this.MONTO_A_CORTO_PLAZO,
+            MONTO_DE_CONTADO = this.MONTO_DE_CONTADO,
             ENVIADO = this.ENVIADO
         )
     }
@@ -41,12 +42,13 @@ class LocalSaleMappers {
             ENGANCHE = this.ENGANCHE,
             TELEFONO = this.TELEFONO,
             FREC_PAGO = this.FREC_PAGO,
-            AVAL_O_RESPONSABLE = this.FREC_PAGO,
+            AVAL_O_RESPONSABLE = this.AVAL_O_RESPONSABLE,
             NOTA = this.NOTA,
             DIA_COBRANZA = this.DIA_COBRANZA,
             PRECIO_TOTAL = this.PRECIO_TOTAL,
             TIEMPO_A_CORTO_PLAZOMESES = this.TIEMPO_A_CORTO_PLAZOMESES,
             MONTO_A_CORTO_PLAZO = this.MONTO_A_CORTO_PLAZO,
+            MONTO_DE_CONTADO = this.MONTO_DE_CONTADO,
             ENVIADO = this.ENVIADO
         )
     }
@@ -92,8 +94,11 @@ class LocalSaleMappers {
             PRECIO_CONTADO = this.PRECIO_CONTADO
         )
     }
-    
-    fun LocalSaleEntity.toServerRequest(products: List<LocalSaleProductEntity>, userEmail: String): LocalSaleRequest {
+
+    fun LocalSaleEntity.toServerRequest(
+        products: List<LocalSaleProductEntity>,
+        userEmail: String
+    ): LocalSaleRequest {
         return LocalSaleRequest(
             localSaleId = this.LOCAL_SALE_ID,
             userEmail = userEmail,
@@ -112,10 +117,11 @@ class LocalSaleMappers {
             precioTotal = this.PRECIO_TOTAL,
             tiempoACortoPlazoMeses = this.TIEMPO_A_CORTO_PLAZOMESES,
             montoACortoPlazo = this.MONTO_A_CORTO_PLAZO,
+            montoDeContado = this.MONTO_DE_CONTADO,
             productos = products.map { it.toServerRequest() }
         )
     }
-    
+
     fun LocalSaleProductEntity.toServerRequest(): LocalSaleProductRequest {
         return LocalSaleProductRequest(
             articuloId = this.ARTICULO_ID,

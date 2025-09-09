@@ -24,6 +24,7 @@ data class LocalSaleRequest(
     val precioTotal: Double,
     val tiempoACortoPlazoMeses: Int,
     val montoACortoPlazo: Double,
+    val montoDeContado: Double,
     val productos: List<LocalSaleProductRequest>
 )
 

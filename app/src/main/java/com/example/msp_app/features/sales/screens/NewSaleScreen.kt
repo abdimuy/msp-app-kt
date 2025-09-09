@@ -394,6 +394,7 @@ fun NewSaleScreen(navController: NavController) {
             totalprice = saleProductsViewModel.getTotalPrecioLista(),
             shorttermtime = 0,
             shorttermamount = saleProductsViewModel.getTotalMontoCortoplazo(),
+            cashamount = saleProductsViewModel.getTotalMontoContado(),
             enviado = false,
             saleProducts = saleProductsViewModel.saleItems,
             context = context,

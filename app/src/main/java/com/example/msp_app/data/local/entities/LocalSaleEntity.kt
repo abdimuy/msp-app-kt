@@ -26,5 +26,6 @@ class LocalSaleEntity(
     val PRECIO_TOTAL: Double,
     val TIEMPO_A_CORTO_PLAZOMESES: Int,
     val MONTO_A_CORTO_PLAZO: Double,
+    val MONTO_DE_CONTADO: Double,
     val ENVIADO: Boolean
 )

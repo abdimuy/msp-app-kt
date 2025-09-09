@@ -31,6 +31,7 @@ interface LocalSaleDao {
             PRECIO_TOTAL,
             TIEMPO_A_CORTO_PLAZOMESES, 
             MONTO_A_CORTO_PLAZO,
+            MONTO_DE_CONTADO,
             ENVIADO
             FROM local_sale 
             ORDER BY FECHA_VENTA DESC
@@ -57,6 +58,7 @@ interface LocalSaleDao {
             PRECIO_TOTAL,
             TIEMPO_A_CORTO_PLAZOMESES, 
             MONTO_A_CORTO_PLAZO,
+            MONTO_DE_CONTADO,
             ENVIADO
             FROM local_sale 
             WHERE LOCAL_SALE_ID = :sale_Id
@@ -95,6 +97,7 @@ interface LocalSaleDao {
             PRECIO_TOTAL,
             TIEMPO_A_CORTO_PLAZOMESES, 
             MONTO_A_CORTO_PLAZO,
+            MONTO_DE_CONTADO,
             ENVIADO
             FROM local_sale 
             WHERE ENVIADO = :enviado 
