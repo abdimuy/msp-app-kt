@@ -95,4 +95,21 @@ class SaleProductsViewModel : ViewModel() {
         val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
         parsedPrices.precioContado * saleItem.quantity
     }
+
+    fun updateProductPrices(
+        product: ProductInventory,
+        newListPrice: Double,
+        newShortTermPrice: Double,
+        newCashPrice: Double
+    ) {
+        val index = _saleItems.indexOfFirst { it.product.ARTICULO_ID == product.ARTICULO_ID }
+        if (index != -1) {
+            val oldItem = _saleItems[index]
+            val updatedProduct = oldItem.product.copy(
+                PRECIOS = PriceParser.pricesToJson(newListPrice, newShortTermPrice, newCashPrice)
+            )
+            _saleItems[index] = oldItem.copy(product = updatedProduct)
+        }
+    }
+
 }
