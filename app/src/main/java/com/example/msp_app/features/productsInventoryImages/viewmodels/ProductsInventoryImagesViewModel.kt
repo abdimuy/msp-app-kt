@@ -97,7 +97,7 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
                 _totalToDownload.value = total
                 val downloaded = java.util.concurrent.atomic.AtomicInteger(0)
 
-                val semaphore = Semaphore(10)
+                val semaphore = Semaphore(4)
 
                 val imagesWithLocalPaths =
                     java.util.concurrent.CopyOnWriteArrayList<ProductInventoryImageEntity>()
