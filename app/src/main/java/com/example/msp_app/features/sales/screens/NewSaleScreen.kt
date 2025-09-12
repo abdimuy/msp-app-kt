@@ -129,6 +129,7 @@ fun NewSaleScreen(navController: NavController) {
     var imageError by remember { mutableStateOf(false) }
     var productsError by remember { mutableStateOf(false) }
     var showImageSizeError by remember { mutableStateOf(false) }
+    var downpaymentError by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
@@ -276,11 +277,19 @@ fun NewSaleScreen(navController: NavController) {
         return isValid
     }
 
+    fun validateDownpayment(amount: String): Boolean {
+        val amountDouble = amount.toDoubleOrNull()
+        val isValid = amount.isBlank() || (amountDouble != null && amountDouble >= 0)
+        downpaymentError = !isValid
+        return isValid
+    }
+
     fun validateFields(): Boolean {
         val clientNameValid = validateClientName(defectName.text)
         val phoneValid = validatePhone(phone.text)
         val locationValid = validateLocation(location)
         val locationDataValid = validateLocationData()
+        val downpaymentValid = validateDownpayment(downpayment.text)
         val installmentValid = validateInstallment(installment.text)
         val paymentFrequencyValid = validatePaymentFrequency(paymentfrequency)
         val collectionDayValid = validateCollectionDay(collectionday)
@@ -288,7 +297,7 @@ fun NewSaleScreen(navController: NavController) {
         val productsValid = validateProducts()
 
         return clientNameValid && phoneValid && locationValid && locationDataValid &&
-                installmentValid && paymentFrequencyValid && collectionDayValid &&
+                installmentValid && paymentFrequencyValid && downpaymentValid && collectionDayValid &&
                 imagesValid && productsValid
     }
 
@@ -312,6 +321,7 @@ fun NewSaleScreen(navController: NavController) {
         defectName = TextFieldValue("")
         phone = TextFieldValue("")
         location = ""
+        downpayment = TextFieldValue("")
         installment = TextFieldValue("")
         guarantor = TextFieldValue("")
         note = TextFieldValue("")
@@ -324,6 +334,7 @@ fun NewSaleScreen(navController: NavController) {
         defectNameError = false
         phoneError = false
         locationError = false
+        downpaymentError = false
         installmentError = false
         paymentFrequencyError = false
         collectionDayError = false
@@ -583,12 +594,26 @@ fun NewSaleScreen(navController: NavController) {
                     ) {
                         OutlinedTextField(
                             value = downpayment,
-                            onValueChange = { downpayment = it },
+                            onValueChange = { newValue ->
+                                downpayment = newValue
+                                if (newValue.text.isNotEmpty() || downpaymentError) {
+                                    validateDownpayment(newValue.text)
+                                }
+                            },
                             label = { Text("Enganche") },
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             shape = RoundedCornerShape(15.dp),
-                            prefix = { Text("$") }
+                            prefix = { Text("$") },
+                            isError = downpaymentError,
+                            supportingText = if (downpaymentError) {
+                                {
+                                    Text(
+                                        "El enganche debe ser mayor o igual a 0",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else null,
                         )
 
                         OutlinedTextField(
