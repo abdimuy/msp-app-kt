@@ -98,33 +98,31 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         return savedPaths
     }
 
-    fun saveSaleImages(
+    suspend fun saveSaleImages(
         context: Context,
         uris: List<Uri>,
         saleId: String,
         fechasubida: String
     ) {
-        viewModelScope.launch {
-            try {
-                val savedPaths = saveImagesLocally(context, uris, saleId)
-                val images = savedPaths.map { (path, _) ->
-                    LocalSaleImageEntity(
-                        LOCAL_SALE_IMAGE_ID = UUID.randomUUID().toString(),
-                        LOCAL_SALE_ID = saleId,
-                        IMAGE_URI = path,
-                        FECHA_SUBIDA = fechasubida
-                    )
-                }
-
-                localSaleStore.insertSaleImage(images.first())
-                images.drop(1).forEach { image ->
-                    localSaleStore.insertSaleImage(image)
-                }
-                loadImagesBySaleId(saleId)
-
-            } catch (e: Exception) {
-                Log.e("Error", "${e.message}")
+        try {
+            val savedPaths = saveImagesLocally(context, uris, saleId)
+            
+            val images = savedPaths.map { (path, _) ->
+                LocalSaleImageEntity(
+                    LOCAL_SALE_IMAGE_ID = UUID.randomUUID().toString(),
+                    LOCAL_SALE_ID = saleId,
+                    IMAGE_URI = path,
+                    FECHA_SUBIDA = fechasubida
+                )
             }
+            
+            images.forEach { image ->
+                localSaleStore.insertSaleImage(image)
+            }
+
+        } catch (e: Exception) {
+            Log.e("NewLocalSaleViewModel", "Error al guardar imágenes: ${e.message}", e)
+            throw e
         }
     }
 
