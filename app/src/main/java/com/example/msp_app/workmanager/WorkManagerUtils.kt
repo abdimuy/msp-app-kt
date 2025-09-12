@@ -11,6 +11,7 @@ import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
 import com.example.msp_app.workers.PendingGuaranteesWorker
 import com.example.msp_app.workers.PendingGuaranteeEventsWorker
+import com.example.msp_app.workers.PendingLocalSalesWorker
 
 fun enqueuePendingPaymentsWorker(
     context: Context,
@@ -95,6 +96,33 @@ fun enqueuePendingGuaranteeEventsWorker(
 
     val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_guarantee_events"
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(uniqueName, policy, request)
+}
+
+fun enqueuePendingLocalSalesWorker(
+    context: Context,
+    localSaleId: String,
+    userEmail: String,
+    replace: Boolean = false
+) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val input = workDataOf(
+        "local_sale_id" to localSaleId,
+        "user_email" to userEmail
+    )
+
+    val request = OneTimeWorkRequestBuilder<PendingLocalSalesWorker>()
+        .setConstraints(constraints)
+        .setInputData(input)
+        .build()
+
+    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+    val uniqueName = "sync_pending_local_sale_$localSaleId"
 
     WorkManager.getInstance(context)
         .enqueueUniqueWork(uniqueName, policy, request)

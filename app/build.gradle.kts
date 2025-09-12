@@ -50,8 +50,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 10
-        versionName = "2.1.0"
+        versionCode = 11
+        versionName = "2.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -142,4 +142,5 @@ dependencies {
     implementation("org.apache.commons:commons-math3:3.6.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2")
     implementation("com.google.code.gson:gson:2.8.9")
+    implementation("androidx.biometric:biometric:1.1.0")
 }

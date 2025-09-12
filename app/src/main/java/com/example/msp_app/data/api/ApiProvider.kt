@@ -2,6 +2,7 @@ package com.example.msp_app.data.api
 
 import com.example.msp_app.core.utils.Constants.COLLECTION_CONFIG
 import com.example.msp_app.core.utils.Constants.DOCUMENT_API_SETTINGS
+import com.example.msp_app.core.utils.Constants.FIELD_BASE_URL
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.CoroutineScope
@@ -13,7 +14,7 @@ import retrofit2.Retrofit
 
 object ApiProvider : BaseApi() {
 
-    private const val DEFAULT_BASE_URL = "https://prueba2025.loclx.io/"
+    private const val DEFAULT_BASE_URL = "https://msp2025.loclx.io/"
     private val _baseURL = MutableStateFlow(DEFAULT_BASE_URL)
     val baseURL: StateFlow<String> = _baseURL
     private var retrofitInstance: Retrofit? = null
@@ -29,7 +30,7 @@ object ApiProvider : BaseApi() {
                     return@addSnapshotListener
                 }
                 if (snapshot != null && snapshot.exists()) {
-                    val newUrl = DEFAULT_BASE_URL
+                    val newUrl = snapshot.getString(FIELD_BASE_URL) ?: DEFAULT_BASE_URL
                     if (newUrl.isNotEmpty() && newUrl != _baseURL.value) {
                         _baseURL.value = newUrl
                         CoroutineScope(Dispatchers.IO).launch {

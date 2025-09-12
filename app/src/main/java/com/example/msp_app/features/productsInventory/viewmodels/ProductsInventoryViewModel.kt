@@ -59,7 +59,7 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
                 localDataSource.insertAll(products.map { it.toEntity() })
                 _productsLoaded.value = true
             } catch (e: Exception) {
-                Log.e("ProductsInventoryViewModel", "Error saving products locally: ${e.message}")
+
             }
         }
     }

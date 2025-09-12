@@ -1,7 +1,7 @@
 package com.example.msp_app.core.utils
 
 object Constants {
-    const val APP_VERSION = "2.1.0"
+    const val APP_VERSION = "2.2.0"
 
     const val PAGO_EN_EFECTIVO_ID = 157
     const val PAGO_CON_CHEQUE_ID = 158
@@ -21,7 +21,7 @@ object Constants {
     const val NO_SE_ENCONTRABA = "No se encontraba"
     const val CASA_CERRADA = "Casa cerrada con candado"
     const val SOLO_MENORES = "Solo había menores"
-    const val NO_VA_A_DAR_PAGO = "Dijo que no va a pagar"
+    const val NO_VA_A_DAR_PAGO = "No pagará esta ocasión"
     const val PIDE_TIEMPO = "Pidió que regrese otro día"
     const val TIENE_PERO_NO_PAGA = "Tiene dinero pero no quiso pagar"
     const val FUE_GROSERO = "Fue grosero o agresivo"

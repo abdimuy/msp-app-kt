@@ -198,6 +198,19 @@ fun DrawerContainer(
                                     }
                                 }
                             )
+
+                            NavigationDrawerItem(
+                                label = { Text("Ventas Realizadas") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("sales/details_list") {
+                                            popUpTo("sale_home")
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
 
