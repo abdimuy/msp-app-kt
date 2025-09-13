@@ -164,11 +164,13 @@ fun PaymentTicketScreen(
         }
     }
 
-    val date = DateUtils.formatIsoDate(
-        iso = selectedPayment!!.FECHA_HORA_PAGO,
-        pattern = "dd/MM/yy HH:mm",
-        locale = Locale("es", "MX")
-    )
+    val date = selectedPayment?.let {
+        DateUtils.formatIsoDate(
+            iso = it.FECHA_HORA_PAGO,
+            pattern = "dd/MM/yy HH:mm",
+            locale = Locale("es", "MX")
+        )
+    } ?: ""
 
     DrawerContainer(
         navController = navController
@@ -563,7 +565,7 @@ fun PaymentTicketScreen(
                                                 },
                                                 fechaPago = finalFormattedDate,
                                                 saldoAnterior = ((selectedPayment?.IMPORTE
-                                                    ?: 0.0) + (finalSale!!.SALDO_REST)).toCurrency(
+                                                    ?: 0.0) + (finalSale?.SALDO_REST ?: 0.0)).toCurrency(
                                                     noDecimals = true
                                                 ),
                                                 abonado = selectedPayment?.IMPORTE?.toCurrency(
@@ -605,19 +607,21 @@ fun PaymentTicketScreen(
                                     )
                                 }
 
-                                SelectBluetoothDevice(
-                                    textToPrint = ticket!!,
-                                    modifier = Modifier
-                                        .fillMaxWidth(),
-                                    onPrintRequest = { device, text ->
-                                        coroutineScope.launch {
-                                            try {
-                                                ThermalPrinting.printText(device, text, context)
-                                            } catch (_: Exception) {
+                                ticket?.let { ticketText ->
+                                    SelectBluetoothDevice(
+                                        textToPrint = ticketText,
+                                        modifier = Modifier
+                                            .fillMaxWidth(),
+                                        onPrintRequest = { device, text ->
+                                            coroutineScope.launch {
+                                                try {
+                                                    ThermalPrinting.printText(device, text, context)
+                                                } catch (_: Exception) {
+                                                }
                                             }
                                         }
-                                    }
-                                )
+                                    )
+                                }
 
                                 if (showDialog && pdfUri != null) {
                                     androidx.compose.material3.AlertDialog(

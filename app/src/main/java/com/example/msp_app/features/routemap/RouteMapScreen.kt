@@ -128,17 +128,19 @@ fun RouteMapScreen(
         else -> emptyList()
     }
 
-    val pins = visiblePayments.map { payment ->
-        MapPin(
-            lat = payment.LAT!!,
-            lon = payment.LNG!!,
-            description = "Pago: $${payment.IMPORTE} - ${
+    val pins = visiblePayments.mapNotNull { payment ->
+        if (payment.LAT != null && payment.LNG != null) {
+            MapPin(
+                lat = payment.LAT,
+                lon = payment.LNG,
+                description = "Pago: $${payment.IMPORTE} - ${
                 DateUtils.formatIsoDate(
                     payment.FECHA_HORA_PAGO,
                     "dd/MM/yyyy hh:mm a"
                 )
             }"
-        )
+            )
+        } else null
     }
 
     DrawerContainer(
