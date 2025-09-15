@@ -9,12 +9,18 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
 import com.example.msp_app.ui.theme.ThemeController
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.persistentCacheSettings
@@ -55,12 +61,25 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             MspappTheme(dynamicColor = false) {
-                if (isAuthenticated) {
-                    AppNavigation()
-                } else {
-                    LaunchedEffect(Unit) {
-                        authenticateUser()
+
+                val currentUserState =
+                    remember { mutableStateOf(FirebaseAuth.getInstance().currentUser) }
+
+                LaunchedEffect(Unit) {
+                    FirebaseAuth.getInstance().addAuthStateListener { auth ->
+                        currentUserState.value = auth.currentUser
                     }
+                }
+                if (currentUserState.value != null) {
+                    if (isAuthenticated) {
+                        AppNavigation()
+                    } else {
+                        LaunchedEffect(Unit) { authenticateUser() }
+                    }
+                } else {
+                    LoginScreen(onLoginSuccess = {
+                        isAuthenticated = true
+                    })
                 }
             }
         }
