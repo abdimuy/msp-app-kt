@@ -236,6 +236,12 @@ fun DrawerContainer(
                 TextButton(onClick = {
                     showLogoutDialog = false
                     authViewModel.logout()
+                    scope.launch {
+                        drawerState.close()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 }) {
                     Text("Sí")
                 }

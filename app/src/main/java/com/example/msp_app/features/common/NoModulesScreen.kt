@@ -93,10 +93,16 @@ fun NoModulesScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(32.dp))
 
                 Button(
-                    onClick = { authViewModel.logout() }
+                    onClick = {
+                        authViewModel.logout()
+                        navController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
                 ) {
                     Text("Cerrar sesión")
                 }
+
             }
         }
     }
