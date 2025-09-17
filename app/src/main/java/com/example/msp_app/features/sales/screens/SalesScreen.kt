@@ -83,6 +83,7 @@ fun SalesScreen(
         navController = navController
     ) { openDrawer ->
         Scaffold(
+            modifier = Modifier.statusBarsPadding(),
             bottomBar = {
 
                 val salesToVisit = filteredSales.filter {
@@ -127,8 +128,7 @@ fun SalesScreen(
             content = { innerPadding ->
                 Column(
                     modifier = Modifier
-                        .statusBarsPadding()
-                        .padding(bottom = innerPadding.calculateBottomPadding())
+                        .padding(innerPadding)
                         .padding(horizontal = 8.dp)
                         .fillMaxSize()
                 ) {

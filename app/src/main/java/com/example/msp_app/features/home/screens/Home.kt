@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -26,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,7 +74,6 @@ import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
@@ -89,35 +87,10 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(navController: NavController) {
-    val systemUiController = rememberSystemUiController()
     val isDark = ThemeController.isDarkMode
     val listState = rememberLazyListState()
     val primary = MaterialTheme.colorScheme.primary
-    val scrollThresholdDp = 100.dp
-
-    val scrollThresholdPx = with(LocalDensity.current) {
-        scrollThresholdDp.toPx().toInt()
-    }
-
-    LaunchedEffect(listState, isDark) {
-        snapshotFlow {
-            listState.firstVisibleItemIndex > 0 ||
-                    listState.firstVisibleItemScrollOffset > scrollThresholdPx
-        }.collect { scrolled ->
-            val backgroundColor = if (scrolled) Color.Black else primary
-            systemUiController.setStatusBarColor(
-                color = backgroundColor,
-                darkIcons = false
-            )
-        }
-    }
-
-    SideEffect {
-        systemUiController.setStatusBarColor(
-            color = primary,
-            darkIcons = false
-        )
-    }
+    val context = LocalContext.current
 
     val authViewModel = LocalAuthViewModel.current
     val userDataState by authViewModel.userData.collectAsState()
@@ -150,7 +123,6 @@ fun HomeScreen(navController: NavController) {
     var selectedDateLabel by remember { mutableStateOf("") }
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
-    val context = LocalContext.current
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
     var currentLocation by remember { mutableStateOf<Location?>(null) }
 
@@ -331,6 +303,7 @@ fun HomeScreen(navController: NavController) {
         navController = navController
     ) { openDrawer ->
         Scaffold(
+            modifier = Modifier.statusBarsPadding(),
             content = { innerPadding ->
 
                 LazyColumn(

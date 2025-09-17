@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
@@ -65,6 +66,7 @@ class MainActivity : FragmentActivity() {
 
         ThemeController.init(this)
 
+        // Habilitar edge to edge con comportamiento por defecto del sistema
         enableEdgeToEdge()
 
         setContent {
