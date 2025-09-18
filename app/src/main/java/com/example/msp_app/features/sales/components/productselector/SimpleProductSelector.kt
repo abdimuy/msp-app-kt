@@ -419,74 +419,33 @@ private fun CartItemRow(
     saleItem: SaleItem,
     saleProductsViewModel: SaleProductsViewModel
 ) {
-
     var showEditDialog by remember { mutableStateOf(false) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = saleItem.product.ARTICULO,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Cantidad: ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = saleItem.quantity.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+        Text(
+            text = saleItem.product.ARTICULO,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Cantidad: ${saleItem.quantity}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
 
-            val parsedPrices = PriceParser.parsePricesFromString(
-                saleItem.product.PRECIOS
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "💰 Lista: $${parsedPrices.precioLista}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "📆 Corto plazo: $${parsedPrices.precioCortoplazo}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
-            Text(
-                text = "⚡ Contado: $${parsedPrices.precioContado}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.tertiary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = { showEditDialog = true },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Editar precio")
-                }
-            }
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             FilledTonalIconButton(
                 onClick = {
                     val newQuantity = saleItem.quantity - 1
@@ -541,129 +500,204 @@ private fun CartItemRow(
                 )
             }
         }
-        if (showEditDialog) {
-            var priceList by remember { mutableStateOf("") }
-            var shortTermPrice by remember { mutableStateOf("") }
-            var cashPrice by remember { mutableStateOf("") }
 
-            var priceListError by remember { mutableStateOf("") }
-            var shortTermErrorPrice by remember { mutableStateOf("") }
-            var cashPriceError by remember { mutableStateOf("") }
+        Spacer(modifier = Modifier.height(16.dp))
 
-            LaunchedEffect(saleItem) {
-                val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-                priceList = parsedPrices.precioLista.toString()
-                shortTermPrice = parsedPrices.precioCortoplazo.toString()
-                cashPrice = parsedPrices.precioContado.toString()
+        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Lista",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "$${parsedPrices.precioLista}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 16.sp
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Corto plazo",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "$${parsedPrices.precioCortoplazo}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontSize = 16.sp
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Contado",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = "$${parsedPrices.precioContado}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontSize = 16.sp
+                    )
+                }
             }
+        }
 
-            AlertDialog(
-                onDismissRequest = { showEditDialog = false },
-                title = { Text("Editar precios") },
-                text = {
-                    Column {
-                        OutlinedTextField(
-                            value = priceList,
-                            onValueChange = {
-                                priceList = it
-                                priceListError =
-                                    if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
-                                        "El precio de lista debe ser mayor a cero"
-                                    else ""
-                            },
-                            label = { Text("Precio Lista") },
-                            isError = priceListError.isNotEmpty(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        if (priceListError.isNotEmpty()) {
-                            Text(
-                                text = priceListError,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-                        OutlinedTextField(
-                            value = shortTermPrice,
-                            onValueChange = {
-                                shortTermPrice = it
-                                shortTermErrorPrice =
-                                    if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
-                                        "El precio corto plazo debe ser mayor a cero"
-                                    else ""
-                            },
-                            label = { Text("Precio Corto Plazo") },
-                            isError = shortTermErrorPrice.isNotEmpty(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        if (shortTermErrorPrice.isNotEmpty()) {
-                            Text(
-                                text = shortTermErrorPrice,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Button(
+                onClick = { showEditDialog = true },
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Editar precio")
+            }
+        }
+    }
 
-                        OutlinedTextField(
-                            value = cashPrice,
-                            onValueChange = {
-                                cashPrice = it
-                                cashPriceError =
-                                    if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
-                                        "El precio de contado debe ser mayor a cero"
-                                    else ""
-                            },
-                            label = { Text("Precio Contado") },
-                            isError = cashPriceError.isNotEmpty(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        if (cashPriceError.isNotEmpty()) {
-                            Text(
-                                text = cashPriceError,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            saleProductsViewModel.updateProductPrices(
-                                saleItem.product,
-                                priceList.toDouble(),
-                                shortTermPrice.toDouble(),
-                                cashPrice.toDouble()
-                            )
-                            showEditDialog = false
+    if (showEditDialog) {
+        var priceList by remember { mutableStateOf("") }
+        var shortTermPrice by remember { mutableStateOf("") }
+        var cashPrice by remember { mutableStateOf("") }
+        var priceListError by remember { mutableStateOf("") }
+        var shortTermErrorPrice by remember { mutableStateOf("") }
+        var cashPriceError by remember { mutableStateOf("") }
+
+        LaunchedEffect(saleItem) {
+            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+            priceList = parsedPrices.precioLista.toString()
+            shortTermPrice = parsedPrices.precioCortoplazo.toString()
+            cashPrice = parsedPrices.precioContado.toString()
+        }
+
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Editar precios") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = priceList,
+                        onValueChange = {
+                            priceList = it
+                            priceListError =
+                                if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
+                                    "El precio de lista debe ser mayor a cero"
+                                else ""
                         },
-                        enabled = listOf(priceList, shortTermPrice, cashPrice).all {
-                            it.toDoubleOrNull()?.let { num -> num > 0 } == true
-                        }
-                    ) {
-                        Text("Guardar")
+                        label = { Text("Precio Lista") },
+                        isError = priceListError.isNotEmpty(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    if (priceListError.isNotEmpty()) {
+                        Text(
+                            text = priceListError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                        )
                     }
-                },
-                dismissButton = {
-                    Button(onClick = { showEditDialog = false }) {
-                        Text("Cancelar")
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = shortTermPrice,
+                        onValueChange = {
+                            shortTermPrice = it
+                            shortTermErrorPrice =
+                                if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
+                                    "El precio corto plazo debe ser mayor a cero"
+                                else ""
+                        },
+                        label = { Text("Precio Corto Plazo") },
+                        isError = shortTermErrorPrice.isNotEmpty(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    if (shortTermErrorPrice.isNotEmpty()) {
+                        Text(
+                            text = shortTermErrorPrice,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = cashPrice,
+                        onValueChange = {
+                            cashPrice = it
+                            cashPriceError =
+                                if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
+                                    "El precio de contado debe ser mayor a cero"
+                                else ""
+                        },
+                        label = { Text("Precio Contado") },
+                        isError = cashPriceError.isNotEmpty(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(15.dp)
+                    )
+                    if (cashPriceError.isNotEmpty()) {
+                        Text(
+                            text = cashPriceError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                        )
                     }
                 }
-            )
-        }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        saleProductsViewModel.updateProductPrices(
+                            saleItem.product,
+                            priceList.toDouble(),
+                            shortTermPrice.toDouble(),
+                            cashPrice.toDouble()
+                        )
+                        showEditDialog = false
+                    },
+                    enabled = listOf(priceList, shortTermPrice, cashPrice).all {
+                        it.toDoubleOrNull()?.let { num -> num > 0 } == true
+                    }
+                ) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showEditDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }
