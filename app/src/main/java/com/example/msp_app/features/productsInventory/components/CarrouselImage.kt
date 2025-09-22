@@ -34,9 +34,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.core.net.toUri
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
+import saveImageToGallery
 import java.io.File
 
 data class CarouselItem(
@@ -130,6 +132,7 @@ fun ZoomableImageDialog1(
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
     val context = LocalContext.current
+    val imageUri = File(item.imagePath).toUri()
 
     val imageModifier = Modifier
         .fillMaxWidth()
@@ -183,24 +186,43 @@ fun ZoomableImageDialog1(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        scale = 1f
-                        offsetX = 0f
-                        offsetY = 0f
-                    }) {
-                        Text(
-                            "Restaurar",
-                            color = Color.White
-                        )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            scale = 1f
+                            offsetX = 0f
+                            offsetY = 0f
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Restaurar", color = Color.White)
                     }
 
-                    Button(onClick = onDismiss) {
-                        Text(
-                            "Cerrar",
-                            color = Color.White
-                        )
+                    Button(
+                        onClick = {
+                            val imageUri = File(item.imagePath).toUri()
+                            saveImageToGallery(context, imageUri)
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Descargar Imagen")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        modifier = Modifier.fillMaxWidth(0.5f)
+                    ) {
+                        Text("Cerrar", color = Color.White)
                     }
                 }
             }
