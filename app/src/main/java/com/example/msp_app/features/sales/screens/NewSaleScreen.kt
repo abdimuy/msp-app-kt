@@ -115,6 +115,8 @@ fun NewSaleScreen(navController: NavController) {
     var collectionday by remember { mutableStateOf("") }
     var paymentfrequency by remember { mutableStateOf("") }
     var showSuccessDialog by remember { mutableStateOf(false) }
+    var showErrorDialog by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
     var expandedfrequency by remember { mutableStateOf(false) }
     var expandedDia by remember { mutableStateOf(false) }
     var hasValidLocation by remember { mutableStateOf(false) }
@@ -304,15 +306,20 @@ fun NewSaleScreen(navController: NavController) {
     val saveResult by viewModel.saveResult.collectAsState()
 
     LaunchedEffect(saveResult) {
-        when (saveResult) {
+        when (val result = saveResult) {
             is SaveResult.Success -> {
                 showSuccessDialog = true
+                viewModel.clearSaveResult()
             }
 
             null -> { /* No hacer nada */
             }
 
-            is SaveResult.Error -> {}
+            is SaveResult.Error -> {
+                errorMessage = result.message
+                showErrorDialog = true
+                viewModel.clearSaveResult()
+            }
         }
     }
 
@@ -373,6 +380,39 @@ fun NewSaleScreen(navController: NavController) {
                     }
                 ) {
                     Text("Ver Ventas")
+                }
+            }
+        )
+    }
+
+    if (showErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showErrorDialog = false },
+            title = {
+                Text(
+                    text = "Error al Guardar Venta",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            },
+            text = {
+                Column {
+                    Text("No se pudo guardar la venta:")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showErrorDialog = false
+                    }
+                ) {
+                    Text("Entendido")
                 }
             }
         )
@@ -885,7 +925,7 @@ fun NewSaleScreen(navController: NavController) {
                     enabled = hasValidLocation,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp),
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
@@ -893,6 +933,7 @@ fun NewSaleScreen(navController: NavController) {
                         color = Color.White
                     )
                 }
+
             }
         }
     }
