@@ -208,7 +208,7 @@ fun ZoomableImageDialog1(
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Descargar Imagen")
+                        Text("Descargar", color = Color.White)
                     }
                 }
 

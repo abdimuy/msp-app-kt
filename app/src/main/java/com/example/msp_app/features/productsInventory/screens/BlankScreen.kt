@@ -237,14 +237,14 @@ fun SaleHomeScreen(navController: NavController) {
                     imagesViewModel.downloadNewImages()
                     Toast.makeText(context, "Iniciando descarga...", Toast.LENGTH_SHORT).show()
                 }) {
-                    Text("Descargar")
+                    Text("Descargar", color = Color.White)
                 }
             },
             dismissButton = {
                 Button(onClick = {
                     showConfirmDialog = false
                 }) {
-                    Text("Cancelar")
+                    Text("Cancelar", color = Color.White)
                 }
             }
         )
