@@ -338,10 +338,10 @@ fun SimpleProductSelector(
                             Icon(
                                 Icons.Default.Add,
                                 contentDescription = "Agregar",
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp), tint = Color.White
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Agregar a la venta")
+                            Text("Agregar a la venta", color = Color.White)
                         }
                     }
                 }
@@ -481,7 +481,7 @@ private fun CartItemRow(
                     onClick = { showEditDialog = true },
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Editar precio")
+                    Text("Editar precio", color = Color.White)
                 }
             }
         }
@@ -655,12 +655,12 @@ private fun CartItemRow(
                             it.toDoubleOrNull()?.let { num -> num > 0 } == true
                         }
                     ) {
-                        Text("Guardar")
+                        Text("Guardar", color = Color.White)
                     }
                 },
                 dismissButton = {
                     Button(onClick = { showEditDialog = false }) {
-                        Text("Cancelar")
+                        Text("Cancelar", color = Color.White)
                     }
                 }
             )
