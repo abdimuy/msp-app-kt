@@ -7,26 +7,12 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
-import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.msp_app.features.auth.screens.LoginScreen
-import com.example.msp_app.features.auth.viewmodel.AuthViewModel
 import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
 import com.example.msp_app.ui.theme.ThemeController
@@ -36,7 +22,7 @@ import com.google.firebase.firestore.persistentCacheSettings
 
 class MainActivity : FragmentActivity() {
 
-    private val authViewModel: AuthViewModel by viewModels()
+    private var isAuthenticated by mutableStateOf(false)
     private var lastActivityTime = System.currentTimeMillis()
     private val inactivityTimeoutMs = 5 * 60 * 1000L // 5 minutos
 
@@ -71,98 +57,44 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             MspappTheme(dynamicColor = false) {
-                val authState by authViewModel.authState.collectAsStateWithLifecycle()
-
-                AuthHandler(
-                    authState = authState,
-                    onBiometricSuccess = authViewModel::onBiometricSuccess,
-                    onBiometricFailed = authViewModel::onBiometricFailed,
-                    onLoginSuccess = authViewModel::onLoginSuccess
-                )
+                if (isAuthenticated) {
+                    AppNavigation()
+                } else {
+                    LaunchedEffect(Unit) {
+                        authenticateUser()
+                    }
+                }
             }
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.S)
-    @Composable
-    private fun AuthHandler(
-        authState: AuthViewModel.AuthState,
-        onBiometricSuccess: () -> Unit,
-        onBiometricFailed: () -> Unit,
-        onLoginSuccess: () -> Unit
-    ) {
-        when (authState) {
-            is AuthViewModel.AuthState.Loading -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-
-            is AuthViewModel.AuthState.Unauthenticated -> {
-                LoginScreen(onLoginSuccess = onLoginSuccess)
-            }
-
-            is AuthViewModel.AuthState.RequiresBiometric -> {
-                LaunchedEffect(authState.user) {
-                    authenticateUser(
-                        onSuccess = onBiometricSuccess,
-                        onFailed = onBiometricFailed
-                    )
-                }
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                    Text(
-                        text = "Esperando autenticación biométrica...",
-                        modifier = Modifier.padding(top = 60.dp)
-                    )
-                }
-            }
-
-            is AuthViewModel.AuthState.Authenticated -> {
-                AppNavigation()
-            }
-        }
-    }
-
-    private fun authenticateUser(
-        onSuccess: () -> Unit,
-        onFailed: () -> Unit
-    ) {
+    private fun authenticateUser() {
         val biometricManager = BiometricManager.from(this)
 
         when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)) {
             BiometricManager.BIOMETRIC_SUCCESS -> {
-                showBiometricPrompt(onSuccess, onFailed)
+                showBiometricPrompt()
             }
 
             BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE -> {
-                onSuccess()
+                isAuthenticated = true
             }
 
             BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE -> {
-                onSuccess()
+                isAuthenticated = true
             }
 
             BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
-                onSuccess()
+                isAuthenticated = true
             }
 
             else -> {
-                onSuccess()
+                isAuthenticated = true
             }
         }
     }
 
-    private fun showBiometricPrompt(
-        onSuccess: () -> Unit,
-        onFailed: () -> Unit
-    ) {
+    private fun showBiometricPrompt() {
         val executor = ContextCompat.getMainExecutor(this)
         val biometricPrompt =
             BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
@@ -171,16 +103,15 @@ class MainActivity : FragmentActivity() {
                     if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
                         errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
                     ) {
-                        onFailed()
                         finish()
                     } else {
-                        onSuccess()
+                        isAuthenticated = true
                     }
                 }
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
-                    onSuccess()
+                    isAuthenticated = true
                 }
 
                 override fun onAuthenticationFailed() {
@@ -205,10 +136,8 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         val currentTime = System.currentTimeMillis()
-        if ((authViewModel.authState.value is AuthViewModel.AuthState.Authenticated) &&
-            (currentTime - lastActivityTime > inactivityTimeoutMs)
-        ) {
-            authViewModel.signOut()
+        if (isAuthenticated && (currentTime - lastActivityTime > inactivityTimeoutMs)) {
+            isAuthenticated = false
         }
         lastActivityTime = currentTime
     }
