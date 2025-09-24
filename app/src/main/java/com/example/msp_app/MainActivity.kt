@@ -5,12 +5,14 @@ import android.app.NotificationManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
-import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.msp_app.navigation.AppNavigation
@@ -22,7 +24,10 @@ import com.google.firebase.firestore.persistentCacheSettings
 
 class MainActivity : FragmentActivity() {
 
-    private var isAuthenticated by mutableStateOf(false)
+    companion object {
+        var isAuthenticated by mutableStateOf(false)
+    }
+
     private var lastActivityTime = System.currentTimeMillis()
     private val inactivityTimeoutMs = 5 * 60 * 1000L // 5 minutos
 
@@ -30,15 +35,19 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val settings = FirebaseFirestoreSettings.Builder()
-            .setLocalCacheSettings(
-                persistentCacheSettings {
-                    setSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
-                }
-            )
-            .build()
+        try {
+            val settings = FirebaseFirestoreSettings.Builder()
+                .setLocalCacheSettings(
+                    persistentCacheSettings {
+                        setSizeBytes(FirebaseFirestoreSettings.CACHE_SIZE_UNLIMITED)
+                    }
+                )
+                .build()
 
-        FirebaseFirestore.getInstance().firestoreSettings = settings
+            FirebaseFirestore.getInstance().firestoreSettings = settings
+        } catch (e: IllegalStateException) {
+            // FirebaseFirestore ya fue inicializado, ignorar
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val chan = NotificationChannel(

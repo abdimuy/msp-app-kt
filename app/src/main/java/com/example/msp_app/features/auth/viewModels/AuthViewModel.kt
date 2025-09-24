@@ -4,6 +4,7 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.MainActivity
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
@@ -70,6 +71,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         auth.signOut()
+        // Resetear el estado de autenticación biométrica para volver a solicitarla
+        MainActivity.isAuthenticated = false
     }
 
 
@@ -188,7 +191,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun loadProductsToCache(camionetaId: Int?) {
         if (camionetaId == null) return
-        
+
         viewModelScope.launch {
             try {
                 warehouseRepository.getWarehouseProducts(camionetaId).fold(
@@ -206,7 +209,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         withContext(Dispatchers.IO) {
                             productsCache.saveProducts(entities)
                         }
-                        Log.d("AuthViewModel", "Productos guardados en cache al iniciar sesión: ${entities.size}")
+                        Log.d(
+                            "AuthViewModel",
+                            "Productos guardados en cache al iniciar sesión: ${entities.size}"
+                        )
                     },
                     onFailure = { exception ->
                         Log.e("AuthViewModel", "Error cargando productos al cache", exception)
