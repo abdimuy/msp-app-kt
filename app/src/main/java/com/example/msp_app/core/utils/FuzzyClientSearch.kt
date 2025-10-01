@@ -40,10 +40,9 @@ fun <T> searchSimilarItems(
 }
 
 private fun normalize(text: String): String {
-    val nfd = Normalizer.normalize(text.trim().lowercase(), Normalizer.Form.NFD)
-    val withoutAccents = nfd.replace("\\p{M}".toRegex(), "")
-
-    return withoutAccents.replace(Regex("[\\s\\-().]"), "")
+    return Normalizer.normalize(text.trim().lowercase(), Normalizer.Form.NFD)
+        .replace("\\p{M}".toRegex(), "")
+        .replace(Regex("[\\s\\-().]"), "")
 }
 
 private fun longestCommonSubstring(s1: String, s2: String): Int {
