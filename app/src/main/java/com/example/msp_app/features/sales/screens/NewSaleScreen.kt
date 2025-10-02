@@ -180,7 +180,7 @@ fun NewSaleScreen(navController: NavController) {
     }
 
     fun validateImageSize(context: Context, uri: Uri): Boolean {
-        val maxSizeInBytes = 5 * 1000 * 1000
+        val maxSizeInBytes = 15 * 1000 * 1000
         val imageSize = getImageSizeFromUri(context, uri)
         return imageSize <= maxSizeInBytes
     }
@@ -846,7 +846,7 @@ fun NewSaleScreen(navController: NavController) {
                     }
                     if (showImageSizeError) {
                         Text(
-                            "La imagen es muy grande (máximo 5MB). Por favor, toma otra foto o selecciona una imagen más pequeña.",
+                            "La imagen es muy grande (máximo 15MB). Por favor, toma otra foto o selecciona una imagen más pequeña.",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp)
