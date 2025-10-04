@@ -138,6 +138,11 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         latitude: Double,
         longitude: Double,
         address: String,
+        numero: String? = null,
+        colonia: String? = null,
+        poblacion: String? = null,
+        ciudad: String? = null,
+        tipoVenta: String? = "CONTADO",
         installment: Double,
         downpayment: Double,
         phone: String,
@@ -216,7 +221,12 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
                     MONTO_A_CORTO_PLAZO = shorttermamount,
                     MONTO_DE_CONTADO = cashamount,
-                    ENVIADO = enviado
+                    ENVIADO = enviado,
+                    NUMERO = numero,
+                    COLONIA = colonia,
+                    POBLACION = poblacion,
+                    CIUDAD = ciudad,
+                    TIPO_VENTA = tipoVenta
                 )
 
                 logger.debug(

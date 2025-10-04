@@ -27,5 +27,10 @@ class LocalSaleEntity(
     val TIEMPO_A_CORTO_PLAZOMESES: Int,
     val MONTO_A_CORTO_PLAZO: Double,
     val MONTO_DE_CONTADO: Double,
-    val ENVIADO: Boolean
+    val ENVIADO: Boolean,
+    val NUMERO: String? = null,
+    val COLONIA: String? = null,
+    val POBLACION: String? = null,
+    val CIUDAD: String? = null,
+    val TIPO_VENTA: String? = "CONTADO"
 )

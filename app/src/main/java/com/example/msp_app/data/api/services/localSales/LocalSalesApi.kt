@@ -25,7 +25,12 @@ data class LocalSaleRequest(
     val tiempoACortoPlazoMeses: Int,
     val montoACortoPlazo: Double,
     val montoDeContado: Double,
-    val productos: List<LocalSaleProductRequest>
+    val productos: List<LocalSaleProductRequest>,
+    val numero: String? = null,
+    val colonia: String? = null,
+    val poblacion: String? = null,
+    val ciudad: String? = null,
+    val tipoVenta: String? = "CONTADO"
 )
 
 data class LocalSaleProductRequest(
