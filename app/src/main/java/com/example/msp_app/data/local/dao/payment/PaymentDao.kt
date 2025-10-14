@@ -171,86 +171,97 @@ interface PaymentDao {
 
     @Query(
         """
+    SELECT
+        SUM(PORCENTAJE) AS TOTAL_PORCENTAJE
+    FROM (
         SELECT
-            SUM(PORCENTAJE) AS TOTAL_PORCENTAJE
-        FROM (
+            sales.DOCTO_CC_ID,
+            /* calculamos el porcentaje base: */
+            CASE
+              WHEN SUM(payment.IMPORTE) / sales.PARCIALIDAD >= 1
+              THEN (
+                CASE
+                  WHEN sales.NUM_PAGOS_ATRASADOS >= SUM(payment.IMPORTE) / sales.PARCIALIDAD
+                  THEN SUM(payment.IMPORTE) / sales.PARCIALIDAD
+                  ELSE 1
+                END
+              )
+              ELSE SUM(payment.IMPORTE) / sales.PARCIALIDAD
+            END
+            /* multiplicamos por el factor según frecuencia: */
+            * CASE sales.FREC_PAGO
+                WHEN 'SEMANAL'   THEN 1
+                WHEN 'QUINCENAL' THEN 2
+                WHEN 'MENSUAL'   THEN 4
+                ELSE 1
+              END
+            AS PORCENTAJE
+        FROM payment
+        INNER JOIN (
             SELECT
                 sales.DOCTO_CC_ID,
-                /* calculamos el porcentaje base: */
+                sales.CLIENTE,
+                sales.FECHA_ULT_PAGO,
+                sales.NUM_IMPORTES,
+                sales.TOTAL_IMPORTE,
+                sales.FREC_PAGO,
+                sales.PARCIALIDADES_TRANSCURRIDAS,
                 CASE
-                  WHEN SUM(payment.IMPORTE) / sales.PARCIALIDAD >= 1
-                  THEN (
-                    CASE
-                      WHEN sales.NUM_PAGOS_ATRASADOS >= SUM(payment.IMPORTE) / sales.PARCIALIDAD
-                      THEN SUM(payment.IMPORTE) / sales.PARCIALIDAD
-                      ELSE 1
-                    END
-                  )
-                  ELSE SUM(payment.IMPORTE) / sales.PARCIALIDAD
-                END
-                /* y ahora lo multiplicamos por el factor según frecuencia: */
-                * CASE sales.FREC_PAGO
-                    WHEN 'SEMANAL'   THEN 1
-                    WHEN 'QUINCENAL' THEN 2
-                    WHEN 'MENSUAL'   THEN 4
-                    ELSE 1
-                  END
-                AS PORCENTAJE
-            FROM payment
-            INNER JOIN (
+                  WHEN ( (sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD
+                          - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD )
+                       > (sales.SALDO_REST / sales.PARCIALIDAD)
+                  THEN (sales.SALDO_REST / sales.PARCIALIDAD)
+                  ELSE ( (sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD
+                          - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD )
+                END AS NUM_PAGOS_ATRASADOS,
+                sales.PARCIALIDAD
+            FROM (
                 SELECT
                     sales.DOCTO_CC_ID,
                     sales.CLIENTE,
-                    sales.FECHA_ULT_PAGO,
-                    sales.NUM_IMPORTES,
-                    sales.TOTAL_IMPORTE,
+                    COALESCE(MAX(payment.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
+                    COALESCE(COUNT(payment.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
+                    COALESCE(SUM(payment.IMPORTE), 0) AS TOTAL_IMPORTE,
                     sales.FREC_PAGO,
-                    sales.PARCIALIDADES_TRANSCURRIDAS,
-                    CASE
-                      WHEN ( (sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD
-                              - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD )
-                           > (sales.SALDO_REST / sales.PARCIALIDAD)
-                      THEN (sales.SALDO_REST / sales.PARCIALIDAD)
-                      ELSE ( (sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD
-                              - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD )
-                    END AS NUM_PAGOS_ATRASADOS,
-                    sales.PARCIALIDAD
-                FROM (
-                    SELECT
-                        sales.DOCTO_CC_ID,
-                        sales.CLIENTE,
-                        COALESCE(MAX(payment.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
-                        COALESCE(COUNT(payment.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
-                        COALESCE(SUM(payment.IMPORTE), 0) AS TOTAL_IMPORTE,
-                        sales.FREC_PAGO,
-                        sales.SALDO_REST,
-                        sales.PRECIO_TOTAL,
-                        sales.ENGANCHE,
-                        sales.PARCIALIDAD,
-                        ( JULIANDAY(
-                              CASE
-                                WHEN sales.SALDO_REST = 0
-                                THEN MAX(payment.FECHA_HORA_PAGO)
-                                ELSE DATE('now')
-                              END
-                          )
-                          - JULIANDAY(sales.FECHA) )
-                        / CASE
-                            WHEN sales.FREC_PAGO = 'SEMANAL'   THEN 7
-                            WHEN sales.FREC_PAGO = 'QUINCENAL' THEN 15
-                            WHEN sales.FREC_PAGO = 'MENSUAL'   THEN 30
-                            ELSE 0
-                          END AS PARCIALIDADES_TRANSCURRIDAS
-                    FROM sales
-                    LEFT JOIN payment
-                      ON sales.DOCTO_CC_ID = payment.DOCTO_CC_ACR_ID
-                    GROUP BY sales.DOCTO_CC_ID, sales.FREC_PAGO
-                ) AS sales
+                    sales.SALDO_REST,
+                    sales.PRECIO_TOTAL,
+                    sales.ENGANCHE,
+                    sales.PARCIALIDAD,
+                    ( JULIANDAY(
+                          CASE
+                            WHEN sales.SALDO_REST = 0
+                            THEN MAX(payment.FECHA_HORA_PAGO)
+                            ELSE DATE('now')
+                          END
+                      )
+                      - JULIANDAY(sales.FECHA) )
+                    / CASE
+                        WHEN sales.FREC_PAGO = 'SEMANAL'   THEN 7
+                        WHEN sales.FREC_PAGO = 'QUINCENAL' THEN 15
+                        WHEN sales.FREC_PAGO = 'MENSUAL'   THEN 30
+                        ELSE 0
+                      END AS PARCIALIDADES_TRANSCURRIDAS
+                FROM sales
+                LEFT JOIN payment
+                  ON sales.DOCTO_CC_ID = payment.DOCTO_CC_ACR_ID
+                  /* Filtramos solo pagos válidos, excluyendo condonaciones */
+                  AND payment.FORMA_COBRO_ID IN (
+                      ${Constants.PAGO_EN_EFECTIVO_ID},
+                      ${Constants.PAGO_CON_CHEQUE_ID},
+                      ${Constants.PAGO_CON_TRANSFERENCIA_ID}
+                  )
+                GROUP BY sales.DOCTO_CC_ID, sales.FREC_PAGO
             ) AS sales
-              ON payment.DOCTO_CC_ACR_ID = sales.DOCTO_CC_ID
-            WHERE payment.FECHA_HORA_PAGO >= :startDate
-            GROUP BY payment.DOCTO_CC_ACR_ID
-        ) t;
+        ) AS sales
+          ON payment.DOCTO_CC_ACR_ID = sales.DOCTO_CC_ID
+        WHERE payment.FECHA_HORA_PAGO >= :startDate
+          AND payment.FORMA_COBRO_ID IN (
+              ${Constants.PAGO_EN_EFECTIVO_ID},
+              ${Constants.PAGO_CON_CHEQUE_ID},
+              ${Constants.PAGO_CON_TRANSFERENCIA_ID}
+          )
+        GROUP BY payment.DOCTO_CC_ACR_ID
+    ) t;
     """
     )
     suspend fun getAdjustedPaymentPercentage(startDate: String): Double?
