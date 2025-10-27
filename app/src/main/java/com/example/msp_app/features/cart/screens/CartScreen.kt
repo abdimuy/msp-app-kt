@@ -136,7 +136,7 @@ fun CartScreen(navController: NavController) {
     LaunchedEffect(warehouseState) {
         when (val state = warehouseState) {
             is ResultState.Success -> {
-                nombreAlmacenAsignado = state.data.body.ALMACEN.ALMACEN
+                nombreAlmacenAsignado = state.data.body.ALMACEN?.ALMACEN ?: camionetaAsignada?.let { "Almacén ID: $it" }
                 val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
                 cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
             }

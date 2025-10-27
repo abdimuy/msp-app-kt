@@ -26,7 +26,12 @@ class LocalSaleMappers {
             TIEMPO_A_CORTO_PLAZOMESES = this.TIEMPO_A_CORTO_PLAZOMESES,
             MONTO_A_CORTO_PLAZO = this.MONTO_A_CORTO_PLAZO,
             MONTO_DE_CONTADO = this.MONTO_DE_CONTADO,
-            ENVIADO = this.ENVIADO
+            ENVIADO = this.ENVIADO,
+            NUMERO = this.NUMERO,
+            COLONIA = this.COLONIA,
+            POBLACION = this.POBLACION,
+            CIUDAD = this.CIUDAD,
+            TIPO_VENTA = this.TIPO_VENTA
         )
     }
 
@@ -49,7 +54,12 @@ class LocalSaleMappers {
             TIEMPO_A_CORTO_PLAZOMESES = this.TIEMPO_A_CORTO_PLAZOMESES,
             MONTO_A_CORTO_PLAZO = this.MONTO_A_CORTO_PLAZO,
             MONTO_DE_CONTADO = this.MONTO_DE_CONTADO,
-            ENVIADO = this.ENVIADO
+            ENVIADO = this.ENVIADO,
+            NUMERO = this.NUMERO,
+            COLONIA = this.COLONIA,
+            POBLACION = this.POBLACION,
+            CIUDAD = this.CIUDAD,
+            TIPO_VENTA = this.TIPO_VENTA
         )
     }
 
@@ -118,7 +128,12 @@ class LocalSaleMappers {
             tiempoACortoPlazoMeses = this.TIEMPO_A_CORTO_PLAZOMESES,
             montoACortoPlazo = this.MONTO_A_CORTO_PLAZO,
             montoDeContado = this.MONTO_DE_CONTADO,
-            productos = products.map { it.toServerRequest() }
+            productos = products.map { it.toServerRequest() },
+            numero = this.NUMERO,
+            colonia = this.COLONIA,
+            poblacion = this.POBLACION,
+            ciudad = this.CIUDAD,
+            tipoVenta = this.TIPO_VENTA
         )
     }
 

@@ -14,26 +14,32 @@ interface LocalSaleDao {
 
     @Query(
         """
-        SELECT 
-            LOCAL_SALE_ID, 
-            NOMBRE_CLIENTE, 
-            FECHA_VENTA, 
-            LATITUD, 
-            LONGITUD, 
-            DIRECCION, 
-            PARCIALIDAD, 
-            ENGANCHE, 
-            TELEFONO, 
-            FREC_PAGO, 
-            AVAL_O_RESPONSABLE, 
-            NOTA, 
-            DIA_COBRANZA, 
+        SELECT
+            LOCAL_SALE_ID,
+            NOMBRE_CLIENTE,
+            FECHA_VENTA,
+            LATITUD,
+            LONGITUD,
+            DIRECCION,
+            PARCIALIDAD,
+            ENGANCHE,
+            TELEFONO,
+            FREC_PAGO,
+            AVAL_O_RESPONSABLE,
+            NOTA,
+            DIA_COBRANZA,
             PRECIO_TOTAL,
-            TIEMPO_A_CORTO_PLAZOMESES, 
+            TIEMPO_A_CORTO_PLAZOMESES,
             MONTO_A_CORTO_PLAZO,
             MONTO_DE_CONTADO,
-            ENVIADO
-            FROM local_sale 
+            ENVIADO,
+            NUMERO,
+            COLONIA,
+            POBLACION,
+            CIUDAD,
+            TIPO_VENTA
+            FROM local_sale
+            WHERE FECHA_VENTA >= datetime('now', '-7 days')
             ORDER BY FECHA_VENTA DESC
         """
     )
@@ -41,26 +47,31 @@ interface LocalSaleDao {
 
     @Query(
         """
-            SELECT 
-            LOCAL_SALE_ID, 
-            NOMBRE_CLIENTE, 
-            FECHA_VENTA, 
-            LATITUD, 
-            LONGITUD, 
+            SELECT
+            LOCAL_SALE_ID,
+            NOMBRE_CLIENTE,
+            FECHA_VENTA,
+            LATITUD,
+            LONGITUD,
             DIRECCION,
-            PARCIALIDAD, 
-            ENGANCHE, 
-            TELEFONO, 
-            FREC_PAGO, 
-            AVAL_O_RESPONSABLE, 
-            NOTA, 
-            DIA_COBRANZA, 
+            PARCIALIDAD,
+            ENGANCHE,
+            TELEFONO,
+            FREC_PAGO,
+            AVAL_O_RESPONSABLE,
+            NOTA,
+            DIA_COBRANZA,
             PRECIO_TOTAL,
-            TIEMPO_A_CORTO_PLAZOMESES, 
+            TIEMPO_A_CORTO_PLAZOMESES,
             MONTO_A_CORTO_PLAZO,
             MONTO_DE_CONTADO,
-            ENVIADO
-            FROM local_sale 
+            ENVIADO,
+            NUMERO,
+            COLONIA,
+            POBLACION,
+            CIUDAD,
+            TIPO_VENTA
+            FROM local_sale
             WHERE LOCAL_SALE_ID = :sale_Id
         """
     )
@@ -80,27 +91,32 @@ interface LocalSaleDao {
 
     @Query(
         """
-        SELECT 
-            LOCAL_SALE_ID, 
-            NOMBRE_CLIENTE, 
-            FECHA_VENTA, 
-            LATITUD, 
-            LONGITUD, 
-            DIRECCION, 
-            PARCIALIDAD, 
-            ENGANCHE, 
-            TELEFONO, 
-            FREC_PAGO, 
-            AVAL_O_RESPONSABLE, 
-            NOTA, 
-            DIA_COBRANZA, 
+        SELECT
+            LOCAL_SALE_ID,
+            NOMBRE_CLIENTE,
+            FECHA_VENTA,
+            LATITUD,
+            LONGITUD,
+            DIRECCION,
+            PARCIALIDAD,
+            ENGANCHE,
+            TELEFONO,
+            FREC_PAGO,
+            AVAL_O_RESPONSABLE,
+            NOTA,
+            DIA_COBRANZA,
             PRECIO_TOTAL,
-            TIEMPO_A_CORTO_PLAZOMESES, 
+            TIEMPO_A_CORTO_PLAZOMESES,
             MONTO_A_CORTO_PLAZO,
             MONTO_DE_CONTADO,
-            ENVIADO
-            FROM local_sale 
-            WHERE ENVIADO = :enviado 
+            ENVIADO,
+            NUMERO,
+            COLONIA,
+            POBLACION,
+            CIUDAD,
+            TIPO_VENTA
+            FROM local_sale
+            WHERE ENVIADO = :enviado
             ORDER BY FECHA_VENTA DESC
         """
     )
