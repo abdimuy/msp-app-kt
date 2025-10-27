@@ -338,10 +338,10 @@ fun SimpleProductSelector(
                             Icon(
                                 Icons.Default.Add,
                                 contentDescription = "Agregar",
-                                modifier = Modifier.size(18.dp), tint = Color.White
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Agregar a la venta", color = Color.White)
+                            Text("Agregar a la venta")
                         }
                     }
                 }
@@ -419,251 +419,283 @@ private fun CartItemRow(
     saleItem: SaleItem,
     saleProductsViewModel: SaleProductsViewModel
 ) {
+    val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
 
-    var showEditDialog by remember { mutableStateOf(false) }
+    var priceList by remember { mutableStateOf(parsedPrices.precioLista.toString()) }
+    var shortTermPrice by remember { mutableStateOf(parsedPrices.precioCortoplazo.toString()) }
+    var cashPrice by remember { mutableStateOf(parsedPrices.precioContado.toString()) }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = saleItem.product.ARTICULO,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Cantidad: ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = saleItem.quantity.toString(),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            val parsedPrices = PriceParser.parsePricesFromString(
-                saleItem.product.PRECIOS
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "💰 Lista: $${parsedPrices.precioLista}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "📆 Corto plazo: $${parsedPrices.precioCortoplazo}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary
-            )
-            Text(
-                text = "⚡ Contado: $${parsedPrices.precioContado}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.tertiary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            // Header del producto
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
             ) {
-                Button(
-                    onClick = { showEditDialog = true },
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Editar precio", color = Color.White)
-                }
-            }
-        }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = saleItem.product.ARTICULO,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FilledTonalIconButton(
-                onClick = {
-                    val newQuantity = saleItem.quantity - 1
-                    saleProductsViewModel.updateQuantity(saleItem.product, newQuantity)
-                },
-                modifier = Modifier.size(32.dp),
-                enabled = saleItem.quantity > 1
-            ) {
-                Icon(
-                    Icons.Default.KeyboardArrowDown,
-                    contentDescription = "Reducir",
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            FilledTonalIconButton(
-                onClick = {
-                    val cantidadEnVenta =
-                        saleProductsViewModel.getQuantityForProduct(saleItem.product)
-                    val disponible =
-                        saleItem.product.EXISTENCIAS - cantidadEnVenta + saleItem.quantity
-
-                    if (saleItem.quantity < disponible) {
-                        val newQuantity = saleItem.quantity + 1
-                        saleProductsViewModel.updateQuantity(saleItem.product, newQuantity)
-                    }
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    Icons.Default.KeyboardArrowUp,
-                    contentDescription = "Aumentar",
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            IconButton(
-                onClick = {
-                    saleProductsViewModel.removeProductFromSale(saleItem.product)
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    Icons.Default.Clear,
-                    contentDescription = "Eliminar",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-        if (showEditDialog) {
-            var priceList by remember { mutableStateOf("") }
-            var shortTermPrice by remember { mutableStateOf("") }
-            var cashPrice by remember { mutableStateOf("") }
-
-            var priceListError by remember { mutableStateOf("") }
-            var shortTermErrorPrice by remember { mutableStateOf("") }
-            var cashPriceError by remember { mutableStateOf("") }
-
-            LaunchedEffect(saleItem) {
-                val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-                priceList = parsedPrices.precioLista.toString()
-                shortTermPrice = parsedPrices.precioCortoplazo.toString()
-                cashPrice = parsedPrices.precioContado.toString()
-            }
-
-            AlertDialog(
-                onDismissRequest = { showEditDialog = false },
-                title = { Text("Editar precios") },
-                text = {
-                    Column {
-                        OutlinedTextField(
-                            value = priceList,
-                            onValueChange = {
-                                priceList = it
-                                priceListError =
-                                    if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
-                                        "El precio de lista debe ser mayor a cero"
-                                    else ""
-                            },
-                            label = { Text("Precio Lista") },
-                            isError = priceListError.isNotEmpty(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        if (priceListError.isNotEmpty()) {
-                            Text(
-                                text = priceListError,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = shortTermPrice,
-                            onValueChange = {
-                                shortTermPrice = it
-                                shortTermErrorPrice =
-                                    if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
-                                        "El precio corto plazo debe ser mayor a cero"
-                                    else ""
-                            },
-                            label = { Text("Precio Corto Plazo") },
-                            isError = shortTermErrorPrice.isNotEmpty(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        if (shortTermErrorPrice.isNotEmpty()) {
-                            Text(
-                                text = shortTermErrorPrice,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = cashPrice,
-                            onValueChange = {
-                                cashPrice = it
-                                cashPriceError =
-                                    if (it.toDoubleOrNull() == null || it.toDouble() <= 0)
-                                        "El precio de contado debe ser mayor a cero"
-                                    else ""
-                            },
-                            label = { Text("Precio Contado") },
-                            isError = cashPriceError.isNotEmpty(),
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        if (cashPriceError.isNotEmpty()) {
-                            Text(
-                                text = cashPriceError,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            saleProductsViewModel.updateProductPrices(
-                                saleItem.product,
-                                priceList.toDouble(),
-                                shortTermPrice.toDouble(),
-                                cashPrice.toDouble()
-                            )
-                            showEditDialog = false
-                        },
-                        enabled = listOf(priceList, shortTermPrice, cashPrice).all {
-                            it.toDoubleOrNull()?.let { num -> num > 0 } == true
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 4.dp)
                     ) {
-                        Text("Guardar", color = Color.White)
-                    }
-                },
-                dismissButton = {
-                    Button(onClick = { showEditDialog = false }) {
-                        Text("Cancelar", color = Color.White)
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = "Cantidad: ${saleItem.quantity}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = "Stock: ${saleItem.product.EXISTENCIAS}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
                     }
                 }
+
+                // Botón eliminar
+                IconButton(
+                    onClick = {
+                        saleProductsViewModel.removeProductFromSale(saleItem.product)
+                    },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Clear,
+                        contentDescription = "Eliminar producto",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Controles de cantidad
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Ajustar cantidad:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilledTonalIconButton(
+                        onClick = {
+                            val newQuantity = saleItem.quantity - 1
+                            saleProductsViewModel.updateQuantity(saleItem.product, newQuantity)
+                        },
+                        modifier = Modifier.size(36.dp),
+                        enabled = saleItem.quantity > 1
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Reducir cantidad",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = saleItem.quantity.toString(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    FilledTonalIconButton(
+                        onClick = {
+                            val cantidadEnVenta = saleProductsViewModel.getQuantityForProduct(saleItem.product)
+                            val disponible = saleItem.product.EXISTENCIAS - cantidadEnVenta + saleItem.quantity
+
+                            if (saleItem.quantity < disponible) {
+                                val newQuantity = saleItem.quantity + 1
+                                saleProductsViewModel.updateQuantity(saleItem.product, newQuantity)
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.KeyboardArrowUp,
+                            contentDescription = "Aumentar cantidad",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Precios editables inline
+            Text(
+                text = "Precios:",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Precio Contado
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Contado:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.width(80.dp),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    OutlinedTextField(
+                        value = cashPrice,
+                        onValueChange = { newValue ->
+                            cashPrice = newValue
+                            newValue.toDoubleOrNull()?.let { price ->
+                                if (price > 0) {
+                                    saleProductsViewModel.updateProductPrices(
+                                        saleItem.product,
+                                        priceList.toDoubleOrNull() ?: parsedPrices.precioLista,
+                                        shortTermPrice.toDoubleOrNull() ?: parsedPrices.precioCortoplazo,
+                                        price
+                                    )
+                                }
+                            }
+                        },
+                        prefix = { Text("$") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    )
+                }
+
+                // Precio Corto Plazo
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "C.Plazo:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.width(80.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    OutlinedTextField(
+                        value = shortTermPrice,
+                        onValueChange = { newValue ->
+                            shortTermPrice = newValue
+                            newValue.toDoubleOrNull()?.let { price ->
+                                if (price > 0) {
+                                    saleProductsViewModel.updateProductPrices(
+                                        saleItem.product,
+                                        priceList.toDoubleOrNull() ?: parsedPrices.precioLista,
+                                        price,
+                                        cashPrice.toDoubleOrNull() ?: parsedPrices.precioContado
+                                    )
+                                }
+                            }
+                        },
+                        prefix = { Text("$") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    )
+                }
+
+                // Precio Lista
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Lista:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.width(80.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    OutlinedTextField(
+                        value = priceList,
+                        onValueChange = { newValue ->
+                            priceList = newValue
+                            newValue.toDoubleOrNull()?.let { price ->
+                                if (price > 0) {
+                                    saleProductsViewModel.updateProductPrices(
+                                        saleItem.product,
+                                        price,
+                                        shortTermPrice.toDoubleOrNull() ?: parsedPrices.precioCortoplazo,
+                                        cashPrice.toDoubleOrNull() ?: parsedPrices.precioContado
+                                    )
+                                }
+                            }
+                        },
+                        prefix = { Text("$") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                    )
+                }
+            }
         }
     }
 }

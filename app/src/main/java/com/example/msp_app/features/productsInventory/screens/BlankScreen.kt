@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -23,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 
@@ -50,6 +53,7 @@ fun SaleHomeScreen(navController: NavController) {
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val localSalesViewModel: com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel =
         viewModel()
+    val authViewModel: AuthViewModel = viewModel()
 
     val productState = productsViewModel.productInventoryState.collectAsState().value
     val loading = productState is ResultState.Loading
@@ -59,6 +63,7 @@ fun SaleHomeScreen(navController: NavController) {
     val downloadedCount by imagesViewModel.downloadedCount.collectAsState()
     val totalToDownload by imagesViewModel.totalToDownload.collectAsState()
     val pendingSales by localSalesViewModel.pendingSales.collectAsState()
+    val userData by authViewModel.userData.collectAsState()
 
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showProgressDialog by remember { mutableStateOf(false) }
@@ -195,6 +200,32 @@ fun SaleHomeScreen(navController: NavController) {
                     }
                 }
 
+                if (pendingSales.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = {
+                            val currentUser = (userData as? ResultState.Success)?.data
+                            currentUser?.EMAIL?.let { email ->
+                                localSalesViewModel.retryPendingSales(email)
+                                Toast.makeText(
+                                    context,
+                                    "Enviando ${pendingSales.size} venta${if (pendingSales.size > 1) "s" else ""} pendiente${if (pendingSales.size > 1) "s" else ""}...",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(0.92f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("ENVIAR VENTAS PENDIENTES")
+                    }
+                }
+
                 Button(
                     onClick = {
                         productsViewModel.fetchRemoteInventory()
@@ -217,7 +248,7 @@ fun SaleHomeScreen(navController: NavController) {
                     },
                     modifier = Modifier.fillMaxWidth(0.92f)
                 ) {
-                    Text("GENERAR NUEVA VENTA", color = Color.White)
+                    Text("CREAR NUEVA VENTA", color = Color.White)
                 }
             }
         }

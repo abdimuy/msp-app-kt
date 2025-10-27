@@ -139,7 +139,21 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                         Spacer(Modifier.height(8.dp))
                         InfoRow("Cliente:", sale?.NOMBRE_CLIENTE ?: "")
                         InfoRow("Teléfono:", sale?.TELEFONO ?: "")
-                        InfoRow("Dirección:", sale?.DIRECCION ?: "")
+                        InfoRow("Calle:", sale?.DIRECCION ?: "")
+                        sale?.let { currentSale ->
+                            if (!currentSale.NUMERO.isNullOrBlank()) {
+                                InfoRow("Número:", currentSale.NUMERO ?: "")
+                            }
+                            if (!currentSale.COLONIA.isNullOrBlank()) {
+                                InfoRow("Colonia:", currentSale.COLONIA ?: "")
+                            }
+                            if (!currentSale.POBLACION.isNullOrBlank()) {
+                                InfoRow("Población:", currentSale.POBLACION ?: "")
+                            }
+                            if (!currentSale.CIUDAD.isNullOrBlank()) {
+                                InfoRow("Ciudad:", currentSale.CIUDAD ?: "")
+                            }
+                        }
                         InfoRow("Aval o Responsable:", sale?.AVAL_O_RESPONSABLE.toString())
 
                         Spacer(Modifier.height(12.dp))
@@ -197,25 +211,29 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                         Spacer(Modifier.height(12.dp))
 
                         Text(
-                            "Información de Pago",
-                            style = MaterialTheme.typography.titleLarge
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        InfoRow("Frecuencia de pago:", sale?.FREC_PAGO ?: "")
-                        InfoRow("Día de cobranza:", sale?.DIA_COBRANZA ?: "")
-
-                        Spacer(Modifier.height(12.dp))
-
-                        Text(
                             "Información de Venta",
                             style = MaterialTheme.typography.titleLarge
                         )
                         Spacer(Modifier.height(8.dp))
-                        InfoRow("Enganche:", sale?.ENGANCHE?.toCurrency(noDecimals = true) ?: "")
-                        InfoRow(
-                            "Parcialidad:",
-                            sale?.PARCIALIDAD?.toCurrency(noDecimals = true) ?: ""
-                        )
+                        InfoRow("Tipo de venta:", sale?.TIPO_VENTA ?: "CONTADO")
+
+                        sale?.let { currentSale ->
+                            if (currentSale.TIPO_VENTA == "CREDITO") {
+                                Spacer(Modifier.height(12.dp))
+                                Text(
+                                    "Información de Pago",
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                InfoRow("Enganche:", currentSale.ENGANCHE?.toCurrency(noDecimals = true) ?: "")
+                                InfoRow(
+                                    "Parcialidad:",
+                                    currentSale.PARCIALIDAD?.toCurrency(noDecimals = true) ?: ""
+                                )
+                                InfoRow("Frecuencia de pago:", currentSale.FREC_PAGO ?: "")
+                                InfoRow("Día de cobranza:", currentSale.DIA_COBRANZA ?: "")
+                            }
+                        }
 
                         Spacer(Modifier.height(12.dp))
 

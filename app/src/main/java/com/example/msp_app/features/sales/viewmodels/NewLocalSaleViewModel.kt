@@ -16,12 +16,16 @@ import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import com.example.msp_app.core.logging.Logger
+import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.logging.logSaleError
 import java.io.File
 import java.util.UUID
 
 class NewLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
+    private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(application) }
 
     private val _sales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val sales: StateFlow<List<LocalSaleEntity>> = _sales
@@ -134,6 +138,11 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         latitude: Double,
         longitude: Double,
         address: String,
+        numero: String? = null,
+        colonia: String? = null,
+        poblacion: String? = null,
+        ciudad: String? = null,
+        tipoVenta: String? = "CONTADO",
         installment: Double,
         downpayment: Double,
         phone: String,
@@ -155,13 +164,42 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 _isLoading.value = true
                 _saveResult.value = null
 
+                // Log del intento de creación
+                logger.info(
+                    module = "SALES",
+                    action = "CREATE_SALE_ATTEMPT",
+                    message = "Iniciando creación de venta",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "clientName" to clientName,
+                        "productCount" to saleProducts.size,
+                        "hasImages" to imageUris.isNotEmpty(),
+                        "hasLocation" to (latitude != 0.0 && longitude != 0.0),
+                        "userEmail" to userEmail
+                    )
+                )
+
                 if (saleProducts.isEmpty()) {
-                    _saveResult.value = SaveResult.Error("La venta debe tener al menos un producto")
+                    val errorMsg = "La venta debe tener al menos un producto"
+                    logger.logSaleError(
+                        saleId = saleId,
+                        clientName = clientName,
+                        errorMessage = errorMsg,
+                        validationErrors = listOf("No hay productos en la venta")
+                    )
+                    _saveResult.value = SaveResult.Error(errorMsg)
                     return@launch
                 }
 
                 if (clientName.isBlank()) {
-                    _saveResult.value = SaveResult.Error("El nombre del cliente es requerido")
+                    val errorMsg = "El nombre del cliente es requerido"
+                    logger.logSaleError(
+                        saleId = saleId,
+                        clientName = "(vacío)",
+                        errorMessage = errorMsg,
+                        validationErrors = listOf("Nombre del cliente vacío")
+                    )
+                    _saveResult.value = SaveResult.Error(errorMsg)
                     return@launch
                 }
 
@@ -183,9 +221,20 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
                     MONTO_A_CORTO_PLAZO = shorttermamount,
                     MONTO_DE_CONTADO = cashamount,
-                    ENVIADO = enviado
+                    ENVIADO = enviado,
+                    NUMERO = numero,
+                    COLONIA = colonia,
+                    POBLACION = poblacion,
+                    CIUDAD = ciudad,
+                    TIPO_VENTA = tipoVenta
                 )
 
+                logger.debug(
+                    module = "SALES",
+                    action = "INSERT_SALE",
+                    message = "Insertando venta en base de datos local",
+                    data = mapOf("saleId" to saleId, "clientName" to clientName)
+                )
                 localSaleStore.insertSale(saleEntity)
 
                 val productEntities = saleProducts.map { saleItem ->
@@ -214,8 +263,36 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 _saveResult.value = SaveResult.Success(saleId)
                 loadAllSales()
 
+                // Log de éxito
+                logger.info(
+                    module = "SALES",
+                    action = "CREATE_SALE_SUCCESS",
+                    message = "Venta creada exitosamente",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "clientName" to clientName,
+                        "productCount" to saleProducts.size,
+                        "imageCount" to imageUris.size
+                    )
+                )
+
             } catch (e: Exception) {
                 Log.e("NewLocalSaleViewModel", "Error creating sale: ${e.message}", e)
+
+                // Log del error en Firebase
+                logger.error(
+                    module = "SALES",
+                    action = "CREATE_SALE_ERROR",
+                    message = "Error al crear venta: ${e.message}",
+                    error = e,
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "clientName" to clientName,
+                        "productCount" to saleProducts.size,
+                        "errorType" to e.javaClass.simpleName
+                    )
+                )
+
                 _saveResult.value = SaveResult.Error(e.message ?: "Error desconocido")
             } finally {
                 _isLoading.value = false
@@ -291,6 +368,134 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 Log.d("NewLocalSaleViewModel", "Ventas pendientes por enviar: ${pendingSales.size}")
             } catch (e: Exception) {
                 Log.e("NewLocalSaleViewModel", "Error al obtener ventas pendientes", e)
+            }
+        }
+    }
+
+    /**
+     * Método de prueba para generar errores y probar el sistema de logging
+     * ELIMINAR EN PRODUCCIÓN
+     */
+    fun testErrorLogging(clientName: String, productCount: Int) {
+        viewModelScope.launch {
+            try {
+                val testSaleId = "TEST-${System.currentTimeMillis()}"
+
+                // Log de prueba INFO
+                logger.info(
+                    module = "SALES_TEST",
+                    action = "TEST_ERROR_SYSTEM",
+                    message = "Iniciando prueba del sistema de errores",
+                    data = mapOf(
+                        "testSaleId" to testSaleId,
+                        "clientName" to clientName,
+                        "productCount" to productCount,
+                        "testType" to "intentional_error"
+                    )
+                )
+
+                // Log de prueba WARNING
+                logger.warning(
+                    module = "SALES_TEST",
+                    action = "TEST_WARNING",
+                    message = "Esta es una advertencia de prueba",
+                    data = mapOf(
+                        "warningType" to "test_warning",
+                        "severity" to "medium"
+                    )
+                )
+
+                // Simular diferentes tipos de errores
+                val randomError = (1..4).random()
+
+                when (randomError) {
+                    1 -> {
+                        // Error de validación
+                        logger.logSaleError(
+                            saleId = testSaleId,
+                            clientName = clientName,
+                            errorMessage = "Error de validación de prueba: Productos insuficientes",
+                            validationErrors = listOf(
+                                "No hay suficiente stock",
+                                "El cliente no tiene crédito aprobado",
+                                "Faltan imágenes requeridas"
+                            ),
+                            additionalData = mapOf(
+                                "testScenario" to "validation_error",
+                                "isTest" to true
+                            )
+                        )
+                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Validación fallida - Revisa Firebase para ver los logs")
+                    }
+                    2 -> {
+                        // Error de base de datos
+                        val dbError = Exception("Database connection timeout - TEST ERROR")
+                        logger.error(
+                            module = "SALES_TEST",
+                            action = "DATABASE_ERROR",
+                            message = "Error de base de datos simulado",
+                            error = dbError,
+                            data = mapOf(
+                                "errorType" to "database_timeout",
+                                "retryCount" to 3,
+                                "isTest" to true
+                            )
+                        )
+                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Base de datos - Revisa Firebase para ver los logs")
+                    }
+                    3 -> {
+                        // Error crítico con NullPointerException
+                        val npe = NullPointerException("Simulated NPE for testing - Something was null")
+                        logger.critical(
+                            module = "SALES_TEST",
+                            action = "CRITICAL_NPE",
+                            message = "Error crítico simulado: NullPointerException",
+                            error = npe,
+                            data = mapOf(
+                                "crashType" to "null_pointer",
+                                "affectedModule" to "sales_creation",
+                                "isTest" to true
+                            )
+                        )
+                        _saveResult.value = SaveResult.Error("❌ Error crítico de prueba: NPE - Revisa Firebase para ver los logs")
+                    }
+                    4 -> {
+                        // Error de red
+                        logger.error(
+                            module = "SALES_TEST",
+                            action = "NETWORK_ERROR",
+                            message = "Error de red simulado: No se pudo conectar al servidor",
+                            data = mapOf(
+                                "errorCode" to 503,
+                                "endpoint" to "/api/sales/create",
+                                "timeout" to 30000,
+                                "isTest" to true
+                            )
+                        )
+                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Red - Revisa Firebase para ver los logs")
+                    }
+                }
+
+                // Log de evento de prueba
+                logger.logEvent(
+                    module = "SALES_TEST",
+                    eventType = RemoteLogger.EventType.SYSTEM_EVENT,
+                    eventName = "test_completed",
+                    data = mapOf(
+                        "testId" to testSaleId,
+                        "errorType" to randomError,
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                )
+
+            } catch (e: Exception) {
+                logger.critical(
+                    module = "SALES_TEST",
+                    action = "TEST_SYSTEM_FAILURE",
+                    message = "El sistema de prueba falló inesperadamente",
+                    error = e
+                )
+                _saveResult.value = SaveResult.Error("Error en el sistema de prueba: ${e.message}")
             }
         }
     }
