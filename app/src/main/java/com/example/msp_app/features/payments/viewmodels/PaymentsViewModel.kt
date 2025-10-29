@@ -313,6 +313,10 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun resetSavePaymentState() {
+        _savePaymentState.value = ResultState.Idle
+    }
+
     fun postPaymentRemote(payment: Payment) {
         viewModelScope.launch {
             try {

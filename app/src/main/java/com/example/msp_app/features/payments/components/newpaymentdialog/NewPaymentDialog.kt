@@ -89,6 +89,7 @@ fun NewPaymentDialog(
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsBySuggestedAmountsState by paymentsViewModel.paymentsBySuggestedAmountsState.collectAsState()
+    val savePaymentState by paymentsViewModel.savePaymentState.collectAsState()
     val activity = LocalContext.current as ComponentActivity
     val authViewModel: AuthViewModel = viewModel(activity)
     val userData by authViewModel.userData.collectAsState()
@@ -99,6 +100,7 @@ fun NewPaymentDialog(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var selectedPaymentMethod by remember { mutableIntStateOf(Constants.PAGO_EN_EFECTIVO_ID) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var pendingPaymentId by remember { mutableStateOf<String?>(null) }
 
     val paymentMethods = listOf(
         Constants.PAGO_EN_EFECTIVO_ID to "Efectivo",
@@ -120,6 +122,22 @@ fun NewPaymentDialog(
         }
     }
 
+    // Observar el estado de guardado y navegar solo cuando sea exitoso
+    LaunchedEffect(savePaymentState) {
+        if (savePaymentState is ResultState.Success && pendingPaymentId != null) {
+            navController.navigate("payment_ticket/$pendingPaymentId")
+
+            inputValue = ""
+            selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
+            showConfirmDialog = false
+            onDismissRequest()
+
+            paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
+            paymentsViewModel.resetSavePaymentState()
+            pendingPaymentId = null
+        }
+    }
+
     val inputDouble = inputValue.toDoubleOrNull()
     errorMessage = when {
         inputValue.isBlank() -> null
@@ -137,10 +155,8 @@ fun NewPaymentDialog(
         }
         coroutineScope.launch {
             try {
-
                 val idTicket = UUID.randomUUID().toString()
                 val date = Instant.now().toString()
-
 
                 val payment = Payment(
                     CLIENTE_ID = sale.CLIENTE_ID,
@@ -159,22 +175,19 @@ fun NewPaymentDialog(
                     GUARDADO_EN_MICROSIP = false
                 )
 
+                // Guardar el ID del pago pendiente
+                pendingPaymentId = payment.ID
+
+                // Guardar el pago en la DB local (esto actualiza SALDO_REST)
                 paymentsViewModel.savePayment(payment)
 
+                // El servicio de ubicación corre en background (no afecta los cálculos)
                 val intent = Intent(context, UpdateLocationService::class.java).apply {
                     putExtra("payment_id", payment.ID)
                 }
                 ContextCompat.startForegroundService(context, intent)
 
-                navController.navigate("payment_ticket/${payment.ID}")
-
-                inputValue = ""
-                selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
-
-                showConfirmDialog = false
-                onDismissRequest()
-
-                paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
+                // La navegación ahora ocurre en el LaunchedEffect cuando savePaymentState sea Success
             } catch (e: Exception) {
                 e.printStackTrace()
             }
