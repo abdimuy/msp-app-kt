@@ -4,8 +4,11 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.logging.logSaleError
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.local.entities.LocalSaleEntity
@@ -15,10 +18,8 @@ import com.example.msp_app.utils.PriceParser
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import com.example.msp_app.core.logging.Logger
-import com.example.msp_app.core.logging.RemoteLogger
-import com.example.msp_app.core.logging.logSaleError
 import java.io.File
 import java.util.UUID
 
@@ -47,6 +48,159 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
     private val _pendingSales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val pendingSales: StateFlow<List<LocalSaleEntity>> = _pendingSales
+
+    private val _defectName = MutableStateFlow(TextFieldValue(""))
+    val defectName: StateFlow<TextFieldValue> = _defectName.asStateFlow()
+
+    private val _imageUris = MutableStateFlow(emptyList<Uri>())
+    val imageUris: StateFlow<List<Uri>> = _imageUris.asStateFlow()
+
+    private val _address = MutableStateFlow("")
+    val address: StateFlow<String> = _address.asStateFlow()
+
+    private val _location = MutableStateFlow("")
+    val location: StateFlow<String> = _location.asStateFlow()
+
+    private val _latitude = MutableStateFlow(0.0)
+    val latitude: StateFlow<Double> = _latitude.asStateFlow()
+
+    private val _longitude = MutableStateFlow(0.0)
+    val longitude: StateFlow<Double> = _longitude.asStateFlow()
+
+    private val _numero = MutableStateFlow(TextFieldValue(""))
+    val numero: StateFlow<TextFieldValue> = _numero.asStateFlow()
+
+    private val _colonia = MutableStateFlow(TextFieldValue(""))
+    val colonia: StateFlow<TextFieldValue> = _colonia.asStateFlow()
+
+    private val _poblacion = MutableStateFlow(TextFieldValue(""))
+    val poblacion: StateFlow<TextFieldValue> = _poblacion.asStateFlow()
+
+    private val _ciudad = MutableStateFlow(TextFieldValue(""))
+    val ciudad: StateFlow<TextFieldValue> = _ciudad.asStateFlow()
+
+    private val _tipoVenta = MutableStateFlow("CONTADO")
+    val tipoVenta: StateFlow<String> = _tipoVenta.asStateFlow()
+
+    private val _phone = MutableStateFlow(TextFieldValue(""))
+    val phone: StateFlow<TextFieldValue> = _phone.asStateFlow()
+
+    private val _downpayment = MutableStateFlow(TextFieldValue(""))
+    val downpayment: StateFlow<TextFieldValue> = _downpayment.asStateFlow()
+
+    private val _installment = MutableStateFlow(TextFieldValue(""))
+    val installment: StateFlow<TextFieldValue> = _installment.asStateFlow()
+
+    private val _guarantor = MutableStateFlow(TextFieldValue(""))
+    val guarantor: StateFlow<TextFieldValue> = _guarantor.asStateFlow()
+
+    private val _note = MutableStateFlow(TextFieldValue(""))
+    val note: StateFlow<TextFieldValue> = _note.asStateFlow()
+
+    private val _collectionday = MutableStateFlow("")
+    val collectionday: StateFlow<String> = _collectionday.asStateFlow()
+
+    private val _paymentfrequency = MutableStateFlow("")
+    val paymentfrequency: StateFlow<String> = _paymentfrequency.asStateFlow()
+
+
+    fun onDefectNameChange(newValue: TextFieldValue) {
+        _defectName.value = newValue
+    }
+
+    fun onImageUrisChange(newValue: List<Uri>) {
+        _imageUris.value = newValue
+    }
+
+    fun onAddImageUri(uri: Uri) {
+        _imageUris.value = _imageUris.value + uri
+    }
+
+    fun onRemoveImageUri(uri: Uri) {
+        _imageUris.value = _imageUris.value.filterNot { it == uri }
+    }
+
+    fun onAddressChange(newValue: String) {
+        _address.value = newValue
+    }
+
+    fun onLocationChange(newValue: String) {
+        _location.value = newValue
+    }
+
+    fun onLatLngChange(lat: Double, lon: Double) {
+        _latitude.value = lat
+        _longitude.value = lon
+    }
+
+    fun onNumeroChange(newValue: TextFieldValue) {
+        _numero.value = newValue
+    }
+
+    fun onColoniaChange(newValue: TextFieldValue) {
+        _colonia.value = newValue
+    }
+
+    fun onPoblacionChange(newValue: TextFieldValue) {
+        _poblacion.value = newValue
+    }
+
+    fun onCiudadChange(newValue: TextFieldValue) {
+        _ciudad.value = newValue
+    }
+
+    fun onTipoVentaChange(newValue: String) {
+        _tipoVenta.value = newValue
+    }
+
+    fun onPhoneChange(newValue: TextFieldValue) {
+        _phone.value = newValue
+    }
+
+    fun onDownpaymentChange(newValue: TextFieldValue) {
+        _downpayment.value = newValue
+    }
+
+    fun onInstallmentChange(newValue: TextFieldValue) {
+        _installment.value = newValue
+    }
+
+    fun onGuarantorChange(newValue: TextFieldValue) {
+        _guarantor.value = newValue
+    }
+
+    fun onNoteChange(newValue: TextFieldValue) {
+        _note.value = newValue
+    }
+
+    fun onCollectionDayChange(newValue: String) {
+        _collectionday.value = newValue
+    }
+
+    fun onPaymentFrequencyChange(newValue: String) {
+        _paymentfrequency.value = newValue
+    }
+
+    fun clearForm() {
+        _defectName.value = TextFieldValue("")
+        _imageUris.value = emptyList()
+        _address.value = ""
+        _location.value = ""
+        _latitude.value = 0.0
+        _longitude.value = 0.0
+        _numero.value = TextFieldValue("")
+        _colonia.value = TextFieldValue("")
+        _poblacion.value = TextFieldValue("")
+        _ciudad.value = TextFieldValue("")
+        _tipoVenta.value = "CONTADO"
+        _phone.value = TextFieldValue("")
+        _downpayment.value = TextFieldValue("")
+        _installment.value = TextFieldValue("")
+        _guarantor.value = TextFieldValue("")
+        _note.value = TextFieldValue("")
+        _collectionday.value = ""
+        _paymentfrequency.value = ""
+    }
 
     fun loadAllSales() {
         viewModelScope.launch {
@@ -110,7 +264,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     ) {
         try {
             val savedPaths = saveImagesLocally(context, uris, saleId)
-            
+
             val images = savedPaths.map { (path, _) ->
                 LocalSaleImageEntity(
                     LOCAL_SALE_IMAGE_ID = UUID.randomUUID().toString(),
@@ -119,7 +273,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     FECHA_SUBIDA = fechasubida
                 )
             }
-            
+
             images.forEach { image ->
                 localSaleStore.insertSaleImage(image)
             }
@@ -425,8 +579,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Validación fallida - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Validación fallida - Revisa Firebase para ver los logs")
                     }
+
                     2 -> {
                         // Error de base de datos
                         val dbError = Exception("Database connection timeout - TEST ERROR")
@@ -441,11 +597,14 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Base de datos - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Base de datos - Revisa Firebase para ver los logs")
                     }
+
                     3 -> {
                         // Error crítico con NullPointerException
-                        val npe = NullPointerException("Simulated NPE for testing - Something was null")
+                        val npe =
+                            NullPointerException("Simulated NPE for testing - Something was null")
                         logger.critical(
                             module = "SALES_TEST",
                             action = "CRITICAL_NPE",
@@ -457,8 +616,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error crítico de prueba: NPE - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error crítico de prueba: NPE - Revisa Firebase para ver los logs")
                     }
+
                     4 -> {
                         // Error de red
                         logger.error(
@@ -472,7 +633,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Red - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Red - Revisa Firebase para ver los logs")
                     }
                 }
 

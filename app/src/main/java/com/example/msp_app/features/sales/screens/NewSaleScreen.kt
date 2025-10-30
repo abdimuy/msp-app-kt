@@ -46,7 +46,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,7 +58,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,32 +91,32 @@ fun NewSaleScreen(navController: NavController) {
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
 
-    var defectName by remember { mutableStateOf(TextFieldValue("")) }
+    val defectName by viewModel.defectName.collectAsState()
+    val imageUris by viewModel.imageUris.collectAsState()
+    val address by viewModel.address.collectAsState()
+    val location by viewModel.location.collectAsState()
+    val latitude by viewModel.latitude.collectAsState()
+    val longitude by viewModel.longitude.collectAsState()
+    val numero by viewModel.numero.collectAsState()
+    val colonia by viewModel.colonia.collectAsState()
+    val poblacion by viewModel.poblacion.collectAsState()
+    val ciudad by viewModel.ciudad.collectAsState()
+    val tipoVenta by viewModel.tipoVenta.collectAsState()
+    val phone by viewModel.phone.collectAsState()
+    val downpayment by viewModel.downpayment.collectAsState()
+    val installment by viewModel.installment.collectAsState()
+    val guarantor by viewModel.guarantor.collectAsState()
+    val note by viewModel.note.collectAsState()
+    val collectionday by viewModel.collectionday.collectAsState()
+    val paymentfrequency by viewModel.paymentfrequency.collectAsState()
+
     var showError by remember { mutableStateOf(false) }
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
-    var imageUris by remember { mutableStateOf(listOf<Uri>()) }
     var showImageSourceDialog by remember { mutableStateOf(false) }
     var showImageError by remember { mutableStateOf(false) }
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
-    var address by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var latitude by remember { mutableDoubleStateOf(0.0) }
-    var longitude by remember { mutableDoubleStateOf(0.0) }
-    var numero by remember { mutableStateOf(TextFieldValue("")) }
-    var colonia by remember { mutableStateOf(TextFieldValue("")) }
-    var poblacion by remember { mutableStateOf(TextFieldValue("")) }
-    var ciudad by remember { mutableStateOf(TextFieldValue("")) }
-    var tipoVenta by remember { mutableStateOf("CONTADO") }
-
-    var phone by remember { mutableStateOf(TextFieldValue("")) }
-    var downpayment by remember { mutableStateOf(TextFieldValue("")) }
-    var installment by remember { mutableStateOf(TextFieldValue("")) }
-    var guarantor by remember { mutableStateOf(TextFieldValue("")) }
-    var note by remember { mutableStateOf(TextFieldValue("")) }
-    var collectionday by remember { mutableStateOf("") }
-    var paymentfrequency by remember { mutableStateOf("") }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
@@ -197,7 +195,7 @@ fun NewSaleScreen(navController: NavController) {
     ) { uri: Uri? ->
         uri?.let {
             if (validateImageSize(context, it)) {
-                imageUris = imageUris + it
+                viewModel.onAddImageUri(it)
                 showImageSizeError = false
             } else {
                 showImageSizeError = true
@@ -211,7 +209,7 @@ fun NewSaleScreen(navController: NavController) {
     ) { success: Boolean ->
         if (success && cameraImageUri != null) {
             if (validateImageSize(context, cameraImageUri!!)) {
-                imageUris = imageUris + cameraImageUri!!
+                viewModel.onAddImageUri(cameraImageUri!!)
                 showImageSizeError = false
             } else {
                 showImageSizeError = true
@@ -348,23 +346,7 @@ fun NewSaleScreen(navController: NavController) {
 
     fun clearAllFields() {
         saleProductsViewModel.clearSale()
-        defectName = TextFieldValue("")
-        phone = TextFieldValue("")
-        location = ""
-        numero = TextFieldValue("")
-        colonia = TextFieldValue("")
-        poblacion = TextFieldValue("")
-        ciudad = TextFieldValue("")
-        tipoVenta = "CONTADO"
-        downpayment = TextFieldValue("")
-        installment = TextFieldValue("")
-        guarantor = TextFieldValue("")
-        note = TextFieldValue("")
-        collectionday = ""
-        paymentfrequency = ""
-        latitude = 0.0
-        longitude = 0.0
-        imageUris = emptyList()
+        viewModel.clearForm()
 
         defectNameError = false
         phoneError = false
@@ -574,7 +556,7 @@ fun NewSaleScreen(navController: NavController) {
                                 DropdownMenuItem(
                                     text = { Text(option) },
                                     onClick = {
-                                        tipoVenta = option
+                                        viewModel.onTipoVentaChange(option)
                                         expandedTipoVenta = false
                                     }
                                 )
@@ -594,7 +576,7 @@ fun NewSaleScreen(navController: NavController) {
                     OutlinedTextField(
                         value = defectName,
                         onValueChange = { newValue ->
-                            defectName = newValue
+                            viewModel.onDefectNameChange(newValue)
                             if (newValue.text.isNotEmpty() || defectNameError) {
                                 validateClientName(newValue.text)
                             }
@@ -621,7 +603,7 @@ fun NewSaleScreen(navController: NavController) {
                     OutlinedTextField(
                         value = phone,
                         onValueChange = { newValue ->
-                            phone = newValue
+                            viewModel.onPhoneChange(newValue)
                             if (newValue.text.isNotEmpty() || phoneError) {
                                 validatePhone(newValue.text)
                             }
@@ -644,10 +626,9 @@ fun NewSaleScreen(navController: NavController) {
                     Spacer(Modifier.height(12.dp))
 
                     LocationMap(
-                        onAddressChange = { address = it },
+                        onAddressChange = { viewModel.onAddressChange(it) },
                         onLocationChange = { loc ->
-                            latitude = loc.latitude
-                            longitude = loc.longitude
+                            viewModel.onLatLngChange(loc.latitude, loc.longitude)
                             locationPermissionGranted = true
                             validateLocationData()
                         }
@@ -666,7 +647,7 @@ fun NewSaleScreen(navController: NavController) {
                     OutlinedTextField(
                         value = location,
                         onValueChange = { newValue ->
-                            location = newValue
+                            viewModel.onLocationChange(newValue)
                             if (newValue.isNotEmpty() || locationError) {
                                 validateLocation(newValue)
                             }
@@ -696,14 +677,14 @@ fun NewSaleScreen(navController: NavController) {
                     ) {
                         OutlinedTextField(
                             value = numero,
-                            onValueChange = { numero = it },
+                            onValueChange = { viewModel.onNumeroChange(it) },
                             label = { Text("Número") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
                             value = colonia,
-                            onValueChange = { colonia = it },
+                            onValueChange = { viewModel.onColoniaChange(it) },
                             label = { Text("Colonia") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
@@ -718,14 +699,14 @@ fun NewSaleScreen(navController: NavController) {
                     ) {
                         OutlinedTextField(
                             value = poblacion,
-                            onValueChange = { poblacion = it },
+                            onValueChange = { viewModel.onPoblacionChange(it) },
                             label = { Text("Población") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
                             value = ciudad,
-                            onValueChange = { ciudad = it },
+                            onValueChange = { viewModel.onCiudadChange(it) },
                             label = { Text("Ciudad") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
@@ -736,7 +717,7 @@ fun NewSaleScreen(navController: NavController) {
 
                     OutlinedTextField(
                         value = guarantor,
-                        onValueChange = { guarantor = it },
+                        onValueChange = { viewModel.onGuarantorChange(it) },
                         label = { Text("Aval o Responsable (Opcional)") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(15.dp)
@@ -758,7 +739,7 @@ fun NewSaleScreen(navController: NavController) {
                             OutlinedTextField(
                                 value = downpayment,
                                 onValueChange = { newValue ->
-                                    downpayment = newValue
+                                    viewModel.onDownpaymentChange(newValue)
                                     if (newValue.text.isNotEmpty() || downpaymentError) {
                                         validateDownpayment(newValue.text)
                                     }
@@ -782,7 +763,7 @@ fun NewSaleScreen(navController: NavController) {
                             OutlinedTextField(
                                 value = installment,
                                 onValueChange = { newValue ->
-                                    installment = newValue
+                                    viewModel.onInstallmentChange(newValue)
                                     if (newValue.text.isNotEmpty() || installmentError) {
                                         validateInstallment(newValue.text)
                                     }
@@ -848,7 +829,7 @@ fun NewSaleScreen(navController: NavController) {
                                     DropdownMenuItem(
                                         text = { Text(option) },
                                         onClick = {
-                                            paymentfrequency = option
+                                            viewModel.onPaymentFrequencyChange(option)
                                             expandedfrequency = false
                                             validatePaymentFrequency(option)
                                         }
@@ -893,7 +874,7 @@ fun NewSaleScreen(navController: NavController) {
                                     DropdownMenuItem(
                                         text = { Text(option) },
                                         onClick = {
-                                            collectionday = option
+                                            viewModel.onCollectionDayChange(option)
                                             expandedDia = false
                                             validateCollectionDay(option)
                                         }
@@ -907,7 +888,7 @@ fun NewSaleScreen(navController: NavController) {
 
                     OutlinedTextField(
                         value = note,
-                        onValueChange = { note = it },
+                        onValueChange = { viewModel.onNoteChange(it) },
                         label = { Text("Notas (Opcional)") },
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 4,
@@ -1010,7 +991,7 @@ fun NewSaleScreen(navController: NavController) {
                                         .align(Alignment.TopEnd)
                                         .padding(2.dp)
                                         .clickable {
-                                            imageUris = imageUris.filterNot { it == uri }
+                                            viewModel.onRemoveImageUri(uri)
                                         }
                                         .background(
                                             Color.Black.copy(alpha = 0.6f),
