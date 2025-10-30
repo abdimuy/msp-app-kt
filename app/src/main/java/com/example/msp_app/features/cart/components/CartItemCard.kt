@@ -1,5 +1,6 @@
 package com.example.msp_app.features.cart.components
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -77,6 +79,7 @@ fun CartItemCard(
     val isDark = ThemeController.isDarkMode
     var showQuantityDialog by remember { mutableStateOf(false) }
     var isIncreaseMode by remember { mutableStateOf(true) }
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -164,9 +167,18 @@ fun CartItemCard(
                             contentAlignment = Alignment.Center
                         ) {
                             IconButton(
-                                onClick = onDecreaseQuantity,
-                                enabled = !isDecreaseLoading,
-                                modifier = Modifier.size(36.dp)
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        "Contacta la oficina para gestionar estos productos.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                enabled = true,
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+
                             ) {
                                 if (isDecreaseLoading) {
                                     CircularProgressIndicator(
@@ -178,7 +190,7 @@ fun CartItemCard(
                                     Text(
                                         text = "−",
                                         style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.primary,
+                                        color = Color.Gray,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -253,8 +265,14 @@ fun CartItemCard(
                             contentAlignment = Alignment.Center
                         ) {
                             IconButton(
-                                onClick = onRemove,
-                                enabled = !isRemoveLoading,
+                                onClick = {
+                                    Toast.makeText(
+                                        context,
+                                        "Contacta la oficina para gestionar estos productos.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                },
+                                enabled = true,
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 if (isRemoveLoading) {
@@ -267,7 +285,7 @@ fun CartItemCard(
                                     Icon(
                                         imageVector = Icons.Default.Delete,
                                         contentDescription = "Eliminar producto de la camioneta",
-                                        tint = Color.Red,
+                                        tint = Color.Red.copy(alpha = 0.1f),
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
