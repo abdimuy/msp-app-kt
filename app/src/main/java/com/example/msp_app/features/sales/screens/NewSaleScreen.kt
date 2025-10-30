@@ -138,6 +138,7 @@ fun NewSaleScreen(navController: NavController) {
     var productsError by remember { mutableStateOf(false) }
     var showImageSizeError by remember { mutableStateOf(false) }
     var downpaymentError by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
@@ -1042,7 +1043,7 @@ fun NewSaleScreen(navController: NavController) {
                         showImageError = imageUris.isEmpty()
 
                         if (isvalid) {
-                            saveSale()
+                            showConfirmDialog = true
                         }
 
                     },
@@ -1055,6 +1056,34 @@ fun NewSaleScreen(navController: NavController) {
                     Text(
                         "Generar Venta",
                         color = Color.White
+                    )
+                }
+
+                if (showConfirmDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showConfirmDialog = false },
+                        title = { Text("Confirmar Venta") },
+                        text = {
+                            Text(
+                                "¿Has verificado que todos los datos y precios estén correctos? " +
+                                        "Una vez confirmado, se generará la venta."
+                            )
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    showConfirmDialog = false
+                                    saveSale()
+                                }
+                            ) {
+                                Text("Sí, generar venta")
+                            }
+                        },
+                        dismissButton = {
+                            Button(onClick = { showConfirmDialog = false }) {
+                                Text("Cancelar")
+                            }
+                        }
                     )
                 }
 
