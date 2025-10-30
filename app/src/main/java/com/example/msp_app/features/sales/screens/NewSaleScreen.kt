@@ -110,7 +110,7 @@ fun NewSaleScreen(navController: NavController) {
     var colonia by remember { mutableStateOf(TextFieldValue("")) }
     var poblacion by remember { mutableStateOf(TextFieldValue("")) }
     var ciudad by remember { mutableStateOf(TextFieldValue("")) }
-    var tipoVenta by remember { mutableStateOf("CONTADO") }
+    var tipoVenta by remember { mutableStateOf("CREDITO") }
 
     var phone by remember { mutableStateOf(TextFieldValue("")) }
     var downpayment by remember { mutableStateOf(TextFieldValue("")) }
