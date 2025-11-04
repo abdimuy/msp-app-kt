@@ -42,6 +42,21 @@ class PendingLocalSalesWorker(
                 Log.e("PendingLocalSalesWorker", "Venta local no encontrada: $saleId")
             }
 
+        // VALIDACIÓN NUEVA: Solo procesar si está COMPLETADA
+        if (sale.ESTADO != "COMPLETADA") {
+            Log.w(
+                "PendingLocalSalesWorker",
+                "Venta $saleId no está completada (estado: ${sale.ESTADO}). No se enviará."
+            )
+            return Result.success() // Terminar sin error, pero sin enviar
+        }
+
+        // VALIDACIÓN: Solo procesar si NO ha sido enviada
+        if (sale.ENVIADO) {
+            Log.w("PendingLocalSalesWorker", "Venta $saleId ya fue enviada. Cancelando worker.")
+            return Result.success()
+        }
+
         return try {
             val products = saleProductStore.getProductsForSale(saleId)
             val images = localSaleStore.getImagesForSale(saleId)
@@ -70,13 +85,17 @@ class PendingLocalSalesWorker(
                 }
             }
 
-            val response = api.saveLocalSale(datosRequestBody, imageParts)
+            api.saveLocalSale(datosRequestBody, imageParts)
             localSaleStore.changeSaleStatus(saleId, true)
+            localSaleStore.updateSaleState(saleId, "ENVIADA")
+
+            Log.i("PendingLocalSalesWorker", "Venta $saleId enviada exitosamente")
             Result.success()
 
         } catch (e: Exception) {
             if (e is retrofit2.HttpException && e.code() == 409) {
                 localSaleStore.changeSaleStatus(saleId, true)
+                localSaleStore.updateSaleState(saleId, "ENVIADA")
                 return Result.success()
             }
 

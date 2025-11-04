@@ -49,4 +49,42 @@ class LocalSaleDataSource(context: Context) {
     suspend fun getPendingSales(): List<LocalSaleEntity> {
         return localSaleDao.getSalesByStatus(false)
     }
+
+    suspend fun updateSaleState(saleId: String, estado: String) {
+        localSaleDao.updateSaleState(saleId, estado)
+    }
+
+    suspend fun updateSale(
+        saleId: String,
+        clientName: String,
+        phone: String,
+        address: String,
+        numero: String?,
+        colonia: String?,
+        poblacion: String?,
+        ciudad: String?,
+        installment: Double,
+        downpayment: Double,
+        paymentfrequency: String,
+        avaloresponsable: String?,
+        note: String?,
+        collectionday: String,
+        totalprice: Double,
+        shorttermamount: Double,
+        cashamount: Double
+    ) {
+        localSaleDao.updateSale(
+            saleId, clientName, phone, address, numero, colonia, poblacion, ciudad,
+            installment, downpayment, paymentfrequency, avaloresponsable,
+            note, collectionday, totalprice, shorttermamount, cashamount
+        )
+    }
+
+    suspend fun getSalesByState(estado: String): List<LocalSaleEntity> {
+        return localSaleDao.getSalesByState(estado)
+    }
+
+    suspend fun getCompletedSalesReadyToSend(): List<LocalSaleEntity> {
+        return localSaleDao.getCompletedSalesReadyToSend()
+    }
 }

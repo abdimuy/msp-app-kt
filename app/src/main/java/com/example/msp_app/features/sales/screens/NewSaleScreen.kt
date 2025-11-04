@@ -70,6 +70,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.local.entities.SaleStatus
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
@@ -110,7 +111,7 @@ fun NewSaleScreen(navController: NavController) {
     var colonia by remember { mutableStateOf(TextFieldValue("")) }
     var poblacion by remember { mutableStateOf(TextFieldValue("")) }
     var ciudad by remember { mutableStateOf(TextFieldValue("")) }
-    var tipoVenta by remember { mutableStateOf("CONTADO") }
+    var tipoVenta by remember { mutableStateOf("CREDITO") }
 
     var phone by remember { mutableStateOf(TextFieldValue("")) }
     var downpayment by remember { mutableStateOf(TextFieldValue("")) }
@@ -484,7 +485,8 @@ fun NewSaleScreen(navController: NavController) {
             enviado = false,
             saleProducts = saleProductsViewModel.saleItems,
             context = context,
-            userEmail = userEmail
+            userEmail = userEmail,
+            ESTADO = SaleStatus.PENDIENTE.name
         )
     }
 
