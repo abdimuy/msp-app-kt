@@ -33,8 +33,8 @@ import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
-import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
+import com.example.msp_app.features.sales.screens.EditSaleScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
 import com.example.msp_app.features.sales.screens.SaleDescriptionScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
@@ -86,6 +86,10 @@ sealed class Screen(val route: String) {
 
     object SaleDescripction : Screen("saleDescription/{localSaleId}") {
         fun creatRoute(localSaleId: String) = "saleDescription/$localSaleId"
+    }
+
+    object EditSale : Screen("sales/edit/{saleId}") {
+        fun createRoute(saleId: String) = "sales/edit/$saleId"
     }
 
     object Cart : Screen("cart")
@@ -193,7 +197,6 @@ fun AppNavigation() {
                 }
             }
 
-
             composable(Screen.PaymentTicket.route) { backStackEntry ->
                 val paymentId = backStackEntry.arguments?.getString("paymentId")
                 if (paymentId != null) {
@@ -255,6 +258,15 @@ fun AppNavigation() {
                     navController = navController
                 )
             }
+
+            composable(Screen.EditSale.route) { backStackEntry ->
+                val saleId = backStackEntry.arguments?.getString("saleId")
+                EditSaleScreen(
+                    saleId = saleId.toString(),
+                    navController = navController
+                )
+            }
+
             composable(Screen.Cart.route) {
                 CartScreen(
                     navController = navController,

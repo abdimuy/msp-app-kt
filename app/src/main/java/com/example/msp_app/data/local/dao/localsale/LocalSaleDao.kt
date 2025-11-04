@@ -37,7 +37,8 @@ interface LocalSaleDao {
             COLONIA,
             POBLACION,
             CIUDAD,
-            TIPO_VENTA
+            TIPO_VENTA,
+            ESTADO
             FROM local_sale
             WHERE FECHA_VENTA >= datetime('now', '-7 days')
             ORDER BY FECHA_VENTA DESC
@@ -70,7 +71,8 @@ interface LocalSaleDao {
             COLONIA,
             POBLACION,
             CIUDAD,
-            TIPO_VENTA
+            TIPO_VENTA,
+            ESTADO
             FROM local_sale
             WHERE LOCAL_SALE_ID = :sale_Id
         """
@@ -114,11 +116,69 @@ interface LocalSaleDao {
             COLONIA,
             POBLACION,
             CIUDAD,
-            TIPO_VENTA
+            TIPO_VENTA,
+            ESTADO
             FROM local_sale
             WHERE ENVIADO = :enviado
             ORDER BY FECHA_VENTA DESC
         """
     )
     suspend fun getSalesByStatus(enviado: Boolean): List<LocalSaleEntity>
+
+    @Query("UPDATE local_sale SET ESTADO = :estado WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun updateSaleState(saleId: String, estado: String)
+
+    @Query(
+        """
+        UPDATE local_sale SET 
+        NOMBRE_CLIENTE = :clientName,
+        TELEFONO = :phone,
+        DIRECCION = :address,
+        NUMERO = :numero,
+        COLONIA = :colonia,
+        POBLACION = :poblacion,
+        CIUDAD = :ciudad,
+        PARCIALIDAD = :installment,
+        ENGANCHE = :downpayment,
+        FREC_PAGO = :paymentfrequency,
+        AVAL_O_RESPONSABLE = :avaloresponsable,
+        NOTA = :note,
+        DIA_COBRANZA = :collectionday,
+        PRECIO_TOTAL = :totalprice,
+        MONTO_A_CORTO_PLAZO = :shorttermamount,
+        MONTO_DE_CONTADO = :cashamount
+        WHERE LOCAL_SALE_ID = :saleId
+    """
+    )
+    suspend fun updateSale(
+        saleId: String,
+        clientName: String,
+        phone: String,
+        address: String,
+        numero: String?,
+        colonia: String?,
+        poblacion: String?,
+        ciudad: String?,
+        installment: Double,
+        downpayment: Double,
+        paymentfrequency: String,
+        avaloresponsable: String?,
+        note: String?,
+        collectionday: String,
+        totalprice: Double,
+        shorttermamount: Double,
+        cashamount: Double
+    )
+
+    @Query("SELECT * FROM local_sale WHERE ESTADO = :estado ORDER BY FECHA_VENTA DESC")
+    suspend fun getSalesByState(estado: String): List<LocalSaleEntity>
+
+    @Query(
+        """
+        SELECT * FROM local_sale 
+        WHERE ENVIADO = 0 AND ESTADO = 'ENVIADA'
+        ORDER BY FECHA_VENTA DESC
+    """
+    )
+    suspend fun getCompletedSalesReadyToSend(): List<LocalSaleEntity>
 }

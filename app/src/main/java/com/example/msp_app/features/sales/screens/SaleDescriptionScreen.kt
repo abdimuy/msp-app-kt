@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales.screens
 
 import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -30,11 +33,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.data.local.entities.SaleStatus
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.components.CarouselItem
 import com.example.msp_app.features.productsInventory.components.CarrouselImage
@@ -102,6 +107,9 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                         style = MaterialTheme.typography.titleLarge
                     )
                 }
+            },
+            bottomBar = {
+
             }
         ) { innerPadding ->
             val scrollState = rememberScrollState()
@@ -198,7 +206,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                                 Column(
                                     modifier = Modifier.fillMaxSize(),
                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+                                    verticalArrangement = Arrangement.Center
                                 ) {
                                     Text(
                                         text = "No hay ubicación registrada",
@@ -225,7 +233,10 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                                     style = MaterialTheme.typography.titleLarge
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                InfoRow("Enganche:", currentSale.ENGANCHE?.toCurrency(noDecimals = true) ?: "")
+                                InfoRow(
+                                    "Enganche:",
+                                    currentSale.ENGANCHE?.toCurrency(noDecimals = true) ?: ""
+                                )
                                 InfoRow(
                                     "Parcialidad:",
                                     currentSale.PARCIALIDAD?.toCurrency(noDecimals = true) ?: ""
@@ -274,6 +285,64 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     Text(text = "No hay imágenes registradas")
                 }
             }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val saleStatus = SaleStatus.fromString(sale?.ESTADO)
+
+                when (saleStatus) {
+                    SaleStatus.PENDIENTE -> {
+                        Button(
+                            onClick = { navController.navigate("sales/edit/$localSaleId") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Editar")
+                        }
+                        Button(
+                            onClick = { viewModel.completeSale(localSaleId) },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Completar")
+                        }
+                    }
+
+                    SaleStatus.COMPLETADA -> {
+                        Button(
+                            onClick = { navController.navigate("sales/edit/$localSaleId") },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Editar")
+                        }
+                        Button(
+                            onClick = {
+                                // Obtener userEmail del authViewModel
+                                viewModel.sendSale(localSaleId, "user@email.com", context)
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("Enviar")
+                        }
+                    }
+
+                    SaleStatus.ENVIADA -> {
+                        Text(
+                            text = "Venta enviada",
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
         }
     }
 }
