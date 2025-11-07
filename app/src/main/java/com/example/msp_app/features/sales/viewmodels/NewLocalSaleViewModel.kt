@@ -19,6 +19,9 @@ import kotlinx.coroutines.launch
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.logging.logSaleError
+import com.example.msp_app.core.utils.ImageCompressor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
@@ -76,30 +79,69 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
-    fun saveImagesLocally(
+    /**
+     * Guarda las imágenes localmente con compresión inteligente en hilo de fondo
+     *
+     * Esta función aplica compresión adaptativa según el tamaño y dimensiones
+     * de cada imagen, optimizando el espacio de almacenamiento y el rendimiento
+     * de la red al enviar al servidor.
+     *
+     * IMPORTANTE: Se ejecuta en Dispatchers.IO para no bloquear el UI thread
+     *
+     * @param context Contexto de la aplicación
+     * @param uris Lista de URIs de las imágenes a guardar
+     * @param saleId ID de la venta asociada
+     * @return Lista de pares (ruta del archivo, tipo MIME)
+     */
+    suspend fun saveImagesLocally(
         context: Context,
         uris: List<Uri>,
         saleId: String
-    ): List<Pair<String, String>> {
+    ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
         val savedPaths = mutableListOf<Pair<String, String>>()
 
-        uris.forEach { uri ->
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-            val extension = if (mime == "image/png") ".png" else ".jpg"
-
-            val fileName = "sale_${saleId}_${System.currentTimeMillis()}$extension"
-            val file = File(context.filesDir, fileName)
-
-            inputStream?.use { input ->
-                file.outputStream().use { output ->
-                    input.copyTo(output)
+        uris.forEachIndexed { index, uri ->
+            try {
+                // Validar que sea una imagen válida
+                if (!ImageCompressor.isValidImage(context, uri)) {
+                    Log.w("NewLocalSaleViewModel", "URI no válido o no es una imagen: $uri")
+                    return@forEachIndexed
                 }
-            }
 
-            savedPaths.add(file.absolutePath to mime)
+                val fileName = "sale_${saleId}_${System.currentTimeMillis()}_$index.jpg"
+
+                // Comprimir la imagen de forma inteligente
+                // Esta operación es CPU-intensiva pero está en Dispatchers.IO
+                val result = ImageCompressor.compressImage(
+                    context = context,
+                    uri = uri,
+                    outputFileName = fileName
+                )
+
+                // Las imágenes se guardan siempre como JPEG después de la compresión
+                savedPaths.add(result.outputFile.absolutePath to "image/jpeg")
+
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error al comprimir imagen $index: ${e.message}", e)
+
+                // Log del error
+                logger.error(
+                    module = "SALES",
+                    action = "IMAGE_COMPRESSION_ERROR",
+                    message = "Error al comprimir imagen",
+                    error = e,
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "imageIndex" to index,
+                        "uri" to uri.toString()
+                    )
+                )
+
+                // Continuar con las siguientes imágenes en caso de error
+            }
         }
-        return savedPaths
+
+        return@withContext savedPaths
     }
 
     suspend fun saveSaleImages(
