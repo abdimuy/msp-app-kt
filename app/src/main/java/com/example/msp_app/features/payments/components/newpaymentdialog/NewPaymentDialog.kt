@@ -90,6 +90,7 @@ fun NewPaymentDialog(
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsBySuggestedAmountsState by paymentsViewModel.paymentsBySuggestedAmountsState.collectAsState()
     val savePaymentState by paymentsViewModel.savePaymentState.collectAsState()
+    val saleProductsState by paymentsViewModel.saleProductsState.collectAsState()
     val activity = LocalContext.current as ComponentActivity
     val authViewModel: AuthViewModel = viewModel(activity)
     val userData by authViewModel.userData.collectAsState()
@@ -120,6 +121,7 @@ fun NewPaymentDialog(
         if (suggestions.isEmpty()) {
             paymentsViewModel.getSuggestedAmountsBySaleId(sale.DOCTO_CC_ID)
         }
+        paymentsViewModel.getSaleProducts(sale.DOCTO_CC_ID)
     }
 
     // Observar el estado de guardado y navegar solo cuando sea exitoso
@@ -262,6 +264,55 @@ fun NewPaymentDialog(
                             }
                         }
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Productos en formato simple
+                    when (val state = saleProductsState) {
+                        is ResultState.Loading, is ResultState.Idle -> {
+                            Text(
+                                text = "Cargando productos...",
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            )
+                        }
+                        is ResultState.Success -> {
+                            if (state.data.isNotEmpty()) {
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(
+                                            style = SpanStyle(
+                                                fontSize = 14.sp,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        ) {
+                                            append("Productos: ")
+                                        }
+                                        withStyle(
+                                            style = SpanStyle(
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onBackground
+                                            )
+                                        ) {
+                                            append(state.data.joinToString(", ") { product ->
+                                                "${product.CANTIDAD}x ${product.ARTICULO}"
+                                            })
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        is ResultState.Error -> {
+                            Text(
+                                text = "Error al cargar productos",
+                                fontSize = 12.sp,
+                                color = Color.Red.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
