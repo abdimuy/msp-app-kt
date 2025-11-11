@@ -284,7 +284,7 @@ fun NewPaymentDialog(
                                     text = buildAnnotatedString {
                                         withStyle(
                                             style = SpanStyle(
-                                                fontSize = 14.sp,
+                                                fontSize = 16.sp,
                                                 color = MaterialTheme.colorScheme.secondary
                                             )
                                         ) {
@@ -292,7 +292,7 @@ fun NewPaymentDialog(
                                         }
                                         withStyle(
                                             style = SpanStyle(
-                                                fontSize = 14.sp,
+                                                fontSize = 16.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 color = if (isDark) Color.White else MaterialTheme.colorScheme.onBackground
                                             )
