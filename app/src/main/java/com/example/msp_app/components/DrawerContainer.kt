@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.msp_app.R
@@ -103,9 +104,16 @@ fun DrawerContainer(
                         val modulos = userData?.MODULOS ?: emptyList()
                         val hasCobro = modulos.contains("COBRO")
                         val hasVentas = modulos.contains("VENTAS")
-
+                        val hasAlmacen = modulos.contains("ALMACEN")
 
                         if (hasCobro) {
+                            Text(
+                                text = "COBRO",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
 
                             NavigationDrawerItem(
                                 label = { Text("Inicio") },
@@ -171,11 +179,23 @@ fun DrawerContainer(
                                     }
                                 }
                             )
+
+                            if (hasVentas || hasAlmacen) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
                         }
 
                         if (hasVentas) {
+                            Text(
+                                text = "VENTAS",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+
                             NavigationDrawerItem(
-                                label = { Text("Catalogo de Productos") },
+                                label = { Text("Catálogo de Productos") },
                                 selected = false,
                                 onClick = {
                                     scope.launch {
@@ -207,6 +227,33 @@ fun DrawerContainer(
                                         drawerState.close()
                                         navController.navigate("sales/details_list") {
                                             popUpTo("sale_home")
+                                        }
+                                    }
+                                }
+                            )
+
+                            if (hasAlmacen) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+
+                        if (hasAlmacen) {
+                            Text(
+                                text = "ALMACÉN",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+
+                            NavigationDrawerItem(
+                                label = { Text("Traspasos") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("transfers") {
+                                            popUpTo("home")
                                         }
                                     }
                                 }

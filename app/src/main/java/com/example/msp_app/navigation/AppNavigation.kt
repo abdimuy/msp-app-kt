@@ -42,6 +42,12 @@ import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
 import com.example.msp_app.features.visit.screens.VisitTicketScreen
+import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
+import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
+import com.example.msp_app.features.transfers.presentation.create.NewTransferScreen
+import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
+import com.example.msp_app.features.transfers.presentation.detail.TransferDetailScreen
+import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
 
 
 sealed class Screen(val route: String) {
@@ -90,6 +96,14 @@ sealed class Screen(val route: String) {
 
     object Cart : Screen("cart")
 
+    // Transfers routes
+    object TransfersList : Screen("transfers")
+    object TransferDetail : Screen("transfers/{transferId}") {
+        fun createRoute(transferId: Int) = "transfers/$transferId"
+    }
+    object NewTransfer : Screen("transfers/new?warehouseId={warehouseId}") {
+        fun createRoute(warehouseId: Int = 0) = "transfers/new?warehouseId=$warehouseId"
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -259,6 +273,43 @@ fun AppNavigation() {
                 CartScreen(
                     navController = navController,
                 )
+            }
+
+            // Transfers routes
+            composable(Screen.TransfersList.route) {
+                val viewModel: TransfersListViewModel = viewModel()
+                TransfersListScreen(
+                    viewModel = viewModel,
+                    navController = navController,
+                    onTransferClick = { transferId ->
+                        navController.navigate(Screen.TransferDetail.createRoute(transferId))
+                    },
+                    onCreateTransferClick = { warehouseId ->
+                        navController.navigate(Screen.NewTransfer.createRoute(warehouseId))
+                    }
+                )
+            }
+
+            composable(Screen.NewTransfer.route) { backStackEntry ->
+                val warehouseId = backStackEntry.arguments?.getString("warehouseId")?.toIntOrNull() ?: 0
+                val viewModel: NewTransferViewModel = viewModel()
+                NewTransferScreen(
+                    viewModel = viewModel,
+                    navController = navController,
+                    preselectedWarehouseId = warehouseId
+                )
+            }
+
+            composable(Screen.TransferDetail.route) { backStackEntry ->
+                val transferId = backStackEntry.arguments?.getString("transferId")?.toIntOrNull()
+                if (transferId != null) {
+                    val viewModel: TransferDetailViewModel = viewModel()
+                    TransferDetailScreen(
+                        transferId = transferId,
+                        viewModel = viewModel,
+                        navController = navController
+                    )
+                }
             }
         }
     }
