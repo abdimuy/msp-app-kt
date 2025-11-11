@@ -157,7 +157,7 @@ fun NewSaleScreen(navController: NavController) {
         listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
     val tipoVentaOptions = listOf("CONTADO", "CREDITO")
 
-    LaunchedEffect(draftState) {
+    LaunchedEffect(Unit) {
         if (!draftLoaded && draftState is DraftState.HasDraft) {
             showDraftDialog = true
         }
@@ -587,11 +587,15 @@ fun NewSaleScreen(navController: NavController) {
     }
 
     if (showDraftDialog && draftState is DraftState.HasDraft) {
+        val draft = (draftState as DraftState.HasDraft).draft
         DraftConfirmationDialog(
-            timestamp = (draftState as DraftState.HasDraft).draft.timestamp,
+            timestamp = draft.timestamp,
+            clientName = draft.clientName,
+            phone = draft.phone,
+            address = draft.location,
             onConfirm = {
-                draftViewModel.loadDraft(context) { draft ->
-                    loadDraftData(draft)
+                draftViewModel.loadDraft(context) { loadedDraft ->
+                    loadDraftData(loadedDraft)
                 }
                 showDraftDialog = false
             },
@@ -625,6 +629,16 @@ fun NewSaleScreen(navController: NavController) {
                         text = "Nueva Venta",
                         style = MaterialTheme.typography.titleLarge
                     )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (draftState is DraftState.HasDraft && draftLoaded) {
+                        TextButton(
+                            onClick = {
+                                clearAllFields()
+                            }
+                        ) {
+                            Text("Descartar borrador", fontSize = 12.sp)
+                        }
+                    }
                 }
             }
         ) { innerPadding ->
