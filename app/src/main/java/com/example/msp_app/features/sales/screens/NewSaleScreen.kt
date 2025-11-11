@@ -67,12 +67,18 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.example.msp_app.components.DraftConfirmationDialog
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.createDraftFromFormData
+import com.example.msp_app.core.utils.draftToFormData
+import com.example.msp_app.core.utils.loadDraftProducts
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
+import com.example.msp_app.features.sales.viewmodels.DraftState
+import com.example.msp_app.features.sales.viewmodels.DraftViewModel
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
@@ -101,7 +107,7 @@ fun NewSaleScreen(navController: NavController) {
     var showImageError by remember { mutableStateOf(false) }
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
-    val context = LocalContext.current
+    LocalContext.current
     var address by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var latitude by remember { mutableDoubleStateOf(0.0) }
@@ -139,10 +145,23 @@ fun NewSaleScreen(navController: NavController) {
     var showImageSizeError by remember { mutableStateOf(false) }
     var downpaymentError by remember { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val draftViewModel: DraftViewModel = remember { DraftViewModel(context) }
+
+    val draftState by draftViewModel.draftState.collectAsState()
+    var draftLoaded by remember { mutableStateOf(false) }
+    var showDraftDialog by remember { mutableStateOf(false) }
+
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
         listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
     val tipoVentaOptions = listOf("CONTADO", "CREDITO")
+
+    LaunchedEffect(draftState) {
+        if (!draftLoaded && draftState is DraftState.HasDraft) {
+            showDraftDialog = true
+        }
+    }
 
     val userData by authViewModel.userData.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
@@ -332,6 +351,7 @@ fun NewSaleScreen(navController: NavController) {
         when (val result = saveResult) {
             is SaveResult.Success -> {
                 showSuccessDialog = true
+                draftViewModel.clearDraft()
                 viewModel.clearSaveResult()
             }
 
@@ -343,6 +363,42 @@ fun NewSaleScreen(navController: NavController) {
                 showErrorDialog = true
                 viewModel.clearSaveResult()
             }
+        }
+    }
+
+    LaunchedEffect(
+        defectName.text, phone.text, location, numero.text, colonia.text,
+        poblacion.text, ciudad.text, tipoVenta, downpayment.text, installment.text,
+        guarantor.text, note.text, collectionday, paymentfrequency,
+        latitude, longitude, imageUris, saleProductsViewModel.saleItems.size
+    ) {
+        if (draftLoaded || defectName.text.isNotEmpty() || phone.text.isNotEmpty() ||
+            location.isNotEmpty() || imageUris.isNotEmpty() ||
+            saleProductsViewModel.hasItems()
+        ) {
+
+            val draft = createDraftFromFormData(
+                clientName = defectName,
+                phone = phone,
+                location = location,
+                numero = numero,
+                colonia = colonia,
+                poblacion = poblacion,
+                ciudad = ciudad,
+                tipoVenta = tipoVenta,
+                downpayment = downpayment,
+                installment = installment,
+                guarantor = guarantor,
+                note = note,
+                collectionday = collectionday,
+                paymentfrequency = paymentfrequency,
+                latitude = latitude,
+                longitude = longitude,
+                imageUris = imageUris,
+                saleProductsViewModel = saleProductsViewModel
+            )
+
+            draftViewModel.updateDraft(draft)
         }
     }
 
@@ -375,6 +431,40 @@ fun NewSaleScreen(navController: NavController) {
         collectionDayError = false
         imageError = false
         productsError = false
+
+        // Limpiar el borrador
+        draftViewModel.clearDraft()
+    }
+
+    fun loadDraftData(draft: com.example.msp_app.features.sales.data.DraftData) {
+        val formData = draftToFormData(draft)
+
+        defectName = formData.clientName
+        phone = formData.phone
+        location = formData.location
+        numero = formData.numero
+        colonia = formData.colonia
+        poblacion = formData.poblacion
+        ciudad = formData.ciudad
+        tipoVenta = formData.tipoVenta
+        downpayment = formData.downpayment
+        installment = formData.installment
+        guarantor = formData.guarantor
+        note = formData.note
+        collectionday = formData.collectionday
+        paymentfrequency = formData.paymentfrequency
+        latitude = formData.latitude
+        longitude = formData.longitude
+        imageUris = formData.imageUris
+
+        loadDraftProducts(draft, saleProductsViewModel)
+
+        if (latitude != 0.0 && longitude != 0.0) {
+            locationPermissionGranted = true
+            hasValidLocation = true
+        }
+
+        draftLoaded = true
     }
 
     if (showSuccessDialog) {
@@ -493,6 +583,24 @@ fun NewSaleScreen(navController: NavController) {
             imageUris = imageUris,
             initialIndex = selectedImageIndex,
             onDismiss = { showImageViewer = false }
+        )
+    }
+
+    if (showDraftDialog && draftState is DraftState.HasDraft) {
+        DraftConfirmationDialog(
+            timestamp = (draftState as DraftState.HasDraft).draft.timestamp,
+            onConfirm = {
+                draftViewModel.loadDraft(context) { draft ->
+                    loadDraftData(draft)
+                }
+                showDraftDialog = false
+            },
+            onDismiss = {
+                draftViewModel.dismissDraft()
+                draftViewModel.clearDraft()
+                showDraftDialog = false
+                draftLoaded = true
+            }
         )
     }
 
