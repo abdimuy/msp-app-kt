@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -309,6 +310,20 @@ private fun ProductSelectionStep(
     productsError: String?,
     modifier: Modifier = Modifier
 ) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Filter products based on search query
+    val filteredProducts = remember(availableProducts, searchQuery) {
+        if (searchQuery.isBlank()) {
+            availableProducts
+        } else {
+            availableProducts.filter { product ->
+                product.ARTICULO.contains(searchQuery, ignoreCase = true) ||
+                product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
     Column(
         modifier = modifier.fillMaxSize()
     ) {
@@ -320,11 +335,20 @@ private fun ProductSelectionStep(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Productos (${selectedProducts.size} de ${availableProducts.size} seleccionados)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Column {
+                Text(
+                    text = "Productos (${selectedProducts.size} seleccionados)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (searchQuery.isNotBlank()) {
+                    Text(
+                        text = "${filteredProducts.size} de ${availableProducts.size} productos",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             OutlinedButton(
                 onClick = {
@@ -362,6 +386,23 @@ private fun ProductSelectionStep(
             )
         }
 
+        // Search bar
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = { Text("Buscar producto...") },
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Buscar"
+                )
+            },
+            singleLine = true
+        )
+
         // Products list
         if (isLoadingProducts) {
             Box(
@@ -372,7 +413,7 @@ private fun ProductSelectionStep(
             ) {
                 CircularProgressIndicator()
             }
-        } else if (availableProducts.isEmpty()) {
+        } else if (filteredProducts.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -384,12 +425,12 @@ private fun ProductSelectionStep(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "No hay productos disponibles",
+                        text = if (searchQuery.isBlank()) "No hay productos disponibles" else "No se encontraron productos",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "El almacén de origen no tiene productos",
+                        text = if (searchQuery.isBlank()) "El almacén de origen no tiene productos" else "Intenta con otra búsqueda",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -405,7 +446,7 @@ private fun ProductSelectionStep(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(availableProducts, key = { it.ARTICULO_ID }) { product ->
+                items(filteredProducts, key = { it.ARTICULO_ID }) { product ->
                     val selectedProduct = selectedProductsMap[product.ARTICULO_ID]
                     val isSelected = selectedProduct != null
 
