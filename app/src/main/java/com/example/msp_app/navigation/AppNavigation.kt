@@ -142,8 +142,9 @@ fun AppNavigation() {
 
                             val destination = when {
                                 modulos.isEmpty() -> Screen.NoModules.route
-                                modulos.contains("COBRO") -> Screen.Home.route
-                                modulos.contains("VENTAS") && !modulos.contains("COBRO") -> Screen.SaleHome.route
+                                modulos.contains("COBRO") -> Screen.Home.route          // Priority 1
+                                modulos.contains("VENTAS") -> Screen.SaleHome.route     // Priority 2
+                                modulos.contains("ALMACEN") -> Screen.TransfersList.route // Priority 3
                                 else -> Screen.NoModules.route
                             }
 
