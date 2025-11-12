@@ -114,6 +114,20 @@ class NewTransferViewModel(
         if (_selectedDestinationWarehouse.value?.ALMACEN_ID == warehouse.ALMACEN_ID) {
             _selectedDestinationWarehouse.value = null
         }
+
+        // Auto-select destination warehouse with lowest ID (excluding source)
+        if (_selectedDestinationWarehouse.value == null) {
+            val currentState = _warehousesState.value
+            if (currentState is ResultState.Success) {
+                val lowestIdWarehouse = currentState.data
+                    .filter { it.ALMACEN_ID != warehouse.ALMACEN_ID }
+                    .minByOrNull { it.ALMACEN_ID }
+
+                lowestIdWarehouse?.let {
+                    _selectedDestinationWarehouse.value = it
+                }
+            }
+        }
     }
 
     fun selectDestinationWarehouse(warehouse: WarehouseListResponse.Warehouse) {

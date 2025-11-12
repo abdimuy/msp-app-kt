@@ -35,11 +35,14 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +55,8 @@ import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
+import com.example.msp_app.features.transfers.presentation.components.WarehouseProductsBottomSheet
+import kotlinx.coroutines.launch
 
 /**
  * Warehouse dashboard screen for transfers
@@ -66,7 +71,13 @@ fun TransfersListScreen(
     modifier: Modifier = Modifier
 ) {
     val warehousesState by viewModel.warehousesState.collectAsState()
+    val warehouseProductsState by viewModel.warehouseProductsState.collectAsState()
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showBottomSheet by remember { mutableStateOf(false) }
+    var selectedWarehouseForProducts by remember { mutableStateOf<WarehouseListResponse.Warehouse?>(null) }
+
+    val sheetState = rememberModalBottomSheetState()
+    val scope = rememberCoroutineScope()
 
     val configuration = LocalConfiguration.current
     val isTablet = configuration.screenWidthDp >= 600
@@ -74,6 +85,26 @@ fun TransfersListScreen(
     // Refresh warehouses when screen is displayed
     LaunchedEffect(Unit) {
         viewModel.refreshWarehouses()
+    }
+
+    // Handle view products click
+    fun handleViewProducts(warehouse: WarehouseListResponse.Warehouse) {
+        selectedWarehouseForProducts = warehouse
+        viewModel.loadWarehouseProducts(warehouse.ALMACEN_ID)
+        showBottomSheet = true
+    }
+
+    // Handle bottom sheet dismiss
+    fun handleDismissBottomSheet() {
+        scope.launch {
+            sheetState.hide()
+        }.invokeOnCompletion {
+            if (!sheetState.isVisible) {
+                showBottomSheet = false
+                selectedWarehouseForProducts = null
+                viewModel.resetProductsState()
+            }
+        }
     }
 
     DrawerContainer(navController = navController) { openDrawer ->
@@ -172,7 +203,8 @@ fun TransfersListScreen(
                                 items(warehouses, key = { it.ALMACEN_ID }) { warehouse ->
                                     WarehouseCard(
                                         warehouse = warehouse,
-                                        onCreateTransferClick = onCreateTransferClick
+                                        onCreateTransferClick = onCreateTransferClick,
+                                        onViewProductsClick = { handleViewProducts(warehouse) }
                                     )
                                 }
                             }
@@ -209,6 +241,17 @@ fun TransfersListScreen(
             }
         }
     }
+
+    // Bottom Sheet for viewing products
+    if (showBottomSheet && selectedWarehouseForProducts != null) {
+        WarehouseProductsBottomSheet(
+            warehouseName = selectedWarehouseForProducts!!.ALMACEN,
+            totalStock = selectedWarehouseForProducts!!.EXISTENCIAS,
+            productsState = warehouseProductsState,
+            sheetState = sheetState,
+            onDismiss = { handleDismissBottomSheet() }
+        )
+    }
     }
 }
 
@@ -219,6 +262,7 @@ fun TransfersListScreen(
 private fun WarehouseCard(
     warehouse: WarehouseListResponse.Warehouse,
     onCreateTransferClick: (Int) -> Unit,
+    onViewProductsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -313,21 +357,33 @@ private fun WarehouseCard(
             }
 
             // Actions
-            Button(
-                onClick = { onCreateTransferClick(warehouse.ALMACEN_ID) },
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = Color.White
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(
-                    text = "Crear Traspaso",
-                    color = Color.White
-                )
+                OutlinedButton(
+                    onClick = onViewProductsClick,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Ver Productos")
+                }
+
+                Button(
+                    onClick = { onCreateTransferClick(warehouse.ALMACEN_ID) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(
+                        text = "Crear Traspaso",
+                        color = Color.White
+                    )
+                }
             }
         }
     }

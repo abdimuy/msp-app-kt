@@ -9,6 +9,7 @@ import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
 import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
 import com.example.msp_app.data.local.repository.WarehouseRepository
+import com.example.msp_app.data.models.productInventory.ProductInventory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,9 @@ class TransfersListViewModel(
 
     private val _warehousesState = MutableStateFlow<ResultState<List<WarehouseListResponse.Warehouse>>>(ResultState.Idle)
     val warehousesState: StateFlow<ResultState<List<WarehouseListResponse.Warehouse>>> = _warehousesState.asStateFlow()
+
+    private val _warehouseProductsState = MutableStateFlow<ResultState<List<ProductInventory>>>(ResultState.Idle)
+    val warehouseProductsState: StateFlow<ResultState<List<ProductInventory>>> = _warehouseProductsState.asStateFlow()
 
     init {
         loadWarehouses()
@@ -62,5 +66,34 @@ class TransfersListViewModel(
      */
     fun refreshWarehouses() {
         loadWarehouses()
+    }
+
+    /**
+     * Load products for a specific warehouse
+     */
+    fun loadWarehouseProducts(warehouseId: Int) {
+        viewModelScope.launch {
+            _warehouseProductsState.value = ResultState.Loading
+            try {
+                val result = warehouseRepository.getWarehouseProducts(warehouseId)
+                result.fold(
+                    onSuccess = { response ->
+                        _warehouseProductsState.value = ResultState.Success(response.body.ARTICULOS)
+                    },
+                    onFailure = { error ->
+                        _warehouseProductsState.value = ResultState.Error(error.message ?: "Error al cargar productos")
+                    }
+                )
+            } catch (e: Exception) {
+                _warehouseProductsState.value = ResultState.Error(e.message ?: "Error al cargar productos")
+            }
+        }
+    }
+
+    /**
+     * Reset products state
+     */
+    fun resetProductsState() {
+        _warehouseProductsState.value = ResultState.Idle
     }
 }
