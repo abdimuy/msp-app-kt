@@ -1,9 +1,11 @@
 package com.example.msp_app.features.cart.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,10 +38,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
@@ -58,13 +64,12 @@ fun CartScreen(navController: NavController) {
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
-    val coroutineScope = rememberCoroutineScope()
+    rememberCoroutineScope()
 
     val cartProducts = cartViewModel.cartProducts
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val saveCartState by warehouseViewModel.saveCartState.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
-    val hasUnsavedChanges by cartViewModel.hasUnsavedChanges.collectAsState()
     val userData by authViewModel.userData.collectAsState()
     val loadingOperations by cartViewModel.loadingOperations.collectAsState()
     val transferState by warehouseViewModel.transferState.collectAsState()
@@ -136,7 +141,8 @@ fun CartScreen(navController: NavController) {
     LaunchedEffect(warehouseState) {
         when (val state = warehouseState) {
             is ResultState.Success -> {
-                nombreAlmacenAsignado = state.data.body.ALMACEN?.ALMACEN ?: camionetaAsignada?.let { "Almacén ID: $it" }
+                nombreAlmacenAsignado =
+                    state.data.body.ALMACEN?.ALMACEN ?: camionetaAsignada?.let { "Almacén ID: $it" }
                 val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
                 cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
             }
@@ -206,21 +212,23 @@ fun CartScreen(navController: NavController) {
             topBar = {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text("Carrito (${cartViewModel.getTotalItems()})")
-                            nombreAlmacenAsignado?.let { nombre ->
-                                Text(
-                                    text = "🚚 $nombre",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } ?: run {
-                                if (camionetaAsignada == null) {
+                        Row {
+                            Column {
+                                Text("Carrito (${cartViewModel.getTotalItems()})")
+                                nombreAlmacenAsignado?.let { nombre ->
                                     Text(
-                                        text = "⚠️ Sin camioneta asignada",
+                                        text = "🚚 $nombre",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error
+                                        color = MaterialTheme.colorScheme.primary
                                     )
+                                } ?: run {
+                                    if (camionetaAsignada == null) {
+                                        Text(
+                                            text = "⚠️ Sin camioneta asignada",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -235,6 +243,27 @@ fun CartScreen(navController: NavController) {
                     }
                 )
             },
+            bottomBar = {
+                if (cartProducts.isNotEmpty() && camionetaAsignada != null) {
+                    Button(
+                        onClick = {
+                            navController.navigate("inventory_ticket")
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.print_printer),
+                            contentDescription = "Imprimir inventario",
+                            colorFilter = ColorFilter.tint(Color.White),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.padding(4.dp))
+                        Text("VER TICKET DE INVENTARIO", color = Color.White)
+                    }
+                }
+            }
         ) { paddingValues ->
             Column(
                 modifier = Modifier

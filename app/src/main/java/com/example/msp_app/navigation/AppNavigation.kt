@@ -24,6 +24,7 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.cart.screens.CartScreen
+import com.example.msp_app.features.cart.screens.InventoryTicketScreen
 import com.example.msp_app.features.common.NoModulesScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
@@ -33,7 +34,6 @@ import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
-import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
 import com.example.msp_app.features.sales.screens.SaleDescriptionScreen
@@ -93,6 +93,9 @@ sealed class Screen(val route: String) {
     object SaleDescripction : Screen("saleDescription/{localSaleId}") {
         fun creatRoute(localSaleId: String) = "saleDescription/$localSaleId"
     }
+
+    object InventoryTicket : Screen("inventory_ticket")
+
 
     object Cart : Screen("cart")
 
@@ -262,6 +265,11 @@ fun AppNavigation() {
             composable(Screen.SaleDetailsList.route) {
                 SaleDetailsListScreen(navController = navController)
             }
+
+            composable(Screen.InventoryTicket.route) {
+                InventoryTicketScreen(navController = navController)
+            }
+
 
             composable("saleDescription/{localSaleId}") { backStackEntry ->
                 val localSaleId = backStackEntry.arguments?.getString("localSaleId")
