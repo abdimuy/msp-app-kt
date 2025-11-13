@@ -133,7 +133,8 @@ fun ProductDetailsScreen(
     LaunchedEffect(warehouseProducts) {
         when (val state = warehouseProducts) {
             is ResultState.Success -> {
-                nombreAlmacenAsignado = state.data.body.ALMACEN.ALMACEN
+                nombreAlmacenAsignado = state.data.body.ALMACEN?.ALMACEN
+                    ?: camionetaAsignada?.let { "Almacén ID: $it" }
             }
 
             is ResultState.Error -> {
