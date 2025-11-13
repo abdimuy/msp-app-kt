@@ -31,7 +31,7 @@ class NewTransferViewModel(
 
     private val repository: TransfersRepository by lazy {
         val apiService = ApiProvider.create(TransfersApiService::class.java)
-        TransfersRepository(apiService)
+        TransfersRepository(apiService, application.applicationContext)
     }
 
     private val warehouseRepository: WarehouseRepository by lazy {

@@ -1,5 +1,8 @@
 package com.example.msp_app.features.transfers.data.repository
 
+import android.content.Context
+import com.example.msp_app.core.logging.Logger
+import com.example.msp_app.core.logging.logTransferError
 import com.example.msp_app.features.transfers.data.api.TransfersApiService
 import com.example.msp_app.features.transfers.data.api.dto.CostPreviewRequest
 import com.example.msp_app.features.transfers.data.mappers.toRequest
@@ -17,9 +20,13 @@ import java.time.format.DateTimeFormatter
  * Handles data operations and business logic for warehouse transfers
  */
 class TransfersRepository(
-    private val apiService: TransfersApiService
+    private val apiService: TransfersApiService,
+    private val context: Context? = null
 ) {
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+    private val logger by lazy {
+        context?.let { Logger.get() }
+    }
 
     /**
      * Create a new transfer
@@ -28,19 +35,51 @@ class TransfersRepository(
         return withContext(Dispatchers.IO) {
             try {
                 val response = apiService.createTransfer(data.toRequest())
+                val httpCode = response.code()
 
                 if (response.isSuccessful) {
                     val body = response.body()
                     if (body != null) {
                         Result.success(body.doctoInId)
                     } else {
+                        // ⚠️ CASO CRÍTICO: Response exitoso pero body es null
+                        // El traspaso probablemente SÍ se creó pero no podemos confirmarlo
+                        logger?.logTransferError(
+                            almacenOrigenId = data.almacenOrigenId,
+                            almacenDestinoId = data.almacenDestinoId,
+                            productCount = data.productos.size,
+                            httpCode = httpCode,
+                            errorMessage = "Respuesta vacía del servidor",
+                            isBodyNull = true,
+                            additionalData = mapOf(
+                                "headers" to response.headers().toString(),
+                                "rawResponse" to response.raw().toString()
+                            )
+                        )
                         Result.failure(Exception("Respuesta vacía del servidor"))
                     }
                 } else {
+                    // ❌ ERROR HTTP (400, 500, etc)
                     val errorBody = response.errorBody()?.string()
+                    logger?.logTransferError(
+                        almacenOrigenId = data.almacenOrigenId,
+                        almacenDestinoId = data.almacenDestinoId,
+                        productCount = data.productos.size,
+                        httpCode = httpCode,
+                        errorMessage = parseErrorMessage(errorBody),
+                        responseBody = errorBody
+                    )
                     Result.failure(Exception(parseErrorMessage(errorBody)))
                 }
             } catch (e: Exception) {
+                // ❌ EXCEPCIÓN (timeout, network error, etc)
+                logger?.logTransferError(
+                    almacenOrigenId = data.almacenOrigenId,
+                    almacenDestinoId = data.almacenDestinoId,
+                    productCount = data.productos.size,
+                    errorMessage = e.message ?: "Error desconocido",
+                    exception = e
+                )
                 Result.failure(e)
             }
         }
