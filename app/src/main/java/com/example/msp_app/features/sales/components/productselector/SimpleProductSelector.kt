@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -204,7 +205,8 @@ fun SimpleProductSelector(
 
                     DropdownMenu(
                         expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.fillMaxHeight(0.8f)
                     ) {
                         productosCamioneta.forEach { product ->
                             val cantidadEnVenta =
@@ -341,7 +343,10 @@ fun SimpleProductSelector(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Agregar a la venta")
+                            Text(
+                                text = "Agregar a la venta",
+                                color = Color.White
+                            )
                         }
                     }
                 }
