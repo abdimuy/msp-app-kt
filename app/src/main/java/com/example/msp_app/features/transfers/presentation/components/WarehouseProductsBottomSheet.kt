@@ -1,6 +1,9 @@
 package com.example.msp_app.features.transfers.presentation.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,25 +32,36 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.data.models.productInventory.ProductInventory
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WarehouseProductsBottomSheet(
     warehouseName: String,
     totalStock: Int,
+    assignedUsers: List<com.example.msp_app.data.models.auth.User>,
     productsState: ResultState<List<ProductInventory>>,
     sheetState: SheetState,
     onDismiss: () -> Unit
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showPrintDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -79,6 +94,63 @@ fun WarehouseProductsBottomSheet(
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
+            }
+
+            // Assigned vendors
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Text(
+                    text = "Vendedores",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+
+                if (assignedUsers.isEmpty()) {
+                    Text(
+                        text = "Sin vendedores asignados",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        assignedUsers.forEach { user ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.primary,
+                                            shape = CircleShape
+                                        )
+                                )
+                                Text(
+                                    text = user.NOMBRE,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Print button
+            if (productsState is ResultState.Success && productsState.data.isNotEmpty()) {
+                Button(
+                    onClick = { showPrintDialog = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                ) {
+                    Text("Imprimir Inventario", color = Color.White)
+                }
             }
 
             // Search bar
@@ -176,7 +248,98 @@ fun WarehouseProductsBottomSheet(
                     // Initial state
                 }
             }
+
+            // Print dialog
+            if (showPrintDialog && productsState is ResultState.Success) {
+                val ticketText = generateWarehouseInventoryTicket(
+                    warehouseName = warehouseName,
+                    totalStock = totalStock,
+                    assignedUsers = assignedUsers,
+                    products = productsState.data
+                )
+
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showPrintDialog = false },
+                    title = { Text("Imprimir Inventario") },
+                    text = {
+                        SelectBluetoothDevice(
+                            textToPrint = ticketText,
+                            verticalLayout = true,
+                            onPrintRequest = { device, text ->
+                                coroutineScope.launch {
+                                    try {
+                                        ThermalPrinting.printText(device, text, context)
+                                        showPrintDialog = false
+                                    } catch (e: Exception) {
+                                        // Error already handled by ThermalPrinting
+                                    }
+                                }
+                            }
+                        )
+                    },
+                    confirmButton = {},
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showPrintDialog = false }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
+            }
         }
+    }
+}
+
+/**
+ * Generate thermal printer ticket for warehouse inventory
+ */
+private fun generateWarehouseInventoryTicket(
+    warehouseName: String,
+    totalStock: Int,
+    assignedUsers: List<com.example.msp_app.data.models.auth.User>,
+    products: List<ProductInventory>
+): String {
+    return buildString {
+        val lineBlanck = " "
+
+        appendLine(ThermalPrinting.centerText("INVENTARIO DE ALMACEN", 32))
+        appendLine(lineBlanck)
+        appendLine("-".repeat(32))
+        appendLine(lineBlanck)
+        appendLine(ThermalPrinting.bold("ALMACEN: $warehouseName"))
+        appendLine("STOCK TOTAL: $totalStock productos")
+        appendLine(lineBlanck)
+
+        // Vendedores
+        if (assignedUsers.isNotEmpty()) {
+            appendLine("VENDEDORES ASIGNADOS:")
+            assignedUsers.forEach { user ->
+                appendLine("  - ${user.NOMBRE}")
+            }
+        } else {
+            appendLine("VENDEDORES: Sin asignar")
+        }
+
+        appendLine(lineBlanck)
+        appendLine("-".repeat(32))
+        appendLine(lineBlanck)
+        appendLine(ThermalPrinting.centerText("PRODUCTOS", 32))
+        appendLine(lineBlanck)
+
+        // Productos ordenados por nombre
+        products.sortedBy { it.ARTICULO }.forEach { product ->
+            appendLine(ThermalPrinting.bold(product.ARTICULO))
+            appendLine("  Linea: ${product.LINEA_ARTICULO}")
+            appendLine("  Stock: ${product.EXISTENCIAS} unidades")
+            appendLine(lineBlanck)
+        }
+
+        appendLine("-".repeat(32))
+        appendLine(lineBlanck)
+        appendLine("TOTAL DE PRODUCTOS: ${products.size}")
+        appendLine("FECHA: ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}")
+        appendLine(lineBlanck)
+        appendLine(lineBlanck)
+        appendLine(lineBlanck)
     }
 }
 
