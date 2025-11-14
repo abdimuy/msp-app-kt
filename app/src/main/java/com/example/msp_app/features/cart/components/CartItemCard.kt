@@ -27,7 +27,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -77,6 +79,7 @@ fun CartItemCard(
     val isDark = ThemeController.isDarkMode
     var showQuantityDialog by remember { mutableStateOf(false) }
     var isIncreaseMode by remember { mutableStateOf(true) }
+    var showRestrictionDialog by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -164,24 +167,16 @@ fun CartItemCard(
                             contentAlignment = Alignment.Center
                         ) {
                             IconButton(
-                                onClick = onDecreaseQuantity,
-                                enabled = !isDecreaseLoading,
+                                onClick = { showRestrictionDialog = true },
+                                enabled = true,
                                 modifier = Modifier.size(36.dp)
                             ) {
-                                if (isDecreaseLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                } else {
-                                    Text(
-                                        text = "−",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                                Text(
+                                    text = "−",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
 
@@ -201,8 +196,7 @@ fun CartItemCard(
                                         isIncreaseMode = true
                                     },
                                     onLongClick = {
-                                        showQuantityDialog = true
-                                        isIncreaseMode = false
+                                        showRestrictionDialog = true
                                     }
                                 )
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -253,30 +247,22 @@ fun CartItemCard(
                             contentAlignment = Alignment.Center
                         ) {
                             IconButton(
-                                onClick = onRemove,
-                                enabled = !isRemoveLoading,
+                                onClick = { showRestrictionDialog = true },
+                                enabled = true,
                                 modifier = Modifier.size(36.dp)
                             ) {
-                                if (isRemoveLoading) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color.Red
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Eliminar producto de la camioneta",
-                                        tint = Color.Red,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Eliminar producto de la camioneta",
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }
 
                     Text(
-                        text = "Toca el número para cambios rápidos",
+                        text = "Toca el número para agregar más productos",
                         fontSize = 10.sp,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -328,6 +314,44 @@ fun CartItemCard(
                 }
             }
         }
+    }
+
+    // Dialog de restricción
+    if (showRestrictionDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestrictionDialog = false },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Acción no permitida",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "No está permitido eliminar o reducir productos de la camioneta directamente. Para realizar cambios en el inventario, por favor contacte con la oficina central.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showRestrictionDialog = false }
+                ) {
+                    Text("Entendido")
+                }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        )
     }
 
     if (showQuantityDialog) {
