@@ -9,7 +9,9 @@ import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
 import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
 import com.example.msp_app.data.local.repository.WarehouseRepository
+import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.productInventory.ProductInventory
+import com.example.msp_app.data.repository.UsersRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,14 +31,20 @@ class TransfersListViewModel(
         WarehouseRepository(remoteDataSource)
     }
 
+    private val usersRepository = UsersRepository()
+
     private val _warehousesState = MutableStateFlow<ResultState<List<WarehouseListResponse.Warehouse>>>(ResultState.Idle)
     val warehousesState: StateFlow<ResultState<List<WarehouseListResponse.Warehouse>>> = _warehousesState.asStateFlow()
 
     private val _warehouseProductsState = MutableStateFlow<ResultState<List<ProductInventory>>>(ResultState.Idle)
     val warehouseProductsState: StateFlow<ResultState<List<ProductInventory>>> = _warehouseProductsState.asStateFlow()
 
+    private val _usersByWarehouse = MutableStateFlow<Map<Int, List<User>>>(emptyMap())
+    val usersByWarehouse: StateFlow<Map<Int, List<User>>> = _usersByWarehouse.asStateFlow()
+
     init {
         loadWarehouses()
+        loadUsers()
     }
 
     /**
@@ -62,10 +70,50 @@ class TransfersListViewModel(
     }
 
     /**
-     * Refresh warehouses
+     * Load users and group them by warehouse
+     */
+    private fun loadUsers() {
+        viewModelScope.launch {
+            try {
+                val result = usersRepository.getAllUsers()
+                result.fold(
+                    onSuccess = { users ->
+                        // Group users by CAMIONETA_ASIGNADA, filtering out nulls
+                        val groupedUsers = users
+                            .mapNotNull { user ->
+                                user.CAMIONETA_ASIGNADA?.let { warehouseId ->
+                                    warehouseId to user
+                                }
+                            }
+                            .groupBy({ it.first }, { it.second })
+
+                        _usersByWarehouse.value = groupedUsers
+                    },
+                    onFailure = { error ->
+                        android.util.Log.e("TransfersListViewModel", "Error loading users: ${error.message}")
+                        _usersByWarehouse.value = emptyMap()
+                    }
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("TransfersListViewModel", "Exception loading users", e)
+                _usersByWarehouse.value = emptyMap()
+            }
+        }
+    }
+
+    /**
+     * Refresh warehouses and users
      */
     fun refreshWarehouses() {
         loadWarehouses()
+        loadUsers()
+    }
+
+    /**
+     * Get users assigned to a specific warehouse
+     */
+    fun getUsersForWarehouse(warehouseId: Int): List<User> {
+        return _usersByWarehouse.value[warehouseId] ?: emptyList()
     }
 
     /**

@@ -9,7 +9,9 @@ import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
 import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
 import com.example.msp_app.data.local.repository.WarehouseRepository
+import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.productInventory.ProductInventory
+import com.example.msp_app.data.repository.UsersRepository
 import com.example.msp_app.features.transfers.data.api.TransfersApiService
 import com.example.msp_app.features.transfers.data.repository.TransfersRepository
 import com.example.msp_app.features.transfers.domain.models.CreateTransferData
@@ -39,6 +41,12 @@ class NewTransferViewModel(
         val remoteDataSource = WarehouseRemoteDataSource(warehousesApi)
         WarehouseRepository(remoteDataSource)
     }
+
+    private val usersRepository = UsersRepository()
+
+    // ===== Users State =====
+    private val _usersByWarehouse = MutableStateFlow<Map<Int, List<User>>>(emptyMap())
+    val usersByWarehouse: StateFlow<Map<Int, List<User>>> = _usersByWarehouse.asStateFlow()
 
     // ===== Wizard State =====
     private val _currentStep = MutableStateFlow(TransferStep.WAREHOUSES)
@@ -83,6 +91,7 @@ class NewTransferViewModel(
 
     init {
         loadWarehouses()
+        loadUsers()
     }
 
     // ===== Warehouse Operations =====
@@ -102,6 +111,34 @@ class NewTransferViewModel(
                 )
             } catch (e: Exception) {
                 _warehousesState.value = ResultState.Error(e.message ?: "Error al cargar almacenes")
+            }
+        }
+    }
+
+    private fun loadUsers() {
+        viewModelScope.launch {
+            try {
+                val result = usersRepository.getAllUsers()
+                result.fold(
+                    onSuccess = { users ->
+                        val groupedUsers = users
+                            .mapNotNull { user ->
+                                user.CAMIONETA_ASIGNADA?.let { warehouseId ->
+                                    warehouseId to user
+                                }
+                            }
+                            .groupBy({ it.first }, { it.second })
+
+                        _usersByWarehouse.value = groupedUsers
+                    },
+                    onFailure = { error ->
+                        android.util.Log.e("NewTransferViewModel", "Error loading users: ${error.message}")
+                        _usersByWarehouse.value = emptyMap()
+                    }
+                )
+            } catch (e: Exception) {
+                android.util.Log.e("NewTransferViewModel", "Exception loading users", e)
+                _usersByWarehouse.value = emptyMap()
             }
         }
     }

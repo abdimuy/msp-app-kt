@@ -32,6 +32,7 @@ fun WarehouseSelector(
     label: String,
     warehouses: List<WarehouseListResponse.Warehouse>,
     selectedWarehouse: WarehouseListResponse.Warehouse?,
+    assignedUsers: List<com.example.msp_app.data.models.auth.User> = emptyList(),
     onWarehouseSelected: (WarehouseListResponse.Warehouse) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
@@ -101,12 +102,33 @@ fun WarehouseSelector(
         }
 
         if (selectedWarehouse != null) {
-            Text(
-                text = "ID: ${selectedWarehouse.ALMACEN_ID} • ${selectedWarehouse.EXISTENCIAS} productos en stock",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Column(
                 modifier = Modifier.padding(start = 16.dp, top = 4.dp)
-            )
+            ) {
+                Text(
+                    text = "ID: ${selectedWarehouse.ALMACEN_ID} • ${selectedWarehouse.EXISTENCIAS} productos en stock",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                // Show assigned vendors
+                if (assignedUsers.isNotEmpty()) {
+                    Text(
+                        text = "Vendedores: ${assignedUsers.joinToString(", ") { it.NOMBRE }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Vendedores: Sin asignar",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
         }
     }
 }

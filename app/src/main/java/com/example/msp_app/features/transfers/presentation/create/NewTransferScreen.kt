@@ -79,6 +79,7 @@ fun NewTransferScreen(
     val selectedProducts by viewModel.selectedProducts.collectAsState()
     val warehouses by viewModel.warehousesState.collectAsState()
     val availableProducts by viewModel.availableProductsState.collectAsState()
+    val usersByWarehouse by viewModel.usersByWarehouse.collectAsState()
     val isLoadingProducts = availableProducts is ResultState.Loading
     val isLoadingCosts = viewModel.productCostsState.collectAsState().value is ResultState.Loading
     val createState by viewModel.createTransferState.collectAsState()
@@ -133,6 +134,7 @@ fun NewTransferScreen(
                             is ResultState.Success<*> -> (warehouses as ResultState.Success<List<com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse>>).data
                             else -> emptyList()
                         },
+                        usersByWarehouse = usersByWarehouse,
                         sourceWarehouse = sourceWarehouse,
                         destinationWarehouse = destinationWarehouse,
                         onSourceSelected = viewModel::selectSourceWarehouse,
@@ -240,6 +242,7 @@ fun NewTransferScreen(
 @Composable
 private fun WarehouseSelectionStep(
     warehouses: List<com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse>,
+    usersByWarehouse: Map<Int, List<com.example.msp_app.data.models.auth.User>>,
     sourceWarehouse: com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
     destinationWarehouse: com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
     onSourceSelected: (com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse) -> Unit,
@@ -271,6 +274,7 @@ private fun WarehouseSelectionStep(
             label = "Almacén de Origen",
             warehouses = warehouses,
             selectedWarehouse = sourceWarehouse,
+            assignedUsers = sourceWarehouse?.let { usersByWarehouse[it.ALMACEN_ID] } ?: emptyList(),
             onWarehouseSelected = onSourceSelected,
             excludeWarehouseId = destinationWarehouse?.ALMACEN_ID,
             enabled = !isSourceWarehouseLocked,
@@ -288,6 +292,7 @@ private fun WarehouseSelectionStep(
             label = "Almacén de Destino",
             warehouses = warehouses,
             selectedWarehouse = destinationWarehouse,
+            assignedUsers = destinationWarehouse?.let { usersByWarehouse[it.ALMACEN_ID] } ?: emptyList(),
             onWarehouseSelected = onDestinationSelected,
             excludeWarehouseId = sourceWarehouse?.ALMACEN_ID,
             error = destinationError

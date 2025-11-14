@@ -1,6 +1,8 @@
 package com.example.msp_app.features.transfers.presentation.list
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -50,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
@@ -72,6 +75,7 @@ fun TransfersListScreen(
 ) {
     val warehousesState by viewModel.warehousesState.collectAsState()
     val warehouseProductsState by viewModel.warehouseProductsState.collectAsState()
+    val usersByWarehouse by viewModel.usersByWarehouse.collectAsState()
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showBottomSheet by remember { mutableStateOf(false) }
     var selectedWarehouseForProducts by remember { mutableStateOf<WarehouseListResponse.Warehouse?>(null) }
@@ -158,7 +162,12 @@ fun TransfersListScreen(
                         state.data
                     } else {
                         state.data.filter { warehouse ->
-                            warehouse.ALMACEN.contains(searchQuery, ignoreCase = true)
+                            val assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList()
+                            val matchesWarehouse = warehouse.ALMACEN.contains(searchQuery, ignoreCase = true)
+                            val matchesVendor = assignedUsers.any { user ->
+                                user.NOMBRE.contains(searchQuery, ignoreCase = true)
+                            }
+                            matchesWarehouse || matchesVendor
                         }
                     }
 
@@ -172,7 +181,7 @@ fun TransfersListScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(16.dp),
-                            placeholder = { Text("Buscar almacén...") },
+                            placeholder = { Text("Buscar almacén o vendedor...") },
                             leadingIcon = {
                                 Icon(
                                     imageVector = Icons.Default.Search,
@@ -203,6 +212,7 @@ fun TransfersListScreen(
                                 items(warehouses, key = { it.ALMACEN_ID }) { warehouse ->
                                     WarehouseCard(
                                         warehouse = warehouse,
+                                        assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList(),
                                         onCreateTransferClick = onCreateTransferClick,
                                         onViewProductsClick = { handleViewProducts(warehouse) }
                                     )
@@ -243,14 +253,17 @@ fun TransfersListScreen(
     }
 
     // Bottom Sheet for viewing products
-    if (showBottomSheet && selectedWarehouseForProducts != null) {
-        WarehouseProductsBottomSheet(
-            warehouseName = selectedWarehouseForProducts!!.ALMACEN,
-            totalStock = selectedWarehouseForProducts!!.EXISTENCIAS,
-            productsState = warehouseProductsState,
-            sheetState = sheetState,
-            onDismiss = { handleDismissBottomSheet() }
-        )
+    selectedWarehouseForProducts?.let { warehouse ->
+        if (showBottomSheet) {
+            WarehouseProductsBottomSheet(
+                warehouseName = warehouse.ALMACEN,
+                totalStock = warehouse.EXISTENCIAS,
+                assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList(),
+                productsState = warehouseProductsState,
+                sheetState = sheetState,
+                onDismiss = { handleDismissBottomSheet() }
+            )
+        }
     }
     }
 }
@@ -261,6 +274,7 @@ fun TransfersListScreen(
 @Composable
 private fun WarehouseCard(
     warehouse: WarehouseListResponse.Warehouse,
+    assignedUsers: List<com.example.msp_app.data.models.auth.User>,
     onCreateTransferClick: (Int) -> Unit,
     onViewProductsClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -275,83 +289,81 @@ private fun WarehouseCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header with warehouse name
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = warehouse.ALMACEN,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "ID: ${warehouse.ALMACEN_ID}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Stock total
+            // Header: warehouse name and stock in same row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
-                        text = "Stock Total",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "${warehouse.EXISTENCIAS}",
-                        style = MaterialTheme.typography.displaySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = warehouse.ALMACEN,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = "productos",
+                        text = "ID: ${warehouse.ALMACEN_ID}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Stock status indicator
-                Column(
-                    horizontalAlignment = Alignment.End
-                ) {
-                    val stockLevel = when {
-                        warehouse.EXISTENCIAS == 0 -> "Sin stock"
-                        warehouse.EXISTENCIAS < 50 -> "Stock bajo"
-                        warehouse.EXISTENCIAS < 200 -> "Stock medio"
-                        else -> "Stock alto"
-                    }
-
-                    val statusColor = when {
-                        warehouse.EXISTENCIAS == 0 -> MaterialTheme.colorScheme.error
-                        warehouse.EXISTENCIAS < 50 -> MaterialTheme.colorScheme.error
-                        warehouse.EXISTENCIAS < 200 -> MaterialTheme.colorScheme.tertiary
-                        else -> MaterialTheme.colorScheme.primary
-                    }
-
-                    Text(
-                        text = stockLevel,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = statusColor,
-                        fontWeight = FontWeight.Medium
+                // Stock badge
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
                     )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "${warehouse.EXISTENCIAS}",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "productos",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = {
-                            (warehouse.EXISTENCIAS.toFloat() / 500f).coerceIn(0f, 1f)
-                        },
-                        modifier = Modifier.size(width = 100.dp, height = 6.dp),
-                        color = statusColor,
+            // Assigned vendors (more compact)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Vendedores:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+
+                if (assignedUsers.isEmpty()) {
+                    Text(
+                        text = "Sin asignar",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                } else {
+                    Text(
+                        text = assignedUsers.joinToString(", ") { it.NOMBRE },
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
