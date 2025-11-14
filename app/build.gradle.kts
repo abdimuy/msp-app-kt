@@ -126,6 +126,9 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
 
+    // DataStore for draft saving
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 
     implementation("androidx.compose.foundation:foundation:1.7.8")

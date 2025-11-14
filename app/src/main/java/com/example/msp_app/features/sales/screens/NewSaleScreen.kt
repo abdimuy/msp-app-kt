@@ -64,11 +64,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.draft.SaleDraft
+import com.example.msp_app.core.draft.SaleDraftManager
+import kotlinx.coroutines.launch
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
@@ -77,6 +81,7 @@ import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
+import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -92,6 +97,13 @@ fun NewSaleScreen(navController: NavController) {
     val warehouseViewModel: WarehouseViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Draft Manager
+    val draftManager = remember { SaleDraftManager(context) }
+    var showDraftDialog by remember { mutableStateOf(false) }
+    var loadedDraft by remember { mutableStateOf<SaleDraft?>(null) }
 
     var defectName by remember { mutableStateOf(TextFieldValue("")) }
     var showError by remember { mutableStateOf(false) }
@@ -101,7 +113,6 @@ fun NewSaleScreen(navController: NavController) {
     var showImageError by remember { mutableStateOf(false) }
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
-    val context = LocalContext.current
     var address by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var latitude by remember { mutableDoubleStateOf(0.0) }
@@ -157,9 +168,130 @@ fun NewSaleScreen(navController: NavController) {
         else -> emptyList()
     }
 
+    // Save draft automatically
+    fun saveDraftAuto() {
+        coroutineScope.launch {
+            // Extract file paths from URIs (convert content:// URIs to file paths)
+            val imagePaths = imageUris.mapNotNull { uri ->
+                try {
+                    // If it's a content URI from FileProvider, extract the actual file path
+                    if (uri.scheme == "content" && uri.authority == "${context.packageName}.fileprovider") {
+                        // Extract path from FileProvider URI
+                        val path = uri.path?.substringAfter("draft_images/")
+                        if (path != null) {
+                            "${context.filesDir}/draft_images/$path"
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            val draft = SaleDraft(
+                clientName = defectName.text,
+                phone = phone.text,
+                street = location,
+                numero = numero.text,
+                colonia = colonia.text,
+                poblacion = poblacion.text,
+                ciudad = ciudad.text,
+                tipoVenta = tipoVenta,
+                downpayment = downpayment.text,
+                installment = installment.text,
+                guarantor = guarantor.text,
+                note = note.text,
+                collectionDay = collectionday,
+                paymentFrequency = paymentfrequency,
+                latitude = latitude,
+                longitude = longitude,
+                imageUris = imagePaths,
+                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems)
+            )
+            draftManager.saveDraft(draft)
+        }
+    }
+
+    // Load draft data into fields
+    fun loadDraftData(draft: SaleDraft) {
+        defectName = TextFieldValue(draft.clientName)
+        phone = TextFieldValue(draft.phone)
+        location = draft.street
+        numero = TextFieldValue(draft.numero)
+        colonia = TextFieldValue(draft.colonia)
+        poblacion = TextFieldValue(draft.poblacion)
+        ciudad = TextFieldValue(draft.ciudad)
+        tipoVenta = draft.tipoVenta
+        downpayment = TextFieldValue(draft.downpayment)
+        installment = TextFieldValue(draft.installment)
+        guarantor = TextFieldValue(draft.guarantor)
+        note = TextFieldValue(draft.note)
+        collectionday = draft.collectionDay
+        paymentfrequency = draft.paymentFrequency
+        latitude = draft.latitude
+        longitude = draft.longitude
+
+        // Load images
+        imageUris = draft.imageUris.mapNotNull { path ->
+            try {
+                val file = File(path)
+                if (file.exists()) {
+                    val uri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    uri
+                } else {
+                    null
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        // Load products
+        val draftProducts = draftManager.jsonToDraftProducts(draft.productsJson)
+        draftProducts.forEach { draftProduct ->
+            val product = productosCamioneta.find { it.ARTICULO_ID == draftProduct.articuloId }
+            if (product != null) {
+                saleProductsViewModel.addProductToSale(product, draftProduct.quantity)
+            }
+        }
+    }
+
     LaunchedEffect(camionetaId) {
         if (camionetaId != null) {
             warehouseViewModel.selectWarehouse(camionetaId)
+        }
+    }
+
+    // Check for draft on screen start and clean old drafts
+    LaunchedEffect(Unit) {
+        // Clean drafts older than 7 days
+        draftManager.clearOldDrafts(maxAgeDays = 7)
+
+        // Load draft if exists (and wasn't just cleared)
+        val draft = draftManager.loadDraft()
+        if (draft != null) {
+            loadedDraft = draft
+            showDraftDialog = true
+        }
+    }
+
+    // Auto-save draft when fields change
+    LaunchedEffect(
+        defectName.text, phone.text, location, numero.text, colonia.text,
+        poblacion.text, ciudad.text, tipoVenta, downpayment.text,
+        installment.text, guarantor.text, note.text, collectionday,
+        paymentfrequency, latitude, longitude, imageUris,
+        saleProductsViewModel.saleItems.size
+    ) {
+        // Don't save if user just declined to load a draft
+        if (!showDraftDialog) {
+            saveDraftAuto()
         }
     }
 
@@ -197,7 +329,15 @@ fun NewSaleScreen(navController: NavController) {
     ) { uri: Uri? ->
         uri?.let {
             if (validateImageSize(context, it)) {
-                imageUris = imageUris + it
+                // Copy image to persistent storage and get URI via FileProvider
+                val persistentPath = draftManager.copyImageToPersistentStorage(it)
+                val file = File(persistentPath)
+                val persistentUri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+                imageUris = imageUris + persistentUri
                 showImageSizeError = false
             } else {
                 showImageSizeError = true
@@ -209,12 +349,22 @@ fun NewSaleScreen(navController: NavController) {
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success: Boolean ->
-        if (success && cameraImageUri != null) {
-            if (validateImageSize(context, cameraImageUri!!)) {
-                imageUris = imageUris + cameraImageUri!!
-                showImageSizeError = false
-            } else {
-                showImageSizeError = true
+        if (success) {
+            cameraImageUri?.let { uri ->
+                if (validateImageSize(context, uri)) {
+                    // Copy image to persistent storage and get URI via FileProvider
+                    val persistentPath = draftManager.copyImageToPersistentStorage(uri)
+                    val file = File(persistentPath)
+                    val persistentUri = FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    imageUris = imageUris + persistentUri
+                    showImageSizeError = false
+                } else {
+                    showImageSizeError = true
+                }
             }
         }
         showImageSourceDialog = false
@@ -333,6 +483,8 @@ fun NewSaleScreen(navController: NavController) {
             is SaveResult.Success -> {
                 showSuccessDialog = true
                 viewModel.clearSaveResult()
+                // Clear draft after successful sale creation
+                draftManager.clearDraft()
             }
 
             null -> { /* No hacer nada */
@@ -375,6 +527,103 @@ fun NewSaleScreen(navController: NavController) {
         collectionDayError = false
         imageError = false
         productsError = false
+    }
+
+    // Draft recovery dialog
+    if (showDraftDialog && loadedDraft != null) {
+        val draft = loadedDraft!!
+        val productCount = draftManager.jsonToDraftProducts(draft.productsJson).size
+
+        AlertDialog(
+            onDismissRequest = { },
+            title = {
+                Text(
+                    text = "Venta pendiente encontrada",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "Se encontró una venta sin completar:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    if (draft.clientName.isNotBlank()) {
+                        Row {
+                            Text("Cliente: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(draft.clientName, fontSize = 14.sp)
+                        }
+                    }
+
+                    Row {
+                        Text("Tipo: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(draft.tipoVenta, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+                    }
+
+                    if (productCount > 0) {
+                        Row {
+                            Text("Productos: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("$productCount seleccionados", fontSize = 14.sp)
+                        }
+                    }
+
+                    if (draft.street.isNotBlank()) {
+                        Row {
+                            Text("Ubicación: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(
+                                draft.street.take(30) + if (draft.street.length > 30) "..." else "",
+                                fontSize = 14.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        "¿Deseas continuar con esta venta?",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        loadedDraft?.let { draft ->
+                            loadDraftData(draft)
+                        }
+                        showDraftDialog = false
+                        loadedDraft = null
+                    }
+                ) {
+                    Text("Continuar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            draftManager.clearDraft()
+                        }
+                        showDraftDialog = false
+                        loadedDraft = null
+                    }
+                ) {
+                    Text(
+                        text = "Nueva venta",
+                        color = if (ThemeController.isDarkMode) Color.White else Color.Black
+                    )
+                }
+            }
+        )
     }
 
     if (showSuccessDialog) {
