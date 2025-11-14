@@ -184,7 +184,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         colonia: String? = null,
         poblacion: String? = null,
         ciudad: String? = null,
-        tipoVenta: String? = "CONTADO",
+        tipoVenta: String? = "CREDITO",
         installment: Double,
         downpayment: Double,
         phone: String,
