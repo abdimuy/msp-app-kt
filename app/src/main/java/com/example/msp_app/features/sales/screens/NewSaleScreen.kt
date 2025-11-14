@@ -103,6 +103,7 @@ fun NewSaleScreen(navController: NavController) {
     // Draft Manager
     val draftManager = remember { SaleDraftManager(context) }
     var showDraftDialog by remember { mutableStateOf(false) }
+    var showDiscardConfirmDialog by remember { mutableStateOf(false) }
     var loadedDraft by remember { mutableStateOf<SaleDraft?>(null) }
 
     var defectName by remember { mutableStateOf(TextFieldValue("")) }
@@ -610,17 +611,59 @@ fun NewSaleScreen(navController: NavController) {
             dismissButton = {
                 OutlinedButton(
                     onClick = {
-                        coroutineScope.launch {
-                            draftManager.clearDraft()
-                        }
-                        showDraftDialog = false
-                        loadedDraft = null
+                        showDiscardConfirmDialog = true
                     }
                 ) {
                     Text(
                         text = "Nueva venta",
                         color = if (ThemeController.isDarkMode) Color.White else Color.Black
                     )
+                }
+            }
+        )
+    }
+
+    // Confirmation dialog for discarding draft
+    if (showDiscardConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardConfirmDialog = false },
+            title = {
+                Text(
+                    text = "¿Descartar borrador?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Se eliminará toda la información guardada del borrador. Esta acción no se puede deshacer.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        coroutineScope.launch {
+                            draftManager.clearDraft()
+                        }
+                        showDiscardConfirmDialog = false
+                        showDraftDialog = false
+                        loadedDraft = null
+                    },
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Sí, borrar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                    }
+                ) {
+                    Text("Cancelar")
                 }
             }
         )
