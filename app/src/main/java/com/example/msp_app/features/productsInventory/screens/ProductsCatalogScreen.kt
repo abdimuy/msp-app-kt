@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
+import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.composables.icons.lucide.Truck
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.stock.ProductStock
@@ -168,7 +169,7 @@ fun ProductsCatalogScreen(navController: NavController) {
                             navController.navigate(Screen.Cart.route)
                         }) {
                             Icon(
-                                imageVector = Icons.Default.ShoppingCart,
+                                imageVector = Lucide.Truck,
                                 contentDescription = "Carrito"
                             )
                         }
