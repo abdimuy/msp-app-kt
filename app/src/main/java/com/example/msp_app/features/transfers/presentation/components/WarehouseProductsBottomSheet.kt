@@ -1,5 +1,7 @@
 package com.example.msp_app.features.transfers.presentation.components
 
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.size
@@ -42,11 +44,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.data.models.productInventory.ProductInventory
+import com.example.msp_app.features.payments.components.pdfgenerationdialog.PdfGenerationDialog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,6 +67,9 @@ fun WarehouseProductsBottomSheet(
 ) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showPrintDialog by remember { mutableStateOf(false) }
+    var isGeneratingPdf by remember { mutableStateOf(false) }
+    var pdfUri by remember { mutableStateOf<Uri?>(null) }
+    var showPdfDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -141,15 +151,63 @@ fun WarehouseProductsBottomSheet(
                 }
             }
 
-            // Print button
+            // Action buttons
             if (productsState is ResultState.Success && productsState.data.isNotEmpty()) {
-                Button(
-                    onClick = { showPrintDialog = true },
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 16.dp)
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Imprimir Inventario", color = Color.White)
+                    // PDF button
+                    Button(
+                        onClick = {
+                            coroutineScope.launch {
+                                isGeneratingPdf = true
+                                val file = withContext(Dispatchers.IO) {
+                                    PdfGenerator.generateWarehouseInventoryPdf(
+                                        context = context,
+                                        warehouseName = warehouseName,
+                                        totalStock = totalStock,
+                                        assignedUsers = assignedUsers,
+                                        products = productsState.data,
+                                        fileName = "inventario_${warehouseName.replace(" ", "_")}.pdf"
+                                    )
+                                }
+                                isGeneratingPdf = false
+                                if (file != null && file.exists()) {
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        context.packageName + ".fileprovider",
+                                        file
+                                    )
+                                    pdfUri = uri
+                                    showPdfDialog = true
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Error al generar PDF",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
+                        enabled = !isGeneratingPdf,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            if (isGeneratingPdf) "GENERANDO..." else "GENERAR PDF",
+                            color = Color.White
+                        )
+                    }
+
+                    // Thermal print button
+                    Button(
+                        onClick = { showPrintDialog = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("IMPRIMIR", color = Color.White)
+                    }
                 }
             }
 
@@ -282,6 +340,17 @@ fun WarehouseProductsBottomSheet(
                         androidx.compose.material3.TextButton(onClick = { showPrintDialog = false }) {
                             Text("Cancelar")
                         }
+                    }
+                )
+            }
+
+            // PDF dialog
+            if (showPdfDialog && pdfUri != null) {
+                PdfGenerationDialog(
+                    pdfUri = pdfUri!!,
+                    onDismiss = {
+                        showPdfDialog = false
+                        pdfUri = null
                     }
                 )
             }

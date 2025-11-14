@@ -4,12 +4,16 @@ import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import com.example.msp_app.data.models.auth.User
+import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.payments.models.ForgivenessTextData
 import com.example.msp_app.features.payments.models.PaymentTextData
 import com.example.msp_app.features.payments.models.VisitTextData
 import java.io.File
 import java.io.FileOutputStream
+import java.text.SimpleDateFormat
 import java.time.LocalDateTime
+import java.util.Date
 import java.util.Locale
 
 object PdfGenerator {
@@ -217,6 +221,129 @@ object PdfGenerator {
         }
 
         pdfDocument.finishPage(visitPage)
+
+        val file = File(context.cacheDir, fileName)
+        pdfDocument.writeTo(FileOutputStream(file))
+        pdfDocument.close()
+        return file
+    }
+
+    fun generateWarehouseInventoryPdf(
+        context: Context,
+        warehouseName: String,
+        totalStock: Int,
+        assignedUsers: List<User>,
+        products: List<ProductInventory>,
+        fileName: String
+    ): File? {
+        val pdfDocument = PdfDocument()
+        val paint = Paint().apply {
+            textSize = 10f
+            typeface = Typeface.SANS_SERIF
+        }
+
+        val pageWidth = 612
+        val pageHeight = 792
+        val marginLeft = 40f
+        val rightMargin = 40f
+        val lineSpacing = 15
+
+        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
+        var page = pdfDocument.startPage(pageInfo)
+        var canvas = page.canvas
+        var yPos = 40
+
+        // Title
+        paint.isFakeBoldText = true
+        paint.textSize = 14f
+        canvas.drawText("INVENTARIO DE ALMACÉN", pageWidth / 2f - 95, yPos.toFloat(), paint)
+        yPos += 25
+
+        paint.textSize = 10f
+
+        // Warehouse info
+        canvas.drawText("Almacén: $warehouseName", marginLeft, yPos.toFloat(), paint)
+        yPos += 20
+        canvas.drawText("Stock Total: $totalStock unidades", marginLeft, yPos.toFloat(), paint)
+        yPos += 20
+
+        // Vendors
+        if (assignedUsers.isNotEmpty()) {
+            canvas.drawText("Vendedores Asignados:", marginLeft, yPos.toFloat(), paint)
+            yPos += 15
+            paint.isFakeBoldText = false
+            assignedUsers.forEach { user ->
+                canvas.drawText("  - ${user.NOMBRE}", marginLeft + 10, yPos.toFloat(), paint)
+                yPos += 15
+            }
+            paint.isFakeBoldText = true
+        } else {
+            canvas.drawText("Vendedores: Sin asignar", marginLeft, yPos.toFloat(), paint)
+            yPos += 15
+        }
+
+        yPos += 10
+        val printDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+        canvas.drawText("Fecha de generación: $printDate", marginLeft, yPos.toFloat(), paint)
+        yPos += 25
+
+        // Table headers
+        val headerProduct = "Producto"
+        val headerLine = "Línea"
+        val headerStock = "Stock"
+
+        val xProduct = marginLeft
+        canvas.drawText(headerProduct, xProduct, yPos.toFloat(), paint)
+        val xLine = xProduct + 250f
+        canvas.drawText(headerLine, xLine, yPos.toFloat(), paint)
+        val xStock = pageWidth - rightMargin - paint.measureText("999 unidades")
+        canvas.drawText(headerStock, xStock, yPos.toFloat(), paint)
+
+        yPos += lineSpacing
+        canvas.drawLine(marginLeft, yPos.toFloat(), pageWidth - marginLeft, yPos.toFloat(), paint)
+        yPos += lineSpacing
+
+        // Products
+        paint.isFakeBoldText = false
+        val sortedProducts = products.sortedBy { it.ARTICULO }
+
+        sortedProducts.forEach { product ->
+            if (yPos > pageHeight - 80) {
+                pdfDocument.finishPage(page)
+                page = pdfDocument.startPage(pageInfo)
+                canvas = page.canvas
+                yPos = 40
+            }
+
+            val productName = product.ARTICULO.take(40)
+            canvas.drawText(productName, xProduct, yPos.toFloat(), paint)
+
+            val lineName = product.LINEA_ARTICULO.take(25)
+            canvas.drawText(lineName, xLine, yPos.toFloat(), paint)
+
+            val stockText = "${product.EXISTENCIAS} unidades"
+            canvas.drawText(stockText, xStock, yPos.toFloat(), paint)
+
+            yPos += lineSpacing
+        }
+
+        yPos += lineSpacing
+        canvas.drawLine(marginLeft, yPos.toFloat(), pageWidth - marginLeft, yPos.toFloat(), paint)
+        yPos += lineSpacing
+
+        // Summary
+        paint.isFakeBoldText = true
+        val totalProductsText = "Total de productos: ${products.size}"
+        val totalStockText = "Total de unidades: $totalStock"
+
+        val xTotalProducts = pageWidth - rightMargin - paint.measureText(totalProductsText)
+        val xTotalStock = pageWidth - rightMargin - paint.measureText(totalStockText)
+
+        canvas.drawText(totalProductsText, xTotalProducts, yPos.toFloat(), paint)
+        yPos += lineSpacing
+        canvas.drawText(totalStockText, xTotalStock, yPos.toFloat(), paint)
+
+        pdfDocument.finishPage(page)
 
         val file = File(context.cacheDir, fileName)
         pdfDocument.writeTo(FileOutputStream(file))
