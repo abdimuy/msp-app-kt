@@ -498,7 +498,7 @@ fun ProductDetailsScreen(
                                         Spacer(modifier = Modifier.height(16.dp))
 
                                         Text(
-                                            text = "Agregar al carrito",
+                                            text = "Agregar a la camioneta",
                                             style = MaterialTheme.typography.headlineSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
@@ -731,7 +731,10 @@ fun ProductDetailsScreen(
                             }
                         }
                     ) {
-                        Text("Añadir al Carrito")
+                        Text(
+                            text = "Añadir a la Camioneta",
+                            color = Color.White
+                        )
                     }
                 }
             } ?: run {
