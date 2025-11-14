@@ -19,12 +19,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.ShoppingCart
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Plus
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -308,7 +309,8 @@ fun SimpleProductSelector(
                                         .padding(horizontal = 16.dp, vertical = 8.dp),
                                     textAlign = TextAlign.Center,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 20.sp
+                                    fontSize = 20.sp,
+                                    color = Color.White
                                 )
 
                                 FilledTonalIconButton(
@@ -338,9 +340,10 @@ fun SimpleProductSelector(
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Icon(
-                                Icons.Default.Add,
+                                Lucide.Plus,
                                 contentDescription = "Agregar",
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
@@ -541,7 +544,7 @@ private fun CartItemRow(
                             text = saleItem.quantity.toString(),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = Color.White,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                             textAlign = TextAlign.Center
                         )
