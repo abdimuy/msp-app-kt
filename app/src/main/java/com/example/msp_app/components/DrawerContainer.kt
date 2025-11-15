@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.msp_app.R
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.ui.theme.ThemeController
@@ -261,12 +262,23 @@ fun DrawerContainer(
                         }
                     }
 
-                    NavigationDrawerItem(
-                        label = { Text("Cerrar sesión") },
-                        selected = false,
-                        onClick = { showLogoutDialog = true },
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Column {
+                        NavigationDrawerItem(
+                            label = { Text("Cerrar sesión") },
+                            selected = false,
+                            onClick = { showLogoutDialog = true },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        Text(
+                            text = "Versión ${Constants.APP_VERSION}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(bottom = 8.dp)
+                        )
+                    }
                 }
             }
         }
