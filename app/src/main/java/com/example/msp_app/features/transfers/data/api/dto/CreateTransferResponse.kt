@@ -6,15 +6,26 @@ import com.google.gson.annotations.SerializedName
  * Response after creating a transfer
  */
 data class CreateTransferResponse(
-    @SerializedName("message")
-    val message: String,
+    @SerializedName("error")
+    val error: String,
+
+    @SerializedName("body")
+    val body: CreateTransferBody
+)
+
+data class CreateTransferBody(
+    @SerializedName("success")
+    val success: Boolean,
 
     @SerializedName("doctoInId")
     val doctoInId: Int,
 
-    @SerializedName("FOLIO")
-    val folio: String? = null,
+    @SerializedName("folio")
+    val folio: String,
 
-    @SerializedName("FECHA")
-    val fecha: String? = null
+    @SerializedName("mensaje")
+    val mensaje: String,
+
+    @SerializedName("message")
+    val message: String
 )

@@ -39,24 +39,25 @@ class TransfersRepository(
 
                 if (response.isSuccessful) {
                     val body = response.body()
-                    if (body != null) {
-                        Result.success(body.doctoInId)
+                    if (body != null && body.body.success) {
+                        Result.success(body.body.doctoInId)
                     } else {
-                        // ⚠️ CASO CRÍTICO: Response exitoso pero body es null
+                        // ⚠️ CASO CRÍTICO: Response exitoso pero body es null o success es false
                         // El traspaso probablemente SÍ se creó pero no podemos confirmarlo
                         logger?.logTransferError(
                             almacenOrigenId = data.almacenOrigenId,
                             almacenDestinoId = data.almacenDestinoId,
                             productCount = data.productos.size,
                             httpCode = httpCode,
-                            errorMessage = "Respuesta vacía del servidor",
-                            isBodyNull = true,
+                            errorMessage = body?.error ?: "Respuesta vacía del servidor",
+                            isBodyNull = body == null,
                             additionalData = mapOf(
                                 "headers" to response.headers().toString(),
-                                "rawResponse" to response.raw().toString()
+                                "rawResponse" to response.raw().toString(),
+                                "success" to (body?.body?.success?.toString() ?: "null")
                             )
                         )
-                        Result.failure(Exception("Respuesta vacía del servidor"))
+                        Result.failure(Exception(body?.error ?: "Respuesta vacía del servidor"))
                     }
                 } else {
                     // ❌ ERROR HTTP (400, 500, etc)
