@@ -162,9 +162,7 @@ fun SalesScreen(
                         OutlinedTextField(
                             value = query,
                             onValueChange = { query = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(54.dp),
+                            modifier = Modifier.weight(1f),
                             placeholder = { Text("Buscar venta...") },
                             singleLine = true,
                             shape = RoundedCornerShape(25.dp),
