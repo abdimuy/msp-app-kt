@@ -18,6 +18,41 @@ import java.util.Locale
 
 object PdfGenerator {
 
+    private fun drawWatermark(
+        canvas: android.graphics.Canvas,
+        text: String,
+        pageWidth: Float,
+        pageHeight: Float
+    ) {
+        val watermarkPaint = Paint().apply {
+            color = android.graphics.Color.parseColor("#11000000")
+            textSize = 45f
+            isAntiAlias = true
+            isFakeBoldText = true
+        }
+
+        val watermarkText = text.ifBlank { "CONFIDENCIAL" }
+        val textWidthWm = watermarkPaint.measureText(watermarkText)
+
+        val watermarkPositions = listOf(
+            Triple(pageWidth / 4, pageHeight / 4f, -40f),
+            Triple(pageWidth / 2, pageHeight / 2f, -40f),
+            Triple(pageWidth * 3 / 4, pageHeight * 3 / 4f, -40f)
+        )
+
+        watermarkPositions.forEach { (x, y, rotation) ->
+            canvas.save()
+            canvas.rotate(rotation, x, y)
+            canvas.drawText(
+                watermarkText,
+                x - (textWidthWm / 2),
+                y,
+                watermarkPaint
+            )
+            canvas.restore()
+        }
+    }
+
     fun generatePdfFromLines(
         context: Context,
         data: PaymentTextData,
@@ -202,7 +237,7 @@ object PdfGenerator {
 
 
         paint.isFakeBoldText = false
-        for ((date, collector, type, note) in visits.lines) {
+        for ((date, _, type, note) in visits.lines) {
             if (y > pageHeight - 80) {
                 pdfDocument.finishPage(visitPage)
                 visitPageNumber++
@@ -234,7 +269,8 @@ object PdfGenerator {
         totalStock: Int,
         assignedUsers: List<User>,
         products: List<ProductInventory>,
-        fileName: String
+        fileName: String,
+        watermarkText: String? = null
     ): File? {
         val pdfDocument = PdfDocument()
         val paint = Paint().apply {
@@ -251,6 +287,16 @@ object PdfGenerator {
         val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
         var page = pdfDocument.startPage(pageInfo)
         var canvas = page.canvas
+
+        watermarkText?.let {
+            drawWatermark(
+                canvas,
+                it,
+                pageWidth.toFloat(),
+                pageHeight.toFloat()
+            )
+        }
+
         var yPos = 40
 
         // Title
