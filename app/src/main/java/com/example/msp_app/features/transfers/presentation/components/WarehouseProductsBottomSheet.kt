@@ -1,11 +1,11 @@
 package com.example.msp_app.features.transfers.presentation.components
 
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -55,6 +57,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+@RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WarehouseProductsBottomSheet(
@@ -171,7 +174,14 @@ fun WarehouseProductsBottomSheet(
                                         totalStock = totalStock,
                                         assignedUsers = assignedUsers,
                                         products = productsState.data,
-                                        fileName = "inventario_${warehouseName.replace(" ", "_")}.pdf"
+                                        fileName = "inventario_${
+                                            warehouseName.replace(
+                                                " ",
+                                                "_"
+                                            )
+                                        }.pdf",
+                                        watermarkText = assignedUsers.firstOrNull()?.NOMBRE
+                                            ?: "CONFIDENCIAL"
                                     )
                                 }
                                 isGeneratingPdf = false
@@ -247,7 +257,7 @@ fun WarehouseProductsBottomSheet(
                     } else {
                         productsState.data.filter { product ->
                             product.ARTICULO.contains(searchQuery, ignoreCase = true) ||
-                            product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
+                                    product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
                         }
                     }
 
@@ -337,7 +347,9 @@ fun WarehouseProductsBottomSheet(
                     },
                     confirmButton = {},
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showPrintDialog = false }) {
+                        androidx.compose.material3.TextButton(onClick = {
+                            showPrintDialog = false
+                        }) {
                             Text("Cancelar")
                         }
                     }
@@ -405,7 +417,14 @@ private fun generateWarehouseInventoryTicket(
         appendLine("-".repeat(32))
         appendLine(lineBlanck)
         appendLine("TOTAL DE PRODUCTOS: ${products.size}")
-        appendLine("FECHA: ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}")
+        appendLine(
+            "FECHA: ${
+                java.text.SimpleDateFormat(
+                    "dd/MM/yyyy HH:mm",
+                    java.util.Locale.getDefault()
+                ).format(java.util.Date())
+            }"
+        )
         appendLine(lineBlanck)
         appendLine(lineBlanck)
         appendLine(lineBlanck)

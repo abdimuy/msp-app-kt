@@ -389,6 +389,13 @@ object PdfGenerator {
         yPos += lineSpacing
         canvas.drawText(totalStockText, xTotalStock, yPos.toFloat(), paint)
 
+        drawWatermark(
+            canvas = canvas,
+            text = watermarkText ?: warehouseName,
+            pageWidth = pageWidth.toFloat(),
+            pageHeight = pageHeight.toFloat()
+        )
+
         pdfDocument.finishPage(page)
 
         val file = File(context.cacheDir, fileName)
