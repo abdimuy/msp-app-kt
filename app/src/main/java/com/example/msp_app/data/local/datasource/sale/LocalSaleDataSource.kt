@@ -49,4 +49,40 @@ class LocalSaleDataSource(context: Context) {
     suspend fun getPendingSales(): List<LocalSaleEntity> {
         return localSaleDao.getSalesByStatus(false)
     }
+
+    suspend fun updateSale(
+        saleId: String,
+        nombreCliente: String,
+        telefono: String,
+        direccion: String,
+        numero: String?,
+        colonia: String?,
+        poblacion: String?,
+        ciudad: String?,
+        tipoVenta: String,
+        enganche: Double?,
+        parcialidad: Double?,
+        frecPago: String?,
+        diaCobranza: String?,
+        avalOResponsable: String?,
+        nota: String?
+    ) {
+        localSaleDao.updateSale(
+            saleId = saleId,
+            nombreCliente = nombreCliente,
+            telefono = telefono,
+            direccion = direccion,
+            numero = numero,
+            colonia = colonia,
+            poblacion = poblacion,
+            ciudad = ciudad,
+            tipoVenta = tipoVenta,
+            enganche = enganche,
+            parcialidad = parcialidad,
+            frecPago = frecPago,
+            diaCobranza = diaCobranza,
+            avalOResponsable = avalOResponsable,
+            nota = nota
+        )
+    }
 }
