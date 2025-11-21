@@ -208,6 +208,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 saveSaleImages(context, uris, saleId, currentDate)
                 loadImagesBySaleId(saleId)
 
+                localSaleStore.changeSaleStatus(saleId, enviado = false)
+                markAsEdited(saleId)
+
                 _saveResult.value = SaveResult.Success("Imágenes agregadas correctamente")
 
                 logger.info(
