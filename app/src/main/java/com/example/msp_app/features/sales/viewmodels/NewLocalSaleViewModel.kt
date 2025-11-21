@@ -49,6 +49,17 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     private val _pendingSales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val pendingSales: StateFlow<List<LocalSaleEntity>> = _pendingSales
 
+    private val _wasEdited = MutableStateFlow(false)
+    val wasEdited: StateFlow<Boolean> = _wasEdited
+
+    fun markAsEdited(saleId: String) {
+        _wasEdited.value = true
+    }
+
+    fun clearEditedFlag() {
+        _wasEdited.value = false
+    }
+
     fun loadAllSales() {
         viewModelScope.launch {
             val result = localSaleStore.getAllSales()
@@ -462,6 +473,139 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 Log.d("NewLocalSaleViewModel", "Ventas pendientes por enviar: ${pendingSales.size}")
             } catch (e: Exception) {
                 Log.e("NewLocalSaleViewModel", "Error al obtener ventas pendientes", e)
+            }
+        }
+    }
+
+    fun updateSale(
+        saleId: String,
+        nombreCliente: String,
+        telefono: String,
+        direccion: String,
+        numero: String?,
+        colonia: String?,
+        poblacion: String?,
+        ciudad: String?,
+        tipoVenta: String,
+        enganche: Double?,
+        parcialidad: Double?,
+        frecPago: String?,
+        diaCobranza: String?,
+        avalOResponsable: String?,
+        nota: String?
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                logger.info(
+                    module = "SALES",
+                    action = "UPDATE_SALE",
+                    message = "Actualizando información de venta",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "clientName" to nombreCliente
+                    )
+                )
+
+                localSaleStore.updateSale(
+                    saleId = saleId,
+                    nombreCliente = nombreCliente,
+                    telefono = telefono,
+                    direccion = direccion,
+                    numero = numero,
+                    colonia = colonia,
+                    poblacion = poblacion,
+                    ciudad = ciudad,
+                    tipoVenta = tipoVenta,
+                    enganche = enganche,
+                    parcialidad = parcialidad,
+                    frecPago = frecPago,
+                    diaCobranza = diaCobranza,
+                    avalOResponsable = avalOResponsable,
+                    nota = nota
+                )
+
+                localSaleStore.changeSaleStatus(saleId, enviado = false)
+
+                markAsEdited(saleId)
+
+                getSaleById(saleId)
+                _saveResult.value = SaveResult.Success("Venta actualizada correctamente")
+
+                logger.info(
+                    module = "SALES",
+                    action = "UPDATE_SALE_SUCCESS",
+                    message = "Venta actualizada exitosamente",
+                    data = mapOf("saleId" to saleId)
+                )
+
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error updating sale: ${e.message}", e)
+
+                logger.error(
+                    module = "SALES",
+                    action = "UPDATE_SALE_ERROR",
+                    message = "Error al actualizar venta",
+                    error = e,
+                    data = mapOf("saleId" to saleId)
+                )
+
+                _saveResult.value = SaveResult.Error("Error al actualizar venta: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun completeSale(
+        context: Context,
+        saleId: String,
+        userEmail: String
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                logger.info(
+                    module = "SALES",
+                    action = "COMPLETE_SALE",
+                    message = "Completando y enviando venta al servidor",
+                    data = mapOf("saleId" to saleId)
+                )
+
+                enqueuePendingLocalSalesWorker(
+                    context = context,
+                    localSaleId = saleId,
+                    userEmail = userEmail,
+                    replace = true
+                )
+
+                clearEditedFlag()
+
+                _saveResult.value = SaveResult.Success("Venta enviada al servidor")
+
+                logger.info(
+                    module = "SALES",
+                    action = "COMPLETE_SALE_SUCCESS",
+                    message = "Venta encolada para envío",
+                    data = mapOf("saleId" to saleId)
+                )
+
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error completing sale: ${e.message}", e)
+
+                logger.error(
+                    module = "SALES",
+                    action = "COMPLETE_SALE_ERROR",
+                    message = "Error al completar venta",
+                    error = e,
+                    data = mapOf("saleId" to saleId)
+                )
+
+                _saveResult.value = SaveResult.Error("Error al enviar venta: ${e.message}")
+            } finally {
+                _isLoading.value = false
             }
         }
     }

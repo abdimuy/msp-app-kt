@@ -2,6 +2,8 @@ package com.example.msp_app.features.sales.screens
 
 import android.content.Context
 import android.net.Uri
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
@@ -19,14 +21,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,11 +47,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.components.CarouselItem
@@ -60,7 +69,8 @@ import java.io.File
 
 @Composable
 fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
-    val viewModel: NewLocalSaleViewModel = viewModel()
+    val activity = LocalActivity.current as ComponentActivity
+    val viewModel: NewLocalSaleViewModel = viewModel(viewModelStoreOwner = activity)
     val productsViewModel: SaleProductsViewModel = viewModel()
 
     val sale by viewModel.selectedSale.collectAsState()
@@ -70,6 +80,11 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
     var showImageSourceDialog by remember { mutableStateOf(false) }
     var showImageSizeError by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val wasEdited by viewModel.wasEdited.collectAsState()
+    val authViewModel = LocalAuthViewModel.current
+    val userData by authViewModel.userData.collectAsState()
+
+    var showCompleteDialog by remember { mutableStateOf(false) }
 
     fun createImageUri(context: Context): Uri {
         val imageFile = File(context.cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
@@ -188,6 +203,48 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
         )
     }
 
+    if (showCompleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showCompleteDialog = false },
+            title = {
+                Text(
+                    text = "¿Completar venta?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("Se enviará la venta actualizada al servidor.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val userEmail = when (val userState = userData) {
+                            is ResultState.Success -> userState.data?.EMAIL ?: ""
+                            else -> ""
+                        }
+
+                        viewModel.completeSale(
+                            context = context,
+                            saleId = localSaleId,
+                            userEmail = userEmail
+                        )
+                        showCompleteDialog = false
+                    }
+                ) {
+                    Text("Completar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showCompleteDialog = false }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     DrawerContainer(
         navController = navController
     ) { openDrawer ->
@@ -209,8 +266,19 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "DESCRIPCIÓN DE VENTA",
-                        style = MaterialTheme.typography.titleLarge
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick = {
+                            navController.navigate("sales/edit/$localSaleId")
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Editar venta"
+                        )
+                    }
                 }
             }
         ) { innerPadding ->
@@ -403,6 +471,29 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     )
                     Spacer(Modifier.width(8.dp))
                     Text("Agregar más fotos", color = Color.White)
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                if (wasEdited) {
+                    Button(
+                        onClick = { showCompleteDialog = true },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Completar venta",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("Completar y Enviar", color = Color.White)
+                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
