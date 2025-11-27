@@ -70,6 +70,7 @@ import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.components.sale_item.SaleItemVariant
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import com.example.msp_app.features.zones.ZonesViewModel
 import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -110,6 +111,7 @@ fun HomeScreen(navController: NavController) {
     val visitsPendingState by visitsViewModel.pendingVisits.collectAsState()
 
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
+    val zonesViewModel: ZonesViewModel = viewModel()
 
     val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
 
@@ -197,6 +199,7 @@ fun HomeScreen(navController: NavController) {
         paymentsViewModel.getCentroidsBySale()
         visitsViewModel.getPendingVisits()
         paymentsViewModel.getPendingPayments()
+        zonesViewModel.loadClientZones(forceRefresh = true)
     }
 
     LaunchedEffect(startWeekDate) {
