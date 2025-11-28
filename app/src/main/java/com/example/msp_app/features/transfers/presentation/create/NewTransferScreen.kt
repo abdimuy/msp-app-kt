@@ -161,6 +161,7 @@ fun NewTransferScreen(
                         onRemoveProduct = viewModel::removeProduct,
                         onUpdateUnits = viewModel::updateProductUnits,
                         productsError = validationError,
+                        showSelectAll = sourceWarehouse?.ALMACEN?.contains("camioneta", ignoreCase = true) == true,
                         modifier = Modifier
                             .weight(1f)
                     )
@@ -313,6 +314,7 @@ private fun ProductSelectionStep(
     onRemoveProduct: (Int) -> Unit,
     onUpdateUnits: (Int, Int) -> Unit,
     productsError: String?,
+    showSelectAll: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -355,26 +357,28 @@ private fun ProductSelectionStep(
                 }
             }
 
-            OutlinedButton(
-                onClick = {
-                    if (selectedProducts.size == availableProducts.size) {
-                        // Deselect all - remove all selected products
-                        selectedProducts.forEach { onRemoveProduct(it.product.ARTICULO_ID) }
-                    } else {
-                        // Select all with full stock - only add products that aren't selected
-                        val selectedIds = selectedProducts.map { it.product.ARTICULO_ID }.toSet()
-                        availableProducts.forEach { product ->
-                            if (product.ARTICULO_ID !in selectedIds) {
-                                onAddProduct(product)
+            if (showSelectAll) {
+                OutlinedButton(
+                    onClick = {
+                        if (selectedProducts.size == availableProducts.size) {
+                            // Deselect all - remove all selected products
+                            selectedProducts.forEach { onRemoveProduct(it.product.ARTICULO_ID) }
+                        } else {
+                            // Select all with full stock - only add products that aren't selected
+                            val selectedIds = selectedProducts.map { it.product.ARTICULO_ID }.toSet()
+                            availableProducts.forEach { product ->
+                                if (product.ARTICULO_ID !in selectedIds) {
+                                    onAddProduct(product)
+                                }
                             }
                         }
-                    }
-                },
-                enabled = availableProducts.isNotEmpty() && !isLoadingProducts
-            ) {
-                Text(
-                    if (selectedProducts.size == availableProducts.size) "Deseleccionar todos" else "Seleccionar todos"
-                )
+                    },
+                    enabled = availableProducts.isNotEmpty() && !isLoadingProducts
+                ) {
+                    Text(
+                        if (selectedProducts.size == availableProducts.size) "Deseleccionar todos" else "Seleccionar todos"
+                    )
+                }
             }
         }
 
@@ -610,42 +614,53 @@ private fun ConfirmationStep(
 
         // Warehouse info
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Almacenes",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // Origen
                     Column {
                         Text(
-                            text = "Origen:",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Origen",
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = sourceWarehouse?.ALMACEN ?: "N/A",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
+
+                    // Arrow
                     Icon(
                         imageVector = Icons.Default.ArrowForward,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .size(24.dp)
                     )
-                    Column(horizontalAlignment = Alignment.End) {
+
+                    // Destino
+                    Column {
                         Text(
-                            text = "Destino:",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Destino",
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = destinationWarehouse?.ALMACEN ?: "N/A",
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
