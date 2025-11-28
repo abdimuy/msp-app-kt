@@ -96,9 +96,13 @@
 -dontwarn com.google.android.gms.maps.**
 
 # Mantener clases de datos y modelos de tu app
+# IMPORTANTE: Cualquier clase que se deserialice con GSON debe estar aquí
+# para evitar ClassCastException en release (R8 ofusca los nombres de campos)
 -keep class com.example.msp_app.data.** { *; }
 -keep class com.example.msp_app.domain.model.** { *; }
 -keep class com.example.msp_app.network.model.** { *; }
+-keep class com.example.msp_app.features.**.dto.** { *; }
+-keep class com.example.msp_app.features.**.models.** { *; }
 -keepclassmembers class com.example.msp_app.** {
     @com.google.gson.annotations.SerializedName <fields>;
 }
