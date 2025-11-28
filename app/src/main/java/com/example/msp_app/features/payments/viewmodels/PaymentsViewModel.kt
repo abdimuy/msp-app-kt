@@ -10,6 +10,9 @@ import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
 import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
+import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
+import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
+import com.example.msp_app.data.local.entities.ProductEntity
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocation
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
@@ -27,6 +30,8 @@ import java.time.format.DateTimeFormatter
 
 class PaymentsViewModel(application: Application) : AndroidViewModel(application) {
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
+    private val productsStore = ProductsLocalDataSource(application.applicationContext)
+    private val salesStore = SalesLocalDataSource(application.applicationContext)
     private val api: PaymentsApi get() = ApiProvider.create(PaymentsApi::class.java)
 
     private val _paymentsBySaleIdState =
@@ -76,6 +81,29 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<Double>>(ResultState.Idle)
     val adjustedPaymentPercentageState: StateFlow<ResultState<Double>> =
         _adjustedPaymentPercentageState
+
+    private val _saleProductsState =
+        MutableStateFlow<ResultState<List<ProductEntity>>>(ResultState.Idle)
+    val saleProductsState: StateFlow<ResultState<List<ProductEntity>>> = _saleProductsState
+
+    fun getSaleProducts(saleId: Int) {
+        viewModelScope.launch {
+            _saleProductsState.value = ResultState.Loading
+            try {
+                val products = withContext(Dispatchers.IO) {
+                    val sale = salesStore.getById(saleId)
+                    if (sale != null) {
+                        productsStore.getProductsByFolio(sale.FOLIO)
+                    } else {
+                        emptyList()
+                    }
+                }
+                _saleProductsState.value = ResultState.Success(products)
+            } catch (e: Exception) {
+                _saleProductsState.value = ResultState.Error(e.message ?: "Error al cargar productos")
+            }
+        }
+    }
 
     fun getPaymentsBySaleId(saleId: Int) {
         viewModelScope.launch {
@@ -311,6 +339,10 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                 _savePaymentState.value = ResultState.Error(e.message ?: "Error guardando pago")
             }
         }
+    }
+
+    fun resetSavePaymentState() {
+        _savePaymentState.value = ResultState.Idle
     }
 
     fun postPaymentRemote(payment: Payment) {

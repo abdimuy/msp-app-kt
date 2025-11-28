@@ -2,6 +2,7 @@ package com.example.msp_app.features.productsInventory.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -23,7 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingCart
+import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.composables.icons.lucide.Truck
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.stock.ProductStock
@@ -168,7 +171,7 @@ fun ProductsCatalogScreen(navController: NavController) {
                             navController.navigate(Screen.Cart.route)
                         }) {
                             Icon(
-                                imageVector = Icons.Default.ShoppingCart,
+                                imageVector = Lucide.Truck,
                                 contentDescription = "Carrito"
                             )
                         }
@@ -277,98 +280,114 @@ fun ProductCard(
         onClick = { navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())) }
     ) {
 
-        Row(
-            modifier = Modifier.padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        )
-        {
-            if (imageUrls.isNotEmpty()) {
-                val imagePath = imageUrls.first()
-                val imageFile = File(imagePath)
-
-                AsyncImage(
-                    model = imageFile,
-                    contentDescription = "Imagen del producto",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(90.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(90.dp)
-                        .background(
-                            color = if (isDark) {
-                                Color.Transparent
-                            } else {
-                                Color(0xFFE2E3E5)
-                            }, RoundedCornerShape(8.dp)
-                        )
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.images_photo),
-                        contentDescription = "Sin imagen disponible",
-                        modifier = Modifier
-                            .size(154.dp)
-                            .align(Alignment.Center),
-                        tint = Color(0xFFB8C3D4)
-                    )
-                }
-            }
-            Column(
+        Column(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth()
+        ) {
+            // Nombre del producto arriba
+            Text(
+                text = product.ARTICULO,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isDark) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    Color(0xFF003366)
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 20.sp,
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .padding(start = 12.dp),
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = product.ARTICULO,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isDark) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        Color(0xFF003366)
-                    },
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 16.sp
-                )
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "Stock:",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 14.sp
+                    .padding(bottom = 8.dp)
+                    .basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        repeatDelayMillis = 2000,
+                        initialDelayMillis = 2000,
+                        velocity = 30.dp
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    ProductStock(stock = product.EXISTENCIAS)
-                }
+            )
 
-                val priceMap = try {
-                    parsePriceJsonToMap(product.PRECIOS)
-                } catch (e: Exception) {
-                    emptyMap()
-                }
+            // Imagen e info abajo
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top
+            ) {
+                // Imagen
+                if (imageUrls.isNotEmpty()) {
+                    val imagePath = imageUrls.first()
+                    val imageFile = File(imagePath)
 
-                if (priceMap.isNotEmpty()) {
-                    priceMap.forEach { (label, value) ->
-                        Text(
-                            text = buildAnnotatedString {
-                                append("$label: ")
-                                withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                                    append(value.toCurrency(noDecimals = true))
-                                }
-                            },
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = 16.sp
+                    AsyncImage(
+                        model = imageFile,
+                        contentDescription = "Imagen del producto",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(90.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(90.dp)
+                            .background(
+                                color = if (isDark) {
+                                    Color.Transparent
+                                } else {
+                                    Color(0xFFE2E3E5)
+                                }, RoundedCornerShape(8.dp)
+                            )
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.images_photo),
+                            contentDescription = "Sin imagen disponible",
+                            modifier = Modifier
+                                .size(154.dp)
+                                .align(Alignment.Center),
+                            tint = Color(0xFFB8C3D4)
                         )
+                    }
+                }
+
+                // Info (stock y precios)
+                Column(
+                    modifier = Modifier
+                        .padding(start = 12.dp)
+                        .fillMaxWidth()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                        Text(
+                            text = "Stock:",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        ProductStock(stock = product.EXISTENCIAS)
+                    }
+
+                    val priceMap = try {
+                        parsePriceJsonToMap(product.PRECIOS)
+                    } catch (e: Exception) {
+                        emptyMap()
+                    }
+
+                    if (priceMap.isNotEmpty()) {
+                        priceMap.forEach { (label, value) ->
+                            Text(
+                                text = buildAnnotatedString {
+                                    append("$label: ")
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                        append(value.toCurrency(noDecimals = true))
+                                    }
+                                },
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 16.sp
+                            )
+                        }
                     }
                 }
             }

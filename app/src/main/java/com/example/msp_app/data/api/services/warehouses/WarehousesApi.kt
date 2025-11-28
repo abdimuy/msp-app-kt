@@ -22,7 +22,7 @@ data class WarehouseResponse(
     val error: String?
 ) {
     data class Body(
-        val ALMACEN: WarehouseListResponse.Warehouse,
+        val ALMACEN: WarehouseListResponse.Warehouse?,
         val ARTICULOS: List<ProductInventory>
     )
 }

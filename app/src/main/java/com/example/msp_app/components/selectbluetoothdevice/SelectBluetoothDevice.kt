@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 fun SelectBluetoothDevice(
     textToPrint: String,
     modifier: Modifier = Modifier,
+    verticalLayout: Boolean = false,
     onPrintRequest: suspend (device: BluetoothDevice, text: String) -> Unit
 ) {
     val context = LocalContext.current
@@ -143,36 +145,75 @@ fun SelectBluetoothDevice(
 
     Surface(modifier = modifier) {
         Column {
-            Row {
-                Button(onClick = {
-                    checkBluetoothRef.value()
-                    showBluetoothDialog = true
-                }) {
-                    Text(
-                        text = selectedDevice
-                            ?.let { "IMPRIMIR EN: ${it.name}" }
-                            ?: "SELECCIONAR IMPRESORA",
-                        color = Color.White
-                    )
-                }
-                Button(
-                    onClick = {
-                        selectedDevice?.let { device ->
-                            coroutineScope.launch {
-                                isPrinting = true
-                                performPrintRequest(context, device, textToPrint, onPrintRequest)
-                                isPrinting = false
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 8.dp)
+            if (verticalLayout) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (isPrinting) "IMPRIMIENDO..." else "IMPRIMIR",
-                        color = Color.White
-                    )
+                    Button(
+                        onClick = {
+                            checkBluetoothRef.value()
+                            showBluetoothDialog = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = selectedDevice
+                                ?.let { "IMPRIMIR EN: ${it.name}" }
+                                ?: "SELECCIONAR IMPRESORA",
+                            color = Color.White
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            selectedDevice?.let { device ->
+                                coroutineScope.launch {
+                                    isPrinting = true
+                                    performPrintRequest(context, device, textToPrint, onPrintRequest)
+                                    isPrinting = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (isPrinting) "IMPRIMIENDO..." else "IMPRIMIR",
+                            color = Color.White
+                        )
+                    }
+                }
+            } else {
+                Row {
+                    Button(onClick = {
+                        checkBluetoothRef.value()
+                        showBluetoothDialog = true
+                    }) {
+                        Text(
+                            text = selectedDevice
+                                ?.let { "IMPRIMIR EN: ${it.name}" }
+                                ?: "SELECCIONAR IMPRESORA",
+                            color = Color.White
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            selectedDevice?.let { device ->
+                                coroutineScope.launch {
+                                    isPrinting = true
+                                    performPrintRequest(context, device, textToPrint, onPrintRequest)
+                                    isPrinting = false
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 8.dp)
+                    ) {
+                        Text(
+                            text = if (isPrinting) "IMPRIMIENDO..." else "IMPRIMIR",
+                            color = Color.White
+                        )
+                    }
                 }
             }
 

@@ -32,10 +32,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.msp_app.R
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.ui.theme.ThemeController
@@ -103,9 +105,16 @@ fun DrawerContainer(
                         val modulos = userData?.MODULOS ?: emptyList()
                         val hasCobro = modulos.contains("COBRO")
                         val hasVentas = modulos.contains("VENTAS")
-
+                        val hasAlmacen = modulos.contains("ALMACEN")
 
                         if (hasCobro) {
+                            Text(
+                                text = "COBRO",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
 
                             NavigationDrawerItem(
                                 label = { Text("Inicio") },
@@ -171,11 +180,23 @@ fun DrawerContainer(
                                     }
                                 }
                             )
+
+                            if (hasVentas || hasAlmacen) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
                         }
 
                         if (hasVentas) {
+                            Text(
+                                text = "VENTAS",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+
                             NavigationDrawerItem(
-                                label = { Text("Catalogo de Productos") },
+                                label = { Text("Catálogo de Productos") },
                                 selected = false,
                                 onClick = {
                                     scope.launch {
@@ -211,15 +232,53 @@ fun DrawerContainer(
                                     }
                                 }
                             )
+
+                            if (hasAlmacen) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                        }
+
+                        if (hasAlmacen) {
+                            Text(
+                                text = "ALMACÉN",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+
+                            NavigationDrawerItem(
+                                label = { Text("Traspasos") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("transfers") {
+                                            popUpTo("home")
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
 
-                    NavigationDrawerItem(
-                        label = { Text("Cerrar sesión") },
-                        selected = false,
-                        onClick = { showLogoutDialog = true },
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    Column {
+                        NavigationDrawerItem(
+                            label = { Text("Cerrar sesión") },
+                            selected = false,
+                            onClick = { showLogoutDialog = true },
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        Text(
+                            text = "Versión ${Constants.APP_VERSION}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.Gray,
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(bottom = 8.dp)
+                        )
+                    }
                 }
             }
         }

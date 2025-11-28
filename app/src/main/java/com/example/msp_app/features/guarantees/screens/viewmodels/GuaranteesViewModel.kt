@@ -16,9 +16,12 @@ import com.example.msp_app.data.local.entities.GuaranteeEventEntity
 import com.example.msp_app.data.local.entities.GuaranteeImageEntity
 import com.example.msp_app.workmanager.enqueuePendingGuaranteeEventsWorker
 import com.example.msp_app.workmanager.enqueuePendingGuaranteesWorker
+import com.example.msp_app.core.utils.ImageCompressor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -91,31 +94,43 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun saveImagesLocally(
+    /**
+     * Guarda las imágenes de garantía con compresión inteligente en hilo de fondo
+     *
+     * Aplica la misma compresión adaptativa que las ventas para optimizar
+     * almacenamiento y transmisión de datos.
+     */
+    suspend fun saveImagesLocally(
         context: Context,
         uris: List<Uri>,
         guaranteeId: String
-    ): List<Pair<String, String>> {
-        val savedPaths = mutableListOf<Pair<String, String>>() // Pair(path, mimeType)
+    ): List<Pair<String, String>> = withContext(Dispatchers.IO) {
+        val savedPaths = mutableListOf<Pair<String, String>>()
 
-        uris.forEach { uri ->
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
-            val extension = if (mime == "image/png") ".png" else ".jpg"
-
-            val fileName = "guarantee_${guaranteeId}_${System.currentTimeMillis()}$extension"
-            val file = File(context.filesDir, fileName)
-
-            inputStream?.use { input ->
-                file.outputStream().use { output ->
-                    input.copyTo(output)
+        uris.forEachIndexed { index, uri ->
+            try {
+                if (!ImageCompressor.isValidImage(context, uri)) {
+                    Log.w("GuaranteesViewModel", "URI no válido o no es una imagen: $uri")
+                    return@forEachIndexed
                 }
-            }
 
-            savedPaths.add(file.absolutePath to mime)
+                val fileName = "guarantee_${guaranteeId}_${System.currentTimeMillis()}_$index.jpg"
+
+                // Comprimir imagen inteligentemente
+                val result = ImageCompressor.compressImage(
+                    context = context,
+                    uri = uri,
+                    outputFileName = fileName
+                )
+
+                savedPaths.add(result.outputFile.absolutePath to "image/jpeg")
+
+            } catch (e: Exception) {
+                Log.e("GuaranteesViewModel", "Error al comprimir imagen de garantía: ${e.message}", e)
+            }
         }
 
-        return savedPaths
+        return@withContext savedPaths
     }
 
 

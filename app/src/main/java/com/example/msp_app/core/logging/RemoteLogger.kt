@@ -324,3 +324,35 @@ fun RemoteLogger.logAuthEvent(
         data = data
     )
 }
+
+fun RemoteLogger.logTransferError(
+    almacenOrigenId: Int,
+    almacenDestinoId: Int,
+    productCount: Int,
+    httpCode: Int? = null,
+    errorMessage: String,
+    responseBody: String? = null,
+    isBodyNull: Boolean = false,
+    exception: Throwable? = null,
+    additionalData: Map<String, Any?> = emptyMap()
+) {
+    val data = mutableMapOf<String, Any?>(
+        "almacenOrigenId" to almacenOrigenId,
+        "almacenDestinoId" to almacenDestinoId,
+        "productCount" to productCount,
+        "httpCode" to httpCode,
+        "errorMessage" to errorMessage,
+        "responseBody" to responseBody,
+        "isBodyNull" to isBodyNull,
+        "exceptionType" to exception?.javaClass?.simpleName
+    )
+    data.putAll(additionalData)
+
+    error(
+        module = "TRANSFERS",
+        action = "CREATE_TRANSFER",
+        message = "Error al crear traspaso: $errorMessage",
+        error = exception,
+        data = data
+    )
+}

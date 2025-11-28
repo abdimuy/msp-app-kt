@@ -183,7 +183,6 @@ fun PaymentTicketScreen(
             ) {
                 var finalSale: Sale? = null
                 var finalProductos: List<Product> = emptyList()
-                var finalSaldo: Double
                 var pdfUri by remember { mutableStateOf<Uri?>(null) }
                 var showDialog by remember { mutableStateOf(false) }
                 var finalFormattedDate by remember { mutableStateOf("") }
@@ -207,8 +206,6 @@ fun PaymentTicketScreen(
 
                             val saldoAnterior = (selectedPayment?.IMPORTE ?: 0.0) +
                                     (sale?.SALDO_REST ?: 0.0)
-
-                            finalSaldo = saldoAnterior
 
                             finalFormattedDate = date
                             val lineBlanck = (" ").repeat(32)
@@ -271,7 +268,7 @@ fun PaymentTicketScreen(
                                 appendLine(lineBlanck)
                                 appendLine("-".repeat(32))
                                 appendLine(lineBlanck)
-                                appendLine(if (isCondonacion) "FECHA DE CONDONACION: ${date}" else "FECHA DE PAGO: ${date}")
+                                appendLine(if (isCondonacion) "FECHA DE CONDONACION: $date" else "FECHA DE PAGO: $date")
                                 appendLine(
                                     "SALDO ANTERIOR: ${
                                         ThermalPrinting.bold(
@@ -391,31 +388,27 @@ fun PaymentTicketScreen(
                                             InfoField(label = "FECHA VENTA:", value = sale.FECHA)
                                             InfoField(
                                                 label = "PRECIO TOTAL:",
-                                                value = "${sale.PRECIO_TOTAL.toCurrency(noDecimals = true)}"
+                                                value = sale.PRECIO_TOTAL.toCurrency(noDecimals = true)
                                             )
                                             InfoField(
                                                 label = "PRECIO A ${sale.TIEMPO_A_CORTO_PLAZOMESES} MESES:",
-                                                value = "${
-                                                    sale.MONTO_A_CORTO_PLAZO.toCurrency(
-                                                        noDecimals = true
-                                                    )
-                                                }"
+                                                value = sale.MONTO_A_CORTO_PLAZO.toCurrency(
+                                                    noDecimals = true
+                                                )
                                             )
                                             InfoField(
                                                 label = "PRECIO DE CONTADO:",
-                                                value = "${
-                                                    sale.PRECIO_DE_CONTADO.toCurrency(
-                                                        noDecimals = true
-                                                    )
-                                                }"
+                                                value = sale.PRECIO_DE_CONTADO.toCurrency(
+                                                    noDecimals = true
+                                                )
                                             )
                                             InfoField(
                                                 label = "ENGANCHE:",
-                                                value = "${sale.ENGANCHE.toCurrency(noDecimals = true)}"
+                                                value = sale.ENGANCHE.toCurrency(noDecimals = true)
                                             )
                                             InfoField(
                                                 label = "PARCIALIDAD:",
-                                                value = "${sale.PARCIALIDAD.toCurrency(noDecimals = true)}"
+                                                value = sale.PARCIALIDAD.toCurrency(noDecimals = true)
                                             )
                                             InfoField(
                                                 label = "VENDEDORES:",
@@ -443,19 +436,17 @@ fun PaymentTicketScreen(
                                             )
                                             InfoField(
                                                 label = "SALDO ANTERIOR:",
-                                                value = "${saldoAnterior.toCurrency(noDecimals = true)}"
+                                                value = saldoAnterior.toCurrency(noDecimals = true)
                                             )
                                             InfoField(
                                                 label = if (isCondonacion) "CONDONACIÓN:" else "ABONADO:",
-                                                value = "${
-                                                    selectedPayment?.IMPORTE?.toCurrency(
-                                                        noDecimals = true
-                                                    ) ?: ""
-                                                }"
+                                                value = selectedPayment?.IMPORTE?.toCurrency(
+                                                    noDecimals = true
+                                                ) ?: ""
                                             )
                                             InfoField(
                                                 label = "SALDO ACTUAL:",
-                                                value = "${sale.SALDO_REST.toCurrency(noDecimals = true)}"
+                                                value = sale.SALDO_REST.toCurrency(noDecimals = true)
                                             )
                                             Spacer(Modifier.height(12.dp))
                                             Text(" HISTORIAL DE PAGOS ")
@@ -488,11 +479,11 @@ fun PaymentTicketScreen(
                                             Spacer(Modifier.height(12.dp))
                                             InfoField(
                                                 label = "TELÉFONO:",
-                                                value = "${Constants.TELEFONO}"
+                                                value = Constants.TELEFONO
                                             )
                                             InfoField(
                                                 label = "WHATSAPP:",
-                                                value = "${Constants.WHATSAPP}"
+                                                value = Constants.WHATSAPP
                                             )
                                             InfoField(
                                                 label = "AGENTE:",
@@ -565,7 +556,8 @@ fun PaymentTicketScreen(
                                                 },
                                                 fechaPago = finalFormattedDate,
                                                 saldoAnterior = ((selectedPayment?.IMPORTE
-                                                    ?: 0.0) + (finalSale?.SALDO_REST ?: 0.0)).toCurrency(
+                                                    ?: 0.0) + (finalSale?.SALDO_REST
+                                                    ?: 0.0)).toCurrency(
                                                     noDecimals = true
                                                 ),
                                                 abonado = selectedPayment?.IMPORTE?.toCurrency(

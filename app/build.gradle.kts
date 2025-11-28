@@ -50,8 +50,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 15
-        versionName = "2.2.4"
+        versionCode = 22
+        versionName = "2.5.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -104,6 +104,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("com.composables:icons-lucide:1.0.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -124,6 +125,9 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
+
+    // DataStore for draft saving
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 

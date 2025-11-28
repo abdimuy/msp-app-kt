@@ -244,11 +244,21 @@ interface PaymentDao {
                     FROM sales
                     LEFT JOIN payment
                       ON sales.DOCTO_CC_ID = payment.DOCTO_CC_ACR_ID
+                      AND payment.FORMA_COBRO_ID IN (
+                        ${Constants.PAGO_EN_EFECTIVO_ID},
+                        ${Constants.PAGO_CON_CHEQUE_ID},
+                        ${Constants.PAGO_CON_TRANSFERENCIA_ID}
+                      )
                     GROUP BY sales.DOCTO_CC_ID, sales.FREC_PAGO
                 ) AS sales
             ) AS sales
               ON payment.DOCTO_CC_ACR_ID = sales.DOCTO_CC_ID
             WHERE payment.FECHA_HORA_PAGO >= :startDate
+              AND payment.FORMA_COBRO_ID IN (
+                ${Constants.PAGO_EN_EFECTIVO_ID},
+                ${Constants.PAGO_CON_CHEQUE_ID},
+                ${Constants.PAGO_CON_TRANSFERENCIA_ID}
+              )
             GROUP BY payment.DOCTO_CC_ACR_ID
         ) t;
     """

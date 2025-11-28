@@ -89,6 +89,8 @@ fun NewPaymentDialog(
 
     val paymentsViewModel: PaymentsViewModel = viewModel()
     val paymentsBySuggestedAmountsState by paymentsViewModel.paymentsBySuggestedAmountsState.collectAsState()
+    val savePaymentState by paymentsViewModel.savePaymentState.collectAsState()
+    val saleProductsState by paymentsViewModel.saleProductsState.collectAsState()
     val activity = LocalContext.current as ComponentActivity
     val authViewModel: AuthViewModel = viewModel(activity)
     val userData by authViewModel.userData.collectAsState()
@@ -99,6 +101,7 @@ fun NewPaymentDialog(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var selectedPaymentMethod by remember { mutableIntStateOf(Constants.PAGO_EN_EFECTIVO_ID) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var pendingPaymentId by remember { mutableStateOf<String?>(null) }
 
     val paymentMethods = listOf(
         Constants.PAGO_EN_EFECTIVO_ID to "Efectivo",
@@ -117,6 +120,23 @@ fun NewPaymentDialog(
     LaunchedEffect(suggestions, sale.DOCTO_CC_ID) {
         if (suggestions.isEmpty()) {
             paymentsViewModel.getSuggestedAmountsBySaleId(sale.DOCTO_CC_ID)
+        }
+        paymentsViewModel.getSaleProducts(sale.DOCTO_CC_ID)
+    }
+
+    // Observar el estado de guardado y navegar solo cuando sea exitoso
+    LaunchedEffect(savePaymentState) {
+        if (savePaymentState is ResultState.Success && pendingPaymentId != null) {
+            navController.navigate("payment_ticket/$pendingPaymentId")
+
+            inputValue = ""
+            selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
+            showConfirmDialog = false
+            onDismissRequest()
+
+            paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
+            paymentsViewModel.resetSavePaymentState()
+            pendingPaymentId = null
         }
     }
 
@@ -137,10 +157,8 @@ fun NewPaymentDialog(
         }
         coroutineScope.launch {
             try {
-
                 val idTicket = UUID.randomUUID().toString()
                 val date = Instant.now().toString()
-
 
                 val payment = Payment(
                     CLIENTE_ID = sale.CLIENTE_ID,
@@ -159,22 +177,19 @@ fun NewPaymentDialog(
                     GUARDADO_EN_MICROSIP = false
                 )
 
+                // Guardar el ID del pago pendiente
+                pendingPaymentId = payment.ID
+
+                // Guardar el pago en la DB local (esto actualiza SALDO_REST)
                 paymentsViewModel.savePayment(payment)
 
+                // El servicio de ubicación corre en background (no afecta los cálculos)
                 val intent = Intent(context, UpdateLocationService::class.java).apply {
                     putExtra("payment_id", payment.ID)
                 }
                 ContextCompat.startForegroundService(context, intent)
 
-                navController.navigate("payment_ticket/${payment.ID}")
-
-                inputValue = ""
-                selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
-
-                showConfirmDialog = false
-                onDismissRequest()
-
-                paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
+                // La navegación ahora ocurre en el LaunchedEffect cuando savePaymentState sea Success
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -249,6 +264,55 @@ fun NewPaymentDialog(
                             }
                         }
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Productos en formato simple
+                    when (val state = saleProductsState) {
+                        is ResultState.Loading, is ResultState.Idle -> {
+                            Text(
+                                text = "Cargando productos...",
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                            )
+                        }
+                        is ResultState.Success -> {
+                            if (state.data.isNotEmpty()) {
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(
+                                            style = SpanStyle(
+                                                fontSize = 16.sp,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        ) {
+                                            append("Productos: ")
+                                        }
+                                        withStyle(
+                                            style = SpanStyle(
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (isDark) Color.White else MaterialTheme.colorScheme.onBackground
+                                            )
+                                        ) {
+                                            append(state.data.joinToString(", ") { product ->
+                                                "${product.CANTIDAD}x ${product.ARTICULO}"
+                                            })
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        is ResultState.Error -> {
+                            Text(
+                                text = "Error al cargar productos",
+                                fontSize = 12.sp,
+                                color = Color.Red.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 

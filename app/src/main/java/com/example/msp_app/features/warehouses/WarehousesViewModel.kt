@@ -75,7 +75,6 @@ class WarehouseViewModel(application: Application) : AndroidViewModel(applicatio
             _warehouseProducts.value = ResultState.Loading
             
             val hasNetwork = isNetworkAvailable()
-            android.util.Log.d("WarehouseViewModel", "Estado de red: ${if (hasNetwork) "ONLINE" else "OFFLINE"}")
 
             if (hasNetwork) {
                 repository.getWarehouseProducts(warehouseId).fold(

@@ -25,8 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Warning
+import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,6 +70,7 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
+import com.composables.icons.lucide.Truck
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.stock.ProductStock
@@ -133,7 +134,8 @@ fun ProductDetailsScreen(
     LaunchedEffect(warehouseProducts) {
         when (val state = warehouseProducts) {
             is ResultState.Success -> {
-                nombreAlmacenAsignado = state.data.body.ALMACEN.ALMACEN
+                nombreAlmacenAsignado = state.data.body.ALMACEN?.ALMACEN
+                    ?: camionetaAsignada?.let { "Almacén ID: $it" }
             }
 
             is ResultState.Error -> {
@@ -283,7 +285,7 @@ fun ProductDetailsScreen(
                         modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.ShoppingCart,
+                            imageVector = Lucide.Truck,
                             contentDescription = "Carrito",
                             modifier = Modifier.size(24.dp)
                         )
@@ -486,7 +488,7 @@ fun ProductDetailsScreen(
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.ShoppingCart,
+                                                imageVector = Lucide.Truck,
                                                 contentDescription = "Transferir",
                                                 modifier = Modifier.size(32.dp),
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
@@ -496,7 +498,7 @@ fun ProductDetailsScreen(
                                         Spacer(modifier = Modifier.height(16.dp))
 
                                         Text(
-                                            text = "Agregar al carrito",
+                                            text = "Agregar a la camioneta",
                                             style = MaterialTheme.typography.headlineSmall,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
@@ -729,7 +731,10 @@ fun ProductDetailsScreen(
                             }
                         }
                     ) {
-                        Text("Añadir al Carrito")
+                        Text(
+                            text = "Añadir a la Camioneta",
+                            color = Color.White
+                        )
                     }
                 }
             } ?: run {

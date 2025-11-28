@@ -1,9 +1,12 @@
 package com.example.msp_app.features.cart.screens
 
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
+import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -36,19 +40,31 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.composables.icons.lucide.FileText
+import com.composables.icons.lucide.Printer
+import com.composables.icons.lucide.Truck
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.components.CartItemCard
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
+import com.example.msp_app.features.payments.components.pdfgenerationdialog.PdfGenerationDialog
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
+import com.example.msp_app.ui.theme.ThemeController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,6 +75,11 @@ fun CartScreen(navController: NavController) {
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    var isGeneratingPdf by remember { mutableStateOf(false) }
+    var pdfUri by remember { mutableStateOf<Uri?>(null) }
+    var showPdfDialog by remember { mutableStateOf(false) }
 
     val cartProducts = cartViewModel.cartProducts
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
@@ -206,21 +227,32 @@ fun CartScreen(navController: NavController) {
             topBar = {
                 TopAppBar(
                     title = {
-                        Column {
-                            Text("Carrito (${cartViewModel.getTotalItems()})")
-                            nombreAlmacenAsignado?.let { nombre ->
-                                Text(
-                                    text = "🚚 $nombre",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } ?: run {
-                                if (camionetaAsignada == null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Lucide.Truck,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = if (ThemeController.isDarkMode) Color.White else MaterialTheme.colorScheme.onSurface
+                            )
+                            Column {
+                                Text("Camioneta (${cartViewModel.getTotalItems()})")
+                                nombreAlmacenAsignado?.let { nombre ->
                                     Text(
-                                        text = "⚠️ Sin camioneta asignada",
+                                        text = nombre,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error
+                                        color = MaterialTheme.colorScheme.primary
                                     )
+                                } ?: run {
+                                    if (camionetaAsignada == null) {
+                                        Text(
+                                            text = "Sin camioneta asignada",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -231,6 +263,57 @@ fun CartScreen(navController: NavController) {
                                 imageVector = Icons.Default.Menu,
                                 contentDescription = "Menú"
                             )
+                        }
+                    },
+                    actions = {
+                        // PDF Button
+                        if (cartProducts.isNotEmpty() && nombreAlmacenAsignado != null) {
+                            IconButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isGeneratingPdf = true
+                                        val file = withContext(Dispatchers.IO) {
+                                            PdfGenerator.generateWarehouseInventoryPdf(
+                                                context = context,
+                                                warehouseName = nombreAlmacenAsignado ?: "Mi Camioneta",
+                                                totalStock = cartProducts.sumOf { it.quantity },
+                                                assignedUsers = emptyList(),
+                                                products = cartProducts.map { it.product },
+                                                fileName = "inventario_camioneta.pdf"
+                                            )
+                                        }
+                                        isGeneratingPdf = false
+                                        if (file != null && file.exists()) {
+                                            val uri = FileProvider.getUriForFile(
+                                                context,
+                                                context.packageName + ".fileprovider",
+                                                file
+                                            )
+                                            pdfUri = uri
+                                            showPdfDialog = true
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "Error al generar PDF",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                enabled = !isGeneratingPdf
+                            ) {
+                                if (isGeneratingPdf) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Lucide.Printer,
+                                        contentDescription = "Generar PDF"
+                                    )
+                                }
+                            }
                         }
                     }
                 )
@@ -461,6 +544,17 @@ fun CartScreen(navController: NavController) {
                     ) {
                         Text("Cancelar")
                     }
+                }
+            )
+        }
+
+        // PDF Dialog
+        if (showPdfDialog && pdfUri != null) {
+            PdfGenerationDialog(
+                pdfUri = pdfUri!!,
+                onDismiss = {
+                    showPdfDialog = false
+                    pdfUri = null
                 }
             )
         }

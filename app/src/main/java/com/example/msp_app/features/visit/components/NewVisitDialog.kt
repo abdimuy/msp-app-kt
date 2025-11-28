@@ -357,8 +357,8 @@ fun NewVisitDialog(
                         label = { Text("Observaciones (Opcional)") },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .height(90.dp)
+                            .padding(horizontal = 12.dp)
+                            .height(120.dp)
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
