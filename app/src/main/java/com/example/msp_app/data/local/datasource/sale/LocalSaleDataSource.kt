@@ -85,4 +85,8 @@ class LocalSaleDataSource(context: Context) {
             nota = nota
         )
     }
+
+    suspend fun updateSalePrice(saleId: String, precioTotal: Double) {
+        localSaleDao.updateSalePrice(saleId, precioTotal)
+    }
 }

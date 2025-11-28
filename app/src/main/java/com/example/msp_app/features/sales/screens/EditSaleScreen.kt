@@ -49,8 +49,14 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.productInventory.ProductInventory
+import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
+import com.example.msp_app.features.warehouses.WarehouseViewModel
 import kotlinx.coroutines.delay
 
 @Composable
@@ -60,10 +66,16 @@ fun EditSaleScreen(
 ) {
     val activity = LocalActivity.current as ComponentActivity
     val viewModel: NewLocalSaleViewModel = viewModel(viewModelStoreOwner = activity)
+    val productsViewModel: SaleProductsViewModel = viewModel(viewModelStoreOwner = activity)
+    val warehouseViewModel: WarehouseViewModel = viewModel()
+    val authViewModel = LocalAuthViewModel.current
 
     val sale by viewModel.selectedSale.collectAsState()
+    val saleProducts by viewModel.saleProducts.collectAsState()
     val saveResult by viewModel.saveResult.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val userData by authViewModel.userData.collectAsState()
+    val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
 
     var clientName by remember { mutableStateOf(TextFieldValue("")) }
     var phone by remember { mutableStateOf(TextFieldValue("")) }
@@ -87,6 +99,7 @@ fun EditSaleScreen(
     var installmentError by remember { mutableStateOf(false) }
     var paymentFrequencyError by remember { mutableStateOf(false) }
     var collectionDayError by remember { mutableStateOf(false) }
+    var productsError by remember { mutableStateOf(false) }
 
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showSuccessDialog by remember { mutableStateOf(false) }
@@ -100,8 +113,25 @@ fun EditSaleScreen(
     val dayOptions =
         listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
 
+    val camionetaId = when (val userState = userData) {
+        is ResultState.Success -> userState.data?.CAMIONETA_ASIGNADA
+        else -> null
+    }
+
+    val productosCamioneta = when (val s = warehouseState) {
+        is ResultState.Success -> s.data.body.ARTICULOS
+        else -> emptyList()
+    }
+
+    LaunchedEffect(camionetaId) {
+        if (camionetaId != null) {
+            warehouseViewModel.selectWarehouse(camionetaId)
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.getSaleById(localSaleId)
+        viewModel.loadProductsBySaleId(localSaleId)
     }
 
     LaunchedEffect(sale) {
@@ -120,6 +150,24 @@ fun EditSaleScreen(
             collectionday = currentSale.DIA_COBRANZA ?: ""
             guarantor = TextFieldValue(currentSale.AVAL_O_RESPONSABLE ?: "")
             note = TextFieldValue(currentSale.NOTA ?: "")
+        }
+    }
+
+    LaunchedEffect(saleProducts) {
+        if (saleProducts.isNotEmpty()) {
+            productsViewModel.clearSale()
+
+            saleProducts.forEach { productEntity ->
+                val productInventory = ProductInventory(
+                    ARTICULO_ID = productEntity.ARTICULO_ID,
+                    ARTICULO = productEntity.ARTICULO,
+                    PRECIOS = "${productEntity.PRECIO_LISTA},${productEntity.PRECIO_CORTO_PLAZO},${productEntity.PRECIO_CONTADO}",
+                    EXISTENCIAS = 0,
+                    LINEA_ARTICULO_ID = 0,
+                    LINEA_ARTICULO = "",
+                )
+                productsViewModel.addProductToSale(productInventory, productEntity.CANTIDAD)
+            }
         }
     }
 
@@ -202,6 +250,12 @@ fun EditSaleScreen(
         return isValid
     }
 
+    fun validateProducts(): Boolean {
+        val isValid = productsViewModel.hasItems()
+        productsError = !isValid
+        return isValid
+    }
+
     fun validateAllFields(): Boolean {
         val clientNameValid = validateClientName()
         val phoneValid = validatePhone()
@@ -210,9 +264,10 @@ fun EditSaleScreen(
         val installmentValid = validateInstallment()
         val paymentFrequencyValid = validatePaymentFrequency()
         val collectionDayValid = validateCollectionDay()
+        val productsValid = validateProducts()
 
         return clientNameValid && phoneValid && addressValid && downpaymentValid &&
-                installmentValid && paymentFrequencyValid && collectionDayValid
+                installmentValid && paymentFrequencyValid && collectionDayValid && productsValid
     }
 
     fun saveChanges() {
@@ -222,6 +277,14 @@ fun EditSaleScreen(
     }
 
     fun confirmSave() {
+        val currentProducts = productsViewModel.saleItems.toList()
+
+        val calculatedTotal = when (tipoVenta) {
+            "CREDITO" -> productsViewModel.getTotalPrecioLista()
+            "CONTADO" -> productsViewModel.getTotalMontoContado()
+            else -> productsViewModel.getTotalPrecioLista()
+        }
+
         viewModel.updateSale(
             saleId = localSaleId,
             nombreCliente = clientName.text,
@@ -239,7 +302,9 @@ fun EditSaleScreen(
             frecPago = if (tipoVenta == "CONTADO") "" else paymentfrequency,
             diaCobranza = if (tipoVenta == "CONTADO") "" else collectionday,
             avalOResponsable = guarantor.text.ifBlank { null },
-            nota = note.text.ifBlank { null }
+            nota = note.text.ifBlank { null },
+            products = currentProducts,
+            precioTotal = calculatedTotal
         )
         showConfirmDialog = false
     }
@@ -255,7 +320,7 @@ fun EditSaleScreen(
                 )
             },
             text = {
-                Text("Se actualizará la información de la venta.")
+                Text("Se actualizará la información de la venta y los productos.")
             },
             confirmButton = {
                 Button(
@@ -536,14 +601,14 @@ fun EditSaleScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    if (tipoVenta == "CREDITO") {
-                        Text(
-                            "Información de Pago",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(bottom = 12.dp)
-                        )
+                    Text(
+                        "Información de Venta",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
 
+                    if (tipoVenta == "CREDITO") {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -597,7 +662,14 @@ fun EditSaleScreen(
                             )
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(16.dp))
+
+                        Text(
+                            "Información de Pago",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
 
                         OutlinedTextField(
                             value = paymentfrequency,
@@ -679,15 +751,8 @@ fun EditSaleScreen(
                             }
                         }
 
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(12.dp))
                     }
-
-                    Text(
-                        "Notas",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
 
                     OutlinedTextField(
                         value = note,
@@ -699,6 +764,28 @@ fun EditSaleScreen(
                     )
 
                     Spacer(Modifier.height(16.dp))
+
+                    SimpleProductSelector(
+                        warehouseViewModel = warehouseViewModel,
+                        saleProductsViewModel = productsViewModel,
+                        onAddProduct = { articuloId, cantidad ->
+                            val producto = productosCamioneta.find { it.ARTICULO_ID == articuloId }
+                            if (producto != null) {
+                                productsViewModel.addProductToSale(producto, cantidad)
+                            }
+                        }
+                    )
+
+                    if (productsError) {
+                        Text(
+                            "Debes agregar al menos un producto",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp, start = 8.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
                 }
 
                 Column(
@@ -708,7 +795,7 @@ fun EditSaleScreen(
                 ) {
                     Button(
                         onClick = { saveChanges() },
-                        enabled = !isLoading,
+                        enabled = !isLoading && productsViewModel.hasItems(),
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
                     ) {

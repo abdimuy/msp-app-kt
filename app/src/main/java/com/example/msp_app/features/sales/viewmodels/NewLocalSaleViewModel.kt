@@ -495,7 +495,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         frecPago: String?,
         diaCobranza: String?,
         avalOResponsable: String?,
-        nota: String?
+        nota: String?,
+        products: List<SaleItem>,
+        precioTotal: Double
     ) {
         viewModelScope.launch {
             try {
@@ -507,7 +509,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     message = "Actualizando información de venta",
                     data = mapOf(
                         "saleId" to saleId,
-                        "clientName" to nombreCliente
+                        "clientName" to nombreCliente,
+                        "productCount" to products.size
                     )
                 )
 
@@ -529,6 +532,24 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     nota = nota
                 )
 
+                localSaleStore.updateSalePrice(saleId, precioTotal)
+
+                if (products.isNotEmpty()) {
+                    val productEntities = products.map { saleItem ->
+                        val parsedPrices =
+                            PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+                        LocalSaleProductEntity(
+                            LOCAL_SALE_ID = saleId,
+                            ARTICULO_ID = saleItem.product.ARTICULO_ID,
+                            ARTICULO = saleItem.product.ARTICULO,
+                            CANTIDAD = saleItem.quantity,
+                            PRECIO_LISTA = parsedPrices.precioLista,
+                            PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
+                            PRECIO_CONTADO = parsedPrices.precioContado
+                        )
+                    }
+                    saleProduct.replaceProductsForSale(saleId, productEntities)
+                }
                 localSaleStore.changeSaleStatus(saleId, enviado = false)
 
                 markAsEdited(saleId)

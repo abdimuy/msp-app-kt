@@ -159,4 +159,7 @@ interface LocalSaleDao {
         avalOResponsable: String?,
         nota: String?
     )
+
+    @Query("UPDATE local_sale SET PRECIO_TOTAL = :precioTotal WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun updateSalePrice(saleId: String, precioTotal: Double)
 }
