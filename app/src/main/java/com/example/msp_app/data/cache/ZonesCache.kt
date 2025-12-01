@@ -23,9 +23,6 @@ class ZonesCache(private val context: Context) {
         return File(cacheDir, cacheFileName)
     }
 
-    /**
-     * Guarda las zonas en caché
-     */
     suspend fun saveZones(zones: List<ClientZoneEntity>) {
         withContext(Dispatchers.IO) {
             try {
@@ -33,27 +30,21 @@ class ZonesCache(private val context: Context) {
                 val json = gson.toJson(zones)
                 cacheFile.writeText(json)
 
-                // Guardar timestamp
                 val timestampFile = File(cacheDir, "timestamp.txt")
                 timestampFile.writeText(System.currentTimeMillis().toString())
 
-                android.util.Log.d("ZonesCache", "Guardadas ${zones.size} zonas en caché")
             } catch (e: Exception) {
-                android.util.Log.e("ZonesCache", "Error guardando zonas en caché", e)
+
             }
         }
     }
 
-    /**
-     * Obtiene las zonas desde el caché
-     */
     suspend fun getZones(): List<ClientZoneEntity> {
         return withContext(Dispatchers.IO) {
             try {
                 val cacheFile = getCacheFile()
 
                 if (!cacheFile.exists()) {
-                    android.util.Log.d("ZonesCache", "No existe archivo de caché")
                     return@withContext emptyList()
                 }
 
@@ -61,18 +52,13 @@ class ZonesCache(private val context: Context) {
                 val type = object : TypeToken<List<ClientZoneEntity>>() {}.type
                 val zones: List<ClientZoneEntity> = gson.fromJson(json, type)
 
-                android.util.Log.d("ZonesCache", "Cargadas ${zones.size} zonas desde caché")
                 zones
             } catch (e: Exception) {
-                android.util.Log.e("ZonesCache", "Error leyendo zonas desde caché", e)
                 emptyList()
             }
         }
     }
 
-    /**
-     * Limpia el caché
-     */
     suspend fun clearCache() {
         withContext(Dispatchers.IO) {
             try {
@@ -86,16 +72,12 @@ class ZonesCache(private val context: Context) {
                     timestampFile.delete()
                 }
 
-                android.util.Log.d("ZonesCache", "Caché de zonas limpiado")
             } catch (e: Exception) {
-                android.util.Log.e("ZonesCache", "Error limpiando caché", e)
+
             }
         }
     }
 
-    /**
-     * Obtiene la fecha de la última actualización del caché
-     */
     suspend fun getLastUpdateTimestamp(): Long? {
         return withContext(Dispatchers.IO) {
             try {
@@ -111,9 +93,6 @@ class ZonesCache(private val context: Context) {
         }
     }
 
-    /**
-     * Verifica si el caché está disponible
-     */
     suspend fun isCacheAvailable(): Boolean {
         return withContext(Dispatchers.IO) {
             val cacheFile = getCacheFile()

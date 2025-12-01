@@ -46,7 +46,6 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
-import com.example.msp_app.features.zones.ZonesViewModel
 
 @Composable
 fun SaleHomeScreen(navController: NavController) {
@@ -55,7 +54,6 @@ fun SaleHomeScreen(navController: NavController) {
     val localSalesViewModel: com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel =
         viewModel()
     val authViewModel: AuthViewModel = viewModel()
-    val zonesViewModel: ZonesViewModel = viewModel()
 
     val productState = productsViewModel.productInventoryState.collectAsState().value
     val loading = productState is ResultState.Loading
@@ -75,7 +73,6 @@ fun SaleHomeScreen(navController: NavController) {
 
     LaunchedEffect(Unit) {
         localSalesViewModel.loadPendingSales()
-        zonesViewModel.loadClientZones(forceRefresh = true)
     }
 
     LaunchedEffect(productsLoaded, shouldCheckImages) {

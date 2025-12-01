@@ -61,12 +61,10 @@ fun SimpleZoneSelector(
     var expanded by remember { mutableStateOf(false) }
     var selectedZoneName by remember { mutableStateOf("") }
 
-    // Cargar zonas al inicio
     LaunchedEffect(Unit) {
         zonesViewModel.loadClientZones()
     }
 
-    // Actualizar nombre de zona seleccionada
     LaunchedEffect(selectedZoneId, zonesState) {
         if (selectedZoneId != null) {
             val zones = when (val state = zonesState) {
@@ -84,7 +82,7 @@ fun SimpleZoneSelector(
     }
 
     Column(modifier = modifier) {
-        // Header con título e indicadores
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -100,7 +98,7 @@ fun SimpleZoneSelector(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Indicador de modo offline
+
                 if (isOfflineMode) {
                     Text(
                         text = "OFFLINE",
@@ -116,7 +114,6 @@ fun SimpleZoneSelector(
                     )
                 }
 
-                // Botón de recarga
                 IconButton(
                     onClick = { zonesViewModel.loadClientZones(forceRefresh = true) },
                     modifier = Modifier.size(32.dp)
@@ -133,7 +130,6 @@ fun SimpleZoneSelector(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Selector de zona
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -241,7 +237,6 @@ fun SimpleZoneSelector(
                                 }
                             }
 
-                            // Información de última actualización
                             lastUpdate?.let { timestamp ->
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
@@ -264,7 +259,6 @@ fun SimpleZoneSelector(
             }
         }
 
-        // Contador de zonas disponibles
         if (zones.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(

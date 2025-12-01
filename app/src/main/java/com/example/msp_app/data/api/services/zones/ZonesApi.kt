@@ -11,19 +11,10 @@ data class ZonesResponse(
     @SerializedName("error")
     val error: String? = null,
 
-    // Por si la API devuelve las zonas directamente sin wrapper
-    @SerializedName("zonas")
-    val zonas: List<ClientZone>? = null,
-
-    @SerializedName("data")
-    val data: List<ClientZone>? = null
-) {
-    // Propiedad calculada que intenta obtener las zonas de cualquier campo
+    ) {
     fun getZonesList(): List<ClientZone> {
         return when {
             body.isNotEmpty() -> body
-            zonas?.isNotEmpty() == true -> zonas
-            data?.isNotEmpty() == true -> data
             else -> emptyList()
         }
     }
