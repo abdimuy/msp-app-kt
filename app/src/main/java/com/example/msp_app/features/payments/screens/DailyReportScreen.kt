@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -50,7 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
@@ -286,22 +285,17 @@ fun DailyReportScreen(
                     )
 
                     if (showDatePicker) {
-                        Popup(
-                            onDismissRequest = { showDatePicker = false },
-                            alignment = Alignment.TopStart
-                        ) {
+                        Dialog(onDismissRequest = { showDatePicker = false }) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .offset(y = 64.dp)
-                                    .shadow(elevation = 12.dp)
-                                    .background(MaterialTheme.colorScheme.surface)
+                                    .shadow(12.dp)
+                                    .background(color = MaterialTheme.colorScheme.surface)
                                     .padding(16.dp)
-                                    .height(565.dp)
                             ) {
                                 DatePicker(
                                     state = datePickerState,
-                                    showModeToggle = false,
+                                    showModeToggle = false
                                 )
                             }
                         }
