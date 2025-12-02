@@ -21,6 +21,7 @@ import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
 import com.example.msp_app.data.models.sale.toSale
+import com.example.msp_app.features.zones.ZonesViewModel
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -54,6 +55,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private var userDataListener: ListenerRegistration? = null
     private var hasCheckedVersion = false
+
+    val zonesViewModel = ZonesViewModel(getApplication())
+
 
     init {
         auth.addAuthStateListener {
@@ -104,6 +108,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         hasCheckedVersion = true
                         updateAppVersion(data.ID, data)
                         loadProductsToCache(data.CAMIONETA_ASIGNADA)
+                        zonesViewModel.loadClientZones(true)
+
                     }
                 } else {
                     _userData.value = ResultState.Success(null)

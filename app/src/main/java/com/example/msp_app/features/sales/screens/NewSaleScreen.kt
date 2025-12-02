@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +65,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -72,20 +72,22 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
-import kotlinx.coroutines.launch
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
+import com.example.msp_app.features.sales.components.zoneselector.SimpleZoneSelector
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
+import com.example.msp_app.features.zones.ZonesViewModel
 import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
 
@@ -95,6 +97,7 @@ import java.util.UUID
 fun NewSaleScreen(navController: NavController) {
     val viewModel: NewLocalSaleViewModel = viewModel()
     val warehouseViewModel: WarehouseViewModel = viewModel()
+    val zonesViewModel: ZonesViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
     val context = LocalContext.current
@@ -150,6 +153,10 @@ fun NewSaleScreen(navController: NavController) {
     var productsError by remember { mutableStateOf(false) }
     var showImageSizeError by remember { mutableStateOf(false) }
     var downpaymentError by remember { mutableStateOf(false) }
+
+    var selectedZoneId by remember { mutableIntStateOf(0) }
+    var selectedZoneName by remember { mutableStateOf("") }
+    var zoneError by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
@@ -311,6 +318,12 @@ fun NewSaleScreen(navController: NavController) {
         } catch (e: Exception) {
             0L
         }
+    }
+
+    fun validateZone(zoneId: Int): Boolean {
+        val isValid = zoneId > 0
+        zoneError = !isValid
+        return isValid
     }
 
     fun validateLocationData(): Boolean {
@@ -565,7 +578,11 @@ fun NewSaleScreen(navController: NavController) {
 
                     Row {
                         Text("Tipo: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(draft.tipoVenta, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            draft.tipoVenta,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
 
                     if (productCount > 0) {
@@ -1194,7 +1211,26 @@ fun NewSaleScreen(navController: NavController) {
                             }
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(16.dp))
+
+                        SimpleZoneSelector(
+                            zonesViewModel = zonesViewModel,
+                            selectedZoneId = selectedZoneId.takeIf { it > 0 },
+                            onZoneSelected = { zoneId, zoneName ->
+                                selectedZoneId = zoneId
+                                selectedZoneName = zoneName
+                                if (zoneError) {
+                                    validateZone(zoneId)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = "Zona de Cliente",
+                            isRequired = true,
+                            isError = zoneError,
+                            errorMessage = if (zoneError) "Selecciona una zona" else null
+                        )
+
+                        Spacer(Modifier.height(16.dp))
                     }
 
                     OutlinedTextField(
