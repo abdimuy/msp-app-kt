@@ -10,7 +10,7 @@ class SaleProductLocalDataSource(context: Context) {
     suspend fun insertSaleProduct(product: LocalSaleProductEntity) {
         saleProductDao.insertSaleProduct(product)
     }
-        
+
     suspend fun insertSaleProducts(products: List<LocalSaleProductEntity>) {
         saleProductDao.insertAllSaleProducts(products)
     }
@@ -25,5 +25,10 @@ class SaleProductLocalDataSource(context: Context) {
 
     suspend fun deleteProductsForSale(saleId: String) {
         saleProductDao.deleteProductsForSale(saleId)
+    }
+
+    suspend fun replaceProductsForSale(saleId: String, products: List<LocalSaleProductEntity>) {
+        deleteProductsForSale(saleId)
+        insertSaleProducts(products)
     }
 }

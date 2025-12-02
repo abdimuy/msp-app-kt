@@ -21,6 +21,7 @@ import androidx.compose.material3.carousel.HorizontalUncontainedCarousel
 import androidx.compose.material3.carousel.rememberCarouselState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,59 +55,63 @@ fun CarrouselImage(
     val selectedItem = remember { mutableStateOf<CarouselItem?>(null) }
     val context = LocalContext.current
 
-    HorizontalUncontainedCarousel(
-        state = rememberCarouselState { carouselItems.size },
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .padding(top = 16.dp, bottom = 16.dp),
-        itemWidth = 186.dp,
-        itemSpacing = 12.dp,
-        contentPadding = PaddingValues(horizontal = 16.dp)
-    ) { index ->
-        val item = carouselItems[index]
-        val file = File(item.imagePath)
+    key(carouselItems.size) {
+        HorizontalUncontainedCarousel(
+            state = rememberCarouselState { carouselItems.size },
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(top = 16.dp, bottom = 16.dp),
+            itemWidth = 186.dp,
+            itemSpacing = 12.dp,
+            contentPadding = PaddingValues(horizontal = 16.dp)
+        ) { index ->
+            if (index >= carouselItems.size) return@HorizontalUncontainedCarousel
 
-        if (file.exists()) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(file)
-                    .memoryCacheKey("${file.absolutePath}_${reloadTrigger}")
-                    .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
-                    .build(),
-                contentDescription = item.description,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .height(205.dp)
-                    .maskClip(MaterialTheme.shapes.extraLarge)
-                    .clickable {
-                        selectedItem.value = item
-                    },
-                onState = { state ->
-                    when (state) {
-                        is AsyncImagePainter.State.Error -> {
+            val item = carouselItems[index]
+            val file = File(item.imagePath)
 
-                            println("Error loading image: ${item.imagePath}")
+            if (file.exists()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(file)
+                        .memoryCacheKey("${file.absolutePath}_${reloadTrigger}")
+                        .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
+                        .build(),
+                    contentDescription = item.description,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .height(205.dp)
+                        .maskClip(MaterialTheme.shapes.extraLarge)
+                        .clickable {
+                            selectedItem.value = item
+                        },
+                    onState = { state ->
+                        when (state) {
+                            is AsyncImagePainter.State.Error -> {
+
+                                println("Error loading image: ${item.imagePath}")
+                            }
+
+                            else -> {}
                         }
-
-                        else -> {}
                     }
-                }
-            )
-        } else {
-
-            Box(
-                modifier = Modifier
-                    .height(205.dp)
-                    .maskClip(MaterialTheme.shapes.extraLarge)
-                    .background(Color.Gray.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Imagen no encontrada",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else {
+
+                Box(
+                    modifier = Modifier
+                        .height(205.dp)
+                        .maskClip(MaterialTheme.shapes.extraLarge)
+                        .background(Color.Gray.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Imagen no encontrada",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
