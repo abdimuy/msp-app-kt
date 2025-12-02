@@ -297,6 +297,7 @@ fun DailyReportScreen(
                                     .shadow(elevation = 12.dp)
                                     .background(MaterialTheme.colorScheme.surface)
                                     .padding(16.dp)
+                                    .height(565.dp)
                             ) {
                                 DatePicker(
                                     state = datePickerState,
