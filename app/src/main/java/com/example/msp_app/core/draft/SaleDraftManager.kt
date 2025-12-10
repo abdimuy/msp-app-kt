@@ -27,6 +27,16 @@ data class DraftProduct(
     val quantity: Int
 )
 
+data class DraftPackage(
+    val packageId: String,
+    val packageName: String,
+    val productIds: List<Int>, // IDs de los productos que componen el paquete
+    val quantities: List<Int>, // Cantidades correspondientes a cada producto
+    val precioLista: Double,
+    val precioCortoplazo: Double,
+    val precioContado: Double
+)
+
 data class SaleDraft(
     // Common fields for both types
     val clientName: String = "",
@@ -40,6 +50,7 @@ data class SaleDraft(
     val longitude: Double = 0.0,
     val imageUris: List<String> = emptyList(),
     val productsJson: String = "",
+    val packagesJson: String = "",
 
     // Sale type
     val tipoVenta: String = "CREDITO", // "CREDITO" or "CONTADO"
@@ -59,9 +70,10 @@ data class SaleDraft(
      */
     fun hasData(): Boolean {
         return clientName.isNotBlank() ||
-               phone.isNotBlank() ||
-               street.isNotBlank() ||
-               productsJson.isNotBlank()
+                phone.isNotBlank() ||
+                street.isNotBlank() ||
+                productsJson.isNotBlank() ||
+                packagesJson.isNotBlank()
     }
 
     /**
@@ -139,6 +151,7 @@ class SaleDraftManager(private val context: Context) {
         private val LONGITUDE = doublePreferencesKey("draft_longitude")
         private val IMAGE_URIS = stringPreferencesKey("draft_image_uris")
         private val PRODUCTS_JSON = stringPreferencesKey("draft_products_json")
+        private val PACKAGES_JSON = stringPreferencesKey("draft_packages_json")
 
         // Sale type
         private val TIPO_VENTA = stringPreferencesKey("draft_tipo_venta")
@@ -151,6 +164,83 @@ class SaleDraftManager(private val context: Context) {
         private val PAYMENT_FREQUENCY = stringPreferencesKey("draft_payment_frequency")
 
         private val TIMESTAMP = stringPreferencesKey("draft_timestamp")
+    }
+
+    /**
+     * Convert list of ProductPackages to JSON string
+     */
+    fun packagesToJson(packages: List<Any>): String {
+        val draftPackages = packages.mapNotNull { pkg ->
+            try {
+                val packageIdField = pkg.javaClass.getDeclaredField("packageId")
+                val packageNameField = pkg.javaClass.getDeclaredField("packageName")
+                val productsField = pkg.javaClass.getDeclaredField("products")
+                val precioListaField = pkg.javaClass.getDeclaredField("precioLista")
+                val precioCortoplazoField = pkg.javaClass.getDeclaredField("precioCortoplazo")
+                val precioContadoField = pkg.javaClass.getDeclaredField("precioContado")
+
+                packageIdField.isAccessible = true
+                packageNameField.isAccessible = true
+                productsField.isAccessible = true
+                precioListaField.isAccessible = true
+                precioCortoplazoField.isAccessible = true
+                precioContadoField.isAccessible = true
+
+                val packageId = packageIdField.get(pkg) as String
+                val packageName = packageNameField.get(pkg) as String
+                val products = productsField.get(pkg) as List<*>
+                val precioLista = precioListaField.getDouble(pkg)
+                val precioCortoplazo = precioCortoplazoField.getDouble(pkg)
+                val precioContado = precioContadoField.getDouble(pkg)
+
+                // Extraer IDs y cantidades de los productos del paquete
+                val productIds = mutableListOf<Int>()
+                val quantities = mutableListOf<Int>()
+
+                products.forEach { saleItem ->
+                    val productField = saleItem!!.javaClass.getDeclaredField("product")
+                    val quantityField = saleItem.javaClass.getDeclaredField("quantity")
+                    productField.isAccessible = true
+                    quantityField.isAccessible = true
+
+                    val product = productField.get(saleItem)
+                    val quantity = quantityField.getInt(saleItem)
+
+                    val articuloIdField = product.javaClass.getDeclaredField("ARTICULO_ID")
+                    articuloIdField.isAccessible = true
+                    val articuloId = articuloIdField.getInt(product)
+
+                    productIds.add(articuloId)
+                    quantities.add(quantity)
+                }
+
+                DraftPackage(
+                    packageId = packageId,
+                    packageName = packageName,
+                    productIds = productIds,
+                    quantities = quantities,
+                    precioLista = precioLista,
+                    precioCortoplazo = precioCortoplazo,
+                    precioContado = precioContado
+                )
+            } catch (e: Exception) {
+                null
+            }
+        }
+        return gson.toJson(draftPackages)
+    }
+
+    /**
+     * Convert JSON string to list of DraftPackages
+     */
+    fun jsonToDraftPackages(json: String): List<DraftPackage> {
+        if (json.isBlank()) return emptyList()
+
+        return try {
+            gson.fromJson(json, object : TypeToken<List<DraftPackage>>() {}.type)
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     /**
@@ -177,6 +267,7 @@ class SaleDraftManager(private val context: Context) {
             preferences[LONGITUDE] = draft.longitude
             preferences[IMAGE_URIS] = gson.toJson(draft.imageUris)
             preferences[PRODUCTS_JSON] = draft.productsJson
+            preferences[PACKAGES_JSON] = draft.packagesJson
 
             // Sale type
             preferences[TIPO_VENTA] = draft.tipoVenta
@@ -200,8 +291,9 @@ class SaleDraftManager(private val context: Context) {
 
         // Check if there's any meaningful data
         val hasData = preferences[CLIENT_NAME] != null ||
-                     preferences[PHONE] != null ||
-                     preferences[PRODUCTS_JSON] != null
+                preferences[PHONE] != null ||
+                preferences[PRODUCTS_JSON] != null ||
+                preferences[PACKAGES_JSON] != null
 
         if (!hasData) {
             return null
@@ -227,6 +319,7 @@ class SaleDraftManager(private val context: Context) {
             longitude = preferences[LONGITUDE] ?: 0.0,
             imageUris = imageUrisList,
             productsJson = preferences[PRODUCTS_JSON] ?: "",
+            packagesJson = preferences[PACKAGES_JSON] ?: "",
             tipoVenta = preferences[TIPO_VENTA] ?: "CREDITO",
             downpayment = preferences[DOWNPAYMENT] ?: "",
             installment = preferences[INSTALLMENT] ?: "",
@@ -243,8 +336,9 @@ class SaleDraftManager(private val context: Context) {
     fun hasDraft(): Flow<Boolean> {
         return context.saleDraftDataStore.data.map { preferences ->
             preferences[CLIENT_NAME] != null ||
-            preferences[PHONE] != null ||
-            preferences[PRODUCTS_JSON] != null
+                    preferences[PHONE] != null ||
+                    preferences[PRODUCTS_JSON] != null ||
+                    preferences[PACKAGES_JSON] != null
         }
     }
 
