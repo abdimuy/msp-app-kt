@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +65,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -72,12 +72,12 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
-import kotlinx.coroutines.launch
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.features.sales.viewmodels.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
@@ -86,6 +86,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
 
@@ -209,7 +210,8 @@ fun NewSaleScreen(navController: NavController) {
                 latitude = latitude,
                 longitude = longitude,
                 imageUris = imagePaths,
-                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems)
+                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems),
+                packagesJson = draftManager.packagesToJson(saleProductsViewModel.packages.toList())
             )
             draftManager.saveDraft(draft)
         }
@@ -261,6 +263,29 @@ fun NewSaleScreen(navController: NavController) {
                 saleProductsViewModel.addProductToSale(product, draftProduct.quantity)
             }
         }
+
+        val draftPackages = draftManager.jsonToDraftPackages(draft.packagesJson)
+        draftPackages.forEach { draftPkg ->
+            // Reconstruct products for the package
+            val packageProducts = draftPkg.productIds.mapIndexedNotNull { index, articuloId ->
+                val product = productosCamioneta.find { it.ARTICULO_ID == articuloId }
+                if (product != null) {
+                    SaleItem(product, draftPkg.quantities.getOrNull(index) ?: 1)
+                } else {
+                    null
+                }
+            }
+
+            if (packageProducts.isNotEmpty()) {
+                // Recreate the package
+                saleProductsViewModel.createPackage(
+                    selectedProducts = packageProducts,
+                    precioLista = draftPkg.precioLista,
+                    precioCortoplazo = draftPkg.precioCortoplazo,
+                    precioContado = draftPkg.precioContado
+                )
+            }
+        }
     }
 
     LaunchedEffect(camionetaId) {
@@ -288,7 +313,8 @@ fun NewSaleScreen(navController: NavController) {
         poblacion.text, ciudad.text, tipoVenta, downpayment.text,
         installment.text, guarantor.text, note.text, collectionday,
         paymentfrequency, latitude, longitude, imageUris,
-        saleProductsViewModel.saleItems.size
+        saleProductsViewModel.saleItems.size,
+        saleProductsViewModel.packages.size
     ) {
         // Don't save if user just declined to load a draft
         if (!showDraftDialog) {
@@ -448,8 +474,12 @@ fun NewSaleScreen(navController: NavController) {
     }
 
     fun validateProducts(): Boolean {
-        val isValid = saleProductsViewModel.hasItems()
+        val hasProducts = saleProductsViewModel.hasItems()
+        val hasPackages = saleProductsViewModel.packages.isNotEmpty()
+
+        val isValid = hasProducts || hasPackages
         productsError = !isValid
+
         return isValid
     }
 
@@ -534,6 +564,7 @@ fun NewSaleScreen(navController: NavController) {
     if (showDraftDialog && loadedDraft != null) {
         val draft = loadedDraft!!
         val productCount = draftManager.jsonToDraftProducts(draft.productsJson).size
+        val packageCount = draftManager.jsonToDraftPackages(draft.packagesJson).size
 
         AlertDialog(
             onDismissRequest = { },
@@ -565,13 +596,27 @@ fun NewSaleScreen(navController: NavController) {
 
                     Row {
                         Text("Tipo: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(draft.tipoVenta, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            draft.tipoVenta,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
 
                     if (productCount > 0) {
                         Row {
                             Text("Productos: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                             Text("$productCount seleccionados", fontSize = 14.sp)
+                        }
+                    }
+
+                    if (packageCount > 0) {
+                        Row {
+                            Text("Paquetes: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(
+                                "$packageCount creados", fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
                         }
                     }
 
@@ -775,6 +820,7 @@ fun NewSaleScreen(navController: NavController) {
             cashamount = saleProductsViewModel.getTotalMontoContado(),
             enviado = false,
             saleProducts = saleProductsViewModel.saleItems,
+            salePackages = saleProductsViewModel.packages.toList(),
             context = context,
             userEmail = userEmail
         )
