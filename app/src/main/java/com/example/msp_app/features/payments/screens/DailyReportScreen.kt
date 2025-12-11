@@ -5,9 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,6 +52,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.PdfGenerator
@@ -177,12 +176,24 @@ fun DailyReportScreen(
     var reportDateIso by remember { mutableStateOf("") }
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
+    val authViewModel = LocalAuthViewModel.current
+    val userDataState by authViewModel.userData.collectAsState()
+
+    val userData = when (userDataState) {
+        is ResultState.Success -> (userDataState as ResultState.Success<com.example.msp_app.data.models.auth.User?>).data
+        else -> null
+    }
 
     LaunchedEffect(Unit) {
         prepareReportDate(LocalDate.now()).let { data ->
             reportDateIso = data.iso
             textDate = data.textField
-            viewModel.getPaymentsByDate(data.startIso, data.endIso)
+            viewModel.getPaymentsByDate(
+                data.startIso,
+                data.endIso,
+                "DAILY_REPORT",
+                userData?.ZONA_CLIENTE_ID ?: 0
+            )
             visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
             viewModel.getForgivenessByDate(data.startIso, data.endIso)
         }
@@ -194,7 +205,12 @@ fun DailyReportScreen(
             prepareReportDate(selected).let { data ->
                 reportDateIso = data.iso
                 textDate = data.textField
-                viewModel.getPaymentsByDate(data.startIso, data.endIso)
+                viewModel.getPaymentsByDate(
+                    data.startIso,
+                    data.endIso,
+                    "DAILY_REPORT",
+                    userData?.ZONA_CLIENTE_ID ?: 0
+                )
                 visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
                 viewModel.getForgivenessByDate(data.startIso, data.endIso)
                 showDatePicker = false
