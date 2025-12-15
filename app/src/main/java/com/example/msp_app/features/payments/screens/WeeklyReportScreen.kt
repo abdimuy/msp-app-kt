@@ -50,11 +50,7 @@ fun WeeklyReportScreen(
     val authViewModel = LocalAuthViewModel.current
     val userDataState by authViewModel.userData.collectAsState()
 
-    val userData = when (userDataState) {
-        is ResultState.Success -> (userDataState as ResultState.Success<com.example.msp_app.data.models.auth.User?>).data
-        else -> null
-    }
-
+    
     val startIso = remember(userDataState) {
         val startDate = (userDataState as? ResultState.Success)?.data?.FECHA_CARGA_INICIAL
         DateUtils.parseDateToIso(startDate?.toDate())
@@ -69,7 +65,6 @@ fun WeeklyReportScreen(
             startIso,
             endIso,
             "WEEKLY_REPORT",
-            userData?.ZONA_CLIENTE_ID ?: 0
         )
         visitsViewModel.getVisitsByDate(startIso, endIso)
         viewModel.getForgivenessByDate(startIso, endIso)

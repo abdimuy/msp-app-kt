@@ -52,7 +52,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
-import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.PdfGenerator
@@ -176,13 +175,6 @@ fun DailyReportScreen(
     var reportDateIso by remember { mutableStateOf("") }
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
-    val authViewModel = LocalAuthViewModel.current
-    val userDataState by authViewModel.userData.collectAsState()
-
-    val userData = when (userDataState) {
-        is ResultState.Success -> (userDataState as ResultState.Success<com.example.msp_app.data.models.auth.User?>).data
-        else -> null
-    }
 
     LaunchedEffect(Unit) {
         prepareReportDate(LocalDate.now()).let { data ->
@@ -192,7 +184,6 @@ fun DailyReportScreen(
                 data.startIso,
                 data.endIso,
                 "DAILY_REPORT",
-                userData?.ZONA_CLIENTE_ID ?: 0
             )
             visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
             viewModel.getForgivenessByDate(data.startIso, data.endIso)
@@ -209,7 +200,6 @@ fun DailyReportScreen(
                     data.startIso,
                     data.endIso,
                     "DAILY_REPORT",
-                    userData?.ZONA_CLIENTE_ID ?: 0
                 )
                 visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
                 viewModel.getForgivenessByDate(data.startIso, data.endIso)

@@ -5,14 +5,12 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.logging.Logger
-import com.example.msp_app.core.logging.logPaymentAnomalySnapshot
-import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.core.logging.logReportSnapshot
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.computeCentroids
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
 import com.example.msp_app.data.api.services.payment.PaymentsApi
-import com.example.msp_app.data.api.services.sales.SalesApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
@@ -177,8 +175,7 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     fun getPaymentsByDate(
         startDate: String,
         endDate: String,
-        screenName: String = "UNKNOWN",
-        zona: Int = 0
+        screenName: String = "UNKNOWN"
     ) {
         viewModelScope.launch {
             _paymentsByDateState.value = ResultState.Loading
@@ -190,158 +187,70 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
 
             _paymentsByDateState.value = ResultState.Success(payments)
 
-            compareWithServerInBackground(startDate, endDate, screenName, zona)
+            sendReportSnapshotToFirebase(payments, startDate, endDate, screenName)
         }
     }
 
-    private fun compareWithServerInBackground(
+    private fun sendReportSnapshotToFirebase(
+        reportPayments: List<Payment>,
         startDate: String,
         endDate: String,
-        screenName: String,
-        zona: Int
+        screenName: String
     ) {
         viewModelScope.launch {
             try {
-                val localPayments = withContext(Dispatchers.IO) {
-                    paymentStore.getPaymentsByDate(startDate, endDate)
-                        .map { it.toDomain() }
+                val allPayments = withContext(Dispatchers.IO) {
+                    paymentStore.getAllPayments()
                 }
 
-                val localSyncedPayments = localPayments.filter { it.GUARDADO_EN_MICROSIP }
-
-                val serverResponse = try {
-                    withContext(Dispatchers.IO) {
-                        ApiProvider.create(SalesApi::class.java).getAll(
-                            zona = zona,
-                            dateInit = startDate
-                        )
-                    }
-                } catch (e: Exception) {
-                    return@launch
-                }
-
-                val serverPayments = serverResponse.body.pagos.filter { pago ->
-                    try {
-                        val pagoDate = parseDateToComparable(pago.FECHA_HORA_PAGO)
-                        val startDateComparable = parseDateToComparable(startDate)
-                        val endDateComparable = parseDateToComparable(endDate)
-
-                        pagoDate >= startDateComparable &&
-                                pagoDate <= endDateComparable &&
-                                pago.FORMA_COBRO_ID != Constants.CONDONACION_ID
-                    } catch (e: Exception) {
-                        false
-                    }
-                }
-
-                val localCount = localPayments.size
-                val localSyncedCount = localSyncedPayments.size
-                val serverCount = serverPayments.size
-
-                if (localSyncedCount != serverCount) {
-                    val allLocalPayments = withContext(Dispatchers.IO) {
-                        paymentStore.getAllPayments()
-                    }
-
-                    val allPaymentsMapped = allLocalPayments.map { payment ->
-                        mapOf(
-                            "ID" to payment.ID,
-                            "FECHA_HORA_PAGO" to payment.FECHA_HORA_PAGO,
-                            "NOMBRE_CLIENTE" to payment.NOMBRE_CLIENTE,
-                            "IMPORTE" to payment.IMPORTE,
-                            "COBRADOR" to payment.COBRADOR,
-                            "DOCTO_CC_ACR_ID" to payment.DOCTO_CC_ACR_ID,
-                            "FORMA_COBRO_ID" to payment.FORMA_COBRO_ID,
-                            "GUARDADO_EN_MICROSIP" to payment.GUARDADO_EN_MICROSIP,
-                            "DOCTO_CC_ID" to payment.DOCTO_CC_ID,
-                            "LAT" to payment.LAT,
-                            "LNG" to payment.LNG,
-                            "CLIENTE_ID" to payment.CLIENTE_ID,
-                            "COBRADOR_ID" to payment.COBRADOR_ID,
-                            "ZONA_CLIENTE_ID" to payment.ZONA_CLIENTE_ID
-                        )
-                    }
-
-                    val localReportMapped = localPayments.map { payment ->
-                        mapOf(
-                            "ID" to payment.ID,
-                            "FECHA_HORA_PAGO" to payment.FECHA_HORA_PAGO,
-                            "NOMBRE_CLIENTE" to payment.NOMBRE_CLIENTE,
-                            "IMPORTE" to payment.IMPORTE,
-                            "COBRADOR" to payment.COBRADOR,
-                            "DOCTO_CC_ACR_ID" to payment.DOCTO_CC_ACR_ID,
-                            "FORMA_COBRO_ID" to payment.FORMA_COBRO_ID,
-                            "GUARDADO_EN_MICROSIP" to payment.GUARDADO_EN_MICROSIP,
-                            "DOCTO_CC_ID" to payment.DOCTO_CC_ID,
-                            "LAT" to payment.LAT,
-                            "LNG" to payment.LNG,
-                            "CLIENTE_ID" to payment.CLIENTE_ID,
-                            "COBRADOR_ID" to payment.COBRADOR_ID,
-                            "ZONA_CLIENTE_ID" to payment.ZONA_CLIENTE_ID
-                        )
-                    }
-
-                    val localSyncedMapped = localSyncedPayments.map { payment ->
-                        mapOf(
-                            "ID" to payment.ID,
-                            "FECHA_HORA_PAGO" to payment.FECHA_HORA_PAGO,
-                            "NOMBRE_CLIENTE" to payment.NOMBRE_CLIENTE,
-                            "IMPORTE" to payment.IMPORTE,
-                            "COBRADOR" to payment.COBRADOR,
-                            "DOCTO_CC_ACR_ID" to payment.DOCTO_CC_ACR_ID,
-                            "FORMA_COBRO_ID" to payment.FORMA_COBRO_ID,
-                            "GUARDADO_EN_MICROSIP" to payment.GUARDADO_EN_MICROSIP,
-                            "DOCTO_CC_ID" to payment.DOCTO_CC_ID,
-                            "LAT" to payment.LAT,
-                            "LNG" to payment.LNG,
-                            "CLIENTE_ID" to payment.CLIENTE_ID,
-                            "COBRADOR_ID" to payment.COBRADOR_ID,
-                            "ZONA_CLIENTE_ID" to payment.ZONA_CLIENTE_ID
-                        )
-                    }
-
-                    val serverMapped = serverPayments.map { pago ->
-                        mapOf(
-                            "ID" to pago.ID,
-                            "fechaHoraPago" to pago.FECHA_HORA_PAGO,
-                            "nombreCliente" to pago.NOMBRE_CLIENTE,
-                            "importe" to pago.IMPORTE,
-                            "cobrador" to pago.COBRADOR,
-                            "formaCobro" to pago.FORMA_COBRO_ID
-                        )
-                    }
-
-                    Logger.get().logPaymentAnomalySnapshot(
-                        reportType = screenName,
-                        reportDate = java.time.LocalDate.now().toString(),
-                        dateRange = startDate to endDate,
-                        zona = zona,
-                        localCount = localCount,
-                        localSyncedCount = localSyncedCount,
-                        serverCount = serverCount,
-                        paymentsInLocalReport = localReportMapped,
-                        paymentsLocalSynced = localSyncedMapped,
-                        allPaymentsInLocalDB = allPaymentsMapped,
-                        paymentsInServer = serverMapped,
-                        collectorName = localPayments.firstOrNull()?.COBRADOR
+                val reportMapped = reportPayments.map { payment ->
+                    mapOf(
+                        "ID" to payment.ID,
+                        "FECHA_HORA_PAGO" to payment.FECHA_HORA_PAGO,
+                        "NOMBRE_CLIENTE" to payment.NOMBRE_CLIENTE,
+                        "IMPORTE" to payment.IMPORTE,
+                        "COBRADOR" to payment.COBRADOR,
+                        "DOCTO_CC_ACR_ID" to payment.DOCTO_CC_ACR_ID,
+                        "FORMA_COBRO_ID" to payment.FORMA_COBRO_ID,
+                        "GUARDADO_EN_MICROSIP" to payment.GUARDADO_EN_MICROSIP,
+                        "DOCTO_CC_ID" to payment.DOCTO_CC_ID,
+                        "LAT" to payment.LAT,
+                        "LNG" to payment.LNG,
+                        "CLIENTE_ID" to payment.CLIENTE_ID,
+                        "COBRADOR_ID" to payment.COBRADOR_ID,
+                        "ZONA_CLIENTE_ID" to payment.ZONA_CLIENTE_ID
                     )
                 }
-            } catch (e: Exception) {
-            }
-        }
-    }
 
-    private fun parseDateToComparable(dateString: String): Long {
-        return try {
-            val instant = java.time.Instant.parse(dateString)
-            instant.toEpochMilli()
-        } catch (e: Exception) {
-            try {
-                val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-                val localDate = java.time.LocalDate.parse(dateString, formatter)
-                localDate.atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()
-            } catch (e2: Exception) {
-                0L
+                val allPaymentsMapped = allPayments.map { payment ->
+                    mapOf(
+                        "ID" to payment.ID,
+                        "FECHA_HORA_PAGO" to payment.FECHA_HORA_PAGO,
+                        "NOMBRE_CLIENTE" to payment.NOMBRE_CLIENTE,
+                        "IMPORTE" to payment.IMPORTE,
+                        "COBRADOR" to payment.COBRADOR,
+                        "DOCTO_CC_ACR_ID" to payment.DOCTO_CC_ACR_ID,
+                        "FORMA_COBRO_ID" to payment.FORMA_COBRO_ID,
+                        "GUARDADO_EN_MICROSIP" to payment.GUARDADO_EN_MICROSIP,
+                        "DOCTO_CC_ID" to payment.DOCTO_CC_ID,
+                        "LAT" to payment.LAT,
+                        "LNG" to payment.LNG,
+                        "CLIENTE_ID" to payment.CLIENTE_ID,
+                        "COBRADOR_ID" to payment.COBRADOR_ID,
+                        "ZONA_CLIENTE_ID" to payment.ZONA_CLIENTE_ID
+                    )
+                }
+
+                Logger.get().logReportSnapshot(
+                    reportType = screenName,
+                    reportDate = java.time.LocalDate.now().toString(),
+                    filterStartDate = startDate,
+                    filterEndDate = endDate,
+                    allPaymentsInLocalDb = allPaymentsMapped,
+                    filteredPayments = reportMapped,
+                    collectorName = reportPayments.firstOrNull()?.COBRADOR
+                )
+            } catch (e: Exception) {
             }
         }
     }
