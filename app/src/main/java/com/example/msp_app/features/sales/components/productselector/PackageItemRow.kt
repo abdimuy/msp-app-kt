@@ -44,10 +44,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Package
 import com.composables.icons.lucide.PackageOpen
 import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
+import com.example.msp_app.features.sales.components.editpackageprices.EditPackagePricesDialog
 import com.example.msp_app.features.sales.viewmodels.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.utils.PriceParser
@@ -57,8 +59,10 @@ fun PackageItemRow(
     productPackage: LocalSaleProductPackage,
     saleProductsViewModel: SaleProductsViewModel
 ) {
+    val viewModel: SaleProductsViewModel = viewModel()
     var showEditDialog by remember { mutableStateOf(false) }
     var showUnpackDialog by remember { mutableStateOf(false) }
+    val totalQuantity = viewModel.getPackageTotalQuantity(productPackage)
 
     Card(
         modifier = Modifier
@@ -161,7 +165,7 @@ fun PackageItemRow(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "${productPackage.products.size} productos • ${productPackage.getTotalQuantity()} unidades",
+                        text = "${productPackage.products.size} productos • $totalQuantity unidades",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -207,7 +211,7 @@ fun PackageItemRow(
 
                 Column {
                     Text(
-                        text = "C.Plazo: $${productPackage.precioCortoplazo}",
+                        text = "Corto Plazo: $${productPackage.precioCortoplazo}",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary
@@ -253,16 +257,8 @@ fun PackageItemRow(
     if (showEditDialog) {
         EditPackagePricesDialog(
             productPackage = productPackage,
-            onDismiss = { showEditDialog = false },
-            onConfirm = { lista, cortoplazo, contado ->
-                saleProductsViewModel.updatePackagePrices(
-                    packageId = productPackage.packageId,
-                    precioLista = lista,
-                    precioCortoplazo = cortoplazo,
-                    precioContado = contado
-                )
-                showEditDialog = false
-            }
+            saleProductsViewModel = saleProductsViewModel,
+            onDismiss = { showEditDialog = false }
         )
     }
 
@@ -337,92 +333,6 @@ private fun PackageProductItem(saleItem: SaleItem) {
     }
 }
 
-@Composable
-private fun EditPackagePricesDialog(
-    productPackage: LocalSaleProductPackage,
-    onDismiss: () -> Unit,
-    onConfirm: (Double, Double, Double) -> Unit
-) {
-    var precioLista by remember { mutableStateOf(productPackage.precioLista.toString()) }
-    var precioCortoplazo by remember { mutableStateOf(productPackage.precioCortoplazo.toString()) }
-    var precioContado by remember { mutableStateOf(productPackage.precioContado.toString()) }
-
-    var errorMessage by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Editar precios del paquete") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = precioLista,
-                    onValueChange = { precioLista = it; errorMessage = "" },
-                    label = { Text("Precio Lista") },
-                    prefix = { Text("$") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                OutlinedTextField(
-                    value = precioCortoplazo,
-                    onValueChange = { precioCortoplazo = it; errorMessage = "" },
-                    label = { Text("Precio Corto Plazo") },
-                    prefix = { Text("$") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                OutlinedTextField(
-                    value = precioContado,
-                    onValueChange = { precioContado = it; errorMessage = "" },
-                    label = { Text("Precio Contado") },
-                    prefix = { Text("$") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                if (errorMessage.isNotEmpty()) {
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val lista = precioLista.toDoubleOrNull()
-                    val cortoplazo = precioCortoplazo.toDoubleOrNull()
-                    val contado = precioContado.toDoubleOrNull()
-
-                    if (lista == null || lista <= 0 ||
-                        cortoplazo == null || cortoplazo <= 0 ||
-                        contado == null || contado <= 0
-                    ) {
-                        errorMessage = "Todos los precios deben ser mayores a 0"
-                        return@Button
-                    }
-
-                    onConfirm(lista, cortoplazo, contado)
-                }
-            ) {
-                Text("Guardar", color = Color.White)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
-}
-
-// CartItemRow actualizado (sin cambios respecto al original)
 @Composable
 fun CartItemRow(
     saleItem: SaleItem,

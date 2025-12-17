@@ -138,7 +138,7 @@ fun SimpleProductSelector(
                             )
                             Spacer(modifier = Modifier.width(2.dp))
                             Text(
-                                text = saleItems.sumOf { it.quantity }.toString(),
+                                text = saleProductsViewModel.getTotalItems().toString(),
                                 color = Color.White,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold

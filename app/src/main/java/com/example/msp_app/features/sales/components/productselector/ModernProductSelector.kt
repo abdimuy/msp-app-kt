@@ -1,6 +1,5 @@
 package com.example.msp_app.features.sales.components.productselector
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,26 +20,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,19 +48,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Package
-import com.composables.icons.lucide.PackageOpen
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
-import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
-import com.example.msp_app.features.sales.components.packagedialog.CreatePackageDialog
 import com.example.msp_app.features.sales.viewmodels.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
@@ -82,7 +69,6 @@ fun ModernProductSelector(
     val authViewModel = LocalAuthViewModel.current
     var searchQuery by remember { mutableStateOf("") }
     var showProductList by remember { mutableStateOf(false) }
-    var showCreatePackageDialog by remember { mutableStateOf(false) }
 
     val userData by authViewModel.userData.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
@@ -107,15 +93,6 @@ fun ModernProductSelector(
     }
 
     val saleItems = saleProductsViewModel.saleItems
-    val packages = saleProductsViewModel.packages
-
-    // Diálogo para crear paquetes
-    CreatePackageDialog(
-        show = showCreatePackageDialog,
-        saleProductsViewModel = saleProductsViewModel,
-        onDismiss = { showCreatePackageDialog = false },
-        onPackageCreated = { /* Paquete creado exitosamente */ }
-    )
 
     Column(
         modifier = Modifier
@@ -128,65 +105,36 @@ fun ModernProductSelector(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Productos a vender",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+            Text(
+                "Productos a vender",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
 
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            if (saleItems.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = CircleShape,
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    // Botón para crear paquete
-                    if (saleItems.size >= 2) {
-                        OutlinedButton(
-                            onClick = { showCreatePackageDialog = true },
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                    Box(contentAlignment = Alignment.Center) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
                         ) {
                             Icon(
-                                Lucide.Package,
-                                contentDescription = "Crear paquete",
+                                Icons.Default.ShoppingCart,
+                                contentDescription = "Carrito",
+                                tint = Color.White,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Paquete", fontSize = 12.sp)
-                        }
-                    }
-
-                    // Contador del carrito
-                    if (saleItems.isNotEmpty() || packages.isNotEmpty()) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = CircleShape,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.ShoppingCart,
-                                        contentDescription = "Carrito",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text(
-                                        text = saleProductsViewModel.getTotalItems().toString(),
-                                        color = Color.White,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = saleProductsViewModel.getTotalItems().toString(),
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
@@ -252,7 +200,7 @@ fun ModernProductSelector(
         }
 
         // Carrito de productos seleccionados
-        if (saleItems.isNotEmpty() || packages.isNotEmpty()) {
+        if (saleItems.isNotEmpty()) {
             Text(
                 "Productos seleccionados (${saleItems.size})",
                 style = MaterialTheme.typography.titleMedium,
@@ -268,20 +216,6 @@ fun ModernProductSelector(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    if (packages.isNotEmpty()) {
-                        packages.forEach { productPackage ->
-                            ModernPackageItemRow(
-                                productPackage = productPackage,
-                                saleProductsViewModel = saleProductsViewModel
-                            )
-                            if (productPackage != packages.last() || saleItems.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-                        }
-                    }
-
                     // Mostrar productos individuales
                     if (saleItems.isNotEmpty()) {
                         saleItems.forEach { saleItem ->
@@ -481,304 +415,6 @@ private fun ProductCard(
             }
         }
     }
-}
-
-@Composable
-private fun ModernPackageItemRow(
-    productPackage: LocalSaleProductPackage,
-    saleProductsViewModel: SaleProductsViewModel
-) {
-    var showEditDialog by remember { mutableStateOf(false) }
-    var showUnpackDialog by remember { mutableStateOf(false) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            // Header compacto
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Lucide.Package,
-                        contentDescription = "Paquete",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = "PAQUETE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = productPackage.packageName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(
-                        onClick = { showEditDialog = true },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Editar",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { showUnpackDialog = true },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Lucide.PackageOpen,
-                            contentDescription = "Deshacer",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { saleProductsViewModel.removePackage(productPackage.packageId) },
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Clear,
-                            contentDescription = "Eliminar",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Info compacta
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "${productPackage.products.size} productos • ${productPackage.getTotalQuantity()} unidades",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                IconButton(
-                    onClick = {
-                        saleProductsViewModel.togglePackageExpanded(productPackage.packageId)
-                    },
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        if (productPackage.isExpanded) Icons.Default.KeyboardArrowUp
-                        else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (productPackage.isExpanded) "Ocultar" else "Mostrar",
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            // Precios en línea compacta
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "L: $${productPackage.precioLista}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "CP: $${productPackage.precioCortoplazo}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-                Text(
-                    text = "C: $${productPackage.precioContado}",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-            }
-
-            // Productos expandibles
-            AnimatedVisibility(visible = productPackage.isExpanded) {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
-                    productPackage.products.forEach { saleItem ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = saleItem.product.ARTICULO,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "x${saleItem.quantity}",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Diálogo de edición
-    if (showEditDialog) {
-        EditPackagePricesDialog(
-            productPackage = productPackage,
-            onDismiss = { showEditDialog = false },
-            onConfirm = { lista, cortoplazo, contado ->
-                saleProductsViewModel.updatePackagePrices(
-                    packageId = productPackage.packageId,
-                    precioLista = lista,
-                    precioCortoplazo = cortoplazo,
-                    precioContado = contado
-                )
-                showEditDialog = false
-            }
-        )
-    }
-
-    // Diálogo de confirmación
-    if (showUnpackDialog) {
-        AlertDialog(
-            onDismissRequest = { showUnpackDialog = false },
-            title = { Text("¿Deshacer paquete?") },
-            text = {
-                Text("Los productos se devolverán a la lista individual.")
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        saleProductsViewModel.unpackPackage(productPackage.packageId)
-                        showUnpackDialog = false
-                    }
-                ) {
-                    Text("Deshacer", color = Color.White)
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showUnpackDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
-}
-
-@Composable
-private fun EditPackagePricesDialog(
-    productPackage: LocalSaleProductPackage,
-    onDismiss: () -> Unit,
-    onConfirm: (Double, Double, Double) -> Unit
-) {
-    var precioLista by remember { mutableStateOf(productPackage.precioLista.toString()) }
-    var precioCortoplazo by remember { mutableStateOf(productPackage.precioCortoplazo.toString()) }
-    var precioContado by remember { mutableStateOf(productPackage.precioContado.toString()) }
-    var errorMessage by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Editar precios del paquete") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = precioLista,
-                    onValueChange = { precioLista = it; errorMessage = "" },
-                    label = { Text("Precio Lista") },
-                    prefix = { Text("$") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                OutlinedTextField(
-                    value = precioCortoplazo,
-                    onValueChange = { precioCortoplazo = it; errorMessage = "" },
-                    label = { Text("Precio Corto Plazo") },
-                    prefix = { Text("$") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                OutlinedTextField(
-                    value = precioContado,
-                    onValueChange = { precioContado = it; errorMessage = "" },
-                    label = { Text("Precio Contado") },
-                    prefix = { Text("$") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                if (errorMessage.isNotEmpty()) {
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val lista = precioLista.toDoubleOrNull()
-                    val cortoplazo = precioCortoplazo.toDoubleOrNull()
-                    val contado = precioContado.toDoubleOrNull()
-
-                    if (lista == null || lista <= 0 ||
-                        cortoplazo == null || cortoplazo <= 0 ||
-                        contado == null || contado <= 0
-                    ) {
-                        errorMessage = "Todos los precios deben ser mayores a 0"
-                        return@Button
-                    }
-
-                    onConfirm(lista, cortoplazo, contado)
-                }
-            ) {
-                Text("Guardar", color = Color.White)
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text("Cancelar")
-            }
-        }
-    )
 }
 
 @Composable

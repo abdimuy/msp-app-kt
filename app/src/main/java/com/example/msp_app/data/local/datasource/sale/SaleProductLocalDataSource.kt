@@ -10,7 +10,7 @@ class SaleProductLocalDataSource(context: Context) {
     suspend fun insertSaleProduct(product: LocalSaleProductEntity) {
         saleProductDao.insertSaleProduct(product)
     }
-        
+
     suspend fun insertSaleProducts(products: List<LocalSaleProductEntity>) {
         saleProductDao.insertAllSaleProducts(products)
     }
@@ -23,7 +23,30 @@ class SaleProductLocalDataSource(context: Context) {
         }
     }
 
+    suspend fun getIndividualProductsForSale(saleId: String): List<LocalSaleProductEntity> {
+        return try {
+            saleProductDao.getIndividualProductsForSale(saleId)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun getProductsInPackage(
+        saleId: String,
+        packageId: String
+    ): List<LocalSaleProductEntity> {
+        return try {
+            saleProductDao.getProductsInPackage(saleId, packageId)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     suspend fun deleteProductsForSale(saleId: String) {
         saleProductDao.deleteProductsForSale(saleId)
+    }
+
+    suspend fun deletePackage(saleId: String, packageId: String) {
+        saleProductDao.deletePackage(saleId, packageId)
     }
 }

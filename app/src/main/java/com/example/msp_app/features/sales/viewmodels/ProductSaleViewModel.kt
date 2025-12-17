@@ -5,30 +5,27 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
+import com.example.msp_app.features.sales.viewmodels.kits.ValidatePackageUseCase
 import com.example.msp_app.utils.PriceParser
 
 data class SaleItem(
     val product: ProductInventory,
     val quantity: Int
-) {
-    val totalPrice: Double
-        get() = (product.PRECIOS?.toDoubleOrNull() ?: 0.0) * quantity
-}
+)
 
 class SaleProductsViewModel : ViewModel() {
     private val _saleItems = mutableStateListOf<SaleItem>()
-    val saleItems: SnapshotStateList<SaleItem> get() = _saleItems
-
     private val _packages = mutableStateListOf<LocalSaleProductPackage>()
+    private val validatePackageUseCase = ValidatePackageUseCase()
+
+    val saleItems: SnapshotStateList<SaleItem> get() = _saleItems
     val packages: SnapshotStateList<LocalSaleProductPackage> get() = _packages
 
     fun addProductToSale(product: ProductInventory, quantity: Int) {
         if (quantity <= 0) return
-
         val existingIndex = _saleItems.indexOfFirst {
             it.product.ARTICULO_ID == product.ARTICULO_ID
         }
-
         if (existingIndex != -1) {
             val existingItem = _saleItems[existingIndex]
             _saleItems[existingIndex] = existingItem.copy(
@@ -70,6 +67,18 @@ class SaleProductsViewModel : ViewModel() {
         return individualQuantity + packageQuantity
     }
 
+    private fun generatePackageName(products: List<SaleItem>): String {
+        return products.joinToString(", ") { saleItem ->
+            val words = saleItem.product.ARTICULO.split(" ")
+            words.take(2).joinToString(" ")
+        }
+    }
+
+    // Mover getTotalQuantity aquí
+    internal fun getPackageTotalQuantity(pkg: LocalSaleProductPackage): Int {
+        return pkg.products.sumOf { it.quantity }
+    }
+
     fun createPackage(
         selectedProducts: List<SaleItem>,
         precioLista: Double,
@@ -77,23 +86,21 @@ class SaleProductsViewModel : ViewModel() {
         precioContado: Double
     ): Result<LocalSaleProductPackage> {
 
-        if (selectedProducts.size < 2) {
-            return Result.failure(Exception("Debe seleccionar al menos 2 productos"))
-        }
-
-        if (precioLista <= 0 || precioCortoplazo <= 0 || precioContado <= 0) {
-            return Result.failure(Exception("Los precios deben ser mayores a 0"))
+        val validationResult = validatePackageUseCase.execute(
+            selectedProducts, precioLista, precioCortoplazo, precioContado
+        )
+        if (validationResult.isFailure) {
+            return Result.failure(validationResult.exceptionOrNull()!!)
         }
 
         val allProductsExist = selectedProducts.all { selectedItem ->
             _saleItems.any { it.product.ARTICULO_ID == selectedItem.product.ARTICULO_ID }
         }
-
         if (!allProductsExist) {
             return Result.failure(Exception("Algunos productos seleccionados no están disponibles"))
         }
 
-        val packageName = LocalSaleProductPackage.generatePackageName(selectedProducts)
+        val packageName = generatePackageName(selectedProducts)
         val newPackage = LocalSaleProductPackage(
             packageName = packageName,
             products = selectedProducts.toList(),
@@ -172,7 +179,7 @@ class SaleProductsViewModel : ViewModel() {
 
     fun getTotalItems(): Int {
         val individualItems = _saleItems.sumOf { it.quantity }
-        val packageItems = _packages.sumOf { it.getTotalQuantity() }
+        val packageItems = _packages.sumOf { getPackageTotalQuantity(it) }
         return individualItems + packageItems
     }
 
@@ -229,22 +236,9 @@ class SaleProductsViewModel : ViewModel() {
             }
     }
 
-    fun getSaleItemsList(): List<SaleItem> = _saleItems.toList()
-
     fun clearSale() {
         _saleItems.clear()
         _packages.clear()
-    }
-
-    fun validatePrices(): Boolean {
-        val individualPricesValid = _saleItems.all {
-            it.product.PRECIOS?.toDoubleOrNull() != null &&
-                    it.product.PRECIOS.toDouble() > 0
-        }
-
-        val packagePricesValid = _packages.all { it.isValid() }
-
-        return individualPricesValid && packagePricesValid
     }
 
     fun updateProductPrices(
@@ -262,5 +256,4 @@ class SaleProductsViewModel : ViewModel() {
             _saleItems[index] = oldItem.copy(product = updatedProduct)
         }
     }
-
 }
