@@ -108,7 +108,6 @@ fun HomeFooterSection(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .background(Color.White, RoundedCornerShape(16.dp))
-                .height(90.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
