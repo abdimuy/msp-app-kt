@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -64,12 +65,14 @@ fun SaleClienteSettlement(sale: Sale) {
         Card(
             modifier = Modifier
                 .padding(12.dp)
-                .height(210.dp)
+                .heightIn(min = 210.dp)
                 .fillMaxWidth(),
             elevation = CardDefaults.cardElevation(8.dp),
         ) {
             Box(
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 210.dp)
             ) {
                 Image(
                     painter = painterResource(
@@ -77,10 +80,12 @@ fun SaleClienteSettlement(sale: Sale) {
                     ),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.matchParentSize()
                 )
                 Column(
-                    modifier = Modifier.padding(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
