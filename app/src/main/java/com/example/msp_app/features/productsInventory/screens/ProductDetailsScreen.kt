@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -334,6 +335,9 @@ fun ProductDetailsScreen(
                         style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
                     )
 
+                    val fontScale = LocalDensity.current.fontScale
+                    val useLargeLayout = fontScale > 1.3f
+
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
@@ -342,38 +346,75 @@ fun ProductDetailsScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         border = null
                     ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
+                        if (useLargeLayout) {
                             Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Text(
-                                    text = "Stock Almacén General",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                ProductStock(stock = generalWarehouseStock)
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Stock Almacén General",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    ProductStock(stock = generalWarehouseStock)
+                                }
+
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "En tu camioneta",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = truckWarehouseStock?.toString() ?: "...",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
                             }
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
+                        } else {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
-                                Text(
-                                    text = "En tu camioneta",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Stock Almacén General",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    ProductStock(stock = generalWarehouseStock)
+                                }
 
-                                Text(
-                                    text = truckWarehouseStock?.toString() ?: "Cargando...",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "En tu camioneta",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = truckWarehouseStock?.toString() ?: "Cargando...",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
                             }
                         }
                     }
@@ -401,29 +442,27 @@ fun ProductDetailsScreen(
                                 reloadTrigger = imageReloadTrigger
                             )
                         } else {
-                            Box(
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(205.dp),
-                                contentAlignment = Alignment.Center
+                                    .padding(vertical = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        painter = painterResource(id = R.drawable.images_photo),
-                                        contentDescription = "Sin imagen disponible",
-                                        modifier = Modifier.size(154.dp),
-                                        tint = Color(0xFFB8C3D4)
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "Este producto aún no tiene una imagen asignada",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Icon(
+                                    painter = painterResource(id = R.drawable.images_photo),
+                                    contentDescription = "Sin imagen disponible",
+                                    modifier = Modifier.size(if (useLargeLayout) 100.dp else 154.dp),
+                                    tint = Color(0xFFB8C3D4)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Este producto aún no tiene una imagen asignada",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
                             }
                         }
                     }
@@ -747,7 +786,10 @@ fun ProductDetailsScreen(
                                                 },
                                                 enabled = transferState !is ResultState.Loading,
                                                 modifier = Modifier.weight(1f),
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
+                                                contentPadding = PaddingValues(
+                                                    horizontal = 8.dp,
+                                                    vertical = 12.dp
+                                                )
                                             ) {
                                                 Text(
                                                     text = "Cancelar",
@@ -770,7 +812,10 @@ fun ProductDetailsScreen(
                                                 },
                                                 enabled = transferState !is ResultState.Loading,
                                                 modifier = Modifier.weight(1f),
-                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
+                                                contentPadding = PaddingValues(
+                                                    horizontal = 8.dp,
+                                                    vertical = 12.dp
+                                                )
                                             ) {
                                                 if (transferState is ResultState.Loading) {
                                                     CircularProgressIndicator(
