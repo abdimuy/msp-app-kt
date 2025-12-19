@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Warning
-import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -70,6 +69,10 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.request.ImageRequest
+import com.composables.icons.lucide.ArrowRight
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Store
+import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.Truck
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
@@ -219,8 +222,7 @@ fun ProductDetailsScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp)
-                        .height(56.dp),
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(
@@ -244,22 +246,44 @@ fun ProductDetailsScreen(
                             maxLines = 1
                         )
                         nombreAlmacenAsignado?.let { nombre ->
-                            Text(
-                                text = "🚚 $nombre",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        } ?: run {
-                            if (camionetaAsignada == null) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Lucide.Truck,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(22.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                                 Text(
-                                    text = "⚠️ Sin camioneta asignada",
+                                    text = nombre,
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
+                                    color = MaterialTheme.colorScheme.primary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
+                            }
+                        } ?: run {
+                            if (camionetaAsignada == null) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Lucide.TriangleAlert,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(22.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        text = "Sin camioneta asignada",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
@@ -404,7 +428,6 @@ fun ProductDetailsScreen(
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
                     val priceMap = try {
                         parsePriceJsonToMap(currentProduct.PRECIOS)
                     } catch (e: Exception) {
@@ -475,46 +498,46 @@ fun ProductDetailsScreen(
                                     Column(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(24.dp),
+                                            .padding(16.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(64.dp)
+                                                .size(48.dp)
                                                 .background(
                                                     MaterialTheme.colorScheme.primaryContainer,
-                                                    RoundedCornerShape(32.dp)
+                                                    RoundedCornerShape(24.dp)
                                                 ),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = Lucide.Truck,
                                                 contentDescription = "Transferir",
-                                                modifier = Modifier.size(32.dp),
+                                                modifier = Modifier.size(24.dp),
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                                             )
                                         }
 
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(12.dp))
 
                                         Text(
                                             text = "Agregar a la camioneta",
-                                            style = MaterialTheme.typography.headlineSmall,
+                                            style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
 
-                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Spacer(modifier = Modifier.height(4.dp))
 
                                         Text(
                                             text = currentProduct.ARTICULO,
-                                            style = MaterialTheme.typography.bodyMedium,
+                                            style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.fillMaxWidth()
                                         )
 
-                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Spacer(modifier = Modifier.height(12.dp))
 
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
@@ -526,16 +549,60 @@ fun ProductDetailsScreen(
                                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                                         ) {
                                             Column(
-                                                modifier = Modifier.padding(16.dp),
-                                                horizontalAlignment = Alignment.CenterHorizontally
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(12.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
                                             ) {
-                                                Text(
-                                                    text = "🏪 Almacén General → 🚚 ${nombreAlmacenAsignado ?: "Tu camioneta"}",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    textAlign = TextAlign.Center
-                                                )
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Lucide.Store,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(24.dp),
+                                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "Almacén General",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Icon(
+                                                        imageVector = Lucide.ArrowRight,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(22.dp),
+                                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                                    )
+                                                }
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Lucide.Truck,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(24.dp),
+                                                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                                    )
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = nombreAlmacenAsignado
+                                                            ?: "Tu camioneta",
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
                                                 camionetaAsignada?.let { almacenId ->
                                                     Text(
                                                         text = "ID: $almacenId",
@@ -546,7 +613,7 @@ fun ProductDetailsScreen(
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(24.dp))
+                                        Spacer(modifier = Modifier.height(12.dp))
 
                                         Card(
                                             modifier = Modifier.fillMaxWidth(),
@@ -558,7 +625,7 @@ fun ProductDetailsScreen(
                                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                                         ) {
                                             Column(
-                                                modifier = Modifier.padding(16.dp),
+                                                modifier = Modifier.padding(12.dp),
                                                 horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
                                                 Text(
@@ -567,7 +634,7 @@ fun ProductDetailsScreen(
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
 
-                                                Spacer(modifier = Modifier.height(12.dp))
+                                                Spacer(modifier = Modifier.height(8.dp))
 
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
@@ -667,11 +734,11 @@ fun ProductDetailsScreen(
                                             }
                                         }
 
-                                        Spacer(modifier = Modifier.height(24.dp))
+                                        Spacer(modifier = Modifier.height(16.dp))
 
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
                                             OutlinedButton(
                                                 onClick = {
@@ -679,9 +746,13 @@ fun ProductDetailsScreen(
                                                     transferErrorMessage = null
                                                 },
                                                 enabled = transferState !is ResultState.Loading,
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
                                             ) {
-                                                Text("Cancelar")
+                                                Text(
+                                                    text = "Cancelar",
+                                                    maxLines = 1
+                                                )
                                             }
 
                                             Button(
@@ -698,7 +769,8 @@ fun ProductDetailsScreen(
                                                     }
                                                 },
                                                 enabled = transferState !is ResultState.Loading,
-                                                modifier = Modifier.weight(1f)
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 12.dp)
                                             ) {
                                                 if (transferState is ResultState.Loading) {
                                                     CircularProgressIndicator(
@@ -706,7 +778,10 @@ fun ProductDetailsScreen(
                                                         color = MaterialTheme.colorScheme.onPrimary
                                                     )
                                                 } else {
-                                                    Text("Agregar")
+                                                    Text(
+                                                        text = "Agregar",
+                                                        maxLines = 1
+                                                    )
                                                 }
                                             }
                                         }
@@ -716,7 +791,7 @@ fun ProductDetailsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Button(
                         onClick = {
@@ -732,8 +807,7 @@ fun ProductDetailsScreen(
                         }
                     ) {
                         Text(
-                            text = "Añadir a la Camioneta",
-                            color = Color.White
+                            text = "Añadir a la Camioneta"
                         )
                     }
                 }
