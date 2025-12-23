@@ -172,12 +172,23 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     fun getPaymentsByDate(startDate: String, endDate: String) {
         viewModelScope.launch {
             _paymentsByDateState.value = ResultState.Loading
-
-            val payments = withContext(Dispatchers.IO) {
-                paymentStore.getPaymentsByDate(startDate, endDate)
-                    .map { it.toDomain() }
+            try {
+                val payments = withContext(Dispatchers.IO) {
+                    paymentStore.getPaymentsByDate(startDate, endDate).map { it.toDomain() }
+                }
+                Log.d("TEST_PAYMENTS", "Pagos encontrados: ${payments.size}")
+                payments.forEach { pago ->
+                    Log.d(
+                        "TEST_PAYMENTS",
+                        "Pago: ${pago.NOMBRE_CLIENTE}, Importe: ${pago.IMPORTE}, Fecha: ${pago.FECHA_HORA_PAGO}"
+                    )
+                }
+                _paymentsByDateState.value = ResultState.Success(payments)
+            } catch (e: Exception) {
+                Log.e("TEST_PAYMENTS", "Error al obtener pagos: ${e.message}")
+                _paymentsByDateState.value =
+                    ResultState.Error(e.message ?: "Error al obtener pagos por fecha")
             }
-            _paymentsByDateState.value = ResultState.Success(payments)
         }
     }
 
