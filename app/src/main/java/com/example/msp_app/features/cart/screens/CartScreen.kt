@@ -225,110 +225,100 @@ fun CartScreen(navController: NavController) {
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
-            modifier = Modifier.statusBarsPadding(),
             snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = openDrawer,
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Menu,
-                            contentDescription = "Menú",
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Lucide.Truck,
-                            contentDescription = null,
-                            modifier = Modifier.size(28.dp),
-                            tint = if (ThemeController.isDarkMode) Color.White else MaterialTheme.colorScheme.onSurface
-                        )
-                        Column {
-                            Text(
-                                text = "Camioneta (${cartViewModel.getTotalItems()})",
-                                style = MaterialTheme.typography.titleLarge
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Lucide.Truck,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = if (ThemeController.isDarkMode) Color.White else MaterialTheme.colorScheme.onSurface
                             )
-                            nombreAlmacenAsignado?.let { nombre ->
-                                Text(
-                                    text = nombre,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            } ?: run {
-                                if (camionetaAsignada == null) {
+                            Column {
+                                Text("Camioneta (${cartViewModel.getTotalItems()})")
+                                nombreAlmacenAsignado?.let { nombre ->
                                     Text(
-                                        text = "Sin camioneta asignada",
+                                        text = nombre,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                } ?: run {
+                                    if (camionetaAsignada == null) {
+                                        Text(
+                                            text = "Sin camioneta asignada",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = openDrawer) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Menú"
+                            )
+                        }
+                    },
+                    actions = {
+                        // PDF Button
+                        if (cartProducts.isNotEmpty() && nombreAlmacenAsignado != null) {
+                            IconButton(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isGeneratingPdf = true
+                                        val file = withContext(Dispatchers.IO) {
+                                            PdfGenerator.generateWarehouseInventoryPdf(
+                                                context = context,
+                                                warehouseName = nombreAlmacenAsignado ?: "Mi Camioneta",
+                                                totalStock = cartProducts.sumOf { it.quantity },
+                                                assignedUsers = emptyList(),
+                                                products = cartProducts.map { it.product },
+                                                fileName = "inventario_camioneta.pdf"
+                                            )
+                                        }
+                                        isGeneratingPdf = false
+                                        if (file != null && file.exists()) {
+                                            val uri = FileProvider.getUriForFile(
+                                                context,
+                                                context.packageName + ".fileprovider",
+                                                file
+                                            )
+                                            pdfUri = uri
+                                            showPdfDialog = true
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "Error al generar PDF",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                },
+                                enabled = !isGeneratingPdf
+                            ) {
+                                if (isGeneratingPdf) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Lucide.Printer,
+                                        contentDescription = "Generar PDF"
                                     )
                                 }
                             }
                         }
                     }
-                    if (cartProducts.isNotEmpty() && nombreAlmacenAsignado != null) {
-                        IconButton(
-                            onClick = {
-                                coroutineScope.launch {
-                                    isGeneratingPdf = true
-                                    val file = withContext(Dispatchers.IO) {
-                                        PdfGenerator.generateWarehouseInventoryPdf(
-                                            context = context,
-                                            warehouseName = nombreAlmacenAsignado ?: "Mi Camioneta",
-                                            totalStock = cartProducts.sumOf { it.quantity },
-                                            assignedUsers = emptyList(),
-                                            products = cartProducts.map { it.product },
-                                            fileName = "inventario_camioneta.pdf"
-                                        )
-                                    }
-                                    isGeneratingPdf = false
-                                    if (file != null && file.exists()) {
-                                        val uri = FileProvider.getUriForFile(
-                                            context,
-                                            context.packageName + ".fileprovider",
-                                            file
-                                        )
-                                        pdfUri = uri
-                                        showPdfDialog = true
-                                    } else {
-                                        Toast.makeText(
-                                            context,
-                                            "Error al generar PDF",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
-                            },
-                            enabled = !isGeneratingPdf,
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            if (isGeneratingPdf) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Lucide.Printer,
-                                    contentDescription = "Generar PDF",
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
-                }
+                )
             },
         ) { paddingValues ->
             Column(
