@@ -4,6 +4,8 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.logging.Logger
+import com.example.msp_app.core.logging.logReportSnapshot
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.computeCentroids
 import com.example.msp_app.data.api.ApiProvider
@@ -100,7 +102,8 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                 }
                 _saleProductsState.value = ResultState.Success(products)
             } catch (e: Exception) {
-                _saleProductsState.value = ResultState.Error(e.message ?: "Error al cargar productos")
+                _saleProductsState.value =
+                    ResultState.Error(e.message ?: "Error al cargar productos")
             }
         }
     }
@@ -169,7 +172,11 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun getPaymentsByDate(startDate: String, endDate: String) {
+    fun getPaymentsByDate(
+        startDate: String,
+        endDate: String,
+        screenName: String = "UNKNOWN"
+    ) {
         viewModelScope.launch {
             _paymentsByDateState.value = ResultState.Loading
 
@@ -177,7 +184,74 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                 paymentStore.getPaymentsByDate(startDate, endDate)
                     .map { it.toDomain() }
             }
+
             _paymentsByDateState.value = ResultState.Success(payments)
+
+            sendReportSnapshotToFirebase(payments, startDate, endDate, screenName)
+        }
+    }
+
+    private fun sendReportSnapshotToFirebase(
+        reportPayments: List<Payment>,
+        startDate: String,
+        endDate: String,
+        screenName: String
+    ) {
+        viewModelScope.launch {
+            try {
+                val allPayments = withContext(Dispatchers.IO) {
+                    paymentStore.getAllPayments()
+                }
+
+                val reportMapped = reportPayments.map { payment ->
+                    mapOf(
+                        "ID" to payment.ID,
+                        "FECHA_HORA_PAGO" to payment.FECHA_HORA_PAGO,
+                        "NOMBRE_CLIENTE" to payment.NOMBRE_CLIENTE,
+                        "IMPORTE" to payment.IMPORTE,
+                        "COBRADOR" to payment.COBRADOR,
+                        "DOCTO_CC_ACR_ID" to payment.DOCTO_CC_ACR_ID,
+                        "FORMA_COBRO_ID" to payment.FORMA_COBRO_ID,
+                        "GUARDADO_EN_MICROSIP" to payment.GUARDADO_EN_MICROSIP,
+                        "DOCTO_CC_ID" to payment.DOCTO_CC_ID,
+                        "LAT" to payment.LAT,
+                        "LNG" to payment.LNG,
+                        "CLIENTE_ID" to payment.CLIENTE_ID,
+                        "COBRADOR_ID" to payment.COBRADOR_ID,
+                        "ZONA_CLIENTE_ID" to payment.ZONA_CLIENTE_ID
+                    )
+                }
+
+                val allPaymentsMapped = allPayments.map { payment ->
+                    mapOf(
+                        "ID" to payment.ID,
+                        "FECHA_HORA_PAGO" to payment.FECHA_HORA_PAGO,
+                        "NOMBRE_CLIENTE" to payment.NOMBRE_CLIENTE,
+                        "IMPORTE" to payment.IMPORTE,
+                        "COBRADOR" to payment.COBRADOR,
+                        "DOCTO_CC_ACR_ID" to payment.DOCTO_CC_ACR_ID,
+                        "FORMA_COBRO_ID" to payment.FORMA_COBRO_ID,
+                        "GUARDADO_EN_MICROSIP" to payment.GUARDADO_EN_MICROSIP,
+                        "DOCTO_CC_ID" to payment.DOCTO_CC_ID,
+                        "LAT" to payment.LAT,
+                        "LNG" to payment.LNG,
+                        "CLIENTE_ID" to payment.CLIENTE_ID,
+                        "COBRADOR_ID" to payment.COBRADOR_ID,
+                        "ZONA_CLIENTE_ID" to payment.ZONA_CLIENTE_ID
+                    )
+                }
+
+                Logger.get().logReportSnapshot(
+                    reportType = screenName,
+                    reportDate = java.time.LocalDate.now().toString(),
+                    filterStartDate = startDate,
+                    filterEndDate = endDate,
+                    allPaymentsInLocalDb = allPaymentsMapped,
+                    filteredPayments = reportMapped,
+                    collectorName = reportPayments.firstOrNull()?.COBRADOR
+                )
+            } catch (e: Exception) {
+            }
         }
     }
 

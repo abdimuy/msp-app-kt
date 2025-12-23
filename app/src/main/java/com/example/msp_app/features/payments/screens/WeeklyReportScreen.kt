@@ -36,8 +36,6 @@ import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import java.time.Instant
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -52,6 +50,7 @@ fun WeeklyReportScreen(
     val authViewModel = LocalAuthViewModel.current
     val userDataState by authViewModel.userData.collectAsState()
 
+    
     val startIso = remember(userDataState) {
         val startDate = (userDataState as? ResultState.Success)?.data?.FECHA_CARGA_INICIAL
         DateUtils.parseDateToIso(startDate?.toDate())
@@ -62,7 +61,11 @@ fun WeeklyReportScreen(
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
 
     LaunchedEffect(startIso) {
-        viewModel.getPaymentsByDate(startIso, endIso)
+        viewModel.getPaymentsByDate(
+            startIso,
+            endIso,
+            "WEEKLY_REPORT",
+        )
         visitsViewModel.getVisitsByDate(startIso, endIso)
         viewModel.getForgivenessByDate(startIso, endIso)
     }

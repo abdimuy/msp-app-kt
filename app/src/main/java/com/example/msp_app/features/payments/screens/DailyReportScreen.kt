@@ -5,9 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -185,7 +183,11 @@ fun DailyReportScreen(
         prepareReportDate(LocalDate.now()).let { data ->
             reportDateIso = data.iso
             textDate = data.textField
-            viewModel.getPaymentsByDate(data.startIso, data.endIso)
+            viewModel.getPaymentsByDate(
+                data.startIso,
+                data.endIso,
+                "DAILY_REPORT",
+            )
             visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
             viewModel.getForgivenessByDate(data.startIso, data.endIso)
         }
@@ -197,7 +199,11 @@ fun DailyReportScreen(
             prepareReportDate(selected).let { data ->
                 reportDateIso = data.iso
                 textDate = data.textField
-                viewModel.getPaymentsByDate(data.startIso, data.endIso)
+                viewModel.getPaymentsByDate(
+                    data.startIso,
+                    data.endIso,
+                    "DAILY_REPORT",
+                )
                 visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
                 viewModel.getForgivenessByDate(data.startIso, data.endIso)
                 showDatePicker = false

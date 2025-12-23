@@ -76,7 +76,8 @@ class RemoteLogger private constructor(private val context: Context) {
         scope.launch {
             try {
                 val currentUser = auth.currentUser
-                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                val timestamp =
+                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
 
                 val logEntry = hashMapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -162,23 +163,50 @@ class RemoteLogger private constructor(private val context: Context) {
     /**
      * Métodos de conveniencia para diferentes niveles
      */
-    fun debug(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun debug(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.DEBUG, message, data)
     }
 
-    fun info(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun info(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.INFO, message, data)
     }
 
-    fun warning(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun warning(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.WARNING, message, data)
     }
 
-    fun error(module: String, action: String, message: String, error: Throwable? = null, data: Map<String, Any?> = emptyMap()) {
+    fun error(
+        module: String,
+        action: String,
+        message: String,
+        error: Throwable? = null,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.ERROR, message, data, error)
     }
 
-    fun critical(module: String, action: String, message: String, error: Throwable? = null, data: Map<String, Any?> = emptyMap()) {
+    fun critical(
+        module: String,
+        action: String,
+        message: String,
+        error: Throwable? = null,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.CRITICAL, message, data, error)
     }
 
@@ -261,7 +289,8 @@ object Logger {
     }
 
     fun get(): RemoteLogger {
-        return logger ?: throw IllegalStateException("Logger not initialized. Call Logger.init(context) first")
+        return logger
+            ?: throw IllegalStateException("Logger not initialized. Call Logger.init(context) first")
     }
 }
 
@@ -354,5 +383,38 @@ fun RemoteLogger.logTransferError(
         message = "Error al crear traspaso: $errorMessage",
         error = exception,
         data = data
+    )
+}
+
+fun RemoteLogger.logReportSnapshot(
+    reportType: String,
+    reportDate: String,
+    filterStartDate: String,
+    filterEndDate: String,
+    rawStartDate: String? = null,
+    allPaymentsInLocalDb: List<Map<String, Any?>>,
+    filteredPayments: List<Map<String, Any?>>,
+    collectorName: String? = null
+) {
+    info(
+        module = "REPORT_SNAPSHOT",
+        action = "GENERATE_REPORT",
+        message = "Snapshot de reporte $reportType generado",
+        data = mapOf(
+            "reportType" to reportType,
+            "reportDate" to reportDate,
+            "collectorName" to collectorName,
+            "filter" to mapOf(
+                "startDate" to filterStartDate,
+                "endDate" to filterEndDate,
+                "rawStartDate" to rawStartDate
+            ),
+            "counts" to mapOf(
+                "totalInLocalDb" to allPaymentsInLocalDb.size,
+                "shownInReport" to filteredPayments.size
+            ),
+            "allPaymentsInDb" to allPaymentsInLocalDb,
+            "paymentsShownInReport" to filteredPayments
+        )
     )
 }
