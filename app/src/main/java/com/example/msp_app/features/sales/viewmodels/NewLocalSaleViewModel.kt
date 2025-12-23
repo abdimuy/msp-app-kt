@@ -16,10 +16,10 @@ import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSalePackageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
-import com.example.msp_app.data.local.entities.PackageProductRelation
 import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
 import com.example.msp_app.utils.PriceParser
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +32,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
     private val salePackage = SalePackageLocalDataSource(application.applicationContext)
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(application) }
+    private val gson = Gson()
 
     private val _sales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val sales: StateFlow<List<LocalSaleEntity>> = _sales
@@ -319,10 +320,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 }
 
                 val packageEntities = salePackages.map { pkg ->
-                    pkg.products.map { saleItem ->
-                        PackageProductRelation(
-                            ARTICULO_ID = saleItem.product.ARTICULO_ID,
-                            CANTIDAD = saleItem.quantity
+                    val productsToSerialize = pkg.products.map { saleItem ->
+                        mapOf(
+                            "ARTICULO_ID" to saleItem.product.ARTICULO_ID,
+                            "CANTIDAD" to saleItem.quantity
                         )
                     }
 
@@ -333,7 +334,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         PRECIO_LISTA = pkg.precioLista,
                         PRECIO_CORTO_PLAZO = pkg.precioCortoplazo,
                         PRECIO_CONTADO = pkg.precioContado,
-                        PRODUCT_IDS_JSON = pkg.products.toString()
+                        PRODUCT_IDS_JSON = gson.toJson(productsToSerialize)
                     )
                 }
 

@@ -17,13 +17,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.paymentcard.PaymentCard
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun PaymentsHistory(
@@ -45,7 +42,7 @@ fun PaymentsHistory(
             is ResultState.Success -> {
                 val groupedPayments = result.data
                 val firstPayment = groupedPayments.values.flatten().firstOrNull()
-                val dateNow = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                //val dateNow = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
                 groupedPayments.forEach { (month, payments) ->
                     Text(
@@ -56,10 +53,9 @@ fun PaymentsHistory(
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         payments.forEach { payment ->
-                            val datePayment =
-                                DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy")
+                            // val datePayment = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy")
                             val isFirstPayment =
-                                payment.ID == firstPayment?.ID && datePayment == dateNow
+                                payment.ID == firstPayment?.ID// && datePayment == dateNow
                             PaymentCard(
                                 payment = payment,
                                 navController = navController,

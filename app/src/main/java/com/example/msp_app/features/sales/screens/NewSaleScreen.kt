@@ -210,7 +210,7 @@ fun NewSaleScreen(navController: NavController) {
                 latitude = latitude,
                 longitude = longitude,
                 imageUris = imagePaths,
-                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems),
+                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems.toList()),
                 packagesJson = draftManager.packagesToJson(saleProductsViewModel.packages.toList())
             )
             draftManager.saveDraft(draft)

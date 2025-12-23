@@ -6,25 +6,21 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -34,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -44,7 +39,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.msp_app.features.sales.viewmodels.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
-import com.example.msp_app.utils.PriceParser
 
 @Composable
 fun CreatePackageDialog(
@@ -79,8 +73,8 @@ fun CreatePackageDialog(
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f),
+                .fillMaxWidth(0.85f)
+                .wrapContentHeight(),
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
@@ -89,50 +83,45 @@ fun CreatePackageDialog(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(12.dp)
             ) {
                 // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Column {
                     Text(
                         text = "Crear Paquete",
                         style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth(1f)
+                    )
+
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = "Selecciona al menos 2 productos para crear un paquete",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Lista de productos con checkboxes
+                    Text(
+                        text = "Productos (${selectedProducts.size} seleccionados)",
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Cerrar")
+
+                    if (selectionError) {
+                        Text(
+                            text = "Debes seleccionar al menos 2 productos",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Selecciona al menos 2 productos para crear un paquete",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Lista de productos con checkboxes
-                Text(
-                    text = "Productos (${selectedProducts.size} seleccionados)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (selectionError) {
-                    Text(
-                        text = "Debes seleccionar al menos 2 productos",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(8.dp))
 
                 LazyColumn(
@@ -178,23 +167,23 @@ fun CreatePackageDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
-                    value = precioLista,
+                    value = precioContado,
                     onValueChange = {
-                        precioLista = it
-                        precioListaError = false
+                        precioContado = it
+                        precioContadoError = false
                     },
-                    label = { Text("Precio Lista *") },
+                    label = { Text("Precio Contado *") },
                     prefix = { Text("$") },
-                    isError = precioListaError,
-                    supportingText = if (precioListaError) {
-                        { Text("El precio debe ser mayor a 0") }
-                    } else null,
+                    isError = precioContadoError,
+                    supportingText = {
+                        if (precioContadoError) {
+                            Text("El precio debe ser mayor a 0")
+                        } else null
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = precioCortoplazo,
@@ -205,28 +194,30 @@ fun CreatePackageDialog(
                     label = { Text("Precio Corto Plazo *") },
                     prefix = { Text("$") },
                     isError = precioCortoplazoError,
-                    supportingText = if (precioCortoplazoError) {
-                        { Text("El precio debe ser mayor a 0") }
-                    } else null,
+                    supportingText = {
+                        if (precioContadoError) {
+                            Text("El precio debe ser mayor a 0")
+                        } else null
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
-
                 OutlinedTextField(
-                    value = precioContado,
+                    value = precioLista,
                     onValueChange = {
-                        precioContado = it
-                        precioContadoError = false
+                        precioLista = it
+                        precioListaError = false
                     },
-                    label = { Text("Precio Contado *") },
+                    label = { Text("Precio Lista *") },
                     prefix = { Text("$") },
-                    isError = precioContadoError,
-                    supportingText = if (precioContadoError) {
-                        { Text("El precio debe ser mayor a 0") }
-                    } else null,
+                    isError = precioListaError,
+                    supportingText = {
+                        if (precioContadoError) {
+                            Text("El precio debe ser mayor a 0")
+                        } else null
+                    },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -247,8 +238,6 @@ fun CreatePackageDialog(
                             .padding(12.dp)
                     )
                 }
-
-                Spacer(modifier = Modifier.height(16.dp))
 
                 // Botones
                 Row(
@@ -317,7 +306,6 @@ fun CreatePackageDialog(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Crear Paquete", color = Color.White)
                     }
@@ -327,61 +315,3 @@ fun CreatePackageDialog(
     }
 }
 
-@Composable
-private fun ProductSelectionItem(
-    saleItem: SaleItem,
-    isSelected: Boolean,
-    onSelectionChange: (Boolean) -> Unit
-) {
-    val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            else
-                MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(
-                checked = isSelected,
-                onCheckedChange = onSelectionChange
-            )
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = saleItem.product.ARTICULO,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "Cantidad: ${saleItem.quantity}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "Precio: $${parsedPrices.precioLista}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-    }
-}
