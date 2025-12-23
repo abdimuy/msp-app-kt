@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -48,7 +50,7 @@ fun HomeWeeklyPaymentsSection(
         Box(
             modifier = Modifier
                 .fillMaxWidth(.92f)
-                .height(100.dp),
+                .heightIn(min = 100.dp),
             contentAlignment = Alignment.Center
         ) {
 
@@ -101,12 +103,9 @@ fun HomeWeeklyPaymentsSection(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(100.dp)
+                            .heightIn(min = 100.dp)
                             .horizontalScroll(rememberScrollState())
-                            .padding(
-                                horizontal =
-                                    8.dp
-                            ),
+                            .padding(horizontal = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         paymentsMap.forEach { (date, payments) ->
@@ -126,8 +125,8 @@ fun HomeWeeklyPaymentsSection(
                                     containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
                                 ),
                                 modifier = Modifier
-                                    .width(100.dp)
-                                    .height(100.dp)
+                                    .widthIn(min = 100.dp)
+                                    .heightIn(min = 100.dp)
                                     .clickable { onPaymentDateClick(formatted, payments) }
                                     .border(
                                         1.dp,
@@ -140,7 +139,8 @@ fun HomeWeeklyPaymentsSection(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(8.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
                                 ) {
                                     Text(formatted, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     Text(

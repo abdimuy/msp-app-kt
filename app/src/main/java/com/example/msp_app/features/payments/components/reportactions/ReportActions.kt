@@ -5,7 +5,10 @@ import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
 import com.example.msp_app.core.utils.DateUtils
@@ -87,11 +91,14 @@ fun ReportActions(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
         ) {
             Text(
                 if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
-                color = Color.White
+                color = Color.White,
+                maxLines = 1
             )
         }
 
@@ -104,6 +111,8 @@ fun ReportActions(
                 }
             )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         SelectBluetoothDevice(
             textToPrint = ticketText,

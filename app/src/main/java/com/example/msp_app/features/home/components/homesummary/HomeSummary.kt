@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -95,60 +96,60 @@ fun HomeSummarySection(
                     Card(
                         modifier = Modifier
                             .weight(1f)
-                            .height(100.dp),
+                            .heightIn(min = 100.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFF06846)),
                         elevation = CardDefaults.cardElevation(8.dp)
                     ) {
                         Column(
-                            Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
                             Text(
                                 "Porcentaje (Cuentas)",
                                 color = Color.White,
                                 fontSize = 14.sp,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(top = 8.dp)
+                                textAlign = TextAlign.Center
                             )
+                            Spacer(Modifier.height(8.dp))
                             Text(
                                 accountsPercentageRounded,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 22.sp,
                                 color = Color.White,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 10.dp)
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
                     Card(
                         modifier = Modifier
                             .weight(1f)
-                            .height(100.dp),
+                            .heightIn(min = 100.dp),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFF56DA6A)),
                         elevation = CardDefaults.cardElevation(8.dp)
                     ) {
                         Column(
-                            Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
                             Text(
                                 "Porcentaje (Cobro)",
                                 color = Color.White,
                                 fontSize = 14.sp,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(top = 8.dp)
+                                textAlign = TextAlign.Center
                             )
+                            Spacer(Modifier.height(8.dp))
                             Text(
                                 accountsPercentageAjusted,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 22.sp,
                                 color = Color.White,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 10.dp)
+                                textAlign = TextAlign.Center
                             )
                         }
                     }

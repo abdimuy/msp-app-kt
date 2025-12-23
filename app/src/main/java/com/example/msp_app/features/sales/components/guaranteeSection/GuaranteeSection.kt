@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -106,14 +107,14 @@ fun GuaranteeSection(
                                 MaterialTheme.colorScheme.primary,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .height(40.dp)
-                            .fillMaxSize()
+                            .heightIn(min = 48.dp)
+                            .fillMaxWidth()
                     ) {
                         Text(
                             "Recolectar producto del cliente",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            style = MaterialTheme.typography.bodyLarge
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
@@ -124,14 +125,14 @@ fun GuaranteeSection(
                                 MaterialTheme.colorScheme.primary,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .height(40.dp)
-                            .fillMaxSize()
+                            .heightIn(min = 48.dp)
+                            .fillMaxWidth()
                     ) {
                         Text(
                             "Imprimir aviso de garantía",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            style = MaterialTheme.typography.bodyLarge
                         )
                     }
                 }
@@ -145,14 +146,14 @@ fun GuaranteeSection(
                                 MaterialTheme.colorScheme.primary,
                                 shape = RoundedCornerShape(8.dp)
                             )
-                            .height(40.dp)
-                            .fillMaxSize()
+                            .heightIn(min = 48.dp)
+                            .fillMaxWidth()
                     ) {
                         Text(
                             "Entregar producto al cliente",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            style = MaterialTheme.typography.bodyLarge
                         )
                     }
                 }
@@ -161,14 +162,14 @@ fun GuaranteeSection(
             onClick = { navController.navigate(Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())) },
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp))
-                .height(40.dp)
+                .heightIn(min = 48.dp)
                 .fillMaxWidth()
         ) {
             Text(
                 "INICIAR GARANTIA",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
+                style = MaterialTheme.typography.bodyLarge
             )
         }
     }

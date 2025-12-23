@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -48,6 +49,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -276,7 +279,7 @@ fun DailyReportScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(64.dp),
+                        .heightIn(min = 56.dp),
                     singleLine = true,
                 )
 
@@ -334,16 +337,22 @@ fun DailyReportScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Button(
                                         onClick = {
                                             visiblePayments =
                                                 visiblePayments.sortedBy { it.NOMBRE_CLIENTE }
                                         },
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp)
                                     ) {
-                                        Text(text = "ORD. POR NOMBRE", color = Color.White)
+                                        Text(
+                                            text = "ORD. POR NOMBRE",
+                                            color = Color.White,
+                                            textAlign = TextAlign.Center
+                                        )
                                     }
 
                                     Button(
@@ -359,9 +368,15 @@ fun DailyReportScreen(
                                                 }
                                             }
                                         },
-                                        modifier = Modifier.weight(1f)
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp)
                                     ) {
-                                        Text(text = "ORD. POR HORA", color = Color.White)
+                                        Text(
+                                            text = "ORD. POR HORA",
+                                            color = Color.White,
+                                            textAlign = TextAlign.Center
+                                        )
                                     }
                                 }
 
@@ -424,10 +439,12 @@ fun DailyReportScreen(
                                         },
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .heightIn(min = 48.dp)
                                     ) {
                                         Text(
                                             text = if (isGeneratingPdf) "GENERANDO PDF..." else "GENERAR PDF",
-                                            color = Color.White
+                                            color = Color.White,
+                                            maxLines = 1
                                         )
                                     }
 
@@ -480,6 +497,8 @@ fun DailyReportScreen(
                                             }
                                         )
                                     }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
 
                                     SelectBluetoothDevice(
                                         textToPrint = ticketText,
