@@ -523,7 +523,7 @@ fun PaymentTicketScreen(
                                             PaymentPdfGenerator.paymentStructuredPdf(
                                                 context = context,
                                                 folio = finalSale?.FOLIO ?: "",
-                                                fechaVenta = date ?: "",
+                                                fechaVenta = finalSale?.FECHA ?: "",
                                                 cliente = finalSale?.CLIENTE ?: "",
                                                 direccion = "${finalSale?.CALLE} ${finalSale?.CIUDAD} ${finalSale?.ESTADO}",
                                                 telefono = finalSale?.TELEFONO ?: "",

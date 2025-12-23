@@ -88,7 +88,7 @@ object PaymentPdfGenerator {
             }
             canvas.drawText("Folio: $folio", rightX, initialY.toFloat(), paint)
             canvas.drawText("Teléfono: 238-374-06-84", leftX, y.toFloat(), paint)
-            canvas.drawText("Fecha: $fechaVenta", rightX, (initialY + 20).toFloat(), paint)
+            canvas.drawText("Fecha: $fechaPago", rightX, (initialY + 20).toFloat(), paint)
             y += 20
             canvas.drawText("WhatsApp: 238-110-50-61", leftX, y.toFloat(), paint)
             y += 20

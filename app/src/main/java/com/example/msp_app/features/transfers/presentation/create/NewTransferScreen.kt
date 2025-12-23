@@ -157,11 +157,14 @@ fun NewTransferScreen(
                         },
                         isLoadingProducts = isLoadingProducts,
                         isLoadingCosts = isLoadingCosts,
-                        onAddProduct = { product -> viewModel.addProduct(product, product.EXISTENCIAS) },
+                        onAddProduct = { product -> viewModel.addProduct(product, 1) },
                         onRemoveProduct = viewModel::removeProduct,
                         onUpdateUnits = viewModel::updateProductUnits,
                         productsError = validationError,
-                        showSelectAll = sourceWarehouse?.ALMACEN?.contains("camioneta", ignoreCase = true) == true,
+                        showSelectAll = sourceWarehouse?.ALMACEN?.contains(
+                            "camioneta",
+                            ignoreCase = true
+                        ) == true,
                         modifier = Modifier
                             .weight(1f)
                     )
@@ -293,7 +296,8 @@ private fun WarehouseSelectionStep(
             label = "Almacén de Destino",
             warehouses = warehouses,
             selectedWarehouse = destinationWarehouse,
-            assignedUsers = destinationWarehouse?.let { usersByWarehouse[it.ALMACEN_ID] } ?: emptyList(),
+            assignedUsers = destinationWarehouse?.let { usersByWarehouse[it.ALMACEN_ID] }
+                ?: emptyList(),
             onWarehouseSelected = onDestinationSelected,
             excludeWarehouseId = sourceWarehouse?.ALMACEN_ID,
             error = destinationError
@@ -326,7 +330,7 @@ private fun ProductSelectionStep(
         } else {
             availableProducts.filter { product ->
                 product.ARTICULO.contains(searchQuery, ignoreCase = true) ||
-                product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
+                        product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
             }
         }
     }
@@ -365,7 +369,8 @@ private fun ProductSelectionStep(
                             selectedProducts.forEach { onRemoveProduct(it.product.ARTICULO_ID) }
                         } else {
                             // Select all with full stock - only add products that aren't selected
-                            val selectedIds = selectedProducts.map { it.product.ARTICULO_ID }.toSet()
+                            val selectedIds =
+                                selectedProducts.map { it.product.ARTICULO_ID }.toSet()
                             availableProducts.forEach { product ->
                                 if (product.ARTICULO_ID !in selectedIds) {
                                     onAddProduct(product)
