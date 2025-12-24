@@ -201,7 +201,7 @@ fun NewPaymentDialog(
         onDismissRequest = onDismissRequest,
     ) {
         when (val state = userData) {
-            is ResultState.Idle, is ResultState.Loading -> {
+            is ResultState.Idle, is ResultState.Loading, is ResultState.Offline -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -269,7 +269,7 @@ fun NewPaymentDialog(
 
                     // Productos en formato simple
                     when (val state = saleProductsState) {
-                        is ResultState.Loading, is ResultState.Idle -> {
+                        is ResultState.Loading, is ResultState.Idle, is ResultState.Offline -> {
                             Text(
                                 text = "Cargando productos...",
                                 style = TextStyle(

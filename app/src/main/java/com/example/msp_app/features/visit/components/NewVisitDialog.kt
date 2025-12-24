@@ -221,7 +221,7 @@ fun NewVisitDialog(
         onDismissRequest = onDismissRequest
     ) {
         when (userData) {
-            is ResultState.Idle -> {
+            is ResultState.Idle, is ResultState.Offline -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center

@@ -302,7 +302,7 @@ fun WarehouseProductsBottomSheet(
                     }
                 }
 
-                ResultState.Idle -> {
+                ResultState.Idle, is ResultState.Offline -> {
                     // Initial state
                 }
             }

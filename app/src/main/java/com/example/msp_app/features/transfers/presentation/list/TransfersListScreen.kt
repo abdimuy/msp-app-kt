@@ -245,7 +245,7 @@ fun TransfersListScreen(
                     }
                 }
 
-                ResultState.Idle -> {
+                ResultState.Idle, is ResultState.Offline -> {
                     // Initial state
                 }
             }

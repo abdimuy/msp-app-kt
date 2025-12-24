@@ -6,6 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
@@ -51,6 +52,10 @@ data class SaleDraft(
     val guarantor: String = "", // Only for CREDITO
     val collectionDay: String = "", // Required for CREDITO
     val paymentFrequency: String = "", // Required for CREDITO
+
+    // Zone fields (required for all sales)
+    val zonaClienteId: Int? = null,
+    val zonaClienteNombre: String = "",
 
     val timestamp: Long = System.currentTimeMillis()
 ) {
@@ -150,6 +155,10 @@ class SaleDraftManager(private val context: Context) {
         private val COLLECTION_DAY = stringPreferencesKey("draft_collection_day")
         private val PAYMENT_FREQUENCY = stringPreferencesKey("draft_payment_frequency")
 
+        // Zone fields
+        private val ZONA_CLIENTE_ID = intPreferencesKey("draft_zona_cliente_id")
+        private val ZONA_CLIENTE_NOMBRE = stringPreferencesKey("draft_zona_cliente_nombre")
+
         private val TIMESTAMP = stringPreferencesKey("draft_timestamp")
     }
 
@@ -187,6 +196,10 @@ class SaleDraftManager(private val context: Context) {
             preferences[GUARANTOR] = draft.guarantor
             preferences[COLLECTION_DAY] = draft.collectionDay
             preferences[PAYMENT_FREQUENCY] = draft.paymentFrequency
+
+            // Zone fields
+            draft.zonaClienteId?.let { preferences[ZONA_CLIENTE_ID] = it }
+            preferences[ZONA_CLIENTE_NOMBRE] = draft.zonaClienteNombre
 
             preferences[TIMESTAMP] = draft.timestamp.toString()
         }
@@ -233,6 +246,8 @@ class SaleDraftManager(private val context: Context) {
             guarantor = preferences[GUARANTOR] ?: "",
             collectionDay = preferences[COLLECTION_DAY] ?: "",
             paymentFrequency = preferences[PAYMENT_FREQUENCY] ?: "",
+            zonaClienteId = preferences[ZONA_CLIENTE_ID],
+            zonaClienteNombre = preferences[ZONA_CLIENTE_NOMBRE] ?: "",
             timestamp = preferences[TIMESTAMP]?.toLongOrNull() ?: 0L
         )
     }

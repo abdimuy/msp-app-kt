@@ -185,7 +185,7 @@ fun SalesScreen(
                     }
 
                     when (state) {
-                        is ResultState.Idle -> Text("No hay datos")
+                        is ResultState.Idle, is ResultState.Offline -> Text("No hay datos")
                         is ResultState.Loading -> Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center

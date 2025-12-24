@@ -37,7 +37,9 @@ interface LocalSaleDao {
             COLONIA,
             POBLACION,
             CIUDAD,
-            TIPO_VENTA
+            TIPO_VENTA,
+            ZONA_CLIENTE_ID,
+            ZONA_CLIENTE
             FROM local_sale
             WHERE FECHA_VENTA >= datetime('now', '-7 days')
             ORDER BY FECHA_VENTA DESC
@@ -70,7 +72,9 @@ interface LocalSaleDao {
             COLONIA,
             POBLACION,
             CIUDAD,
-            TIPO_VENTA
+            TIPO_VENTA,
+            ZONA_CLIENTE_ID,
+            ZONA_CLIENTE
             FROM local_sale
             WHERE LOCAL_SALE_ID = :sale_Id
         """
@@ -114,7 +118,9 @@ interface LocalSaleDao {
             COLONIA,
             POBLACION,
             CIUDAD,
-            TIPO_VENTA
+            TIPO_VENTA,
+            ZONA_CLIENTE_ID,
+            ZONA_CLIENTE
             FROM local_sale
             WHERE ENVIADO = :enviado
             ORDER BY FECHA_VENTA DESC

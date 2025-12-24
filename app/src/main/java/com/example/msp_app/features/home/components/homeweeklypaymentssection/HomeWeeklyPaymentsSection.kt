@@ -80,6 +80,81 @@ fun HomeWeeklyPaymentsSection(
                     color = Color.Red
                 )
 
+                is ResultState.Offline -> {
+                    // Tratar datos offline igual que Success
+                    val paymentsMap = paymentsGroupedByDayWeekly.data
+                    if (paymentsMap.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .border(
+                                    1.dp,
+                                    if (isDark) Color.Gray else Color.LightGray,
+                                    RoundedCornerShape(12.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("No hay pagos registrados esta semana (offline)", color = Color.Gray)
+                        }
+                        return@Box
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 100.dp)
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        paymentsMap.forEach { (date, payments) ->
+                            val total = payments.sumOf { it.IMPORTE }
+                            val count = payments.size
+                            val formatted = LocalDate.parse(date)
+                                .format(
+                                    DateTimeFormatter.ofPattern(
+                                        "EEE dd/MM",
+                                        Locale("es", "MX")
+                                    )
+                                )
+                                .uppercase()
+
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
+                                ),
+                                modifier = Modifier
+                                    .widthIn(min = 100.dp)
+                                    .heightIn(min = 100.dp)
+                                    .clickable { onPaymentDateClick(formatted, payments) }
+                                    .border(
+                                        1.dp,
+                                        if (isDark) Color.Gray else Color(0xFFE0E0E0),
+                                        RoundedCornerShape(12.dp)
+                                    ),
+                                elevation = CardDefaults.cardElevation(4.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Text(formatted, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text(
+                                        text = total.toCurrency(noDecimals = true),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
+                                    )
+                                    Text("$count pagos", color = Color.Gray, fontSize = 14.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 is ResultState.Success -> {
                     val paymentsMap = paymentsGroupedByDayWeekly.data
                     if (paymentsMap.isEmpty()) {

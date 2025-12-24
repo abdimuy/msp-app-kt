@@ -10,6 +10,8 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.cache.ProductsCache
+import com.example.msp_app.data.cache.ZonesCache
+import com.example.msp_app.features.zones.ZonesRepository
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
@@ -42,6 +44,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
     private val salesStore = SalesLocalDataSource(application.applicationContext)
     private val productsCache = ProductsCache(application.applicationContext)
+    private val zonesCache = ZonesCache.getInstance(application.applicationContext)
+    private val zonesRepository = ZonesRepository()
     private val warehousesApi = ApiProvider.create(WarehousesApi::class.java)
     private val warehouseRepository = WarehouseRepository(WarehouseRemoteDataSource(warehousesApi))
 
@@ -104,6 +108,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         hasCheckedVersion = true
                         updateAppVersion(data.ID, data)
                         loadProductsToCache(data.CAMIONETA_ASIGNADA)
+                        loadZonesToCache()
                     }
                 } else {
                     _userData.value = ResultState.Success(null)
@@ -220,6 +225,29 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 )
             } catch (e: Exception) {
                 Log.e("AuthViewModel", "Error guardando productos en cache", e)
+            }
+        }
+    }
+
+    private fun loadZonesToCache() {
+        viewModelScope.launch {
+            try {
+                zonesRepository.getClientZones().fold(
+                    onSuccess = { zones ->
+                        withContext(Dispatchers.IO) {
+                            zonesCache.save(zones)
+                        }
+                        Log.d(
+                            "AuthViewModel",
+                            "Zonas guardadas en cache al iniciar sesión: ${zones.size}"
+                        )
+                    },
+                    onFailure = { exception ->
+                        Log.e("AuthViewModel", "Error cargando zonas al cache", exception)
+                    }
+                )
+            } catch (e: Exception) {
+                Log.e("AuthViewModel", "Error guardando zonas en cache", e)
             }
         }
     }

@@ -76,6 +76,7 @@ import kotlinx.coroutines.launch
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
+import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
@@ -123,6 +124,11 @@ fun NewSaleScreen(navController: NavController) {
     var poblacion by remember { mutableStateOf(TextFieldValue("")) }
     var ciudad by remember { mutableStateOf(TextFieldValue("")) }
     var tipoVenta by remember { mutableStateOf("CREDITO") }
+
+    // Zone state
+    var selectedZoneId by remember { mutableStateOf<Int?>(null) }
+    var selectedZoneName by remember { mutableStateOf("") }
+    var zoneError by remember { mutableStateOf(false) }
 
     var phone by remember { mutableStateOf(TextFieldValue("")) }
     var downpayment by remember { mutableStateOf(TextFieldValue("")) }
@@ -209,7 +215,9 @@ fun NewSaleScreen(navController: NavController) {
                 latitude = latitude,
                 longitude = longitude,
                 imageUris = imagePaths,
-                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems)
+                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems),
+                zonaClienteId = selectedZoneId,
+                zonaClienteNombre = selectedZoneName
             )
             draftManager.saveDraft(draft)
         }
@@ -233,6 +241,8 @@ fun NewSaleScreen(navController: NavController) {
         paymentfrequency = draft.paymentFrequency
         latitude = draft.latitude
         longitude = draft.longitude
+        selectedZoneId = draft.zonaClienteId
+        selectedZoneName = draft.zonaClienteNombre
 
         // Load images
         imageUris = draft.imageUris.mapNotNull { path ->
@@ -288,7 +298,7 @@ fun NewSaleScreen(navController: NavController) {
         poblacion.text, ciudad.text, tipoVenta, downpayment.text,
         installment.text, guarantor.text, note.text, collectionday,
         paymentfrequency, latitude, longitude, imageUris,
-        saleProductsViewModel.saleItems.size
+        saleProductsViewModel.saleItems.size, selectedZoneId, selectedZoneName
     ) {
         // Don't save if user just declined to load a draft
         if (!showDraftDialog) {
@@ -460,6 +470,17 @@ fun NewSaleScreen(navController: NavController) {
         return isValid
     }
 
+    fun validateZone(): Boolean {
+        // Solo validar zona si es venta a CREDITO
+        if (tipoVenta == "CONTADO") {
+            zoneError = false
+            return true
+        }
+        val isValid = selectedZoneId != null && selectedZoneName.isNotBlank()
+        zoneError = !isValid
+        return isValid
+    }
+
     fun validateFields(): Boolean {
         val clientNameValid = validateClientName(defectName.text)
         val phoneValid = validatePhone(phone.text)
@@ -471,10 +492,11 @@ fun NewSaleScreen(navController: NavController) {
         val collectionDayValid = validateCollectionDay(collectionday)
         val imagesValid = validateImages()
         val productsValid = validateProducts()
+        val zoneValid = validateZone()
 
         return clientNameValid && phoneValid && locationValid && locationDataValid &&
                 installmentValid && paymentFrequencyValid && downpaymentValid && collectionDayValid &&
-                imagesValid && productsValid
+                imagesValid && productsValid && zoneValid
     }
 
     val saveResult by viewModel.saveResult.collectAsState()
@@ -518,8 +540,11 @@ fun NewSaleScreen(navController: NavController) {
         latitude = 0.0
         longitude = 0.0
         imageUris = emptyList()
+        selectedZoneId = null
+        selectedZoneName = ""
 
         defectNameError = false
+        zoneError = false
         phoneError = false
         locationError = false
         downpaymentError = false
@@ -776,7 +801,9 @@ fun NewSaleScreen(navController: NavController) {
             enviado = false,
             saleProducts = saleProductsViewModel.saleItems,
             context = context,
-            userEmail = userEmail
+            userEmail = userEmail,
+            zonaClienteId = selectedZoneId,
+            zonaClienteNombre = selectedZoneName
         )
     }
 
@@ -868,6 +895,12 @@ fun NewSaleScreen(navController: NavController) {
                                     onClick = {
                                         tipoVenta = option
                                         expandedTipoVenta = false
+                                        // Limpiar zona si cambia a CONTADO
+                                        if (option == "CONTADO") {
+                                            selectedZoneId = null
+                                            selectedZoneName = ""
+                                            zoneError = false
+                                        }
                                     }
                                 )
                             }
@@ -875,6 +908,23 @@ fun NewSaleScreen(navController: NavController) {
                     }
 
                     Spacer(Modifier.height(16.dp))
+
+                    // Zone Selector - Solo mostrar para ventas a CREDITO
+                    if (tipoVenta == "CREDITO") {
+                        ZoneSelectorSimple(
+                            selectedZoneId = selectedZoneId,
+                            selectedZoneName = selectedZoneName,
+                            onZoneSelected = { zoneId, zoneName ->
+                                selectedZoneId = zoneId
+                                selectedZoneName = zoneName
+                                zoneError = false
+                            },
+                            error = if (zoneError) "Selecciona una zona" else null,
+                            isRequired = true
+                        )
+
+                        Spacer(Modifier.height(16.dp))
+                    }
 
                     Text(
                         "Información del Cliente",

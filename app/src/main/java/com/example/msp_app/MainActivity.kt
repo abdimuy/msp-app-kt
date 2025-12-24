@@ -9,12 +9,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.example.msp_app.core.context.LocalConnectivityState
+import com.example.msp_app.core.context.rememberConnectivityState
 import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
 import com.example.msp_app.ui.theme.ThemeController
@@ -65,12 +68,16 @@ class MainActivity : FragmentActivity() {
         enableEdgeToEdge()
 
         setContent {
+            val connectivityState by rememberConnectivityState()
+
             MspappTheme(dynamicColor = false) {
-                if (isAuthenticated) {
-                    AppNavigation()
-                } else {
-                    LaunchedEffect(Unit) {
-                        authenticateUser()
+                CompositionLocalProvider(LocalConnectivityState provides connectivityState) {
+                    if (isAuthenticated) {
+                        AppNavigation()
+                    } else {
+                        LaunchedEffect(Unit) {
+                            authenticateUser()
+                        }
                     }
                 }
             }

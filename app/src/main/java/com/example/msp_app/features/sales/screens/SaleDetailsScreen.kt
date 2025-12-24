@@ -102,7 +102,7 @@ fun SaleDetailsScreen(
                     .padding(paddingValues)
             ) {
                 when (val result = state) {
-                    is ResultState.Idle -> {
+                    is ResultState.Idle, is ResultState.Offline -> {
                         Text("No hay datos")
                     }
 
@@ -217,7 +217,7 @@ fun SaleDetailsContent(
         )
         Spacer(modifier = Modifier.height(8.dp))
         when (val result = salesByClientIdState) {
-            is ResultState.Idle -> {
+            is ResultState.Idle, is ResultState.Offline -> {
                 Text("No hay ventas del cliente")
             }
 
@@ -292,7 +292,7 @@ fun SaleDetailsContent(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 when (val result = productsState) {
-                    is ResultState.Idle -> {
+                    is ResultState.Idle, is ResultState.Offline -> {
                         Text("No hay productos")
                     }
 

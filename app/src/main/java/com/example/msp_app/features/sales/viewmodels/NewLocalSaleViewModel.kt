@@ -199,7 +199,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         enviado: Boolean,
         saleProducts: List<SaleItem>,
         context: Context,
-        userEmail: String
+        userEmail: String,
+        zonaClienteId: Int? = null,
+        zonaClienteNombre: String? = null
     ) {
         viewModelScope.launch {
             try {
@@ -268,7 +270,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     COLONIA = colonia,
                     POBLACION = poblacion,
                     CIUDAD = ciudad,
-                    TIPO_VENTA = tipoVenta
+                    TIPO_VENTA = tipoVenta,
+                    ZONA_CLIENTE_ID = zonaClienteId,
+                    ZONA_CLIENTE = zonaClienteNombre
                 )
 
                 logger.debug(

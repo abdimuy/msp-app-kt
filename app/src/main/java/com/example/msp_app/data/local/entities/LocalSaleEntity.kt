@@ -6,7 +6,8 @@ import androidx.room.PrimaryKey
 @Entity(
     tableName = "local_sale",
     indices = [
-        androidx.room.Index(value = ["FECHA_VENTA"])
+        androidx.room.Index(value = ["FECHA_VENTA"]),
+        androidx.room.Index(value = ["ZONA_CLIENTE_ID"])
     ]
 )
 class LocalSaleEntity(
@@ -32,5 +33,7 @@ class LocalSaleEntity(
     val COLONIA: String? = null,
     val POBLACION: String? = null,
     val CIUDAD: String? = null,
-    val TIPO_VENTA: String? = "CONTADO"
+    val TIPO_VENTA: String? = "CONTADO",
+    val ZONA_CLIENTE_ID: Int? = null,
+    val ZONA_CLIENTE: String? = null
 )

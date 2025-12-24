@@ -157,7 +157,7 @@ fun NewForgivenessDialog(
         onDismissRequest = onDismissRequest
     ) {
         when (val state = userData) {
-            is ResultState.Idle, is ResultState.Loading -> {
+            is ResultState.Idle, is ResultState.Loading, is ResultState.Offline -> {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
