@@ -73,6 +73,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
 import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
@@ -192,6 +193,7 @@ fun NewSaleScreen(navController: NavController) {
                     null
                 }
             }
+
             val draft = SaleDraft(
                 clientName = defectName.text,
                 phone = phone.text,
@@ -269,20 +271,20 @@ fun NewSaleScreen(navController: NavController) {
             // Reconstruct products for the package
             val packageProducts = draftPkg.productIds.mapIndexedNotNull { index, articuloId ->
                 val product = productosCamioneta.find { it.ARTICULO_ID == articuloId }
-                if (product != null) {
-                    SaleItem(product, draftPkg.quantities.getOrNull(index) ?: 1)
-                } else {
-                    null
+                product?.let {
+                    SaleItem(it, draftPkg.quantities.getOrNull(index) ?: 1)
                 }
             }
 
             if (packageProducts.isNotEmpty()) {
-                // Recreate the package
-                saleProductsViewModel.createPackage(
-                    selectedProducts = packageProducts,
-                    precioLista = draftPkg.precioLista,
-                    precioCortoplazo = draftPkg.precioCortoplazo,
-                    precioContado = draftPkg.precioContado
+                saleProductsViewModel.addPackage(
+                    LocalSaleProductPackage(
+                        packageName = draftPkg.packageName,
+                        products = packageProducts,
+                        precioLista = draftPkg.precioLista,
+                        precioCortoplazo = draftPkg.precioCortoplazo,
+                        precioContado = draftPkg.precioContado
+                    )
                 )
             }
         }

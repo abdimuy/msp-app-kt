@@ -36,6 +36,10 @@ class SaleProductsViewModel : ViewModel() {
         }
     }
 
+    fun addPackage(pkg: LocalSaleProductPackage) {
+        _packages.add(pkg)
+    }
+
     fun removeProductFromSale(product: ProductInventory) {
         _saleItems.removeAll { it.product.ARTICULO_ID == product.ARTICULO_ID }
     }
