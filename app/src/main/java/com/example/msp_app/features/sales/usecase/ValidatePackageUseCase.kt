@@ -1,4 +1,4 @@
-package com.example.msp_app.features.sales.viewmodels.kits
+package com.example.msp_app.features.sales.usecase
 
 import com.example.msp_app.features.sales.viewmodels.SaleItem
 

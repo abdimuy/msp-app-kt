@@ -5,7 +5,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
-import com.example.msp_app.features.sales.viewmodels.kits.ValidatePackageUseCase
+import com.example.msp_app.features.sales.usecase.ValidatePackageUseCase
 import com.example.msp_app.utils.PriceParser
 
 data class SaleItem(

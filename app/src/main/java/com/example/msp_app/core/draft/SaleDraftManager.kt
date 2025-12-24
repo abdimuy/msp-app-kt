@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
@@ -169,63 +170,17 @@ class SaleDraftManager(private val context: Context) {
     /**
      * Convert list of ProductPackages to JSON string
      */
-    fun packagesToJson(packages: List<Any>): String {
-        val draftPackages = packages.mapNotNull { pkg ->
-            try {
-                val packageIdField = pkg.javaClass.getDeclaredField("packageId")
-                val packageNameField = pkg.javaClass.getDeclaredField("packageName")
-                val productsField = pkg.javaClass.getDeclaredField("products")
-                val precioListaField = pkg.javaClass.getDeclaredField("precioLista")
-                val precioCortoplazoField = pkg.javaClass.getDeclaredField("precioCortoplazo")
-                val precioContadoField = pkg.javaClass.getDeclaredField("precioContado")
-
-                packageIdField.isAccessible = true
-                packageNameField.isAccessible = true
-                productsField.isAccessible = true
-                precioListaField.isAccessible = true
-                precioCortoplazoField.isAccessible = true
-                precioContadoField.isAccessible = true
-
-                val packageId = packageIdField.get(pkg) as String
-                val packageName = packageNameField.get(pkg) as String
-                val products = productsField.get(pkg) as List<*>
-                val precioLista = precioListaField.getDouble(pkg)
-                val precioCortoplazo = precioCortoplazoField.getDouble(pkg)
-                val precioContado = precioContadoField.getDouble(pkg)
-
-                // Extraer IDs y cantidades de los productos del paquete
-                val productIds = mutableListOf<Int>()
-                val quantities = mutableListOf<Int>()
-
-                products.forEach { saleItem ->
-                    val productField = saleItem!!.javaClass.getDeclaredField("product")
-                    val quantityField = saleItem.javaClass.getDeclaredField("quantity")
-                    productField.isAccessible = true
-                    quantityField.isAccessible = true
-
-                    val product = productField.get(saleItem)
-                    val quantity = quantityField.getInt(saleItem)
-
-                    val articuloIdField = product.javaClass.getDeclaredField("ARTICULO_ID")
-                    articuloIdField.isAccessible = true
-                    val articuloId = articuloIdField.getInt(product)
-
-                    productIds.add(articuloId)
-                    quantities.add(quantity)
-                }
-
-                DraftPackage(
-                    packageId = packageId,
-                    packageName = packageName,
-                    productIds = productIds,
-                    quantities = quantities,
-                    precioLista = precioLista,
-                    precioCortoplazo = precioCortoplazo,
-                    precioContado = precioContado
-                )
-            } catch (e: Exception) {
-                null
-            }
+    fun packagesToJson(packages: List<LocalSaleProductPackage>): String {
+        val draftPackages = packages.map { pkg ->
+            DraftPackage(
+                packageId = pkg.packageId,
+                packageName = pkg.packageName,
+                productIds = pkg.products.map { it.product.ARTICULO_ID },
+                quantities = pkg.products.map { it.quantity },
+                precioLista = pkg.precioLista,
+                precioCortoplazo = pkg.precioCortoplazo,
+                precioContado = pkg.precioContado
+            )
         }
         return gson.toJson(draftPackages)
     }
