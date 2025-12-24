@@ -6,6 +6,9 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.logging.logSaleError
+import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.local.entities.LocalSaleEntity
@@ -13,16 +16,11 @@ import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.utils.PriceParser
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import com.example.msp_app.core.logging.Logger
-import com.example.msp_app.core.logging.RemoteLogger
-import com.example.msp_app.core.logging.logSaleError
-import com.example.msp_app.core.utils.ImageCompressor
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.UUID
 
 class NewLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
@@ -50,6 +48,17 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
     private val _pendingSales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val pendingSales: StateFlow<List<LocalSaleEntity>> = _pendingSales
+
+    private val _wasEdited = MutableStateFlow(false)
+    val wasEdited: StateFlow<Boolean> = _wasEdited
+
+    fun markAsEdited(saleId: String) {
+        _wasEdited.value = true
+    }
+
+    fun clearEditedFlag() {
+        _wasEdited.value = false
+    }
 
     fun loadAllSales() {
         viewModelScope.launch {
@@ -152,7 +161,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     ) {
         try {
             val savedPaths = saveImagesLocally(context, uris, saleId)
-            
+
             val images = savedPaths.map { (path, _) ->
                 LocalSaleImageEntity(
                     LOCAL_SALE_IMAGE_ID = UUID.randomUUID().toString(),
@@ -161,7 +170,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     FECHA_SUBIDA = fechasubida
                 )
             }
-            
+
             images.forEach { image ->
                 localSaleStore.insertSaleImage(image)
             }
@@ -169,6 +178,63 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         } catch (e: Exception) {
             Log.e("NewLocalSaleViewModel", "Error al guardar imágenes: ${e.message}", e)
             throw e
+        }
+    }
+
+    fun addImagesToExistingSale(
+        context: Context,
+        uris: List<Uri>,
+        saleId: String
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                logger.info(
+                    module = "SALES",
+                    action = "ADD_IMAGES_TO_SALE",
+                    message = "Agregando imágenes a venta existente",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "imageCount" to uris.size
+                    )
+                )
+
+                val currentDate = java.text.SimpleDateFormat(
+                    "yyyy-MM-dd HH:mm:ss",
+                    java.util.Locale.getDefault()
+                ).format(java.util.Date())
+
+                saveSaleImages(context, uris, saleId, currentDate)
+                loadImagesBySaleId(saleId)
+
+                localSaleStore.changeSaleStatus(saleId, enviado = false)
+                markAsEdited(saleId)
+
+                _saveResult.value = SaveResult.Success("Imágenes agregadas correctamente")
+
+                logger.info(
+                    module = "SALES",
+                    action = "ADD_IMAGES_SUCCESS",
+                    message = "Imágenes agregadas exitosamente",
+                    data = mapOf("saleId" to saleId, "imageCount" to uris.size)
+                )
+
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error adding images: ${e.message}", e)
+
+                logger.error(
+                    module = "SALES",
+                    action = "ADD_IMAGES_ERROR",
+                    message = "Error al agregar imágenes",
+                    error = e,
+                    data = mapOf("saleId" to saleId)
+                )
+
+                _saveResult.value = SaveResult.Error("Error al agregar imágenes: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -418,6 +484,160 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    fun updateSale(
+        saleId: String,
+        nombreCliente: String,
+        telefono: String,
+        direccion: String,
+        numero: String?,
+        colonia: String?,
+        poblacion: String?,
+        ciudad: String?,
+        tipoVenta: String,
+        enganche: Double?,
+        parcialidad: Double?,
+        frecPago: String?,
+        diaCobranza: String?,
+        avalOResponsable: String?,
+        nota: String?,
+        products: List<SaleItem>,
+        precioTotal: Double
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                logger.info(
+                    module = "SALES",
+                    action = "UPDATE_SALE",
+                    message = "Actualizando información de venta",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "clientName" to nombreCliente,
+                        "productCount" to products.size
+                    )
+                )
+
+                localSaleStore.updateSale(
+                    saleId = saleId,
+                    nombreCliente = nombreCliente,
+                    telefono = telefono,
+                    direccion = direccion,
+                    numero = numero,
+                    colonia = colonia,
+                    poblacion = poblacion,
+                    ciudad = ciudad,
+                    tipoVenta = tipoVenta,
+                    enganche = enganche,
+                    parcialidad = parcialidad,
+                    frecPago = frecPago,
+                    diaCobranza = diaCobranza,
+                    avalOResponsable = avalOResponsable,
+                    nota = nota
+                )
+
+                localSaleStore.updateSalePrice(saleId, precioTotal)
+
+                if (products.isNotEmpty()) {
+                    val productEntities = products.map { saleItem ->
+                        val parsedPrices =
+                            PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+                        LocalSaleProductEntity(
+                            LOCAL_SALE_ID = saleId,
+                            ARTICULO_ID = saleItem.product.ARTICULO_ID,
+                            ARTICULO = saleItem.product.ARTICULO,
+                            CANTIDAD = saleItem.quantity,
+                            PRECIO_LISTA = parsedPrices.precioLista,
+                            PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
+                            PRECIO_CONTADO = parsedPrices.precioContado
+                        )
+                    }
+                    saleProduct.replaceProductsForSale(saleId, productEntities)
+                }
+                localSaleStore.changeSaleStatus(saleId, enviado = false)
+
+                markAsEdited(saleId)
+
+                getSaleById(saleId)
+                _saveResult.value = SaveResult.Success("Venta actualizada correctamente")
+
+                logger.info(
+                    module = "SALES",
+                    action = "UPDATE_SALE_SUCCESS",
+                    message = "Venta actualizada exitosamente",
+                    data = mapOf("saleId" to saleId)
+                )
+
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error updating sale: ${e.message}", e)
+
+                logger.error(
+                    module = "SALES",
+                    action = "UPDATE_SALE_ERROR",
+                    message = "Error al actualizar venta",
+                    error = e,
+                    data = mapOf("saleId" to saleId)
+                )
+
+                _saveResult.value = SaveResult.Error("Error al actualizar venta: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun completeSale(
+        context: Context,
+        saleId: String,
+        userEmail: String
+    ) {
+        viewModelScope.launch {
+            try {
+                _isLoading.value = true
+
+                logger.info(
+                    module = "SALES",
+                    action = "COMPLETE_SALE",
+                    message = "Completando y enviando venta al servidor",
+                    data = mapOf("saleId" to saleId)
+                )
+
+                enqueuePendingLocalSalesWorker(
+                    context = context,
+                    localSaleId = saleId,
+                    userEmail = userEmail,
+                    replace = true
+                )
+
+                clearEditedFlag()
+
+                _saveResult.value = SaveResult.Success("Venta enviada al servidor")
+
+                logger.info(
+                    module = "SALES",
+                    action = "COMPLETE_SALE_SUCCESS",
+                    message = "Venta encolada para envío",
+                    data = mapOf("saleId" to saleId)
+                )
+
+            } catch (e: Exception) {
+                Log.e("NewLocalSaleViewModel", "Error completing sale: ${e.message}", e)
+
+                logger.error(
+                    module = "SALES",
+                    action = "COMPLETE_SALE_ERROR",
+                    message = "Error al completar venta",
+                    error = e,
+                    data = mapOf("saleId" to saleId)
+                )
+
+                _saveResult.value = SaveResult.Error("Error al enviar venta: ${e.message}")
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     /**
      * Método de prueba para generar errores y probar el sistema de logging
      * ELIMINAR EN PRODUCCIÓN
@@ -471,8 +691,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Validación fallida - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Validación fallida - Revisa Firebase para ver los logs")
                     }
+
                     2 -> {
                         // Error de base de datos
                         val dbError = Exception("Database connection timeout - TEST ERROR")
@@ -487,11 +709,14 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Base de datos - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Base de datos - Revisa Firebase para ver los logs")
                     }
+
                     3 -> {
                         // Error crítico con NullPointerException
-                        val npe = NullPointerException("Simulated NPE for testing - Something was null")
+                        val npe =
+                            NullPointerException("Simulated NPE for testing - Something was null")
                         logger.critical(
                             module = "SALES_TEST",
                             action = "CRITICAL_NPE",
@@ -503,8 +728,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error crítico de prueba: NPE - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error crítico de prueba: NPE - Revisa Firebase para ver los logs")
                     }
+
                     4 -> {
                         // Error de red
                         logger.error(
@@ -518,7 +745,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Red - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Red - Revisa Firebase para ver los logs")
                     }
                 }
 

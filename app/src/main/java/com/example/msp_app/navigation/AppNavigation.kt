@@ -33,21 +33,21 @@ import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
-import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
+import com.example.msp_app.features.sales.screens.EditSaleScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
 import com.example.msp_app.features.sales.screens.SaleDescriptionScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
-import com.example.msp_app.features.visit.screens.VisitTicketScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
 import com.example.msp_app.features.transfers.presentation.create.NewTransferScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailScreen
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
+import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
+import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
+import com.example.msp_app.features.visit.screens.VisitTicketScreen
 
 
 sealed class Screen(val route: String) {
@@ -101,6 +101,7 @@ sealed class Screen(val route: String) {
     object TransferDetail : Screen("transfers/{transferId}") {
         fun createRoute(transferId: Int) = "transfers/$transferId"
     }
+
     object NewTransfer : Screen("transfers/new?warehouseId={warehouseId}") {
         fun createRoute(warehouseId: Int = 0) = "transfers/new?warehouseId=$warehouseId"
     }
@@ -270,6 +271,13 @@ fun AppNavigation() {
                     navController = navController
                 )
             }
+            composable("sales/edit/{localSaleId}") { backStackEntry ->
+                val localSaleId = backStackEntry.arguments?.getString("localSaleId") ?: ""
+                EditSaleScreen(
+                    localSaleId = localSaleId,
+                    navController = navController
+                )
+            }
             composable(Screen.Cart.route) {
                 CartScreen(
                     navController = navController,
@@ -292,7 +300,8 @@ fun AppNavigation() {
             }
 
             composable(Screen.NewTransfer.route) { backStackEntry ->
-                val warehouseId = backStackEntry.arguments?.getString("warehouseId")?.toIntOrNull() ?: 0
+                val warehouseId =
+                    backStackEntry.arguments?.getString("warehouseId")?.toIntOrNull() ?: 0
                 val viewModel: NewTransferViewModel = viewModel()
                 NewTransferScreen(
                     viewModel = viewModel,

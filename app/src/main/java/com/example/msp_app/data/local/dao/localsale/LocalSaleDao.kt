@@ -127,4 +127,45 @@ interface LocalSaleDao {
         """
     )
     suspend fun getSalesByStatus(enviado: Boolean): List<LocalSaleEntity>
+
+    @Query(
+        """
+    UPDATE local_sale SET 
+        NOMBRE_CLIENTE = :nombreCliente,
+        TELEFONO = :telefono,
+        DIRECCION = :direccion,
+        NUMERO = :numero,
+        COLONIA = :colonia,
+        POBLACION = :poblacion,
+        CIUDAD = :ciudad,
+        TIPO_VENTA = :tipoVenta,
+        ENGANCHE = :enganche,
+        PARCIALIDAD = :parcialidad,
+        FREC_PAGO = :frecPago,
+        DIA_COBRANZA = :diaCobranza,
+        AVAL_O_RESPONSABLE = :avalOResponsable,
+        NOTA = :nota
+    WHERE LOCAL_SALE_ID = :saleId
+"""
+    )
+    suspend fun updateSale(
+        saleId: String,
+        nombreCliente: String,
+        telefono: String,
+        direccion: String,
+        numero: String?,
+        colonia: String?,
+        poblacion: String?,
+        ciudad: String?,
+        tipoVenta: String,
+        enganche: Double?,
+        parcialidad: Double?,
+        frecPago: String?,
+        diaCobranza: String?,
+        avalOResponsable: String?,
+        nota: String?
+    )
+
+    @Query("UPDATE local_sale SET PRECIO_TOTAL = :precioTotal WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun updateSalePrice(saleId: String, precioTotal: Double)
 }
