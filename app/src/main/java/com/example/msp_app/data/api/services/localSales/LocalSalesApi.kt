@@ -30,7 +30,9 @@ data class LocalSaleRequest(
     val colonia: String? = null,
     val poblacion: String? = null,
     val ciudad: String? = null,
-    val tipoVenta: String? = "CONTADO"
+    val tipoVenta: String? = "CONTADO",
+    val zonaClienteId: Int? = null,
+    val zonaCliente: String? = null
 )
 
 data class LocalSaleProductRequest(

@@ -133,7 +133,9 @@ class LocalSaleMappers {
             colonia = this.COLONIA,
             poblacion = this.POBLACION,
             ciudad = this.CIUDAD,
-            tipoVenta = this.TIPO_VENTA
+            tipoVenta = this.TIPO_VENTA,
+            zonaClienteId = this.ZONA_CLIENTE_ID,
+            zonaCliente = this.ZONA_CLIENTE
         )
     }
 
