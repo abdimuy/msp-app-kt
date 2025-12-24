@@ -176,6 +176,7 @@ fun DailyReportScreen(
     val datePickerState = rememberDatePickerState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     val forgivenessState by viewModel.forgivenessByDateState.collectAsState()
+    val snapshotId by viewModel.currentSnapshotId.collectAsState()
     var visiblePayments by remember { mutableStateOf<List<Payment>>(emptyList()) }
     var reportDateIso by remember { mutableStateOf("") }
     val visitsViewModel: VisitsViewModel = viewModel()
@@ -185,7 +186,7 @@ fun DailyReportScreen(
         prepareReportDate(LocalDate.now()).let { data ->
             reportDateIso = data.iso
             textDate = data.textField
-            viewModel.getPaymentsByDate(data.startIso, data.endIso)
+            viewModel.getPaymentsByDate(data.startIso, data.endIso, "DAILY_REPORT")
             visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
             viewModel.getForgivenessByDate(data.startIso, data.endIso)
         }
@@ -197,7 +198,7 @@ fun DailyReportScreen(
             prepareReportDate(selected).let { data ->
                 reportDateIso = data.iso
                 textDate = data.textField
-                viewModel.getPaymentsByDate(data.startIso, data.endIso)
+                viewModel.getPaymentsByDate(data.startIso, data.endIso, "DAILY_REPORT")
                 visitsViewModel.getVisitsByDate(data.startIso, data.endIso)
                 viewModel.getForgivenessByDate(data.startIso, data.endIso)
                 showDatePicker = false
@@ -413,7 +414,8 @@ fun DailyReportScreen(
                                                         forgiveness = forgivenessTextData,
                                                         nameCollector = visiblePayments.firstOrNull()?.COBRADOR
                                                             ?: "No especificado",
-                                                        fileName = "reporte_diario_$reportDate.pdf"
+                                                        fileName = "reporte_diario_$reportDate.pdf",
+                                                        snapshotId = snapshotId
                                                     )
                                                 }
 

@@ -25,7 +25,8 @@ object PdfGenerator {
         forgiveness: ForgivenessTextData,
         title: String,
         nameCollector: String,
-        fileName: String
+        fileName: String,
+        snapshotId: String? = null
     ): File? {
         val pdfDocument = PdfDocument()
         val paint = Paint().apply {
@@ -57,7 +58,13 @@ object PdfGenerator {
             Locale("es", "MX")
         )
         canvas.drawText("Creado el: $printDate", marginLeft, yPos.toFloat(), paint)
-        yPos += 30
+        yPos += 15
+
+        if (snapshotId != null) {
+            canvas.drawText("ID: $snapshotId", marginLeft, yPos.toFloat(), paint)
+            yPos += 15
+        }
+        yPos += 15
 
         val headerDate = "Fecha/Hora"
         val headerClient = "Cliente"

@@ -67,6 +67,10 @@ class PaymentsLocalDataSource(private val context: Context) {
         return paymentDao.getPendingPayments()
     }
 
+    suspend fun getAllPayments(): List<PaymentEntity> {
+        return paymentDao.getAllPayments()
+    }
+
     suspend fun changePaymentStatus(id: String, status: Boolean) {
         paymentDao.updateEstado(
             id,

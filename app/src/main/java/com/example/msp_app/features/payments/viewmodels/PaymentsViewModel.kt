@@ -4,7 +4,10 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.logging.Logger
+import com.example.msp_app.core.logging.logReportSnapshot
 import com.example.msp_app.core.utils.ResultState
+import java.util.UUID
 import com.example.msp_app.core.utils.computeCentroids
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
@@ -85,6 +88,9 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     private val _saleProductsState =
         MutableStateFlow<ResultState<List<ProductEntity>>>(ResultState.Idle)
     val saleProductsState: StateFlow<ResultState<List<ProductEntity>>> = _saleProductsState
+
+    private val _currentSnapshotId = MutableStateFlow<String?>(null)
+    val currentSnapshotId: StateFlow<String?> = _currentSnapshotId
 
     fun getSaleProducts(saleId: Int) {
         viewModelScope.launch {
@@ -169,17 +175,64 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun getPaymentsByDate(startDate: String, endDate: String) {
+    fun getPaymentsByDate(startDate: String, endDate: String, reportType: String = "UNKNOWN") {
         viewModelScope.launch {
             _paymentsByDateState.value = ResultState.Loading
+
+            val snapshotId = UUID.randomUUID().toString().take(8)
+            _currentSnapshotId.value = snapshotId
 
             val payments = withContext(Dispatchers.IO) {
                 paymentStore.getPaymentsByDate(startDate, endDate)
                     .map { it.toDomain() }
             }
             _paymentsByDateState.value = ResultState.Success(payments)
+
+            // Enviar snapshot a Firebase en background (no afecta el reporte)
+            launch(Dispatchers.IO) {
+                sendReportSnapshot(payments, startDate, endDate, reportType, snapshotId)
+            }
         }
     }
+
+    private suspend fun sendReportSnapshot(
+        reportPayments: List<Payment>,
+        startDate: String,
+        endDate: String,
+        reportType: String,
+        snapshotId: String
+    ) {
+        try {
+            val allPayments = paymentStore.getAllPayments().map { it.toDomain() }
+
+            Logger.get().logReportSnapshot(
+                snapshotId = snapshotId,
+                reportType = reportType,
+                reportDate = java.time.LocalDate.now().toString(),
+                filterStartDate = startDate,
+                filterEndDate = endDate,
+                allPaymentsInDb = allPayments.map { it.toLogMap() },
+                paymentsInReport = reportPayments.map { it.toLogMap() },
+                collectorName = reportPayments.firstOrNull()?.COBRADOR
+            )
+        } catch (e: Exception) {
+            Log.e("PaymentsViewModel", "Error enviando snapshot a Firebase: ${e.message}")
+        }
+    }
+
+    private fun Payment.toLogMap() = mapOf(
+        "ID" to ID,
+        "FECHA_HORA_PAGO" to FECHA_HORA_PAGO,
+        "NOMBRE_CLIENTE" to NOMBRE_CLIENTE,
+        "IMPORTE" to IMPORTE,
+        "COBRADOR" to COBRADOR,
+        "DOCTO_CC_ACR_ID" to DOCTO_CC_ACR_ID,
+        "FORMA_COBRO_ID" to FORMA_COBRO_ID,
+        "GUARDADO_EN_MICROSIP" to GUARDADO_EN_MICROSIP,
+        "CLIENTE_ID" to CLIENTE_ID,
+        "COBRADOR_ID" to COBRADOR_ID,
+        "ZONA_CLIENTE_ID" to ZONA_CLIENTE_ID
+    )
 
     fun getForgivenessByDate(startDate: String, endDate: String) {
         viewModelScope.launch {

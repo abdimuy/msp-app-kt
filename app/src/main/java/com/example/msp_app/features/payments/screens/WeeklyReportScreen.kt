@@ -62,7 +62,7 @@ fun WeeklyReportScreen(
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
 
     LaunchedEffect(startIso) {
-        viewModel.getPaymentsByDate(startIso, endIso)
+        viewModel.getPaymentsByDate(startIso, endIso, "WEEKLY_REPORT")
         visitsViewModel.getVisitsByDate(startIso, endIso)
         viewModel.getForgivenessByDate(startIso, endIso)
     }

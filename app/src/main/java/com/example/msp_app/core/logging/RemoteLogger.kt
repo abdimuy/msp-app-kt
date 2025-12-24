@@ -356,3 +356,47 @@ fun RemoteLogger.logTransferError(
         data = data
     )
 }
+
+fun RemoteLogger.logReportSnapshot(
+    snapshotId: String,
+    reportType: String,
+    reportDate: String,
+    filterStartDate: String,
+    filterEndDate: String,
+    allPaymentsInDb: List<Map<String, Any?>>,
+    paymentsInReport: List<Map<String, Any?>>,
+    collectorName: String?
+) {
+    val chunkSize = 2000
+    val allPaymentsChunks = allPaymentsInDb.chunked(chunkSize)
+    val reportPaymentsChunks = paymentsInReport.chunked(chunkSize)
+    val totalParts = maxOf(allPaymentsChunks.size, reportPaymentsChunks.size, 1)
+
+    Log.d("RemoteLogger", "logReportSnapshot: snapshotId=$snapshotId, totalPayments=${allPaymentsInDb.size}, chunks=$totalParts")
+
+    for (part in 0 until totalParts) {
+        info(
+            module = "REPORT_DEBUG",
+            action = "SNAPSHOT",
+            message = "Snapshot de reporte $reportType (parte ${part + 1}/$totalParts)",
+            data = mapOf(
+                "snapshotId" to snapshotId,
+                "part" to (part + 1),
+                "totalParts" to totalParts,
+                "reportType" to reportType,
+                "reportDate" to reportDate,
+                "collectorName" to collectorName,
+                "filter" to mapOf(
+                    "startDate" to filterStartDate,
+                    "endDate" to filterEndDate
+                ),
+                "counts" to mapOf(
+                    "totalInDb" to allPaymentsInDb.size,
+                    "shownInReport" to paymentsInReport.size
+                ),
+                "allPaymentsInDb" to (allPaymentsChunks.getOrNull(part) ?: emptyList()),
+                "paymentsInReport" to (reportPaymentsChunks.getOrNull(part) ?: emptyList())
+            )
+        )
+    }
+}
