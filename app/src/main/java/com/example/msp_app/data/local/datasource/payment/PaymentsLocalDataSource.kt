@@ -11,7 +11,7 @@ import com.example.msp_app.data.models.sale.EstadoCobranza
 class PaymentsLocalDataSource(private val context: Context) {
     private val paymentDao = AppDatabase.getInstance(context).paymentDao()
     private val saleDao = AppDatabase.getInstance(context).saleDao()
-
+    
     suspend fun getPaymentById(id: String): PaymentEntity {
         return paymentDao.getPaymentById(id)
     }
@@ -76,6 +76,10 @@ class PaymentsLocalDataSource(private val context: Context) {
             id,
             if (status) 1 else 0
         )
+    }
+
+    suspend fun getAllPayments(): List<PaymentEntity> {
+        return paymentDao.getAllPayments()
     }
 
     suspend fun updatePaymentLocation(

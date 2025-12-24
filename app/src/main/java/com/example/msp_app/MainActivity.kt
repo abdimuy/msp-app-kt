@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
@@ -15,18 +16,30 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
+import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
 import com.example.msp_app.ui.theme.ThemeController
+import com.example.msp_app.workers.PaymentsExportWorker
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.persistentCacheSettings
+import com.google.gson.Gson
+import java.util.concurrent.TimeUnit
 
 class MainActivity : FragmentActivity() {
 
     companion object {
         var isAuthenticated by mutableStateOf(false)
     }
+
+    private val auth = FirebaseAuth.getInstance()
+    private val db = FirebaseFirestore.getInstance()
 
     private var lastActivityTime = System.currentTimeMillis()
     private val inactivityTimeoutMs = 5 * 60 * 1000L // 5 minutos
@@ -61,6 +74,8 @@ class MainActivity : FragmentActivity() {
 
         ThemeController.init(this)
 
+        initializeAutoExport()
+
         // Habilitar edge to edge con comportamiento por defecto del sistema
         enableEdgeToEdge()
 
@@ -75,6 +90,61 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    private fun initializeAutoExport() {
+        val currentUser = auth.currentUser
+
+        if (currentUser != null) {
+            fetchUserDataAndScheduleExport(currentUser.uid)
+        } else {
+            Log.d("AutoExport", "⚠️ No hay usuario autenticado, export no programado")
+        }
+    }
+
+    private fun fetchUserDataAndScheduleExport(userId: String) {
+        db.collection("users").document(userId)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    val user = document.toObject(User::class.java)
+
+                    if (user != null) {
+                        scheduleAutoExport(user)
+                    } else {
+                        Log.w("AutoExport", "⚠️ Error parseando usuario")
+                    }
+                } else {
+                    Log.w("AutoExport", "⚠️ Documento de usuario no existe en Firestore")
+                }
+            }
+            .addOnFailureListener { exception ->
+                Log.e("AutoExport", "❌ Error obteniendo usuario de Firestore", exception)
+            }
+    }
+
+    private fun scheduleAutoExport(user: User) {
+        val gson = Gson()
+        val userJson = gson.toJson(user)
+        val input = workDataOf("user_json" to userJson)
+
+        val workRequest = PeriodicWorkRequestBuilder<PaymentsExportWorker>(
+            5, TimeUnit.HOURS
+        )
+            .setInputData(input)
+            .build()
+
+        WorkManager.getInstance(this)
+            .enqueueUniquePeriodicWork(
+                "AutoExportPayments",
+                ExistingPeriodicWorkPolicy.REPLACE, // Reemplaza worker anterior
+                workRequest
+            )
+    }
+
+    fun reprogramAutoExport() {
+        Log.d("AutoExport", "🔄 Reprogramando auto-export...")
+        initializeAutoExport()
     }
 
     private fun authenticateUser() {
