@@ -6,29 +6,33 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
-import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
-import com.example.msp_app.data.local.entities.LocalSaleEntity
-import com.example.msp_app.data.local.entities.LocalSaleImageEntity
-import com.example.msp_app.data.local.entities.LocalSaleProductEntity
-import com.example.msp_app.utils.PriceParser
-import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.logging.logSaleError
 import com.example.msp_app.core.utils.ImageCompressor
+import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
+import com.example.msp_app.data.local.datasource.sale.SalePackageLocalDataSource
+import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
+import com.example.msp_app.data.local.entities.LocalSaleEntity
+import com.example.msp_app.data.local.entities.LocalSaleImageEntity
+import com.example.msp_app.data.local.entities.LocalSalePackageEntity
+import com.example.msp_app.data.local.entities.LocalSaleProductEntity
+import com.example.msp_app.data.models.sale.localsale.LocalSaleProductPackage
+import com.example.msp_app.utils.PriceParser
+import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.UUID
 
 class NewLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
+    private val salePackage = SalePackageLocalDataSource(application.applicationContext)
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(application) }
+    private val gson = Gson()
 
     private val _sales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val sales: StateFlow<List<LocalSaleEntity>> = _sales
@@ -47,6 +51,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
     private val _saleProducts = MutableStateFlow<List<LocalSaleProductEntity>>(emptyList())
     val saleProducts: StateFlow<List<LocalSaleProductEntity>> = _saleProducts
+
+    private val _salePackages = MutableStateFlow<List<LocalSalePackageEntity>>(emptyList())
+    val salePackages: StateFlow<List<LocalSalePackageEntity>> = _salePackages
 
     private val _pendingSales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val pendingSales: StateFlow<List<LocalSaleEntity>> = _pendingSales
@@ -76,6 +83,21 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             val images = localSaleStore.getImagesForSale(saleId)
             _saleImages.value = images
+        }
+    }
+
+    fun loadPackagesBySaleId(saleId: String) {
+        viewModelScope.launch {
+            try {
+                val packages = salePackage.getPackagesForSale(saleId)
+                _salePackages.value = packages
+            } catch (e: Exception) {
+                Log.e(
+                    "NewLocalSaleViewModel",
+                    "Error loading packages for sale $saleId: ${e.message}"
+                )
+                _salePackages.value = emptyList()
+            }
         }
     }
 
@@ -152,7 +174,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     ) {
         try {
             val savedPaths = saveImagesLocally(context, uris, saleId)
-            
+
             val images = savedPaths.map { (path, _) ->
                 LocalSaleImageEntity(
                     LOCAL_SALE_IMAGE_ID = UUID.randomUUID().toString(),
@@ -161,7 +183,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     FECHA_SUBIDA = fechasubida
                 )
             }
-            
+
             images.forEach { image ->
                 localSaleStore.insertSaleImage(image)
             }
@@ -198,6 +220,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         cashamount: Double,
         enviado: Boolean,
         saleProducts: List<SaleItem>,
+        salePackages: List<LocalSaleProductPackage>,
         context: Context,
         userEmail: String
     ) {
@@ -296,8 +319,30 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     saleProduct.insertSaleProducts(productEntities)
                 }
 
+                val packageEntities = salePackages.map { pkg ->
+                    val productsToSerialize = pkg.products.map { saleItem ->
+                        mapOf(
+                            "ARTICULO_ID" to saleItem.product.ARTICULO_ID,
+                            "CANTIDAD" to saleItem.quantity
+                        )
+                    }
+
+                    LocalSalePackageEntity(
+                        LOCAL_SALE_ID = saleId,
+                        PACKAGE_ID = pkg.packageId,
+                        PACKAGE_NAME = pkg.packageName,
+                        PRECIO_LISTA = pkg.precioLista,
+                        PRECIO_CORTO_PLAZO = pkg.precioCortoplazo,
+                        PRECIO_CONTADO = pkg.precioContado,
+                        PRODUCT_IDS_JSON = gson.toJson(productsToSerialize)
+                    )
+                }
+
                 if (imageUris.isNotEmpty()) {
                     saveSaleImages(context, imageUris, saleId, saleDate)
+                }
+                if (packageEntities.isNotEmpty()) {
+                    salePackage.insertPackages(packageEntities) // ⬅️ Debe llamar a esto
                 }
 
                 enqueuePendingLocalSalesWorker(context, saleId, userEmail)
@@ -331,6 +376,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         "saleId" to saleId,
                         "clientName" to clientName,
                         "productCount" to saleProducts.size,
+                        "packageCount" to salePackages.size,
                         "errorType" to e.javaClass.simpleName
                     )
                 )
@@ -348,6 +394,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                 _isLoading.value = true
 
                 saleProduct.deleteProductsForSale(saleId)
+                salePackage.deletePackagesForSale(saleId)
                 localSaleStore.deleteImagesForSale(saleId)
 
                 loadAllSales()
@@ -467,8 +514,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Validación fallida - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Validación fallida - Revisa Firebase para ver los logs")
                     }
+
                     2 -> {
                         // Error de base de datos
                         val dbError = Exception("Database connection timeout - TEST ERROR")
@@ -483,11 +532,14 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Base de datos - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Base de datos - Revisa Firebase para ver los logs")
                     }
+
                     3 -> {
                         // Error crítico con NullPointerException
-                        val npe = NullPointerException("Simulated NPE for testing - Something was null")
+                        val npe =
+                            NullPointerException("Simulated NPE for testing - Something was null")
                         logger.critical(
                             module = "SALES_TEST",
                             action = "CRITICAL_NPE",
@@ -499,8 +551,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error crítico de prueba: NPE - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error crítico de prueba: NPE - Revisa Firebase para ver los logs")
                     }
+
                     4 -> {
                         // Error de red
                         logger.error(
@@ -514,7 +568,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                                 "isTest" to true
                             )
                         )
-                        _saveResult.value = SaveResult.Error("❌ Error de prueba: Red - Revisa Firebase para ver los logs")
+                        _saveResult.value =
+                            SaveResult.Error("❌ Error de prueba: Red - Revisa Firebase para ver los logs")
                     }
                 }
 

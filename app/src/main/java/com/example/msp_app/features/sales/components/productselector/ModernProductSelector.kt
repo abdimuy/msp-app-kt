@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
+import com.example.msp_app.features.sales.viewmodels.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.warehouses.WarehouseViewModel
 
@@ -129,7 +130,7 @@ fun ModernProductSelector(
                             )
                             Spacer(modifier = Modifier.width(2.dp))
                             Text(
-                                text = saleItems.sumOf { it.quantity }.toString(),
+                                text = saleProductsViewModel.getTotalItems().toString(),
                                 color = Color.White,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -215,13 +216,16 @@ fun ModernProductSelector(
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    saleItems.forEach { saleItem ->
-                        CartItemRow(
-                            saleItem = saleItem,
-                            saleProductsViewModel = saleProductsViewModel
-                        )
-                        if (saleItem != saleItems.last()) {
-                            Spacer(modifier = Modifier.height(8.dp))
+                    // Mostrar productos individuales
+                    if (saleItems.isNotEmpty()) {
+                        saleItems.forEach { saleItem ->
+                            ModernCartItemRow(
+                                saleItem = saleItem,
+                                saleProductsViewModel = saleProductsViewModel
+                            )
+                            if (saleItem != saleItems.last()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                         }
                     }
                 }
@@ -414,8 +418,8 @@ private fun ProductCard(
 }
 
 @Composable
-private fun CartItemRow(
-    saleItem: com.example.msp_app.features.sales.viewmodels.SaleItem,
+private fun ModernCartItemRow(
+    saleItem: SaleItem,
     saleProductsViewModel: SaleProductsViewModel
 ) {
     Row(

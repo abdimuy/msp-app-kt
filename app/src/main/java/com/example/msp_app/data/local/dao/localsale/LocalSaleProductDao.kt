@@ -18,6 +18,42 @@ interface LocalSaleProductDao {
     @Query("SELECT LOCAL_SALE_ID, ARTICULO_ID, ARTICULO, CANTIDAD, PRECIO_LISTA, PRECIO_CORTO_PLAZO, PRECIO_CONTADO FROM local_sale_products WHERE LOCAL_SALE_ID = :saleId")
     suspend fun getProductsForSale(saleId: String): List<LocalSaleProductEntity>
 
+    @Query(
+        """
+        SELECT * FROM local_sale_products 
+        WHERE LOCAL_SALE_ID = :saleId AND PACKAGE_ID IS NULL
+    """
+    )
+    suspend fun getIndividualProductsForSale(saleId: String): List<LocalSaleProductEntity>
+
+    @Query(
+        """
+        SELECT * FROM local_sale_products 
+        WHERE LOCAL_SALE_ID = :saleId AND PACKAGE_ID = :packageId
+    """
+    )
+    suspend fun getProductsInPackage(
+        saleId: String,
+        packageId: String
+    ): List<LocalSaleProductEntity>
+
+    @Query(
+        """
+        SELECT DISTINCT PACKAGE_ID, PACKAGE_NAME
+        FROM local_sale_products 
+        WHERE LOCAL_SALE_ID = :saleId AND PACKAGE_ID IS NOT NULL
+    """
+    )
+    suspend fun getPackageIdsForSale(saleId: String): List<PackageInfo>
+
     @Query("DELETE FROM local_sale_products WHERE LOCAL_SALE_ID = :saleId")
     suspend fun deleteProductsForSale(saleId: String)
+
+    @Query("DELETE FROM local_sale_products WHERE LOCAL_SALE_ID = :saleId AND PACKAGE_ID = :packageId")
+    suspend fun deletePackage(saleId: String, packageId: String)
 }
+
+data class PackageInfo(
+    val PACKAGE_ID: String,
+    val PACKAGE_NAME: String?
+)
