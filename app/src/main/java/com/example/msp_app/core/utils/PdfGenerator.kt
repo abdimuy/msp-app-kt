@@ -83,12 +83,28 @@ object PdfGenerator {
         yPos += lineSpacing
 
         paint.isFakeBoldText = false
-        for ((date, client, amount, method) in data.lines) {
+        for ((index, line) in data.lines.withIndex()) {
+            val (date, client, amount, method) = line
+
             if (yPos > pageHeight - 80) {
                 pdfDocument.finishPage(page)
                 page = pdfDocument.startPage(pageInfo)
                 canvas = page.canvas
                 yPos = 40
+            }
+
+            if (index % 2 == 0) {
+                val backgroundPaint = Paint().apply {
+                    color = android.graphics.Color.rgb(220, 220, 220)
+                    style = Paint.Style.FILL
+                }
+                canvas.drawRect(
+                    marginLeft,
+                    (yPos - 11).toFloat(),
+                    (pageWidth - marginLeft),
+                    (yPos + 4).toFloat(),
+                    backgroundPaint
+                )
             }
 
             val formattedAmount = amount.toCurrency(noDecimals = true)
@@ -124,12 +140,28 @@ object PdfGenerator {
             yPos += 20
 
             paint.isFakeBoldText = false
-            for ((date, client, amount, method) in forgiveness.lines) {
+            for ((index, line) in forgiveness.lines.withIndex()) {
+                val (date, client, amount, method) = line
+
                 if (yPos > pageHeight - 80) {
                     pdfDocument.finishPage(page)
                     page = pdfDocument.startPage(pageInfo)
                     canvas = page.canvas
                     yPos = 40
+                }
+
+                if (index % 2 == 0) {
+                    val bgPaint = Paint().apply {
+                        color = android.graphics.Color.rgb(220, 220, 220)
+                        style = Paint.Style.FILL
+                    }
+                    canvas.drawRect(
+                        marginLeft,
+                        (yPos - 11).toFloat(),
+                        (pageWidth - marginLeft),
+                        (yPos + 4).toFloat(),
+                        bgPaint
+                    )
                 }
 
                 val formattedAmount = amount.toCurrency(noDecimals = true)
