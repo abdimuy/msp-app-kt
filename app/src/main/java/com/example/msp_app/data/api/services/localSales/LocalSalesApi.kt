@@ -4,7 +4,9 @@ import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
+import retrofit2.http.Path
 
 data class LocalSaleRequest(
     val localSaleId: String,
@@ -50,6 +52,55 @@ data class LocalSaleResponse(
     val localSaleId: String? = null
 )
 
+// Request para edición (sin localSaleId, se pasa en URL)
+data class LocalSaleUpdateRequest(
+    val userEmail: String,
+    val nombreCliente: String,
+    val fechaVenta: String,
+    val latitud: Double,
+    val longitud: Double,
+    val direccion: String,
+    val parcialidad: Double,
+    val enganche: Double?,
+    val telefono: String,
+    val frecPago: String,
+    val avalOResponsable: String?,
+    val nota: String?,
+    val diaCobranza: String,
+    val precioTotal: Double,
+    val tiempoACortoPlazoMeses: Int,
+    val montoACortoPlazo: Double,
+    val productos: List<LocalSaleProductRequest>,
+    val numero: String? = null,
+    val colonia: String? = null,
+    val poblacion: String? = null,
+    val ciudad: String? = null,
+    val tipoVenta: String? = "CONTADO",
+    val zonaClienteId: Int? = null,
+    val almacenOrigenId: Int? = null,
+    val almacenDestinoId: Int? = null,
+    val imagenesAEliminar: List<String> = emptyList()
+)
+
+// Response de edición
+data class LocalSaleUpdateResponse(
+    val success: Boolean,
+    val localSaleId: String? = null,
+    val mensaje: String? = null,
+    val productosActualizados: Int? = null,
+    val cambiosProductos: CambiosProductos? = null,
+    val imagenesEliminadas: Int? = null,
+    val imagenesAgregadas: Int? = null,
+    val almacenOrigenId: Int? = null,
+    val almacenDestinoId: Int? = null
+)
+
+data class CambiosProductos(
+    val devueltos: Int = 0,
+    val agregados: Int = 0,
+    val sinCambios: Boolean = false
+)
+
 interface LocalSalesApi {
     @Multipart
     @POST("ventas-locales")
@@ -57,4 +108,12 @@ interface LocalSalesApi {
         @Part("datos") datos: RequestBody,
         @Part imagenes: List<MultipartBody.Part>
     ): LocalSaleResponse
+
+    @Multipart
+    @PUT("ventas-locales/{localSaleId}")
+    suspend fun updateLocalSale(
+        @Path("localSaleId") localSaleId: String,
+        @Part("datos") datos: RequestBody,
+        @Part imagenes: List<MultipartBody.Part>
+    ): LocalSaleUpdateResponse
 }

@@ -54,17 +54,22 @@ fun CarrouselImage(
     val selectedItem = remember { mutableStateOf<CarouselItem?>(null) }
     val context = LocalContext.current
 
-    HorizontalUncontainedCarousel(
-        state = rememberCarouselState { carouselItems.size },
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .padding(top = 16.dp, bottom = 16.dp),
-        itemWidth = 186.dp,
-        itemSpacing = 12.dp,
-        contentPadding = PaddingValues(horizontal = 16.dp)
-    ) { index ->
-        val item = carouselItems[index]
+    // Usar key para recrear el carrusel cuando cambia el número de items
+    androidx.compose.runtime.key(carouselItems.size) {
+        HorizontalUncontainedCarousel(
+            state = rememberCarouselState { carouselItems.size },
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(top = 16.dp, bottom = 16.dp),
+            itemWidth = 186.dp,
+            itemSpacing = 12.dp,
+            contentPadding = PaddingValues(horizontal = 16.dp)
+        ) { index ->
+            // Verificación de límites para evitar IndexOutOfBoundsException
+            if (index >= carouselItems.size) return@HorizontalUncontainedCarousel
+
+            val item = carouselItems[index]
         val file = File(item.imagePath)
 
         if (file.exists()) {
@@ -109,7 +114,8 @@ fun CarrouselImage(
                 )
             }
         }
-    }
+        }
+    } // Cierre del key block
 
     selectedItem.value?.let { item ->
         ZoomableImageDialog1(

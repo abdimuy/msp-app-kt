@@ -35,6 +35,7 @@ import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScr
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
+import com.example.msp_app.features.sales.screens.EditSaleScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
 import com.example.msp_app.features.sales.screens.SaleDescriptionScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
@@ -92,6 +93,10 @@ sealed class Screen(val route: String) {
 
     object SaleDescripction : Screen("saleDescription/{localSaleId}") {
         fun creatRoute(localSaleId: String) = "saleDescription/$localSaleId"
+    }
+
+    object EditSale : Screen("editSale/{localSaleId}") {
+        fun createRoute(localSaleId: String) = "editSale/$localSaleId"
     }
 
     object Cart : Screen("cart")
@@ -270,6 +275,17 @@ fun AppNavigation() {
                     navController = navController
                 )
             }
+
+            composable(Screen.EditSale.route) { backStackEntry ->
+                val localSaleId = backStackEntry.arguments?.getString("localSaleId")
+                if (localSaleId != null) {
+                    EditSaleScreen(
+                        localSaleId = localSaleId,
+                        navController = navController
+                    )
+                }
+            }
+
             composable(Screen.Cart.route) {
                 CartScreen(
                     navController = navController,

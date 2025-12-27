@@ -127,4 +127,66 @@ interface LocalSaleDao {
         """
     )
     suspend fun getSalesByStatus(enviado: Boolean): List<LocalSaleEntity>
+
+    @Query("DELETE FROM sale_image WHERE LOCAL_SALE_IMAGE_ID = :imageId")
+    suspend fun deleteImageById(imageId: String)
+
+    @Query("DELETE FROM sale_image WHERE LOCAL_SALE_IMAGE_ID IN (:imageIds)")
+    suspend fun deleteImagesByIds(imageIds: List<String>)
+
+    @Query("""
+        UPDATE local_sale SET
+            NOMBRE_CLIENTE = :nombreCliente,
+            FECHA_VENTA = :fechaVenta,
+            LATITUD = :latitud,
+            LONGITUD = :longitud,
+            DIRECCION = :direccion,
+            PARCIALIDAD = :parcialidad,
+            ENGANCHE = :enganche,
+            TELEFONO = :telefono,
+            FREC_PAGO = :frecPago,
+            AVAL_O_RESPONSABLE = :avalOResponsable,
+            NOTA = :nota,
+            DIA_COBRANZA = :diaCobranza,
+            PRECIO_TOTAL = :precioTotal,
+            TIEMPO_A_CORTO_PLAZOMESES = :tiempoACortoPlazoMeses,
+            MONTO_A_CORTO_PLAZO = :montoACortoPlazo,
+            MONTO_DE_CONTADO = :montoDeContado,
+            ENVIADO = :enviado,
+            NUMERO = :numero,
+            COLONIA = :colonia,
+            POBLACION = :poblacion,
+            CIUDAD = :ciudad,
+            TIPO_VENTA = :tipoVenta,
+            ZONA_CLIENTE_ID = :zonaClienteId,
+            ZONA_CLIENTE = :zonaCliente
+        WHERE LOCAL_SALE_ID = :localSaleId
+    """)
+    suspend fun updateSaleFields(
+        localSaleId: String,
+        nombreCliente: String,
+        fechaVenta: String,
+        latitud: Double,
+        longitud: Double,
+        direccion: String,
+        parcialidad: Double,
+        enganche: Double?,
+        telefono: String,
+        frecPago: String,
+        avalOResponsable: String?,
+        nota: String?,
+        diaCobranza: String,
+        precioTotal: Double,
+        tiempoACortoPlazoMeses: Int,
+        montoACortoPlazo: Double,
+        montoDeContado: Double,
+        enviado: Boolean,
+        numero: String?,
+        colonia: String?,
+        poblacion: String?,
+        ciudad: String?,
+        tipoVenta: String?,
+        zonaClienteId: Int?,
+        zonaCliente: String?
+    )
 }

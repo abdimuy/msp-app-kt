@@ -2,6 +2,7 @@ package com.example.msp_app.data.models.sale.localsale
 
 import com.example.msp_app.data.api.services.localSales.LocalSaleProductRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleRequest
+import com.example.msp_app.data.api.services.localSales.LocalSaleUpdateRequest
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
@@ -147,6 +148,43 @@ class LocalSaleMappers {
             precioLista = this.PRECIO_LISTA,
             precioCortoPlazo = this.PRECIO_CORTO_PLAZO,
             precioContado = this.PRECIO_CONTADO
+        )
+    }
+
+    fun LocalSaleEntity.toUpdateRequest(
+        products: List<LocalSaleProductEntity>,
+        userEmail: String,
+        imagenesAEliminar: List<String> = emptyList(),
+        almacenOrigenId: Int? = null,
+        almacenDestinoId: Int? = null
+    ): LocalSaleUpdateRequest {
+        return LocalSaleUpdateRequest(
+            userEmail = userEmail,
+            nombreCliente = this.NOMBRE_CLIENTE,
+            fechaVenta = this.FECHA_VENTA,
+            latitud = this.LATITUD,
+            longitud = this.LONGITUD,
+            direccion = this.DIRECCION,
+            parcialidad = this.PARCIALIDAD,
+            enganche = this.ENGANCHE,
+            telefono = this.TELEFONO,
+            frecPago = this.FREC_PAGO,
+            avalOResponsable = this.AVAL_O_RESPONSABLE,
+            nota = this.NOTA,
+            diaCobranza = this.DIA_COBRANZA,
+            precioTotal = this.PRECIO_TOTAL,
+            tiempoACortoPlazoMeses = this.TIEMPO_A_CORTO_PLAZOMESES,
+            montoACortoPlazo = this.MONTO_A_CORTO_PLAZO,
+            productos = products.map { it.toServerRequest() },
+            numero = this.NUMERO,
+            colonia = this.COLONIA,
+            poblacion = this.POBLACION,
+            ciudad = this.CIUDAD,
+            tipoVenta = this.TIPO_VENTA,
+            zonaClienteId = this.ZONA_CLIENTE_ID,
+            almacenOrigenId = almacenOrigenId,
+            almacenDestinoId = almacenDestinoId,
+            imagenesAEliminar = imagenesAEliminar
         )
     }
 }

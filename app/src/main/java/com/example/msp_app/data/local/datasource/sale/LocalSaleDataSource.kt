@@ -49,4 +49,46 @@ class LocalSaleDataSource(context: Context) {
     suspend fun getPendingSales(): List<LocalSaleEntity> {
         return localSaleDao.getSalesByStatus(false)
     }
+
+    suspend fun updateSale(sale: LocalSaleEntity) {
+        // Usamos UPDATE real en lugar de REPLACE para evitar que el CASCADE
+        // de la foreign key elimine las imágenes relacionadas
+        localSaleDao.updateSaleFields(
+            localSaleId = sale.LOCAL_SALE_ID,
+            nombreCliente = sale.NOMBRE_CLIENTE,
+            fechaVenta = sale.FECHA_VENTA,
+            latitud = sale.LATITUD,
+            longitud = sale.LONGITUD,
+            direccion = sale.DIRECCION,
+            parcialidad = sale.PARCIALIDAD,
+            enganche = sale.ENGANCHE,
+            telefono = sale.TELEFONO,
+            frecPago = sale.FREC_PAGO,
+            avalOResponsable = sale.AVAL_O_RESPONSABLE,
+            nota = sale.NOTA,
+            diaCobranza = sale.DIA_COBRANZA,
+            precioTotal = sale.PRECIO_TOTAL,
+            tiempoACortoPlazoMeses = sale.TIEMPO_A_CORTO_PLAZOMESES,
+            montoACortoPlazo = sale.MONTO_A_CORTO_PLAZO,
+            montoDeContado = sale.MONTO_DE_CONTADO,
+            enviado = sale.ENVIADO,
+            numero = sale.NUMERO,
+            colonia = sale.COLONIA,
+            poblacion = sale.POBLACION,
+            ciudad = sale.CIUDAD,
+            tipoVenta = sale.TIPO_VENTA,
+            zonaClienteId = sale.ZONA_CLIENTE_ID,
+            zonaCliente = sale.ZONA_CLIENTE
+        )
+    }
+
+    suspend fun deleteImageById(imageId: String) {
+        localSaleDao.deleteImageById(imageId)
+    }
+
+    suspend fun deleteImagesByIds(imageIds: List<String>) {
+        if (imageIds.isNotEmpty()) {
+            localSaleDao.deleteImagesByIds(imageIds)
+        }
+    }
 }
