@@ -143,3 +143,7 @@
 
 # Mantener nombres de clases para los logs y debugging
 -keepnames class com.example.msp_app.** { *; }
+
+# Sync module - clases internas de sincronización offline
+-keep class com.example.msp_app.core.sync.** { *; }
+-keep class com.example.msp_app.features.**.sync.** { *; }

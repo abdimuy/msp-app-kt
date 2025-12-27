@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -124,8 +125,6 @@ fun HomeWeeklyPaymentsSection(
                                     containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
                                 ),
                                 modifier = Modifier
-                                    .widthIn(min = 100.dp)
-                                    .heightIn(min = 100.dp)
                                     .clickable { onPaymentDateClick(formatted, payments) }
                                     .border(
                                         1.dp,
@@ -136,7 +135,7 @@ fun HomeWeeklyPaymentsSection(
                             ) {
                                 Column(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .defaultMinSize(minWidth = 100.dp, minHeight = 100.dp)
                                         .padding(8.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
@@ -200,8 +199,6 @@ fun HomeWeeklyPaymentsSection(
                                     containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
                                 ),
                                 modifier = Modifier
-                                    .widthIn(min = 100.dp)
-                                    .heightIn(min = 100.dp)
                                     .clickable { onPaymentDateClick(formatted, payments) }
                                     .border(
                                         1.dp,
@@ -212,7 +209,7 @@ fun HomeWeeklyPaymentsSection(
                             ) {
                                 Column(
                                     modifier = Modifier
-                                        .fillMaxWidth()
+                                        .defaultMinSize(minWidth = 100.dp, minHeight = 100.dp)
                                         .padding(8.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center
