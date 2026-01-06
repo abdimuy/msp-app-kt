@@ -21,6 +21,8 @@ import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.logging.logSaleError
 import com.example.msp_app.core.utils.ImageCompressor
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -29,6 +31,13 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(application) }
+
+    /**
+     * Mutex para prevenir la creación concurrente de ventas.
+     * Garantiza que solo una operación de guardado se ejecute a la vez,
+     * evitando race conditions y ventas duplicadas.
+     */
+    private val saleMutex = Mutex()
 
     private val _sales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val sales: StateFlow<List<LocalSaleEntity>> = _sales
@@ -204,144 +213,152 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         zonaClienteNombre: String? = null
     ) {
         viewModelScope.launch {
-            try {
-                _isLoading.value = true
-                _saveResult.value = null
+            // Verificar si ya hay una operación en curso (protección adicional contra doble click)
+            if (saleMutex.isLocked) {
+                Log.w("NewLocalSaleViewModel", "Operación de guardado ya en curso, ignorando llamada duplicada")
+                return@launch
+            }
 
-                // Log del intento de creación
-                logger.info(
-                    module = "SALES",
-                    action = "CREATE_SALE_ATTEMPT",
-                    message = "Iniciando creación de venta",
-                    data = mapOf(
-                        "saleId" to saleId,
-                        "clientName" to clientName,
-                        "productCount" to saleProducts.size,
-                        "hasImages" to imageUris.isNotEmpty(),
-                        "hasLocation" to (latitude != 0.0 && longitude != 0.0),
-                        "userEmail" to userEmail
+            saleMutex.withLock {
+                try {
+                    _isLoading.value = true
+                    _saveResult.value = null
+
+                    // Log del intento de creación
+                    logger.info(
+                        module = "SALES",
+                        action = "CREATE_SALE_ATTEMPT",
+                        message = "Iniciando creación de venta",
+                        data = mapOf(
+                            "saleId" to saleId,
+                            "clientName" to clientName,
+                            "productCount" to saleProducts.size,
+                            "hasImages" to imageUris.isNotEmpty(),
+                            "hasLocation" to (latitude != 0.0 && longitude != 0.0),
+                            "userEmail" to userEmail
+                        )
                     )
-                )
 
-                if (saleProducts.isEmpty()) {
-                    val errorMsg = "La venta debe tener al menos un producto"
-                    logger.logSaleError(
-                        saleId = saleId,
-                        clientName = clientName,
-                        errorMessage = errorMsg,
-                        validationErrors = listOf("No hay productos en la venta")
-                    )
-                    _saveResult.value = SaveResult.Error(errorMsg)
-                    return@launch
-                }
+                    if (saleProducts.isEmpty()) {
+                        val errorMsg = "La venta debe tener al menos un producto"
+                        logger.logSaleError(
+                            saleId = saleId,
+                            clientName = clientName,
+                            errorMessage = errorMsg,
+                            validationErrors = listOf("No hay productos en la venta")
+                        )
+                        _saveResult.value = SaveResult.Error(errorMsg)
+                        return@withLock
+                    }
 
-                if (clientName.isBlank()) {
-                    val errorMsg = "El nombre del cliente es requerido"
-                    logger.logSaleError(
-                        saleId = saleId,
-                        clientName = "(vacío)",
-                        errorMessage = errorMsg,
-                        validationErrors = listOf("Nombre del cliente vacío")
-                    )
-                    _saveResult.value = SaveResult.Error(errorMsg)
-                    return@launch
-                }
+                    if (clientName.isBlank()) {
+                        val errorMsg = "El nombre del cliente es requerido"
+                        logger.logSaleError(
+                            saleId = saleId,
+                            clientName = "(vacío)",
+                            errorMessage = errorMsg,
+                            validationErrors = listOf("Nombre del cliente vacío")
+                        )
+                        _saveResult.value = SaveResult.Error(errorMsg)
+                        return@withLock
+                    }
 
-                val saleEntity = LocalSaleEntity(
-                    LOCAL_SALE_ID = saleId,
-                    NOMBRE_CLIENTE = clientName,
-                    FECHA_VENTA = saleDate,
-                    LATITUD = latitude,
-                    LONGITUD = longitude,
-                    DIRECCION = address,
-                    PARCIALIDAD = installment,
-                    ENGANCHE = downpayment,
-                    TELEFONO = phone,
-                    FREC_PAGO = paymentfrequency,
-                    AVAL_O_RESPONSABLE = avaloresponsable,
-                    NOTA = note,
-                    DIA_COBRANZA = collectionday,
-                    PRECIO_TOTAL = totalprice,
-                    TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
-                    MONTO_A_CORTO_PLAZO = shorttermamount,
-                    MONTO_DE_CONTADO = cashamount,
-                    ENVIADO = enviado,
-                    NUMERO = numero,
-                    COLONIA = colonia,
-                    POBLACION = poblacion,
-                    CIUDAD = ciudad,
-                    TIPO_VENTA = tipoVenta,
-                    ZONA_CLIENTE_ID = zonaClienteId,
-                    ZONA_CLIENTE = zonaClienteNombre
-                )
-
-                logger.debug(
-                    module = "SALES",
-                    action = "INSERT_SALE",
-                    message = "Insertando venta en base de datos local",
-                    data = mapOf("saleId" to saleId, "clientName" to clientName)
-                )
-                localSaleStore.insertSale(saleEntity)
-
-                val productEntities = saleProducts.map { saleItem ->
-                    val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-                    LocalSaleProductEntity(
+                    val saleEntity = LocalSaleEntity(
                         LOCAL_SALE_ID = saleId,
-                        ARTICULO_ID = saleItem.product.ARTICULO_ID,
-                        ARTICULO = saleItem.product.ARTICULO,
-                        CANTIDAD = saleItem.quantity,
-                        PRECIO_LISTA = parsedPrices.precioLista,
-                        PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
-                        PRECIO_CONTADO = parsedPrices.precioContado
+                        NOMBRE_CLIENTE = clientName,
+                        FECHA_VENTA = saleDate,
+                        LATITUD = latitude,
+                        LONGITUD = longitude,
+                        DIRECCION = address,
+                        PARCIALIDAD = installment,
+                        ENGANCHE = downpayment,
+                        TELEFONO = phone,
+                        FREC_PAGO = paymentfrequency,
+                        AVAL_O_RESPONSABLE = avaloresponsable,
+                        NOTA = note,
+                        DIA_COBRANZA = collectionday,
+                        PRECIO_TOTAL = totalprice,
+                        TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
+                        MONTO_A_CORTO_PLAZO = shorttermamount,
+                        MONTO_DE_CONTADO = cashamount,
+                        ENVIADO = enviado,
+                        NUMERO = numero,
+                        COLONIA = colonia,
+                        POBLACION = poblacion,
+                        CIUDAD = ciudad,
+                        TIPO_VENTA = tipoVenta,
+                        ZONA_CLIENTE_ID = zonaClienteId,
+                        ZONA_CLIENTE = zonaClienteNombre
                     )
-                }
 
-                if (productEntities.isNotEmpty()) {
-                    saleProduct.insertSaleProducts(productEntities)
-                }
-
-                if (imageUris.isNotEmpty()) {
-                    saveSaleImages(context, imageUris, saleId, saleDate)
-                }
-
-                enqueuePendingLocalSalesWorker(context, saleId, userEmail)
-
-                _saveResult.value = SaveResult.Success(saleId)
-                loadAllSales()
-
-                // Log de éxito
-                logger.info(
-                    module = "SALES",
-                    action = "CREATE_SALE_SUCCESS",
-                    message = "Venta creada exitosamente",
-                    data = mapOf(
-                        "saleId" to saleId,
-                        "clientName" to clientName,
-                        "productCount" to saleProducts.size,
-                        "imageCount" to imageUris.size
+                    logger.debug(
+                        module = "SALES",
+                        action = "INSERT_SALE",
+                        message = "Insertando venta en base de datos local",
+                        data = mapOf("saleId" to saleId, "clientName" to clientName)
                     )
-                )
+                    localSaleStore.insertSale(saleEntity)
 
-            } catch (e: Exception) {
-                Log.e("NewLocalSaleViewModel", "Error creating sale: ${e.message}", e)
+                    val productEntities = saleProducts.map { saleItem ->
+                        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+                        LocalSaleProductEntity(
+                            LOCAL_SALE_ID = saleId,
+                            ARTICULO_ID = saleItem.product.ARTICULO_ID,
+                            ARTICULO = saleItem.product.ARTICULO,
+                            CANTIDAD = saleItem.quantity,
+                            PRECIO_LISTA = parsedPrices.precioLista,
+                            PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
+                            PRECIO_CONTADO = parsedPrices.precioContado
+                        )
+                    }
 
-                // Log del error en Firebase
-                logger.error(
-                    module = "SALES",
-                    action = "CREATE_SALE_ERROR",
-                    message = "Error al crear venta: ${e.message}",
-                    error = e,
-                    data = mapOf(
-                        "saleId" to saleId,
-                        "clientName" to clientName,
-                        "productCount" to saleProducts.size,
-                        "errorType" to e.javaClass.simpleName
+                    if (productEntities.isNotEmpty()) {
+                        saleProduct.insertSaleProducts(productEntities)
+                    }
+
+                    if (imageUris.isNotEmpty()) {
+                        saveSaleImages(context, imageUris, saleId, saleDate)
+                    }
+
+                    enqueuePendingLocalSalesWorker(context, saleId, userEmail)
+
+                    _saveResult.value = SaveResult.Success(saleId)
+                    loadAllSales()
+
+                    // Log de éxito
+                    logger.info(
+                        module = "SALES",
+                        action = "CREATE_SALE_SUCCESS",
+                        message = "Venta creada exitosamente",
+                        data = mapOf(
+                            "saleId" to saleId,
+                            "clientName" to clientName,
+                            "productCount" to saleProducts.size,
+                            "imageCount" to imageUris.size
+                        )
                     )
-                )
 
-                _saveResult.value = SaveResult.Error(e.message ?: "Error desconocido")
-            } finally {
-                _isLoading.value = false
+                } catch (e: Exception) {
+                    Log.e("NewLocalSaleViewModel", "Error creating sale: ${e.message}", e)
+
+                    // Log del error en Firebase
+                    logger.error(
+                        module = "SALES",
+                        action = "CREATE_SALE_ERROR",
+                        message = "Error al crear venta: ${e.message}",
+                        error = e,
+                        data = mapOf(
+                            "saleId" to saleId,
+                            "clientName" to clientName,
+                            "productCount" to saleProducts.size,
+                            "errorType" to e.javaClass.simpleName
+                        )
+                    )
+
+                    _saveResult.value = SaveResult.Error(e.message ?: "Error desconocido")
+                } finally {
+                    _isLoading.value = false
+                }
             }
         }
     }

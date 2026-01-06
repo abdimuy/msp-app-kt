@@ -500,6 +500,7 @@ fun NewSaleScreen(navController: NavController) {
     }
 
     val saveResult by viewModel.saveResult.collectAsState()
+    val isSaving by viewModel.isLoading.collectAsState()
 
     LaunchedEffect(saveResult) {
         when (val result = saveResult) {
@@ -1380,24 +1381,36 @@ fun NewSaleScreen(navController: NavController) {
 
                 Button(
                     onClick = {
-                        val isvalid = validateFields()
+                        val isValid = validateFields()
                         showImageError = imageUris.isEmpty()
 
-                        if (isvalid) {
+                        if (isValid) {
                             saveSale()
                         }
-
                     },
-                    enabled = hasValidLocation,
+                    enabled = hasValidLocation && !isSaving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(
-                        "Generar Venta",
-                        color = Color.White
-                    )
+                    if (isSaving) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Guardando...",
+                            color = Color.White
+                        )
+                    } else {
+                        Text(
+                            "Generar Venta",
+                            color = Color.White
+                        )
+                    }
                 }
 
             }
