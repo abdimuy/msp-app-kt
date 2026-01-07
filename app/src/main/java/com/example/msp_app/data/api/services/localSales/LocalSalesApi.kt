@@ -34,7 +34,9 @@ data class LocalSaleRequest(
     val ciudad: String? = null,
     val tipoVenta: String? = "CONTADO",
     val zonaClienteId: Int? = null,
-    val zonaCliente: String? = null
+    val zonaCliente: String? = null,
+    val combos: List<LocalSaleComboRequest>? = null,
+    val omitirTraspaso: Boolean? = null
 )
 
 data class LocalSaleProductRequest(
@@ -43,13 +45,24 @@ data class LocalSaleProductRequest(
     val cantidad: Int,
     val precioLista: Double,
     val precioCortoPlazo: Double,
+    val precioContado: Double,
+    val comboId: String? = null
+)
+
+data class LocalSaleComboRequest(
+    val comboId: String,
+    val nombreCombo: String,
+    val precioLista: Double,
+    val precioCortoPlazo: Double,
     val precioContado: Double
 )
 
 data class LocalSaleResponse(
     val success: Boolean,
     val message: String? = null,
-    val localSaleId: String? = null
+    val localSaleId: String? = null,
+    val combosRegistrados: Int? = null,
+    val traspasoOmitido: Boolean? = null
 )
 
 // Request para edición (sin localSaleId, se pasa en URL)
@@ -79,7 +92,9 @@ data class LocalSaleUpdateRequest(
     val zonaClienteId: Int? = null,
     val almacenOrigenId: Int? = null,
     val almacenDestinoId: Int? = null,
-    val imagenesAEliminar: List<String> = emptyList()
+    val imagenesAEliminar: List<String> = emptyList(),
+    val combos: List<LocalSaleComboRequest>? = null,
+    val omitirTraspaso: Boolean? = null
 )
 
 // Response de edición

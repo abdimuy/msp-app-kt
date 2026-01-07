@@ -6,8 +6,10 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
+import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
@@ -30,6 +32,7 @@ import java.util.UUID
 class NewLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
+    private val comboDataSource = ComboLocalDataSource(application.applicationContext)
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(application) }
 
     /**
@@ -60,6 +63,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     private val _pendingSales = MutableStateFlow<List<LocalSaleEntity>>(emptyList())
     val pendingSales: StateFlow<List<LocalSaleEntity>> = _pendingSales
 
+    private val _saleCombos = MutableStateFlow<List<LocalSaleComboEntity>>(emptyList())
+    val saleCombos: StateFlow<List<LocalSaleComboEntity>> = _saleCombos
+
     fun loadAllSales() {
         viewModelScope.launch {
             val result = localSaleStore.getAllSales()
@@ -85,6 +91,13 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch {
             val images = localSaleStore.getImagesForSale(saleId)
             _saleImages.value = images
+        }
+    }
+
+    fun loadCombosBySaleId(saleId: String) {
+        viewModelScope.launch {
+            val combos = comboDataSource.getCombosForSale(saleId)
+            _saleCombos.value = combos
         }
     }
 
@@ -210,7 +223,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         context: Context,
         userEmail: String,
         zonaClienteId: Int? = null,
-        zonaClienteNombre: String? = null
+        zonaClienteNombre: String? = null,
+        combos: List<LocalSaleComboEntity> = emptyList()
     ) {
         viewModelScope.launch {
             // Verificar si ya hay una operación en curso (protección adicional contra doble click)
@@ -308,12 +322,17 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                             CANTIDAD = saleItem.quantity,
                             PRECIO_LISTA = parsedPrices.precioLista,
                             PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
-                            PRECIO_CONTADO = parsedPrices.precioContado
+                            PRECIO_CONTADO = parsedPrices.precioContado,
+                            COMBO_ID = saleItem.comboId
                         )
                     }
 
                     if (productEntities.isNotEmpty()) {
                         saleProduct.insertSaleProducts(productEntities)
+                    }
+
+                    if (combos.isNotEmpty()) {
+                        comboDataSource.insertCombos(combos)
                     }
 
                     if (imageUris.isNotEmpty()) {

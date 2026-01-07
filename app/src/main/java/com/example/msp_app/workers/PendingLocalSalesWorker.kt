@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.localSales.LocalSalesApi
+import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.models.sale.localsale.LocalSaleMappers
@@ -24,6 +25,7 @@ class PendingLocalSalesWorker(
 
     private val localSaleStore = LocalSaleDataSource(appContext)
     private val saleProductStore = SaleProductLocalDataSource(appContext)
+    private val comboDataSource = ComboLocalDataSource(appContext)
     private val api = ApiProvider.create(LocalSalesApi::class.java)
     private val mappers = LocalSaleMappers()
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(appContext) }
@@ -64,9 +66,10 @@ class PendingLocalSalesWorker(
         return try {
             val products = saleProductStore.getProductsForSale(saleId)
             val images = localSaleStore.getImagesForSale(saleId)
+            val combos = comboDataSource.getCombosForSale(saleId)
 
             val request = with(mappers) {
-                sale.toServerRequest(products, userEmail)
+                sale.toServerRequest(products, userEmail, combos)
             }
             val jsonData = Gson().toJson(request)
             val datosRequestBody = jsonData.toRequestBody("application/json".toMediaTypeOrNull())
@@ -100,7 +103,9 @@ class PendingLocalSalesWorker(
                 message = "Venta enviada exitosamente",
                 data = mapOf(
                     "saleId" to saleId,
-                    "imageCount" to imageParts.size
+                    "imageCount" to imageParts.size,
+                    "comboCount" to combos.size,
+                    "productCount" to products.size
                 )
             )
 

@@ -147,3 +147,10 @@
 # Sync module - clases internas de sincronización offline
 -keep class com.example.msp_app.core.sync.** { *; }
 -keep class com.example.msp_app.features.**.sync.** { *; }
+
+# Local Sales Combos - mantener campos para serialización JSON
+-keep class com.example.msp_app.data.api.services.localSales.LocalSaleComboRequest { *; }
+-keep class com.example.msp_app.data.local.entities.LocalSaleComboEntity { *; }
+-keepclassmembers class com.example.msp_app.data.local.entities.LocalSaleProductEntity {
+    <fields>;
+}

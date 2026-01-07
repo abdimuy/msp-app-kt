@@ -14,6 +14,7 @@ import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.localSales.LocalSaleResponse
 import com.example.msp_app.data.api.services.localSales.LocalSaleUpdateResponse
 import com.example.msp_app.data.api.services.localSales.LocalSalesApi
+import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.local.entities.LocalSaleEntity
@@ -36,6 +37,7 @@ data class LocalSaleSyncData(
 class LocalSaleSyncHandler(
     private val localSaleDataSource: LocalSaleDataSource,
     private val productDataSource: SaleProductLocalDataSource,
+    private val comboDataSource: ComboLocalDataSource,
     private val api: LocalSalesApi,
     private val mappers: LocalSaleMappers = LocalSaleMappers()
 ) : BaseSyncHandler<LocalSaleEntity, Any>() {
@@ -55,6 +57,7 @@ class LocalSaleSyncHandler(
         syncContext: SyncContext
     ): Any {
         val products = productDataSource.getProductsForSale(entity.LOCAL_SALE_ID)
+        val combos = comboDataSource.getCombosForSale(entity.LOCAL_SALE_ID)
         val allImages = localSaleDataSource.getImagesForSale(entity.LOCAL_SALE_ID)
         val userEmail = syncContext.getString("user_email") ?: ""
         val isUpdate = operation is SyncOperation.Update
@@ -96,12 +99,13 @@ class LocalSaleSyncHandler(
                     userEmail = userEmail,
                     imagenesAEliminar = imagenesAEliminar,
                     almacenOrigenId = syncContext.getString("almacen_origen_id")?.toIntOrNull(),
-                    almacenDestinoId = syncContext.getString("almacen_destino_id")?.toIntOrNull()
+                    almacenDestinoId = syncContext.getString("almacen_destino_id")?.toIntOrNull(),
+                    combos = combos
                 )
             }
         } else {
             with(mappers) {
-                entity.toServerRequest(products, userEmail)
+                entity.toServerRequest(products, userEmail, combos)
             }
         }
 
@@ -214,6 +218,7 @@ class LocalSaleSyncHandler(
             return LocalSaleSyncHandler(
                 localSaleDataSource = LocalSaleDataSource(context),
                 productDataSource = SaleProductLocalDataSource(context),
+                comboDataSource = ComboLocalDataSource(context),
                 api = ApiProvider.create(LocalSalesApi::class.java)
             )
         }

@@ -41,6 +41,7 @@ import com.example.msp_app.features.productsInventory.components.CarouselItem
 import com.example.msp_app.features.productsInventory.components.CarrouselImage
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
+import com.example.msp_app.features.sales.components.comboinfocard.CombosInfoCard
 import com.example.msp_app.features.sales.components.productinfocard.ProductsInfoCard
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
@@ -55,11 +56,13 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
     val sale by viewModel.selectedSale.collectAsState()
     val saleProducts by viewModel.saleProducts.collectAsState()
     val saleImages by viewModel.saleImages.collectAsState()
+    val saleCombos by viewModel.saleCombos.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.getSaleById(localSaleId)
         viewModel.loadImagesBySaleId(localSaleId)
         viewModel.loadProductsBySaleId(localSaleId)
+        viewModel.loadCombosBySaleId(localSaleId)
     }
 
     LaunchedEffect(saleProducts) {
@@ -259,13 +262,27 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     }
                 }
 
-                val calculatedTotal = saleProducts.sumOf { it.PRECIO_LISTA * it.CANTIDAD }
-                ProductsInfoCard(
-                    saleProducts = saleProducts,
-                    productsViewModel = productsViewModel,
-                    total = calculatedTotal
-                )
-                Spacer(Modifier.height(8.dp))
+                // Mostrar combos si existen
+                if (saleCombos.isNotEmpty()) {
+                    CombosInfoCard(
+                        combos = saleCombos,
+                        products = saleProducts
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+
+                // Productos individuales (sin combo)
+                val individualProducts = saleProducts.filter { it.COMBO_ID == null }
+                val calculatedTotal = individualProducts.sumOf { it.PRECIO_LISTA * it.CANTIDAD }
+
+                if (individualProducts.isNotEmpty()) {
+                    ProductsInfoCard(
+                        saleProducts = individualProducts,
+                        productsViewModel = productsViewModel,
+                        total = calculatedTotal
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
 
                 val carouselItems = remember(saleImages) {
                     saleImages.mapIndexed { index, image ->

@@ -70,6 +70,7 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.draft.DraftCombo
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
 import kotlinx.coroutines.launch
@@ -78,6 +79,11 @@ import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
+import com.example.msp_app.features.sales.components.combo.CreateComboDialog
+import com.example.msp_app.features.sales.components.combo.ProductsWithCombosSection
+import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationData
+import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationDialog
+import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
@@ -115,6 +121,8 @@ fun NewSaleScreen(navController: NavController) {
     var showImageError by remember { mutableStateOf(false) }
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
+    var showCreateComboDialog by remember { mutableStateOf(false) }
+    var showConfirmationDialog by remember { mutableStateOf(false) }
     var address by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var latitude by remember { mutableDoubleStateOf(0.0) }
@@ -197,6 +205,18 @@ fun NewSaleScreen(navController: NavController) {
                     null
                 }
             }
+
+            // Convert ComboItems to DraftCombos
+            val draftCombos = saleProductsViewModel.getCombosList().map { combo ->
+                DraftCombo(
+                    comboId = combo.comboId,
+                    nombreCombo = combo.nombreCombo,
+                    precioLista = combo.precioLista,
+                    precioCortoPlazo = combo.precioCortoPlazo,
+                    precioContado = combo.precioContado
+                )
+            }
+
             val draft = SaleDraft(
                 clientName = defectName.text,
                 phone = phone.text,
@@ -216,6 +236,7 @@ fun NewSaleScreen(navController: NavController) {
                 longitude = longitude,
                 imageUris = imagePaths,
                 productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems),
+                combosJson = draftManager.combosToJson(draftCombos),
                 zonaClienteId = selectedZoneId,
                 zonaClienteNombre = selectedZoneName
             )
@@ -263,12 +284,39 @@ fun NewSaleScreen(navController: NavController) {
             }
         }
 
-        // Load products
+        // Load products with their combo associations
         val draftProducts = draftManager.jsonToDraftProducts(draft.productsJson)
+        val draftCombos = draftManager.jsonToCombos(draft.combosJson)
+
+        // First, add all products
         draftProducts.forEach { draftProduct ->
             val product = productosCamioneta.find { it.ARTICULO_ID == draftProduct.articuloId }
             if (product != null) {
                 saleProductsViewModel.addProductToSale(product, draftProduct.quantity)
+            }
+        }
+
+        // Then restore combos - need to recreate the combo structure
+        draftCombos.forEach { draftCombo ->
+            // Find products that belong to this combo
+            val comboProductIds = draftProducts
+                .filter { it.comboId == draftCombo.comboId }
+                .map { it.articuloId }
+
+            if (comboProductIds.isNotEmpty()) {
+                // Select the products for this combo
+                comboProductIds.forEach { articleId ->
+                    saleProductsViewModel.toggleProductSelection(articleId)
+                }
+
+                // Create the combo with original data
+                saleProductsViewModel.createComboWithId(
+                    comboId = draftCombo.comboId,
+                    nombreCombo = draftCombo.nombreCombo,
+                    precioLista = draftCombo.precioLista,
+                    precioCortoPlazo = draftCombo.precioCortoPlazo,
+                    precioContado = draftCombo.precioContado
+                )
             }
         }
     }
@@ -298,7 +346,8 @@ fun NewSaleScreen(navController: NavController) {
         poblacion.text, ciudad.text, tipoVenta, downpayment.text,
         installment.text, guarantor.text, note.text, collectionday,
         paymentfrequency, latitude, longitude, imageUris,
-        saleProductsViewModel.saleItems.size, selectedZoneId, selectedZoneName
+        saleProductsViewModel.saleItems.size, selectedZoneId, selectedZoneName,
+        saleProductsViewModel.combos.size // Also watch for combo changes
     ) {
         // Don't save if user just declined to load a draft
         if (!showDraftDialog) {
@@ -523,7 +572,7 @@ fun NewSaleScreen(navController: NavController) {
     }
 
     fun clearAllFields() {
-        saleProductsViewModel.clearSale()
+        saleProductsViewModel.clearAll()
         defectName = TextFieldValue("")
         phone = TextFieldValue("")
         location = ""
@@ -773,6 +822,18 @@ fun NewSaleScreen(navController: NavController) {
             else -> ""
         }
 
+        // Convertir combos de UI a entidades
+        val comboEntities = saleProductsViewModel.getCombosList().map { combo ->
+            LocalSaleComboEntity(
+                COMBO_ID = combo.comboId,
+                LOCAL_SALE_ID = saleId,
+                NOMBRE_COMBO = combo.nombreCombo,
+                PRECIO_LISTA = combo.precioLista,
+                PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
+                PRECIO_CONTADO = combo.precioContado
+            )
+        }
+
         viewModel.createSaleWithImages(
             saleId = saleId,
             clientName = defectName.text,
@@ -795,16 +856,17 @@ fun NewSaleScreen(navController: NavController) {
             avaloresponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
             note = note.text,
             collectionday = if (tipoVenta == "CONTADO") "" else collectionday,
-            totalprice = saleProductsViewModel.getTotalPrecioLista(),
+            totalprice = saleProductsViewModel.getTotalPrecioListaWithCombos(),
             shorttermtime = 0,
-            shorttermamount = saleProductsViewModel.getTotalMontoCortoplazo(),
-            cashamount = saleProductsViewModel.getTotalMontoContado(),
+            shorttermamount = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
+            cashamount = saleProductsViewModel.getTotalMontoContadoWithCombos(),
             enviado = false,
             saleProducts = saleProductsViewModel.saleItems,
             context = context,
             userEmail = userEmail,
             zonaClienteId = selectedZoneId,
-            zonaClienteNombre = selectedZoneName
+            zonaClienteNombre = selectedZoneName,
+            combos = comboEntities
         )
     }
 
@@ -815,6 +877,57 @@ fun NewSaleScreen(navController: NavController) {
             onDismiss = { showImageViewer = false }
         )
     }
+
+    // Dialog para crear combo
+    CreateComboDialog(
+        show = showCreateComboDialog,
+        onDismiss = { showCreateComboDialog = false },
+        onConfirm = { nombre, precioLista, precioCortoPlazo, precioContado ->
+            saleProductsViewModel.createCombo(
+                nombreCombo = nombre,
+                precioLista = precioLista,
+                precioCortoPlazo = precioCortoPlazo,
+                precioContado = precioContado
+            )
+            showCreateComboDialog = false
+        },
+        selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
+        suggestedPrices = saleProductsViewModel.getSelectedItemsSuggestedPrices()
+    )
+
+    // Dialog de confirmación de venta
+    SaleConfirmationDialog(
+        show = showConfirmationDialog,
+        onDismiss = { showConfirmationDialog = false },
+        onConfirm = {
+            showConfirmationDialog = false
+            saveSale()
+        },
+        data = SaleConfirmationData(
+            clientName = defectName.text,
+            phone = phone.text,
+            street = location,
+            numero = numero.text,
+            colonia = colonia.text,
+            poblacion = poblacion.text,
+            ciudad = ciudad.text,
+            tipoVenta = tipoVenta,
+            zoneName = selectedZoneName.ifBlank { null },
+            downpayment = downpayment.text,
+            installment = installment.text,
+            guarantor = guarantor.text,
+            paymentFrequency = paymentfrequency,
+            collectionDay = collectionday,
+            note = note.text,
+            imageCount = imageUris.size,
+            individualProducts = saleProductsViewModel.getIndividualProducts(),
+            combos = saleProductsViewModel.getCombosList(),
+            getProductsInCombo = { comboId -> saleProductsViewModel.getProductsInCombo(comboId) },
+            totalPrecioLista = saleProductsViewModel.getTotalPrecioListaWithCombos(),
+            totalCortoPlazo = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
+            totalContado = saleProductsViewModel.getTotalMontoContadoWithCombos()
+        )
+    )
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -1376,7 +1489,44 @@ fun NewSaleScreen(navController: NavController) {
                         }
                     )
 
-                    Modifier.height(12.dp)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Sección de productos con combos
+                    if (saleProductsViewModel.saleItems.isNotEmpty()) {
+                        ProductsWithCombosSection(
+                            individualProducts = saleProductsViewModel.getIndividualProducts(),
+                            combos = saleProductsViewModel.getCombosList(),
+                            selectedProductIds = saleProductsViewModel.selectedForCombo.toList(),
+                            getProductsInCombo = { comboId ->
+                                saleProductsViewModel.getProductsInCombo(comboId)
+                            },
+                            onToggleProductSelection = { articleId ->
+                                saleProductsViewModel.toggleProductSelection(articleId)
+                            },
+                            onQuantityChange = { articleId, newQty ->
+                                val product = productosCamioneta.find { it.ARTICULO_ID == articleId }
+                                if (product != null) {
+                                    saleProductsViewModel.updateQuantity(product, newQty)
+                                }
+                            },
+                            onRemoveProduct = { articleId ->
+                                val product = productosCamioneta.find { it.ARTICULO_ID == articleId }
+                                if (product != null) {
+                                    saleProductsViewModel.removeProductFromSale(product)
+                                }
+                            },
+                            onCreateCombo = { showCreateComboDialog = true },
+                            onDeleteCombo = { comboId ->
+                                saleProductsViewModel.deleteCombo(comboId)
+                            },
+                            onClearSelection = {
+                                saleProductsViewModel.clearSelection()
+                            },
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 Button(
@@ -1385,7 +1535,7 @@ fun NewSaleScreen(navController: NavController) {
                         showImageError = imageUris.isEmpty()
 
                         if (isValid) {
-                            saveSale()
+                            showConfirmationDialog = true
                         }
                     },
                     enabled = hasValidLocation && !isSaving,

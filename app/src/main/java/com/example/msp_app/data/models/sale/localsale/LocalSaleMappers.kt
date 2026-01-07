@@ -1,8 +1,10 @@
 package com.example.msp_app.data.models.sale.localsale
 
+import com.example.msp_app.data.api.services.localSales.LocalSaleComboRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleProductRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleUpdateRequest
+import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
@@ -108,7 +110,8 @@ class LocalSaleMappers {
 
     fun LocalSaleEntity.toServerRequest(
         products: List<LocalSaleProductEntity>,
-        userEmail: String
+        userEmail: String,
+        combos: List<LocalSaleComboEntity> = emptyList()
     ): LocalSaleRequest {
         return LocalSaleRequest(
             localSaleId = this.LOCAL_SALE_ID,
@@ -136,7 +139,8 @@ class LocalSaleMappers {
             ciudad = this.CIUDAD,
             tipoVenta = this.TIPO_VENTA,
             zonaClienteId = this.ZONA_CLIENTE_ID,
-            zonaCliente = this.ZONA_CLIENTE
+            zonaCliente = this.ZONA_CLIENTE,
+            combos = combos.takeIf { it.isNotEmpty() }?.map { it.toServerRequest() }
         )
     }
 
@@ -145,6 +149,17 @@ class LocalSaleMappers {
             articuloId = this.ARTICULO_ID,
             articulo = this.ARTICULO,
             cantidad = this.CANTIDAD,
+            precioLista = this.PRECIO_LISTA,
+            precioCortoPlazo = this.PRECIO_CORTO_PLAZO,
+            precioContado = this.PRECIO_CONTADO,
+            comboId = this.COMBO_ID
+        )
+    }
+
+    fun LocalSaleComboEntity.toServerRequest(): LocalSaleComboRequest {
+        return LocalSaleComboRequest(
+            comboId = this.COMBO_ID,
+            nombreCombo = this.NOMBRE_COMBO,
             precioLista = this.PRECIO_LISTA,
             precioCortoPlazo = this.PRECIO_CORTO_PLAZO,
             precioContado = this.PRECIO_CONTADO
@@ -156,7 +171,8 @@ class LocalSaleMappers {
         userEmail: String,
         imagenesAEliminar: List<String> = emptyList(),
         almacenOrigenId: Int? = null,
-        almacenDestinoId: Int? = null
+        almacenDestinoId: Int? = null,
+        combos: List<LocalSaleComboEntity> = emptyList()
     ): LocalSaleUpdateRequest {
         return LocalSaleUpdateRequest(
             userEmail = userEmail,
@@ -184,7 +200,8 @@ class LocalSaleMappers {
             zonaClienteId = this.ZONA_CLIENTE_ID,
             almacenOrigenId = almacenOrigenId,
             almacenDestinoId = almacenDestinoId,
-            imagenesAEliminar = imagenesAEliminar
+            imagenesAEliminar = imagenesAEliminar,
+            combos = combos.takeIf { it.isNotEmpty() }?.map { it.toServerRequest() }
         )
     }
 }

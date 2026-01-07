@@ -25,7 +25,19 @@ val Context.saleDraftDataStore: DataStore<Preferences> by preferencesDataStore(n
  */
 data class DraftProduct(
     val articuloId: Int,
-    val quantity: Int
+    val quantity: Int,
+    val comboId: String? = null
+)
+
+/**
+ * Combo representation for draft saving
+ */
+data class DraftCombo(
+    val comboId: String,
+    val nombreCombo: String,
+    val precioLista: Double,
+    val precioCortoPlazo: Double,
+    val precioContado: Double
 )
 
 data class SaleDraft(
@@ -41,6 +53,7 @@ data class SaleDraft(
     val longitude: Double = 0.0,
     val imageUris: List<String> = emptyList(),
     val productsJson: String = "",
+    val combosJson: String = "", // JSON string of combos
 
     // Sale type
     val tipoVenta: String = "CREDITO", // "CREDITO" or "CONTADO"
@@ -94,21 +107,24 @@ class SaleDraftManager(private val context: Context) {
         // Extract DraftProduct from SaleItems
         val draftProducts = saleItems.mapNotNull { item ->
             try {
-                // Using reflection to access product and quantity
+                // Using reflection to access product, quantity, and comboId
                 val productField = item.javaClass.getDeclaredField("product")
                 val quantityField = item.javaClass.getDeclaredField("quantity")
+                val comboIdField = item.javaClass.getDeclaredField("comboId")
                 productField.isAccessible = true
                 quantityField.isAccessible = true
+                comboIdField.isAccessible = true
 
                 val product = productField.get(item)
                 val quantity = quantityField.getInt(item)
+                val comboId = comboIdField.get(item) as? String
 
                 // Get ARTICULO_ID from product
                 val articuloIdField = product.javaClass.getDeclaredField("ARTICULO_ID")
                 articuloIdField.isAccessible = true
                 val articuloId = articuloIdField.getInt(product)
 
-                DraftProduct(articuloId, quantity)
+                DraftProduct(articuloId, quantity, comboId)
             } catch (e: Exception) {
                 null
             }
@@ -125,6 +141,26 @@ class SaleDraftManager(private val context: Context) {
 
         return try {
             gson.fromJson(json, object : TypeToken<List<DraftProduct>>() {}.type)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Convert list of DraftCombos to JSON string
+     */
+    fun combosToJson(combos: List<DraftCombo>): String {
+        return gson.toJson(combos)
+    }
+
+    /**
+     * Convert JSON string to list of DraftCombos
+     */
+    fun jsonToCombos(json: String): List<DraftCombo> {
+        if (json.isBlank()) return emptyList()
+
+        return try {
+            gson.fromJson(json, object : TypeToken<List<DraftCombo>>() {}.type)
         } catch (e: Exception) {
             emptyList()
         }
@@ -159,6 +195,9 @@ class SaleDraftManager(private val context: Context) {
         private val ZONA_CLIENTE_ID = intPreferencesKey("draft_zona_cliente_id")
         private val ZONA_CLIENTE_NOMBRE = stringPreferencesKey("draft_zona_cliente_nombre")
 
+        // Combos
+        private val COMBOS_JSON = stringPreferencesKey("draft_combos_json")
+
         private val TIMESTAMP = stringPreferencesKey("draft_timestamp")
     }
 
@@ -186,6 +225,7 @@ class SaleDraftManager(private val context: Context) {
             preferences[LONGITUDE] = draft.longitude
             preferences[IMAGE_URIS] = gson.toJson(draft.imageUris)
             preferences[PRODUCTS_JSON] = draft.productsJson
+            preferences[COMBOS_JSON] = draft.combosJson
 
             // Sale type
             preferences[TIPO_VENTA] = draft.tipoVenta
@@ -240,6 +280,7 @@ class SaleDraftManager(private val context: Context) {
             longitude = preferences[LONGITUDE] ?: 0.0,
             imageUris = imageUrisList,
             productsJson = preferences[PRODUCTS_JSON] ?: "",
+            combosJson = preferences[COMBOS_JSON] ?: "",
             tipoVenta = preferences[TIPO_VENTA] ?: "CREDITO",
             downpayment = preferences[DOWNPAYMENT] ?: "",
             installment = preferences[INSTALLMENT] ?: "",

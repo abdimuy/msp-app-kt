@@ -1,22 +1,40 @@
 package com.example.msp_app.features.sales.viewmodels
 
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.lifecycle.ViewModel
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.utils.PriceParser
+import java.util.UUID
 
 data class SaleItem(
     val product: ProductInventory,
-    val quantity: Int
+    val quantity: Int,
+    val comboId: String? = null
 ) {
     val totalPrice: Double
         get() = (product.PRECIOS?.toDoubleOrNull() ?: 0.0) * quantity
 }
 
+data class ComboItem(
+    val comboId: String = UUID.randomUUID().toString(),
+    val nombreCombo: String,
+    val precioLista: Double,
+    val precioCortoPlazo: Double,
+    val precioContado: Double
+)
+
 class SaleProductsViewModel : ViewModel() {
     private val _saleItems = mutableStateListOf<SaleItem>()
     val saleItems: SnapshotStateList<SaleItem> get() = _saleItems
+
+    private val _combos = mutableStateMapOf<String, ComboItem>()
+    val combos: SnapshotStateMap<String, ComboItem> get() = _combos
+
+    private val _selectedForCombo = mutableStateListOf<Int>()
+    val selectedForCombo: SnapshotStateList<Int> get() = _selectedForCombo
 
     fun addProductToSale(product: ProductInventory, quantity: Int) {
         if (quantity <= 0) return
@@ -112,4 +130,142 @@ class SaleProductsViewModel : ViewModel() {
         }
     }
 
+    // ==================== COMBO METHODS ====================
+
+    fun toggleProductSelection(articleId: Int) {
+        if (_selectedForCombo.contains(articleId)) {
+            _selectedForCombo.remove(articleId)
+        } else {
+            // Solo permitir seleccionar productos que no están en un combo
+            val item = _saleItems.find { it.product.ARTICULO_ID == articleId }
+            if (item != null && item.comboId == null) {
+                _selectedForCombo.add(articleId)
+            }
+        }
+    }
+
+    fun clearSelection() {
+        _selectedForCombo.clear()
+    }
+
+    fun isProductSelected(articleId: Int): Boolean {
+        return _selectedForCombo.contains(articleId)
+    }
+
+    fun getSelectedProductsCount(): Int = _selectedForCombo.size
+
+    fun canCreateCombo(): Boolean = _selectedForCombo.size >= 2
+
+    fun getSelectedItemsSuggestedPrices(): Triple<Double, Double, Double> {
+        var totalLista = 0.0
+        var totalCortoPlazo = 0.0
+        var totalContado = 0.0
+
+        _saleItems.filter { _selectedForCombo.contains(it.product.ARTICULO_ID) }
+            .forEach { saleItem ->
+                val prices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+                totalLista += prices.precioLista * saleItem.quantity
+                totalCortoPlazo += prices.precioCortoplazo * saleItem.quantity
+                totalContado += prices.precioContado * saleItem.quantity
+            }
+
+        return Triple(totalLista, totalCortoPlazo, totalContado)
+    }
+
+    fun createCombo(
+        nombreCombo: String,
+        precioLista: Double,
+        precioCortoPlazo: Double,
+        precioContado: Double
+    ): String {
+        val comboId = UUID.randomUUID().toString()
+        return createComboWithId(comboId, nombreCombo, precioLista, precioCortoPlazo, precioContado)
+    }
+
+    /**
+     * Create a combo with a specific ID (used for restoring from draft)
+     */
+    fun createComboWithId(
+        comboId: String,
+        nombreCombo: String,
+        precioLista: Double,
+        precioCortoPlazo: Double,
+        precioContado: Double
+    ): String {
+        val combo = ComboItem(
+            comboId = comboId,
+            nombreCombo = nombreCombo,
+            precioLista = precioLista,
+            precioCortoPlazo = precioCortoPlazo,
+            precioContado = precioContado
+        )
+        _combos[comboId] = combo
+
+        // Asignar comboId a los productos seleccionados
+        _selectedForCombo.forEach { articleId ->
+            val index = _saleItems.indexOfFirst { it.product.ARTICULO_ID == articleId }
+            if (index != -1) {
+                _saleItems[index] = _saleItems[index].copy(comboId = comboId)
+            }
+        }
+
+        _selectedForCombo.clear()
+        return comboId
+    }
+
+    fun deleteCombo(comboId: String) {
+        // Remover comboId de los productos
+        _saleItems.forEachIndexed { index, item ->
+            if (item.comboId == comboId) {
+                _saleItems[index] = item.copy(comboId = null)
+            }
+        }
+        _combos.remove(comboId)
+    }
+
+    fun getProductsInCombo(comboId: String): List<SaleItem> {
+        return _saleItems.filter { it.comboId == comboId }
+    }
+
+    fun getIndividualProducts(): List<SaleItem> {
+        return _saleItems.filter { it.comboId == null }
+    }
+
+    fun getCombosList(): List<ComboItem> = _combos.values.toList()
+
+    fun hasAnyCombos(): Boolean = _combos.isNotEmpty()
+
+    // Totales considerando combos (combo tiene su precio, no suma de productos)
+    fun getTotalPrecioListaWithCombos(): Double {
+        val individualTotal = _saleItems.filter { it.comboId == null }.sumOf { saleItem ->
+            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+            parsedPrices.precioLista * saleItem.quantity
+        }
+        val combosTotal = _combos.values.sumOf { it.precioLista }
+        return individualTotal + combosTotal
+    }
+
+    fun getTotalMontoCortoPlazoWithCombos(): Double {
+        val individualTotal = _saleItems.filter { it.comboId == null }.sumOf { saleItem ->
+            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+            parsedPrices.precioCortoplazo * saleItem.quantity
+        }
+        val combosTotal = _combos.values.sumOf { it.precioCortoPlazo }
+        return individualTotal + combosTotal
+    }
+
+    fun getTotalMontoContadoWithCombos(): Double {
+        val individualTotal = _saleItems.filter { it.comboId == null }.sumOf { saleItem ->
+            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+            parsedPrices.precioContado * saleItem.quantity
+        }
+        val combosTotal = _combos.values.sumOf { it.precioContado }
+        return individualTotal + combosTotal
+    }
+
+    fun clearAll() {
+        _saleItems.clear()
+        _combos.clear()
+        _selectedForCombo.clear()
+    }
 }
