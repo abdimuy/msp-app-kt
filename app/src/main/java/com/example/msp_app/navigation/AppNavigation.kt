@@ -49,6 +49,8 @@ import com.example.msp_app.features.transfers.presentation.create.NewTransferScr
 import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailScreen
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
+import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
+import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
 
 
 sealed class Screen(val route: String) {
@@ -109,6 +111,9 @@ sealed class Screen(val route: String) {
     object NewTransfer : Screen("transfers/new?warehouseId={warehouseId}") {
         fun createRoute(warehouseId: Int = 0) = "transfers/new?warehouseId=$warehouseId"
     }
+
+    // Camioneta Assignment route
+    object CamionetaAssignment : Screen("camioneta_assignment")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -327,6 +332,15 @@ fun AppNavigation() {
                         navController = navController
                     )
                 }
+            }
+
+            // Camioneta Assignment route
+            composable(Screen.CamionetaAssignment.route) {
+                val viewModel: CamionetaAssignmentViewModel = viewModel()
+                CamionetaAssignmentScreen(
+                    navController = navController,
+                    viewModel = viewModel
+                )
             }
         }
     }

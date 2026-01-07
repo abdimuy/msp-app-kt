@@ -259,6 +259,19 @@ fun DrawerContainer(
                                     }
                                 }
                             )
+
+                            NavigationDrawerItem(
+                                label = { Text("Asignación de Camionetas") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("camioneta_assignment") {
+                                            popUpTo("home")
+                                        }
+                                    }
+                                }
+                            )
                         }
                     }
 
