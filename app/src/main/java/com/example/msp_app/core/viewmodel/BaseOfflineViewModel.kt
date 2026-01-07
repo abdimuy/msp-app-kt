@@ -208,7 +208,14 @@ abstract class BaseOfflineViewModel<T : Any>(
             if (connectivityMonitor.isNetworkAvailable()) {
                 fetchWithNetworkFallback()
             } else {
-                _state.value = ResultState.Error("No hay conexión a internet")
+                // Si no hay conexión, mantener los datos actuales
+                // Solo mostrar error si no había datos previos
+                val currentData = _state.value.dataOrNull()
+                if (currentData.isNullOrEmpty()) {
+                    _state.value = ResultState.Error("No hay conexión a internet")
+                }
+                // Si ya hay datos, los mantenemos sin cambiar el estado
+                log("Refresh sin conexión - manteniendo datos actuales")
             }
 
             _isRefreshing.value = false
