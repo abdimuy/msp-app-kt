@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,10 +34,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.rememberAsyncImagePainter
+import saveImageToGallery
 
 @Composable
 fun ImageViewerDialog(
@@ -52,6 +55,8 @@ fun ImageViewerDialog(
         scale = (scale * zoomChange).coerceIn(0.5f, 5f)
         offset += offsetChange
     }
+    val context = LocalContext.current
+
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -80,6 +85,25 @@ fun ImageViewerDialog(
                         .transformable(state = transformableState),
                     contentScale = ContentScale.Fit
                 )
+
+                IconButton(
+                    onClick = {
+                        saveImageToGallery(context, imageUris[currentIndex])
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(16.dp)
+                        .background(
+                            Color.Black.copy(alpha = 0.5f),
+                            shape = CircleShape
+                        )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = "Descargar",
+                        tint = Color.White
+                    )
+                }
 
                 IconButton(
                     onClick = onDismiss,
