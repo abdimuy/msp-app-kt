@@ -123,6 +123,7 @@ fun NewSaleScreen(navController: NavController) {
     var selectedImageIndex by remember { mutableIntStateOf(0) }
     var showCreateComboDialog by remember { mutableStateOf(false) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
+    var saleCompleted by remember { mutableStateOf(false) } // Evita auto-save después de venta exitosa
     var address by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var latitude by remember { mutableDoubleStateOf(0.0) }
@@ -349,8 +350,8 @@ fun NewSaleScreen(navController: NavController) {
         saleProductsViewModel.saleItems.size, selectedZoneId, selectedZoneName,
         saleProductsViewModel.combos.size // Also watch for combo changes
     ) {
-        // Don't save if user just declined to load a draft
-        if (!showDraftDialog) {
+        // Don't save if user just declined to load a draft or if sale was completed
+        if (!showDraftDialog && !saleCompleted) {
             saveDraftAuto()
         }
     }
@@ -554,6 +555,7 @@ fun NewSaleScreen(navController: NavController) {
     LaunchedEffect(saveResult) {
         when (val result = saveResult) {
             is SaveResult.Success -> {
+                saleCompleted = true // Evitar que el auto-save guarde de nuevo
                 showSuccessDialog = true
                 viewModel.clearSaveResult()
                 // Clear draft after successful sale creation
@@ -892,7 +894,8 @@ fun NewSaleScreen(navController: NavController) {
             showCreateComboDialog = false
         },
         selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
-        suggestedPrices = saleProductsViewModel.getSelectedItemsSuggestedPrices()
+        suggestedPrices = saleProductsViewModel.getSelectedItemsSuggestedPrices(),
+        selectedProductNames = saleProductsViewModel.getSelectedProductNames()
     )
 
     // Dialog de confirmación de venta
