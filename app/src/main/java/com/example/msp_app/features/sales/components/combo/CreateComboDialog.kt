@@ -50,11 +50,23 @@ fun CreateComboDialog(
     onDismiss: () -> Unit,
     onConfirm: (nombre: String, precioLista: Double, precioCortoPlazo: Double, precioContado: Double) -> Unit,
     selectedProductsCount: Int,
-    suggestedPrices: Triple<Double, Double, Double>
+    suggestedPrices: Triple<Double, Double, Double>,
+    selectedProductNames: List<String> = emptyList()
 ) {
     if (!show) return
 
-    var nombreCombo by remember { mutableStateOf("") }
+    // Generar nombre sugerido basado en los productos (max 100 caracteres)
+    val suggestedName = remember(selectedProductNames) {
+        val name = when {
+            selectedProductNames.isEmpty() -> ""
+            selectedProductNames.size == 1 -> "Combo: ${selectedProductNames.first()}"
+            selectedProductNames.size == 2 -> "Combo: ${selectedProductNames[0]} + ${selectedProductNames[1]}"
+            else -> "Combo: ${selectedProductNames[0]} + ${selectedProductNames[1]} +${selectedProductNames.size - 2} más"
+        }
+        if (name.length > 100) name.take(97) + "..." else name
+    }
+
+    var nombreCombo by remember(suggestedName) { mutableStateOf(suggestedName) }
     var precioLista by remember { mutableStateOf(suggestedPrices.first.toString()) }
     var precioCortoPlazo by remember { mutableStateOf(suggestedPrices.second.toString()) }
     var precioContado by remember { mutableStateOf(suggestedPrices.third.toString()) }

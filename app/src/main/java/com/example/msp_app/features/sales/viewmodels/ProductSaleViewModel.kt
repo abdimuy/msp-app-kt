@@ -154,6 +154,12 @@ class SaleProductsViewModel : ViewModel() {
 
     fun getSelectedProductsCount(): Int = _selectedForCombo.size
 
+    fun getSelectedProductNames(): List<String> {
+        return _saleItems
+            .filter { _selectedForCombo.contains(it.product.ARTICULO_ID) }
+            .map { it.product.ARTICULO }
+    }
+
     fun canCreateCombo(): Boolean = _selectedForCombo.size >= 2
 
     fun getSelectedItemsSuggestedPrices(): Triple<Double, Double, Double> {
