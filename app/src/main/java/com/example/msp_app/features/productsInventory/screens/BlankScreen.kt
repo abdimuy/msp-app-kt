@@ -226,6 +226,8 @@ fun SaleHomeScreen(navController: NavController) {
                     }
                 }
 
+                Spacer(modifier = Modifier.height(6.dp))
+
                 Button(
                     onClick = {
                         productsViewModel.fetchRemoteInventory()
@@ -240,6 +242,9 @@ fun SaleHomeScreen(navController: NavController) {
                 if (loading) {
                     LinearProgressIndicator(modifier = Modifier.padding(8.dp))
                 }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 Button(
                     onClick = {
                         navController.navigate("new_sale") {
