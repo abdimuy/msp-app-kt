@@ -24,8 +24,6 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.ShoppingCart
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Plus
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -49,12 +47,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Plus
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.parsePriceJsonToMap
@@ -263,65 +264,136 @@ fun SimpleProductSelector(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    "Cantidad a agregar",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    "Stock disponible: $disponible",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
+                        val fontScale = LocalDensity.current.fontScale
+                        val useLargeLayout = fontScale > 1.3f
 
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        if (useLargeLayout) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                FilledTonalIconButton(
-                                    onClick = { if (quantity > 1) quantity-- },
-                                    modifier = Modifier.size(36.dp),
-                                    enabled = quantity > 1
-                                ) {
-                                    Icon(
-                                        Icons.Default.KeyboardArrowDown,
-                                        contentDescription = "Reducir",
-                                        modifier = Modifier.size(18.dp)
+                                Column {
+                                    Text(
+                                        "Cantidad a agregar",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        "Stock disponible: $disponible",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
                                     )
                                 }
 
-                                Text(
-                                    text = quantity.toString(),
-                                    style = MaterialTheme.typography.titleLarge,
-                                    modifier = Modifier
-                                        .background(
-                                            MaterialTheme.colorScheme.primary,
-                                            RoundedCornerShape(8.dp)
-                                        )
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                                    textAlign = TextAlign.Center,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 20.sp,
-                                    color = Color.White
-                                )
-
-                                FilledTonalIconButton(
-                                    onClick = { if (quantity < disponible) quantity++ },
-                                    modifier = Modifier.size(36.dp),
-                                    enabled = quantity < disponible
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
                                 ) {
-                                    Icon(
-                                        Icons.Default.KeyboardArrowUp,
-                                        contentDescription = "Aumentar",
-                                        modifier = Modifier.size(18.dp)
+                                    FilledTonalIconButton(
+                                        onClick = { if (quantity > 1) quantity-- },
+                                        modifier = Modifier.size(44.dp),
+                                        enabled = quantity > 1
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "Reducir",
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    Text(
+                                        text = quantity.toString(),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        modifier = Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.primary,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(horizontal = 24.dp, vertical = 12.dp),
+                                        textAlign = TextAlign.Center,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
                                     )
+
+                                    Spacer(modifier = Modifier.width(16.dp))
+
+                                    FilledTonalIconButton(
+                                        onClick = { if (quantity < disponible) quantity++ },
+                                        modifier = Modifier.size(44.dp),
+                                        enabled = quantity < disponible
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowUp,
+                                            contentDescription = "Aumentar",
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        "Cantidad a agregar",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        "Stock disponible: $disponible",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    FilledTonalIconButton(
+                                        onClick = { if (quantity > 1) quantity-- },
+                                        modifier = Modifier.size(36.dp),
+                                        enabled = quantity > 1
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowDown,
+                                            contentDescription = "Reducir",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    Text(
+                                        text = quantity.toString(),
+                                        style = MaterialTheme.typography.titleLarge,
+                                        modifier = Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.primary,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        textAlign = TextAlign.Center,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 20.sp,
+                                        color = Color.White
+                                    )
+
+                                    FilledTonalIconButton(
+                                        onClick = { if (quantity < disponible) quantity++ },
+                                        modifier = Modifier.size(36.dp),
+                                        enabled = quantity < disponible
+                                    ) {
+                                        Icon(
+                                            Icons.Default.KeyboardArrowUp,
+                                            contentDescription = "Aumentar",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -554,8 +626,10 @@ private fun CartItemRow(
 
                     FilledTonalIconButton(
                         onClick = {
-                            val cantidadEnVenta = saleProductsViewModel.getQuantityForProduct(saleItem.product)
-                            val disponible = saleItem.product.EXISTENCIAS - cantidadEnVenta + saleItem.quantity
+                            val cantidadEnVenta =
+                                saleProductsViewModel.getQuantityForProduct(saleItem.product)
+                            val disponible =
+                                saleItem.product.EXISTENCIAS - cantidadEnVenta + saleItem.quantity
 
                             if (saleItem.quantity < disponible) {
                                 val newQuantity = saleItem.quantity + 1
@@ -608,7 +682,8 @@ private fun CartItemRow(
                                     saleProductsViewModel.updateProductPrices(
                                         saleItem.product,
                                         priceList.toDoubleOrNull() ?: parsedPrices.precioLista,
-                                        shortTermPrice.toDoubleOrNull() ?: parsedPrices.precioCortoplazo,
+                                        shortTermPrice.toDoubleOrNull()
+                                            ?: parsedPrices.precioCortoplazo,
                                         price
                                     )
                                 }
@@ -688,7 +763,8 @@ private fun CartItemRow(
                                     saleProductsViewModel.updateProductPrices(
                                         saleItem.product,
                                         price,
-                                        shortTermPrice.toDoubleOrNull() ?: parsedPrices.precioCortoplazo,
+                                        shortTermPrice.toDoubleOrNull()
+                                            ?: parsedPrices.precioCortoplazo,
                                         cashPrice.toDoubleOrNull() ?: parsedPrices.precioContado
                                     )
                                 }
