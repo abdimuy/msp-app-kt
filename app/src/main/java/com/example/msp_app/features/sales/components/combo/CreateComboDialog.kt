@@ -49,27 +49,28 @@ fun CreateComboDialog(
     show: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (nombre: String, precioLista: Double, precioCortoPlazo: Double, precioContado: Double) -> Unit,
-    selectedProductsCount: Int,
-    suggestedPrices: Triple<Double, Double, Double>,
-    selectedProductNames: List<String> = emptyList()
+    // Parameters replaced with snapshot data
+    snapshotProductCount: Int,
+    snapshotSuggestedPrices: Triple<Double, Double, Double>,
+    snapshotProductNames: List<String> = emptyList()
 ) {
     if (!show) return
 
-    // Generar nombre sugerido basado en los productos (max 100 caracteres)
-    val suggestedName = remember(selectedProductNames) {
+    // Generate suggested name based on snapshot product names (max 100 characters)
+    val suggestedName = remember(snapshotProductNames) {
         val name = when {
-            selectedProductNames.isEmpty() -> ""
-            selectedProductNames.size == 1 -> "Combo: ${selectedProductNames.first()}"
-            selectedProductNames.size == 2 -> "Combo: ${selectedProductNames[0]} + ${selectedProductNames[1]}"
-            else -> "Combo: ${selectedProductNames[0]} + ${selectedProductNames[1]} +${selectedProductNames.size - 2} más"
+            snapshotProductNames.isEmpty() -> ""
+            snapshotProductNames.size == 1 -> "Combo: ${snapshotProductNames.first()}"
+            snapshotProductNames.size == 2 -> "Combo: ${snapshotProductNames[0]} + ${snapshotProductNames[1]}"
+            else -> "Combo: ${snapshotProductNames[0]} + ${snapshotProductNames[1]} +${snapshotProductNames.size - 2} más"
         }
         if (name.length > 100) name.take(97) + "..." else name
     }
 
     var nombreCombo by remember(suggestedName) { mutableStateOf(suggestedName) }
-    var precioLista by remember { mutableStateOf(suggestedPrices.first.toString()) }
-    var precioCortoPlazo by remember { mutableStateOf(suggestedPrices.second.toString()) }
-    var precioContado by remember { mutableStateOf(suggestedPrices.third.toString()) }
+    var precioLista by remember { mutableStateOf(snapshotSuggestedPrices.first.toString()) }
+    var precioCortoPlazo by remember { mutableStateOf(snapshotSuggestedPrices.second.toString()) }
+    var precioContado by remember { mutableStateOf(snapshotSuggestedPrices.third.toString()) }
     var nombreError by remember { mutableStateOf(false) }
 
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
@@ -121,7 +122,7 @@ fun CreateComboDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Badge de productos seleccionados
+// Badge de productos seleccionados (using snapshot)
                 Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -130,7 +131,7 @@ fun CreateComboDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "$selectedProductsCount productos seleccionados",
+                        text = "$snapshotProductCount productos seleccionados",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -164,8 +165,8 @@ fun CreateComboDialog(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
-                    text = "Suma sugerida: ${currencyFormat.format(suggestedPrices.first)}",
+Text(
+                    text = "Suma sugerida: ${currencyFormat.format(snapshotSuggestedPrices.first)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )

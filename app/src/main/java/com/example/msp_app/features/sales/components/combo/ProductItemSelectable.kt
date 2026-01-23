@@ -43,6 +43,7 @@ fun ProductItemSelectable(
     saleItem: SaleItem,
     isSelected: Boolean,
     isInCombo: Boolean,
+    enabled: Boolean = true,
     onToggleSelect: () -> Unit,
     onQuantityChange: (Int) -> Unit,
     onRemove: () -> Unit,
@@ -69,18 +70,23 @@ fun ProductItemSelectable(
         label = "borderColor"
     )
 
-    Card(
+Card(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (!isInCombo) {
+                if (!isInCombo && enabled) {
                     Modifier.clickable { onToggleSelect() }
                 } else {
                     Modifier
                 }
             ),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        colors = CardDefaults.cardColors(
+            containerColor = if (!enabled) 
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+            else 
+                backgroundColor
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp)
     ) {
         Row(
@@ -147,7 +153,7 @@ fun ProductItemSelectable(
                 }
             }
 
-            // Controles de cantidad (solo si no está en combo)
+// Controles de cantidad (solo si no está en combo)
             if (!isInCombo) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -161,6 +167,7 @@ fun ProductItemSelectable(
                                 onRemove()
                             }
                         },
+                        enabled = enabled,
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
@@ -175,11 +182,16 @@ fun ProductItemSelectable(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.width(32.dp),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = if (enabled) 
+                            MaterialTheme.colorScheme.onSurface 
+                        else 
+                            MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     IconButton(
                         onClick = { onQuantityChange(saleItem.quantity + 1) },
+                        enabled = enabled,
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(

@@ -880,12 +880,21 @@ fun NewSaleScreen(navController: NavController) {
         )
     }
 
-    // Dialog para crear combo
+// Nueva función para abrir diálogo con snapshot
+    fun openCreateComboDialog() {
+        saleProductsViewModel.startComboCreation()
+        showCreateComboDialog = true
+    }
+
+    // Dialog para crear combo (modificado para usar snapshot)
     CreateComboDialog(
         show = showCreateComboDialog,
-        onDismiss = { showCreateComboDialog = false },
+        onDismiss = { 
+            showCreateComboDialog = false
+            saleProductsViewModel.clearComboCreationSnapshot()
+        },
         onConfirm = { nombre, precioLista, precioCortoPlazo, precioContado ->
-            saleProductsViewModel.createCombo(
+            saleProductsViewModel.createComboWithSnapshot(
                 nombreCombo = nombre,
                 precioLista = precioLista,
                 precioCortoPlazo = precioCortoPlazo,
@@ -893,9 +902,9 @@ fun NewSaleScreen(navController: NavController) {
             )
             showCreateComboDialog = false
         },
-        selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
-        suggestedPrices = saleProductsViewModel.getSelectedItemsSuggestedPrices(),
-        selectedProductNames = saleProductsViewModel.getSelectedProductNames()
+        snapshotProductCount = saleProductsViewModel.getSnapshotProductCount(),
+        snapshotSuggestedPrices = saleProductsViewModel.getSnapshotSuggestedPrices(),
+        snapshotProductNames = saleProductsViewModel.getSnapshotProductNames()
     )
 
     // Dialog de confirmación de venta
@@ -1494,7 +1503,7 @@ fun NewSaleScreen(navController: NavController) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Sección de productos con combos
+// Sección de productos con combos
                     if (saleProductsViewModel.saleItems.isNotEmpty()) {
                         ProductsWithCombosSection(
                             individualProducts = saleProductsViewModel.getIndividualProducts(),
@@ -1518,14 +1527,15 @@ fun NewSaleScreen(navController: NavController) {
                                     saleProductsViewModel.removeProductFromSale(product)
                                 }
                             },
-                            onCreateCombo = { showCreateComboDialog = true },
+                            onCreateCombo = { openCreateComboDialog() },
                             onDeleteCombo = { comboId ->
                                 saleProductsViewModel.deleteCombo(comboId)
                             },
                             onClearSelection = {
                                 saleProductsViewModel.clearSelection()
                             },
-                            modifier = Modifier.padding(horizontal = 16.dp)
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            isCreatingCombo = saleProductsViewModel.isCreatingCombo()
                         )
                     }
 

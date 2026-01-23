@@ -36,6 +36,10 @@ class SaleProductsViewModel : ViewModel() {
     private val _selectedForCombo = mutableStateListOf<Int>()
     val selectedForCombo: SnapshotStateList<Int> get() = _selectedForCombo
 
+    // Combo creation snapshot to prevent deselection during combo creation
+    private val _comboCreationSnapshot = mutableStateListOf<Int>()
+    val comboCreationSnapshot: SnapshotStateList<Int> get() = _comboCreationSnapshot
+
     fun addProductToSale(product: ProductInventory, quantity: Int) {
         if (quantity <= 0) return
 
@@ -160,7 +164,7 @@ class SaleProductsViewModel : ViewModel() {
             .map { it.product.ARTICULO }
     }
 
-    fun canCreateCombo(): Boolean = _selectedForCombo.size >= 2
+fun canCreateCombo(): Boolean = _selectedForCombo.size >= 2
 
     fun getSelectedItemsSuggestedPrices(): Triple<Double, Double, Double> {
         var totalLista = 0.0
@@ -168,6 +172,61 @@ class SaleProductsViewModel : ViewModel() {
         var totalContado = 0.0
 
         _saleItems.filter { _selectedForCombo.contains(it.product.ARTICULO_ID) }
+            .forEach { saleItem ->
+                val prices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+                totalLista += prices.precioLista * saleItem.quantity
+                totalCortoPlazo += prices.precioCortoplazo * saleItem.quantity
+                totalContado += prices.precioContado * saleItem.quantity
+            }
+
+        return Triple(totalLista, totalCortoPlazo, totalContado)
+    }
+
+    // ==================== COMBO CREATION SNAPSHOT METHODS ====================
+
+    /**
+     * Start combo creation process by creating a snapshot of selected products
+     */
+    fun startComboCreation() {
+        _comboCreationSnapshot.clear()
+        _comboCreationSnapshot.addAll(_selectedForCombo)
+    }
+
+    /**
+     * Clear the combo creation snapshot
+     */
+    fun clearComboCreationSnapshot() {
+        _comboCreationSnapshot.clear()
+    }
+
+    /**
+     * Check if currently creating a combo
+     */
+    fun isCreatingCombo(): Boolean = _comboCreationSnapshot.isNotEmpty()
+
+    /**
+     * Get the count of products in the snapshot
+     */
+    fun getSnapshotProductCount(): Int = _comboCreationSnapshot.size
+
+    /**
+     * Get product names from the snapshot
+     */
+    fun getSnapshotProductNames(): List<String> {
+        return _saleItems
+            .filter { _comboCreationSnapshot.contains(it.product.ARTICULO_ID) }
+            .map { it.product.ARTICULO }
+    }
+
+    /**
+     * Get suggested prices from the snapshot
+     */
+    fun getSnapshotSuggestedPrices(): Triple<Double, Double, Double> {
+        var totalLista = 0.0
+        var totalCortoPlazo = 0.0
+        var totalContado = 0.0
+
+        _saleItems.filter { _comboCreationSnapshot.contains(it.product.ARTICULO_ID) }
             .forEach { saleItem ->
                 val prices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
                 totalLista += prices.precioLista * saleItem.quantity
@@ -188,7 +247,7 @@ class SaleProductsViewModel : ViewModel() {
         return createComboWithId(comboId, nombreCombo, precioLista, precioCortoPlazo, precioContado)
     }
 
-    /**
+/**
      * Create a combo with a specific ID (used for restoring from draft)
      */
     fun createComboWithId(
@@ -215,6 +274,38 @@ class SaleProductsViewModel : ViewModel() {
             }
         }
 
+        _selectedForCombo.clear()
+        return comboId
+    }
+
+    /**
+     * Create a combo using the snapshot data (for new combo creation)
+     */
+    fun createComboWithSnapshot(
+        nombreCombo: String,
+        precioLista: Double,
+        precioCortoPlazo: Double,
+        precioContado: Double
+    ): String {
+        val comboId = UUID.randomUUID().toString()
+        val combo = ComboItem(
+            comboId = comboId,
+            nombreCombo = nombreCombo,
+            precioLista = precioLista,
+            precioCortoPlazo = precioCortoPlazo,
+            precioContado = precioContado
+        )
+        _combos[comboId] = combo
+
+        // Asignar comboId a los productos del snapshot
+        _comboCreationSnapshot.forEach { articleId ->
+            val index = _saleItems.indexOfFirst { it.product.ARTICULO_ID == articleId }
+            if (index != -1) {
+                _saleItems[index] = _saleItems[index].copy(comboId = comboId)
+            }
+        }
+
+        _comboCreationSnapshot.clear()
         _selectedForCombo.clear()
         return comboId
     }
@@ -269,9 +360,10 @@ class SaleProductsViewModel : ViewModel() {
         return individualTotal + combosTotal
     }
 
-    fun clearAll() {
+fun clearAll() {
         _saleItems.clear()
         _combos.clear()
         _selectedForCombo.clear()
+        _comboCreationSnapshot.clear()
     }
 }

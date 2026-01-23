@@ -24,6 +24,7 @@ import com.composables.icons.lucide.Package
 import com.composables.icons.lucide.X
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -52,7 +53,8 @@ fun ProductsWithCombosSection(
     onCreateCombo: () -> Unit,
     onDeleteCombo: (String) -> Unit,
     onClearSelection: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isCreatingCombo: Boolean = false
 ) {
     var showComboDialog by remember { mutableStateOf(false) }
 
@@ -88,21 +90,35 @@ fun ProductsWithCombosSection(
                     }
                 }
 
-                if (selectedProductIds.size >= 2) {
+if (selectedProductIds.size >= 2) {
                     Button(
                         onClick = onCreateCombo,
+                        enabled = !isCreatingCombo,
                         shape = RoundedCornerShape(20.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
+                            containerColor = if (isCreatingCombo) 
+                                MaterialTheme.colorScheme.surfaceVariant 
+                            else 
+                                MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Icon(
-                            imageVector = Lucide.Package,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Crear Combo")
+                        if (isCreatingCombo) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Creando...")
+                        } else {
+                            Icon(
+                                imageVector = Lucide.Package,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Crear Combo")
+                        }
                     }
                 }
             }
@@ -147,11 +163,12 @@ fun ProductsWithCombosSection(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            individualProducts.forEach { item ->
+individualProducts.forEach { item ->
                 ProductItemSelectable(
                     saleItem = item,
                     isSelected = selectedProductIds.contains(item.product.ARTICULO_ID),
                     isInCombo = false,
+                    enabled = !isCreatingCombo,
                     onToggleSelect = { onToggleProductSelection(item.product.ARTICULO_ID) },
                     onQuantityChange = { newQty -> onQuantityChange(item.product.ARTICULO_ID, newQty) },
                     onRemove = { onRemoveProduct(item.product.ARTICULO_ID) },
