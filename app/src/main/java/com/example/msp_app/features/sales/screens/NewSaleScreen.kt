@@ -50,6 +50,7 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +65,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -73,17 +73,16 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.draft.DraftCombo
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
-import kotlinx.coroutines.launch
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.features.sales.components.map.LocationMap
-import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
-import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
-import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
+import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.combo.ProductsWithCombosSection
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationData
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationDialog
-import com.example.msp_app.data.local.entities.LocalSaleComboEntity
+import com.example.msp_app.features.sales.components.map.LocationMap
+import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
+import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
+import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
@@ -93,6 +92,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.UUID
 
@@ -642,7 +642,11 @@ fun NewSaleScreen(navController: NavController) {
 
                     Row {
                         Text("Tipo: ", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text(draft.tipoVenta, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+                        Text(
+                            draft.tipoVenta,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
 
                     if (productCount > 0) {
@@ -1026,23 +1030,6 @@ fun NewSaleScreen(navController: NavController) {
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Zone Selector - Solo mostrar para ventas a CREDITO
-                    if (tipoVenta == "CREDITO") {
-                        ZoneSelectorSimple(
-                            selectedZoneId = selectedZoneId,
-                            selectedZoneName = selectedZoneName,
-                            onZoneSelected = { zoneId, zoneName ->
-                                selectedZoneId = zoneId
-                                selectedZoneName = zoneName
-                                zoneError = false
-                            },
-                            error = if (zoneError) "Selecciona una zona" else null,
-                            isRequired = true
-                        )
-
-                        Spacer(Modifier.height(16.dp))
-                    }
-
                     Text(
                         "Información del Cliente",
                         style = MaterialTheme.typography.titleMedium,
@@ -1362,6 +1349,25 @@ fun NewSaleScreen(navController: NavController) {
                         }
 
                         Spacer(Modifier.height(12.dp))
+
+                        // Zone Selector - Solo mostrar para ventas a CREDITO
+                        if (tipoVenta == "CREDITO") {
+                            ZoneSelectorSimple(
+                                selectedZoneId = selectedZoneId,
+                                selectedZoneName = selectedZoneName,
+                                onZoneSelected = { zoneId, zoneName ->
+                                    selectedZoneId = zoneId
+                                    selectedZoneName = zoneName
+                                    zoneError = false
+                                },
+                                error = if (zoneError) "Selecciona una zona" else null,
+                                isRequired = true
+                            )
+
+                            Spacer(Modifier.height(16.dp))
+                        }
+
+                        Spacer(Modifier.height(12.dp))
                     }
 
                     OutlinedTextField(
@@ -1507,13 +1513,15 @@ fun NewSaleScreen(navController: NavController) {
                                 saleProductsViewModel.toggleProductSelection(articleId)
                             },
                             onQuantityChange = { articleId, newQty ->
-                                val product = productosCamioneta.find { it.ARTICULO_ID == articleId }
+                                val product =
+                                    productosCamioneta.find { it.ARTICULO_ID == articleId }
                                 if (product != null) {
                                     saleProductsViewModel.updateQuantity(product, newQty)
                                 }
                             },
                             onRemoveProduct = { articleId ->
-                                val product = productosCamioneta.find { it.ARTICULO_ID == articleId }
+                                val product =
+                                    productosCamioneta.find { it.ARTICULO_ID == articleId }
                                 if (product != null) {
                                     saleProductsViewModel.removeProductFromSale(product)
                                 }
