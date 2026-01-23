@@ -39,17 +39,19 @@ class SaleProductsViewModel : ViewModel() {
     fun addProductToSale(product: ProductInventory, quantity: Int) {
         if (quantity <= 0) return
 
+        val maxStock = product.EXISTENCIAS
         val existingIndex = _saleItems.indexOfFirst {
             it.product.ARTICULO_ID == product.ARTICULO_ID
         }
 
         if (existingIndex != -1) {
             val existingItem = _saleItems[existingIndex]
+            val newQuantity = (existingItem.quantity + quantity).coerceAtMost(maxStock)
             _saleItems[existingIndex] = existingItem.copy(
-                quantity = existingItem.quantity + quantity
+                quantity = newQuantity
             )
         } else {
-            _saleItems.add(SaleItem(product, quantity))
+            _saleItems.add(SaleItem(product, quantity.coerceAtMost(maxStock)))
         }
     }
 
@@ -88,6 +90,8 @@ class SaleProductsViewModel : ViewModel() {
 
     fun clearSale() {
         _saleItems.clear()
+        _combos.clear()
+        _selectedForCombo.clear()
     }
 
     fun hasItems(): Boolean = _saleItems.isNotEmpty()
