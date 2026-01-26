@@ -551,6 +551,7 @@ fun NewSaleScreen(navController: NavController) {
 
     val saveResult by viewModel.saveResult.collectAsState()
     val isSaving by viewModel.isLoading.collectAsState()
+    val isCreatingCombo by saleProductsViewModel.isCreatingCombo.collectAsState()
 
     LaunchedEffect(saveResult) {
         when (val result = saveResult) {
@@ -883,7 +884,10 @@ fun NewSaleScreen(navController: NavController) {
     // Dialog para crear combo
     CreateComboDialog(
         show = showCreateComboDialog,
-        onDismiss = { showCreateComboDialog = false },
+        onDismiss = { 
+            saleProductsViewModel.setCreatingCombo(false)
+            showCreateComboDialog = false 
+        },
         onConfirm = { nombre, precioLista, precioCortoPlazo, precioContado ->
             saleProductsViewModel.createCombo(
                 nombreCombo = nombre,
@@ -891,6 +895,7 @@ fun NewSaleScreen(navController: NavController) {
                 precioCortoPlazo = precioCortoPlazo,
                 precioContado = precioContado
             )
+            saleProductsViewModel.setCreatingCombo(false)
             showCreateComboDialog = false
         },
         selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
@@ -1518,13 +1523,17 @@ fun NewSaleScreen(navController: NavController) {
                                     saleProductsViewModel.removeProductFromSale(product)
                                 }
                             },
-                            onCreateCombo = { showCreateComboDialog = true },
+                            onCreateCombo = { 
+                                saleProductsViewModel.setCreatingCombo(true)
+                                showCreateComboDialog = true 
+                            },
                             onDeleteCombo = { comboId ->
                                 saleProductsViewModel.deleteCombo(comboId)
                             },
                             onClearSelection = {
                                 saleProductsViewModel.clearSelection()
                             },
+                            isCreatingCombo = isCreatingCombo,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }

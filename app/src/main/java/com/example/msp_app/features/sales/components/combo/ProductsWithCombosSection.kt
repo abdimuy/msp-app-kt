@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,6 +51,7 @@ fun ProductsWithCombosSection(
     onCreateCombo: () -> Unit,
     onDeleteCombo: (String) -> Unit,
     onClearSelection: () -> Unit,
+    isCreatingCombo: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showComboDialog by remember { mutableStateOf(false) }
@@ -211,13 +213,40 @@ fun ProductsWithCombosSection(
                         )
                     },
                     onRemove = { onRemoveProduct(item.product.ARTICULO_ID) },
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    isEnabled = !isCreatingCombo
                 )
             }
         }
 
+        // Loading indicator during combo creation
+        if (isCreatingCombo) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Preparing combo...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+
         // Estado vacío
-        if (individualProducts.isEmpty() && combos.isEmpty()) {
+        if (individualProducts.isEmpty() && combos.isEmpty() && !isCreatingCombo) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -225,7 +254,7 @@ fun ProductsWithCombosSection(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "Agrega productos para comenzar",
+                    text = "Add products to get started",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

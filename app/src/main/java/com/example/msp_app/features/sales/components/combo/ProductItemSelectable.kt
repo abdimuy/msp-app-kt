@@ -47,7 +47,8 @@ fun ProductItemSelectable(
     onToggleSelect: () -> Unit,
     onQuantityChange: (Int) -> Unit,
     onRemove: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEnabled: Boolean = true
 ) {
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
     val prices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
@@ -74,7 +75,7 @@ fun ProductItemSelectable(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (!isInCombo) {
+                if (!isInCombo && isEnabled) {
                     Modifier.clickable { onToggleSelect() }
                 } else {
                     Modifier
@@ -167,6 +168,7 @@ fun ProductItemSelectable(
                                 onRemove()
                             }
                         },
+                        enabled = isEnabled,
                         modifier = Modifier.size(buttonSize)
                     ) {
                         Icon(
@@ -186,6 +188,7 @@ fun ProductItemSelectable(
 
                     IconButton(
                         onClick = { onQuantityChange(saleItem.quantity + 1) },
+                        enabled = isEnabled,
                         modifier = Modifier.size(buttonSize)
                     ) {
                         Icon(
