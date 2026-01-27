@@ -2,9 +2,13 @@ package com.example.msp_app.features.sales.viewmodels
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.lifecycle.ViewModel
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.utils.PriceParser
 import java.util.UUID
@@ -35,6 +39,9 @@ class SaleProductsViewModel : ViewModel() {
 
     private val _selectedForCombo = mutableStateListOf<Int>()
     val selectedForCombo: SnapshotStateList<Int> get() = _selectedForCombo
+
+    private val _isCreatingCombo = MutableStateFlow(false)
+    val isCreatingCombo: StateFlow<Boolean> = _isCreatingCombo.asStateFlow()
 
     fun addProductToSale(product: ProductInventory, quantity: Int) {
         if (quantity <= 0) return
@@ -133,6 +140,9 @@ class SaleProductsViewModel : ViewModel() {
     // ==================== COMBO METHODS ====================
 
     fun toggleProductSelection(articleId: Int) {
+        // Block product selection while creating a combo to prevent accidental deselection
+        if (_isCreatingCombo.value) return
+        
         if (_selectedForCombo.contains(articleId)) {
             _selectedForCombo.remove(articleId)
         } else {
@@ -158,6 +168,14 @@ class SaleProductsViewModel : ViewModel() {
         return _saleItems
             .filter { _selectedForCombo.contains(it.product.ARTICULO_ID) }
             .map { it.product.ARTICULO }
+    }
+
+    /**
+     * Sets the combo creation state to prevent accidental product deselection
+     * during the transition to the combo creation dialog
+     */
+    fun setCreatingCombo(isCreating: Boolean) {
+        _isCreatingCombo.value = isCreating
     }
 
     fun canCreateCombo(): Boolean = _selectedForCombo.size >= 2
