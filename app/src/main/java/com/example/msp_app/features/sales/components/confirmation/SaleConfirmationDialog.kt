@@ -41,14 +41,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.CreditCard
 import com.composables.icons.lucide.Image
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.Package
-import com.composables.icons.lucide.Phone
 import com.composables.icons.lucide.ShoppingCart
 import com.composables.icons.lucide.StickyNote
 import com.composables.icons.lucide.User
@@ -289,9 +287,15 @@ fun SaleConfirmationDialog(
                             icon = Lucide.CreditCard
                         ) {
                             if (data.downpayment.isNotBlank() && data.downpayment != "0") {
-                                InfoRow("Enganche", currencyFormat.format(data.downpayment.toDoubleOrNull() ?: 0.0))
+                                InfoRow(
+                                    "Enganche",
+                                    currencyFormat.format(data.downpayment.toDoubleOrNull() ?: 0.0)
+                                )
                             }
-                            InfoRow("Parcialidad", currencyFormat.format(data.installment.toDoubleOrNull() ?: 0.0))
+                            InfoRow(
+                                "Parcialidad",
+                                currencyFormat.format(data.installment.toDoubleOrNull() ?: 0.0)
+                            )
                             InfoRow("Frecuencia", data.paymentFrequency)
                             InfoRow("Día de cobro", data.collectionDay)
                         }
@@ -348,7 +352,10 @@ fun SaleConfirmationDialog(
                         title = "Imágenes",
                         icon = Lucide.Image
                     ) {
-                        InfoRow("Fotos adjuntas", "${data.imageCount} imagen${if (data.imageCount != 1) "es" else ""}")
+                        InfoRow(
+                            "Fotos adjuntas",
+                            "${data.imageCount} imagen${if (data.imageCount != 1) "es" else ""}"
+                        )
                     }
 
                     // Notas
@@ -383,25 +390,51 @@ fun SaleConfirmationDialog(
                                 modifier = Modifier.padding(bottom = 12.dp)
                             )
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                PriceSummaryColumn(
-                                    label = "Lista",
-                                    price = currencyFormat.format(data.totalPrecioLista),
-                                    isHighlighted = true
-                                )
-                                PriceSummaryColumn(
-                                    label = "Corto Plazo",
-                                    price = currencyFormat.format(data.totalCortoPlazo),
-                                    isHighlighted = false
-                                )
-                                PriceSummaryColumn(
-                                    label = "Contado",
-                                    price = currencyFormat.format(data.totalContado),
-                                    isHighlighted = false
-                                )
+                                listOf(
+                                    Triple(
+                                        "Lista",
+                                        currencyFormat.format(data.totalPrecioLista),
+                                        true
+                                    ),
+                                    Triple(
+                                        "Corto Plazo",
+                                        currencyFormat.format(data.totalCortoPlazo),
+                                        false
+                                    ),
+                                    Triple(
+                                        "Contado",
+                                        currencyFormat.format(data.totalContado),
+                                        false
+                                    )
+                                ).forEach { (label, price, isHighlighted) ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            text = price,
+                                            style = if (isHighlighted)
+                                                MaterialTheme.typography.titleMedium
+                                            else
+                                                MaterialTheme.typography.bodyLarge,
+                                            fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isHighlighted)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -605,32 +638,3 @@ private fun ProductSummaryRow(item: SaleItem) {
     }
 }
 
-@Composable
-private fun PriceSummaryColumn(
-    label: String,
-    price: String,
-    isHighlighted: Boolean
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = price,
-            style = if (isHighlighted)
-                MaterialTheme.typography.titleMedium
-            else
-                MaterialTheme.typography.bodyLarge,
-            fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
-            color = if (isHighlighted)
-                MaterialTheme.colorScheme.primary
-            else
-                MaterialTheme.colorScheme.onSurface
-        )
-    }
-}

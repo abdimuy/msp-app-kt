@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -46,7 +47,8 @@ fun ProductItemSelectable(
     onToggleSelect: () -> Unit,
     onQuantityChange: (Int) -> Unit,
     onRemove: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isEnabled: Boolean = true
 ) {
     val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
     val prices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
@@ -73,7 +75,7 @@ fun ProductItemSelectable(
         modifier = modifier
             .fillMaxWidth()
             .then(
-                if (!isInCombo) {
+                if (!isInCombo && isEnabled) {
                     Modifier.clickable { onToggleSelect() }
                 } else {
                     Modifier
@@ -149,9 +151,14 @@ fun ProductItemSelectable(
 
             // Controles de cantidad (solo si no está en combo)
             if (!isInCombo) {
+                val fontScale = LocalDensity.current.fontScale
+                val useLargeLayout = fontScale > 1.3f
+                val buttonSize = if (useLargeLayout) 40.dp else 32.dp
+                val iconSize = if (useLargeLayout) 22.dp else 18.dp
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(if (useLargeLayout) 8.dp else 4.dp)
                 ) {
                     IconButton(
                         onClick = {
@@ -161,12 +168,13 @@ fun ProductItemSelectable(
                                 onRemove()
                             }
                         },
-                        modifier = Modifier.size(32.dp)
+                        enabled = isEnabled,
+                        modifier = Modifier.size(buttonSize)
                     ) {
                         Icon(
                             imageVector = Lucide.Minus,
                             contentDescription = "Reducir",
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(iconSize)
                         )
                     }
 
@@ -174,18 +182,19 @@ fun ProductItemSelectable(
                         text = "${saleItem.quantity}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(32.dp),
+                        modifier = Modifier.width(if (useLargeLayout) 40.dp else 32.dp),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
 
                     IconButton(
                         onClick = { onQuantityChange(saleItem.quantity + 1) },
-                        modifier = Modifier.size(32.dp)
+                        enabled = isEnabled,
+                        modifier = Modifier.size(buttonSize)
                     ) {
                         Icon(
                             imageVector = Lucide.Plus,
                             contentDescription = "Aumentar",
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(iconSize)
                         )
                     }
                 }

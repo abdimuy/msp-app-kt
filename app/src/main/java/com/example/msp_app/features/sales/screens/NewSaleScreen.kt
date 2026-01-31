@@ -471,13 +471,13 @@ fun NewSaleScreen(navController: NavController) {
         return isValid
     }
 
-    fun validateInstallment(amount: String): Boolean {
+fun validateInstallment(amount: String): Boolean {
         if (tipoVenta == "CONTADO") {
             installmentError = false
             return true
         }
-        val amountDouble = amount.toDoubleOrNull()
-        val isValid = amountDouble != null && amountDouble > 0
+        val amountInt = amount.toIntOrNull()
+        val isValid = amountInt != null && amountInt > 0
         installmentError = !isValid
         return isValid
     }
@@ -552,6 +552,7 @@ fun NewSaleScreen(navController: NavController) {
 
     val saveResult by viewModel.saveResult.collectAsState()
     val isSaving by viewModel.isLoading.collectAsState()
+    val isCreatingCombo by saleProductsViewModel.isCreatingCombo.collectAsState()
 
     LaunchedEffect(saveResult) {
         when (val result = saveResult) {
@@ -888,7 +889,10 @@ fun NewSaleScreen(navController: NavController) {
     // Dialog para crear combo
     CreateComboDialog(
         show = showCreateComboDialog,
-        onDismiss = { showCreateComboDialog = false },
+        onDismiss = { 
+            saleProductsViewModel.setCreatingCombo(false)
+            showCreateComboDialog = false 
+        },
         onConfirm = { nombre, precioLista, precioCortoPlazo, precioContado ->
             saleProductsViewModel.createCombo(
                 nombreCombo = nombre,
@@ -896,6 +900,7 @@ fun NewSaleScreen(navController: NavController) {
                 precioCortoPlazo = precioCortoPlazo,
                 precioContado = precioContado
             )
+            saleProductsViewModel.setCreatingCombo(false)
             showCreateComboDialog = false
         },
         selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
@@ -1252,17 +1257,17 @@ fun NewSaleScreen(navController: NavController) {
                                     }
                                 },
                                 isError = installmentError,
-                                supportingText = if (installmentError) {
+supportingText = if (installmentError) {
                                     {
                                         Text(
-                                            "La parcialidad debe ser mayor a 0",
+                                            "La parcialidad debe ser un número entero mayor a 0",
                                             color = MaterialTheme.colorScheme.error
                                         )
                                     }
                                 } else null,
-                                label = { Text("Parcialidad *") },
+label = { Text("Parcialidad *") },
                                 modifier = Modifier.weight(1f),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 shape = RoundedCornerShape(15.dp),
                                 prefix = { Text("$") }
                             )
@@ -1527,13 +1532,17 @@ fun NewSaleScreen(navController: NavController) {
                                     saleProductsViewModel.removeProductFromSale(product)
                                 }
                             },
-                            onCreateCombo = { showCreateComboDialog = true },
+                            onCreateCombo = { 
+                                saleProductsViewModel.setCreatingCombo(true)
+                                showCreateComboDialog = true 
+                            },
                             onDeleteCombo = { comboId ->
                                 saleProductsViewModel.deleteCombo(comboId)
                             },
                             onClearSelection = {
                                 saleProductsViewModel.clearSelection()
                             },
+                            isCreatingCombo = isCreatingCombo,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }

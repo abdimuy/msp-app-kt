@@ -15,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
@@ -126,6 +128,9 @@ fun ProductsInfoCard(
 
 @Composable
 private fun ProductRow(product: LocalSaleProductEntity) {
+    val fontScale = LocalDensity.current.fontScale
+    val useLargeLayout = fontScale > 1.3f
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -135,7 +140,6 @@ private fun ProductRow(product: LocalSaleProductEntity) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             Text(
                 text = product.ARTICULO,
                 style = MaterialTheme.typography.bodyMedium,
@@ -152,34 +156,63 @@ private fun ProductRow(product: LocalSaleProductEntity) {
 
         Spacer(Modifier.height(4.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                "Precios",
-                style = MaterialTheme.typography.titleSmall,
-
-                )
-            Column(horizontalAlignment = Alignment.Start) {
-                Text("Lista", style = MaterialTheme.typography.labelSmall)
-                Text(product.PRECIO_LISTA.toCurrency(), style = MaterialTheme.typography.bodySmall)
-            }
-
-            Column(horizontalAlignment = Alignment.Start) {
-                Text("Corto plazo", style = MaterialTheme.typography.labelSmall)
+        if (useLargeLayout) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Text(
-                    product.PRECIO_CORTO_PLAZO.toCurrency(),
-                    style = MaterialTheme.typography.bodySmall
+                    "Precios",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
                 )
+                listOf(
+                    "Lista" to product.PRECIO_LISTA.toCurrency(),
+                    "Corto plazo" to product.PRECIO_CORTO_PLAZO.toCurrency(),
+                    "Contado" to product.PRECIO_CONTADO.toCurrency()
+                ).forEach { (label, price) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(label, style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            price,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
-
-            Column(horizontalAlignment = Alignment.Start) {
-                Text("Contado", style = MaterialTheme.typography.labelSmall)
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Text(
-                    product.PRECIO_CONTADO.toCurrency(),
-                    style = MaterialTheme.typography.bodySmall
+                    "Precios",
+                    style = MaterialTheme.typography.titleSmall
                 )
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text("Lista", style = MaterialTheme.typography.labelSmall)
+                    Text(product.PRECIO_LISTA.toCurrency(), style = MaterialTheme.typography.bodySmall)
+                }
+
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text("Corto plazo", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        product.PRECIO_CORTO_PLAZO.toCurrency(),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text("Contado", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        product.PRECIO_CONTADO.toCurrency(),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }
