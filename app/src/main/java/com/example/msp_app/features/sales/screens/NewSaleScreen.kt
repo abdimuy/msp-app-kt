@@ -1036,23 +1036,6 @@ fun validateInstallment(amount: String): Boolean {
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Zone Selector - Solo mostrar para ventas a CREDITO
-                    if (tipoVenta == "CREDITO") {
-                        ZoneSelectorSimple(
-                            selectedZoneId = selectedZoneId,
-                            selectedZoneName = selectedZoneName,
-                            onZoneSelected = { zoneId, zoneName ->
-                                selectedZoneId = zoneId
-                                selectedZoneName = zoneName
-                                zoneError = false
-                            },
-                            error = if (zoneError) "Selecciona una zona" else null,
-                            isRequired = true
-                        )
-
-                        Spacer(Modifier.height(16.dp))
-                    }
-
                     Text(
                         "Información del Cliente",
                         style = MaterialTheme.typography.titleMedium,
@@ -1369,6 +1352,25 @@ label = { Text("Parcialidad *") },
                                     )
                                 }
                             }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        // Zone Selector - Solo mostrar para ventas a CREDITO
+                        if (tipoVenta == "CREDITO") {
+                            ZoneSelectorSimple(
+                                selectedZoneId = selectedZoneId,
+                                selectedZoneName = selectedZoneName,
+                                onZoneSelected = { zoneId, zoneName ->
+                                    selectedZoneId = zoneId
+                                    selectedZoneName = zoneName
+                                    zoneError = false
+                                },
+                                error = if (zoneError) "Selecciona una zona" else null,
+                                isRequired = true
+                            )
+
+                            Spacer(Modifier.height(16.dp))
                         }
 
                         Spacer(Modifier.height(12.dp))
