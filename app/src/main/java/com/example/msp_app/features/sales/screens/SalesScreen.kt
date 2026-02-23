@@ -202,8 +202,16 @@ fun SalesScreen(
                                 .let { list ->
                                     if (query.isBlank()) {
                                         list.sortedWith(
-                                            compareByDescending<SaleWithProducts> { it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE }
-                                                .thenBy { it.FECHA }
+                                            compareByDescending<SaleWithProducts> {
+                                                it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE
+                                            }
+                                                .thenBy {
+                                                    if (it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE) {
+                                                        it.FECHA
+                                                    } else {
+                                                        it.FECHA_ULT_PAGO ?: it.FECHA
+                                                    }
+                                                }
                                         )
                                     } else {
                                         list
