@@ -2,9 +2,12 @@ package com.example.msp_app.features.sales.viewmodels
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.logging.Logger
+import com.example.msp_app.core.logging.logSyncSnapshot
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.sales.SalesApi
@@ -14,6 +17,7 @@ import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.local.entities.OverduePaymentsEntity
+import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.models.guarantee.toEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
@@ -23,6 +27,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +35,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
@@ -133,19 +139,35 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                         ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
                     return@launch
                 }
-                
+
                 val pendingGuarantees = guaranteeStore.getPendingGuarantees()
                 if (pendingGuarantees.isNotEmpty()) {
                     _syncSalesState.value =
                         ResultState.Error("Hay ${pendingGuarantees.size} garantías pendientes")
                     return@launch
                 }
-                
+
                 val pendingGuaranteeEvents = guaranteeStore.getPendingGuaranteeEvents()
                 if (pendingGuaranteeEvents.isNotEmpty()) {
                     _syncSalesState.value =
                         ResultState.Error("Hay ${pendingGuaranteeEvents.size} eventos de garantías pendientes")
                     return@launch
+                }
+
+                val snapshotId = UUID.randomUUID().toString().take(8)
+
+                val beforePayments = paymentStore.getAllPayments()
+                val collectorName = beforePayments.firstOrNull()?.COBRADOR
+
+                launch(Dispatchers.IO) {
+                    sendSyncSnapshot(
+                        snapshotId = snapshotId,
+                        phase = "BEFORE",
+                        payments = beforePayments.map { it.toLogMap() },
+                        zonaClienteId = zona,
+                        dateInit = dateInit,
+                        collectorName = collectorName
+                    )
                 }
 
                 val salesData = api.getAll(
@@ -180,6 +202,20 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 guaranteeStore.saveAllGuaranteeEvents(guaranteesEvent.map { it.toEntity() })
                 visitsStore.deleteAllVisits()
 
+                val afterPayments = paymentStore.getAllPayments()
+                val collectorNameAfter = afterPayments.firstOrNull()?.COBRADOR ?: collectorName
+
+                launch(Dispatchers.IO) {
+                    sendSyncSnapshot(
+                        snapshotId = snapshotId,
+                        phase = "AFTER",
+                        payments = afterPayments.map { it.toLogMap() },
+                        zonaClienteId = zona,
+                        dateInit = dateInit,
+                        collectorName = collectorNameAfter
+                    )
+                }
+
                 _syncSalesState.value = ResultState.Success(sales)
 
                 val lastSync = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -193,6 +229,42 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun sendSyncSnapshot(
+        snapshotId: String,
+        phase: String,
+        payments: List<Map<String, Any?>>,
+        zonaClienteId: Int,
+        dateInit: String,
+        collectorName: String?
+    ) {
+        try {
+            Logger.get().logSyncSnapshot(
+                snapshotId = snapshotId,
+                phase = phase,
+                payments = payments,
+                zonaClienteId = zonaClienteId,
+                dateInit = dateInit,
+                collectorName = collectorName
+            )
+        } catch (e: Exception) {
+            Log.e("SalesViewModel", "Error enviando snapshot a Firebase: ${e.message}")
+        }
+    }
+
+    private fun PaymentEntity.toLogMap() = mapOf(
+        "ID" to ID,
+        "FECHA_HORA_PAGO" to FECHA_HORA_PAGO,
+        "NOMBRE_CLIENTE" to NOMBRE_CLIENTE,
+        "IMPORTE" to IMPORTE,
+        "COBRADOR" to COBRADOR,
+        "DOCTO_CC_ACR_ID" to DOCTO_CC_ACR_ID,
+        "FORMA_COBRO_ID" to FORMA_COBRO_ID,
+        "GUARDADO_EN_MICROSIP" to GUARDADO_EN_MICROSIP,
+        "CLIENTE_ID" to CLIENTE_ID,
+        "COBRADOR_ID" to COBRADOR_ID,
+        "ZONA_CLIENTE_ID" to ZONA_CLIENTE_ID
+    )
+
     private fun saveLastSyncDate(date: String) {
         val prefs = getApplication<Application>()
             .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)
@@ -200,7 +272,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
             putString("last_sync_date", date)
         }
     }
-    
+
     fun getLastSyncDate(): String {
         val prefs = getApplication<Application>()
             .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)

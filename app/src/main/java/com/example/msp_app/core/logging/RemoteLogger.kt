@@ -76,7 +76,8 @@ class RemoteLogger private constructor(private val context: Context) {
         scope.launch {
             try {
                 val currentUser = auth.currentUser
-                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                val timestamp =
+                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
 
                 val logEntry = hashMapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -162,23 +163,50 @@ class RemoteLogger private constructor(private val context: Context) {
     /**
      * Métodos de conveniencia para diferentes niveles
      */
-    fun debug(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun debug(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.DEBUG, message, data)
     }
 
-    fun info(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun info(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.INFO, message, data)
     }
 
-    fun warning(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun warning(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.WARNING, message, data)
     }
 
-    fun error(module: String, action: String, message: String, error: Throwable? = null, data: Map<String, Any?> = emptyMap()) {
+    fun error(
+        module: String,
+        action: String,
+        message: String,
+        error: Throwable? = null,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.ERROR, message, data, error)
     }
 
-    fun critical(module: String, action: String, message: String, error: Throwable? = null, data: Map<String, Any?> = emptyMap()) {
+    fun critical(
+        module: String,
+        action: String,
+        message: String,
+        error: Throwable? = null,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.CRITICAL, message, data, error)
     }
 
@@ -261,7 +289,8 @@ object Logger {
     }
 
     fun get(): RemoteLogger {
-        return logger ?: throw IllegalStateException("Logger not initialized. Call Logger.init(context) first")
+        return logger
+            ?: throw IllegalStateException("Logger not initialized. Call Logger.init(context) first")
     }
 }
 
@@ -357,6 +386,48 @@ fun RemoteLogger.logTransferError(
     )
 }
 
+fun RemoteLogger.logSyncSnapshot(
+    snapshotId: String,
+    phase: String,
+    payments: List<Map<String, Any?>>,
+    zonaClienteId: Int,
+    dateInit: String,
+    collectorName: String?
+) {
+    val chunkSize = 2000
+    val paymentsChunks = payments.chunked(chunkSize)
+    val totalParts = maxOf(paymentsChunks.size, 1)
+
+    Log.d(
+        "RemoteLogger",
+        "logSyncSnapshot: snapshotId=$snapshotId, phase=$phase, totalPayments=${payments.size}, chunks=$totalParts"
+    )
+
+    for (part in 0 until totalParts) {
+        info(
+            module = "SYNC_DEBUG",
+            action = "SNAPSHOT",
+            message = "Snapshot de sincronización $phase (parte ${part + 1}/$totalParts)",
+            data = mapOf(
+                "snapshotId" to snapshotId,
+                "part" to (part + 1),
+                "totalParts" to totalParts,
+                "phase" to phase,
+                "syncDate" to java.time.LocalDate.now().toString(),
+                "collectorName" to collectorName,
+                "filter" to mapOf(
+                    "zonaClienteId" to zonaClienteId,
+                    "dateInit" to dateInit
+                ),
+                "counts" to mapOf(
+                    "totalPayments" to payments.size
+                ),
+                "payments" to (paymentsChunks.getOrNull(part) ?: emptyList())
+            )
+        )
+    }
+}
+
 fun RemoteLogger.logReportSnapshot(
     snapshotId: String,
     reportType: String,
@@ -372,7 +443,10 @@ fun RemoteLogger.logReportSnapshot(
     val reportPaymentsChunks = paymentsInReport.chunked(chunkSize)
     val totalParts = maxOf(allPaymentsChunks.size, reportPaymentsChunks.size, 1)
 
-    Log.d("RemoteLogger", "logReportSnapshot: snapshotId=$snapshotId, totalPayments=${allPaymentsInDb.size}, chunks=$totalParts")
+    Log.d(
+        "RemoteLogger",
+        "logReportSnapshot: snapshotId=$snapshotId, totalPayments=${allPaymentsInDb.size}, chunks=$totalParts"
+    )
 
     for (part in 0 until totalParts) {
         info(
