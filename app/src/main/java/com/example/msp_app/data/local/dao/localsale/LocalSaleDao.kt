@@ -39,7 +39,8 @@ interface LocalSaleDao {
             CIUDAD,
             TIPO_VENTA,
             ZONA_CLIENTE_ID,
-            ZONA_CLIENTE
+            ZONA_CLIENTE,
+            CLIENTE_ID
             FROM local_sale
             WHERE FECHA_VENTA >= datetime('now', '-7 days')
             ORDER BY FECHA_VENTA DESC
@@ -74,7 +75,8 @@ interface LocalSaleDao {
             CIUDAD,
             TIPO_VENTA,
             ZONA_CLIENTE_ID,
-            ZONA_CLIENTE
+            ZONA_CLIENTE,
+            CLIENTE_ID
             FROM local_sale
             WHERE LOCAL_SALE_ID = :sale_Id
         """
@@ -120,7 +122,8 @@ interface LocalSaleDao {
             CIUDAD,
             TIPO_VENTA,
             ZONA_CLIENTE_ID,
-            ZONA_CLIENTE
+            ZONA_CLIENTE,
+            CLIENTE_ID
             FROM local_sale
             WHERE ENVIADO = :enviado
             ORDER BY FECHA_VENTA DESC
@@ -159,7 +162,8 @@ interface LocalSaleDao {
             CIUDAD = :ciudad,
             TIPO_VENTA = :tipoVenta,
             ZONA_CLIENTE_ID = :zonaClienteId,
-            ZONA_CLIENTE = :zonaCliente
+            ZONA_CLIENTE = :zonaCliente,
+            CLIENTE_ID = :clienteId
         WHERE LOCAL_SALE_ID = :localSaleId
     """)
     suspend fun updateSaleFields(
@@ -187,6 +191,7 @@ interface LocalSaleDao {
         ciudad: String?,
         tipoVenta: String?,
         zonaClienteId: Int?,
-        zonaCliente: String?
+        zonaCliente: String?,
+        clienteId: Int?
     )
 }

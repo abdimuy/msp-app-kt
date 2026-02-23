@@ -224,7 +224,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         userEmail: String,
         zonaClienteId: Int? = null,
         zonaClienteNombre: String? = null,
-        combos: List<LocalSaleComboEntity> = emptyList()
+        combos: List<LocalSaleComboEntity> = emptyList(),
+        clienteId: Int? = null
     ) {
         viewModelScope.launch {
             // Verificar si ya hay una operación en curso (protección adicional contra doble click)
@@ -302,7 +303,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         CIUDAD = ciudad,
                         TIPO_VENTA = tipoVenta,
                         ZONA_CLIENTE_ID = zonaClienteId,
-                        ZONA_CLIENTE = zonaClienteNombre
+                        ZONA_CLIENTE = zonaClienteNombre,
+                        CLIENTE_ID = clienteId
                     )
 
                     logger.debug(

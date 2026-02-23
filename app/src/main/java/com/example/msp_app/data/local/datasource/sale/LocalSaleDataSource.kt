@@ -78,7 +78,8 @@ class LocalSaleDataSource(context: Context) {
             ciudad = sale.CIUDAD,
             tipoVenta = sale.TIPO_VENTA,
             zonaClienteId = sale.ZONA_CLIENTE_ID,
-            zonaCliente = sale.ZONA_CLIENTE
+            zonaCliente = sale.ZONA_CLIENTE,
+            clienteId = sale.CLIENTE_ID
         )
     }
 

@@ -35,5 +35,6 @@ class LocalSaleEntity(
     val CIUDAD: String? = null,
     val TIPO_VENTA: String? = "CONTADO",
     val ZONA_CLIENTE_ID: Int? = null,
-    val ZONA_CLIENTE: String? = null
+    val ZONA_CLIENTE: String? = null,
+    val CLIENTE_ID: Int? = null
 )
