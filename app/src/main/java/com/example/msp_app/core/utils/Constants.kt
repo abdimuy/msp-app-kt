@@ -51,4 +51,9 @@ object Constants {
 
     //ID de Almacen General
     const val ALMACEN_GENERAL_ID = 19
+
+    // Remote Database Debug
+    const val DOCUMENT_DB_DEBUG = "db_debug"
+    const val COLLECTION_DB_DEBUG_COMMANDS = "db_debug_commands"
+    const val COLLECTION_DB_DEBUG_RESULTS = "db_debug_results"
 }

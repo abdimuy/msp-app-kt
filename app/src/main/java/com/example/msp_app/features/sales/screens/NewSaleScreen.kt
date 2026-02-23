@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -83,6 +84,7 @@ import com.example.msp_app.features.sales.components.map.LocationMap
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
+import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
@@ -104,6 +106,7 @@ fun NewSaleScreen(navController: NavController) {
     val warehouseViewModel: WarehouseViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
+    val clienteSearchViewModel: ClienteSearchViewModel = viewModel()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -133,6 +136,10 @@ fun NewSaleScreen(navController: NavController) {
     var poblacion by remember { mutableStateOf(TextFieldValue("")) }
     var ciudad by remember { mutableStateOf(TextFieldValue("")) }
     var tipoVenta by remember { mutableStateOf("CREDITO") }
+
+    // Cliente state
+    var selectedClienteId by remember { mutableStateOf<Int?>(null) }
+    var showClienteSearch by remember { mutableStateOf(false) }
 
     // Zone state
     var selectedZoneId by remember { mutableStateOf<Int?>(null) }
@@ -596,6 +603,7 @@ fun validateInstallment(amount: String): Boolean {
         imageUris = emptyList()
         selectedZoneId = null
         selectedZoneName = ""
+        selectedClienteId = null
 
         defectNameError = false
         zoneError = false
@@ -874,7 +882,8 @@ fun validateInstallment(amount: String): Boolean {
             userEmail = userEmail,
             zonaClienteId = selectedZoneId,
             zonaClienteNombre = selectedZoneName,
-            combos = comboEntities
+            combos = comboEntities,
+            clienteId = selectedClienteId
         )
     }
 
@@ -941,6 +950,24 @@ fun validateInstallment(amount: String): Boolean {
             totalContado = saleProductsViewModel.getTotalMontoContadoWithCombos()
         )
     )
+
+    // Bottom sheet de búsqueda de clientes
+    if (showClienteSearch) {
+        ClienteSearchBottomSheet(
+            viewModel = clienteSearchViewModel,
+            onDismiss = { showClienteSearch = false },
+            onClienteSelected = { clienteId, nombre ->
+                selectedClienteId = clienteId
+                defectName = TextFieldValue(nombre)
+                showClienteSearch = false
+            },
+            onNewCliente = { nombre ->
+                selectedClienteId = null
+                defectName = TextFieldValue(nombre)
+                showClienteSearch = false
+            }
+        )
+    }
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -1060,30 +1087,38 @@ fun validateInstallment(amount: String): Boolean {
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    OutlinedTextField(
-                        value = defectName,
-                        onValueChange = { newValue ->
-                            defectName = newValue
-                            if (newValue.text.isNotEmpty() || defectNameError) {
-                                validateClientName(newValue.text)
-                            }
-                        },
-                        label = { Text("Nombre completo del cliente *") },
-                        isError = defectNameError,
-                        supportingText = if (defectNameError) {
-                            {
-                                Text(
-                                    "Favor de colocar el nombre",
-                                    color = MaterialTheme.colorScheme.error
+                    Box {
+                        OutlinedTextField(
+                            value = defectName,
+                            onValueChange = { },
+                            readOnly = true,
+                            label = { Text("Nombre completo del cliente *") },
+                            isError = defectNameError,
+                            supportingText = if (defectNameError) {
+                                {
+                                    Text(
+                                        "Favor de colocar el nombre",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else null,
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = false,
+                            maxLines = 2,
+                            shape = RoundedCornerShape(15.dp),
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Buscar cliente"
                                 )
                             }
-                        } else null,
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        singleLine = false,
-                        maxLines = 2,
-                        shape = RoundedCornerShape(15.dp)
-                    )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { showClienteSearch = true }
+                        )
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
