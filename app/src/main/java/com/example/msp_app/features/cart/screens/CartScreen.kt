@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,7 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.composables.icons.lucide.FileText
+import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Printer
 import com.composables.icons.lucide.Truck
 import com.example.msp_app.components.DrawerContainer
@@ -87,7 +86,6 @@ fun CartScreen(navController: NavController) {
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val saveCartState by warehouseViewModel.saveCartState.collectAsState()
     val warehouseState by warehouseViewModel.warehouseProducts.collectAsState()
-    val hasUnsavedChanges by cartViewModel.hasUnsavedChanges.collectAsState()
     val userData by authViewModel.userData.collectAsState()
     val loadingOperations by cartViewModel.loadingOperations.collectAsState()
     val transferState by warehouseViewModel.transferState.collectAsState()
@@ -159,7 +157,8 @@ fun CartScreen(navController: NavController) {
     LaunchedEffect(warehouseState) {
         when (val state = warehouseState) {
             is ResultState.Success -> {
-                nombreAlmacenAsignado = state.data.body.ALMACEN?.ALMACEN ?: camionetaAsignada?.let { "Almacén ID: $it" }
+                nombreAlmacenAsignado =
+                    state.data.body.ALMACEN?.ALMACEN ?: camionetaAsignada?.let { "Almacén ID: $it" }
                 val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
                 cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
             }
@@ -274,14 +273,22 @@ fun CartScreen(navController: NavController) {
                                 onClick = {
                                     coroutineScope.launch {
                                         isGeneratingPdf = true
+
+                                        val currentUser = when (val userState = userData) {
+                                            is ResultState.Success -> userState.data
+                                            else -> null
+                                        }
+
                                         val file = withContext(Dispatchers.IO) {
                                             PdfGenerator.generateWarehouseInventoryPdf(
                                                 context = context,
-                                                warehouseName = nombreAlmacenAsignado ?: "Mi Camioneta",
+                                                warehouseName = nombreAlmacenAsignado
+                                                    ?: "Mi Camioneta",
                                                 totalStock = cartProducts.sumOf { it.quantity },
                                                 assignedUsers = emptyList(),
                                                 products = cartProducts.map { it.product },
-                                                fileName = "inventario_camioneta.pdf"
+                                                fileName = "inventario_camioneta.pdf",
+                                                watermarkText = currentUser?.NOMBRE
                                             )
                                         }
                                         isGeneratingPdf = false
