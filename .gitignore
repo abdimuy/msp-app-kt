@@ -20,3 +20,6 @@ local.properties
 *.keystore
 *.jks
 keystore.properties
+
+# Kotlin compiler error logs
+.kotlin/
