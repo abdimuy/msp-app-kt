@@ -16,7 +16,9 @@ data class GuaranteeEntity(
     @PrimaryKey(autoGenerate = true)
     val ID: Int = 0,
     val EXTERNAL_ID: String,
-    val DOCTO_CC_ID: Int,
+    val DOCTO_CC_ID: Int?,
+    val CLIENTE_NOMBRE: String?,
+    val ARTICULO: String?,
     val ESTADO: String,
     val DESCRIPCION_FALLA: String,
     val OBSERVACIONES: String?,

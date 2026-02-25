@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants.ENTREGADO
 import com.example.msp_app.core.utils.Constants.RECOLECTADO
+import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.guarantee.GuaranteesApi
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
@@ -16,7 +17,6 @@ import com.example.msp_app.data.local.entities.GuaranteeEventEntity
 import com.example.msp_app.data.local.entities.GuaranteeImageEntity
 import com.example.msp_app.workmanager.enqueuePendingGuaranteeEventsWorker
 import com.example.msp_app.workmanager.enqueuePendingGuaranteesWorker
-import com.example.msp_app.core.utils.ImageCompressor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +25,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
 import java.util.UUID
 
 class GuaranteesViewModel(application: Application) : AndroidViewModel(application) {
@@ -69,7 +68,9 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             guaranteeStore.insertGuarantee(guarantee)
             loadAllGuarantees()
-            enqueueGuaranteeForUpload(guarantee)
+            if (guarantee.DOCTO_CC_ID != null) {
+                enqueueGuaranteeForUpload(guarantee)
+            }
         }
     }
 
@@ -126,7 +127,11 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 savedPaths.add(result.outputFile.absolutePath to "image/jpeg")
 
             } catch (e: Exception) {
-                Log.e("GuaranteesViewModel", "Error al comprimir imagen de garantía: ${e.message}", e)
+                Log.e(
+                    "GuaranteesViewModel",
+                    "Error al comprimir imagen de garantía: ${e.message}",
+                    e
+                )
             }
         }
 
@@ -186,6 +191,8 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun postGuaranteeRemote(guarantee: GuaranteeEntity) {
+        val doctoCcId = guarantee.DOCTO_CC_ID ?: return
+
         viewModelScope.launch {
             try {
                 val images = guaranteeStore.getImagesByExternalId(guarantee.EXTERNAL_ID)
@@ -210,7 +217,7 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 }
 
                 api.saveGuaranteeWithImages(
-                    doctoCcId = guarantee.DOCTO_CC_ID,
+                    doctoCcId = doctoCcId,
                     externalId = externalIdBody,
                     descripcionFalla = descripcionFallaBody,
                     observaciones = observacionesBody,
@@ -235,7 +242,8 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             try {
                 val pendingGuarantees =
-                    guaranteeStore.getAllGuarantees().filter { it.UPLOADED == 0 }
+                    guaranteeStore.getAllGuarantees()
+                        .filter { it.UPLOADED == 0 && it.DOCTO_CC_ID != null }
                 pendingGuarantees.forEach { guarantee ->
                     enqueuePendingGuaranteesWorker(
                         getApplication(),

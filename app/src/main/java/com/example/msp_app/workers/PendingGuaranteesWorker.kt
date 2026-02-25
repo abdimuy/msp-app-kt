@@ -32,6 +32,11 @@ class PendingGuaranteesWorker(
                 Log.e("PendingGuaranteesWorker", "Garantía no encontrada: $externalId")
             }
 
+        val doctoCcId = guarantee.DOCTO_CC_ID
+            ?: return Result.success().also {
+                Log.d("PendingGuaranteesWorker", "Garantía sin DOCTO_CC_ID, omitiendo envío: $externalId")
+            }
+
         return try {
             Log.d("PendingGuaranteesWorker", "Enviando garantía: ${guarantee.EXTERNAL_ID}")
 
@@ -60,7 +65,7 @@ class PendingGuaranteesWorker(
             }
 
             api.saveGuaranteeWithImages(
-                doctoCcId = guarantee.DOCTO_CC_ID,
+                doctoCcId = doctoCcId,
                 externalId = externalIdBody,
                 descripcionFalla = descripcionFallaBody,
                 observaciones = observacionesBody,
