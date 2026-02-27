@@ -321,11 +321,8 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                     saleProduct.insertSaleProducts(productEntities)
                 }
 
-                // Delete old combos and insert new ones
-                comboDataSource.deleteCombosForSale(saleId)
-                if (saleCombos.isNotEmpty()) {
-                    comboDataSource.insertCombos(saleCombos)
-                }
+                // Delete old combos and insert new ones in a transaction
+                comboDataSource.replaceCombosForSale(saleId, saleCombos)
 
                 // Get images to delete IDs - NO borramos los archivos físicos aquí
                 // Los archivos se borrarán después de la sincronización exitosa

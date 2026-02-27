@@ -295,4 +295,13 @@ class SaleProductsViewModel : ViewModel() {
         _combos.clear()
         _selectedForCombo.clear()
     }
+
+    /**
+     * Load combos from a list of entities (used for restoring from DB or draft)
+     */
+    fun loadCombosFromList(combos: List<ComboItem>) {
+        combos.forEach { combo ->
+            _combos[combo.comboId] = combo
+        }
+    }
 }

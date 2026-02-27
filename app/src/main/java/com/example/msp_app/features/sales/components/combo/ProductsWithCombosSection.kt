@@ -189,16 +189,20 @@ fun ProductsWithCombosSection(
 
             combos.forEach { combo ->
                 // Use original products data if available, otherwise use the lambda
-                val productsInCombo = if (productsForCombos.isNotEmpty() && getProductInventory != null) {
-                    productsForCombos
-                        .filter { it.COMBO_ID == combo.comboId }
-                        .mapNotNull { productEntity ->
-                            getProductInventory.invoke(productEntity.ARTICULO_ID)?.let { product ->
-                                SaleItem(product, productEntity.CANTIDAD, combo.comboId)
+                // If DB filter returns empty, fallback to ViewModel data (for newly created combos)
+                val productsInCombo = when {
+                    productsForCombos.isNotEmpty() && getProductInventory != null -> {
+                        val fromDb = productsForCombos
+                            .filter { it.COMBO_ID == combo.comboId }
+                            .mapNotNull { productEntity ->
+                                getProductInventory.invoke(productEntity.ARTICULO_ID)?.let { product ->
+                                    SaleItem(product, productEntity.CANTIDAD, combo.comboId)
+                                }
                             }
-                        }
-                } else {
-                    getProductsInCombo(combo.comboId)
+                        // Fallback to ViewModel if DB returns empty (newly created combos)
+                        if (fromDb.isEmpty()) getProductsInCombo(combo.comboId) else fromDb
+                    }
+                    else -> getProductsInCombo(combo.comboId)
                 }
                 
                 ComboCard(

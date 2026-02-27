@@ -160,6 +160,7 @@ fun EditSaleScreen(
 
     // Flag to track if form was initialized
     var formInitialized by remember { mutableStateOf(false) }
+    var combosInitialized by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions = listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
@@ -230,10 +231,10 @@ fun EditSaleScreen(
                 formInitialized = true
             }
 
-            // Load combos into SaleProductsViewModel (can be loaded after form init)
-            if (existingCombos.isNotEmpty() && saleProductsViewModel.combos.isEmpty()) {
-                existingCombos.forEach { comboEntity ->
-                    saleProductsViewModel.combos[comboEntity.COMBO_ID] = ComboItem(
+            // Load combos into SaleProductsViewModel only once (can be loaded after form init)
+            if (existingCombos.isNotEmpty() && !combosInitialized) {
+                val combosList = existingCombos.map { comboEntity ->
+                    ComboItem(
                         comboId = comboEntity.COMBO_ID,
                         nombreCombo = comboEntity.NOMBRE_COMBO,
                         precioLista = comboEntity.PRECIO_LISTA,
@@ -241,6 +242,8 @@ fun EditSaleScreen(
                         precioContado = comboEntity.PRECIO_CONTADO
                     )
                 }
+                saleProductsViewModel.loadCombosFromList(combosList)
+                combosInitialized = true
             }
         }
     }
@@ -1204,6 +1207,7 @@ fun EditSaleScreen(
                             }
                         },
                         onCreateCombo = {
+                            saleProductsViewModel.setCreatingCombo(true)
                             showCreateComboDialog = true
                         },
                         onDeleteCombo = { comboId ->
