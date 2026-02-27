@@ -101,7 +101,7 @@ fun ProductsInfoCard(
                                 style = MaterialTheme.typography.titleSmall
                             )
                             Text(
-                                "${productsViewModel.getTotalItems()}",
+                                "${saleProducts.sumOf { it.CANTIDAD }}",
                                 style = MaterialTheme.typography.titleSmall
                             )
                         }

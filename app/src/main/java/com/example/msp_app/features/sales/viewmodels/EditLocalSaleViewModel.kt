@@ -6,8 +6,10 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
+import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
@@ -27,6 +29,7 @@ import java.util.UUID
 class EditLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
+    private val comboDataSource = ComboLocalDataSource(application.applicationContext)
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(application) }
 
     private val _selectedSale = MutableStateFlow<LocalSaleEntity?>(null)
@@ -37,6 +40,9 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
 
     private val _saleProducts = MutableStateFlow<List<LocalSaleProductEntity>>(emptyList())
     val saleProducts: StateFlow<List<LocalSaleProductEntity>> = _saleProducts
+
+    private val _saleCombos = MutableStateFlow<List<LocalSaleComboEntity>>(emptyList())
+    val saleCombos: StateFlow<List<LocalSaleComboEntity>> = _saleCombos
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -58,6 +64,7 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                 if (sale != null) {
                     loadImagesBySaleId(saleId)
                     loadProductsBySaleId(saleId)
+                    loadCombosBySaleId(saleId)
                 }
             } catch (e: Exception) {
                 Log.e("EditLocalSaleViewModel", "Error loading sale: ${e.message}", e)
@@ -79,6 +86,16 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
         } catch (e: Exception) {
             Log.e("EditLocalSaleViewModel", "Error loading products: ${e.message}")
             _saleProducts.value = emptyList()
+        }
+    }
+
+    private suspend fun loadCombosBySaleId(saleId: String) {
+        try {
+            val combos = comboDataSource.getCombosForSale(saleId)
+            _saleCombos.value = combos
+        } catch (e: Exception) {
+            Log.e("EditLocalSaleViewModel", "Error loading combos: ${e.message}")
+            _saleCombos.value = emptyList()
         }
     }
 
@@ -195,6 +212,7 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
         shorttermamount: Double,
         cashamount: Double,
         saleProducts: List<SaleItem>,
+        saleCombos: List<LocalSaleComboEntity> = emptyList(),
         context: Context,
         userEmail: String,
         zonaClienteId: Int? = null,
@@ -294,13 +312,17 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                         CANTIDAD = saleItem.quantity,
                         PRECIO_LISTA = parsedPrices.precioLista,
                         PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
-                        PRECIO_CONTADO = parsedPrices.precioContado
+                        PRECIO_CONTADO = parsedPrices.precioContado,
+                        COMBO_ID = saleItem.comboId
                     )
                 }
 
                 if (productEntities.isNotEmpty()) {
                     saleProduct.insertSaleProducts(productEntities)
                 }
+
+                // Delete old combos and insert new ones in a transaction
+                comboDataSource.replaceCombosForSale(saleId, saleCombos)
 
                 // Get images to delete IDs - NO borramos los archivos físicos aquí
                 // Los archivos se borrarán después de la sincronización exitosa

@@ -78,7 +78,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     LINEA_ARTICULO_ID = 0,
                     LINEA_ARTICULO = "",
                 )
-                productsViewModel.addProductToSale(productInventory, productEntity.CANTIDAD)
+                productsViewModel.addProductToSale(productInventory, productEntity.CANTIDAD, productEntity.COMBO_ID)
             }
         }
     }

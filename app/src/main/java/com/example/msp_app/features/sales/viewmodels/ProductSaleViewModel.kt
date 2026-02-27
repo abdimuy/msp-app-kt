@@ -43,7 +43,7 @@ class SaleProductsViewModel : ViewModel() {
     private val _isCreatingCombo = MutableStateFlow(false)
     val isCreatingCombo: StateFlow<Boolean> = _isCreatingCombo.asStateFlow()
 
-    fun addProductToSale(product: ProductInventory, quantity: Int) {
+    fun addProductToSale(product: ProductInventory, quantity: Int, comboId: String? = null) {
         if (quantity <= 0) return
 
         val maxStock = product.EXISTENCIAS
@@ -55,10 +55,11 @@ class SaleProductsViewModel : ViewModel() {
             val existingItem = _saleItems[existingIndex]
             val newQuantity = (existingItem.quantity + quantity).coerceAtMost(maxStock)
             _saleItems[existingIndex] = existingItem.copy(
-                quantity = newQuantity
+                quantity = newQuantity,
+                comboId = comboId ?: existingItem.comboId
             )
         } else {
-            _saleItems.add(SaleItem(product, quantity.coerceAtMost(maxStock)))
+            _saleItems.add(SaleItem(product, quantity.coerceAtMost(maxStock), comboId))
         }
     }
 
@@ -84,9 +85,7 @@ class SaleProductsViewModel : ViewModel() {
         return _saleItems.find {
             it.product.ARTICULO_ID == product.ARTICULO_ID
         }?.quantity ?: 0
-    }
-
-    fun getTotalItems(): Int = _saleItems.sumOf { it.quantity }
+        }
 
     fun getTotalPrice(): Double = _saleItems.sumOf { it.totalPrice }
 
@@ -295,5 +294,14 @@ class SaleProductsViewModel : ViewModel() {
         _saleItems.clear()
         _combos.clear()
         _selectedForCombo.clear()
+    }
+
+    /**
+     * Load combos from a list of entities (used for restoring from DB or draft)
+     */
+    fun loadCombosFromList(combos: List<ComboItem>) {
+        combos.forEach { combo ->
+            _combos[combo.comboId] = combo
+        }
     }
 }

@@ -36,8 +36,11 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Package
 import com.composables.icons.lucide.X
+import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.features.sales.viewmodels.ComboItem
 import com.example.msp_app.features.sales.viewmodels.SaleItem
+import com.example.msp_app.data.models.productInventory.ProductInventory
+import com.example.msp_app.utils.PriceParser
 
 @Composable
 fun ProductsWithCombosSection(
@@ -52,9 +55,22 @@ fun ProductsWithCombosSection(
     onDeleteCombo: (String) -> Unit,
     onClearSelection: () -> Unit,
     isCreatingCombo: Boolean = false,
+    productsForCombos: List<LocalSaleProductEntity> = emptyList(),
+    getProductInventory: ((Int) -> ProductInventory?)? = null,
     modifier: Modifier = Modifier
 ) {
     var showComboDialog by remember { mutableStateOf(false) }
+
+    // Filter individual products using original products data if available
+    val filteredIndividualProducts = remember(individualProducts, productsForCombos, combos) {
+        if (productsForCombos.isNotEmpty() && combos.isNotEmpty()) {
+            val comboIds = combos.map { it.comboId }.toSet()
+            val productsInCombos = productsForCombos.filter { it.COMBO_ID in comboIds }.map { it.ARTICULO_ID }.toSet()
+            individualProducts.filter { it.product.ARTICULO_ID !in productsInCombos }
+        } else {
+            individualProducts
+        }
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Header con contador de selección y botón de crear combo
@@ -172,9 +188,26 @@ fun ProductsWithCombosSection(
             )
 
             combos.forEach { combo ->
+                // Use original products data if available, otherwise use the lambda
+                // If DB filter returns empty, fallback to ViewModel data (for newly created combos)
+                val productsInCombo = when {
+                    productsForCombos.isNotEmpty() && getProductInventory != null -> {
+                        val fromDb = productsForCombos
+                            .filter { it.COMBO_ID == combo.comboId }
+                            .mapNotNull { productEntity ->
+                                getProductInventory.invoke(productEntity.ARTICULO_ID)?.let { product ->
+                                    SaleItem(product, productEntity.CANTIDAD, combo.comboId)
+                                }
+                            }
+                        // Fallback to ViewModel if DB returns empty (newly created combos)
+                        if (fromDb.isEmpty()) getProductsInCombo(combo.comboId) else fromDb
+                    }
+                    else -> getProductsInCombo(combo.comboId)
+                }
+                
                 ComboCard(
                     combo = combo,
-                    products = getProductsInCombo(combo.comboId),
+                    products = productsInCombo,
                     onDelete = { onDeleteCombo(combo.comboId) },
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
@@ -183,8 +216,10 @@ fun ProductsWithCombosSection(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        // Productos individuales
-        if (individualProducts.isNotEmpty()) {
+        // Productos individuales - use filtered list if productsForCombos is available
+        val displayIndividualProducts = if (productsForCombos.isNotEmpty()) filteredIndividualProducts else individualProducts
+        
+        if (displayIndividualProducts.isNotEmpty()) {
             Text(
                 text = if (combos.isNotEmpty()) "Productos individuales" else "Productos",
                 style = MaterialTheme.typography.titleSmall,
@@ -200,7 +235,7 @@ fun ProductsWithCombosSection(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
 
-            individualProducts.forEach { item ->
+            displayIndividualProducts.forEach { item ->
                 ProductItemSelectable(
                     saleItem = item,
                     isSelected = selectedProductIds.contains(item.product.ARTICULO_ID),
