@@ -246,10 +246,10 @@ private fun ClienteItem(
 @Composable
 private fun EstatusBadge(estatus: String) {
     val (color, label) = when (estatus) {
-        "A" -> Color(0xFF4CAF50) to "Activo"
-        "B" -> Color(0xFFFFC107) to "Suspendido"
-        "C" -> Color(0xFFFF9800) to "Cancelado"
-        "V" -> Color(0xFFF44336) to "Vencido"
+        "A" -> Color(0xFF4CAF50) to "Crédito Activo"
+        "B" -> Color(0xFFFFC107) to "Sin Crédito Activo"
+        "C" -> Color(0xFFFF9800) to "Suspención de Crédito"
+        "V" -> Color(0xFFF44336) to "Suspención de Ventas"
         else -> Color.Gray to estatus
     }
 
