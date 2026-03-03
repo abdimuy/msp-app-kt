@@ -167,9 +167,9 @@ private fun ProductRow(product: LocalSaleProductEntity) {
                     fontWeight = FontWeight.SemiBold
                 )
                 listOf(
-                    "Lista" to product.PRECIO_LISTA.toCurrency(),
+                    "Contado" to product.PRECIO_CONTADO.toCurrency(),
                     "Corto plazo" to product.PRECIO_CORTO_PLAZO.toCurrency(),
-                    "Contado" to product.PRECIO_CONTADO.toCurrency()
+                    "Lista" to product.PRECIO_LISTA.toCurrency()
                 ).forEach { (label, price) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -194,8 +194,11 @@ private fun ProductRow(product: LocalSaleProductEntity) {
                     style = MaterialTheme.typography.titleSmall
                 )
                 Column(horizontalAlignment = Alignment.Start) {
-                    Text("Lista", style = MaterialTheme.typography.labelSmall)
-                    Text(product.PRECIO_LISTA.toCurrency(), style = MaterialTheme.typography.bodySmall)
+                    Text("Contado", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        product.PRECIO_CONTADO.toCurrency(),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
 
                 Column(horizontalAlignment = Alignment.Start) {
@@ -207,11 +210,8 @@ private fun ProductRow(product: LocalSaleProductEntity) {
                 }
 
                 Column(horizontalAlignment = Alignment.Start) {
-                    Text("Contado", style = MaterialTheme.typography.labelSmall)
-                    Text(
-                        product.PRECIO_CONTADO.toCurrency(),
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                    Text("Lista", style = MaterialTheme.typography.labelSmall)
+                    Text(product.PRECIO_LISTA.toCurrency(), style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

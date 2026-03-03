@@ -12,11 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Package
-import com.composables.icons.lucide.X
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -33,20 +29,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Package
+import com.composables.icons.lucide.X
 import java.text.NumberFormat
 import java.util.Locale
 
 /**
  * Validates price input according to business rules
- * @param input String input from user  
+ * @param input String input from user
  * @param fieldName Name of field for error messages
  * @return Pair<Boolean, String?> where first is isValid, second is errorMessage
  */
@@ -55,33 +51,33 @@ fun validatePriceInput(input: String, fieldName: String): Pair<Boolean, String?>
     if (input.isBlank()) {
         return false to "El precio es requerido"
     }
-    
+
     // Valor negativo
     if (input.startsWith("-")) {
         return false to "El precio no puede ser negativo"
     }
-    
+
     // No es un número válido
     val number = input.toDoubleOrNull()
     if (number == null) {
         return false to "El precio debe ser un número válido"
     }
-    
+
     // Cero total
     if (number == 0.0) {
         return false to "El precio debe ser mayor a 0"
     }
-    
+
     // Más de 2 decimales
     if (input.contains('.') && input.substringAfter('.').length > 2) {
         return false to "El precio no puede tener más de 2 decimales"
     }
-    
+
     // Valor antes del punto es cero (casos como 0.XX)
     if (number < 1.0) {
         return false to "El precio debe ser al menos 1.00"
     }
-    
+
     // Todo válido
     return true to null
 }
@@ -113,17 +109,17 @@ fun CreateComboDialog(
     var precioCortoPlazo by remember { mutableStateOf(suggestedPrices.second.toString()) }
     var precioContado by remember { mutableStateOf(suggestedPrices.third.toString()) }
     var nombreError by remember { mutableStateOf(false) }
-    
+
     // Estados de error para validación de precios
     var precioListaError by remember { mutableStateOf<String?>(null) }
     var precioCortoPlazoError by remember { mutableStateOf<String?>(null) }
     var precioContadoError by remember { mutableStateOf<String?>(null) }
-    
+
     // Estado combinado para facilitar validación del botón
-    val hasPriceErrors = precioListaError != null || 
-                         precioCortoPlazoError != null || 
-                         precioContadoError != null ||
-                         nombreError
+    val hasPriceErrors = precioListaError != null ||
+            precioCortoPlazoError != null ||
+            precioContadoError != null ||
+            nombreError
 
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
 
@@ -225,28 +221,22 @@ fun CreateComboDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Precio Lista
+                // Precio Contado
                 OutlinedTextField(
-                    value = precioLista,
+                    value = precioContado,
                     onValueChange = { newValue ->
-                        precioLista = newValue
-                        val (isValid, error) = validatePriceInput(newValue, "Precio Lista")
-                        precioListaError = error
+                        precioContado = newValue
+                        val (_, error) = validatePriceInput(newValue, "Precio Contado")
+                        precioContadoError = error
                     },
-                    label = { Text("Precio Lista") },
+                    label = { Text("Precio Contado") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     leadingIcon = { Text("$", color = MaterialTheme.colorScheme.outline) },
-                    isError = precioListaError != null,
-                    supportingText = precioListaError?.let { 
-                        { Text(it, color = MaterialTheme.colorScheme.error) } 
-                    } ?: {
-                        Text(
-                            text = "Suma sugerida: ${currencyFormat.format(suggestedPrices.first)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline
-                        )
+                    isError = precioContadoError != null,
+                    supportingText = precioContadoError?.let {
+                        { Text(it, color = MaterialTheme.colorScheme.error) }
                     },
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -258,7 +248,7 @@ fun CreateComboDialog(
                     value = precioCortoPlazo,
                     onValueChange = { newValue ->
                         precioCortoPlazo = newValue
-                        val (isValid, error) = validatePriceInput(newValue, "Precio Corto Plazo")
+                        val (_, error) = validatePriceInput(newValue, "Precio Corto Plazo")
                         precioCortoPlazoError = error
                     },
                     label = { Text("Precio Corto Plazo") },
@@ -267,30 +257,36 @@ fun CreateComboDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     leadingIcon = { Text("$", color = MaterialTheme.colorScheme.outline) },
                     isError = precioCortoPlazoError != null,
-                    supportingText = precioCortoPlazoError?.let { 
-                        { Text(it, color = MaterialTheme.colorScheme.error) } 
+                    supportingText = precioCortoPlazoError?.let {
+                        { Text(it, color = MaterialTheme.colorScheme.error) }
                     },
                     shape = RoundedCornerShape(12.dp)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Precio Contado
+                // Precio Lista
                 OutlinedTextField(
-                    value = precioContado,
+                    value = precioLista,
                     onValueChange = { newValue ->
-                        precioContado = newValue
-                        val (isValid, error) = validatePriceInput(newValue, "Precio Contado")
-                        precioContadoError = error
+                        precioLista = newValue
+                        val (_, error) = validatePriceInput(newValue, "Precio Lista")
+                        precioListaError = error
                     },
-                    label = { Text("Precio Contado") },
+                    label = { Text("Precio Lista") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     leadingIcon = { Text("$", color = MaterialTheme.colorScheme.outline) },
-                    isError = precioContadoError != null,
-                    supportingText = precioContadoError?.let { 
-                        { Text(it, color = MaterialTheme.colorScheme.error) } 
+                    isError = precioListaError != null,
+                    supportingText = precioListaError?.let {
+                        { Text(it, color = MaterialTheme.colorScheme.error) }
+                    } ?: {
+                        Text(
+                            text = "Suma sugerida: ${currencyFormat.format(suggestedPrices.first)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
                     },
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -316,12 +312,12 @@ fun CreateComboDialog(
                                 nombreError = true
                                 return@Button
                             }
-                            
+
                             // Si el nombre es válido pero hay errores de precio, no continuar
                             if (hasPriceErrors) {
                                 return@Button
                             }
-                            
+
                             // Todo válido, proceder
                             onConfirm(
                                 nombreCombo,

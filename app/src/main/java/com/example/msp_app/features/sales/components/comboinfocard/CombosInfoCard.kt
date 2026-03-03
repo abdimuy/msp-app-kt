@@ -205,9 +205,9 @@ private fun ComboDetailCard(
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 listOf(
-                    "Lista" to currencyFormat.format(combo.PRECIO_LISTA),
+                    "Contado" to currencyFormat.format(combo.PRECIO_CONTADO),
                     "Corto Plazo" to currencyFormat.format(combo.PRECIO_CORTO_PLAZO),
-                    "Contado" to currencyFormat.format(combo.PRECIO_CONTADO)
+                    "Lista" to currencyFormat.format(combo.PRECIO_LISTA)
                 ).forEach { (label, price) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -236,9 +236,9 @@ private fun ComboDetailCard(
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                PriceLabel("Lista", currencyFormat.format(combo.PRECIO_LISTA))
-                PriceLabel("C. Plazo", currencyFormat.format(combo.PRECIO_CORTO_PLAZO))
                 PriceLabel("Contado", currencyFormat.format(combo.PRECIO_CONTADO))
+                PriceLabel("C. Plazo", currencyFormat.format(combo.PRECIO_CORTO_PLAZO))
+                PriceLabel("Lista", currencyFormat.format(combo.PRECIO_LISTA))
             }
         }
 
