@@ -108,7 +108,7 @@ fun NewWarrantyScreen(navController: NavController) {
         val photoFile = File(context.cacheDir, "warranty_photo_${System.currentTimeMillis()}.jpg")
         tempCameraUri = FileProvider.getUriForFile(
             context,
-            "${context.packageName}.provider",
+            "${context.packageName}.fileprovider",
             photoFile
         )
         cameraLauncher.launch(tempCameraUri!!)
