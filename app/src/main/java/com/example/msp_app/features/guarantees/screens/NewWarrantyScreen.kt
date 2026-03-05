@@ -62,6 +62,7 @@ import com.example.msp_app.components.ClienteSearchBottomSheet
 import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
+import com.example.msp_app.navigation.Screen
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -89,6 +90,11 @@ fun NewWarrantyScreen(navController: NavController) {
     val imageUris = remember { mutableStateListOf<Uri>() }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+
+    var hasTriedToSubmit by remember { mutableStateOf(false) }
+    val clienteError = hasTriedToSubmit && clienteNombre.text.isBlank()
+    val articuloError = hasTriedToSubmit && articulo.text.isBlank()
+    val descripcionError = hasTriedToSubmit && descripcionFalla.text.isBlank()
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -137,184 +143,204 @@ fun NewWarrantyScreen(navController: NavController) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(
-                text = "Cliente",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Box {
-                OutlinedTextField(
-                    value = clienteNombre,
-                    onValueChange = { },
-                    modifier = Modifier.fillMaxWidth(),
-                    readOnly = true,
-                    placeholder = { Text("Seleccionar cliente...") },
-                    shape = RoundedCornerShape(12.dp),
-                    trailingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = null)
-                    }
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .clickable { showClienteSearch = true }
-                )
-            }
-
-            Text(
-                text = "Artículo",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            OutlinedTextField(
-                value = articulo,
-                onValueChange = { articulo = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Nombre del artículo...") },
-                shape = RoundedCornerShape(12.dp),
-                singleLine = true
-            )
-
-            Text(
-                text = "Descripción de la falla",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            OutlinedTextField(
-                value = descripcionFalla,
-                onValueChange = { descripcionFalla = it },
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp),
-                placeholder = { Text("Describe el problema...") },
-                shape = RoundedCornerShape(12.dp),
-                maxLines = 5
-            )
-
-            Text(
-                text = "Observaciones (opcional)",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            OutlinedTextField(
-                value = observaciones,
-                onValueChange = { observaciones = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp),
-                placeholder = { Text("Observaciones adicionales...") },
-                shape = RoundedCornerShape(12.dp),
-                maxLines = 4
-            )
-
-            Text(
-                text = "Imágenes",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(imageUris) { uri ->
+                Text(
+                    text = "Cliente *",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Box {
+                    OutlinedTextField(
+                        value = clienteNombre,
+                        onValueChange = { },
+                        modifier = Modifier.fillMaxWidth(),
+                        readOnly = true,
+                        placeholder = { Text("Seleccionar cliente...") },
+                        shape = RoundedCornerShape(12.dp),
+                        isError = clienteError,
+                        supportingText = if (clienteError) {
+                            { Text("El cliente es requerido") }
+                        } else null,
+                        trailingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        }
+                    )
                     Box(
                         modifier = Modifier
-                            .size(100.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .border(1.dp, Color.Gray, RoundedCornerShape(12.dp))
-                    ) {
-                        Image(
-                            painter = rememberAsyncImagePainter(uri),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        IconButton(
-                            onClick = { imageUris.remove(uri) },
+                            .matchParentSize()
+                            .clickable { showClienteSearch = true }
+                    )
+                }
+
+                Text(
+                    text = "Artículo *",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                OutlinedTextField(
+                    value = articulo,
+                    onValueChange = { articulo = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Nombre del artículo...") },
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    isError = articuloError,
+                    supportingText = if (articuloError) {
+                        { Text("El artículo es requerido") }
+                    } else null
+                )
+
+                Text(
+                    text = "Descripción de la falla *",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                OutlinedTextField(
+                    value = descripcionFalla,
+                    onValueChange = { descripcionFalla = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp),
+                    placeholder = { Text("Describe el problema...") },
+                    shape = RoundedCornerShape(12.dp),
+                    maxLines = 5,
+                    isError = descripcionError,
+                    supportingText = if (descripcionError) {
+                        { Text("La descripción de la falla es requerida") }
+                    } else null
+                )
+
+                Text(
+                    text = "Observaciones (opcional)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                OutlinedTextField(
+                    value = observaciones,
+                    onValueChange = { observaciones = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    placeholder = { Text("Observaciones adicionales...") },
+                    shape = RoundedCornerShape(12.dp),
+                    maxLines = 4
+                )
+
+                Text(
+                    text = "Imágenes",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(imageUris) { uri ->
+                        Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .size(24.dp)
-                                .background(
-                                    Color.Black.copy(alpha = 0.5f),
-                                    RoundedCornerShape(12.dp)
-                                )
+                                .size(100.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(1.dp, Color.Gray, RoundedCornerShape(12.dp))
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Eliminar",
-                                tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                            Image(
+                                painter = rememberAsyncImagePainter(uri),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
                             )
-                        }
-                    }
-                }
-
-                item {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Botón cámara
-                        Box(
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(
-                                    2.dp,
-                                    MaterialTheme.colorScheme.primary,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { launchCamera() },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            IconButton(
+                                onClick = { imageUris.remove(uri) },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .size(24.dp)
+                                    .background(
+                                        Color.Black.copy(alpha = 0.5f),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Tomar foto",
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "Cámara",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(100.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(
-                                    2.dp,
-                                    MaterialTheme.colorScheme.secondary,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { galleryLauncher.launch("image/*") },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Galería",
-                                    tint = MaterialTheme.colorScheme.secondary
-                                )
-                                Text(
-                                    text = "Galería",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.secondary
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Eliminar",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
                     }
+
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            // Botón cámara
+                            Box(
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.primary,
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { launchCamera() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Tomar foto",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Cámara",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(100.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .border(
+                                        2.dp,
+                                        MaterialTheme.colorScheme.secondary,
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable { galleryLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Galería",
+                                        tint = MaterialTheme.colorScheme.secondary
+                                    )
+                                    Text(
+                                        text = "Galería",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.secondary
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             Button(
                 onClick = {
+                    hasTriedToSubmit = true
+                    if (!isFormValid) return@Button
+
                     isSaving = true
                     scope.launch {
                         val externalId = UUID.randomUUID().toString()
@@ -347,13 +373,15 @@ fun NewWarrantyScreen(navController: NavController) {
                         }
 
                         isSaving = false
-                        navController.popBackStack()
+                        navController.navigate(Screen.Warranties.route) {
+                            popUpTo(Screen.NewWarranty.route) { inclusive = true }
+                        }
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp),
-                enabled = isFormValid && !isSaving,
+                    .padding(horizontal = 16.dp),
+                enabled = !isSaving,
                 shape = RoundedCornerShape(12.dp)
             ) {
                 if (isSaving) {
@@ -362,7 +390,7 @@ fun NewWarrantyScreen(navController: NavController) {
                         color = Color.White,
                         strokeWidth = 2.dp
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(if (isSaving) "Guardando..." else "Guardar Garantía")
             }
