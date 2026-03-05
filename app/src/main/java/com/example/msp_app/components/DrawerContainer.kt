@@ -1,6 +1,8 @@
 package com.example.msp_app.components
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -71,7 +73,11 @@ fun DrawerContainer(
                         .padding(vertical = 16.dp),
                     verticalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -106,6 +112,7 @@ fun DrawerContainer(
                         val hasCobro = modulos.contains("COBRO")
                         val hasVentas = modulos.contains("VENTAS")
                         val hasAlmacen = modulos.contains("ALMACEN")
+                        val hasGarantias = modulos.contains("GARANTIAS")
 
                         if (hasCobro) {
                             Text(
@@ -273,6 +280,31 @@ fun DrawerContainer(
                                 }
                             )
                         }
+
+                        if (hasCobro || hasVentas || hasAlmacen) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        }
+
+                        Text(
+                            text = "GARANTÍAS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+
+                        NavigationDrawerItem(
+                            label = { Text("Garantías") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("warranties") {
+                                        popUpTo("home")
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     Column {

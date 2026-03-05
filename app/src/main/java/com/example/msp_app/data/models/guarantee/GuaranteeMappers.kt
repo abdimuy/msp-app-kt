@@ -8,6 +8,8 @@ fun Guarantee.toEntity(): GuaranteeEntity = GuaranteeEntity(
     ID,
     EXTERNAL_ID,
     DOCTO_CC_ID,
+    CLIENTE_NOMBRE,
+    ARTICULO,
     ESTADO,
     DESCRIPCION_FALLA,
     OBSERVACIONES,
@@ -19,6 +21,8 @@ fun GuaranteeEntity.toDomain(): Guarantee = Guarantee(
     ID,
     EXTERNAL_ID,
     DOCTO_CC_ID,
+    CLIENTE_NOMBRE,
+    ARTICULO,
     ESTADO,
     DESCRIPCION_FALLA,
     OBSERVACIONES,
@@ -74,7 +78,7 @@ fun Guarantee.toApi(): GuaranteeApi = GuaranteeApi(
     observaciones = OBSERVACIONES
 )
 
-fun GuaranteeEventEntity.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest = 
+fun GuaranteeEventEntity.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest =
     com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest(
         id = ID,
         fechaEvento = FECHA_EVENTO,
@@ -82,7 +86,7 @@ fun GuaranteeEventEntity.toApiRequest(): com.example.msp_app.data.api.services.g
         tipoEvento = TIPO_EVENTO
     )
 
-fun GuaranteeEvent.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest = 
+fun GuaranteeEvent.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest =
     com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest(
         id = ID,
         fechaEvento = FECHA_EVENTO,

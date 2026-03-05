@@ -38,6 +38,8 @@ interface GuaranteeDao {
         SELECT
             EXTERNAL_ID,
             DOCTO_CC_ID,
+            CLIENTE_NOMBRE,
+            ARTICULO,
             ESTADO,
             DESCRIPCION_FALLA,
             OBSERVACIONES,
@@ -45,6 +47,7 @@ interface GuaranteeDao {
             FECHA_SOLICITUD,
             ID
         FROM garantias
+        ORDER BY FECHA_SOLICITUD DESC
     """
     )
     suspend fun getAllGuarantees(): List<GuaranteeEntity>

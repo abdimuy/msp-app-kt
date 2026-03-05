@@ -23,9 +23,13 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
+import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
 import com.example.msp_app.features.cart.screens.CartScreen
 import com.example.msp_app.features.common.NoModulesScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
+import com.example.msp_app.features.guarantees.screens.NewWarrantyScreen
+import com.example.msp_app.features.guarantees.screens.WarrantiesHomeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.PaymentTicketScreen
@@ -33,7 +37,6 @@ import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
-import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.EditSaleScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
@@ -42,15 +45,13 @@ import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
-import com.example.msp_app.features.visit.screens.VisitTicketScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
 import com.example.msp_app.features.transfers.presentation.create.NewTransferScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailScreen
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
-import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
-import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
+import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
+import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
+import com.example.msp_app.features.visit.screens.VisitTicketScreen
 
 
 sealed class Screen(val route: String) {
@@ -108,12 +109,17 @@ sealed class Screen(val route: String) {
     object TransferDetail : Screen("transfers/{transferId}") {
         fun createRoute(transferId: Int) = "transfers/$transferId"
     }
+
     object NewTransfer : Screen("transfers/new?warehouseId={warehouseId}") {
         fun createRoute(warehouseId: Int = 0) = "transfers/new?warehouseId=$warehouseId"
     }
 
     // Camioneta Assignment route
     object CamionetaAssignment : Screen("camioneta_assignment")
+
+    // Warranties routes
+    object Warranties : Screen("warranties")
+    object NewWarranty : Screen("warranties/new")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -313,7 +319,8 @@ fun AppNavigation() {
             }
 
             composable(Screen.NewTransfer.route) { backStackEntry ->
-                val warehouseId = backStackEntry.arguments?.getString("warehouseId")?.toIntOrNull() ?: 0
+                val warehouseId =
+                    backStackEntry.arguments?.getString("warehouseId")?.toIntOrNull() ?: 0
                 val viewModel: NewTransferViewModel = viewModel()
                 NewTransferScreen(
                     viewModel = viewModel,
@@ -341,6 +348,14 @@ fun AppNavigation() {
                     navController = navController,
                     viewModel = viewModel
                 )
+            }
+
+            composable(Screen.Warranties.route) {
+                WarrantiesHomeScreen(navController = navController)
+            }
+
+            composable(Screen.NewWarranty.route) {
+                NewWarrantyScreen(navController = navController)
             }
         }
     }

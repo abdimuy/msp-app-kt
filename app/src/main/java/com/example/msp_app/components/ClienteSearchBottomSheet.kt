@@ -1,4 +1,4 @@
-package com.example.msp_app.features.sales.screens
+package com.example.msp_app.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,7 +73,6 @@ fun ClienteSearchBottomSheet(
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 16.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -152,7 +151,6 @@ fun ClienteSearchBottomSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Botón de cliente nuevo - visible cuando hay texto escrito
             if (query.length >= 3) {
                 OutlinedButton(
                     onClick = { onNewCliente(query) },
