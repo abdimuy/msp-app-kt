@@ -28,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +38,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -90,6 +92,7 @@ fun NewWarrantyScreen(navController: NavController) {
     val imageUris = remember { mutableStateListOf<Uri>() }
     var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
 
     var hasTriedToSubmit by remember { mutableStateOf(false) }
     val clienteError = hasTriedToSubmit && clienteNombre.text.isBlank()
@@ -340,43 +343,7 @@ fun NewWarrantyScreen(navController: NavController) {
                 onClick = {
                     hasTriedToSubmit = true
                     if (!isFormValid) return@Button
-
-                    isSaving = true
-                    scope.launch {
-                        val externalId = UUID.randomUUID().toString()
-                        val fechaSolicitud =
-                            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                                .format(Date())
-
-                        val guarantee = GuaranteeEntity(
-                            EXTERNAL_ID = externalId,
-                            DOCTO_CC_ID = null,
-                            CLIENTE_NOMBRE = clienteNombre.text.ifBlank { null },
-                            ARTICULO = articulo.text.ifBlank { null },
-                            ESTADO = "PENDIENTE",
-                            DESCRIPCION_FALLA = descripcionFalla.text,
-                            OBSERVACIONES = observaciones.text.ifBlank { null },
-                            UPLOADED = 0,
-                            FECHA_SOLICITUD = fechaSolicitud
-                        )
-
-                        guaranteesViewModel.insertGuarantee(guarantee)
-
-                        if (imageUris.isNotEmpty()) {
-                            guaranteesViewModel.saveGuaranteeImages(
-                                context = context,
-                                uris = imageUris.toList(),
-                                guaranteeExternalId = externalId,
-                                description = null,
-                                fechaSubida = fechaSolicitud
-                            )
-                        }
-
-                        isSaving = false
-                        navController.navigate(Screen.Warranties.route) {
-                            popUpTo(Screen.NewWarranty.route) { inclusive = true }
-                        }
-                    }
+                    showConfirmDialog = true
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -384,17 +351,114 @@ fun NewWarrantyScreen(navController: NavController) {
                 enabled = !isSaving,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Text(if (isSaving) "Guardando..." else "Guardar Garantía")
+                Text("Guardar Garantía")
             }
         }
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isSaving) showConfirmDialog = false },
+            title = {
+                Text(
+                    text = if (isSaving) "Guardando..." else "Confirmar Garantía",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                if (isSaving) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(32.dp),
+                            strokeWidth = 3.dp
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text("Guardando garantía...")
+                    }
+                } else {
+                    Column {
+                        Text("¿Deseas guardar esta garantía?")
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Cliente: ${clienteNombre.text}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Artículo: ${articulo.text}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (imageUris.isNotEmpty()) {
+                            Text(
+                                text = "Imágenes: ${imageUris.size}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                if (!isSaving) {
+                    Button(
+                        onClick = {
+                            isSaving = true
+                            scope.launch {
+                                val externalId = UUID.randomUUID().toString()
+                                val fechaSolicitud =
+                                    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                                        .format(Date())
+
+                                val guarantee = GuaranteeEntity(
+                                    EXTERNAL_ID = externalId,
+                                    DOCTO_CC_ID = null,
+                                    CLIENTE_NOMBRE = clienteNombre.text.ifBlank { null },
+                                    ARTICULO = articulo.text.ifBlank { null },
+                                    ESTADO = "PENDIENTE",
+                                    DESCRIPCION_FALLA = descripcionFalla.text,
+                                    OBSERVACIONES = observaciones.text.ifBlank { null },
+                                    UPLOADED = 0,
+                                    FECHA_SOLICITUD = fechaSolicitud
+                                )
+
+                                guaranteesViewModel.insertGuarantee(guarantee)
+
+                                if (imageUris.isNotEmpty()) {
+                                    guaranteesViewModel.saveGuaranteeImages(
+                                        context = context,
+                                        uris = imageUris.toList(),
+                                        guaranteeExternalId = externalId,
+                                        description = null,
+                                        fechaSubida = fechaSolicitud
+                                    )
+                                }
+
+                                isSaving = false
+                                showConfirmDialog = false
+                                navController.navigate(Screen.Warranties.route) {
+                                    popUpTo(Screen.NewWarranty.route) { inclusive = true }
+                                }
+                            }
+                        },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Confirmar")
+                    }
+                }
+            },
+            dismissButton = {
+                if (!isSaving) {
+                    TextButton(onClick = { showConfirmDialog = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            }
+        )
     }
 
     if (showClienteSearch) {

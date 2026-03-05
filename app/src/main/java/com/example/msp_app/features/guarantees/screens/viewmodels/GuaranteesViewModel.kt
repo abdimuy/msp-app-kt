@@ -46,11 +46,27 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
     private val _allGuaranteeEvents = MutableStateFlow<List<GuaranteeEventEntity>>(emptyList())
     val allGuaranteeEvents: StateFlow<List<GuaranteeEventEntity>> = _allGuaranteeEvents
 
+    private val _guaranteeImages =
+        MutableStateFlow<Map<String, List<GuaranteeImageEntity>>>(emptyMap())
+    val guaranteeImages: StateFlow<Map<String, List<GuaranteeImageEntity>>> = _guaranteeImages
+
     fun loadAllGuarantees() {
         viewModelScope.launch {
             val result = guaranteeStore.getAllGuarantees()
             _guarantees.value = result
+            loadImagesForGuarantees(result)
         }
+    }
+
+    private suspend fun loadImagesForGuarantees(guarantees: List<GuaranteeEntity>) {
+        val imagesMap = mutableMapOf<String, List<GuaranteeImageEntity>>()
+        guarantees.forEach { guarantee ->
+            val images = guaranteeStore.getImagesByExternalId(guarantee.EXTERNAL_ID)
+            if (images.isNotEmpty()) {
+                imagesMap[guarantee.EXTERNAL_ID] = images
+            }
+        }
+        _guaranteeImages.value = imagesMap
     }
 
     fun getGuaranteeById(id: Int) {
