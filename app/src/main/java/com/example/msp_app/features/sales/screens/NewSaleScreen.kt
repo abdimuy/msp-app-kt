@@ -77,11 +77,11 @@ import com.example.msp_app.core.draft.SaleDraftManager
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
-import com.example.msp_app.features.sales.components.combo.ProductsWithCombosSection
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationData
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationDialog
 import com.example.msp_app.features.sales.components.map.LocationMap
-import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
+import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
+import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
@@ -140,6 +140,7 @@ fun NewSaleScreen(navController: NavController) {
     // Cliente state
     var selectedClienteId by remember { mutableStateOf<Int?>(null) }
     var showClienteSearch by remember { mutableStateOf(false) }
+    var showProductSheet by remember { mutableStateOf(false) }
 
     // Zone state
     var selectedZoneId by remember { mutableStateOf<Int?>(null) }
@@ -394,12 +395,12 @@ fun NewSaleScreen(navController: NavController) {
     }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            if (validateImageSize(context, it)) {
-                // Copy image to persistent storage and get URI via FileProvider
-                val persistentPath = draftManager.copyImageToPersistentStorage(it)
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        var hasOversized = false
+        uris.forEach { uri ->
+            if (validateImageSize(context, uri)) {
+                val persistentPath = draftManager.copyImageToPersistentStorage(uri)
                 val file = File(persistentPath)
                 val persistentUri = FileProvider.getUriForFile(
                     context,
@@ -407,11 +408,11 @@ fun NewSaleScreen(navController: NavController) {
                     file
                 )
                 imageUris = imageUris + persistentUri
-                showImageSizeError = false
             } else {
-                showImageSizeError = true
+                hasOversized = true
             }
         }
+        showImageSizeError = hasOversized
         showImageSourceDialog = false
     }
 
@@ -950,6 +951,19 @@ fun validateInstallment(amount: String): Boolean {
             totalContado = saleProductsViewModel.getTotalMontoContadoWithCombos()
         )
     )
+
+    // Bottom sheet de selección de productos
+    if (showProductSheet) {
+        ProductSelectionBottomSheet(
+            products = productosCamioneta,
+            saleProductsViewModel = saleProductsViewModel,
+            onDismiss = { showProductSheet = false },
+            onShowCreateComboDialog = {
+                saleProductsViewModel.setCreatingCombo(true)
+                showCreateComboDialog = true
+            }
+        )
+    }
 
     // Bottom sheet de búsqueda de clientes
     if (showClienteSearch) {
@@ -1526,61 +1540,12 @@ label = { Text("Parcialidad *") },
                         }
                     }
 
-                    SimpleProductSelector(
-                        warehouseViewModel = warehouseViewModel,
+                    ProductSaleSummary(
                         saleProductsViewModel = saleProductsViewModel,
-                        onAddProduct = { articuloId, cantidad ->
-                            val producto = productosCamioneta.find { it.ARTICULO_ID == articuloId }
-                            if (producto != null) {
-                                saleProductsViewModel.addProductToSale(producto, cantidad)
-                            }
-                        }
+                        productosCamioneta = productosCamioneta,
+                        onOpenProductSheet = { showProductSheet = true },
+                        hasError = productsError
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Sección de productos con combos
-                    if (saleProductsViewModel.saleItems.isNotEmpty()) {
-                        ProductsWithCombosSection(
-                            individualProducts = saleProductsViewModel.getIndividualProducts(),
-                            combos = saleProductsViewModel.getCombosList(),
-                            selectedProductIds = saleProductsViewModel.selectedForCombo.toList(),
-                            getProductsInCombo = { comboId ->
-                                saleProductsViewModel.getProductsInCombo(comboId)
-                            },
-                            onToggleProductSelection = { articleId ->
-                                saleProductsViewModel.toggleProductSelection(articleId)
-                            },
-                            onQuantityChange = { articleId, newQty ->
-                                val product =
-                                    productosCamioneta.find { it.ARTICULO_ID == articleId }
-                                if (product != null) {
-                                    val maxStock = product.EXISTENCIAS
-                                    val validQty = newQty.coerceIn(1, maxStock)
-                                    saleProductsViewModel.updateQuantity(product, validQty)
-                                }
-                            },
-                            onRemoveProduct = { articleId ->
-                                val product =
-                                    productosCamioneta.find { it.ARTICULO_ID == articleId }
-                                if (product != null) {
-                                    saleProductsViewModel.removeProductFromSale(product)
-                                }
-                            },
-                            onCreateCombo = { 
-                                saleProductsViewModel.setCreatingCombo(true)
-                                showCreateComboDialog = true 
-                            },
-                            onDeleteCombo = { comboId ->
-                                saleProductsViewModel.deleteCombo(comboId)
-                            },
-                            onClearSelection = {
-                                saleProductsViewModel.clearSelection()
-                            },
-                            isCreatingCombo = isCreatingCombo,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
                 }

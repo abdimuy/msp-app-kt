@@ -241,6 +241,20 @@ class SaleProductsViewModel : ViewModel() {
         return comboId
     }
 
+    fun updateComboPrices(
+        comboId: String,
+        precioLista: Double,
+        precioCortoPlazo: Double,
+        precioContado: Double
+    ) {
+        val existing = _combos[comboId] ?: return
+        _combos[comboId] = existing.copy(
+            precioLista = precioLista,
+            precioCortoPlazo = precioCortoPlazo,
+            precioContado = precioContado
+        )
+    }
+
     fun deleteCombo(comboId: String) {
         // Remover comboId de los productos
         _saleItems.forEachIndexed { index, item ->
