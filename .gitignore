@@ -22,4 +22,4 @@ local.properties
 keystore.properties
 
 # Kotlin compiler error logs
-.kotlin/
+.kotlin/.worktrees
