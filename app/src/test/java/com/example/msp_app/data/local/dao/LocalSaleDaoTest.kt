@@ -3,7 +3,10 @@ package com.example.msp_app.data.local.dao
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocalSaleDaoTest : RoomTestBase() {

@@ -3,7 +3,11 @@ package com.example.msp_app.features.sales.viewmodels
 import com.example.msp_app.`test-fixtures`.RobolectricTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import com.example.msp_app.utils.PriceParser
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 

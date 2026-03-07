@@ -72,7 +72,8 @@ fun enqueueLocalSaleUpdate(
         entityId = localSaleId,
         operation = SyncOperation.Update(localSaleId, "LOCAL_SALE"),
         additionalData = additionalData,
-        replaceExisting = true // Para updates, siempre usar la última versión
+        // Para updates, siempre usar la última versión
+        replaceExisting = true
     )
 }
 

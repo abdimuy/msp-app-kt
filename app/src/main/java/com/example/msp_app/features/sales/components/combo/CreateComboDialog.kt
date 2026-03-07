@@ -318,7 +318,8 @@ fun CreateComboDialog(
                                 precioContado.toDoubleOrNull() ?: 0.0
                             )
                         },
-                        enabled = !hasPriceErrors, // Solo habilitar si no hay errores
+                        // Solo habilitar si no hay errores
+                        enabled = !hasPriceErrors,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
                     ) {

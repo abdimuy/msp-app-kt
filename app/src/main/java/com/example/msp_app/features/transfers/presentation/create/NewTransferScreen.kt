@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
 import com.example.msp_app.features.transfers.presentation.components.StepIndicator
 import com.example.msp_app.features.transfers.presentation.components.WarehouseSelector
 import java.text.NumberFormat
@@ -131,7 +132,7 @@ fun NewTransferScreen(
                 TransferStep.WAREHOUSES -> {
                     WarehouseSelectionStep(
                         warehouses = when (warehouses) {
-                            is ResultState.Success<*> -> (warehouses as ResultState.Success<List<com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse>>).data
+                            is ResultState.Success<*> -> (warehouses as ResultState.Success<List<WarehouseListResponse.Warehouse>>).data
                             else -> emptyList()
                         },
                         usersByWarehouse = usersByWarehouse,
@@ -245,18 +246,15 @@ fun NewTransferScreen(
  */
 @Composable
 private fun WarehouseSelectionStep(
-    warehouses:
-    List<com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse>,
+    warehouses: List<WarehouseListResponse.Warehouse>,
     usersByWarehouse: Map<Int, List<com.example.msp_app.data.models.auth.User>>,
-    sourceWarehouse:
-    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
-    destinationWarehouse:
-    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
+    sourceWarehouse: WarehouseListResponse.Warehouse?,
+    destinationWarehouse: WarehouseListResponse.Warehouse?,
     onSourceSelected: (
-        com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse
+        WarehouseListResponse.Warehouse
     ) -> Unit,
     onDestinationSelected: (
-        com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse
+        WarehouseListResponse.Warehouse
     ) -> Unit,
     sourceError: String?,
     destinationError: String?,
@@ -605,10 +603,8 @@ private fun ProductCheckboxItem(
  */
 @Composable
 private fun ConfirmationStep(
-    sourceWarehouse:
-    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
-    destinationWarehouse:
-    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
+    sourceWarehouse: WarehouseListResponse.Warehouse?,
+    destinationWarehouse: WarehouseListResponse.Warehouse?,
     selectedProducts: List<SelectedProduct>,
     isCreating: Boolean,
     modifier: Modifier = Modifier

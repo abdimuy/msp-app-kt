@@ -1,6 +1,7 @@
 package com.example.msp_app.core.utils
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FuzzyClientSearchTest {

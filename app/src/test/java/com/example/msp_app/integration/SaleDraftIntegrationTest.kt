@@ -7,7 +7,9 @@ import com.example.msp_app.core.draft.SaleDraftManager
 import com.example.msp_app.`test-fixtures`.RobolectricTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 

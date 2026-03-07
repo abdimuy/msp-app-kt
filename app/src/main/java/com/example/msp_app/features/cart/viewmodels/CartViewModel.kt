@@ -13,9 +13,11 @@ data class CartItem(
 )
 
 class CartViewModel : ViewModel() {
+    @Suppress("PropertyName")
     private val _cartItems = mutableStateListOf<CartItem>()
     val cartProducts: SnapshotStateList<CartItem> get() = _cartItems
 
+    @Suppress("PropertyName")
     private val _savedCartState = mutableMapOf<Int, Int>()
     private val _hasUnsavedChanges = MutableStateFlow(false)
     val hasUnsavedChanges: StateFlow<Boolean> = _hasUnsavedChanges

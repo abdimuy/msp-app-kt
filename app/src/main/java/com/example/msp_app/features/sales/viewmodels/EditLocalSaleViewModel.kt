@@ -261,7 +261,8 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                     TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
                     MONTO_A_CORTO_PLAZO = shorttermamount,
                     MONTO_DE_CONTADO = cashamount,
-                    ENVIADO = false, // Mark as not sent since we're updating
+                    // Mark as not sent since we're updating
+                    ENVIADO = false,
                     NUMERO = numero,
                     COLONIA = colonia,
                     POBLACION = poblacion,

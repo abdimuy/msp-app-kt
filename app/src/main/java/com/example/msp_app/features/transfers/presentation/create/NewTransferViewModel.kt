@@ -411,7 +411,8 @@ class NewTransferViewModel(
                     almacenDestinoId = _selectedDestinationWarehouse.value!!.ALMACEN_ID,
                     fecha = LocalDateTime.now(),
                     descripcion = _description.value.ifBlank { null },
-                    usuario = null, // Will use default SYSDBA from API
+                    // Will use default SYSDBA from API
+                    usuario = null,
                     productos = _selectedProducts.value.map { selected ->
                         TransferProductItem(
                             articuloId = selected.product.ARTICULO_ID,

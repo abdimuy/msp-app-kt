@@ -64,30 +64,30 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         @Volatile
-        private var INSTANCE: AppDatabase? = null
+        private var instance: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
+            return instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "msp_db"
 
                 )
                     .fallbackToDestructiveMigration()
-                    .build().also { INSTANCE = it }
+                    .build().also { instance = it }
             }
         }
 
         @androidx.annotation.VisibleForTesting
         fun setInstanceForTesting(database: AppDatabase) {
-            INSTANCE = database
+            instance = database
         }
 
         @androidx.annotation.VisibleForTesting
         fun clearInstance() {
-            INSTANCE?.close()
-            INSTANCE = null
+            instance?.close()
+            instance = null
         }
     }
 }

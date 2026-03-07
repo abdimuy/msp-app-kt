@@ -53,18 +53,26 @@ data class SaleDraft(
     val longitude: Double = 0.0,
     val imageUris: List<String> = emptyList(),
     val productsJson: String = "",
-    val combosJson: String = "", // JSON string of combos
+    // JSON string of combos
+    val combosJson: String = "",
 
     // Sale type
-    val tipoVenta: String = "CREDITO", // "CREDITO" or "CONTADO"
+    // "CREDITO" or "CONTADO"
+    val tipoVenta: String = "CREDITO",
 
     // CREDITO-specific fields (required only for CREDITO)
-    val phone: String = "", // Required for CREDITO, optional for CONTADO
-    val downpayment: String = "", // Only for CREDITO
-    val installment: String = "", // Required for CREDITO
-    val guarantor: String = "", // Only for CREDITO
-    val collectionDay: String = "", // Required for CREDITO
-    val paymentFrequency: String = "", // Required for CREDITO
+    // Required for CREDITO, optional for CONTADO
+    val phone: String = "",
+    // Only for CREDITO
+    val downpayment: String = "",
+    // Required for CREDITO
+    val installment: String = "",
+    // Only for CREDITO
+    val guarantor: String = "",
+    // Required for CREDITO
+    val collectionDay: String = "",
+    // Required for CREDITO
+    val paymentFrequency: String = "",
 
     // Zone fields (required for all sales)
     val zonaClienteId: Int? = null,

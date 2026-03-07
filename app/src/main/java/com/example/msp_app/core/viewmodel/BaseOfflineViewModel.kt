@@ -41,18 +41,22 @@ abstract class BaseOfflineViewModel<T : Any>(
     }
 
     // Estado principal de datos
+    @Suppress("PropertyName")
     protected val _state = MutableStateFlow<ResultState<List<T>>>(ResultState.Idle)
     val state: StateFlow<ResultState<List<T>>> = _state.asStateFlow()
 
     // Estado de modo offline
+    @Suppress("PropertyName")
     protected val _isOfflineMode = MutableStateFlow(false)
     val isOfflineMode: StateFlow<Boolean> = _isOfflineMode.asStateFlow()
 
     // Estado de refresh en progreso
+    @Suppress("PropertyName")
     protected val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     // Timestamp de última actualización
+    @Suppress("PropertyName")
     protected val _lastUpdateTimestamp = MutableStateFlow<Long?>(null)
     val lastUpdateTimestamp: StateFlow<Long?> = _lastUpdateTimestamp.asStateFlow()
 

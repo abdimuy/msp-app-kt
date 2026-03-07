@@ -1,7 +1,8 @@
 package com.example.msp_app.features.sales.viewmodels
 
 import android.net.Uri
-import org.junit.Assert.*
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner

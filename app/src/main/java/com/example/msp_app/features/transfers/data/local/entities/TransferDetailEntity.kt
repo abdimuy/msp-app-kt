@@ -53,8 +53,9 @@ data class TransferDetailEntity(
     @ColumnInfo(name = "costo_total")
     val costoTotal: Double,
 
+    // "S" (Salida) o "E" (Entrada)
     @ColumnInfo(name = "tipo_movimiento")
-    val tipoMovimiento: String, // "S" (Salida) o "E" (Entrada)
+    val tipoMovimiento: String,
 
     @ColumnInfo(name = "movto_id")
     val movtoId: Int? = null

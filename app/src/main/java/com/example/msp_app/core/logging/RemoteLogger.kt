@@ -33,12 +33,12 @@ class RemoteLogger private constructor(private val context: Context) {
         private const val EVENTS_COLLECTION = "app_events"
 
         @Volatile
-        private var INSTANCE: RemoteLogger? = null
+        private var instance: RemoteLogger? = null
 
         fun getInstance(context: Context): RemoteLogger {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: RemoteLogger(context.applicationContext).also {
-                    INSTANCE = it
+            return instance ?: synchronized(this) {
+                instance ?: RemoteLogger(context.applicationContext).also {
+                    instance = it
                 }
             }
         }

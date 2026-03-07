@@ -1,7 +1,7 @@
 package com.example.msp_app.core.utils
 
 import java.util.Locale
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CurrencyUtilsTest {

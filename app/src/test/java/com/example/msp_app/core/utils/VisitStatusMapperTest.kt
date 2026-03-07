@@ -1,7 +1,7 @@
 package com.example.msp_app.core.utils
 
 import com.example.msp_app.data.models.sale.EstadoCobranza
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class VisitStatusMapperTest {

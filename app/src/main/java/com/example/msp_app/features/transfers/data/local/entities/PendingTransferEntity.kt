@@ -35,8 +35,9 @@ data class PendingTransferEntity(
     @ColumnInfo(name = "almacen_destino_nombre")
     val almacenDestinoNombre: String? = null,
 
+    // JSON serialized list of details
     @ColumnInfo(name = "detalles_json")
-    val detallesJson: String, // JSON serialized list of details
+    val detallesJson: String,
 
     @ColumnInfo(name = "retry_count")
     val retryCount: Int = 0,

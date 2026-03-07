@@ -36,12 +36,12 @@ class RemoteDbDebugger private constructor(private val context: Context) {
         private const val TAG = "RemoteDbDebugger"
 
         @Volatile
-        private var INSTANCE: RemoteDbDebugger? = null
+        private var instance: RemoteDbDebugger? = null
 
         fun getInstance(context: Context): RemoteDbDebugger {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: RemoteDbDebugger(context.applicationContext).also {
-                    INSTANCE = it
+            return instance ?: synchronized(this) {
+                instance ?: RemoteDbDebugger(context.applicationContext).also {
+                    instance = it
                 }
             }
         }

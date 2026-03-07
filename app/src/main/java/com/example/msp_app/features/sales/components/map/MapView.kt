@@ -96,14 +96,14 @@ private fun getClusterCenter(pins: List<MapPin>, radiusMeters: Double = 300.0): 
 }
 
 private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-    val R = 6371000.0 // Radio de la Tierra en metros
+    val earthRadiusMeters = 6371000.0 // Radio de la Tierra en metros
     val dLat = Math.toRadians(lat2 - lat1)
     val dLon = Math.toRadians(lon2 - lon1)
     val a = sin(dLat / 2).pow(2.0) +
         cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
         sin(dLon / 2).pow(2.0)
     val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    return R * c
+    return earthRadiusMeters * c
 }
 
 @SuppressLint("MissingPermission")
@@ -137,7 +137,8 @@ fun rememberLocation(context: Context): State<LatLng?> {
         if (permissionGranted) {
             val fusedLocation = LocationServices.getFusedLocationProviderClient(context)
             val locationRequest = LocationRequest.Builder(
-                3000 // intervalo en ms
+                // intervalo en ms
+                3000
             )
                 .setMinUpdateIntervalMillis(2000)
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY)

@@ -9,7 +9,11 @@ import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import com.example.msp_app.utils.PriceParser
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
