@@ -69,7 +69,7 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 
 @Composable
-fun SaleDetailsScreen(saleId: Int, navController: NavHostController,) {
+fun SaleDetailsScreen(saleId: Int, navController: NavHostController) {
     val viewModel: SaleDetailsViewModel = viewModel()
     val salesViewModel: SalesViewModel = viewModel()
 
@@ -106,7 +106,7 @@ fun SaleDetailsScreen(saleId: Int, navController: NavHostController,) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize(),
-                            contentAlignment = Alignment.Center,
+                            contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator()
                         }
@@ -247,7 +247,7 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
                                     )
                                 )
                             },
-                            navController = navController,
+                            navController = navController
                         )
                     }
                 }
@@ -309,7 +309,7 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
 
         GuaranteeSection(
             sale,
-            navController,
+            navController
         )
 
         Box {
@@ -320,7 +320,7 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
 
                 SaleSummaryBar(
                     balance = sale.SALDO_REST.toCurrency(noDecimals = true),
-                    percentagePaid = String.format("%.2f%%", porcentage),
+                    percentagePaid = String.format("%.2f%%", porcentage)
                 )
                 Spacer(modifier = Modifier.height(26.dp))
 
@@ -359,7 +359,7 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
                                 AlertBadge(
                                     message = message,
                                     type = badgeType,
-                                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                 )
                             }
 
@@ -397,7 +397,7 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp,
-                            textAlign = TextAlign.Left,
+                            textAlign = TextAlign.Left
                         )
 
                         PaymentsHistory(sale, navController)
@@ -441,6 +441,6 @@ fun ElapsedTimeAlert(lastPaymentDateIso: String) {
     AlertBadge(
         "Último pago: hace $message",
         BadgesType.Primary,
-        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
     )
 }

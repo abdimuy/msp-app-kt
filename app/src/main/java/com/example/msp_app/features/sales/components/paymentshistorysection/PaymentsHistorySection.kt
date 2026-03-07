@@ -49,7 +49,7 @@ fun PaymentsHistory(sale: Sale, navController: NavController) {
                         text = month,
                         style = MaterialTheme.typography.titleMedium,
                         modifier = Modifier.padding(bottom = 5.dp),
-                        fontSize = 18.sp,
+                        fontSize = 18.sp
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         payments.forEach { payment ->

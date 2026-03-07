@@ -91,7 +91,7 @@ import java.io.File
 import kotlinx.coroutines.launch
 
 @Composable
-fun ProductDetailsScreen(productId: String, navController: NavController,) {
+fun ProductDetailsScreen(productId: String, navController: NavController) {
     val detailsViewModel: ProductDetailsViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
@@ -486,7 +486,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController,) {
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(6.dp),
+                            .padding(6.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(

@@ -38,7 +38,7 @@ fun FullScreenDialog(
 
     Dialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
         Scaffold(
             contentWindowInsets = WindowInsets.systemBars

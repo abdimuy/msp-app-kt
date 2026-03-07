@@ -318,7 +318,7 @@ fun CartScreen(navController: NavController) {
                         }
                     }
                 )
-            },
+            }
         ) { paddingValues ->
             Column(
                 modifier = Modifier

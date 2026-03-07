@@ -76,7 +76,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     PRECIOS = "${productEntity.PRECIO_LISTA},${productEntity.PRECIO_CORTO_PLAZO},${productEntity.PRECIO_CONTADO}",
                     EXISTENCIAS = 0,
                     LINEA_ARTICULO_ID = 0,
-                    LINEA_ARTICULO = "",
+                    LINEA_ARTICULO = ""
                 )
                 productsViewModel.addProductToSale(productInventory, productEntity.CANTIDAD)
             }
@@ -140,7 +140,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     elevation = CardDefaults.cardElevation(4.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.inverseOnSurface
-                    ),
+                    )
                 ) {
                     Column(
                         modifier = Modifier

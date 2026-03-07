@@ -65,7 +65,7 @@ fun SaleClienteSettlement(sale: Sale) {
                 .padding(12.dp)
                 .heightIn(min = 210.dp)
                 .fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(8.dp),
+            elevation = CardDefaults.cardElevation(8.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -84,7 +84,7 @@ fun SaleClienteSettlement(sale: Sale) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "Hoy liquida con",
@@ -128,7 +128,7 @@ fun SaleClienteSettlement(sale: Sale) {
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Light,
-                        modifier = Modifier.padding(top = 0.dp, bottom = 8.dp),
+                        modifier = Modifier.padding(top = 0.dp, bottom = 8.dp)
                     )
                 }
             }

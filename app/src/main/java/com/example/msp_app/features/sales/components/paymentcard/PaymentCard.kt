@@ -80,7 +80,7 @@ fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: 
                 }
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Box(
             modifier = Modifier
@@ -117,11 +117,11 @@ fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: 
                     Text(
                         DateUtils.formatIsoDate(
                             payment.FECHA_HORA_PAGO,
-                            pattern = "EE dd/MM/yyyy hh:mm a",
+                            pattern = "EE dd/MM/yyyy hh:mm a"
                         ).uppercase(),
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.White,
-                        maxLines = 1,
+                        maxLines = 1
                     )
                 }
                 Column(

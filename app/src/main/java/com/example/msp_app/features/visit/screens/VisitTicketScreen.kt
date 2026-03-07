@@ -264,7 +264,7 @@ fun VisitTicketScreen(saleId: Int, navController: NavController) {
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Menu,
-                                        contentDescription = "Menú",
+                                        contentDescription = "Menú"
                                     )
                                 }
                                 Box(
@@ -276,7 +276,7 @@ fun VisitTicketScreen(saleId: Int, navController: NavController) {
                                     Text(
                                         text = "Ticket de Visita",
                                         fontSize = 24.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -296,7 +296,7 @@ fun VisitTicketScreen(saleId: Int, navController: NavController) {
                                         "Ticket de no Pago"
                                     ),
                                     selectedIndex = ticketType - 1,
-                                    onSelected = { ticketType = it + 1 },
+                                    onSelected = { ticketType = it + 1 }
                                 )
 
                                 Spacer(modifier = Modifier.height(12.dp))

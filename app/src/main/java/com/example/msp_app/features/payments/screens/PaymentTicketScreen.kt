@@ -348,7 +348,7 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
                                         Text(
                                             text = if (isCondonacion) "Ticket de Condonación" else "Ticket de Pago",
                                             fontSize = 24.sp,
-                                            fontWeight = FontWeight.Bold,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }

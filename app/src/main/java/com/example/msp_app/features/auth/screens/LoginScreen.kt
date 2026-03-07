@@ -43,7 +43,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             .background(if (isDark) Color.Black else Color.White)
             .padding(horizontal = 32.dp),
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             "Iniciar sesión",

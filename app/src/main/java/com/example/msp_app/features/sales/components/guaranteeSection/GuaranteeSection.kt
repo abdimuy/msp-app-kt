@@ -35,7 +35,7 @@ import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesView
 import com.example.msp_app.navigation.Screen
 
 @Composable
-fun GuaranteeSection(sale: Sale, navController: NavController,) {
+fun GuaranteeSection(sale: Sale, navController: NavController) {
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showPrintDialog by remember { mutableStateOf(false) }

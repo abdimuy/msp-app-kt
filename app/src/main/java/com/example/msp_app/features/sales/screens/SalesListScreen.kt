@@ -110,7 +110,7 @@ fun SaleDetailsListScreen(navController: NavController) {
                 modifier = Modifier
                     .padding(innerPadding)
                     .fillMaxSize()
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 8.dp)
             ) {
                 LazyColumn(
                     modifier = Modifier
@@ -186,7 +186,7 @@ fun SaleDetailsListScreen(navController: NavController) {
                                             ),
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                         Text(
                                             text = dateSale,

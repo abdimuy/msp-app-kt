@@ -42,7 +42,7 @@ fun SaleProductsSection(products: List<Product>) {
                         Text(
                             text = "${product.CANTIDAD}",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                     Column(
@@ -50,7 +50,7 @@ fun SaleProductsSection(products: List<Product>) {
                     ) {
                         Text(
                             text = product.ARTICULO,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium
                         )
                     }
                     Column(

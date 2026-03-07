@@ -79,7 +79,7 @@ fun HomeStartWeekSection(startDate: String, isDark: Boolean, modifier: Modifier 
         }",
         fontSize = 14.sp,
         color = if (isDark) Color.LightGray else Color.DarkGray,
-        textAlign = TextAlign.Center,
+        textAlign = TextAlign.Center
     )
 
     Spacer(Modifier.height(16.dp))

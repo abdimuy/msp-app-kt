@@ -644,7 +644,7 @@ fun NewSaleScreen(navController: NavController) {
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .fillMaxSize(),
+                    .fillMaxSize()
             ) {
                 Column(
                     modifier = Modifier
@@ -658,7 +658,7 @@ fun NewSaleScreen(navController: NavController) {
                         Text(
                             "Todos los campos con * son obligatorios",
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyLarge
 
                         )
                     }
@@ -826,7 +826,7 @@ fun NewSaleScreen(navController: NavController) {
                             }
                         } else {
                             null
-                        },
+                        }
                     )
 
                     Spacer(Modifier.height(12.dp))
@@ -916,7 +916,7 @@ fun NewSaleScreen(navController: NavController) {
                                     }
                                 } else {
                                     null
-                                },
+                                }
                             )
 
                             OutlinedTextField(

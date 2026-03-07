@@ -549,7 +549,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .fillMaxSize(),
+                    .fillMaxSize()
             ) {
                 Column(
                     modifier = Modifier
@@ -708,7 +708,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                             }
                         } else {
                             null
-                        },
+                        }
                     )
 
                     Spacer(Modifier.height(12.dp))
@@ -804,7 +804,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                                     }
                                 } else {
                                     null
-                                },
+                                }
                             )
 
                             OutlinedTextField(

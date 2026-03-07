@@ -43,7 +43,7 @@ import kotlin.math.sqrt
 data class MapPin(
     val lat: Double,
     val lon: Double,
-    val description: String,
+    val description: String
 )
 
 @Composable
@@ -67,8 +67,8 @@ fun MapView(
         modifier = modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
         properties = MapProperties(
-            isMyLocationEnabled = location.value != null,
-        ),
+            isMyLocationEnabled = location.value != null
+        )
     ) {
         pins.forEach { pin ->
             Marker(

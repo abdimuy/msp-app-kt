@@ -17,7 +17,7 @@ import androidx.room.PrimaryKey
         Index(value = ["GUARDADO_EN_MICROSIP"]),
         Index(value = ["TIPO_VISITA"]),
         Index(value = ["LAT"]),
-        Index(value = ["LNG"]),
+        Index(value = ["LNG"])
     ]
 )
 data class VisitEntity(

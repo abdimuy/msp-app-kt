@@ -198,7 +198,7 @@ fun NewPaymentDialog(
 
     FullScreenDialog(
         show = true,
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = onDismissRequest
     ) {
         when (val state = userData) {
             is ResultState.Idle, is ResultState.Loading, is ResultState.Offline -> {
@@ -347,7 +347,7 @@ fun NewPaymentDialog(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = name.uppercase(),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                         }
@@ -549,7 +549,7 @@ fun NewPaymentDialog(
                         }
                     }
                 }
-            },
+            }
         )
     }
 }

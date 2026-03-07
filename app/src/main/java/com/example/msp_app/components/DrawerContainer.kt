@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun DrawerContainer(
     navController: NavController,
-    content: @Composable (openDrawer: () -> Unit) -> Unit,
+    content: @Composable (openDrawer: () -> Unit) -> Unit
 ) {
     val authViewModel = LocalAuthViewModel.current
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -81,7 +81,7 @@ fun DrawerContainer(
                         ) {
                             Text(
                                 text = "Menú",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleLarge
                             )
                             IconButton(onClick = { ThemeController.toggle() }) {
                                 Image(

@@ -292,7 +292,7 @@ fun AppNavigation() {
 
             composable(Screen.Cart.route) {
                 CartScreen(
-                    navController = navController,
+                    navController = navController
                 )
             }
 

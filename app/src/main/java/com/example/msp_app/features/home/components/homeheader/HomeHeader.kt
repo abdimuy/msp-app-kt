@@ -44,11 +44,11 @@ fun HomeHeader(
             .fillMaxWidth()
             .background(
                 backgroundColor,
-                RoundedCornerShape(bottomEnd = 18.dp, bottomStart = 18.dp),
+                RoundedCornerShape(bottomEnd = 18.dp, bottomStart = 18.dp)
             )
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

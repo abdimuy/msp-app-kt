@@ -11,11 +11,11 @@ class ProductsLocalDataSource(context: Context) {
         return productDao.getProductById(id)
     }
 
-    suspend fun getProductsByFolio(folio: String): List<ProductEntity>  {
+    suspend fun getProductsByFolio(folio: String): List<ProductEntity> {
         return productDao.getProductsByFolio(folio)
     }
 
-    suspend fun saveAll(products: List<ProductEntity>)  {
+    suspend fun saveAll(products: List<ProductEntity>) {
         productDao.deleteAll()
         productDao.saveAll(products)
     }

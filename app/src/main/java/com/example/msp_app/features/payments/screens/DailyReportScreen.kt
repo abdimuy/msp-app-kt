@@ -276,7 +276,7 @@ fun DailyReportScreen(navController: NavController, viewModel: PaymentsViewModel
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 56.dp),
-                    singleLine = true,
+                    singleLine = true
                 )
 
                 if (showDatePicker) {
@@ -290,7 +290,7 @@ fun DailyReportScreen(navController: NavController, viewModel: PaymentsViewModel
                     ) {
                         DatePicker(
                             state = datePickerState,
-                            showModeToggle = false,
+                            showModeToggle = false
                         )
                     }
                 }
@@ -548,7 +548,7 @@ fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
             date = formattedDate,
             client = payment.NOMBRE_CLIENTE,
             amount = payment.IMPORTE,
-            paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+            paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID)
         )
     }
 
@@ -589,7 +589,7 @@ fun formatForgivenessTextList(forgiveness: List<Payment>): ForgivenessTextData {
             ),
             client = payment.NOMBRE_CLIENTE,
             amount = payment.IMPORTE,
-            paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+            paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID)
         )
     }
     val totalCount = forgiveness.size

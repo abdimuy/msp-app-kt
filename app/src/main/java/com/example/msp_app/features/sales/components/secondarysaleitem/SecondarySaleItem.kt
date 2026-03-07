@@ -70,7 +70,7 @@ fun SecondarySaleItem(
     progress: Float = 0f,
     distanceToCurrentLocation: Double = 0.0,
     openVisitDialog: () -> Unit = {},
-    closeVisitDialog: () -> Unit = {},
+    closeVisitDialog: () -> Unit = {}
 ) {
     val isDark = ThemeController.isDarkMode
 
@@ -140,10 +140,10 @@ fun SecondarySaleItem(
 
         ) {
             Row(
-                verticalAlignment = Alignment.Top,
+                verticalAlignment = Alignment.Top
             ) {
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 ) {
                     Row {
                         if (isNew) {
@@ -177,7 +177,7 @@ fun SecondarySaleItem(
                                 }
                             },
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -226,7 +226,7 @@ fun SecondarySaleItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier =
                     Modifier.weight(1f),
-                    lineHeight = 18.sp,
+                    lineHeight = 18.sp
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -272,7 +272,7 @@ fun SecondarySaleItem(
                                 imageVector = Icons.Default.Done,
                                 contentDescription = "Pagado",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -281,7 +281,7 @@ fun SecondarySaleItem(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "No Pagado",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
 
                         EstadoCobranza.VOLVER_VISITAR -> {
@@ -289,7 +289,7 @@ fun SecondarySaleItem(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Volver a Visitar",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -334,11 +334,11 @@ fun SecondarySaleItem(
                         modifier = Modifier
                             .size(30.dp)
                             .padding(start = 8.dp)
-                            .clickable { openMenu() },
+                            .clickable { openMenu() }
                     )
                     DropdownMenu(
                         expanded = showMenu,
-                        onDismissRequest = { closeMenu() },
+                        onDismissRequest = { closeMenu() }
                     ) {
                         DropdownMenuItem(
                             text = { Text("Agregar pago") },
@@ -368,7 +368,7 @@ fun SecondarySaleItem(
                 AlertBadge(
                     message = message,
                     type = badgeType,
-                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 )
 
                 if (formattedDiaCobranza.isNotEmpty()) {
@@ -410,7 +410,7 @@ fun SecondarySaleItem(
                     AlertBadge(
                         message = "Ult Pag $formattedFechaUltPago",
                         type = BadgesType.Primary,
-                        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     )
                 }
             }

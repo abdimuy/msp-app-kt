@@ -14,7 +14,7 @@ import androidx.room.PrimaryKey
         androidx.room.Index(value = ["COBRADOR_ID"], unique = false),
         androidx.room.Index(value = ["ZONA_CLIENTE_ID"], unique = false),
         androidx.room.Index(value = ["FECHA"], unique = false),
-        androidx.room.Index(value = ["ESTADO_COBRANZA"], unique = false),
+        androidx.room.Index(value = ["ESTADO_COBRANZA"], unique = false)
     ]
 )
 data class SaleEntity(

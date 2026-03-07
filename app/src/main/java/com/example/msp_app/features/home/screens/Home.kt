@@ -314,7 +314,7 @@ fun HomeScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     item {
                         HomeHeader(
@@ -412,11 +412,11 @@ fun HomeScreen(navController: NavController) {
                             },
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
-                            onInitWeek = { authViewModel.updateStartOfWeekDate() },
+                            onInitWeek = { authViewModel.updateStartOfWeekDate() }
                         )
                     }
                 }
-            },
+            }
         )
 
         if (showPaymentsDialog) {
@@ -438,7 +438,7 @@ fun HomeScreen(navController: NavController) {
                             PaymentItem(
                                 payment = payment,
                                 variant = PaymentItemVariant.COMPACT,
-                                navController = navController,
+                                navController = navController
                             )
                         }
                     }
@@ -526,7 +526,7 @@ fun PaymentInfoCollector(
         Text(
             text = value,
             fontSize = 26.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.ExtraBold
         )
     }
 }

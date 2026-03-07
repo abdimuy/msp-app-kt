@@ -15,7 +15,7 @@ import java.time.format.DateTimeFormatter
 
 enum class SaleItemVariant {
     DEFAULT,
-    SECONDARY,
+    SECONDARY
 }
 
 @Composable
@@ -62,7 +62,7 @@ fun SaleItem(
                 closePaymentDialog = closePaymentDialog,
                 showPaymentDialog = showPaymentDialog.value,
                 openVisitDialog = openVisitDialog,
-                closeVisitDialog = closeVisitDialog,
+                closeVisitDialog = closeVisitDialog
             )
         }
 
@@ -81,7 +81,7 @@ fun SaleItem(
                 showPaymentDialog = showPaymentDialog.value,
                 distanceToCurrentLocation = distanceToCurrentLocation,
                 openVisitDialog = openVisitDialog,
-                closeVisitDialog = closeVisitDialog,
+                closeVisitDialog = closeVisitDialog
             )
         }
     }

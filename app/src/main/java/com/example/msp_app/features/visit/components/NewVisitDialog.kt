@@ -181,7 +181,7 @@ fun NewVisitDialog(
                 FECHA = date,
                 IMPTE_DOCTO_CC_ID = sale.DOCTO_CC_ACR_ID,
                 TIPO_VISITA = selectedOption,
-                NOTA = note,
+                NOTA = note
             )
 
             if (selectedOption == Constants.PIDE_REAGENDAR) {
@@ -365,7 +365,7 @@ fun NewVisitDialog(
 
                     Button(
                         onClick = { handleSaveVisit() },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(text = "GUARDAR VISITA", color = Color.White)
                     }
