@@ -78,5 +78,16 @@ abstract class AppDatabase : RoomDatabase() {
                     .build().also { INSTANCE = it }
             }
         }
+
+        @androidx.annotation.VisibleForTesting
+        fun setInstanceForTesting(database: AppDatabase) {
+            INSTANCE = database
+        }
+
+        @androidx.annotation.VisibleForTesting
+        fun clearInstance() {
+            INSTANCE?.close()
+            INSTANCE = null
+        }
     }
 }
