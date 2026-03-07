@@ -1,0 +1,23 @@
+#!/bin/sh
+
+echo "Running ktlint..."
+./gradlew ktlintCheck --quiet
+LINT_RESULT=$?
+
+if [ $LINT_RESULT -ne 0 ]; then
+    echo "Lint failed. Run './gradlew ktlintFormat' to auto-fix, then retry."
+    exit 1
+fi
+echo "Lint passed"
+
+echo "Running tests..."
+./gradlew testDebugUnitTest --quiet
+TEST_RESULT=$?
+
+if [ $TEST_RESULT -ne 0 ]; then
+    echo "Tests failed. Fix failing tests before committing."
+    exit 1
+fi
+echo "Tests passed"
+
+echo "All checks passed."
