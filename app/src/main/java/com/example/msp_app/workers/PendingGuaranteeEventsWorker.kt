@@ -50,7 +50,6 @@ class PendingGuaranteeEventsWorker(
                         "PendingGuaranteeEventsWorker",
                         "✅ Evento enviado exitosamente: ID=${event.ID}, Tipo=${event.TIPO_EVENTO}"
                     )
-
                 } catch (e: Exception) {
                     Log.e(
                         "PendingGuaranteeEventsWorker",

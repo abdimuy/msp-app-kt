@@ -33,10 +33,12 @@ class TransfersListViewModel(
 
     private val usersRepository = UsersRepository()
 
-    private val _warehousesState = MutableStateFlow<ResultState<List<WarehouseListResponse.Warehouse>>>(ResultState.Idle)
+    private val _warehousesState =
+        MutableStateFlow<ResultState<List<WarehouseListResponse.Warehouse>>>(ResultState.Idle)
     val warehousesState: StateFlow<ResultState<List<WarehouseListResponse.Warehouse>>> = _warehousesState.asStateFlow()
 
-    private val _warehouseProductsState = MutableStateFlow<ResultState<List<ProductInventory>>>(ResultState.Idle)
+    private val _warehouseProductsState =
+        MutableStateFlow<ResultState<List<ProductInventory>>>(ResultState.Idle)
     val warehouseProductsState: StateFlow<ResultState<List<ProductInventory>>> = _warehouseProductsState.asStateFlow()
 
     private val _usersByWarehouse = MutableStateFlow<Map<Int, List<User>>>(emptyMap())
@@ -90,7 +92,10 @@ class TransfersListViewModel(
                         _usersByWarehouse.value = groupedUsers
                     },
                     onFailure = { error ->
-                        android.util.Log.e("TransfersListViewModel", "Error loading users: ${error.message}")
+                        android.util.Log.e(
+                            "TransfersListViewModel",
+                            "Error loading users: ${error.message}"
+                        )
                         _usersByWarehouse.value = emptyMap()
                     }
                 )

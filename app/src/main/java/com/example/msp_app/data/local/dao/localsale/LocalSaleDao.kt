@@ -86,7 +86,9 @@ interface LocalSaleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSaleImage(saleImage: LocalSaleImageEntity)
 
-    @Query("SELECT LOCAL_SALE_IMAGE_ID, LOCAL_SALE_ID, IMAGE_URI, FECHA_SUBIDA FROM sale_image WHERE LOCAL_SALE_ID = :saleId ORDER BY FECHA_SUBIDA")
+    @Query(
+        "SELECT LOCAL_SALE_IMAGE_ID, LOCAL_SALE_ID, IMAGE_URI, FECHA_SUBIDA FROM sale_image WHERE LOCAL_SALE_ID = :saleId ORDER BY FECHA_SUBIDA"
+    )
     suspend fun getImagesForSale(saleId: String): List<LocalSaleImageEntity>
 
     @Query("DELETE FROM sale_image WHERE LOCAL_SALE_ID = :saleId")
@@ -137,7 +139,8 @@ interface LocalSaleDao {
     @Query("DELETE FROM sale_image WHERE LOCAL_SALE_IMAGE_ID IN (:imageIds)")
     suspend fun deleteImagesByIds(imageIds: List<String>)
 
-    @Query("""
+    @Query(
+        """
         UPDATE local_sale SET
             NOMBRE_CLIENTE = :nombreCliente,
             FECHA_VENTA = :fechaVenta,
@@ -165,7 +168,8 @@ interface LocalSaleDao {
             ZONA_CLIENTE = :zonaCliente,
             CLIENTE_ID = :clienteId
         WHERE LOCAL_SALE_ID = :localSaleId
-    """)
+    """
+    )
     suspend fun updateSaleFields(
         localSaleId: String,
         nombreCliente: String,

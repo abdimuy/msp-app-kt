@@ -5,9 +5,7 @@ import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,7 +48,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -73,15 +70,15 @@ import com.example.msp_app.features.payments.models.VisitLineData
 import com.example.msp_app.features.payments.models.VisitTextData
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class ReportDateData(
     val iso: String,
@@ -98,7 +95,8 @@ private fun prepareReportDate(date: LocalDate): ReportDateData {
     val start = iso
     val end = DateUtils.addToIsoDate(
         DateUtils.addToIsoDate(iso, 1, ChronoUnit.DAYS),
-        -1, ChronoUnit.SECONDS
+        -1,
+        ChronoUnit.SECONDS
     )
     return ReportDateData(iso, text, start, end)
 }
@@ -167,10 +165,7 @@ private fun buildPaymentsTicketText(
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DailyReportScreen(
-    navController: NavController,
-    viewModel: PaymentsViewModel = viewModel()
-) {
+fun DailyReportScreen(navController: NavController, viewModel: PaymentsViewModel = viewModel()) {
     var showDatePicker by remember { mutableStateOf(false) }
     var textDate by remember { mutableStateOf(TextFieldValue("")) }
     val datePickerState = rememberDatePickerState()

@@ -22,7 +22,10 @@ class ClienteSyncWorker(
             val count = repository.getCount()
             Log.d("ClienteSyncWorker", "Sincronización completada: $count clientes")
 
-            val prefs = applicationContext.getSharedPreferences("cliente_sync", Context.MODE_PRIVATE)
+            val prefs = applicationContext.getSharedPreferences(
+                "cliente_sync",
+                Context.MODE_PRIVATE
+            )
             prefs.edit().putLong("last_sync", System.currentTimeMillis()).apply()
 
             logger.info(

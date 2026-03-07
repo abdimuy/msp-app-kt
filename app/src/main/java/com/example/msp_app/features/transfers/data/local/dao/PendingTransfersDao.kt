@@ -41,6 +41,12 @@ interface PendingTransfersDao {
     @Query("SELECT COUNT(*) FROM pending_transfers")
     fun getPendingTransfersCountFlow(): Flow<Int>
 
-    @Query("UPDATE pending_transfers SET retry_count = retry_count + 1, last_error = :error, updated_at = :timestamp WHERE id = :id")
-    suspend fun incrementRetryCount(id: Long, error: String, timestamp: Long = System.currentTimeMillis())
+    @Query(
+        "UPDATE pending_transfers SET retry_count = retry_count + 1, last_error = :error, updated_at = :timestamp WHERE id = :id"
+    )
+    suspend fun incrementRetryCount(
+        id: Long,
+        error: String,
+        timestamp: Long = System.currentTimeMillis()
+    )
 }

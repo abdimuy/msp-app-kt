@@ -238,10 +238,11 @@ fun SimpleProductSelector(
                                         Text(
                                             text = if (disponible > 0) "Disponible: $disponible" else "Sin stock",
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = if (disponible > 0)
+                                            color = if (disponible > 0) {
                                                 MaterialTheme.colorScheme.secondary
-                                            else
+                                            } else {
                                                 MaterialTheme.colorScheme.error
+                                            }
                                         )
                                     }
                                 },
@@ -497,10 +498,7 @@ fun SimpleProductSelector(
 }
 
 @Composable
-private fun CartItemRow(
-    saleItem: SaleItem,
-    saleProductsViewModel: SaleProductsViewModel
-) {
+private fun CartItemRow(saleItem: SaleItem, saleProductsViewModel: SaleProductsViewModel) {
     val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
 
     var priceList by remember { mutableStateOf(parsedPrices.precioLista.toString()) }

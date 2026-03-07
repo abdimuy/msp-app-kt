@@ -23,6 +23,8 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
+import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
 import com.example.msp_app.features.cart.screens.CartScreen
 import com.example.msp_app.features.common.NoModulesScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
@@ -33,7 +35,6 @@ import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
-import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.EditSaleScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
@@ -42,16 +43,13 @@ import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
-import com.example.msp_app.features.visit.screens.VisitTicketScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
 import com.example.msp_app.features.transfers.presentation.create.NewTransferScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailScreen
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
-import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
-import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
-
+import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
+import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
+import com.example.msp_app.features.visit.screens.VisitTicketScreen
 
 sealed class Screen(val route: String) {
     object Loading : Screen("loading")
@@ -152,9 +150,11 @@ fun AppNavigation() {
 
                             val destination = when {
                                 modulos.isEmpty() -> Screen.NoModules.route
-                                modulos.contains("COBRO") -> Screen.Home.route          // Priority 1
-                                modulos.contains("VENTAS") -> Screen.SaleHome.route     // Priority 2
-                                modulos.contains("ALMACEN") -> Screen.TransfersList.route // Priority 3
+                                modulos.contains("COBRO") -> Screen.Home.route // Priority 1
+                                modulos.contains("VENTAS") -> Screen.SaleHome.route // Priority 2
+                                modulos.contains(
+                                    "ALMACEN"
+                                ) -> Screen.TransfersList.route // Priority 3
                                 else -> Screen.NoModules.route
                             }
 
@@ -217,7 +217,6 @@ fun AppNavigation() {
                     SaleMapScreen(navController = navController, saleId = saleId)
                 }
             }
-
 
             composable(Screen.PaymentTicket.route) { backStackEntry ->
                 val paymentId = backStackEntry.arguments?.getString("paymentId")
@@ -345,4 +344,3 @@ fun AppNavigation() {
         }
     }
 }
-

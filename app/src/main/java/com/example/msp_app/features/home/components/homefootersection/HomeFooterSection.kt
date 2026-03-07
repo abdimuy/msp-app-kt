@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
@@ -75,7 +74,9 @@ fun HomeFooterSection(
             ) {
                 Text(
                     text = "VISITAS SIN ENVIAR",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
                 )
                 when (visitsPendingState) {
                     is ResultState.Loading -> Text("Cargando visitas pendientes...")
@@ -87,10 +88,11 @@ fun HomeFooterSection(
                     is ResultState.Success -> {
                         val pending = visitsPendingState.data
                         Text(
-                            if (pending.isEmpty())
+                            if (pending.isEmpty()) {
                                 "No hay visitas pendientes"
-                            else
+                            } else {
                                 "Visitas Pendientes: ${pending.size}"
+                            }
                         )
                     }
 
@@ -112,7 +114,9 @@ fun HomeFooterSection(
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = "PAGOS SIN ENVIAR",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
                 )
                 when (pendingPaymentsState) {
                     is ResultState.Loading -> Text("Cargando pagos pendientes...")
@@ -124,10 +128,11 @@ fun HomeFooterSection(
                     is ResultState.Success -> {
                         val pending = pendingPaymentsState.data
                         Text(
-                            if (pending.isEmpty())
+                            if (pending.isEmpty()) {
                                 "No hay pagos pendientes"
-                            else
+                            } else {
                                 "Pagos Pendientes: ${pending.size}"
+                            }
                         )
                     }
 

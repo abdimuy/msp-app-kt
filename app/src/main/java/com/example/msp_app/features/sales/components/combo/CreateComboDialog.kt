@@ -12,11 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Package
-import com.composables.icons.lucide.X
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -33,20 +29,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import java.text.NumberFormat
-import java.util.Locale
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Package
+import com.composables.icons.lucide.X
 
 /**
  * Validates price input according to business rules
- * @param input String input from user  
+ * @param input String input from user
  * @param fieldName Name of field for error messages
  * @return Pair<Boolean, String?> where first is isValid, second is errorMessage
  */
@@ -55,33 +49,33 @@ fun validatePriceInput(input: String, fieldName: String): Pair<Boolean, String?>
     if (input.isBlank()) {
         return false to "El precio es requerido"
     }
-    
+
     // Valor negativo
     if (input.startsWith("-")) {
         return false to "El precio no puede ser negativo"
     }
-    
+
     // No es un número válido
     val number = input.toDoubleOrNull()
     if (number == null) {
         return false to "El precio debe ser un número válido"
     }
-    
+
     // Cero total
     if (number == 0.0) {
         return false to "El precio debe ser mayor a 0"
     }
-    
+
     // Más de 2 decimales
     if (input.contains('.') && input.substringAfter('.').length > 2) {
         return false to "El precio no puede tener más de 2 decimales"
     }
-    
+
     // Valor antes del punto es cero (casos como 0.XX)
     if (number < 1.0) {
         return false to "El precio debe ser al menos 1.00"
     }
-    
+
     // Todo válido
     return true to null
 }
@@ -90,7 +84,12 @@ fun validatePriceInput(input: String, fieldName: String): Pair<Boolean, String?>
 fun CreateComboDialog(
     show: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (nombre: String, precioLista: Double, precioCortoPlazo: Double, precioContado: Double) -> Unit,
+    onConfirm: (
+        nombre: String,
+        precioLista: Double,
+        precioCortoPlazo: Double,
+        precioContado: Double
+    ) -> Unit,
     selectedProductsCount: Int,
     suggestedPrices: Triple<Double, Double, Double>,
     selectedProductNames: List<String> = emptyList()
@@ -113,18 +112,17 @@ fun CreateComboDialog(
     var precioCortoPlazo by remember { mutableStateOf(suggestedPrices.second.toString()) }
     var precioContado by remember { mutableStateOf(suggestedPrices.third.toString()) }
     var nombreError by remember { mutableStateOf(false) }
-    
+
     // Estados de error para validación de precios
     var precioListaError by remember { mutableStateOf<String?>(null) }
     var precioCortoPlazoError by remember { mutableStateOf<String?>(null) }
     var precioContadoError by remember { mutableStateOf<String?>(null) }
-    
-    // Estado combinado para facilitar validación del botón
-    val hasPriceErrors = precioListaError != null || 
-                         precioCortoPlazoError != null || 
-                         precioContadoError != null ||
-                         nombreError
 
+    // Estado combinado para facilitar validación del botón
+    val hasPriceErrors = precioListaError != null ||
+        precioCortoPlazoError != null ||
+        precioContadoError != null ||
+        nombreError
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -204,7 +202,9 @@ fun CreateComboDialog(
                     isError = nombreError,
                     supportingText = if (nombreError) {
                         { Text("El nombre es requerido") }
-                    } else null,
+                    } else {
+                        null
+                    },
                     shape = RoundedCornerShape(12.dp)
                 )
 
@@ -304,12 +304,12 @@ fun CreateComboDialog(
                                 nombreError = true
                                 return@Button
                             }
-                            
+
                             // Si el nombre es válido pero hay errores de precio, no continuar
                             if (hasPriceErrors) {
                                 return@Button
                             }
-                            
+
                             // Todo válido, proceder
                             onConfirm(
                                 nombreCombo,

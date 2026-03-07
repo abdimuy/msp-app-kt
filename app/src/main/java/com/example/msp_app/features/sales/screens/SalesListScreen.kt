@@ -159,10 +159,11 @@ fun SaleDetailsListScreen(navController: NavController) {
                                         )
                                         val radius = size.minDimension / 2
 
-                                        val statusColor = if (sale.ENVIADO)
+                                        val statusColor = if (sale.ENVIADO) {
                                             Color(0xFF4CAF50)
-                                        else
+                                        } else {
                                             Color(0xFFFF5722)
+                                        }
 
                                         drawCircle(
                                             color = statusColor,
@@ -217,14 +218,15 @@ fun SaleDetailsListScreen(navController: NavController) {
                                             text = if (sale.ENVIADO) "Enviado" else "Pendiente",
                                             modifier = Modifier
                                                 .background(
-                                                    color = if (sale.ENVIADO)
+                                                    color = if (sale.ENVIADO) {
                                                         MaterialTheme.colorScheme.primaryContainer.copy(
                                                             alpha = 0.3f
                                                         )
-                                                    else
+                                                    } else {
                                                         MaterialTheme.colorScheme.errorContainer.copy(
                                                             alpha = 0.3f
-                                                        ),
+                                                        )
+                                                    },
                                                     shape = RoundedCornerShape(16.dp)
                                                 )
                                                 .padding(horizontal = 10.dp, vertical = 4.dp),
@@ -232,10 +234,11 @@ fun SaleDetailsListScreen(navController: NavController) {
                                                 fontWeight = FontWeight.Medium,
                                                 fontSize = 11.sp
                                             ),
-                                            color = if (sale.ENVIADO)
+                                            color = if (sale.ENVIADO) {
                                                 MaterialTheme.colorScheme.primary
-                                            else
+                                            } else {
                                                 MaterialTheme.colorScheme.error
+                                            }
                                         )
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically
@@ -255,10 +258,11 @@ fun SaleDetailsListScreen(navController: NavController) {
                                             )
                                             Spacer(Modifier.width(10.dp))
                                             Icon(
-                                                imageVector = if (isExpanded)
+                                                imageVector = if (isExpanded) {
                                                     Icons.Default.KeyboardArrowUp
-                                                else
-                                                    Icons.Default.KeyboardArrowDown,
+                                                } else {
+                                                    Icons.Default.KeyboardArrowDown
+                                                },
                                                 contentDescription = if (isExpanded) "Contraer" else "Expandir",
                                                 tint = MaterialTheme.colorScheme.surface,
                                                 modifier = Modifier
@@ -268,7 +272,9 @@ fun SaleDetailsListScreen(navController: NavController) {
                                                             expandedSaleId = ""
                                                         } else {
                                                             expandedSaleId = sale.LOCAL_SALE_ID
-                                                            viewModel.loadImagesBySaleId(sale.LOCAL_SALE_ID)
+                                                            viewModel.loadImagesBySaleId(
+                                                                sale.LOCAL_SALE_ID
+                                                            )
                                                         }
                                                     }
                                                     .background(
@@ -282,14 +288,18 @@ fun SaleDetailsListScreen(navController: NavController) {
                                 if (isExpanded) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(horizontal = 20.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(
+                                            alpha = 0.3f
+                                        )
                                     )
                                 }
 
                                 if (expandedSaleId == sale.LOCAL_SALE_ID) {
                                     HorizontalDivider(
                                         modifier = Modifier.padding(horizontal = 20.dp),
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(
+                                            alpha = 0.3f
+                                        )
                                     )
                                 }
                             }
@@ -357,7 +367,9 @@ fun SaleDetailsListScreen(navController: NavController) {
                                                     )
                                                 ) {
                                                     Image(
-                                                        painter = rememberAsyncImagePainter(image.IMAGE_URI),
+                                                        painter = rememberAsyncImagePainter(
+                                                            image.IMAGE_URI
+                                                        ),
                                                         contentDescription = null,
                                                         modifier = Modifier.fillMaxSize(),
                                                         contentScale = ContentScale.Crop

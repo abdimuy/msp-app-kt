@@ -1,11 +1,11 @@
 package com.example.msp_app.data.repository
 
 import android.content.Context
+import com.example.msp_app.core.utils.searchSimilarItems
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.clientes.ClientesApi
 import com.example.msp_app.data.local.datasource.ClienteDataSource
 import com.example.msp_app.data.local.entities.ClienteEntity
-import com.example.msp_app.core.utils.searchSimilarItems
 
 class ClienteRepository(context: Context) {
     private val dataSource = ClienteDataSource(context)

@@ -30,26 +30,26 @@ object Constants {
     const val SE_ESCUCHAN_RUIDOS = "Se escuchan ruidos pero no abre"
     const val PIDE_REAGENDAR = "Pidió reagendar visita"
 
-    //Datos para ticket
+    // Datos para ticket
     const val WHATSAPP = "238-374-06-84"
     const val TELEFONO = "238-110-50-61"
 
-    //Firebase Collection
+    // Firebase Collection
     const val COLLECTION_CONFIG = "config"
 
-    //Firebase Document
+    // Firebase Document
     const val DOCUMENT_API_SETTINGS = "api_settings"
 
-    //Firebase Field
+    // Firebase Field
     const val FIELD_BASE_URL = "baseURL"
 
-    //Estados de garantias
+    // Estados de garantias
     const val NOTIFICADO = "NOTIFICADO"
     const val LISTO_PARA_ENTREGAR = "LISTO_PARA_ENTREGAR"
     const val ENTREGADO = "ENTREGADO"
     const val RECOLECTADO = "RECOLECTADO"
 
-    //ID de Almacen General
+    // ID de Almacen General
     const val ALMACEN_GENERAL_ID = 19
 
     // Remote Database Debug

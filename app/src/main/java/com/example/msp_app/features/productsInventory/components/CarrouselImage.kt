@@ -47,10 +47,7 @@ data class CarouselItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CarrouselImage(
-    carouselItems: List<CarouselItem>,
-    reloadTrigger: Int = 0
-) {
+fun CarrouselImage(carouselItems: List<CarouselItem>, reloadTrigger: Int = 0) {
     val selectedItem = remember { mutableStateOf<CarouselItem?>(null) }
     val context = LocalContext.current
 
@@ -70,50 +67,48 @@ fun CarrouselImage(
             if (index >= carouselItems.size) return@HorizontalUncontainedCarousel
 
             val item = carouselItems[index]
-        val file = File(item.imagePath)
+            val file = File(item.imagePath)
 
-        if (file.exists()) {
-            AsyncImage(
-                model = ImageRequest.Builder(context)
-                    .data(file)
-                    .memoryCacheKey("${file.absolutePath}_${reloadTrigger}")
-                    .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
-                    .build(),
-                contentDescription = item.description,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .height(205.dp)
-                    .maskClip(MaterialTheme.shapes.extraLarge)
-                    .clickable {
-                        selectedItem.value = item
-                    },
-                onState = { state ->
-                    when (state) {
-                        is AsyncImagePainter.State.Error -> {
+            if (file.exists()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(file)
+                        .memoryCacheKey("${file.absolutePath}_$reloadTrigger")
+                        .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
+                        .build(),
+                    contentDescription = item.description,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .height(205.dp)
+                        .maskClip(MaterialTheme.shapes.extraLarge)
+                        .clickable {
+                            selectedItem.value = item
+                        },
+                    onState = { state ->
+                        when (state) {
+                            is AsyncImagePainter.State.Error -> {
+                                println("Error loading image: ${item.imagePath}")
+                            }
 
-                            println("Error loading image: ${item.imagePath}")
+                            else -> {}
                         }
-
-                        else -> {}
                     }
-                }
-            )
-        } else {
-
-            Box(
-                modifier = Modifier
-                    .height(205.dp)
-                    .maskClip(MaterialTheme.shapes.extraLarge)
-                    .background(Color.Gray.copy(alpha = 0.3f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Imagen no encontrada",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .height(205.dp)
+                        .maskClip(MaterialTheme.shapes.extraLarge)
+                        .background(Color.Gray.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Imagen no encontrada",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-        }
         }
     } // Cierre del key block
 
@@ -127,11 +122,7 @@ fun CarrouselImage(
 }
 
 @Composable
-fun ZoomableImageDialog1(
-    item: CarouselItem,
-    onDismiss: () -> Unit,
-    reloadTrigger: Int = 0
-) {
+fun ZoomableImageDialog1(item: CarouselItem, onDismiss: () -> Unit, reloadTrigger: Int = 0) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -168,7 +159,7 @@ fun ZoomableImageDialog1(
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(file)
-                                .memoryCacheKey("${file.absolutePath}_dialog_${reloadTrigger}")
+                                .memoryCacheKey("${file.absolutePath}_dialog_$reloadTrigger")
                                 .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
                                 .build(),
                             contentDescription = item.description,

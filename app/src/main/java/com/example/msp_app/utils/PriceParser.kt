@@ -43,7 +43,6 @@ object PriceParser {
                 precioCortoplazo = precioCortoplazo,
                 precioContado = precioContado
             )
-
         } catch (e: Exception) {
             return ParsedPrices()
         }

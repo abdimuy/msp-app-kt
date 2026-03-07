@@ -1,9 +1,9 @@
 package com.example.msp_app.data.api
 
+import java.util.concurrent.TimeUnit
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.util.concurrent.TimeUnit
 
 open class BaseApi {
 
@@ -12,7 +12,6 @@ open class BaseApi {
             .connectTimeout(300, TimeUnit.SECONDS)
             .readTimeout(300, TimeUnit.SECONDS)
             .build()
-
 
         return Retrofit.Builder()
             .baseUrl(baseUrl)

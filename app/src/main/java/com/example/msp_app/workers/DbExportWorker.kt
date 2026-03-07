@@ -77,17 +77,18 @@ class DbExportWorker(
                 Log.e(TAG, "Exportación falló: ${result.errorMessage}")
                 Result.failure()
             }
-
         } catch (e: Exception) {
             Log.e(TAG, "Error durante la exportación", e)
 
             // Guardar error
-            saveResult(mapOf(
-                "commandId" to commandId,
-                "status" to CommandStatus.ERROR.name,
-                "errorMessage" to "${e.javaClass.simpleName}: ${e.message}",
-                "executionTimeMs" to 0
-            ))
+            saveResult(
+                mapOf(
+                    "commandId" to commandId,
+                    "status" to CommandStatus.ERROR.name,
+                    "errorMessage" to "${e.javaClass.simpleName}: ${e.message}",
+                    "executionTimeMs" to 0
+                )
+            )
 
             updateCommandStatus(commandId, CommandStatus.ERROR)
             Result.failure()

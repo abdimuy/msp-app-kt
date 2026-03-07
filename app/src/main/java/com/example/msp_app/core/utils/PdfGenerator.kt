@@ -207,7 +207,6 @@ object PdfGenerator {
         visitCanvas.drawLine(marginLeft, y.toFloat(), pageWidth - marginLeft, y.toFloat(), paint)
         y += lineSpacing
 
-
         paint.isFakeBoldText = false
         for ((date, collector, type, note) in visits.lines) {
             if (y > pageHeight - 80) {

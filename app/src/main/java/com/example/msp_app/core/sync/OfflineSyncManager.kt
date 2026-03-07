@@ -59,7 +59,7 @@ object OfflineSyncManager {
             ExistingWorkPolicy.KEEP
         }
 
-        val uniqueName = "${config.workerNamePrefix}_${entityId}"
+        val uniqueName = "${config.workerNamePrefix}_$entityId"
 
         WorkManager.getInstance(context)
             .enqueueUniqueWork(uniqueName, policy, request)
@@ -125,7 +125,7 @@ object OfflineSyncManager {
      * @param entityId ID de la entidad
      */
     fun cancel(context: Context, config: SyncConfig, entityId: String) {
-        val uniqueName = "${config.workerNamePrefix}_${entityId}"
+        val uniqueName = "${config.workerNamePrefix}_$entityId"
         WorkManager.getInstance(context).cancelUniqueWork(uniqueName)
     }
 
@@ -152,7 +152,7 @@ object OfflineSyncManager {
         config: SyncConfig,
         entityId: String
     ): LiveData<List<WorkInfo>> {
-        val uniqueName = "${config.workerNamePrefix}_${entityId}"
+        val uniqueName = "${config.workerNamePrefix}_$entityId"
         return WorkManager.getInstance(context)
             .getWorkInfosForUniqueWorkLiveData(uniqueName)
     }
@@ -181,10 +181,7 @@ object OfflineSyncManager {
      * @param config Configuración de sincronización
      * @return LiveData con lista de trabajos
      */
-    fun getAllPendingWork(
-        context: Context,
-        config: SyncConfig
-    ): LiveData<List<WorkInfo>> {
+    fun getAllPendingWork(context: Context, config: SyncConfig): LiveData<List<WorkInfo>> {
         return WorkManager.getInstance(context)
             .getWorkInfosByTagLiveData(config.entityType)
     }

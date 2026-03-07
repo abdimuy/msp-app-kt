@@ -217,20 +217,22 @@ fun SaleConfirmationDialog(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Surface(
-                            color = if (data.tipoVenta == "CREDITO")
+                            color = if (data.tipoVenta == "CREDITO") {
                                 MaterialTheme.colorScheme.primaryContainer
-                            else
-                                MaterialTheme.colorScheme.tertiaryContainer,
+                            } else {
+                                MaterialTheme.colorScheme.tertiaryContainer
+                            },
                             shape = RoundedCornerShape(20.dp)
                         ) {
                             Text(
                                 text = if (data.tipoVenta == "CREDITO") "Venta a Crédito" else "Venta de Contado",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (data.tipoVenta == "CREDITO")
+                                color = if (data.tipoVenta == "CREDITO") {
                                     MaterialTheme.colorScheme.onPrimaryContainer
-                                else
-                                    MaterialTheme.colorScheme.onTertiaryContainer,
+                                } else {
+                                    MaterialTheme.colorScheme.onTertiaryContainer
+                                },
                                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                             )
                         }
@@ -376,7 +378,9 @@ fun SaleConfirmationDialog(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(
+                                alpha = 0.5f
+                            )
                         ),
                         shape = RoundedCornerShape(16.dp)
                     ) {
@@ -423,15 +427,17 @@ fun SaleConfirmationDialog(
                                         )
                                         Text(
                                             text = price,
-                                            style = if (isHighlighted)
+                                            style = if (isHighlighted) {
                                                 MaterialTheme.typography.titleMedium
-                                            else
-                                                MaterialTheme.typography.bodyLarge,
+                                            } else {
+                                                MaterialTheme.typography.bodyLarge
+                                            },
                                             fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
-                                            color = if (isHighlighted)
+                                            color = if (isHighlighted) {
                                                 MaterialTheme.colorScheme.primary
-                                            else
+                                            } else {
                                                 MaterialTheme.colorScheme.onSurface
+                                            }
                                         )
                                     }
                                 }
@@ -486,11 +492,7 @@ fun SaleConfirmationDialog(
 }
 
 @Composable
-private fun SectionCard(
-    title: String,
-    icon: ImageVector,
-    content: @Composable () -> Unit
-) {
+private fun SectionCard(title: String, icon: ImageVector, content: @Composable () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -637,4 +639,3 @@ private fun ProductSummaryRow(item: SaleItem) {
         }
     }
 }
-

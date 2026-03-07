@@ -130,7 +130,11 @@ class DebugCommandExecutor(private val context: Context) {
     /**
      * Ejecuta un query raw y convierte el resultado
      */
-    private fun executeRawQuery(db: SupportSQLiteDatabase, query: String, maxRows: Int): QueryResult {
+    private fun executeRawQuery(
+        db: SupportSQLiteDatabase,
+        query: String,
+        maxRows: Int
+    ): QueryResult {
         var cursor: Cursor? = null
         return try {
             cursor = db.query(query)

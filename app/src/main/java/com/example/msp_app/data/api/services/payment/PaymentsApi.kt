@@ -12,4 +12,3 @@ interface PaymentsApi {
     @POST("ventas/add-pago")
     suspend fun savePayment(@Body request: PaymentRequest)
 }
-

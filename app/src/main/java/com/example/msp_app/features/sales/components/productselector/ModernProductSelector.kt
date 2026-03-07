@@ -284,10 +284,11 @@ private fun ProductCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = if (disponible > 0)
+            containerColor = if (disponible > 0) {
                 MaterialTheme.colorScheme.surface
-            else
+            } else {
                 MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
+            }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -318,10 +319,11 @@ private fun ProductCard(
                     Text(
                         "Stock: $disponible",
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (disponible > 0)
+                        color = if (disponible > 0) {
                             MaterialTheme.colorScheme.primary
-                        else
+                        } else {
                             MaterialTheme.colorScheme.error
+                        }
                     )
                     if (cantidadEnVenta > 0) {
                         Text(

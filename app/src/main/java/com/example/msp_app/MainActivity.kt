@@ -87,7 +87,11 @@ class MainActivity : FragmentActivity() {
     private fun authenticateUser() {
         val biometricManager = BiometricManager.from(this)
 
-        when (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)) {
+        when (
+            biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+        ) {
             BiometricManager.BIOMETRIC_SUCCESS -> {
                 showBiometricPrompt()
             }
@@ -113,32 +117,40 @@ class MainActivity : FragmentActivity() {
     private fun showBiometricPrompt() {
         val executor = ContextCompat.getMainExecutor(this)
         val biometricPrompt =
-            BiometricPrompt(this, executor, object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    super.onAuthenticationError(errorCode, errString)
-                    if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
-                        errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
+            BiometricPrompt(
+                this,
+                executor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        super.onAuthenticationError(errorCode, errString)
+                        if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                            errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                        ) {
+                            finish()
+                        } else {
+                            isAuthenticated = true
+                        }
+                    }
+
+                    override fun onAuthenticationSucceeded(
+                        result: BiometricPrompt.AuthenticationResult
                     ) {
-                        finish()
-                    } else {
+                        super.onAuthenticationSucceeded(result)
                         isAuthenticated = true
                     }
-                }
 
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    isAuthenticated = true
+                    override fun onAuthenticationFailed() {
+                        super.onAuthenticationFailed()
+                    }
                 }
-
-                override fun onAuthenticationFailed() {
-                    super.onAuthenticationFailed()
-                }
-            })
+            )
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Autenticación requerida")
             .setSubtitle("Usa tu huella digital, rostro o patrón para acceder")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+            .setAllowedAuthenticators(
+                BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
             .build()
 
         biometricPrompt.authenticate(promptInfo)

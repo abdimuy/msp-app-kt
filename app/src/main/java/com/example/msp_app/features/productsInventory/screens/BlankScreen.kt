@@ -136,10 +136,11 @@ fun SaleHomeScreen(navController: NavController) {
                         .fillMaxWidth(0.92f)
                         .padding(bottom = 16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (pendingSales.isNotEmpty())
+                        containerColor = if (pendingSales.isNotEmpty()) {
                             MaterialTheme.colorScheme.tertiaryContainer
-                        else
+                        } else {
                             MaterialTheme.colorScheme.surfaceVariant
+                        }
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
@@ -152,10 +153,11 @@ fun SaleHomeScreen(navController: NavController) {
                         Card(
                             modifier = Modifier.size(8.dp),
                             colors = CardDefaults.cardColors(
-                                containerColor = if (pendingSales.isNotEmpty())
+                                containerColor = if (pendingSales.isNotEmpty()) {
                                     MaterialTheme.colorScheme.error
-                                else
+                                } else {
                                     MaterialTheme.colorScheme.primary
+                                }
                             ),
                             shape = androidx.compose.foundation.shape.CircleShape
                         ) {}
@@ -164,19 +166,21 @@ fun SaleHomeScreen(navController: NavController) {
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = if (pendingSales.isNotEmpty())
+                                text = if (pendingSales.isNotEmpty()) {
                                     "Ventas por sincronizar"
-                                else
-                                    "Estado de sincronización",
+                                } else {
+                                    "Estado de sincronización"
+                                },
                                 style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (pendingSales.isNotEmpty())
+                                text = if (pendingSales.isNotEmpty()) {
                                     "${pendingSales.size} venta${if (pendingSales.size > 1) "s" else ""} pendiente${if (pendingSales.size > 1) "s" else ""}"
-                                else
-                                    "Todas las ventas sincronizadas",
+                                } else {
+                                    "Todas las ventas sincronizadas"
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -264,7 +268,9 @@ fun SaleHomeScreen(navController: NavController) {
             onDismissRequest = { showConfirmDialog = false },
             title = { Text("Sincronizar imágenes") },
             text = {
-                Text("Hay $newImagesCount imágenes nuevas. Descargar las imágenes puede consumir tus datos móviles. ¿Deseas continuar?")
+                Text(
+                    "Hay $newImagesCount imágenes nuevas. Descargar las imágenes puede consumir tus datos móviles. ¿Deseas continuar?"
+                )
             },
             confirmButton = {
                 Button(onClick = {
@@ -300,13 +306,18 @@ fun SaleHomeScreen(navController: NavController) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            if (downloadProgress == 0) "Preparando..."
-                            else "$downloadedCount de $totalToDownload",
+                            if (downloadProgress == 0) {
+                                "Preparando..."
+                            } else {
+                                "$downloadedCount de $totalToDownload"
+                            },
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
                             text = "$downloadProgress%",
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                            ),
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -334,12 +345,13 @@ fun SaleHomeScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = if (downloadProgress == 0)
+                        text = if (downloadProgress == 0) {
                             "Iniciando descarga..."
-                        else if (downloadProgress < 100)
+                        } else if (downloadProgress < 100) {
                             "Descargando imágenes..."
-                        else
-                            "¡Descarga completada!",
+                        } else {
+                            "¡Descarga completada!"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

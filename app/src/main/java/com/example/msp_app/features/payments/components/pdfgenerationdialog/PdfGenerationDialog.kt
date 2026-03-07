@@ -10,10 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-fun PdfGenerationDialog(
-    pdfUri: Uri,
-    onDismiss: () -> Unit
-) {
+fun PdfGenerationDialog(pdfUri: Uri, onDismiss: () -> Unit) {
     val context = LocalContext.current
 
     AlertDialog(

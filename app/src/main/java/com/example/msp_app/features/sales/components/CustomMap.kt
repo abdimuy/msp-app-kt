@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import com.example.msp_app.R
 
-
 @Composable
 fun CustomMap(onClick: () -> Unit) {
     Image(

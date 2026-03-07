@@ -11,10 +11,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.io.File
 
 // Extension property to create DataStore instance
 val Context.saleDraftDataStore: DataStore<Preferences> by preferencesDataStore(name = "sale_draft")
@@ -77,9 +77,9 @@ data class SaleDraft(
      */
     fun hasData(): Boolean {
         return clientName.isNotBlank() ||
-               phone.isNotBlank() ||
-               street.isNotBlank() ||
-               productsJson.isNotBlank()
+            phone.isNotBlank() ||
+            street.isNotBlank() ||
+            productsJson.isNotBlank()
     }
 
     /**
@@ -253,8 +253,8 @@ class SaleDraftManager(private val context: Context) {
 
         // Check if there's any meaningful data
         val hasData = preferences[CLIENT_NAME] != null ||
-                     preferences[PHONE] != null ||
-                     preferences[PRODUCTS_JSON] != null
+            preferences[PHONE] != null ||
+            preferences[PRODUCTS_JSON] != null
 
         if (!hasData) {
             return null
@@ -299,8 +299,8 @@ class SaleDraftManager(private val context: Context) {
     fun hasDraft(): Flow<Boolean> {
         return context.saleDraftDataStore.data.map { preferences ->
             preferences[CLIENT_NAME] != null ||
-            preferences[PHONE] != null ||
-            preferences[PRODUCTS_JSON] != null
+                preferences[PHONE] != null ||
+                preferences[PRODUCTS_JSON] != null
         }
     }
 

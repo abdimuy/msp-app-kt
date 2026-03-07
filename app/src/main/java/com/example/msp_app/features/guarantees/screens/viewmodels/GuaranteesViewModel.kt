@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants.ENTREGADO
 import com.example.msp_app.core.utils.Constants.RECOLECTADO
+import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.guarantee.GuaranteesApi
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
@@ -16,7 +17,8 @@ import com.example.msp_app.data.local.entities.GuaranteeEventEntity
 import com.example.msp_app.data.local.entities.GuaranteeImageEntity
 import com.example.msp_app.workmanager.enqueuePendingGuaranteeEventsWorker
 import com.example.msp_app.workmanager.enqueuePendingGuaranteesWorker
-import com.example.msp_app.core.utils.ImageCompressor
+import java.io.File
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,8 +27,6 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
-import java.util.UUID
 
 class GuaranteesViewModel(application: Application) : AndroidViewModel(application) {
     private val guaranteeStore = GuaranteesLocalDataSource(application.applicationContext)
@@ -124,15 +124,17 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 )
 
                 savedPaths.add(result.outputFile.absolutePath to "image/jpeg")
-
             } catch (e: Exception) {
-                Log.e("GuaranteesViewModel", "Error al comprimir imagen de garantía: ${e.message}", e)
+                Log.e(
+                    "GuaranteesViewModel",
+                    "Error al comprimir imagen de garantía: ${e.message}",
+                    e
+                )
             }
         }
 
         return@withContext savedPaths
     }
-
 
     fun saveGuaranteeImages(
         context: Context,
@@ -268,5 +270,4 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
             }
         }
     }
-
 }

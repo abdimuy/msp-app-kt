@@ -79,7 +79,6 @@ abstract class BaseSyncWorker<T, R>(
             val result = handler.executeSync(applicationContext, entity, operation, request)
 
             handleResult(entity, result, entityId)
-
         } catch (e: Exception) {
             log("Unexpected error syncing $entityId: ${e.message}", isError = true)
             logRemote("SYNC_UNEXPECTED_ERROR", e, entityId)
@@ -114,10 +113,15 @@ abstract class BaseSyncWorker<T, R>(
 
             is SyncResult.RetryableError -> {
                 log("Retryable error for $entityId: ${result.message}", isError = true)
-                logRemote("SYNC_RETRY", result.exception, entityId, mapOf(
-                    "httpCode" to (result.httpCode?.toString() ?: "N/A"),
-                    "attemptCount" to runAttemptCount.toString()
-                ))
+                logRemote(
+                    "SYNC_RETRY",
+                    result.exception,
+                    entityId,
+                    mapOf(
+                        "httpCode" to (result.httpCode?.toString() ?: "N/A"),
+                        "attemptCount" to runAttemptCount.toString()
+                    )
+                )
 
                 // Si excedimos el máximo de reintentos, fallar permanentemente
                 if (runAttemptCount >= handler.config.maxRetries) {

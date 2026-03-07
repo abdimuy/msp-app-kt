@@ -26,10 +26,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun PaymentsHistory(
-    sale: Sale,
-    navController: NavController
-) {
+fun PaymentsHistory(sale: Sale, navController: NavController) {
     val viewModel: PaymentsViewModel = viewModel()
     val paymentsBySaleIdGroupedState by viewModel.paymentsBySaleIdGroupedState.collectAsState()
 

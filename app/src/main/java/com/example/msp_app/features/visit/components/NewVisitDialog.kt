@@ -61,7 +61,6 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.services.UpdateLocationService
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -70,6 +69,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @SuppressLint("ContextCastToActivity")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -210,8 +210,7 @@ fun NewVisitDialog(
         }
     }
 
-    fun formatLocalTime(time: LocalTime): String =
-        time.format(DateTimeFormatter.ofPattern("HH:mm"))
+    fun formatLocalTime(time: LocalTime): String = time.format(DateTimeFormatter.ofPattern("HH:mm"))
 
     fun formatLocalDate(date: LocalDate): String =
         date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
@@ -335,7 +334,8 @@ fun NewVisitDialog(
                             Text(
                                 text = selectedTime?.let {
                                     formatLocalTime(it)
-                                } ?: "SELECCIONAR HORA", color = Color.White
+                                } ?: "SELECCIONAR HORA",
+                                color = Color.White
                             )
                         }
                     }
@@ -399,7 +399,9 @@ fun NewVisitDialog(
                     onClick = {
                         showAlertDialog = false
                         onDismissRequest()
-                        navController.navigate(Screen.VisitTicket.createRoute(sale.DOCTO_CC_ACR_ID.toString()))
+                        navController.navigate(
+                            Screen.VisitTicket.createRoute(sale.DOCTO_CC_ACR_ID.toString())
+                        )
                     }
                 ) {
                     Text("Imprimir")

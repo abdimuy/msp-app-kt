@@ -5,7 +5,8 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "sales", indices = [
+    tableName = "sales",
+    indices = [
         androidx.room.Index(value = ["DOCTO_CC_ACR_ID"], unique = false),
         androidx.room.Index(value = ["DOCTO_CC_ID"], unique = true),
         androidx.room.Index(value = ["FOLIO"], unique = true),

@@ -13,8 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -22,7 +27,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,10 +41,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.ShoppingCart
@@ -91,8 +91,11 @@ fun ProductSaleSummary(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                if (saleItems.isEmpty()) "Agregar productos"
-                else "Agregar / Editar productos"
+                if (saleItems.isEmpty()) {
+                    "Agregar productos"
+                } else {
+                    "Agregar / Editar productos"
+                }
             )
         }
 
@@ -123,7 +126,10 @@ fun ProductSaleSummary(
                     modifier = Modifier.padding(bottom = 8.dp),
                     onPriceChange = { precioLista, precioCortoPlazo, precioContado ->
                         saleProductsViewModel.updateComboPrices(
-                            combo.comboId, precioLista, precioCortoPlazo, precioContado
+                            combo.comboId,
+                            precioLista,
+                            precioCortoPlazo,
+                            precioContado
                         )
                     }
                 )

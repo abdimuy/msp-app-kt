@@ -13,13 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
-import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.composables.icons.lucide.FileText
+import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Printer
 import com.composables.icons.lucide.Truck
 import com.example.msp_app.components.DrawerContainer
@@ -159,7 +156,9 @@ fun CartScreen(navController: NavController) {
     LaunchedEffect(warehouseState) {
         when (val state = warehouseState) {
             is ResultState.Success -> {
-                nombreAlmacenAsignado = state.data.body.ALMACEN?.ALMACEN ?: camionetaAsignada?.let { "Almacén ID: $it" }
+                nombreAlmacenAsignado = state.data.body.ALMACEN?.ALMACEN ?: camionetaAsignada?.let {
+                    "Almacén ID: $it"
+                }
                 val warehouseProducts = warehouseViewModel.getWarehouseProductsForCart()
                 cartViewModel.mergeCartWithWarehouse(warehouseProducts, isInitialLoad = true)
             }
@@ -407,9 +406,15 @@ fun CartScreen(navController: NavController) {
                                             showDeleteDialog = true
                                         },
                                         generalWarehouseStock = generalWarehouseStock[cartItem.product.ARTICULO_ID],
-                                        isIncreaseLoading = loadingOperations.contains("inc_${cartItem.product.ARTICULO_ID}"),
-                                        isDecreaseLoading = loadingOperations.contains("dec_${cartItem.product.ARTICULO_ID}"),
-                                        isRemoveLoading = loadingOperations.contains("remove_${cartItem.product.ARTICULO_ID}"),
+                                        isIncreaseLoading = loadingOperations.contains(
+                                            "inc_${cartItem.product.ARTICULO_ID}"
+                                        ),
+                                        isDecreaseLoading = loadingOperations.contains(
+                                            "dec_${cartItem.product.ARTICULO_ID}"
+                                        ),
+                                        isRemoveLoading = loadingOperations.contains(
+                                            "remove_${cartItem.product.ARTICULO_ID}"
+                                        ),
                                         onIncreaseQuantity = {
                                             cartViewModel.increaseQuantity(
                                                 cartItem.product,
@@ -516,7 +521,9 @@ fun CartScreen(navController: NavController) {
                     Button(
                         onClick = {
                             cartItem?.let { item ->
-                                cartViewModel.removeProduct(product) { prod, quantity, onSuccess, onError ->
+                                cartViewModel.removeProduct(
+                                    product
+                                ) { prod, quantity, onSuccess, onError ->
                                     handleRemoveProduct(prod, quantity)
                                     onSuccess()
                                 }
@@ -562,4 +569,3 @@ fun CartScreen(navController: NavController) {
         }
     }
 }
-

@@ -39,11 +39,7 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import java.time.ZoneOffset
 
 @Composable
-fun PaymentCard(
-    payment: Payment,
-    navController: NavController,
-    isFirstPayment: Boolean = false
-) {
+fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: Boolean = false) {
     val authViewModel: AuthViewModel = viewModel()
     val userState by authViewModel.userData.collectAsState()
 
@@ -75,9 +71,13 @@ fun PaymentCard(
             .padding(vertical = 2.dp)
             .height(70.dp)
             .then(
-                if (isFirstPayment) Modifier.clickable {
-                    navController.navigate("payment_ticket/${payment.ID}")
-                } else Modifier
+                if (isFirstPayment) {
+                    Modifier.clickable {
+                        navController.navigate("payment_ticket/${payment.ID}")
+                    }
+                } else {
+                    Modifier
+                }
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp),

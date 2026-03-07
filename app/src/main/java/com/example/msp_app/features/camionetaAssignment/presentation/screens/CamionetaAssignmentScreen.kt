@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -42,7 +41,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -59,7 +57,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.CompactSearchField
@@ -133,34 +130,52 @@ fun CamionetaAssignmentScreen(
             },
             snackbarHost = { SnackbarHost(snackbarHostState) }
         ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            when (camionetasState) {
-                is ResultState.Loading, ResultState.Idle -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+            ) {
+                when (camionetasState) {
+                    is ResultState.Loading, ResultState.Idle -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
+                        }
                     }
-                }
 
-                is ResultState.Error -> {
-                    ErrorContent(
-                        message = (camionetasState as ResultState.Error).message,
-                        onRetry = { viewModel.loadCamionetas() }
-                    )
-                }
+                    is ResultState.Error -> {
+                        ErrorContent(
+                            message = (camionetasState as ResultState.Error).message,
+                            onRetry = { viewModel.loadCamionetas() }
+                        )
+                    }
 
-                is ResultState.Success -> {
-                    val camionetas = (camionetasState as ResultState.Success<List<Camioneta>>).data
+                    is ResultState.Success -> {
+                        val camionetas = (camionetasState as ResultState.Success<List<Camioneta>>).data
 
-                    if (camionetas.isEmpty()) {
-                        EmptyContent()
-                    } else {
+                        if (camionetas.isEmpty()) {
+                            EmptyContent()
+                        } else {
+                            CamionetasList(
+                                camionetas = camionetas,
+                                searchQuery = searchQuery,
+                                onSearchQueryChange = { searchQuery = it },
+                                onAssignClick = { camioneta ->
+                                    viewModel.openAssignDialog(
+                                        camioneta
+                                    )
+                                },
+                                onUnassignClick = { userId, userName ->
+                                    viewModel.openUnassignDialog(userId, userName)
+                                }
+                            )
+                        }
+                    }
+
+                    is ResultState.Offline -> {
+                        val camionetas = (camionetasState as ResultState.Offline<List<Camioneta>>).data
                         CamionetasList(
                             camionetas = camionetas,
                             searchQuery = searchQuery,
@@ -173,33 +188,19 @@ fun CamionetaAssignmentScreen(
                     }
                 }
 
-                is ResultState.Offline -> {
-                    val camionetas = (camionetasState as ResultState.Offline<List<Camioneta>>).data
-                    CamionetasList(
-                        camionetas = camionetas,
-                        searchQuery = searchQuery,
-                        onSearchQueryChange = { searchQuery = it },
-                        onAssignClick = { camioneta -> viewModel.openAssignDialog(camioneta) },
-                        onUnassignClick = { userId, userName ->
-                            viewModel.openUnassignDialog(userId, userName)
-                        }
-                    )
-                }
-            }
-
-            // Loading overlay for assignment operations
-            if (assignmentState is ResultState.Loading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.3f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                // Loading overlay for assignment operations
+                if (assignmentState is ResultState.Loading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.3f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
         }
-    }
     }
 
     // Assignment Dialog
@@ -237,9 +238,9 @@ private fun CamionetasList(
     } else {
         camionetas.filter { camioneta ->
             camioneta.nombre.matchesFuzzy(searchQuery) ||
-            camioneta.usuariosAsignados.any { usuario ->
-                usuario.nombre.matchesFuzzy(searchQuery)
-            }
+                camioneta.usuariosAsignados.any { usuario ->
+                    usuario.nombre.matchesFuzzy(searchQuery)
+                }
         }
     }
 
@@ -387,10 +388,7 @@ private fun CamionetaCard(
 }
 
 @Composable
-private fun CapacityIndicator(
-    assigned: Int,
-    max: Int
-) {
+private fun CapacityIndicator(assigned: Int, max: Int) {
     val color = when {
         assigned >= max -> MaterialTheme.colorScheme.error
         assigned == max - 1 -> MaterialTheme.colorScheme.tertiary
@@ -413,10 +411,7 @@ private fun CapacityIndicator(
 }
 
 @Composable
-private fun AssignedUserItem(
-    usuario: UsuarioAsignado,
-    onRemoveClick: () -> Unit
-) {
+private fun AssignedUserItem(usuario: UsuarioAsignado, onRemoveClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -603,10 +598,7 @@ private fun AssignUserDialog(
 }
 
 @Composable
-private fun UserSelectItem(
-    user: User,
-    onClick: () -> Unit
-) {
+private fun UserSelectItem(user: User, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
@@ -691,10 +683,7 @@ private fun UnassignConfirmationDialog(
 }
 
 @Composable
-private fun ErrorContent(
-    message: String,
-    onRetry: () -> Unit
-) {
+private fun ErrorContent(message: String, onRetry: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()

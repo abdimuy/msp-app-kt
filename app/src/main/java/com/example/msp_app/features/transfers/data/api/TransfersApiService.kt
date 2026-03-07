@@ -60,7 +60,5 @@ interface TransfersApiService {
      * @return List of product costs
      */
     @POST("traspasos/costos")
-    suspend fun getProductCosts(
-        @Body request: CostPreviewRequest
-    ): Response<List<ProductCostDto>>
+    suspend fun getProductCosts(@Body request: CostPreviewRequest): Response<List<ProductCostDto>>
 }

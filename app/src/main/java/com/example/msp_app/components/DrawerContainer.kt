@@ -86,17 +86,19 @@ fun DrawerContainer(
                             IconButton(onClick = { ThemeController.toggle() }) {
                                 Image(
                                     painter = painterResource(
-                                        id = if (ThemeController.isDarkMode)
+                                        id = if (ThemeController.isDarkMode) {
                                             R.drawable.light_mode_24px
-                                        else
+                                        } else {
                                             R.drawable.dark_mode_24px
+                                        }
                                     ),
                                     contentDescription = "Cambiar tema",
                                     modifier = Modifier.size(32.dp),
-                                    colorFilter = if (!ThemeController.isDarkMode)
+                                    colorFilter = if (!ThemeController.isDarkMode) {
                                         ColorFilter.tint(Color.Gray)
-                                    else
+                                    } else {
                                         null
+                                    }
                                 )
                             }
                         }

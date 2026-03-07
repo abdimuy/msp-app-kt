@@ -113,16 +113,20 @@ fun PrimarySaleItem(
     Card(
         elevation = CardDefaults.cardElevation(
             defaultElevation =
-                if (!isDark) 8.dp else 0.dp
+            if (!isDark) 8.dp else 0.dp
         ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border =
-            if (!isDark) null else BorderStroke(
+        if (!isDark) {
+            null
+        } else {
+            BorderStroke(
                 width = 1.dp,
                 color = Color.DarkGray
-            ),
+            )
+        },
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp),
@@ -134,17 +138,23 @@ fun PrimarySaleItem(
                     modifier = Modifier
                         .size(45.dp)
                         .background(
-                            if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) Color(0xFF4CAF50)
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) Color(
-                                0xFF9E9E9E
-                            )
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO) Color(
-                                0xFFF44336
-                            )
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR) Color(
-                                0xFFFF9800
-                            )
-                            else Color(0xFF9E9E9E),
+                            if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) {
+                                Color(0xFF4CAF50)
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) {
+                                Color(
+                                    0xFF9E9E9E
+                                )
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO) {
+                                Color(
+                                    0xFFF44336
+                                )
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR) {
+                                Color(
+                                    0xFFFF9800
+                                )
+                            } else {
+                                Color(0xFF9E9E9E)
+                            },
                             shape = MaterialTheme.shapes.small
                         ),
                     contentAlignment = Alignment.Center
@@ -277,7 +287,8 @@ fun PrimarySaleItem(
                         " "
                     )
                 } ${sale.ESTADO}",
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 lineHeight = 18.sp,
             )
             Text(

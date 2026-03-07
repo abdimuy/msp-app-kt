@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -53,9 +52,7 @@ import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SalesScreen(
-    navController: NavController
-) {
+fun SalesScreen(navController: NavController) {
     val viewModel: SalesViewModel = viewModel()
     val state by viewModel.salesState.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
@@ -85,11 +82,10 @@ fun SalesScreen(
         Scaffold(
             modifier = Modifier.statusBarsPadding(),
             bottomBar = {
-
                 val salesToVisit = filteredSales.filter {
                     it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
-                            it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE ||
-                            it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
+                        it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE ||
+                        it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
                 }
                 val visitedSales =
                     filteredSales.filter { it.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO }
@@ -114,7 +110,9 @@ fun SalesScreen(
                             selected = selectedTabIndex == index,
                             onClick = { selectedTabIndex = index },
                             selectedContentColor = MaterialTheme.colorScheme.primary,
-                            unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            unselectedContentColor = MaterialTheme.colorScheme.onSurface.copy(
+                                alpha = 0.5f
+                            )
                         ) {
                             Text(
                                 text = title,
@@ -192,12 +190,11 @@ fun SalesScreen(
                         ) { CircularProgressIndicator() }
 
                         is ResultState.Success -> {
-
                             val salesToVisit = filteredSales
                                 .filter {
                                     it.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR ||
-                                            it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE ||
-                                            it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
+                                        it.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE ||
+                                        it.ESTADO_COBRANZA == EstadoCobranza.VISITADO
                                 }
                                 .let { list ->
                                     if (query.isBlank()) {
@@ -244,7 +241,9 @@ fun SalesScreen(
                                         SaleItem(
                                             sale = sale,
                                             onClick = {
-                                                navController.navigate("sales/sale_details/${sale.DOCTO_CC_ID}") {
+                                                navController.navigate(
+                                                    "sales/sale_details/${sale.DOCTO_CC_ID}"
+                                                ) {
                                                     launchSingleTop = true
                                                     restoreState = true
                                                 }

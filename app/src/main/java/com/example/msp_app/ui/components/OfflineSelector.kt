@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -93,7 +92,7 @@ fun <T> OfflineSelector(
         } else {
             items.filter { item ->
                 config.itemLabel(item).contains(searchQuery, ignoreCase = true) ||
-                        config.itemSubtitle?.invoke(item)?.contains(searchQuery, ignoreCase = true) == true
+                    config.itemSubtitle?.invoke(item)?.contains(searchQuery, ignoreCase = true) == true
             }
         }
     }
@@ -190,7 +189,9 @@ fun <T> OfflineSelector(
                 isError = error != null,
                 supportingText = if (error != null) {
                     { Text(error, color = MaterialTheme.colorScheme.error) }
-                } else null,
+                } else {
+                    null
+                },
                 singleLine = true
             )
 
@@ -242,10 +243,11 @@ fun <T> OfflineSelector(
                         DropdownMenuItem(
                             text = {
                                 Text(
-                                    text = if (searchQuery.isNotBlank())
+                                    text = if (searchQuery.isNotBlank()) {
                                         "No se encontraron resultados"
-                                    else
-                                        config.emptyMessage,
+                                    } else {
+                                        config.emptyMessage
+                                    },
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             },

@@ -7,12 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -79,10 +77,11 @@ fun HomeHeader(
             Spacer(modifier = Modifier.width(8.dp))
             Image(
                 painter = painterResource(
-                    id = if (ThemeController.isDarkMode)
+                    id = if (ThemeController.isDarkMode) {
                         R.drawable.light_mode_24px
-                    else
+                    } else {
                         R.drawable.dark_mode_24px
+                    }
                 ),
                 contentDescription = "Toggle Theme",
                 modifier = Modifier.size(32.dp)

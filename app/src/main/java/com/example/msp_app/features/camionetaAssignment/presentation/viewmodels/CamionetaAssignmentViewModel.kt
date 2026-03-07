@@ -23,7 +23,8 @@ class CamionetaAssignmentViewModel(application: Application) : AndroidViewModel(
     val camionetasState: StateFlow<ResultState<List<Camioneta>>> = _camionetasState.asStateFlow()
 
     // State for users without assignment (available for assignment)
-    private val _usuariosSinAsignarState = MutableStateFlow<ResultState<List<User>>>(ResultState.Idle)
+    private val _usuariosSinAsignarState =
+        MutableStateFlow<ResultState<List<User>>>(ResultState.Idle)
     val usuariosSinAsignarState: StateFlow<ResultState<List<User>>> = _usuariosSinAsignarState.asStateFlow()
 
     // State for assignment operations (assign/unassign)

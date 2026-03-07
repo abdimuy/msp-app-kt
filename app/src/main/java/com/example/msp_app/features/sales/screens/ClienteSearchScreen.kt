@@ -211,10 +211,7 @@ fun ClienteSearchBottomSheet(
 }
 
 @Composable
-private fun ClienteItem(
-    cliente: ClienteEntity,
-    onClick: () -> Unit
-) {
+private fun ClienteItem(cliente: ClienteEntity, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()

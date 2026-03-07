@@ -104,7 +104,6 @@ interface SaleDao {
     )
     suspend fun getAll(): List<SaleWithProductsEntity>
 
-
     @Query(
         """
         SELECT

@@ -7,9 +7,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
 suspend fun performPrintRequest(
     context: Context,
@@ -36,7 +36,9 @@ suspend fun testDeviceConnection(
     if (ContextCompat.checkSelfPermission(
             context, Manifest.permission.BLUETOOTH_CONNECT
         ) != PackageManager.PERMISSION_GRANTED
-    ) return@withContext false
+    ) {
+        return@withContext false
+    }
 
     return@withContext try {
         val socket = device.createRfcommSocketToServiceRecord(
@@ -50,4 +52,3 @@ suspend fun testDeviceConnection(
         false
     }
 }
-

@@ -9,9 +9,7 @@ import android.net.Uri
 import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
-import java.io.InputStream
 import kotlin.math.min
-import kotlin.math.sqrt
 
 /**
  * Utilidad profesional para compresión inteligente de imágenes
@@ -28,14 +26,14 @@ object ImageCompressor {
     private const val TAG = "ImageCompressor"
 
     // Configuración inteligente basada en mejores prácticas
-    private const val MAX_DIMENSION_SMALL = 1024   // Para imágenes pequeñas
-    private const val MAX_DIMENSION_MEDIUM = 1920  // Para imágenes medianas
-    private const val MAX_DIMENSION_LARGE = 2560   // Para imágenes grandes
+    private const val MAX_DIMENSION_SMALL = 1024 // Para imágenes pequeñas
+    private const val MAX_DIMENSION_MEDIUM = 1920 // Para imágenes medianas
+    private const val MAX_DIMENSION_LARGE = 2560 // Para imágenes grandes
 
     // Umbrales de tamaño de archivo (en bytes)
-    private const val SIZE_THRESHOLD_SMALL = 500 * 1024    // 500 KB
-    private const val SIZE_THRESHOLD_MEDIUM = 2 * 1024 * 1024  // 2 MB
-    private const val SIZE_THRESHOLD_LARGE = 5 * 1024 * 1024   // 5 MB
+    private const val SIZE_THRESHOLD_SMALL = 500 * 1024 // 500 KB
+    private const val SIZE_THRESHOLD_MEDIUM = 2 * 1024 * 1024 // 2 MB
+    private const val SIZE_THRESHOLD_LARGE = 5 * 1024 * 1024 // 5 MB
 
     // Calidades de compresión JPEG (0-100)
     private const val QUALITY_HIGH = 85
@@ -73,11 +71,7 @@ object ImageCompressor {
      * @param outputFileName Nombre del archivo de salida
      * @return CompressionResult con estadísticas de la compresión
      */
-    fun compressImage(
-        context: Context,
-        uri: Uri,
-        outputFileName: String
-    ): CompressionResult {
+    fun compressImage(context: Context, uri: Uri, outputFileName: String): CompressionResult {
         val startTime = System.currentTimeMillis()
 
         // 1. Obtener información de la imagen original
@@ -130,9 +124,11 @@ object ImageCompressor {
 
         // 6. Redimensionar con precisión si es necesario
         val scaledBitmap = if (config.shouldResize &&
-            (decodedBitmap.width > config.maxDimension ||
-             decodedBitmap.height > config.maxDimension)) {
-
+            (
+                decodedBitmap.width > config.maxDimension ||
+                    decodedBitmap.height > config.maxDimension
+                )
+        ) {
             val scale = min(
                 config.maxDimension.toFloat() / decodedBitmap.width,
                 config.maxDimension.toFloat() / decodedBitmap.height
@@ -203,8 +199,8 @@ object ImageCompressor {
                     quality = QUALITY_MEDIUM,
                     shouldResize = true,
                     reason = "Imagen muy grande: ${formatFileSize(fileSize)}, " +
-                            "${String.format("%.1f", megapixels)}MP - " +
-                            "Compresión agresiva aplicada"
+                        "${String.format("%.1f", megapixels)}MP - " +
+                        "Compresión agresiva aplicada"
                 )
             }
 
@@ -215,8 +211,8 @@ object ImageCompressor {
                     quality = QUALITY_MEDIUM,
                     shouldResize = true,
                     reason = "Imagen mediana: ${formatFileSize(fileSize)}, " +
-                            "${String.format("%.1f", megapixels)}MP - " +
-                            "Compresión moderada aplicada"
+                        "${String.format("%.1f", megapixels)}MP - " +
+                        "Compresión moderada aplicada"
                 )
             }
 
@@ -227,7 +223,7 @@ object ImageCompressor {
                     quality = QUALITY_HIGH,
                     shouldResize = true,
                     reason = "Alta resolución: ${String.format("%.1f", megapixels)}MP - " +
-                            "Reducción de resolución conservando calidad"
+                        "Reducción de resolución conservando calidad"
                 )
             }
 
@@ -238,8 +234,8 @@ object ImageCompressor {
                     quality = QUALITY_HIGH,
                     shouldResize = false,
                     reason = "Imagen ya optimizada: ${formatFileSize(fileSize)}, " +
-                            "${String.format("%.1f", megapixels)}MP - " +
-                            "Solo recompresión ligera"
+                        "${String.format("%.1f", megapixels)}MP - " +
+                        "Solo recompresión ligera"
                 )
             }
 
@@ -250,7 +246,7 @@ object ImageCompressor {
                     quality = QUALITY_HIGH,
                     shouldResize = maxDimension > MAX_DIMENSION_MEDIUM,
                     reason = "Compresión balanceada: ${formatFileSize(fileSize)}, " +
-                            "${String.format("%.1f", megapixels)}MP"
+                        "${String.format("%.1f", megapixels)}MP"
                 )
             }
         }
@@ -262,11 +258,7 @@ object ImageCompressor {
      *
      * Esta función es internal para permitir testing
      */
-    internal fun calculateInSampleSize(
-        width: Int,
-        height: Int,
-        maxDimension: Int
-    ): Int {
+    internal fun calculateInSampleSize(width: Int, height: Int, maxDimension: Int): Int {
         var inSampleSize = 1
         val maxOriginalDimension = maxOf(width, height)
 
@@ -275,7 +267,8 @@ object ImageCompressor {
             val halfHeight = height / 2
 
             while ((halfWidth / inSampleSize) >= maxDimension &&
-                   (halfHeight / inSampleSize) >= maxDimension) {
+                (halfHeight / inSampleSize) >= maxDimension
+            ) {
                 inSampleSize *= 2
             }
         }
@@ -287,11 +280,7 @@ object ImageCompressor {
      * Corrige la orientación de la imagen según los metadatos EXIF
      * Esto es crucial para fotos tomadas con cámara
      */
-    private fun correctImageOrientation(
-        context: Context,
-        uri: Uri,
-        bitmap: Bitmap
-    ): Bitmap {
+    private fun correctImageOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return bitmap
 
         return try {
@@ -371,10 +360,7 @@ object ImageCompressor {
      * Estima el tamaño de archivo resultante sin procesarlo
      * Útil para mostrar al usuario antes de comprimir
      */
-    fun estimateCompressedSize(
-        context: Context,
-        uri: Uri
-    ): Long {
+    fun estimateCompressedSize(context: Context, uri: Uri): Long {
         val inputStream = context.contentResolver.openInputStream(uri) ?: return 0
         val originalSize = inputStream.available().toLong()
         inputStream.close()
@@ -394,7 +380,7 @@ object ImageCompressor {
 
         // Estimación basada en experiencia empírica
         val estimatedRatio = when {
-            !config.shouldResize -> 0.7f  // Solo recompresión
+            !config.shouldResize -> 0.7f // Solo recompresión
             config.maxDimension == MAX_DIMENSION_SMALL -> 0.15f
             config.maxDimension == MAX_DIMENSION_MEDIUM -> 0.25f
             else -> 0.35f

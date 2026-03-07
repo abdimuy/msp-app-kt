@@ -26,7 +26,9 @@ class ZonesRepository {
                 if (response.isSuccess()) {
                     Result.success(response.body)
                 } else {
-                    Result.failure(Exception(response.error ?: "Error desconocido al obtener zonas"))
+                    Result.failure(
+                        Exception(response.error ?: "Error desconocido al obtener zonas")
+                    )
                 }
             } catch (e: Exception) {
                 Result.failure(e)

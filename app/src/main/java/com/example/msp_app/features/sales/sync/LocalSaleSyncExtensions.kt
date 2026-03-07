@@ -13,11 +13,7 @@ val LocalSaleSyncConfig = SyncConfig.withAttachments("LOCAL_SALE")
 /**
  * Encola una nueva venta local para sincronización (CREATE).
  */
-fun enqueueLocalSaleCreate(
-    context: Context,
-    localSaleId: String,
-    userEmail: String
-) {
+fun enqueueLocalSaleCreate(context: Context, localSaleId: String, userEmail: String) {
     OfflineSyncManager.enqueue<LocalSaleSyncWorker>(
         context = context,
         config = LocalSaleSyncConfig,
@@ -76,27 +72,22 @@ fun enqueueLocalSaleUpdate(
         entityId = localSaleId,
         operation = SyncOperation.Update(localSaleId, "LOCAL_SALE"),
         additionalData = additionalData,
-        replaceExisting = true  // Para updates, siempre usar la última versión
+        replaceExisting = true // Para updates, siempre usar la última versión
     )
 }
 
 /**
  * Cancela la sincronización pendiente de una venta.
  */
-fun cancelLocalSaleSync(
-    context: Context,
-    localSaleId: String
-) {
+fun cancelLocalSaleSync(context: Context, localSaleId: String) {
     OfflineSyncManager.cancel(context, LocalSaleSyncConfig, localSaleId)
 }
 
 /**
  * Obtiene el estado de sincronización de una venta.
  */
-fun getLocalSaleSyncStatus(
-    context: Context,
-    localSaleId: String
-) = OfflineSyncManager.getStatus(context, LocalSaleSyncConfig, localSaleId)
+fun getLocalSaleSyncStatus(context: Context, localSaleId: String) =
+    OfflineSyncManager.getStatus(context, LocalSaleSyncConfig, localSaleId)
 
 /**
  * Extension function para Context - encolar sincronización de venta.

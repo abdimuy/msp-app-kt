@@ -72,7 +72,6 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
             NewForgivenessDialog(
                 show = openForgivenessDialog,
                 onDismissRequest = { openForgivenessDialog = false },

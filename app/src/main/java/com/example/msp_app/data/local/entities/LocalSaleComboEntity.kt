@@ -7,12 +7,14 @@ import androidx.room.Index
 @Entity(
     tableName = "local_sale_combos",
     primaryKeys = ["COMBO_ID", "LOCAL_SALE_ID"],
-    foreignKeys = [ForeignKey(
-        entity = LocalSaleEntity::class,
-        parentColumns = ["LOCAL_SALE_ID"],
-        childColumns = ["LOCAL_SALE_ID"],
-        onDelete = ForeignKey.CASCADE
-    )],
+    foreignKeys = [
+        ForeignKey(
+            entity = LocalSaleEntity::class,
+            parentColumns = ["LOCAL_SALE_ID"],
+            childColumns = ["LOCAL_SALE_ID"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
     indices = [Index(value = ["LOCAL_SALE_ID"])]
 )
 data class LocalSaleComboEntity(

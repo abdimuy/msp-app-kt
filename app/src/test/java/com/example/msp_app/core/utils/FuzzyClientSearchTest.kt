@@ -1,7 +1,7 @@
 package com.example.msp_app.core.utils
 
-import org.junit.Test
 import org.junit.Assert.*
+import org.junit.Test
 
 class FuzzyClientSearchTest {
 
@@ -9,7 +9,7 @@ class FuzzyClientSearchTest {
 
     private val testClients = listOf(
         TestClient("Juan Pérez"),
-        TestClient("María González"), 
+        TestClient("María González"),
         TestClient("Carlos Rodríguez"),
         TestClient("Ana López"),
         TestClient("Pedro Martínez")
@@ -50,7 +50,8 @@ class FuzzyClientSearchTest {
     @Test
     fun `searchSimilarItems should handle accents`() {
         val result = searchSimilarItems(
-            query = "Maria", // sin acento
+            // sin acento
+            query = "Maria",
             items = testClients,
             threshold = 50,
             selectText = { it.name }
@@ -80,7 +81,8 @@ class FuzzyClientSearchTest {
         assertTrue(highThresholdResult.isEmpty())
 
         val lowThresholdResult = searchSimilarItems(
-            query = "an", // partial match
+            // partial match
+            query = "an",
             items = testClients,
             threshold = 20,
             selectText = { it.name }

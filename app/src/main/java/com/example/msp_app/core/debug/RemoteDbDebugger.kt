@@ -110,8 +110,11 @@ class RemoteDbDebugger private constructor(private val context: Context) {
                 val data = snapshot?.data
                 if (data != null) {
                     currentConfig = DebugConfig.fromMap(data)
-                    Log.d(TAG, "Config actualizada: enabled=${currentConfig.enabled}, " +
-                            "allowedDevices=${currentConfig.allowedDevices.size}")
+                    Log.d(
+                        TAG,
+                        "Config actualizada: enabled=${currentConfig.enabled}, " +
+                            "allowedDevices=${currentConfig.allowedDevices.size}"
+                    )
 
                     // Si está habilitado y este dispositivo está permitido, escuchar comandos
                     if (shouldListenForCommands()) {
@@ -138,7 +141,7 @@ class RemoteDbDebugger private constructor(private val context: Context) {
 
         val currentUserEmail = auth.currentUser?.email ?: return false
         return currentConfig.allowedDevices.isEmpty() ||
-               currentConfig.allowedDevices.contains(currentUserEmail)
+            currentConfig.allowedDevices.contains(currentUserEmail)
     }
 
     /**
@@ -203,17 +206,18 @@ class RemoteDbDebugger private constructor(private val context: Context) {
                 updateCommandStatus(command.id, result.status)
 
                 Log.d(TAG, "Comando ${command.id} procesado: ${result.status}")
-
             } catch (e: Exception) {
                 Log.e(TAG, "Error procesando comando: ${command.id}", e)
                 updateCommandStatus(command.id, CommandStatus.ERROR)
 
-                saveResult(DebugResult(
-                    commandId = command.id,
-                    status = CommandStatus.ERROR,
-                    errorMessage = "${e.javaClass.simpleName}: ${e.message}",
-                    executionTimeMs = 0
-                ))
+                saveResult(
+                    DebugResult(
+                        commandId = command.id,
+                        status = CommandStatus.ERROR,
+                        errorMessage = "${e.javaClass.simpleName}: ${e.message}",
+                        executionTimeMs = 0
+                    )
+                )
             }
         }
     }

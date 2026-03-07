@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -50,7 +49,6 @@ data class PaymentResults(
 
 @Composable
 fun SaleClienteSettlement(sale: Sale) {
-
     val settlement = Settlement(
         cashPrice = sale.PRECIO_DE_CONTADO,
         shortTermAmount = sale.MONTO_A_CORTO_PLAZO,
@@ -150,8 +148,8 @@ fun calculatePaymentResult(settlement: Settlement): PaymentResults {
     val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
     val saleDate = LocalDate.parse(settlement.date, formatter)
 
-    val saleEndOfDay = saleDate.atTime(LocalTime.MAX)                     // endOf('day')
-    val fiveDaysAgo = LocalDateTime.now().minusDays(5)                 // subtract(5, 'day')
+    val saleEndOfDay = saleDate.atTime(LocalTime.MAX) // endOf('day')
+    val fiveDaysAgo = LocalDateTime.now().minusDays(5) // subtract(5, 'day')
     val elapsedMonths = ChronoUnit.MONTHS.between(saleEndOfDay, fiveDaysAgo) + 1
 
     val shortTermInteres = (settlement.shortTermAmount - settlement.cashPrice) / 4

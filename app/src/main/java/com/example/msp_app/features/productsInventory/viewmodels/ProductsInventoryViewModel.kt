@@ -29,7 +29,6 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
     private val _productsLoaded = MutableStateFlow(false)
     val productsLoaded: StateFlow<Boolean> = _productsLoaded
 
-
     private val _product = MutableStateFlow<ProductInventory?>(null)
     val product: StateFlow<ProductInventory?> = _product
 
@@ -59,7 +58,6 @@ class ProductsInventoryViewModel(application: Application) : AndroidViewModel(ap
                 localDataSource.insertAll(products.map { it.toEntity() })
                 _productsLoaded.value = true
             } catch (e: Exception) {
-
             }
         }
     }

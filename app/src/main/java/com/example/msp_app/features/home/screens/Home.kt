@@ -74,14 +74,13 @@ import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -236,8 +235,10 @@ fun HomeScreen(navController: NavController) {
         else -> 0
     }
 
-    val (totalWeeklyPayments, numberOfPaymentsWeekly) = when (val result =
-        paymentsGroupedByDayWeekly) {
+    val (totalWeeklyPayments, numberOfPaymentsWeekly) = when (
+        val result =
+            paymentsGroupedByDayWeekly
+    ) {
         is ResultState.Success ->
             result.data.values
                 .flatten()
@@ -274,7 +275,9 @@ fun HomeScreen(navController: NavController) {
 
     val accountsPercentage = if (numberOfSales > 0) {
         (numberOfPaymentsWeekly.toDouble() / numberOfSales.toDouble()) * 100
-    } else 0.0
+    } else {
+        0.0
+    }
 
     val accountsPercentageRounded =
         String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
@@ -345,7 +348,6 @@ fun HomeScreen(navController: NavController) {
                                 showPaymentsDialog = true
                             }
                         )
-
                     }
 
                     item {
@@ -386,7 +388,6 @@ fun HomeScreen(navController: NavController) {
                                     distanceToCurrentLocation = distanceToCurrentLocation.toDouble(),
                                     navController
                                 )
-
                             }
                             Spacer(Modifier.height(8.dp))
                         }
@@ -529,7 +530,6 @@ fun PaymentInfoCollector(
         )
     }
 }
-
 
 fun Modifier.overlap(offsetY: Dp) = this.then(
     Modifier.layout { measurable, constraints ->

@@ -36,10 +36,11 @@ fun SaleContactActions(sale: Sale) {
         modifier = Modifier
             .size(56.dp)
             .then(
-                if (validPhone)
+                if (validPhone) {
                     Modifier.background(Color(0xFFADD8E6), shape = RoundedCornerShape(12.dp))
-                else
+                } else {
                     Modifier.background(Color.Gray, shape = RoundedCornerShape(12.dp))
+                }
             )
     ) {
         Icon(
@@ -83,10 +84,11 @@ fun SaleContactActions(sale: Sale) {
         modifier = Modifier
             .size(56.dp)
             .then(
-                if (validPhone)
+                if (validPhone) {
                     Modifier.background(Color(0xFF90EE90), shape = RoundedCornerShape(12.dp))
-                else
+                } else {
                     Modifier.background(Color.Gray, shape = RoundedCornerShape(12.dp))
+                }
             )
     ) {
         Icon(

@@ -6,10 +6,10 @@ import com.google.firebase.Timestamp
  * Tipos de comandos soportados
  */
 enum class CommandType {
-    QUERY,      // Ejecutar SQL query
-    EXPORT,     // Exportar DB completa
-    SCHEMA,     // Obtener schema de todas las tablas
-    TABLE_INFO  // Información de una tabla específica
+    QUERY, // Ejecutar SQL query
+    EXPORT, // Exportar DB completa
+    SCHEMA, // Obtener schema de todas las tablas
+    TABLE_INFO // Información de una tabla específica
 }
 
 /**
@@ -43,10 +43,22 @@ data class DebugCommand(
             return DebugCommand(
                 id = id,
                 targetUserId = map["targetUserId"] as? String ?: "",
-                commandType = try { CommandType.valueOf(commandTypeStr) } catch (e: Exception) { CommandType.QUERY },
+                commandType = try {
+                    CommandType.valueOf(commandTypeStr)
+                } catch (
+                    e: Exception
+                ) {
+                    CommandType.QUERY
+                },
                 query = map["query"] as? String,
                 tableName = map["tableName"] as? String,
-                status = try { CommandStatus.valueOf(statusStr) } catch (e: Exception) { CommandStatus.PENDING },
+                status = try {
+                    CommandStatus.valueOf(statusStr)
+                } catch (
+                    e: Exception
+                ) {
+                    CommandStatus.PENDING
+                },
                 createdAt = map["createdAt"] as? Timestamp
             )
         }

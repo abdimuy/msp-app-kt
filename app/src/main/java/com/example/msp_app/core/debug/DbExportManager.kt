@@ -7,11 +7,11 @@ import com.example.msp_app.core.debug.models.DebugResult
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
-import kotlinx.coroutines.tasks.await
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.tasks.await
 
 /**
  * Gestiona la exportación de la base de datos y subida a Firebase Storage
@@ -83,7 +83,6 @@ class DbExportManager(private val context: Context) {
                 // Limpiar archivo temporal
                 tempFile.delete()
             }
-
         } catch (e: Exception) {
             Log.e(TAG, "Error en exportAndUpload", e)
             createErrorResult(commandId, "${e.javaClass.simpleName}: ${e.message}", startTime)
@@ -102,7 +101,10 @@ class DbExportManager(private val context: Context) {
             val tempFile = File(context.cacheDir, tempFileName)
             dbFile.copyTo(tempFile, overwrite = true)
 
-            Log.d(TAG, "Copia temporal creada: ${tempFile.absolutePath} (${tempFile.length()} bytes)")
+            Log.d(
+                TAG,
+                "Copia temporal creada: ${tempFile.absolutePath} (${tempFile.length()} bytes)"
+            )
             tempFile
         } catch (e: Exception) {
             Log.e(TAG, "Error creando copia temporal", e)

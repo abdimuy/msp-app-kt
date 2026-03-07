@@ -9,17 +9,17 @@ import com.example.msp_app.features.transfers.data.api.dto.TransferListItemDto
 import com.example.msp_app.features.transfers.data.local.entities.PendingTransferEntity
 import com.example.msp_app.features.transfers.data.local.entities.TransferDetailEntity
 import com.example.msp_app.features.transfers.data.local.entities.TransferEntity
+import com.example.msp_app.features.transfers.data.local.entities.TransferWithDetails as TransferWithDetailsEntity
 import com.example.msp_app.features.transfers.domain.models.CreateTransferData
 import com.example.msp_app.features.transfers.domain.models.MovementType
 import com.example.msp_app.features.transfers.domain.models.ProductCost
 import com.example.msp_app.features.transfers.domain.models.Transfer
 import com.example.msp_app.features.transfers.domain.models.TransferDetail
 import com.example.msp_app.features.transfers.domain.models.TransferProductItem
+import com.example.msp_app.features.transfers.domain.models.TransferWithDetails as TransferWithDetailsDomain
 import com.google.gson.Gson
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import com.example.msp_app.features.transfers.data.local.entities.TransferWithDetails as TransferWithDetailsEntity
-import com.example.msp_app.features.transfers.domain.models.TransferWithDetails as TransferWithDetailsDomain
 
 /**
  * Mappers for Transfer domain
@@ -204,5 +204,7 @@ private fun parseDateTimeSafe(dateString: String): LocalDateTime {
 fun List<TransferListItemDto>.toEntities(): List<TransferEntity> = map { it.toEntity() }
 fun List<TransferEntity>.toDomainTransfers(): List<Transfer> = map { it.toDomain() }
 fun List<TransferDetailEntity>.toDomainDetails(): List<TransferDetail> = map { it.toDomain() }
-fun List<TransferWithDetailsEntity>.toDomainWithDetails(): List<TransferWithDetailsDomain> = map { it.toDomain() }
+fun List<TransferWithDetailsEntity>.toDomainWithDetails(): List<TransferWithDetailsDomain> = map {
+    it.toDomain()
+}
 fun List<ProductCostDto>.toDomainCosts(): List<ProductCost> = map { it.toDomain() }

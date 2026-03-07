@@ -39,11 +39,7 @@ import androidx.compose.ui.window.DialogProperties
 import coil.compose.rememberAsyncImagePainter
 
 @Composable
-fun ImageViewerDialog(
-    imageUris: List<Uri>,
-    initialIndex: Int = 0,
-    onDismiss: () -> Unit
-) {
+fun ImageViewerDialog(imageUris: List<Uri>, initialIndex: Int = 0, onDismiss: () -> Unit) {
     var currentIndex by remember { mutableIntStateOf(initialIndex) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }

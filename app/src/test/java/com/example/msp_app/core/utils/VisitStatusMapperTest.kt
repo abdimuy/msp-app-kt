@@ -1,8 +1,8 @@
 package com.example.msp_app.core.utils
 
 import com.example.msp_app.data.models.sale.EstadoCobranza
-import org.junit.Test
 import org.junit.Assert.*
+import org.junit.Test
 
 class VisitStatusMapperTest {
 
@@ -88,7 +88,7 @@ class VisitStatusMapperTest {
     fun `map should return PENDIENTE for null-like values`() {
         val result1 = VisitStatusMapper.map("null")
         val result2 = VisitStatusMapper.map("undefined")
-        
+
         assertEquals(EstadoCobranza.PENDIENTE, result1)
         assertEquals(EstadoCobranza.PENDIENTE, result2)
     }

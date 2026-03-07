@@ -245,12 +245,19 @@ fun NewTransferScreen(
  */
 @Composable
 private fun WarehouseSelectionStep(
-    warehouses: List<com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse>,
+    warehouses:
+    List<com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse>,
     usersByWarehouse: Map<Int, List<com.example.msp_app.data.models.auth.User>>,
-    sourceWarehouse: com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
-    destinationWarehouse: com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
-    onSourceSelected: (com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse) -> Unit,
-    onDestinationSelected: (com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse) -> Unit,
+    sourceWarehouse:
+    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
+    destinationWarehouse:
+    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
+    onSourceSelected: (
+        com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse
+    ) -> Unit,
+    onDestinationSelected: (
+        com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse
+    ) -> Unit,
     sourceError: String?,
     destinationError: String?,
     isSourceWarehouseLocked: Boolean = false,
@@ -330,7 +337,7 @@ private fun ProductSelectionStep(
         } else {
             availableProducts.filter { product ->
                 product.ARTICULO.contains(searchQuery, ignoreCase = true) ||
-                        product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
+                    product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
             }
         }
     }
@@ -598,8 +605,10 @@ private fun ProductCheckboxItem(
  */
 @Composable
 private fun ConfirmationStep(
-    sourceWarehouse: com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
-    destinationWarehouse: com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
+    sourceWarehouse:
+    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
+    destinationWarehouse:
+    com.example.msp_app.data.api.services.warehouses.WarehouseListResponse.Warehouse?,
     selectedProducts: List<SelectedProduct>,
     isCreating: Boolean,
     modifier: Modifier = Modifier

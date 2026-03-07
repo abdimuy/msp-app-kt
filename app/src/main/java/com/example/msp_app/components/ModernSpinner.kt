@@ -27,11 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun ModernSpinner(
-    modifier: Modifier = Modifier,
-    size: Dp = 64.dp,
-    animationDuration: Int = 5000
-) {
+fun ModernSpinner(modifier: Modifier = Modifier, size: Dp = 64.dp, animationDuration: Int = 5000) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier.size(size)

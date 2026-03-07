@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-
 class ProductsViewModel(application: Application) : AndroidViewModel(application) {
     val productStore = ProductsLocalDataSource(application.applicationContext)
 

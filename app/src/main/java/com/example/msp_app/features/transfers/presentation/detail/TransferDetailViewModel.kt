@@ -26,7 +26,8 @@ class TransferDetailViewModel(
         TransfersRepository(apiService)
     }
 
-    private val _transferDetailState = MutableStateFlow<ResultState<TransferWithDetails>>(ResultState.Idle)
+    private val _transferDetailState =
+        MutableStateFlow<ResultState<TransferWithDetails>>(ResultState.Idle)
     val transferDetailState: StateFlow<ResultState<TransferWithDetails>> = _transferDetailState.asStateFlow()
 
     private val _expandedProducts = MutableStateFlow<Set<Int>>(emptySet())

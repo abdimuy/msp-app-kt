@@ -29,9 +29,7 @@ import com.example.msp_app.ui.theme.ThemeController
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
-fun LoginScreen(
-    onLoginSuccess: () -> Unit
-) {
+fun LoginScreen(onLoginSuccess: () -> Unit) {
     val isDark = ThemeController.isDarkMode
 
     var email by remember { mutableStateOf("") }

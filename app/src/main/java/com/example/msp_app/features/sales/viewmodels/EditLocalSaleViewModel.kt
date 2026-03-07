@@ -6,23 +6,22 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.logging.logSaleError
+import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
-import com.example.msp_app.utils.PriceParser
 import com.example.msp_app.features.sales.sync.enqueueLocalSaleUpdate
+import com.example.msp_app.utils.PriceParser
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import com.example.msp_app.core.logging.RemoteLogger
-import com.example.msp_app.core.logging.logSaleError
-import com.example.msp_app.core.utils.ImageCompressor
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.UUID
 
 class EditLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
@@ -117,7 +116,6 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                 )
 
                 savedPaths.add(result.outputFile.absolutePath to "image/jpeg")
-
             } catch (e: Exception) {
                 Log.e("EditLocalSaleViewModel", "Error al comprimir imagen $index: ${e.message}", e)
                 logger.error(
@@ -163,7 +161,6 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
             }
 
             return images.map { it.LOCAL_SALE_IMAGE_ID }
-
         } catch (e: Exception) {
             Log.e("EditLocalSaleViewModel", "Error al guardar imágenes: ${e.message}", e)
             throw e
@@ -264,7 +261,7 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                     TIEMPO_A_CORTO_PLAZOMESES = shorttermtime,
                     MONTO_A_CORTO_PLAZO = shorttermamount,
                     MONTO_DE_CONTADO = cashamount,
-                    ENVIADO = false,  // Mark as not sent since we're updating
+                    ENVIADO = false, // Mark as not sent since we're updating
                     NUMERO = numero,
                     COLONIA = colonia,
                     POBLACION = poblacion,
@@ -314,7 +311,12 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
 
                 // Save new images and get their IDs
                 val newImageIds = if (newImageUris.isNotEmpty()) {
-                    saveSaleImages(context, newImageUris, saleId, java.time.Instant.now().toString())
+                    saveSaleImages(
+                        context,
+                        newImageUris,
+                        saleId,
+                        java.time.Instant.now().toString()
+                    )
                 } else {
                     emptyList()
                 }
@@ -346,7 +348,6 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                         "deletedImageCount" to imagesToDeleteIds.size
                     )
                 )
-
             } catch (e: Exception) {
                 Log.e("EditLocalSaleViewModel", "Error updating sale: ${e.message}", e)
 

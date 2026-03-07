@@ -12,14 +12,14 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.LocationSettingsRequest
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.lang.ref.WeakReference
 import kotlin.coroutines.Continuation
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Helper para solicitar permisos de ubicación, verificar ajustes de GPS y obtener la ubicación puntual.
@@ -64,11 +64,10 @@ class LocationProvider(private val activity: ComponentActivity) {
         permissionContinuation = null
     }
 
-    private fun hasLocationPermission(): Boolean =
-        ContextCompat.checkSelfPermission(
-            activity,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+    private fun hasLocationPermission(): Boolean = ContextCompat.checkSelfPermission(
+        activity,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
 
     /**
      * Verifica que el GPS/ajustes de ubicación estén habilitados.
@@ -93,15 +92,14 @@ class LocationProvider(private val activity: ComponentActivity) {
     }
 
     @SuppressLint("MissingPermission")
-    private suspend fun getCurrentLocation(): Location? =
-        suspendCancellableCoroutine { cont ->
-            val client = LocationServices.getFusedLocationProviderClient(activity)
-            val cts = CancellationTokenSource()
-            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
-                .addOnSuccessListener { loc -> cont.resume(loc) }
-                .addOnFailureListener { e -> cont.resumeWithException(e) }
-            cont.invokeOnCancellation { cts.cancel() }
-        }
+    private suspend fun getCurrentLocation(): Location? = suspendCancellableCoroutine { cont ->
+        val client = LocationServices.getFusedLocationProviderClient(activity)
+        val cts = CancellationTokenSource()
+        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+            .addOnSuccessListener { loc -> cont.resume(loc) }
+            .addOnFailureListener { e -> cont.resumeWithException(e) }
+        cont.invokeOnCancellation { cts.cancel() }
+    }
 
     /**
      * Solicita permiso si hace falta, verifica GPS y devuelve la ubicación.

@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -27,7 +28,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
@@ -41,11 +41,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -87,7 +87,11 @@ fun CartItemCard(
         elevation = CardDefaults.cardElevation(defaultElevation = if (!isDark) 4.dp else 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = if (!isDark) null else BorderStroke(1.dp, Color.DarkGray),
-        onClick = { navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())) }
+        onClick = {
+            navController.navigate(
+                Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())
+            )
+        }
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -161,7 +165,9 @@ fun CartItemCard(
                             modifier = Modifier
                                 .size(36.dp)
                                 .background(
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(
+                                        alpha = 0.3f
+                                    ),
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .clip(RoundedCornerShape(8.dp)),
@@ -207,7 +213,9 @@ fun CartItemCard(
                             modifier = Modifier
                                 .size(36.dp)
                                 .background(
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(
+                                        alpha = 0.3f
+                                    ),
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .clip(RoundedCornerShape(8.dp)),
@@ -420,13 +428,19 @@ fun CartItemCard(
                             modifier = Modifier
                                 .size(32.dp)
                                 .background(
-                                    color = if (isIncreaseMode) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.errorContainer,
+                                    color = if (isIncreaseMode) {
+                                        MaterialTheme.colorScheme.primaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.errorContainer
+                                    },
                                     shape = RoundedCornerShape(8.dp)
                                 )
                                 .padding(6.dp),
-                            tint = if (isIncreaseMode) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onErrorContainer
+                            tint = if (isIncreaseMode) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            }
                         )
 
                         Spacer(modifier = Modifier.width(12.dp))
@@ -443,7 +457,9 @@ fun CartItemCard(
 
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                alpha = 0.5f
+                            )
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
@@ -506,14 +522,20 @@ fun CartItemCard(
                                 inputQuantity = value
                             }
                         },
-                        label = { Text("Cantidad a ${if (isIncreaseMode) "agregar" else "quitar"}") },
+                        label = {
+                            Text(
+                                "Cantidad a ${if (isIncreaseMode) "agregar" else "quitar"}"
+                            )
+                        },
                         placeholder = { Text("Ingresa la cantidad") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         colors = TextFieldDefaults.colors(
                             focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                            unfocusedIndicatorColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.outline.copy(
+                                alpha = 0.5f
+                            )
                         )
                     )
 
@@ -525,14 +547,20 @@ fun CartItemCard(
 
                         Text(
                             text = if (isValid) {
-                                if (isIncreaseMode) "Se agregarán $quantity productos"
-                                else "Se quitarán $quantity productos"
+                                if (isIncreaseMode) {
+                                    "Se agregarán $quantity productos"
+                                } else {
+                                    "Se quitarán $quantity productos"
+                                }
                             } else {
                                 "Cantidad inválida (máximo: $maxAvailable)"
                             },
                             style = MaterialTheme.typography.bodySmall,
-                            color = if (isValid) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.error
+                            color = if (isValid) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.error
+                            }
                         )
                     }
 

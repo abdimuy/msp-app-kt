@@ -10,18 +10,14 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.msp_app.workers.ClienteSyncWorker
+import com.example.msp_app.workers.PendingGuaranteeEventsWorker
+import com.example.msp_app.workers.PendingGuaranteesWorker
+import com.example.msp_app.workers.PendingLocalSalesWorker
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
-import com.example.msp_app.workers.PendingGuaranteesWorker
-import com.example.msp_app.workers.PendingGuaranteeEventsWorker
-import com.example.msp_app.workers.PendingLocalSalesWorker
 import java.util.concurrent.TimeUnit
 
-fun enqueuePendingPaymentsWorker(
-    context: Context,
-    paymentId: String,
-    replace: Boolean = false
-) {
+fun enqueuePendingPaymentsWorker(context: Context, paymentId: String, replace: Boolean = false) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -40,11 +36,7 @@ fun enqueuePendingPaymentsWorker(
         .enqueueUniqueWork(uniqueName, policy, request)
 }
 
-fun enqueuePendingVisitsWorker(
-    context: Context,
-    visitId: String,
-    replace: Boolean = false
-) {
+fun enqueuePendingVisitsWorker(context: Context, visitId: String, replace: Boolean = false) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -84,10 +76,7 @@ fun enqueuePendingGuaranteesWorker(
         .enqueueUniqueWork(uniqueName, policy, request)
 }
 
-fun enqueuePendingGuaranteeEventsWorker(
-    context: Context,
-    replace: Boolean = false
-) {
+fun enqueuePendingGuaranteeEventsWorker(context: Context, replace: Boolean = false) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()

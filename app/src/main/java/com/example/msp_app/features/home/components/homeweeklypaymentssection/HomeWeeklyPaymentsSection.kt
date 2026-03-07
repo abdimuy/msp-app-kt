@@ -8,14 +8,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -54,7 +53,6 @@ fun HomeWeeklyPaymentsSection(
                 .heightIn(min = 100.dp),
             contentAlignment = Alignment.Center
         ) {
-
             when (paymentsGroupedByDayWeekly) {
                 is ResultState.Idle ->
                     Box(
@@ -95,7 +93,10 @@ fun HomeWeeklyPaymentsSection(
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("No hay pagos registrados esta semana (offline)", color = Color.Gray)
+                            Text(
+                                "No hay pagos registrados esta semana (offline)",
+                                color = Color.Gray
+                            )
                         }
                         return@Box
                     }
@@ -122,7 +123,13 @@ fun HomeWeeklyPaymentsSection(
 
                             Card(
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
+                                    containerColor = if (isDark) {
+                                        Color(
+                                            0xFF1E1E1E
+                                        )
+                                    } else {
+                                        MaterialTheme.colorScheme.background
+                                    }
                                 ),
                                 modifier = Modifier
                                     .clickable { onPaymentDateClick(formatted, payments) }
@@ -196,7 +203,13 @@ fun HomeWeeklyPaymentsSection(
 
                             Card(
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDark) Color(0xFF1E1E1E) else MaterialTheme.colorScheme.background
+                                    containerColor = if (isDark) {
+                                        Color(
+                                            0xFF1E1E1E
+                                        )
+                                    } else {
+                                        MaterialTheme.colorScheme.background
+                                    }
                                 ),
                                 modifier = Modifier
                                     .clickable { onPaymentDateClick(formatted, payments) }

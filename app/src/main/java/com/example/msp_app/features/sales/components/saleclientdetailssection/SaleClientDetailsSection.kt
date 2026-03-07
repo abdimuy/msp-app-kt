@@ -113,8 +113,9 @@ fun SaleClientDetailsSection(sale: Sale, modifier: Modifier = Modifier) {
             )
             InfoField(label = "Notas:", value = sale.NOTAS)
             InfoField(
-                label = "Vendedores:", value =
-                    "${sale.VENDEDOR_1}\n${sale.VENDEDOR_2}\n${sale.VENDEDOR_3}".trim()
+                label = "Vendedores:",
+                value =
+                "${sale.VENDEDOR_1}\n${sale.VENDEDOR_2}\n${sale.VENDEDOR_3}".trim()
             )
         }
     }

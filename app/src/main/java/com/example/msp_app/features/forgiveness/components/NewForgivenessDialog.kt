@@ -54,9 +54,9 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @SuppressLint("ContextCastToActivity")
 @Composable

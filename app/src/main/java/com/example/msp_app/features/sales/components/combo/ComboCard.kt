@@ -54,7 +54,13 @@ fun ComboCard(
     products: List<SaleItem>,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-    onPriceChange: ((precioLista: Double, precioCortoPlazo: Double, precioContado: Double) -> Unit)? = null
+    onPriceChange: (
+        (
+            precioLista: Double,
+            precioCortoPlazo: Double,
+            precioContado: Double
+        ) -> Unit
+    )? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
@@ -219,12 +225,19 @@ fun ComboCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer.copy(
+                                            alpha = 0.3f
+                                        )
+                                    )
                                     .padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 PriceRow("Lista", currencyFormat.format(combo.precioLista))
-                                PriceRow("Corto Plazo", currencyFormat.format(combo.precioCortoPlazo))
+                                PriceRow(
+                                    "Corto Plazo",
+                                    currencyFormat.format(combo.precioCortoPlazo)
+                                )
                                 PriceRow("Contado", currencyFormat.format(combo.precioContado))
                             }
                         } else {
@@ -232,7 +245,11 @@ fun ComboCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f))
+                                    .background(
+                                        MaterialTheme.colorScheme.primaryContainer.copy(
+                                            alpha = 0.3f
+                                        )
+                                    )
                                     .padding(12.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
@@ -270,10 +287,7 @@ fun ComboCard(
 }
 
 @Composable
-private fun EditableComboPrices(
-    combo: ComboItem,
-    onPriceChange: (Double, Double, Double) -> Unit
-) {
+private fun EditableComboPrices(combo: ComboItem, onPriceChange: (Double, Double, Double) -> Unit) {
     var priceList by remember(combo.comboId, combo.precioLista) {
         mutableStateOf(combo.precioLista.toString())
     }
@@ -445,10 +459,7 @@ private fun PriceRow(label: String, price: String) {
 }
 
 @Composable
-private fun ProductDetailCard(
-    saleItem: SaleItem,
-    modifier: Modifier = Modifier
-) {
+private fun ProductDetailCard(saleItem: SaleItem, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()

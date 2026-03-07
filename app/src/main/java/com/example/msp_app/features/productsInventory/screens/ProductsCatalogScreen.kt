@@ -9,10 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -25,7 +23,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import com.composables.icons.lucide.Lucide
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -64,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Truck
 import com.example.msp_app.R
 import com.example.msp_app.components.DrawerContainer
@@ -77,13 +75,12 @@ import com.example.msp_app.features.productsInventory.viewmodels.ProductsInvento
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
-import kotlinx.coroutines.launch
 import java.io.File
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductsCatalogScreen(navController: NavController) {
-
     val viewModel: ProductsInventoryViewModel = viewModel()
     val productState by viewModel.productInventoryState.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
@@ -265,21 +262,28 @@ fun ProductCard(
     Card(
         elevation = CardDefaults.cardElevation(
             defaultElevation =
-                if (!isDark) 8.dp else 0.dp
+            if (!isDark) 8.dp else 0.dp
         ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border =
-            if (!isDark) null else BorderStroke(
+        if (!isDark) {
+            null
+        } else {
+            BorderStroke(
                 width = 1.dp,
                 color = Color.DarkGray
-            ),
+            )
+        },
         modifier = Modifier
             .fillMaxWidth(),
-        onClick = { navController.navigate(Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())) }
+        onClick = {
+            navController.navigate(
+                Screen.ProductDetails.createRoute(product.ARTICULO_ID.toString())
+            )
+        }
     ) {
-
         Column(
             modifier = Modifier
                 .padding(12.dp)
@@ -335,7 +339,8 @@ fun ProductCard(
                                     Color.Transparent
                                 } else {
                                     Color(0xFFE2E3E5)
-                                }, RoundedCornerShape(8.dp)
+                                },
+                                RoundedCornerShape(8.dp)
                             )
                     ) {
                         Icon(

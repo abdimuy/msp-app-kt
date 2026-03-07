@@ -4,8 +4,6 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -15,9 +13,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
@@ -171,7 +171,10 @@ fun WarehouseProductsBottomSheet(
                                         totalStock = totalStock,
                                         assignedUsers = assignedUsers,
                                         products = productsState.data,
-                                        fileName = "inventario_${warehouseName.replace(" ", "_")}.pdf"
+                                        fileName = "inventario_${warehouseName.replace(
+                                            " ",
+                                            "_"
+                                        )}.pdf"
                                     )
                                 }
                                 isGeneratingPdf = false
@@ -247,7 +250,7 @@ fun WarehouseProductsBottomSheet(
                     } else {
                         productsState.data.filter { product ->
                             product.ARTICULO.contains(searchQuery, ignoreCase = true) ||
-                            product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
+                                product.LINEA_ARTICULO.contains(searchQuery, ignoreCase = true)
                         }
                     }
 
@@ -337,7 +340,9 @@ fun WarehouseProductsBottomSheet(
                     },
                     confirmButton = {},
                     dismissButton = {
-                        androidx.compose.material3.TextButton(onClick = { showPrintDialog = false }) {
+                        androidx.compose.material3.TextButton(
+                            onClick = { showPrintDialog = false }
+                        ) {
                             Text("Cancelar")
                         }
                     }
@@ -405,7 +410,12 @@ private fun generateWarehouseInventoryTicket(
         appendLine("-".repeat(32))
         appendLine(lineBlanck)
         appendLine("TOTAL DE PRODUCTOS: ${products.size}")
-        appendLine("FECHA: ${java.text.SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}")
+        appendLine(
+            "FECHA: ${java.text.SimpleDateFormat(
+                "dd/MM/yyyy HH:mm",
+                java.util.Locale.getDefault()
+            ).format(java.util.Date())}"
+        )
         appendLine(lineBlanck)
         appendLine(lineBlanck)
         appendLine(lineBlanck)
@@ -413,10 +423,7 @@ private fun generateWarehouseInventoryTicket(
 }
 
 @Composable
-private fun ProductItem(
-    product: ProductInventory,
-    modifier: Modifier = Modifier
-) {
+private fun ProductItem(product: ProductInventory, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(

@@ -164,13 +164,19 @@ class CamionetaAssignmentRepository {
 
             // Check for errors
             if (almacenesResult.isFailure) {
-                return Result.failure(almacenesResult.exceptionOrNull() ?: Exception("Error fetching almacenes"))
+                return Result.failure(
+                    almacenesResult.exceptionOrNull() ?: Exception("Error fetching almacenes")
+                )
             }
             if (excluidosResult.isFailure) {
-                return Result.failure(excluidosResult.exceptionOrNull() ?: Exception("Error fetching excluidos"))
+                return Result.failure(
+                    excluidosResult.exceptionOrNull() ?: Exception("Error fetching excluidos")
+                )
             }
             if (usersResult.isFailure) {
-                return Result.failure(usersResult.exceptionOrNull() ?: Exception("Error fetching users"))
+                return Result.failure(
+                    usersResult.exceptionOrNull() ?: Exception("Error fetching users")
+                )
             }
 
             val almacenes = almacenesResult.getOrThrow()
@@ -213,7 +219,9 @@ class CamionetaAssignmentRepository {
         return try {
             val usersResult = getAllUsers()
             if (usersResult.isFailure) {
-                return Result.failure(usersResult.exceptionOrNull() ?: Exception("Error fetching users"))
+                return Result.failure(
+                    usersResult.exceptionOrNull() ?: Exception("Error fetching users")
+                )
             }
 
             val users = usersResult.getOrThrow()
@@ -232,7 +240,9 @@ class CamionetaAssignmentRepository {
         return try {
             val usersResult = getAllUsers()
             if (usersResult.isFailure) {
-                return Result.failure(usersResult.exceptionOrNull() ?: Exception("Error fetching users"))
+                return Result.failure(
+                    usersResult.exceptionOrNull() ?: Exception("Error fetching users")
+                )
             }
 
             val users = usersResult.getOrThrow()

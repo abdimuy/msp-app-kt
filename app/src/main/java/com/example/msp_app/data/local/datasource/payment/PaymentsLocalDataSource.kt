@@ -78,11 +78,7 @@ class PaymentsLocalDataSource(private val context: Context) {
         )
     }
 
-    suspend fun updatePaymentLocation(
-        id: String,
-        lat: Double,
-        lng: Double
-    ) {
+    suspend fun updatePaymentLocation(id: String, lat: Double, lng: Double) {
         paymentDao.updateLocation(id, lat, lng)
     }
 

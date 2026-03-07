@@ -15,7 +15,7 @@ class ProductInventoryLocalDataSource(private val context: Context) {
     suspend fun getProductInventoryById(id: Int): ProductInventoryEntity {
         return productInventoryDao.getProductInventoryById(id)
     }
-    
+
     suspend fun getStockById(id: Int): Int? {
         return productInventoryDao.getStockById(id)
     }

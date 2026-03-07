@@ -30,11 +30,7 @@ class VisitsLocalDataSource(private val context: Context) {
         visitDao.updateState(id, newState)
     }
 
-    suspend fun updateVisitLocation(
-        id: String,
-        lat: Double,
-        lng: Double
-    ) {
+    suspend fun updateVisitLocation(id: String, lat: Double, lng: Double) {
         visitDao.updateLocation(id, lat, lng)
     }
 
@@ -59,10 +55,7 @@ class VisitsLocalDataSource(private val context: Context) {
         )
     }
 
-    suspend fun updateTemporaryCollectionDate(
-        saleId: Int,
-        newDate: String,
-    ) {
+    suspend fun updateTemporaryCollectionDate(saleId: Int, newDate: String,) {
         saleDao.updateTemporaryCollectionDate(saleId, newDate)
     }
 

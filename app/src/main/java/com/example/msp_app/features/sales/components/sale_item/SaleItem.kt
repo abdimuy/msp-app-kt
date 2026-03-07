@@ -86,8 +86,6 @@ fun SaleItem(
         }
     }
 
-
-
     if (showPaymentDialog.value) {
         NewPaymentDialog(
             show = true,

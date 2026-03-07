@@ -5,8 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,14 +48,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Package
-import com.composables.icons.lucide.ShoppingCart
 import com.composables.icons.lucide.Trash2
 import com.composables.icons.lucide.X
 import com.example.msp_app.data.models.productInventory.ProductInventory
@@ -81,9 +76,12 @@ fun ProductSelectionBottomSheet(
     val isCreatingCombo by saleProductsViewModel.isCreatingCombo.collectAsState()
 
     val filteredProducts = remember(searchQuery, products) {
-        if (searchQuery.isBlank()) products
-        else products.filter {
-            it.ARTICULO.contains(searchQuery, ignoreCase = true)
+        if (searchQuery.isBlank()) {
+            products
+        } else {
+            products.filter {
+                it.ARTICULO.contains(searchQuery, ignoreCase = true)
+            }
         }
     }
 
@@ -298,7 +296,9 @@ fun ProductSelectionBottomSheet(
                                 isSelected = selectedProductIds.contains(item.product.ARTICULO_ID),
                                 isInCombo = false,
                                 onToggleSelect = {
-                                    saleProductsViewModel.toggleProductSelection(item.product.ARTICULO_ID)
+                                    saleProductsViewModel.toggleProductSelection(
+                                        item.product.ARTICULO_ID
+                                    )
                                 },
                                 onQuantityChange = { newQty ->
                                     val maxStock = item.product.EXISTENCIAS
@@ -346,10 +346,11 @@ private fun ProductCatalogItem(
             .fillMaxWidth()
             .then(if (!isOutOfStock) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(8.dp),
-        color = if (isOutOfStock)
+        color = if (isOutOfStock) {
             MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        else
-            MaterialTheme.colorScheme.surface,
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
         tonalElevation = 1.dp
     ) {
         Row(
@@ -365,10 +366,11 @@ private fun ProductCatalogItem(
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (isOutOfStock)
+                    color = if (isOutOfStock) {
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                    else
+                    } else {
                         MaterialTheme.colorScheme.onSurface
+                    }
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -377,19 +379,21 @@ private fun ProductCatalogItem(
                     Text(
                         text = currencyFormat.format(prices.precioLista),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isOutOfStock)
+                        color = if (isOutOfStock) {
                             MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                        else
-                            MaterialTheme.colorScheme.primary,
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = if (isOutOfStock) "Sin stock" else "Disp: $availableStock",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isOutOfStock)
+                        color = if (isOutOfStock) {
                             MaterialTheme.colorScheme.error
-                        else
+                        } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                     )
                 }
             }
