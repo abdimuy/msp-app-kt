@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * ViewModel base para entidades con soporte offline
@@ -116,8 +117,16 @@ abstract class BaseOfflineViewModel<T : Any>(
      */
     private suspend fun fetchWithNetworkFallback() {
         try {
-            val result = withContext(Dispatchers.IO) {
-                fetchFromNetwork()
+            val result = withTimeoutOrNull(5000L) {
+                withContext(Dispatchers.IO) {
+                    fetchFromNetwork()
+                }
+            }
+
+            if (result == null) {
+                log("Network fetch timed out after 5 seconds")
+                loadFromCache(forceOffline = true)
+                return
             }
 
             result.fold(
