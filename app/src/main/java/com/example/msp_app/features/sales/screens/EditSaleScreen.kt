@@ -72,12 +72,11 @@ import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.entities.LocalSaleComboEntity
-import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.combo.ProductsWithCombosSection
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
-import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
+import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.viewmodels.ComboItem
 import com.example.msp_app.features.sales.viewmodels.EditLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleItem
@@ -88,10 +87,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EditSaleScreen(
-    localSaleId: String,
-    navController: NavController
-) {
+fun EditSaleScreen(localSaleId: String, navController: NavController) {
     val viewModel: EditLocalSaleViewModel = viewModel()
     val warehouseViewModel: WarehouseViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
@@ -163,7 +159,8 @@ fun EditSaleScreen(
     var combosInitialized by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
-    val dayOptions = listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
+    val dayOptions =
+        listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo")
     val tipoVentaOptions = listOf("CONTADO", "CREDITO")
 
     val userData by authViewModel.userData.collectAsState()
@@ -198,7 +195,7 @@ fun EditSaleScreen(
             if (!formInitialized) {
                 // Clear previous data from shared ViewModel before loading sale data
                 saleProductsViewModel.clearSale()
-                
+
                 val sale = selectedSale!!
                 defectName = TextFieldValue(sale.NOMBRE_CLIENTE)
                 phone = TextFieldValue(sale.TELEFONO)
@@ -224,7 +221,11 @@ fun EditSaleScreen(
                 existingProducts.forEach { productEntity ->
                     val product = productosCamioneta.find { it.ARTICULO_ID == productEntity.ARTICULO_ID }
                     if (product != null) {
-                        saleProductsViewModel.addProductToSale(product, productEntity.CANTIDAD, productEntity.COMBO_ID)
+                        saleProductsViewModel.addProductToSale(
+                            product,
+                            productEntity.CANTIDAD,
+                            productEntity.COMBO_ID
+                        )
                     }
                 }
 
@@ -415,8 +416,8 @@ fun EditSaleScreen(
         val zoneValid = validateZone()
 
         return clientNameValid && phoneValid && locationValid &&
-                installmentValid && paymentFrequencyValid && downpaymentValid && collectionDayValid &&
-                imagesValid && productsValid && zoneValid
+            installmentValid && paymentFrequencyValid && downpaymentValid && collectionDayValid &&
+            imagesValid && productsValid && zoneValid
     }
 
     fun updateSale() {
@@ -617,7 +618,7 @@ fun EditSaleScreen(
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .fillMaxSize(),
+                    .fillMaxSize()
             ) {
                 Column(
                     modifier = Modifier
@@ -708,8 +709,15 @@ fun EditSaleScreen(
                         label = { Text("Nombre completo del cliente *") },
                         isError = defectNameError,
                         supportingText = if (defectNameError) {
-                            { Text("Favor de colocar el nombre", color = MaterialTheme.colorScheme.error) }
-                        } else null,
+                            {
+                                Text(
+                                    "Favor de colocar el nombre",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = false,
                         maxLines = 2,
@@ -729,8 +737,15 @@ fun EditSaleScreen(
                         label = { Text(if (tipoVenta == "CONTADO") "Teléfono" else "Teléfono *") },
                         isError = phoneError,
                         supportingText = if (phoneError) {
-                            { Text("El teléfono debe tener al menos 10 dígitos", color = MaterialTheme.colorScheme.error) }
-                        } else null,
+                            {
+                                Text(
+                                    "El teléfono debe tener al menos 10 dígitos",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         shape = RoundedCornerShape(15.dp)
@@ -754,8 +769,15 @@ fun EditSaleScreen(
                         shape = RoundedCornerShape(15.dp),
                         isError = locationError,
                         supportingText = if (locationError) {
-                            { Text("Coloque al menos el nombre de la calle", color = MaterialTheme.colorScheme.error) }
-                        } else null,
+                            {
+                                Text(
+                                    "Coloque al menos el nombre de la calle",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else {
+                            null
+                        }
                     )
 
                     Spacer(Modifier.height(12.dp))
@@ -836,13 +858,22 @@ fun EditSaleScreen(
                                 },
                                 label = { Text("Enganche") },
                                 modifier = Modifier.weight(1f),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal
+                                ),
                                 shape = RoundedCornerShape(15.dp),
                                 prefix = { Text("$") },
                                 isError = downpaymentError,
                                 supportingText = if (downpaymentError) {
-                                    { Text("El enganche debe ser mayor o igual a 0", color = MaterialTheme.colorScheme.error) }
-                                } else null,
+                                    {
+                                        Text(
+                                            "El enganche debe ser mayor o igual a 0",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                } else {
+                                    null
+                                }
                             )
 
                             OutlinedTextField(
@@ -855,11 +886,20 @@ fun EditSaleScreen(
                                 },
                                 isError = installmentError,
                                 supportingText = if (installmentError) {
-                                    { Text("La parcialidad debe ser mayor a 0", color = MaterialTheme.colorScheme.error) }
-                                } else null,
+                                    {
+                                        Text(
+                                            "La parcialidad debe ser mayor a 0",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                                 label = { Text("Parcialidad *") },
                                 modifier = Modifier.weight(1f),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal
+                                ),
                                 shape = RoundedCornerShape(15.dp),
                                 prefix = { Text("$") }
                             )
@@ -881,8 +921,15 @@ fun EditSaleScreen(
                                 isError = paymentFrequencyError,
                                 label = { Text("Frecuencia de Pago *") },
                                 supportingText = if (paymentFrequencyError) {
-                                    { Text("Selecciona una frecuencia de pago", color = MaterialTheme.colorScheme.error) }
-                                } else null,
+                                    {
+                                        Text(
+                                            "Selecciona una frecuencia de pago",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                                 readOnly = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -921,8 +968,15 @@ fun EditSaleScreen(
                                 onValueChange = { },
                                 isError = collectionDayError,
                                 supportingText = if (collectionDayError) {
-                                    { Text("Selecciona un día de cobranza", color = MaterialTheme.colorScheme.error) }
-                                } else null,
+                                    {
+                                        Text(
+                                            "Selecciona un día de cobranza",
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                } else {
+                                    null
+                                },
                                 label = { Text("Día de Cobranza *") },
                                 readOnly = true,
                                 modifier = Modifier
@@ -1059,7 +1113,13 @@ fun EditSaleScreen(
                                                 )
                                                 .clickable {
                                                     val allImages = displayableExistingImages.mapNotNull { img ->
-                                                        try { Uri.parse("file://${img.IMAGE_URI}") } catch (e: Exception) { null }
+                                                        try {
+                                                            Uri.parse("file://${img.IMAGE_URI}")
+                                                        } catch (
+                                                            e: Exception
+                                                        ) {
+                                                            null
+                                                        }
                                                     } + newImageUris
                                                     selectedImageIndex = allImages.indexOfFirst {
                                                         it.toString().contains(imageEntity.IMAGE_URI)
@@ -1078,7 +1138,9 @@ fun EditSaleScreen(
                                                 .align(Alignment.TopEnd)
                                                 .padding(2.dp)
                                                 .clickable {
-                                                    viewModel.markImageForDeletion(imageEntity.LOCAL_SALE_IMAGE_ID)
+                                                    viewModel.markImageForDeletion(
+                                                        imageEntity.LOCAL_SALE_IMAGE_ID
+                                                    )
                                                 }
                                                 .background(
                                                     Color.Black.copy(alpha = 0.6f),
@@ -1106,7 +1168,13 @@ fun EditSaleScreen(
                                             )
                                             .clickable {
                                                 val allImages = displayableExistingImages.mapNotNull { img ->
-                                                    try { Uri.parse("file://${img.IMAGE_URI}") } catch (e: Exception) { null }
+                                                    try {
+                                                        Uri.parse("file://${img.IMAGE_URI}")
+                                                    } catch (
+                                                        e: Exception
+                                                    ) {
+                                                        null
+                                                    }
                                                 } + newImageUris
                                                 selectedImageIndex = displayableExistingImages.size + newImageUris.indexOf(uri)
                                                 showImageViewer = true

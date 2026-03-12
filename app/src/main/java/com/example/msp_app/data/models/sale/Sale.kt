@@ -12,10 +12,12 @@ data class Sale(
     val LIMITE_CREDITO: Double,
     val NOTAS: String,
     val ZONA_NOMBRE: String,
-    val IMPORTE_PAGO_PROMEDIO: Double?, // nullable
+    // nullable
+    val IMPORTE_PAGO_PROMEDIO: Double?,
     val TOTAL_IMPORTE: Double,
     val NUM_IMPORTES: Int,
-    val FECHA: String, // ISO 8601
+    // ISO 8601
+    val FECHA: String,
     val PARCIALIDAD: Int,
     val ENGANCHE: Double,
     val TIEMPO_A_CORTO_PLAZOMESES: Int,
@@ -26,7 +28,8 @@ data class Sale(
     val PRECIO_TOTAL: Double,
     val IMPTE_REST: Double,
     val SALDO_REST: Double,
-    val FECHA_ULT_PAGO: String?, // nullable ISO 8601
+    // nullable ISO 8601
+    val FECHA_ULT_PAGO: String?,
     val CALLE: String,
     val CIUDAD: String,
     val ESTADO: String,

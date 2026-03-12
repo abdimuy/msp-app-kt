@@ -11,7 +11,6 @@ import com.example.msp_app.core.sync.SyncResult
 import com.example.msp_app.core.sync.multipartRequest
 import com.example.msp_app.core.sync.safeApiCall
 import com.example.msp_app.data.api.ApiProvider
-import com.example.msp_app.data.api.services.localSales.LocalSaleResponse
 import com.example.msp_app.data.api.services.localSales.LocalSaleUpdateResponse
 import com.example.msp_app.data.api.services.localSales.LocalSalesApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
@@ -155,11 +154,7 @@ class LocalSaleSyncHandler(
         }
     }
 
-    override suspend fun onSyncSuccess(
-        context: Context,
-        entity: LocalSaleEntity,
-        response: Any
-    ) {
+    override suspend fun onSyncSuccess(context: Context, entity: LocalSaleEntity, response: Any) {
         // Marcar como sincronizado
         localSaleDataSource.changeSaleStatus(entity.LOCAL_SALE_ID, true)
 
@@ -207,7 +202,10 @@ class LocalSaleSyncHandler(
         if (errorBody == null) return ConflictType.OTHER
 
         return when {
-            errorBody.contains("STOCK_INSUFICIENTE", ignoreCase = true) -> ConflictType.INSUFFICIENT_STOCK
+            errorBody.contains(
+                "STOCK_INSUFICIENTE",
+                ignoreCase = true
+            ) -> ConflictType.INSUFFICIENT_STOCK
             errorBody.contains("duplicado", ignoreCase = true) -> ConflictType.DUPLICATE
             else -> ConflictType.OTHER
         }

@@ -159,6 +159,33 @@ La app funciona offline y sincroniza automáticamente cuando hay conexión:
 
 Soporte para modo claro/oscuro con tema personalizado basado en Material 3.
 
+## ✅ Calidad de Código
+
+### Linter
+
+Se usa [ktlint](https://pinterest.github.io/ktlint/) vía el plugin de Gradle `org.jlleitschuh.gradle.ktlint`. La configuración de reglas está en `.editorconfig`.
+
+```bash
+./gradlew ktlintCheck      # Verificar estilo
+./gradlew ktlintFormat     # Auto-corregir estilo
+```
+
+### Tests
+
+263 tests unitarios e integración cubriendo validación, ViewModels, Room DB y flujos completos de venta.
+
+```bash
+./gradlew testDebugUnitTest   # Ejecutar todos los tests
+```
+
+### Pre-commit Hook
+
+Un hook de Git ejecuta lint y tests antes de cada commit. Se instala automáticamente al sincronizar el proyecto (vía tarea Gradle `installGitHook`). También se puede instalar manualmente:
+
+```bash
+./gradlew installGitHook
+```
+
 ## 📝 Notas de Desarrollo
 
 - La app usa desugar para compatibilidad con APIs de Java 8

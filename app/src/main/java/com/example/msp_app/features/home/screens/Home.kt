@@ -4,8 +4,10 @@ import android.Manifest
 import android.location.Location
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,13 +16,20 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -48,6 +57,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.updates.ApkDownloader
+import com.example.msp_app.core.updates.DownloadState
+import com.example.msp_app.core.updates.UpdateChecker
 import com.example.msp_app.core.utils.Coord
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.LocationTracker
@@ -74,14 +86,13 @@ import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
@@ -236,8 +247,10 @@ fun HomeScreen(navController: NavController) {
         else -> 0
     }
 
-    val (totalWeeklyPayments, numberOfPaymentsWeekly) = when (val result =
-        paymentsGroupedByDayWeekly) {
+    val (totalWeeklyPayments, numberOfPaymentsWeekly) = when (
+        val result =
+            paymentsGroupedByDayWeekly
+    ) {
         is ResultState.Success ->
             result.data.values
                 .flatten()
@@ -274,7 +287,9 @@ fun HomeScreen(navController: NavController) {
 
     val accountsPercentage = if (numberOfSales > 0) {
         (numberOfPaymentsWeekly.toDouble() / numberOfSales.toDouble()) * 100
-    } else 0.0
+    } else {
+        0.0
+    }
 
     val accountsPercentageRounded =
         String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
@@ -311,7 +326,7 @@ fun HomeScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding),
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     item {
                         HomeHeader(
@@ -336,6 +351,104 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
+                        val updateInfo by UpdateChecker.updateAvailable.collectAsState()
+                        val downloadState by ApkDownloader.state.collectAsState()
+
+                        if (updateInfo != null) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFF1565C0)
+                                ),
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = 4.dp
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(
+                                                Color.White.copy(alpha = 0.2f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Actualización disponible",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "v${updateInfo!!.latestVersion} lista para instalar",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            when (downloadState) {
+                                                DownloadState.FAILED -> {
+                                                    ApkDownloader.reset()
+                                                    ApkDownloader.download(
+                                                        context,
+                                                        updateInfo!!.apkUrl,
+                                                        updateInfo!!.latestVersion
+                                                    )
+                                                }
+                                                DownloadState.IDLE -> {
+                                                    ApkDownloader.download(
+                                                        context,
+                                                        updateInfo!!.apkUrl,
+                                                        updateInfo!!.latestVersion
+                                                    )
+                                                }
+                                                else -> {}
+                                            }
+                                        },
+                                        enabled = downloadState == DownloadState.IDLE ||
+                                            downloadState == DownloadState.FAILED,
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color.White,
+                                            contentColor = Color(0xFF1565C0)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = when (downloadState) {
+                                                DownloadState.IDLE -> "Actualizar"
+                                                DownloadState.DOWNLOADING -> "Descargando..."
+                                                DownloadState.COMPLETED -> "Listo"
+                                                DownloadState.FAILED -> "Reintentar"
+                                            },
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
                         HomeWeeklyPaymentsSection(
                             paymentsGroupedByDayWeekly = paymentsGroupedByDayWeekly,
                             isDark = isDark,
@@ -345,7 +458,6 @@ fun HomeScreen(navController: NavController) {
                                 showPaymentsDialog = true
                             }
                         )
-
                     }
 
                     item {
@@ -386,7 +498,6 @@ fun HomeScreen(navController: NavController) {
                                     distanceToCurrentLocation = distanceToCurrentLocation.toDouble(),
                                     navController
                                 )
-
                             }
                             Spacer(Modifier.height(8.dp))
                         }
@@ -411,11 +522,11 @@ fun HomeScreen(navController: NavController) {
                             },
                             onResendAllPayments = { /* TODO */ },
                             onLogout = { /* TODO */ },
-                            onInitWeek = { authViewModel.updateStartOfWeekDate() },
+                            onInitWeek = { authViewModel.updateStartOfWeekDate() }
                         )
                     }
                 }
-            },
+            }
         )
 
         if (showPaymentsDialog) {
@@ -437,7 +548,7 @@ fun HomeScreen(navController: NavController) {
                             PaymentItem(
                                 payment = payment,
                                 variant = PaymentItemVariant.COMPACT,
-                                navController = navController,
+                                navController = navController
                             )
                         }
                     }
@@ -525,11 +636,10 @@ fun PaymentInfoCollector(
         Text(
             text = value,
             fontSize = 26.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.ExtraBold
         )
     }
 }
-
 
 fun Modifier.overlap(offsetY: Dp) = this.then(
     Modifier.layout { measurable, constraints ->

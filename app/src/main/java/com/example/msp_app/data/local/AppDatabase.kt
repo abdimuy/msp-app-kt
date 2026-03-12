@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.msp_app.data.local.dao.ClienteDao
 import com.example.msp_app.data.local.dao.guarantee.GuaranteeDao
 import com.example.msp_app.data.local.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.data.local.dao.localsale.LocalSaleDao
@@ -14,6 +15,7 @@ import com.example.msp_app.data.local.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.data.local.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.data.local.dao.sale.SaleDao
 import com.example.msp_app.data.local.dao.visit.VisitDao
+import com.example.msp_app.data.local.entities.ClienteEntity
 import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.local.entities.GuaranteeEventEntity
 import com.example.msp_app.data.local.entities.GuaranteeImageEntity
@@ -27,6 +29,7 @@ import com.example.msp_app.data.local.entities.ProductInventoryEntity
 import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
 import com.example.msp_app.data.local.entities.SaleEntity
 import com.example.msp_app.data.local.entities.VisitEntity
+import com.example.msp_app.data.local.migrations.MIGRATION_20_21
 
 @Database(
     entities = [
@@ -42,9 +45,10 @@ import com.example.msp_app.data.local.entities.VisitEntity
         LocalSaleEntity::class,
         LocalSaleImageEntity::class,
         LocalSaleProductEntity::class,
-        LocalSaleComboEntity::class
+        LocalSaleComboEntity::class,
+        ClienteEntity::class
     ],
-    version = 19,
+    version = 21
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
@@ -57,22 +61,35 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun localSaleDao(): LocalSaleDao
     abstract fun localSaleProduct(): LocalSaleProductDao
     abstract fun localSaleComboDao(): LocalSaleComboDao
+    abstract fun clienteDao(): ClienteDao
 
     companion object {
         @Volatile
-        private var INSTANCE: AppDatabase? = null
+        private var instance: AppDatabase? = null
 
         fun getInstance(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
+            return instance ?: synchronized(this) {
+                instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "msp_db"
 
                 )
-                    .fallbackToDestructiveMigration()
-                    .build().also { INSTANCE = it }
+                    .addMigrations(MIGRATION_20_21)
+                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
+                    .build().also { instance = it }
             }
+        }
+
+        @androidx.annotation.VisibleForTesting
+        fun setInstanceForTesting(database: AppDatabase) {
+            instance = database
+        }
+
+        @androidx.annotation.VisibleForTesting
+        fun clearInstance() {
+            instance?.close()
+            instance = null
         }
     }
 }

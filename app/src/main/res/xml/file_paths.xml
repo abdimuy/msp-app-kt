@@ -6,4 +6,7 @@
     <files-path
         name="draft_images"
         path="draft_images/" />
+    <external-files-path
+        name="apk_updates"
+        path="Download/" />
 </paths>

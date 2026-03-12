@@ -1,6 +1,5 @@
 package com.example.msp_app.features.sales.screens
 
-import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -46,11 +46,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,30 +58,28 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
-import com.example.msp_app.core.draft.DraftCombo
 import com.example.msp_app.core.draft.SaleDraft
-import com.example.msp_app.core.draft.SaleDraftManager
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
-import com.example.msp_app.features.sales.components.combo.ProductsWithCombosSection
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationData
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationDialog
 import com.example.msp_app.features.sales.components.map.LocationMap
-import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
+import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
+import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
+import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.features.sales.viewmodels.NewSaleFormViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
@@ -92,10 +88,6 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
-import kotlinx.coroutines.launch
-import java.io.File
-import java.util.UUID
-
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -104,67 +96,32 @@ fun NewSaleScreen(navController: NavController) {
     val warehouseViewModel: WarehouseViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
+    val clienteSearchViewModel: ClienteSearchViewModel = viewModel()
+    val formViewModel: NewSaleFormViewModel = viewModel()
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
 
-    // Draft Manager
-    val draftManager = remember { SaleDraftManager(context) }
+    val formState by formViewModel.formState.collectAsState()
+
+    // UI-only state
     var showDraftDialog by remember { mutableStateOf(false) }
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
     var loadedDraft by remember { mutableStateOf<SaleDraft?>(null) }
-
-    var defectName by remember { mutableStateOf(TextFieldValue("")) }
     var showError by remember { mutableStateOf(false) }
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
-    var imageUris by remember { mutableStateOf(listOf<Uri>()) }
-    var showImageSourceDialog by remember { mutableStateOf(false) }
     var showImageError by remember { mutableStateOf(false) }
     var showImageViewer by remember { mutableStateOf(false) }
     var selectedImageIndex by remember { mutableIntStateOf(0) }
+    var showImageSizeError by remember { mutableStateOf(false) }
     var showCreateComboDialog by remember { mutableStateOf(false) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
-    var saleCompleted by remember { mutableStateOf(false) } // Evita auto-save después de venta exitosa
-    var address by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var latitude by remember { mutableDoubleStateOf(0.0) }
-    var longitude by remember { mutableDoubleStateOf(0.0) }
-    var numero by remember { mutableStateOf(TextFieldValue("")) }
-    var colonia by remember { mutableStateOf(TextFieldValue("")) }
-    var poblacion by remember { mutableStateOf(TextFieldValue("")) }
-    var ciudad by remember { mutableStateOf(TextFieldValue("")) }
-    var tipoVenta by remember { mutableStateOf("CREDITO") }
-
-    // Zone state
-    var selectedZoneId by remember { mutableStateOf<Int?>(null) }
-    var selectedZoneName by remember { mutableStateOf("") }
-    var zoneError by remember { mutableStateOf(false) }
-
-    var phone by remember { mutableStateOf(TextFieldValue("")) }
-    var downpayment by remember { mutableStateOf(TextFieldValue("")) }
-    var installment by remember { mutableStateOf(TextFieldValue("")) }
-    var guarantor by remember { mutableStateOf(TextFieldValue("")) }
-    var note by remember { mutableStateOf(TextFieldValue("")) }
-    var collectionday by remember { mutableStateOf("") }
-    var paymentfrequency by remember { mutableStateOf("") }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var showErrorDialog by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
     var expandedfrequency by remember { mutableStateOf(false) }
     var expandedDia by remember { mutableStateOf(false) }
     var expandedTipoVenta by remember { mutableStateOf(false) }
-    var hasValidLocation by remember { mutableStateOf(false) }
-    var locationPermissionGranted by remember { mutableStateOf(false) }
-
-    var defectNameError by remember { mutableStateOf(false) }
-    var phoneError by remember { mutableStateOf(false) }
-    var locationError by remember { mutableStateOf(false) }
-    var installmentError by remember { mutableStateOf(false) }
-    var paymentFrequencyError by remember { mutableStateOf(false) }
-    var collectionDayError by remember { mutableStateOf(false) }
-    var imageError by remember { mutableStateOf(false) }
-    var productsError by remember { mutableStateOf(false) }
-    var showImageSizeError by remember { mutableStateOf(false) }
-    var downpaymentError by remember { mutableStateOf(false) }
+    var showProductSheet by remember { mutableStateOf(false) }
+    var showClienteSearch by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
@@ -184,145 +141,6 @@ fun NewSaleScreen(navController: NavController) {
         else -> emptyList()
     }
 
-    // Save draft automatically
-    fun saveDraftAuto() {
-        coroutineScope.launch {
-            // Extract file paths from URIs (convert content:// URIs to file paths)
-            val imagePaths = imageUris.mapNotNull { uri ->
-                try {
-                    // If it's a content URI from FileProvider, extract the actual file path
-                    if (uri.scheme == "content" && uri.authority == "${context.packageName}.fileprovider") {
-                        // Extract path from FileProvider URI
-                        val path = uri.path?.substringAfter("draft_images/")
-                        if (path != null) {
-                            "${context.filesDir}/draft_images/$path"
-                        } else {
-                            null
-                        }
-                    } else {
-                        null
-                    }
-                } catch (e: Exception) {
-                    null
-                }
-            }
-
-            // Convert ComboItems to DraftCombos
-            val draftCombos = saleProductsViewModel.getCombosList().map { combo ->
-                DraftCombo(
-                    comboId = combo.comboId,
-                    nombreCombo = combo.nombreCombo,
-                    precioLista = combo.precioLista,
-                    precioCortoPlazo = combo.precioCortoPlazo,
-                    precioContado = combo.precioContado
-                )
-            }
-
-            val draft = SaleDraft(
-                clientName = defectName.text,
-                phone = phone.text,
-                street = location,
-                numero = numero.text,
-                colonia = colonia.text,
-                poblacion = poblacion.text,
-                ciudad = ciudad.text,
-                tipoVenta = tipoVenta,
-                downpayment = downpayment.text,
-                installment = installment.text,
-                guarantor = guarantor.text,
-                note = note.text,
-                collectionDay = collectionday,
-                paymentFrequency = paymentfrequency,
-                latitude = latitude,
-                longitude = longitude,
-                imageUris = imagePaths,
-                productsJson = draftManager.saleItemsToJson(saleProductsViewModel.saleItems),
-                combosJson = draftManager.combosToJson(draftCombos),
-                zonaClienteId = selectedZoneId,
-                zonaClienteNombre = selectedZoneName
-            )
-            draftManager.saveDraft(draft)
-        }
-    }
-
-    // Load draft data into fields
-    fun loadDraftData(draft: SaleDraft) {
-        saleProductsViewModel.clearSale()
-        defectName = TextFieldValue(draft.clientName)
-        phone = TextFieldValue(draft.phone)
-        location = draft.street
-        numero = TextFieldValue(draft.numero)
-        colonia = TextFieldValue(draft.colonia)
-        poblacion = TextFieldValue(draft.poblacion)
-        ciudad = TextFieldValue(draft.ciudad)
-        tipoVenta = draft.tipoVenta
-        downpayment = TextFieldValue(draft.downpayment)
-        installment = TextFieldValue(draft.installment)
-        guarantor = TextFieldValue(draft.guarantor)
-        note = TextFieldValue(draft.note)
-        collectionday = draft.collectionDay
-        paymentfrequency = draft.paymentFrequency
-        latitude = draft.latitude
-        longitude = draft.longitude
-        selectedZoneId = draft.zonaClienteId
-        selectedZoneName = draft.zonaClienteNombre
-
-        // Load images
-        imageUris = draft.imageUris.mapNotNull { path ->
-            try {
-                val file = File(path)
-                if (file.exists()) {
-                    val uri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                    uri
-                } else {
-                    null
-                }
-            } catch (e: Exception) {
-                null
-            }
-        }
-
-        // Load products with their combo associations
-        val draftProducts = draftManager.jsonToDraftProducts(draft.productsJson)
-        val draftCombos = draftManager.jsonToCombos(draft.combosJson)
-
-        // First, add all products
-        draftProducts.forEach { draftProduct ->
-            val product = productosCamioneta.find { it.ARTICULO_ID == draftProduct.articuloId }
-            if (product != null) {
-                saleProductsViewModel.addProductToSale(product, draftProduct.quantity)
-            }
-        }
-
-        // Then restore combos - need to recreate the combo structure
-        draftCombos.forEach { draftCombo ->
-            // Find products that belong to this combo
-            val comboProductIds = draftProducts
-                .filter { it.comboId == draftCombo.comboId }
-                .map { it.articuloId }
-
-            if (comboProductIds.isNotEmpty()) {
-                // Select the products for this combo
-                comboProductIds.forEach { articleId ->
-                    saleProductsViewModel.toggleProductSelection(articleId)
-                }
-
-                // Create the combo with original data
-                saleProductsViewModel.createComboWithId(
-                    comboId = draftCombo.comboId,
-                    nombreCombo = draftCombo.nombreCombo,
-                    precioLista = draftCombo.precioLista,
-                    precioCortoPlazo = draftCombo.precioCortoPlazo,
-                    precioContado = draftCombo.precioContado
-                )
-            }
-        }
-    }
-
     LaunchedEffect(camionetaId) {
         if (camionetaId != null) {
             warehouseViewModel.selectWarehouse(camionetaId)
@@ -331,11 +149,8 @@ fun NewSaleScreen(navController: NavController) {
 
     // Check for draft on screen start and clean old drafts
     LaunchedEffect(Unit) {
-        // Clean drafts older than 7 days
-        draftManager.clearOldDrafts(maxAgeDays = 7)
-
-        // Load draft if exists (and wasn't just cleared)
-        val draft = draftManager.loadDraft()
+        formViewModel.clearOldDrafts()
+        val draft = formViewModel.loadDraftSuspend()
         if (draft != null) {
             loadedDraft = draft
             showDraftDialog = true
@@ -344,16 +159,19 @@ fun NewSaleScreen(navController: NavController) {
 
     // Auto-save draft when fields change
     LaunchedEffect(
-        defectName.text, phone.text, location, numero.text, colonia.text,
-        poblacion.text, ciudad.text, tipoVenta, downpayment.text,
-        installment.text, guarantor.text, note.text, collectionday,
-        paymentfrequency, latitude, longitude, imageUris,
-        saleProductsViewModel.saleItems.size, selectedZoneId, selectedZoneName,
-        saleProductsViewModel.combos.size // Also watch for combo changes
+        formState.clientName, formState.phone, formState.street, formState.numero,
+        formState.colonia, formState.poblacion, formState.ciudad, formState.tipoVenta,
+        formState.downpayment, formState.installment, formState.guarantor, formState.note,
+        formState.collectionDay, formState.paymentFrequency, formState.latitude,
+        formState.longitude, formState.imageUris,
+        saleProductsViewModel.saleItems.size, formState.selectedZoneId,
+        formState.selectedZoneName, saleProductsViewModel.combos.size
     ) {
-        // Don't save if user just declined to load a draft or if sale was completed
-        if (!showDraftDialog && !saleCompleted) {
-            saveDraftAuto()
+        if (!showDraftDialog && !formState.saleCompleted) {
+            formViewModel.saveDraftAuto(
+                saleItems = saleProductsViewModel.saleItems,
+                comboItems = saleProductsViewModel.getCombosList()
+            )
         }
     }
 
@@ -364,48 +182,11 @@ fun NewSaleScreen(navController: NavController) {
         )
     }
 
-    fun getImageSizeFromUri(context: Context, uri: Uri): Long {
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                inputStream.available().toLong()
-            } ?: 0L
-        } catch (e: Exception) {
-            0L
-        }
-    }
-
-    fun validateLocationData(): Boolean {
-        val isValid = latitude != 0.0 && longitude != 0.0 && locationPermissionGranted
-        hasValidLocation = isValid
-        return isValid
-    }
-
-    fun validateImageSize(context: Context, uri: Uri): Boolean {
-        val maxSizeInBytes = 20 * 1000 * 1000
-        val imageSize = getImageSizeFromUri(context, uri)
-        return imageSize <= maxSizeInBytes
-    }
-
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            if (validateImageSize(context, it)) {
-                // Copy image to persistent storage and get URI via FileProvider
-                val persistentPath = draftManager.copyImageToPersistentStorage(it)
-                val file = File(persistentPath)
-                val persistentUri = FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    file
-                )
-                imageUris = imageUris + persistentUri
-                showImageSizeError = false
-            } else {
-                showImageSizeError = true
-            }
-        }
-        showImageSourceDialog = false
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        val hasOversized = formViewModel.processPickedImages(uris)
+        showImageSizeError = hasOversized
     }
 
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -413,141 +194,9 @@ fun NewSaleScreen(navController: NavController) {
     ) { success: Boolean ->
         if (success) {
             cameraImageUri?.let { uri ->
-                if (validateImageSize(context, uri)) {
-                    // Copy image to persistent storage and get URI via FileProvider
-                    val persistentPath = draftManager.copyImageToPersistentStorage(uri)
-                    val file = File(persistentPath)
-                    val persistentUri = FileProvider.getUriForFile(
-                        context,
-                        "${context.packageName}.fileprovider",
-                        file
-                    )
-                    imageUris = imageUris + persistentUri
-                    showImageSizeError = false
-                } else {
-                    showImageSizeError = true
-                }
+                showImageSizeError = formViewModel.processCameraImage(uri)
             }
         }
-        showImageSourceDialog = false
-    }
-
-    fun createImageUri(context: Context): Uri {
-        val imageFile = File(context.cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
-        return FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            imageFile
-        )
-    }
-
-    if (showImageViewer && imageUris.isNotEmpty()) {
-        ImageViewerDialog(
-            imageUris = imageUris,
-            initialIndex = selectedImageIndex,
-            onDismiss = { showImageViewer = false }
-        )
-    }
-
-    fun validateClientName(name: String): Boolean {
-        val isValid = name.isNotBlank() && name.length >= 3
-        defectNameError = !isValid
-        return isValid
-    }
-
-    fun validatePhone(phoneNumber: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            phoneError = false
-            return true
-        }
-        val isValid = phoneNumber.isNotBlank() && phoneNumber.length == 10
-        phoneError = !isValid
-        return isValid
-    }
-
-    fun validateLocation(loc: String): Boolean {
-        val isValid = loc.isNotBlank() && loc.length >= 5
-        locationError = !isValid
-        return isValid
-    }
-
-fun validateInstallment(amount: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            installmentError = false
-            return true
-        }
-        val amountInt = amount.toIntOrNull()
-        val isValid = amountInt != null && amountInt > 0
-        installmentError = !isValid
-        return isValid
-    }
-
-    fun validatePaymentFrequency(frequency: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            paymentFrequencyError = false
-            return true
-        }
-        val isValid = frequency.isNotBlank()
-        paymentFrequencyError = !isValid
-        return isValid
-    }
-
-    fun validateCollectionDay(day: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            collectionDayError = false
-            return true
-        }
-        val isValid = day.isNotBlank()
-        collectionDayError = !isValid
-        return isValid
-    }
-
-    fun validateImages(): Boolean {
-        val isValid = imageUris.isNotEmpty()
-        imageError = !isValid
-        return isValid
-    }
-
-    fun validateProducts(): Boolean {
-        val isValid = saleProductsViewModel.hasItems()
-        productsError = !isValid
-        return isValid
-    }
-
-    fun validateDownpayment(amount: String): Boolean {
-        val amountDouble = amount.toDoubleOrNull()
-        val isValid = amount.isBlank() || (amountDouble != null && amountDouble >= 0)
-        downpaymentError = !isValid
-        return isValid
-    }
-
-    fun validateZone(): Boolean {
-        // Solo validar zona si es venta a CREDITO
-        if (tipoVenta == "CONTADO") {
-            zoneError = false
-            return true
-        }
-        val isValid = selectedZoneId != null && selectedZoneName.isNotBlank()
-        zoneError = !isValid
-        return isValid
-    }
-
-    fun validateFields(): Boolean {
-        val clientNameValid = validateClientName(defectName.text)
-        val phoneValid = validatePhone(phone.text)
-        val locationValid = validateLocation(location)
-        val locationDataValid = validateLocationData()
-        val downpaymentValid = validateDownpayment(downpayment.text)
-        val installmentValid = validateInstallment(installment.text)
-        val paymentFrequencyValid = validatePaymentFrequency(paymentfrequency)
-        val collectionDayValid = validateCollectionDay(collectionday)
-        val imagesValid = validateImages()
-        val productsValid = validateProducts()
-        val zoneValid = validateZone()
-
-        return clientNameValid && phoneValid && locationValid && locationDataValid &&
-                installmentValid && paymentFrequencyValid && downpaymentValid && collectionDayValid &&
-                imagesValid && productsValid && zoneValid
     }
 
     val saveResult by viewModel.saveResult.collectAsState()
@@ -557,16 +206,12 @@ fun validateInstallment(amount: String): Boolean {
     LaunchedEffect(saveResult) {
         when (val result = saveResult) {
             is SaveResult.Success -> {
-                saleCompleted = true // Evitar que el auto-save guarde de nuevo
+                formViewModel.markSaleCompleted()
                 showSuccessDialog = true
                 viewModel.clearSaveResult()
-                // Clear draft after successful sale creation
-                draftManager.clearDraft()
+                formViewModel.clearDraft()
             }
-
-            null -> { /* No hacer nada */
-            }
-
+            null -> {}
             is SaveResult.Error -> {
                 errorMessage = result.message
                 showErrorDialog = true
@@ -575,44 +220,73 @@ fun validateInstallment(amount: String): Boolean {
         }
     }
 
-    fun clearAllFields() {
-        saleProductsViewModel.clearAll()
-        defectName = TextFieldValue("")
-        phone = TextFieldValue("")
-        location = ""
-        numero = TextFieldValue("")
-        colonia = TextFieldValue("")
-        poblacion = TextFieldValue("")
-        ciudad = TextFieldValue("")
-        tipoVenta = "CREDITO"
-        downpayment = TextFieldValue("")
-        installment = TextFieldValue("")
-        guarantor = TextFieldValue("")
-        note = TextFieldValue("")
-        collectionday = ""
-        paymentfrequency = ""
-        latitude = 0.0
-        longitude = 0.0
-        imageUris = emptyList()
-        selectedZoneId = null
-        selectedZoneName = ""
+    fun saveSale() {
+        val data = formViewModel.buildSaleData()
 
-        defectNameError = false
-        zoneError = false
-        phoneError = false
-        locationError = false
-        downpaymentError = false
-        installmentError = false
-        paymentFrequencyError = false
-        collectionDayError = false
-        imageError = false
-        productsError = false
+        val userEmail = when (val userState = userData) {
+            is ResultState.Success -> userState.data?.EMAIL ?: ""
+            else -> ""
+        }
+
+        val comboEntities = saleProductsViewModel.getCombosList().map { combo ->
+            LocalSaleComboEntity(
+                COMBO_ID = combo.comboId,
+                LOCAL_SALE_ID = data.saleId,
+                NOMBRE_COMBO = combo.nombreCombo,
+                PRECIO_LISTA = combo.precioLista,
+                PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
+                PRECIO_CONTADO = combo.precioContado
+            )
+        }
+
+        viewModel.createSaleWithImages(
+            saleId = data.saleId,
+            clientName = data.clientName,
+            saleDate = data.saleDate,
+            imageUris = data.imageUris,
+            latitude = data.latitude,
+            longitude = data.longitude,
+            address = data.address,
+            numero = data.numero,
+            colonia = data.colonia,
+            poblacion = data.poblacion,
+            ciudad = data.ciudad,
+            tipoVenta = data.tipoVenta,
+            installment = data.installment,
+            downpayment = data.downpayment,
+            phone = data.phone,
+            paymentfrequency = data.paymentFrequency,
+            avaloresponsable = data.guarantor,
+            note = data.note,
+            collectionday = data.collectionDay,
+            totalprice = saleProductsViewModel.getTotalPrecioListaWithCombos(),
+            shorttermtime = 0,
+            shorttermamount = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
+            cashamount = saleProductsViewModel.getTotalMontoContadoWithCombos(),
+            enviado = false,
+            saleProducts = saleProductsViewModel.saleItems,
+            context = context,
+            userEmail = userEmail,
+            zonaClienteId = data.zonaClienteId,
+            zonaClienteNombre = data.zonaClienteNombre,
+            combos = comboEntities,
+            clienteId = data.clienteId
+        )
+    }
+
+    // Image viewer dialog
+    if (showImageViewer && formState.imageUris.isNotEmpty()) {
+        ImageViewerDialog(
+            imageUris = formState.imageUris,
+            initialIndex = selectedImageIndex,
+            onDismiss = { showImageViewer = false }
+        )
     }
 
     // Draft recovery dialog
     if (showDraftDialog && loadedDraft != null) {
         val draft = loadedDraft!!
-        val productCount = draftManager.jsonToDraftProducts(draft.productsJson).size
+        val productCount = formViewModel.draftManager.jsonToDraftProducts(draft.productsJson).size
 
         AlertDialog(
             onDismissRequest = { },
@@ -681,8 +355,44 @@ fun validateInstallment(amount: String): Boolean {
             confirmButton = {
                 Button(
                     onClick = {
-                        loadedDraft?.let { draft ->
-                            loadDraftData(draft)
+                        loadedDraft?.let { d ->
+                            saleProductsViewModel.clearSale()
+                            formViewModel.applyDraft(d)
+
+                            // Restore products and combos
+                            val draftProducts = formViewModel.draftManager.jsonToDraftProducts(
+                                d.productsJson
+                            )
+                            val draftCombos = formViewModel.draftManager.jsonToCombos(d.combosJson)
+
+                            draftProducts.forEach { draftProduct ->
+                                val product = productosCamioneta.find { it.ARTICULO_ID == draftProduct.articuloId }
+                                if (product != null) {
+                                    saleProductsViewModel.addProductToSale(
+                                        product,
+                                        draftProduct.quantity
+                                    )
+                                }
+                            }
+
+                            draftCombos.forEach { draftCombo ->
+                                val comboProductIds = draftProducts
+                                    .filter { it.comboId == draftCombo.comboId }
+                                    .map { it.articuloId }
+
+                                if (comboProductIds.isNotEmpty()) {
+                                    comboProductIds.forEach { articleId ->
+                                        saleProductsViewModel.toggleProductSelection(articleId)
+                                    }
+                                    saleProductsViewModel.createComboWithId(
+                                        comboId = draftCombo.comboId,
+                                        nombreCombo = draftCombo.nombreCombo,
+                                        precioLista = draftCombo.precioLista,
+                                        precioCortoPlazo = draftCombo.precioCortoPlazo,
+                                        precioContado = draftCombo.precioContado
+                                    )
+                                }
+                            }
                         }
                         showDraftDialog = false
                         loadedDraft = null
@@ -726,9 +436,7 @@ fun validateInstallment(amount: String): Boolean {
             confirmButton = {
                 Button(
                     onClick = {
-                        coroutineScope.launch {
-                            draftManager.clearDraft()
-                        }
+                        formViewModel.clearDraft()
                         showDiscardConfirmDialog = false
                         showDraftDialog = false
                         loadedDraft = null
@@ -769,7 +477,8 @@ fun validateInstallment(amount: String): Boolean {
                 TextButton(
                     onClick = {
                         showSuccessDialog = false
-                        clearAllFields()
+                        formViewModel.clearAllFields()
+                        saleProductsViewModel.clearAll()
                     }
                 ) {
                     Text("Crear Nueva Venta")
@@ -821,77 +530,12 @@ fun validateInstallment(amount: String): Boolean {
         )
     }
 
-    fun saveSale() {
-        val saleId = UUID.randomUUID().toString()
-        val saleDate = java.time.Instant.now().toString()
-
-        val userEmail = when (val userState = userData) {
-            is ResultState.Success -> userState.data?.EMAIL ?: ""
-            else -> ""
-        }
-
-        // Convertir combos de UI a entidades
-        val comboEntities = saleProductsViewModel.getCombosList().map { combo ->
-            LocalSaleComboEntity(
-                COMBO_ID = combo.comboId,
-                LOCAL_SALE_ID = saleId,
-                NOMBRE_COMBO = combo.nombreCombo,
-                PRECIO_LISTA = combo.precioLista,
-                PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
-                PRECIO_CONTADO = combo.precioContado
-            )
-        }
-
-        viewModel.createSaleWithImages(
-            saleId = saleId,
-            clientName = defectName.text,
-            saleDate = saleDate,
-            imageUris = imageUris,
-            latitude = latitude,
-            longitude = longitude,
-            address = location,
-            numero = numero.text.ifBlank { null },
-            colonia = colonia.text.ifBlank { null },
-            poblacion = poblacion.text.ifBlank { null },
-            ciudad = ciudad.text.ifBlank { null },
-            tipoVenta = tipoVenta,
-            installment = if (tipoVenta == "CONTADO") 0.0 else installment.text.toDoubleOrNull()
-                ?: 0.0,
-            downpayment = if (tipoVenta == "CONTADO") 0.0 else downpayment.text.toDoubleOrNull()
-                ?: 0.0,
-            phone = phone.text.ifBlank { "" },
-            paymentfrequency = if (tipoVenta == "CONTADO") "" else paymentfrequency,
-            avaloresponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
-            note = note.text,
-            collectionday = if (tipoVenta == "CONTADO") "" else collectionday,
-            totalprice = saleProductsViewModel.getTotalPrecioListaWithCombos(),
-            shorttermtime = 0,
-            shorttermamount = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
-            cashamount = saleProductsViewModel.getTotalMontoContadoWithCombos(),
-            enviado = false,
-            saleProducts = saleProductsViewModel.saleItems,
-            context = context,
-            userEmail = userEmail,
-            zonaClienteId = selectedZoneId,
-            zonaClienteNombre = selectedZoneName,
-            combos = comboEntities
-        )
-    }
-
-    if (showImageViewer && imageUris.isNotEmpty()) {
-        ImageViewerDialog(
-            imageUris = imageUris,
-            initialIndex = selectedImageIndex,
-            onDismiss = { showImageViewer = false }
-        )
-    }
-
     // Dialog para crear combo
     CreateComboDialog(
         show = showCreateComboDialog,
-        onDismiss = { 
+        onDismiss = {
             saleProductsViewModel.setCreatingCombo(false)
-            showCreateComboDialog = false 
+            showCreateComboDialog = false
         },
         onConfirm = { nombre, precioLista, precioCortoPlazo, precioContado ->
             saleProductsViewModel.createCombo(
@@ -917,22 +561,22 @@ fun validateInstallment(amount: String): Boolean {
             saveSale()
         },
         data = SaleConfirmationData(
-            clientName = defectName.text,
-            phone = phone.text,
-            street = location,
-            numero = numero.text,
-            colonia = colonia.text,
-            poblacion = poblacion.text,
-            ciudad = ciudad.text,
-            tipoVenta = tipoVenta,
-            zoneName = selectedZoneName.ifBlank { null },
-            downpayment = downpayment.text,
-            installment = installment.text,
-            guarantor = guarantor.text,
-            paymentFrequency = paymentfrequency,
-            collectionDay = collectionday,
-            note = note.text,
-            imageCount = imageUris.size,
+            clientName = formState.clientName,
+            phone = formState.phone,
+            street = formState.street,
+            numero = formState.numero,
+            colonia = formState.colonia,
+            poblacion = formState.poblacion,
+            ciudad = formState.ciudad,
+            tipoVenta = formState.tipoVenta,
+            zoneName = formState.selectedZoneName.ifBlank { null },
+            downpayment = formState.downpayment,
+            installment = formState.installment,
+            guarantor = formState.guarantor,
+            paymentFrequency = formState.paymentFrequency,
+            collectionDay = formState.collectionDay,
+            note = formState.note,
+            imageCount = formState.imageUris.size,
             individualProducts = saleProductsViewModel.getIndividualProducts(),
             combos = saleProductsViewModel.getCombosList(),
             getProductsInCombo = { comboId -> saleProductsViewModel.getProductsInCombo(comboId) },
@@ -941,6 +585,37 @@ fun validateInstallment(amount: String): Boolean {
             totalContado = saleProductsViewModel.getTotalMontoContadoWithCombos()
         )
     )
+
+    // Bottom sheet de selección de productos
+    if (showProductSheet) {
+        ProductSelectionBottomSheet(
+            products = productosCamioneta,
+            saleProductsViewModel = saleProductsViewModel,
+            onDismiss = { showProductSheet = false },
+            onShowCreateComboDialog = {
+                saleProductsViewModel.setCreatingCombo(true)
+                showCreateComboDialog = true
+            }
+        )
+    }
+
+    // Bottom sheet de búsqueda de clientes
+    if (showClienteSearch) {
+        ClienteSearchBottomSheet(
+            viewModel = clienteSearchViewModel,
+            onDismiss = { showClienteSearch = false },
+            onClienteSelected = { clienteId, nombre ->
+                formViewModel.updateSelectedClienteId(clienteId)
+                formViewModel.updateClientName(nombre)
+                showClienteSearch = false
+            },
+            onNewCliente = { nombre ->
+                formViewModel.updateSelectedClienteId(null)
+                formViewModel.updateClientName(nombre)
+                showClienteSearch = false
+            }
+        )
+    }
 
     DrawerContainer(navController = navController) { openDrawer ->
         Scaffold(
@@ -969,7 +644,7 @@ fun validateInstallment(amount: String): Boolean {
             Column(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .fillMaxSize(),
+                    .fillMaxSize()
             ) {
                 Column(
                     modifier = Modifier
@@ -983,9 +658,9 @@ fun validateInstallment(amount: String): Boolean {
                         Text(
                             "Todos los campos con * son obligatorios",
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyLarge
 
-                            )
+                        )
                     }
                     Text(
                         "Tipo de Venta",
@@ -996,7 +671,7 @@ fun validateInstallment(amount: String): Boolean {
 
                     Box {
                         OutlinedTextField(
-                            value = tipoVenta,
+                            value = formState.tipoVenta,
                             onValueChange = { },
                             label = { Text("Tipo de Venta") },
                             readOnly = true,
@@ -1020,14 +695,8 @@ fun validateInstallment(amount: String): Boolean {
                                 DropdownMenuItem(
                                     text = { Text(option) },
                                     onClick = {
-                                        tipoVenta = option
+                                        formViewModel.updateTipoVenta(option)
                                         expandedTipoVenta = false
-                                        // Limpiar zona si cambia a CONTADO
-                                        if (option == "CONTADO") {
-                                            selectedZoneId = null
-                                            selectedZoneName = ""
-                                            zoneError = false
-                                        }
                                     }
                                 )
                             }
@@ -1037,16 +706,14 @@ fun validateInstallment(amount: String): Boolean {
                     Spacer(Modifier.height(16.dp))
 
                     // Zone Selector - Solo mostrar para ventas a CREDITO
-                    if (tipoVenta == "CREDITO") {
+                    if (formState.tipoVenta == "CREDITO") {
                         ZoneSelectorSimple(
-                            selectedZoneId = selectedZoneId,
-                            selectedZoneName = selectedZoneName,
+                            selectedZoneId = formState.selectedZoneId,
+                            selectedZoneName = formState.selectedZoneName,
                             onZoneSelected = { zoneId, zoneName ->
-                                selectedZoneId = zoneId
-                                selectedZoneName = zoneName
-                                zoneError = false
+                                formViewModel.updateZone(zoneId, zoneName)
                             },
-                            error = if (zoneError) "Selecciona una zona" else null,
+                            error = if (formState.errors.zone) "Selecciona una zona" else null,
                             isRequired = true
                         )
 
@@ -1060,51 +727,62 @@ fun validateInstallment(amount: String): Boolean {
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    OutlinedTextField(
-                        value = defectName,
-                        onValueChange = { newValue ->
-                            defectName = newValue
-                            if (newValue.text.isNotEmpty() || defectNameError) {
-                                validateClientName(newValue.text)
-                            }
-                        },
-                        label = { Text("Nombre completo del cliente *") },
-                        isError = defectNameError,
-                        supportingText = if (defectNameError) {
-                            {
-                                Text(
-                                    "Favor de colocar el nombre",
-                                    color = MaterialTheme.colorScheme.error
+                    Box {
+                        OutlinedTextField(
+                            value = formState.clientName,
+                            onValueChange = { },
+                            readOnly = true,
+                            label = { Text("Nombre completo del cliente *") },
+                            isError = formState.errors.clientName,
+                            supportingText = if (formState.errors.clientName) {
+                                {
+                                    Text(
+                                        "Favor de colocar el nombre",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = false,
+                            maxLines = 2,
+                            shape = RoundedCornerShape(15.dp),
+                            trailingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Buscar cliente"
                                 )
                             }
-                        } else null,
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        singleLine = false,
-                        maxLines = 2,
-                        shape = RoundedCornerShape(15.dp)
-                    )
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .clickable { showClienteSearch = true }
+                        )
+                    }
 
                     Spacer(Modifier.height(12.dp))
 
                     OutlinedTextField(
-                        value = phone,
-                        onValueChange = { newValue ->
-                            phone = newValue
-                            if (newValue.text.isNotEmpty() || phoneError) {
-                                validatePhone(newValue.text)
-                            }
+                        value = formState.phone,
+                        onValueChange = { formViewModel.updatePhone(it) },
+                        label = {
+                            Text(
+                                if (formState.tipoVenta == "CONTADO") "Teléfono" else "Teléfono *"
+                            )
                         },
-                        label = { Text(if (tipoVenta == "CONTADO") "Teléfono" else "Teléfono *") },
-                        isError = phoneError,
-                        supportingText = if (phoneError) {
+                        isError = formState.errors.phone,
+                        supportingText = if (formState.errors.phone) {
                             {
                                 Text(
                                     "El teléfono debe tener al menos 10 dígitos",
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
-                        } else null,
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         shape = RoundedCornerShape(15.dp)
@@ -1113,15 +791,12 @@ fun validateInstallment(amount: String): Boolean {
                     Spacer(Modifier.height(12.dp))
 
                     LocationMap(
-                        onAddressChange = { address = it },
+                        onAddressChange = { /* address display handled externally */ },
                         onLocationChange = { loc ->
-                            latitude = loc.latitude
-                            longitude = loc.longitude
-                            locationPermissionGranted = true
-                            validateLocationData()
+                            formViewModel.updateLocation(loc.latitude, loc.longitude)
                         }
                     )
-                    if (!locationPermissionGranted || !hasValidLocation) {
+                    if (!formState.locationPermissionGranted || !formState.hasValidLocation) {
                         Text(
                             text = "* Se requieren permisos de ubicación para generar la venta",
                             color = MaterialTheme.colorScheme.error,
@@ -1133,28 +808,25 @@ fun validateInstallment(amount: String): Boolean {
                     Spacer(Modifier.height(12.dp))
 
                     OutlinedTextField(
-                        value = location,
-                        onValueChange = { newValue ->
-                            location = newValue
-                            if (newValue.isNotEmpty() || locationError) {
-                                validateLocation(newValue)
-                            }
-                        },
+                        value = formState.street,
+                        onValueChange = { formViewModel.updateStreet(it) },
                         label = { Text("Calle *") },
                         modifier = Modifier
                             .fillMaxWidth(),
                         singleLine = false,
                         maxLines = 2,
                         shape = RoundedCornerShape(15.dp),
-                        isError = locationError,
-                        supportingText = if (locationError) {
+                        isError = formState.errors.location,
+                        supportingText = if (formState.errors.location) {
                             {
                                 Text(
                                     "Coloque al menos el nombre de la calle",
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
-                        } else null,
+                        } else {
+                            null
+                        }
                     )
 
                     Spacer(Modifier.height(12.dp))
@@ -1164,15 +836,15 @@ fun validateInstallment(amount: String): Boolean {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedTextField(
-                            value = numero,
-                            onValueChange = { numero = it },
+                            value = formState.numero,
+                            onValueChange = { formViewModel.updateNumero(it) },
                             label = { Text("Número") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
-                            value = colonia,
-                            onValueChange = { colonia = it },
+                            value = formState.colonia,
+                            onValueChange = { formViewModel.updateColonia(it) },
                             label = { Text("Colonia") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
@@ -1186,15 +858,15 @@ fun validateInstallment(amount: String): Boolean {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedTextField(
-                            value = poblacion,
-                            onValueChange = { poblacion = it },
+                            value = formState.poblacion,
+                            onValueChange = { formViewModel.updatePoblacion(it) },
                             label = { Text("Población") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
-                            value = ciudad,
-                            onValueChange = { ciudad = it },
+                            value = formState.ciudad,
+                            onValueChange = { formViewModel.updateCiudad(it) },
                             label = { Text("Ciudad") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
@@ -1204,8 +876,8 @@ fun validateInstallment(amount: String): Boolean {
                     Spacer(Modifier.height(12.dp))
 
                     OutlinedTextField(
-                        value = guarantor,
-                        onValueChange = { guarantor = it },
+                        value = formState.guarantor,
+                        onValueChange = { formViewModel.updateGuarantor(it) },
                         label = { Text("Aval o Responsable (Opcional)") },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(15.dp)
@@ -1219,55 +891,53 @@ fun validateInstallment(amount: String): Boolean {
                         modifier = Modifier.padding(bottom = 12.dp)
                     )
 
-                    if (tipoVenta == "CREDITO") {
+                    if (formState.tipoVenta == "CREDITO") {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             OutlinedTextField(
-                                value = downpayment,
-                                onValueChange = { newValue ->
-                                    downpayment = newValue
-                                    if (newValue.text.isNotEmpty() || downpaymentError) {
-                                        validateDownpayment(newValue.text)
-                                    }
-                                },
+                                value = formState.downpayment,
+                                onValueChange = { formViewModel.updateDownpayment(it) },
                                 label = { Text("Enganche") },
                                 modifier = Modifier.weight(1f),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal
+                                ),
                                 shape = RoundedCornerShape(15.dp),
                                 prefix = { Text("$") },
-                                isError = downpaymentError,
-                                supportingText = if (downpaymentError) {
+                                isError = formState.errors.downpayment,
+                                supportingText = if (formState.errors.downpayment) {
                                     {
                                         Text(
                                             "El enganche debe ser mayor o igual a 0",
                                             color = MaterialTheme.colorScheme.error
                                         )
                                     }
-                                } else null,
+                                } else {
+                                    null
+                                }
                             )
 
                             OutlinedTextField(
-                                value = installment,
-                                onValueChange = { newValue ->
-                                    installment = newValue
-                                    if (newValue.text.isNotEmpty() || installmentError) {
-                                        validateInstallment(newValue.text)
-                                    }
-                                },
-                                isError = installmentError,
-supportingText = if (installmentError) {
+                                value = formState.installment,
+                                onValueChange = { formViewModel.updateInstallment(it) },
+                                isError = formState.errors.installment,
+                                supportingText = if (formState.errors.installment) {
                                     {
                                         Text(
                                             "La parcialidad debe ser un número entero mayor a 0",
                                             color = MaterialTheme.colorScheme.error
                                         )
                                     }
-                                } else null,
-label = { Text("Parcialidad *") },
+                                } else {
+                                    null
+                                },
+                                label = { Text("Parcialidad *") },
                                 modifier = Modifier.weight(1f),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number
+                                ),
                                 shape = RoundedCornerShape(15.dp),
                                 prefix = { Text("$") }
                             )
@@ -1284,18 +954,20 @@ label = { Text("Parcialidad *") },
 
                         Box {
                             OutlinedTextField(
-                                value = paymentfrequency,
+                                value = formState.paymentFrequency,
                                 onValueChange = { },
-                                isError = paymentFrequencyError,
+                                isError = formState.errors.paymentFrequency,
                                 label = { Text("Frecuencia de Pago *") },
-                                supportingText = if (paymentFrequencyError) {
+                                supportingText = if (formState.errors.paymentFrequency) {
                                     {
                                         Text(
                                             "Selecciona una frecuencia de pago",
                                             color = MaterialTheme.colorScheme.error
                                         )
                                     }
-                                } else null,
+                                } else {
+                                    null
+                                },
                                 readOnly = true,
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1317,9 +989,8 @@ label = { Text("Parcialidad *") },
                                     DropdownMenuItem(
                                         text = { Text(option) },
                                         onClick = {
-                                            paymentfrequency = option
+                                            formViewModel.updatePaymentFrequency(option)
                                             expandedfrequency = false
-                                            validatePaymentFrequency(option)
                                         }
                                     )
                                 }
@@ -1329,17 +1000,19 @@ label = { Text("Parcialidad *") },
                         Spacer(Modifier.height(12.dp))
                         Box {
                             OutlinedTextField(
-                                value = collectionday,
+                                value = formState.collectionDay,
                                 onValueChange = { },
-                                isError = collectionDayError,
-                                supportingText = if (collectionDayError) {
+                                isError = formState.errors.collectionDay,
+                                supportingText = if (formState.errors.collectionDay) {
                                     {
                                         Text(
                                             "Selecciona un día de cobranza",
                                             color = MaterialTheme.colorScheme.error
                                         )
                                     }
-                                } else null,
+                                } else {
+                                    null
+                                },
                                 label = { Text("Día de Cobranza *") },
                                 readOnly = true,
                                 modifier = Modifier
@@ -1362,9 +1035,8 @@ label = { Text("Parcialidad *") },
                                     DropdownMenuItem(
                                         text = { Text(option) },
                                         onClick = {
-                                            collectionday = option
+                                            formViewModel.updateCollectionDay(option)
                                             expandedDia = false
-                                            validateCollectionDay(option)
                                         }
                                     )
                                 }
@@ -1375,8 +1047,8 @@ label = { Text("Parcialidad *") },
                     }
 
                     OutlinedTextField(
-                        value = note,
-                        onValueChange = { note = it },
+                        value = formState.note,
+                        onValueChange = { formViewModel.updateNote(it) },
                         label = { Text("Notas (Opcional)") },
                         modifier = Modifier.fillMaxWidth(),
                         maxLines = 4,
@@ -1396,7 +1068,7 @@ label = { Text("Parcialidad *") },
                     ) {
                         OutlinedButton(
                             onClick = {
-                                cameraImageUri = createImageUri(context)
+                                cameraImageUri = formViewModel.createCameraUri()
                                 cameraImageUri?.let { uri ->
                                     cameraLauncher.launch(uri)
                                 }
@@ -1452,8 +1124,8 @@ label = { Text("Parcialidad *") },
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(imageUris.size) { index ->
-                            val uri = imageUris[index]
+                        items(formState.imageUris.size) { index ->
+                            val uri = formState.imageUris[index]
                             showImageError = false
                             Box(modifier = Modifier.size(80.dp)) {
                                 Image(
@@ -1479,7 +1151,7 @@ label = { Text("Parcialidad *") },
                                         .align(Alignment.TopEnd)
                                         .padding(2.dp)
                                         .clickable {
-                                            imageUris = imageUris.filterNot { it == uri }
+                                            formViewModel.removeImageUri(uri)
                                         }
                                         .background(
                                             Color.Black.copy(alpha = 0.6f),
@@ -1491,75 +1163,26 @@ label = { Text("Parcialidad *") },
                         }
                     }
 
-                    SimpleProductSelector(
-                        warehouseViewModel = warehouseViewModel,
+                    ProductSaleSummary(
                         saleProductsViewModel = saleProductsViewModel,
-                        onAddProduct = { articuloId, cantidad ->
-                            val producto = productosCamioneta.find { it.ARTICULO_ID == articuloId }
-                            if (producto != null) {
-                                saleProductsViewModel.addProductToSale(producto, cantidad)
-                            }
-                        }
+                        productosCamioneta = productosCamioneta,
+                        onOpenProductSheet = { showProductSheet = true },
+                        hasError = formState.errors.products
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Sección de productos con combos
-                    if (saleProductsViewModel.saleItems.isNotEmpty()) {
-                        ProductsWithCombosSection(
-                            individualProducts = saleProductsViewModel.getIndividualProducts(),
-                            combos = saleProductsViewModel.getCombosList(),
-                            selectedProductIds = saleProductsViewModel.selectedForCombo.toList(),
-                            getProductsInCombo = { comboId ->
-                                saleProductsViewModel.getProductsInCombo(comboId)
-                            },
-                            onToggleProductSelection = { articleId ->
-                                saleProductsViewModel.toggleProductSelection(articleId)
-                            },
-                            onQuantityChange = { articleId, newQty ->
-                                val product =
-                                    productosCamioneta.find { it.ARTICULO_ID == articleId }
-                                if (product != null) {
-                                    val maxStock = product.EXISTENCIAS
-                                    val validQty = newQty.coerceIn(1, maxStock)
-                                    saleProductsViewModel.updateQuantity(product, validQty)
-                                }
-                            },
-                            onRemoveProduct = { articleId ->
-                                val product =
-                                    productosCamioneta.find { it.ARTICULO_ID == articleId }
-                                if (product != null) {
-                                    saleProductsViewModel.removeProductFromSale(product)
-                                }
-                            },
-                            onCreateCombo = { 
-                                saleProductsViewModel.setCreatingCombo(true)
-                                showCreateComboDialog = true 
-                            },
-                            onDeleteCombo = { comboId ->
-                                saleProductsViewModel.deleteCombo(comboId)
-                            },
-                            onClearSelection = {
-                                saleProductsViewModel.clearSelection()
-                            },
-                            isCreatingCombo = isCreatingCombo,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
 
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
                 Button(
                     onClick = {
-                        val isValid = validateFields()
-                        showImageError = imageUris.isEmpty()
+                        val isValid = formViewModel.validateFields(saleProductsViewModel.hasItems())
+                        showImageError = formState.imageUris.isEmpty()
 
                         if (isValid) {
                             showConfirmationDialog = true
                         }
                     },
-                    enabled = hasValidLocation && !isSaving,
+                    enabled = formState.hasValidLocation && !isSaving,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -1583,7 +1206,6 @@ label = { Text("Parcialidad *") },
                         )
                     }
                 }
-
             }
         }
     }

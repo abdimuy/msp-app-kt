@@ -21,8 +21,9 @@ data class MovementDto(
     @SerializedName("COSTO_TOTAL")
     val costoTotal: Double,
 
+    // "S" o "E"
     @SerializedName("TIPO_MOVTO")
-    val tipoMovto: String, // "S" o "E"
+    val tipoMovto: String,
 
     @SerializedName("MOVTO_ID")
     val movtoId: Int? = null,

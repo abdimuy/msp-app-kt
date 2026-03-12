@@ -64,10 +64,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
-fun RouteMapScreen(
-    navController: NavController,
-    viewModel: PaymentsViewModel = viewModel()
-) {
+fun RouteMapScreen(navController: NavController, viewModel: PaymentsViewModel = viewModel()) {
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
@@ -85,7 +82,8 @@ fun RouteMapScreen(
         val start = iso
         val end = DateUtils.addToIsoDate(
             DateUtils.addToIsoDate(iso, 1, ChronoUnit.DAYS),
-            -1, ChronoUnit.SECONDS
+            -1,
+            ChronoUnit.SECONDS
         )
         reportDateIso = iso
         textDate = text
@@ -120,8 +118,8 @@ fun RouteMapScreen(
                 val lat = payment.LAT
                 val lng = payment.LNG
                 lat != null && lng != null &&
-                        lat in -90.0..90.0 && lng in -180.0..180.0 &&
-                        (lat != 0.0 || lng != 0.0)
+                    lat in -90.0..90.0 && lng in -180.0..180.0 &&
+                    (lat != 0.0 || lng != 0.0)
             }
         }
 
@@ -134,13 +132,15 @@ fun RouteMapScreen(
                 lat = payment.LAT,
                 lon = payment.LNG,
                 description = "Pago: $${payment.IMPORTE} - ${
-                DateUtils.formatIsoDate(
-                    payment.FECHA_HORA_PAGO,
-                    "dd/MM/yyyy hh:mm a"
-                )
-            }"
+                    DateUtils.formatIsoDate(
+                        payment.FECHA_HORA_PAGO,
+                        "dd/MM/yyyy hh:mm a"
+                    )
+                }"
             )
-        } else null
+        } else {
+            null
+        }
     }
 
     DrawerContainer(

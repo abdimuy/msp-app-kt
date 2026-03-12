@@ -165,7 +165,7 @@ class HybridGeocodingService(private val context: android.content.Context) {
                 }
 
                 component.types.contains("sublocality_level_1") ||
-                        component.types.contains("neighborhood") -> {
+                    component.types.contains("neighborhood") -> {
                     neighborhood = component.long_name
                 }
 
@@ -311,7 +311,6 @@ fun LocationMap(
     }
 
     Column(modifier = modifier) {
-
         MapCard(
             permissionState = permissionState,
             cameraPositionState = cameraPositionState,
@@ -424,9 +423,7 @@ private fun MapCard(
 }
 
 @Composable
-private fun PermissionRequestContent(
-    onRequestPermission: () -> Unit
-) {
+private fun PermissionRequestContent(onRequestPermission: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()

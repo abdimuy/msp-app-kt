@@ -136,7 +136,11 @@ abstract class BaseSyncHandler<T, R> : SyncHandler<T, R> {
         SyncConfig.simple(entityType)
     }
 
-    override suspend fun onSyncError(context: Context, entity: T, error: SyncResult.PermanentError) {
+    override suspend fun onSyncError(
+        context: Context,
+        entity: T,
+        error: SyncResult.PermanentError
+    ) {
         // Por defecto no hace nada - las implementaciones pueden sobrescribir
     }
 
@@ -144,7 +148,11 @@ abstract class BaseSyncHandler<T, R> : SyncHandler<T, R> {
         // Por defecto no hace nada - las implementaciones pueden sobrescribir
     }
 
-    override suspend fun onBeforeSync(context: Context, entity: T, operation: SyncOperation): Boolean {
+    override suspend fun onBeforeSync(
+        context: Context,
+        entity: T,
+        operation: SyncOperation
+    ): Boolean {
         return true
     }
 

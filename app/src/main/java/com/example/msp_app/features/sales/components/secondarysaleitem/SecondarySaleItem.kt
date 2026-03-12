@@ -70,7 +70,7 @@ fun SecondarySaleItem(
     progress: Float = 0f,
     distanceToCurrentLocation: Double = 0.0,
     openVisitDialog: () -> Unit = {},
-    closeVisitDialog: () -> Unit = {},
+    closeVisitDialog: () -> Unit = {}
 ) {
     val isDark = ThemeController.isDarkMode
 
@@ -116,16 +116,20 @@ fun SecondarySaleItem(
     Card(
         elevation = CardDefaults.cardElevation(
             defaultElevation =
-                if (!isDark) 8.dp else 0.dp
+            if (!isDark) 8.dp else 0.dp
         ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border =
-            if (!isDark) null else BorderStroke(
+        if (!isDark) {
+            null
+        } else {
+            BorderStroke(
                 width = 1.dp,
                 color = Color.DarkGray
-            ),
+            )
+        },
         modifier = Modifier
             .fillMaxWidth(),
         onClick = onClick
@@ -136,10 +140,10 @@ fun SecondarySaleItem(
 
         ) {
             Row(
-                verticalAlignment = Alignment.Top,
+                verticalAlignment = Alignment.Top
             ) {
                 Column(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.weight(1f)
                 ) {
                     Row {
                         if (isNew) {
@@ -173,7 +177,7 @@ fun SecondarySaleItem(
                                 }
                             },
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -218,10 +222,11 @@ fun SecondarySaleItem(
                             " "
                         )
                     } ${sale.ESTADO}",
-                    maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier =
-                        Modifier.weight(1f),
-                    lineHeight = 18.sp,
+                    Modifier.weight(1f),
+                    lineHeight = 18.sp
                 )
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -229,17 +234,23 @@ fun SecondarySaleItem(
                     modifier = Modifier
                         .size(40.dp)
                         .background(
-                            if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) Color(0xFF4CAF50)
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) Color(
-                                0xFF9E9E9E
-                            )
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO) Color(
-                                0xFFF44336
-                            )
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR) Color(
-                                0xFFFF9800
-                            )
-                            else Color(0xFF9E9E9E),
+                            if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) {
+                                Color(0xFF4CAF50)
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) {
+                                Color(
+                                    0xFF9E9E9E
+                                )
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO) {
+                                Color(
+                                    0xFFF44336
+                                )
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR) {
+                                Color(
+                                    0xFFFF9800
+                                )
+                            } else {
+                                Color(0xFF9E9E9E)
+                            },
                             shape = MaterialTheme.shapes.small
                         ),
                     contentAlignment = Alignment.Center
@@ -261,7 +272,7 @@ fun SecondarySaleItem(
                                 imageVector = Icons.Default.Done,
                                 contentDescription = "Pagado",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -270,7 +281,7 @@ fun SecondarySaleItem(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "No Pagado",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
 
                         EstadoCobranza.VOLVER_VISITAR -> {
@@ -278,7 +289,7 @@ fun SecondarySaleItem(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Volver a Visitar",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -286,7 +297,6 @@ fun SecondarySaleItem(
                         }
                     }
                 }
-
             }
 
             Row {
@@ -324,11 +334,11 @@ fun SecondarySaleItem(
                         modifier = Modifier
                             .size(30.dp)
                             .padding(start = 8.dp)
-                            .clickable { openMenu() },
+                            .clickable { openMenu() }
                     )
                     DropdownMenu(
                         expanded = showMenu,
-                        onDismissRequest = { closeMenu() },
+                        onDismissRequest = { closeMenu() }
                     ) {
                         DropdownMenuItem(
                             text = { Text("Agregar pago") },
@@ -358,7 +368,7 @@ fun SecondarySaleItem(
                 AlertBadge(
                     message = message,
                     type = badgeType,
-                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 )
 
                 if (formattedDiaCobranza.isNotEmpty()) {
@@ -400,7 +410,7 @@ fun SecondarySaleItem(
                     AlertBadge(
                         message = "Ult Pag $formattedFechaUltPago",
                         type = BadgesType.Primary,
-                        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     )
                 }
             }

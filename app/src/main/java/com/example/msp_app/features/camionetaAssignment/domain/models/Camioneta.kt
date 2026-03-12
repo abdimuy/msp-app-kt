@@ -20,14 +20,12 @@ data class Camioneta(
     /**
      * Returns true if this camioneta can accept more user assignments.
      */
-    fun puedeAceptarMasUsuarios(): Boolean =
-        usuariosAsignados.size < MAX_USUARIOS_POR_CAMIONETA
+    fun puedeAceptarMasUsuarios(): Boolean = usuariosAsignados.size < MAX_USUARIOS_POR_CAMIONETA
 
     /**
      * Returns the number of available slots for user assignments.
      */
-    fun lugaresDisponibles(): Int =
-        MAX_USUARIOS_POR_CAMIONETA - usuariosAsignados.size
+    fun lugaresDisponibles(): Int = MAX_USUARIOS_POR_CAMIONETA - usuariosAsignados.size
 }
 
 /**

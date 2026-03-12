@@ -39,7 +39,8 @@ interface LocalSaleDao {
             CIUDAD,
             TIPO_VENTA,
             ZONA_CLIENTE_ID,
-            ZONA_CLIENTE
+            ZONA_CLIENTE,
+            CLIENTE_ID
             FROM local_sale
             WHERE FECHA_VENTA >= datetime('now', '-7 days')
             ORDER BY FECHA_VENTA DESC
@@ -74,7 +75,8 @@ interface LocalSaleDao {
             CIUDAD,
             TIPO_VENTA,
             ZONA_CLIENTE_ID,
-            ZONA_CLIENTE
+            ZONA_CLIENTE,
+            CLIENTE_ID
             FROM local_sale
             WHERE LOCAL_SALE_ID = :sale_Id
         """
@@ -84,7 +86,9 @@ interface LocalSaleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSaleImage(saleImage: LocalSaleImageEntity)
 
-    @Query("SELECT LOCAL_SALE_IMAGE_ID, LOCAL_SALE_ID, IMAGE_URI, FECHA_SUBIDA FROM sale_image WHERE LOCAL_SALE_ID = :saleId ORDER BY FECHA_SUBIDA")
+    @Query(
+        "SELECT LOCAL_SALE_IMAGE_ID, LOCAL_SALE_ID, IMAGE_URI, FECHA_SUBIDA FROM sale_image WHERE LOCAL_SALE_ID = :saleId ORDER BY FECHA_SUBIDA"
+    )
     suspend fun getImagesForSale(saleId: String): List<LocalSaleImageEntity>
 
     @Query("DELETE FROM sale_image WHERE LOCAL_SALE_ID = :saleId")
@@ -120,7 +124,8 @@ interface LocalSaleDao {
             CIUDAD,
             TIPO_VENTA,
             ZONA_CLIENTE_ID,
-            ZONA_CLIENTE
+            ZONA_CLIENTE,
+            CLIENTE_ID
             FROM local_sale
             WHERE ENVIADO = :enviado
             ORDER BY FECHA_VENTA DESC
@@ -134,7 +139,8 @@ interface LocalSaleDao {
     @Query("DELETE FROM sale_image WHERE LOCAL_SALE_IMAGE_ID IN (:imageIds)")
     suspend fun deleteImagesByIds(imageIds: List<String>)
 
-    @Query("""
+    @Query(
+        """
         UPDATE local_sale SET
             NOMBRE_CLIENTE = :nombreCliente,
             FECHA_VENTA = :fechaVenta,
@@ -159,9 +165,11 @@ interface LocalSaleDao {
             CIUDAD = :ciudad,
             TIPO_VENTA = :tipoVenta,
             ZONA_CLIENTE_ID = :zonaClienteId,
-            ZONA_CLIENTE = :zonaCliente
+            ZONA_CLIENTE = :zonaCliente,
+            CLIENTE_ID = :clienteId
         WHERE LOCAL_SALE_ID = :localSaleId
-    """)
+    """
+    )
     suspend fun updateSaleFields(
         localSaleId: String,
         nombreCliente: String,
@@ -187,6 +195,7 @@ interface LocalSaleDao {
         ciudad: String?,
         tipoVenta: String?,
         zonaClienteId: Int?,
-        zonaCliente: String?
+        zonaCliente: String?,
+        clienteId: Int?
     )
 }

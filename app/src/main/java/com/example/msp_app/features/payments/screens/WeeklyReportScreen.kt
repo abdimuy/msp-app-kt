@@ -36,16 +36,10 @@ import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import java.time.Instant
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
-fun WeeklyReportScreen(
-    navController: NavController,
-    viewModel: PaymentsViewModel = viewModel()
-) {
+fun WeeklyReportScreen(navController: NavController, viewModel: PaymentsViewModel = viewModel()) {
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
     val forgivenessState by viewModel.forgivenessByDateState.collectAsState()
 

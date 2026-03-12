@@ -4,19 +4,19 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.localSales.LocalSalesApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.models.sale.localsale.LocalSaleMappers
-import com.example.msp_app.core.logging.RemoteLogger
 import com.google.gson.Gson
+import java.io.File
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
 
 class PendingLocalSalesWorker(
     appContext: Context,
@@ -110,7 +110,6 @@ class PendingLocalSalesWorker(
             )
 
             Result.success()
-
         } catch (e: Exception) {
             if (e is retrofit2.HttpException && e.code() == 409) {
                 localSaleStore.changeSaleStatus(saleId, true)

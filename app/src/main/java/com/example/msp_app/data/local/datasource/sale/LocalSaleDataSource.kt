@@ -32,10 +32,7 @@ class LocalSaleDataSource(context: Context) {
         localSaleDao.deleteImagesForSale(saleId)
     }
 
-    suspend fun insertSaleWithImages(
-        sale: LocalSaleEntity,
-        images: List<LocalSaleImageEntity>
-    ) {
+    suspend fun insertSaleWithImages(sale: LocalSaleEntity, images: List<LocalSaleImageEntity>) {
         insertSale(sale)
         images.forEach { image ->
             insertSaleImage(image)
@@ -78,7 +75,8 @@ class LocalSaleDataSource(context: Context) {
             ciudad = sale.CIUDAD,
             tipoVenta = sale.TIPO_VENTA,
             zonaClienteId = sale.ZONA_CLIENTE_ID,
-            zonaCliente = sale.ZONA_CLIENTE
+            zonaCliente = sale.ZONA_CLIENTE,
+            clienteId = sale.CLIENTE_ID
         )
     }
 

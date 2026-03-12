@@ -11,10 +11,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.io.File
 
 // Extension property to create DataStore instance
 val Context.saleDraftDataStore: DataStore<Preferences> by preferencesDataStore(name = "sale_draft")
@@ -53,18 +53,26 @@ data class SaleDraft(
     val longitude: Double = 0.0,
     val imageUris: List<String> = emptyList(),
     val productsJson: String = "",
-    val combosJson: String = "", // JSON string of combos
+    // JSON string of combos
+    val combosJson: String = "",
 
     // Sale type
-    val tipoVenta: String = "CREDITO", // "CREDITO" or "CONTADO"
+    // "CREDITO" or "CONTADO"
+    val tipoVenta: String = "CREDITO",
 
     // CREDITO-specific fields (required only for CREDITO)
-    val phone: String = "", // Required for CREDITO, optional for CONTADO
-    val downpayment: String = "", // Only for CREDITO
-    val installment: String = "", // Required for CREDITO
-    val guarantor: String = "", // Only for CREDITO
-    val collectionDay: String = "", // Required for CREDITO
-    val paymentFrequency: String = "", // Required for CREDITO
+    // Required for CREDITO, optional for CONTADO
+    val phone: String = "",
+    // Only for CREDITO
+    val downpayment: String = "",
+    // Required for CREDITO
+    val installment: String = "",
+    // Only for CREDITO
+    val guarantor: String = "",
+    // Required for CREDITO
+    val collectionDay: String = "",
+    // Required for CREDITO
+    val paymentFrequency: String = "",
 
     // Zone fields (required for all sales)
     val zonaClienteId: Int? = null,
@@ -77,9 +85,9 @@ data class SaleDraft(
      */
     fun hasData(): Boolean {
         return clientName.isNotBlank() ||
-               phone.isNotBlank() ||
-               street.isNotBlank() ||
-               productsJson.isNotBlank()
+            phone.isNotBlank() ||
+            street.isNotBlank() ||
+            productsJson.isNotBlank()
     }
 
     /**
@@ -253,8 +261,8 @@ class SaleDraftManager(private val context: Context) {
 
         // Check if there's any meaningful data
         val hasData = preferences[CLIENT_NAME] != null ||
-                     preferences[PHONE] != null ||
-                     preferences[PRODUCTS_JSON] != null
+            preferences[PHONE] != null ||
+            preferences[PRODUCTS_JSON] != null
 
         if (!hasData) {
             return null
@@ -299,8 +307,8 @@ class SaleDraftManager(private val context: Context) {
     fun hasDraft(): Flow<Boolean> {
         return context.saleDraftDataStore.data.map { preferences ->
             preferences[CLIENT_NAME] != null ||
-            preferences[PHONE] != null ||
-            preferences[PRODUCTS_JSON] != null
+                preferences[PHONE] != null ||
+                preferences[PRODUCTS_JSON] != null
         }
     }
 

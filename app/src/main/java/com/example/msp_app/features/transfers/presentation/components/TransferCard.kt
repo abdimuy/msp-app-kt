@@ -41,11 +41,7 @@ private fun formatCurrency(amount: Double): String {
  * Card component for displaying transfer summary
  */
 @Composable
-fun TransferCard(
-    transfer: Transfer,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
+fun TransferCard(transfer: Transfer, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Card(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
@@ -149,7 +145,9 @@ fun TransferCard(
                 // Date and user
                 Column {
                     Text(
-                        text = transfer.fecha.format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")),
+                        text = transfer.fecha.format(
+                            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

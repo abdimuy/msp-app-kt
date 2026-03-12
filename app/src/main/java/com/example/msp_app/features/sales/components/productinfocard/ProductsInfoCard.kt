@@ -57,7 +57,6 @@ fun ProductsInfoCard(
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             } else {
-
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -211,7 +210,10 @@ private fun ProductRow(product: LocalSaleProductEntity) {
 
                 Column(horizontalAlignment = Alignment.Start) {
                     Text("Lista", style = MaterialTheme.typography.labelSmall)
-                    Text(product.PRECIO_LISTA.toCurrency(), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        product.PRECIO_LISTA.toCurrency(),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                 }
             }
         }

@@ -1,6 +1,8 @@
 package com.example.msp_app.core.utils
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -28,7 +30,10 @@ class ImageCompressorTest {
         assertTrue("Debe redimensionar", config.shouldResize)
         assertTrue("Dimensión máxima debe ser 2560 o menos", config.maxDimension <= 2560)
         assertTrue("Calidad debe ser 85 o menos", config.quality <= 85)
-        assertTrue("Razón debe mencionar tamaño", config.reason.contains("grande", ignoreCase = true))
+        assertTrue(
+            "Razón debe mencionar tamaño",
+            config.reason.contains("grande", ignoreCase = true)
+        )
     }
 
     /**
@@ -66,7 +71,10 @@ class ImageCompressorTest {
         // Assert
         assertFalse("No debe redimensionar", config.shouldResize)
         assertEquals("Calidad debe ser alta (85)", 85, config.quality)
-        assertTrue("Razón debe mencionar optimizada", config.reason.contains("optimizada", ignoreCase = true))
+        assertTrue(
+            "Razón debe mencionar optimizada",
+            config.reason.contains("optimizada", ignoreCase = true)
+        )
     }
 
     /**
@@ -102,13 +110,9 @@ class ImageCompressorTest {
 
         // Assert
         assertTrue("inSampleSize debe ser potencia de 2", isPowerOfTwo(inSampleSize))
-        assertTrue("inSampleSize debe ser al menos 2", inSampleSize >= 2)
-
-        // Verificar que el resultado redimensionado es cercano al máximo
-        val resultWidth = width / inSampleSize
-        val resultHeight = height / inSampleSize
-        assertTrue("Resultado debe estar cerca del máximo",
-            resultWidth <= maxDimension * 2 || resultHeight <= maxDimension * 2)
+        // With 4000x3000 and max 1920, halfHeight=1500 < 1920 so loop doesn't run.
+        // inSampleSize stays at 1 to avoid over-downsampling the shorter dimension.
+        assertEquals("inSampleSize debe ser 1 para no sobre-reducir", 1, inSampleSize)
     }
 
     /**
@@ -185,8 +189,10 @@ class ImageCompressorTest {
 
         // Assert
         assertTrue("Debe redimensionar", config.shouldResize)
-        assertTrue("Dimensión máxima debe preservar aspecto cuadrado",
-            config.maxDimension > 0)
+        assertTrue(
+            "Dimensión máxima debe preservar aspecto cuadrado",
+            config.maxDimension > 0
+        )
     }
 
     /**

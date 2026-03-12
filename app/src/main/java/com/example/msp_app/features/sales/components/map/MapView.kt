@@ -43,7 +43,7 @@ import kotlin.math.sqrt
 data class MapPin(
     val lat: Double,
     val lon: Double,
-    val description: String,
+    val description: String
 )
 
 @Composable
@@ -67,8 +67,8 @@ fun MapView(
         modifier = modifier.fillMaxSize(),
         cameraPositionState = cameraPositionState,
         properties = MapProperties(
-            isMyLocationEnabled = location.value != null,
-        ),
+            isMyLocationEnabled = location.value != null
+        )
     ) {
         pins.forEach { pin ->
             Marker(
@@ -96,14 +96,14 @@ private fun getClusterCenter(pins: List<MapPin>, radiusMeters: Double = 300.0): 
 }
 
 private fun haversine(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-    val R = 6371000.0 // Radio de la Tierra en metros
+    val earthRadiusMeters = 6371000.0 // Radio de la Tierra en metros
     val dLat = Math.toRadians(lat2 - lat1)
     val dLon = Math.toRadians(lon2 - lon1)
     val a = sin(dLat / 2).pow(2.0) +
-            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
-            sin(dLon / 2).pow(2.0)
+        cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
+        sin(dLon / 2).pow(2.0)
     val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-    return R * c
+    return earthRadiusMeters * c
 }
 
 @SuppressLint("MissingPermission")
@@ -117,7 +117,7 @@ fun rememberLocation(context: Context): State<LatLng?> {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         permissionGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (!permissionGranted) {
             showPermissionDialog = true
         }
@@ -137,7 +137,8 @@ fun rememberLocation(context: Context): State<LatLng?> {
         if (permissionGranted) {
             val fusedLocation = LocationServices.getFusedLocationProviderClient(context)
             val locationRequest = LocationRequest.Builder(
-                3000 // intervalo en ms
+                // intervalo en ms
+                3000
             )
                 .setMinUpdateIntervalMillis(2000)
                 .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
@@ -172,7 +173,11 @@ fun rememberLocation(context: Context): State<LatLng?> {
         AlertDialog(
             onDismissRequest = { showPermissionDialog = false },
             title = { Text("Permiso de Ubicación Necesario") },
-            text = { Text("Esta aplicación necesita el permiso de ubicación para funcionar correctamente. Por favor, activa el permiso desde la configuración de la aplicación.") },
+            text = {
+                Text(
+                    "Esta aplicación necesita el permiso de ubicación para funcionar correctamente. Por favor, activa el permiso desde la configuración de la aplicación."
+                )
+            },
             confirmButton = {
                 Button(onClick = {
                     showPermissionDialog = false

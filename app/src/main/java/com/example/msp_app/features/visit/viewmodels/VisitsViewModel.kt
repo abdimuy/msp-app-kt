@@ -23,9 +23,11 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
     private val _pendingVisits = MutableStateFlow<ResultState<List<Visit>>>(ResultState.Idle)
     val pendingVisits: StateFlow<ResultState<List<Visit>>> = _pendingVisits
 
+    @Suppress("PropertyName")
     private val _saveVisitState = MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
     val savePaymentState: StateFlow<ResultState<Unit>> = _saveVisitState
 
+    @Suppress("PropertyName")
     private val _visitsByDateState = MutableStateFlow<ResultState<List<Visit>>>(ResultState.Idle)
     val visitsByDate: StateFlow<ResultState<List<Visit>>> = _visitsByDateState
 

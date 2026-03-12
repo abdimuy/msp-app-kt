@@ -60,20 +60,16 @@ import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.first
 
 @Composable
-fun SaleDetailsScreen(
-    saleId: Int,
-    navController: NavHostController,
-) {
+fun SaleDetailsScreen(saleId: Int, navController: NavHostController) {
     val viewModel: SaleDetailsViewModel = viewModel()
     val salesViewModel: SalesViewModel = viewModel()
 
@@ -110,7 +106,7 @@ fun SaleDetailsScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize(),
-                            contentAlignment = Alignment.Center,
+                            contentAlignment = Alignment.Center
                         ) {
                             CircularProgressIndicator()
                         }
@@ -134,7 +130,6 @@ fun SaleDetailsScreen(
                                     openDrawer = openDrawer
                                 )
                             }
-
                         } else {
                             Text("No se encontró la venta")
                         }
@@ -146,11 +141,7 @@ fun SaleDetailsScreen(
 }
 
 @Composable
-fun SaleDetailsContent(
-    sale: Sale,
-    navController: NavController,
-    openDrawer: () -> Unit
-) {
+fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () -> Unit) {
     val isDark = ThemeController.isDarkMode
 
     val productsViewModel: ProductsViewModel = viewModel()
@@ -256,7 +247,7 @@ fun SaleDetailsContent(
                                     )
                                 )
                             },
-                            navController = navController,
+                            navController = navController
                         )
                     }
                 }
@@ -277,7 +268,6 @@ fun SaleDetailsContent(
                 .fillMaxWidth(0.92f)
                 .background(Color.White, RoundedCornerShape(16.dp))
         ) {
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -312,7 +302,6 @@ fun SaleDetailsContent(
                         }
                     }
                 }
-
             }
         }
 
@@ -320,7 +309,7 @@ fun SaleDetailsContent(
 
         GuaranteeSection(
             sale,
-            navController,
+            navController
         )
 
         Box {
@@ -331,7 +320,7 @@ fun SaleDetailsContent(
 
                 SaleSummaryBar(
                     balance = sale.SALDO_REST.toCurrency(noDecimals = true),
-                    percentagePaid = String.format("%.2f%%", porcentage),
+                    percentagePaid = String.format("%.2f%%", porcentage)
                 )
                 Spacer(modifier = Modifier.height(26.dp))
 
@@ -345,7 +334,9 @@ fun SaleDetailsContent(
                         }
 
                         is ResultState.Error -> {
-                            Text("Error: ${(overduePaymentBySaleState as ResultState.Error).message}")
+                            Text(
+                                "Error: ${(overduePaymentBySaleState as ResultState.Error).message}"
+                            )
                         }
 
                         is ResultState.Success -> {
@@ -368,7 +359,7 @@ fun SaleDetailsContent(
                                 AlertBadge(
                                     message = message,
                                     type = badgeType,
-                                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                 )
                             }
 
@@ -406,7 +397,7 @@ fun SaleDetailsContent(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             fontSize = 22.sp,
-                            textAlign = TextAlign.Left,
+                            textAlign = TextAlign.Left
                         )
 
                         PaymentsHistory(sale, navController)
@@ -448,10 +439,8 @@ fun ElapsedTimeAlert(lastPaymentDateIso: String) {
     }
 
     AlertBadge(
-        "Último pago: hace $message", BadgesType.Primary,
-        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+        "Último pago: hace $message",
+        BadgesType.Primary,
+        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
     )
 }
-
-
-

@@ -7,11 +7,12 @@ import androidx.work.WorkerParameters
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.guarantee.GuaranteesApi
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
+import com.example.msp_app.data.local.entities.GuaranteeImageEntity
+import java.io.File
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
 
 class PendingGuaranteesWorker(
     appContext: Context,
@@ -38,40 +39,61 @@ class PendingGuaranteesWorker(
             val images = guaranteesStore.getImagesByExternalId(externalId)
             Log.d("PendingGuaranteesWorker", "Encontradas ${images.size} imágenes para la garantía")
 
+            val imageParts = buildImageParts(images)
+
             val externalIdBody = externalId.toRequestBody("text/plain".toMediaTypeOrNull())
             val descripcionFallaBody =
                 guarantee.DESCRIPCION_FALLA.toRequestBody("text/plain".toMediaTypeOrNull())
             val observacionesBody =
                 guarantee.OBSERVACIONES?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-            val imageParts = images.mapNotNull { image ->
-                val file = File(image.IMG_PATH)
-                if (file.exists()) {
-                    val requestFile = file.asRequestBody(image.IMG_MIME.toMediaTypeOrNull())
-                    val filename = "${image.ID}.${image.IMG_MIME.split("/").getOrNull(1) ?: "jpg"}"
-                    MultipartBody.Part.createFormData("imagenes", filename, requestFile)
-                } else {
-                    Log.w(
-                        "PendingGuaranteesWorker",
-                        "Archivo de imagen no encontrado: ${image.IMG_PATH}"
-                    )
-                    null
-                }
-            }
+            if (guarantee.DOCTO_CC_ID != null) {
+                api.saveGuaranteeWithImages(
+                    doctoCcId = guarantee.DOCTO_CC_ID,
+                    externalId = externalIdBody,
+                    descripcionFalla = descripcionFallaBody,
+                    observaciones = observacionesBody,
+                    imagenes = imageParts
+                )
+            } else {
+                val nombreClienteBody =
+                    guarantee.NOMBRE_CLIENTE?.toRequestBody("text/plain".toMediaTypeOrNull())
+                val nombreProductoBody =
+                    guarantee.NOMBRE_PRODUCTO?.toRequestBody("text/plain".toMediaTypeOrNull())
 
-            api.saveGuaranteeWithImages(
-                doctoCcId = guarantee.DOCTO_CC_ID,
-                externalId = externalIdBody,
-                descripcionFalla = descripcionFallaBody,
-                observaciones = observacionesBody,
-                imagenes = imageParts
-            )
+                api.createNewGuarantee(
+                    externalId = externalIdBody,
+                    doctoCcId = null,
+                    nombreCliente = nombreClienteBody,
+                    nombreProducto = nombreProductoBody,
+                    descripcionFalla = descripcionFallaBody,
+                    observaciones = observacionesBody,
+                    imagenes = imageParts
+                )
+            }
 
             guaranteesStore.markGuaranteeAsUploaded(guarantee.EXTERNAL_ID)
             Result.success()
         } catch (e: Exception) {
             Log.e("PendingGuaranteesWorker", "Error al enviar garantía ${guarantee.EXTERNAL_ID}", e)
             Result.retry()
+        }
+    }
+
+    private fun buildImageParts(images: List<GuaranteeImageEntity>): List<MultipartBody.Part> {
+        return images.mapNotNull { image ->
+            val file = File(image.IMG_PATH)
+            if (file.exists()) {
+                val requestFile = file.asRequestBody(image.IMG_MIME.toMediaTypeOrNull())
+                val filename = "${image.ID}.${image.IMG_MIME.split("/").getOrNull(1) ?: "jpg"}"
+                MultipartBody.Part.createFormData("imagenes", filename, requestFile)
+            } else {
+                Log.w(
+                    "PendingGuaranteesWorker",
+                    "Archivo de imagen no encontrado: ${image.IMG_PATH}"
+                )
+                null
+            }
         }
     }
 }

@@ -17,7 +17,8 @@ class ZonesCache(context: Context) : BaseOfflineCache<ClientZone>(
     context = context,
     config = CacheConfig(
         fileName = "zones_cache",
-        ttlMillis = CacheMetadata.LONG_TTL, // 7 días
+        // 7 días
+        ttlMillis = CacheMetadata.LONG_TTL,
         version = 1,
         enableLogging = true
     )

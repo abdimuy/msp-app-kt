@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -36,10 +35,7 @@ import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesView
 import com.example.msp_app.navigation.Screen
 
 @Composable
-fun GuaranteeSection(
-    sale: Sale,
-    navController: NavController,
-) {
+fun GuaranteeSection(sale: Sale, navController: NavController) {
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showPrintDialog by remember { mutableStateOf(false) }
@@ -223,7 +219,9 @@ fun GuaranteeSection(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        navController.navigate(Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString()))
+                        navController.navigate(
+                            Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())
+                        )
                         showPrintDialog = false
                     }
                 ) {

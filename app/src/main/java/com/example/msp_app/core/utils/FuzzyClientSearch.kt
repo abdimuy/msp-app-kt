@@ -33,7 +33,9 @@ fun <T> searchSimilarItems(
                 val positionBonus = calculatePositionBonus(cleanQuery, text)
                 val finalScore = baseScore + positionBonus
                 item to finalScore
-            } else null
+            } else {
+                null
+            }
         }
         .sortedByDescending { it.second }
         .map { it.first }
@@ -79,7 +81,10 @@ private fun longestCommonSubstring(s1: String, s2: String): Int {
                             i - len + 1,
                             i + 1
                         )
-                    }) return true
+                    }
+                ) {
+                    return true
+                }
             }
         }
         return false

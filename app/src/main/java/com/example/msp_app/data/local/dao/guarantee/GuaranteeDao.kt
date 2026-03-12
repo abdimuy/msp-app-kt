@@ -26,6 +26,8 @@ interface GuaranteeDao {
             OBSERVACIONES,
             UPLOADED,
             FECHA_SOLICITUD,
+            NOMBRE_CLIENTE,
+            NOMBRE_PRODUCTO,
             ID
         FROM garantias
         WHERE ID = :id
@@ -43,11 +45,34 @@ interface GuaranteeDao {
             OBSERVACIONES,
             UPLOADED,
             FECHA_SOLICITUD,
+            NOMBRE_CLIENTE,
+            NOMBRE_PRODUCTO,
             ID
         FROM garantias
+        ORDER BY FECHA_SOLICITUD DESC
     """
     )
     suspend fun getAllGuarantees(): List<GuaranteeEntity>
+
+    @Query(
+        """
+        SELECT
+            EXTERNAL_ID,
+            DOCTO_CC_ID,
+            ESTADO,
+            DESCRIPCION_FALLA,
+            OBSERVACIONES,
+            UPLOADED,
+            FECHA_SOLICITUD,
+            NOMBRE_CLIENTE,
+            NOMBRE_PRODUCTO,
+            ID
+        FROM garantias
+        WHERE DOCTO_CC_ID IS NULL
+        ORDER BY FECHA_SOLICITUD DESC
+    """
+    )
+    suspend fun getStandaloneGuarantees(): List<GuaranteeEntity>
 
     @Query(
         """
@@ -155,7 +180,7 @@ interface GuaranteeDao {
 
     @Query(
         """
-    SELECT 
+    SELECT
         EXTERNAL_ID,
         DOCTO_CC_ID,
         ESTADO,
@@ -163,6 +188,8 @@ interface GuaranteeDao {
         OBSERVACIONES,
         UPLOADED,
         FECHA_SOLICITUD,
+        NOMBRE_CLIENTE,
+        NOMBRE_PRODUCTO,
         ID
     FROM garantias
     WHERE DOCTO_CC_ID = :doctoCcId
@@ -173,7 +200,7 @@ interface GuaranteeDao {
 
     @Query(
         """
-    SELECT 
+    SELECT
         EXTERNAL_ID,
         DOCTO_CC_ID,
         ESTADO,
@@ -181,6 +208,8 @@ interface GuaranteeDao {
         OBSERVACIONES,
         UPLOADED,
         FECHA_SOLICITUD,
+        NOMBRE_CLIENTE,
+        NOMBRE_PRODUCTO,
         ID
     FROM garantias
     WHERE EXTERNAL_ID = :externalId
@@ -200,7 +229,7 @@ interface GuaranteeDao {
 
     @Query(
         """
-        SELECT 
+        SELECT
             EXTERNAL_ID,
             DOCTO_CC_ID,
             ESTADO,
@@ -208,6 +237,8 @@ interface GuaranteeDao {
             OBSERVACIONES,
             UPLOADED,
             FECHA_SOLICITUD,
+            NOMBRE_CLIENTE,
+            NOMBRE_PRODUCTO,
             ID
         FROM garantias
         WHERE UPLOADED = 0

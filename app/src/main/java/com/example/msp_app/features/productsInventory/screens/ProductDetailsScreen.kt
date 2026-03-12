@@ -87,14 +87,11 @@ import com.example.msp_app.features.productsInventory.viewmodels.ProductsInvento
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
-import kotlinx.coroutines.launch
 import java.io.File
+import kotlinx.coroutines.launch
 
 @Composable
-fun ProductDetailsScreen(
-    productId: String,
-    navController: NavController,
-) {
+fun ProductDetailsScreen(productId: String, navController: NavController) {
     val detailsViewModel: ProductDetailsViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
@@ -479,13 +476,17 @@ fun ProductDetailsScreen(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
-                        border = if (!isDark) null else BorderStroke(
-                            width = 1.dp,
-                            color = Color.DarkGray
-                        ),
+                        border = if (!isDark) {
+                            null
+                        } else {
+                            BorderStroke(
+                                width = 1.dp,
+                                color = Color.DarkGray
+                            )
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(6.dp),
+                            .padding(6.dp)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text(
@@ -685,9 +686,11 @@ fun ProductDetailsScreen(
                                                         modifier = Modifier
                                                             .size(48.dp)
                                                             .background(
-                                                                if (transferQuantity > 1 && transferState !is ResultState.Loading)
+                                                                if (transferQuantity > 1 && transferState !is ResultState.Loading) {
                                                                     MaterialTheme.colorScheme.primaryContainer
-                                                                else MaterialTheme.colorScheme.surfaceVariant,
+                                                                } else {
+                                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                                },
                                                                 RoundedCornerShape(24.dp)
                                                             )
                                                     ) {
@@ -695,9 +698,11 @@ fun ProductDetailsScreen(
                                                             text = "−",
                                                             style = MaterialTheme.typography.titleLarge,
                                                             fontWeight = FontWeight.Bold,
-                                                            color = if (transferQuantity > 1 && transferState !is ResultState.Loading)
+                                                            color = if (transferQuantity > 1 && transferState !is ResultState.Loading) {
                                                                 MaterialTheme.colorScheme.onPrimaryContainer
-                                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            } else {
+                                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                                            }
                                                         )
                                                     }
 
@@ -727,18 +732,22 @@ fun ProductDetailsScreen(
                                                         modifier = Modifier
                                                             .size(48.dp)
                                                             .background(
-                                                                if (transferState !is ResultState.Loading)
+                                                                if (transferState !is ResultState.Loading) {
                                                                     MaterialTheme.colorScheme.primaryContainer
-                                                                else MaterialTheme.colorScheme.surfaceVariant,
+                                                                } else {
+                                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                                },
                                                                 RoundedCornerShape(24.dp)
                                                             )
                                                     ) {
                                                         Icon(
                                                             imageVector = Icons.Default.Add,
                                                             contentDescription = "Aumentar",
-                                                            tint = if (transferState !is ResultState.Loading)
+                                                            tint = if (transferState !is ResultState.Loading) {
                                                                 MaterialTheme.colorScheme.onPrimaryContainer
-                                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                                            } else {
+                                                                MaterialTheme.colorScheme.onSurfaceVariant
+                                                            }
                                                         )
                                                     }
                                                 }
@@ -857,7 +866,6 @@ fun ProductDetailsScreen(
                     }
                 }
             } ?: run {
-
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -889,10 +897,7 @@ data class CarouselItem(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Carousel(
-    carouselItems: List<CarouselItem>,
-    reloadTrigger: Int = 0
-) {
+fun Carousel(carouselItems: List<CarouselItem>, reloadTrigger: Int = 0) {
     val selectedItem = remember { mutableStateOf<CarouselItem?>(null) }
     val context = LocalContext.current
 
@@ -913,7 +918,7 @@ fun Carousel(
             AsyncImage(
                 model = ImageRequest.Builder(context)
                     .data(file)
-                    .memoryCacheKey("${file.absolutePath}_${reloadTrigger}")
+                    .memoryCacheKey("${file.absolutePath}_$reloadTrigger")
                     .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
                     .build(),
                 contentDescription = item.description,
@@ -927,7 +932,6 @@ fun Carousel(
                 onState = { state ->
                     when (state) {
                         is AsyncImagePainter.State.Error -> {
-
                         }
 
                         else -> {}
@@ -935,7 +939,6 @@ fun Carousel(
                 }
             )
         } else {
-
             Box(
                 modifier = Modifier
                     .height(205.dp)
@@ -962,11 +965,7 @@ fun Carousel(
 }
 
 @Composable
-fun ZoomableImageDialog1(
-    item: CarouselItem,
-    onDismiss: () -> Unit,
-    reloadTrigger: Int = 0
-) {
+fun ZoomableImageDialog1(item: CarouselItem, onDismiss: () -> Unit, reloadTrigger: Int = 0) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -1003,7 +1002,7 @@ fun ZoomableImageDialog1(
                         AsyncImage(
                             model = ImageRequest.Builder(context)
                                 .data(file)
-                                .memoryCacheKey("${file.absolutePath}_dialog_${reloadTrigger}")
+                                .memoryCacheKey("${file.absolutePath}_dialog_$reloadTrigger")
                                 .diskCacheKey("${file.absolutePath}_${file.lastModified()}")
                                 .build(),
                             contentDescription = item.description,

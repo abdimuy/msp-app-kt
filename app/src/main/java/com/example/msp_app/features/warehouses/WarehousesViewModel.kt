@@ -73,7 +73,7 @@ class WarehouseViewModel(application: Application) : AndroidViewModel(applicatio
         val warehouseId = selectedWarehouseId ?: return
         viewModelScope.launch {
             _warehouseProducts.value = ResultState.Loading
-            
+
             val hasNetwork = isNetworkAvailable()
 
             if (hasNetwork) {
@@ -138,7 +138,10 @@ class WarehouseViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 }
                 productsCache.saveProducts(entities)
-                android.util.Log.d("WarehouseViewModel", "Guardados ${entities.size} productos en cache")
+                android.util.Log.d(
+                    "WarehouseViewModel",
+                    "Guardados ${entities.size} productos en cache"
+                )
             }
         } catch (e: Exception) {
             android.util.Log.e("WarehouseViewModel", "Error guardando productos en cache", e)
@@ -146,7 +149,9 @@ class WarehouseViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     private fun isNetworkAvailable(): Boolean {
-        val connectivityManager = getApplication<Application>().getSystemService(ConnectivityManager::class.java)
+        val connectivityManager = getApplication<Application>().getSystemService(
+            ConnectivityManager::class.java
+        )
         val network = connectivityManager?.activeNetwork ?: return false
         val networkCapabilities =
             connectivityManager.getNetworkCapabilities(network) ?: return false

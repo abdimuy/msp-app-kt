@@ -54,12 +54,8 @@ interface WarehousesApi {
     suspend fun getAllWarehouses(): WarehouseListResponse
 
     @GET("/almacenes/{almacenId}")
-    suspend fun getWarehouseProducts(
-        @Path("almacenId") warehouseId: Int
-    ): WarehouseResponse
+    suspend fun getWarehouseProducts(@Path("almacenId") warehouseId: Int): WarehouseResponse
 
     @POST("/traspasos")
-    suspend fun createTransfer(
-        @Body transferRequest: TransferRequest
-    ): TransferResponse
+    suspend fun createTransfer(@Body transferRequest: TransferRequest): TransferResponse
 }

@@ -43,9 +43,7 @@ class ProductInventoryImageLocalDataSource(
 
     suspend fun getAllProducts() = productDao.getAll()
 
-    suspend fun insertSafeImages(
-        images: List<ProductInventoryImageEntity>,
-    ) {
+    suspend fun insertSafeImages(images: List<ProductInventoryImageEntity>) {
         productInventoryImageDao.insertAllImages(images)
     }
 

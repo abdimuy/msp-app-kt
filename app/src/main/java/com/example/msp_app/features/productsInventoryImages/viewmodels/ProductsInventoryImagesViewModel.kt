@@ -9,6 +9,10 @@ import com.example.msp_app.data.api.services.productsInventoryImages.ProductsInv
 import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.datasource.productInventoryImage.ProductInventoryImageLocalDataSource
 import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
+import java.io.File
+import java.io.FileOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -18,10 +22,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
 
 class ProductInventoryImagesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -47,7 +47,6 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
 
     private var cachedApiImages: List<ProductInventoryImageEntity> = emptyList()
     private var downloadJob: Job? = null
-
 
     fun checkForNewImages() {
         viewModelScope.launch {
@@ -141,7 +140,6 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
 
                 _imagesByProduct.value = groupedImages
                 _newImagesCount.value = 0
-
             } catch (e: Exception) {
                 Log.e("ProductImagesVM", "Error en downloadNewImages()", e)
             }
@@ -185,7 +183,6 @@ class ProductInventoryImagesViewModel(application: Application) : AndroidViewMod
                 }
 
                 return@withContext imageFile.absolutePath
-
             } catch (e: Exception) {
                 Log.e("ProductImagesVM", "Error descargando imagen $remoteUrl", e)
                 null

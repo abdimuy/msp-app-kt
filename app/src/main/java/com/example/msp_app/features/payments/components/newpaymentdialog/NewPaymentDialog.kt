@@ -67,9 +67,9 @@ import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @SuppressLint("ContextCastToActivity")
 @Composable
@@ -198,7 +198,7 @@ fun NewPaymentDialog(
 
     FullScreenDialog(
         show = true,
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = onDismissRequest
     ) {
         when (val state = userData) {
             is ResultState.Idle, is ResultState.Loading, is ResultState.Offline -> {
@@ -297,9 +297,11 @@ fun NewPaymentDialog(
                                                 color = if (isDark) Color.White else MaterialTheme.colorScheme.onBackground
                                             )
                                         ) {
-                                            append(state.data.joinToString(", ") { product ->
-                                                "${product.CANTIDAD}x ${product.ARTICULO}"
-                                            })
+                                            append(
+                                                state.data.joinToString(", ") { product ->
+                                                    "${product.CANTIDAD}x ${product.ARTICULO}"
+                                                }
+                                            )
                                         }
                                     }
                                 )
@@ -345,7 +347,7 @@ fun NewPaymentDialog(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = name.uppercase(),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                             }
                         }
@@ -412,9 +414,13 @@ fun NewPaymentDialog(
                                             onClick = { inputValue = amount.toString() },
                                             modifier = Modifier.weight(1f),
                                             colors = ButtonDefaults.buttonColors(
-                                                containerColor = if (isSelected) Color(0xFF4CAF50) else Color(
-                                                    0xFF009AE8
-                                                ),
+                                                containerColor = if (isSelected) {
+                                                    Color(0xFF4CAF50)
+                                                } else {
+                                                    Color(
+                                                        0xFF009AE8
+                                                    )
+                                                },
                                                 contentColor = if (isSelected) Color.White else Color.White
                                             )
                                         ) {
@@ -540,11 +546,10 @@ fun NewPaymentDialog(
                                 ),
                                 textAlign = TextAlign.Center
                             )
-
                         }
                     }
                 }
-            },
+            }
         )
     }
 }

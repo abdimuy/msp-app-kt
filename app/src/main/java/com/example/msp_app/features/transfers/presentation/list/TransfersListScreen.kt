@@ -1,8 +1,6 @@
 package com.example.msp_app.features.transfers.presentation.list
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,7 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -30,7 +27,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -78,7 +74,9 @@ fun TransfersListScreen(
     val usersByWarehouse by viewModel.usersByWarehouse.collectAsState()
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showBottomSheet by remember { mutableStateOf(false) }
-    var selectedWarehouseForProducts by remember { mutableStateOf<WarehouseListResponse.Warehouse?>(null) }
+    var selectedWarehouseForProducts by remember {
+        mutableStateOf<WarehouseListResponse.Warehouse?>(null)
+    }
 
     val sheetState = rememberModalBottomSheetState()
     val scope = rememberCoroutineScope()
@@ -134,137 +132,140 @@ fun TransfersListScreen(
                     }
                 )
             },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { onCreateTransferClick(0) },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Nuevo Traspaso") }
-            )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (val state = warehousesState) {
-                is ResultState.Loading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator()
-                    }
-                }
-
-                is ResultState.Success -> {
-                    val warehouses = if (searchQuery.isBlank()) {
-                        state.data
-                    } else {
-                        state.data.filter { warehouse ->
-                            val assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList()
-                            val matchesWarehouse = warehouse.ALMACEN.contains(searchQuery, ignoreCase = true)
-                            val matchesVendor = assignedUsers.any { user ->
-                                user.NOMBRE.contains(searchQuery, ignoreCase = true)
-                            }
-                            matchesWarehouse || matchesVendor
+            floatingActionButton = {
+                ExtendedFloatingActionButton(
+                    onClick = { onCreateTransferClick(0) },
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Nuevo Traspaso") }
+                )
+            }
+        ) { paddingValues ->
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (val state = warehousesState) {
+                    is ResultState.Loading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator()
                         }
                     }
 
-                    Column(
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        // Search bar
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            placeholder = { Text("Buscar almacén o vendedor...") },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = "Buscar"
+                    is ResultState.Success -> {
+                        val warehouses = if (searchQuery.isBlank()) {
+                            state.data
+                        } else {
+                            state.data.filter { warehouse ->
+                                val assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList()
+                                val matchesWarehouse = warehouse.ALMACEN.contains(
+                                    searchQuery,
+                                    ignoreCase = true
                                 )
-                            },
-                            singleLine = true
-                        )
+                                val matchesVendor = assignedUsers.any { user ->
+                                    user.NOMBRE.contains(searchQuery, ignoreCase = true)
+                                }
+                                matchesWarehouse || matchesVendor
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            // Search bar
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                placeholder = { Text("Buscar almacén o vendedor...") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = "Buscar"
+                                    )
+                                },
+                                singleLine = true
+                            )
 
                             if (warehouses.isEmpty()) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (searchQuery.isBlank()) "No hay almacenes disponibles" else "No se encontraron almacenes",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            LazyVerticalGrid(
-                                columns = GridCells.Fixed(if (isTablet) 2 else 1),
-                                contentPadding = PaddingValues(16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                items(warehouses, key = { it.ALMACEN_ID }) { warehouse ->
-                                    WarehouseCard(
-                                        warehouse = warehouse,
-                                        assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList(),
-                                        onCreateTransferClick = onCreateTransferClick,
-                                        onViewProductsClick = { handleViewProducts(warehouse) }
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (searchQuery.isBlank()) "No hay almacenes disponibles" else "No se encontraron almacenes",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                }
+                            } else {
+                                LazyVerticalGrid(
+                                    columns = GridCells.Fixed(if (isTablet) 2 else 1),
+                                    contentPadding = PaddingValues(16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    items(warehouses, key = { it.ALMACEN_ID }) { warehouse ->
+                                        WarehouseCard(
+                                            warehouse = warehouse,
+                                            assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList(),
+                                            onCreateTransferClick = onCreateTransferClick,
+                                            onViewProductsClick = { handleViewProducts(warehouse) }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                is ResultState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                    is ResultState.Error -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Error al cargar almacenes",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = state.message,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Error al cargar almacenes",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = state.message,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
-                }
 
-                ResultState.Idle, is ResultState.Offline -> {
-                    // Initial state
+                    ResultState.Idle, is ResultState.Offline -> {
+                        // Initial state
+                    }
                 }
             }
         }
-    }
 
-    // Bottom Sheet for viewing products
-    selectedWarehouseForProducts?.let { warehouse ->
-        if (showBottomSheet) {
-            WarehouseProductsBottomSheet(
-                warehouseName = warehouse.ALMACEN,
-                totalStock = warehouse.EXISTENCIAS,
-                assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList(),
-                productsState = warehouseProductsState,
-                sheetState = sheetState,
-                onDismiss = { handleDismissBottomSheet() }
-            )
+        // Bottom Sheet for viewing products
+        selectedWarehouseForProducts?.let { warehouse ->
+            if (showBottomSheet) {
+                WarehouseProductsBottomSheet(
+                    warehouseName = warehouse.ALMACEN,
+                    totalStock = warehouse.EXISTENCIAS,
+                    assignedUsers = usersByWarehouse[warehouse.ALMACEN_ID] ?: emptyList(),
+                    productsState = warehouseProductsState,
+                    sheetState = sheetState,
+                    onDismiss = { handleDismissBottomSheet() }
+                )
+            }
         }
-    }
     }
 }
 

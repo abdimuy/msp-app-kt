@@ -69,12 +69,12 @@ import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
-import kotlinx.coroutines.launch
 import java.io.File
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
@@ -233,30 +233,30 @@ fun GuaranteeScreen(saleId: Int, navController: NavController) {
             ) {
                 Text(
                     "Estimado cliente:\n" +
-                            "\n" +
-                            "Le informamos que su producgo ha sido recibido para revision bajo proceso de garantia. El tiempo estimado para este tramite es de uno a dos meses, dependiendo del diagnostico y tiempos de respuesta del proveedor o fabricante.\n" +
-                            "\n" +
-                            "Al frimar este documento, usted autoriza la recoleccion del articulo dañado y reconoce que:\n" +
-                            "\n" +
-                            "- El producto sera evaluado para determinar si aplica o no la garantia.\n" +
-                            "\n" +
-                            "En caso de no proceder, se le notificara para que decida si desea continuar con una reparacion con costo adicional o la devolucion del articulo.\n" +
-                            "\n" +
-                            "El articulo permanecera bajo resguardo hasta la resolucion del caso.\n" +
-                            "\n" +
-                            "Agradecemos su comprension. Para cualquier duda o seguimiento, quedamos a su disposicion.\n" +
-                            "\n" +
-                            "Atentamente\n" +
-                            "Muebles San Pablo\n" +
-                            "Departamento de Garantias\n" +
-                            "\n" +
-                            "Nombre del cliente: ${sale?.CLIENTE} " +
-                            "\n" +
-                            "\n" +
-                            "Firma del cliente: ______________________\n" +
-                            "\n" +
-                            "\n" +
-                            "Fecha de solicitud: $date"
+                        "\n" +
+                        "Le informamos que su producgo ha sido recibido para revision bajo proceso de garantia. El tiempo estimado para este tramite es de uno a dos meses, dependiendo del diagnostico y tiempos de respuesta del proveedor o fabricante.\n" +
+                        "\n" +
+                        "Al frimar este documento, usted autoriza la recoleccion del articulo dañado y reconoce que:\n" +
+                        "\n" +
+                        "- El producto sera evaluado para determinar si aplica o no la garantia.\n" +
+                        "\n" +
+                        "En caso de no proceder, se le notificara para que decida si desea continuar con una reparacion con costo adicional o la devolucion del articulo.\n" +
+                        "\n" +
+                        "El articulo permanecera bajo resguardo hasta la resolucion del caso.\n" +
+                        "\n" +
+                        "Agradecemos su comprension. Para cualquier duda o seguimiento, quedamos a su disposicion.\n" +
+                        "\n" +
+                        "Atentamente\n" +
+                        "Muebles San Pablo\n" +
+                        "Departamento de Garantias\n" +
+                        "\n" +
+                        "Nombre del cliente: ${sale?.CLIENTE} " +
+                        "\n" +
+                        "\n" +
+                        "Firma del cliente: ______________________\n" +
+                        "\n" +
+                        "\n" +
+                        "Fecha de solicitud: $date"
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -274,7 +274,6 @@ fun GuaranteeScreen(saleId: Int, navController: NavController) {
                 )
             }
         }
-
     } else {
         Scaffold(
             topBar = {
@@ -466,7 +465,8 @@ fun GuaranteeScreen(saleId: Int, navController: NavController) {
                         DESCRIPCION_FALLA = defectDescription.text,
                         OBSERVACIONES = observations.text.takeIf { it.isNotBlank() },
                         UPLOADED = 1,
-                        FECHA_SOLICITUD = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
+                        FECHA_SOLICITUD = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
+                        NOMBRE_CLIENTE = sale?.CLIENTE
                     )
                     guaranteesViewModel.insertGuarantee(newGuarantee)
                     guaranteesViewModel.saveGuaranteeImages(

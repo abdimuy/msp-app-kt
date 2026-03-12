@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,10 +26,7 @@ import com.composables.icons.lucide.WifiOff
  * Debe colocarse en la parte superior de la pantalla
  */
 @Composable
-fun GlobalOfflineBanner(
-    isOffline: Boolean,
-    modifier: Modifier = Modifier
-) {
+fun GlobalOfflineBanner(isOffline: Boolean, modifier: Modifier = Modifier) {
     AnimatedVisibility(
         visible = isOffline,
         enter = expandVertically(),

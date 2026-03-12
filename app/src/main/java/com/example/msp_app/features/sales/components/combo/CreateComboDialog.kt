@@ -86,12 +86,19 @@ fun validatePriceInput(input: String, fieldName: String): Pair<Boolean, String?>
 fun CreateComboDialog(
     show: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (nombre: String, precioLista: Double, precioCortoPlazo: Double, precioContado: Double) -> Unit,
+    onConfirm: (
+        nombre: String,
+        precioLista: Double,
+        precioCortoPlazo: Double,
+        precioContado: Double
+    ) -> Unit,
     selectedProductsCount: Int,
     suggestedPrices: Triple<Double, Double, Double>,
     selectedProductNames: List<String> = emptyList()
 ) {
     if (!show) return
+
+    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
 
     // Generar nombre sugerido basado en los productos (max 100 caracteres)
     val suggestedName = remember(selectedProductNames) {
@@ -117,11 +124,9 @@ fun CreateComboDialog(
 
     // Estado combinado para facilitar validación del botón
     val hasPriceErrors = precioListaError != null ||
-            precioCortoPlazoError != null ||
-            precioContadoError != null ||
-            nombreError
-
-    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
+        precioCortoPlazoError != null ||
+        precioContadoError != null ||
+        nombreError
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -201,22 +206,19 @@ fun CreateComboDialog(
                     isError = nombreError,
                     supportingText = if (nombreError) {
                         { Text("El nombre es requerido") }
-                    } else null,
+                    } else {
+                        null
+                    },
                     shape = RoundedCornerShape(12.dp)
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Precios sugeridos label
+                // Precios del combo
                 Text(
                     text = "Precios del combo",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Suma sugerida: ${currencyFormat.format(suggestedPrices.first)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -248,7 +250,7 @@ fun CreateComboDialog(
                     value = precioCortoPlazo,
                     onValueChange = { newValue ->
                         precioCortoPlazo = newValue
-                        val (_, error) = validatePriceInput(newValue, "Precio Corto Plazo")
+                        val (isValid, error) = validatePriceInput(newValue, "Precio Corto Plazo")
                         precioCortoPlazoError = error
                     },
                     label = { Text("Precio Corto Plazo") },
@@ -326,7 +328,8 @@ fun CreateComboDialog(
                                 precioContado.toDoubleOrNull() ?: 0.0
                             )
                         },
-                        enabled = !hasPriceErrors, // Solo habilitar si no hay errores
+                        // Solo habilitar si no hay errores
+                        enabled = !hasPriceErrors,
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
                     ) {

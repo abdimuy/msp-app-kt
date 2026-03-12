@@ -67,7 +67,7 @@ fun PrimarySaleItem(
     onAddVisit: () -> Unit = {},
     progress: Float = 0f,
     openVisitDialog: () -> Unit = {},
-    closeVisitDialog: () -> Unit = {},
+    closeVisitDialog: () -> Unit = {}
 ) {
     val isDark = ThemeController.isDarkMode
 
@@ -113,16 +113,20 @@ fun PrimarySaleItem(
     Card(
         elevation = CardDefaults.cardElevation(
             defaultElevation =
-                if (!isDark) 8.dp else 0.dp
+            if (!isDark) 8.dp else 0.dp
         ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         border =
-            if (!isDark) null else BorderStroke(
+        if (!isDark) {
+            null
+        } else {
+            BorderStroke(
                 width = 1.dp,
                 color = Color.DarkGray
-            ),
+            )
+        },
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp),
@@ -134,17 +138,23 @@ fun PrimarySaleItem(
                     modifier = Modifier
                         .size(45.dp)
                         .background(
-                            if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) Color(0xFF4CAF50)
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) Color(
-                                0xFF9E9E9E
-                            )
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO) Color(
-                                0xFFF44336
-                            )
-                            else if (sale.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR) Color(
-                                0xFFFF9800
-                            )
-                            else Color(0xFF9E9E9E),
+                            if (sale.ESTADO_COBRANZA == EstadoCobranza.PAGADO) {
+                                Color(0xFF4CAF50)
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.PENDIENTE) {
+                                Color(
+                                    0xFF9E9E9E
+                                )
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.NO_PAGADO) {
+                                Color(
+                                    0xFFF44336
+                                )
+                            } else if (sale.ESTADO_COBRANZA == EstadoCobranza.VOLVER_VISITAR) {
+                                Color(
+                                    0xFFFF9800
+                                )
+                            } else {
+                                Color(0xFF9E9E9E)
+                            },
                             shape = MaterialTheme.shapes.small
                         ),
                     contentAlignment = Alignment.Center
@@ -154,7 +164,7 @@ fun PrimarySaleItem(
                             Image(
                                 painter = painterResource(id = R.drawable.horizontal_rule_24px),
                                 contentDescription = "Pendiente",
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -163,7 +173,7 @@ fun PrimarySaleItem(
                                 imageVector = Icons.Default.Done,
                                 contentDescription = "Pagado",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -172,7 +182,7 @@ fun PrimarySaleItem(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "No Pagado",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
 
                         EstadoCobranza.VOLVER_VISITAR -> {
@@ -180,7 +190,7 @@ fun PrimarySaleItem(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = "Volver a Visitar",
                                 tint = Color.White,
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(24.dp)
                             )
                         }
 
@@ -225,7 +235,7 @@ fun PrimarySaleItem(
                                 }
                             },
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     Text(
@@ -233,7 +243,7 @@ fun PrimarySaleItem(
                         fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Box(
@@ -247,11 +257,11 @@ fun PrimarySaleItem(
                         modifier = Modifier
                             .size(30.dp)
                             .padding(start = 8.dp)
-                            .clickable { openMenu() },
+                            .clickable { openMenu() }
                     )
                     DropdownMenu(
                         expanded = showMenu,
-                        onDismissRequest = { closeMenu() },
+                        onDismissRequest = { closeMenu() }
                     ) {
                         DropdownMenuItem(
                             text = { Text("Agregar pago") },
@@ -277,8 +287,9 @@ fun PrimarySaleItem(
                         " "
                     )
                 } ${sale.ESTADO}",
-                maxLines = 2, overflow = TextOverflow.Ellipsis,
-                lineHeight = 18.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 18.sp
             )
             Text(
                 text = sale.PRODUCTOS,
@@ -293,7 +304,7 @@ fun PrimarySaleItem(
                 progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp),
+                    .height(6.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -382,14 +393,14 @@ fun PrimarySaleItem(
                 AlertBadge(
                     message = message,
                     type = badgeType,
-                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                 )
 
                 if (formattedFechaUltPago != "Sin Fecha") {
                     AlertBadge(
                         message = "Ult Pag $formattedFechaUltPago",
                         type = BadgesType.Primary,
-                        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     )
                 }
             }

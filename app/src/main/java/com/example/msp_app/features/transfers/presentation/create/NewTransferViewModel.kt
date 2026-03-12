@@ -17,11 +17,11 @@ import com.example.msp_app.features.transfers.data.repository.TransfersRepositor
 import com.example.msp_app.features.transfers.domain.models.CreateTransferData
 import com.example.msp_app.features.transfers.domain.models.ProductCost
 import com.example.msp_app.features.transfers.domain.models.TransferProductItem
+import java.time.LocalDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.LocalDateTime
 
 /**
  * ViewModel for creating new transfers
@@ -53,14 +53,16 @@ class NewTransferViewModel(
     val currentStep: StateFlow<TransferStep> = _currentStep.asStateFlow()
 
     // ===== Warehouses State =====
-    private val _warehousesState = MutableStateFlow<ResultState<List<WarehouseListResponse.Warehouse>>>(ResultState.Idle)
+    private val _warehousesState =
+        MutableStateFlow<ResultState<List<WarehouseListResponse.Warehouse>>>(ResultState.Idle)
     val warehousesState: StateFlow<ResultState<List<WarehouseListResponse.Warehouse>>> = _warehousesState.asStateFlow()
 
     private val _selectedSourceWarehouse = MutableStateFlow<WarehouseListResponse.Warehouse?>(null)
     val selectedSourceWarehouse: StateFlow<WarehouseListResponse.Warehouse?> = _selectedSourceWarehouse.asStateFlow()
     val sourceWarehouse: StateFlow<WarehouseListResponse.Warehouse?> = selectedSourceWarehouse
 
-    private val _selectedDestinationWarehouse = MutableStateFlow<WarehouseListResponse.Warehouse?>(null)
+    private val _selectedDestinationWarehouse =
+        MutableStateFlow<WarehouseListResponse.Warehouse?>(null)
     val selectedDestinationWarehouse: StateFlow<WarehouseListResponse.Warehouse?> = _selectedDestinationWarehouse.asStateFlow()
     val destinationWarehouse: StateFlow<WarehouseListResponse.Warehouse?> = selectedDestinationWarehouse
 
@@ -68,7 +70,8 @@ class NewTransferViewModel(
     val description: StateFlow<String> = _description.asStateFlow()
 
     // ===== Products State =====
-    private val _availableProductsState = MutableStateFlow<ResultState<List<ProductInventory>>>(ResultState.Idle)
+    private val _availableProductsState =
+        MutableStateFlow<ResultState<List<ProductInventory>>>(ResultState.Idle)
     val availableProductsState: StateFlow<ResultState<List<ProductInventory>>> = _availableProductsState.asStateFlow()
 
     private val _selectedProducts = MutableStateFlow<List<SelectedProduct>>(emptyList())
@@ -78,7 +81,8 @@ class NewTransferViewModel(
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     // ===== Product Costs State =====
-    private val _productCostsState = MutableStateFlow<ResultState<List<ProductCost>>>(ResultState.Idle)
+    private val _productCostsState =
+        MutableStateFlow<ResultState<List<ProductCost>>>(ResultState.Idle)
     val productCostsState: StateFlow<ResultState<List<ProductCost>>> = _productCostsState.asStateFlow()
 
     // ===== Create Transfer State =====
@@ -132,7 +136,10 @@ class NewTransferViewModel(
                         _usersByWarehouse.value = groupedUsers
                     },
                     onFailure = { error ->
-                        android.util.Log.e("NewTransferViewModel", "Error loading users: ${error.message}")
+                        android.util.Log.e(
+                            "NewTransferViewModel",
+                            "Error loading users: ${error.message}"
+                        )
                         _usersByWarehouse.value = emptyMap()
                     }
                 )
@@ -219,7 +226,7 @@ class NewTransferViewModel(
 
         return products.filter { product ->
             product.ARTICULO.contains(query, ignoreCase = true) ||
-                    product.ARTICULO_ID.toString().contains(query)
+                product.ARTICULO_ID.toString().contains(query)
         }
     }
 
@@ -404,7 +411,8 @@ class NewTransferViewModel(
                     almacenDestinoId = _selectedDestinationWarehouse.value!!.ALMACEN_ID,
                     fecha = LocalDateTime.now(),
                     descripcion = _description.value.ifBlank { null },
-                    usuario = null, // Will use default SYSDBA from API
+                    // Will use default SYSDBA from API
+                    usuario = null,
                     productos = _selectedProducts.value.map { selected ->
                         TransferProductItem(
                             articuloId = selected.product.ARTICULO_ID,

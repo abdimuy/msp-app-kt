@@ -1,9 +1,9 @@
 package com.example.msp_app.core.sync
 
-import retrofit2.HttpException
 import java.io.IOException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import retrofit2.HttpException
 
 /**
  * Handler para convertir excepciones en SyncResult apropiados.
@@ -117,10 +117,10 @@ object SyncErrorHandler {
         return when {
             bodyLower.contains("stock") -> ConflictType.INSUFFICIENT_STOCK
             bodyLower.contains("duplicad") || bodyLower.contains("duplicate") ||
-                    bodyLower.contains("already exists") -> ConflictType.DUPLICATE
+                bodyLower.contains("already exists") -> ConflictType.DUPLICATE
             bodyLower.contains("not found") || bodyLower.contains("no encontrad") -> ConflictType.NOT_FOUND
             bodyLower.contains("modified") || bodyLower.contains("modificad") ||
-                    bodyLower.contains("concurrent") -> ConflictType.CONCURRENT_MODIFICATION
+                bodyLower.contains("concurrent") -> ConflictType.CONCURRENT_MODIFICATION
             else -> ConflictType.OTHER
         }
     }

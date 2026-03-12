@@ -55,18 +55,15 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VisitTicketScreen(
-    saleId: Int,
-    navController: NavController
-) {
+fun VisitTicketScreen(saleId: Int, navController: NavController) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val saleViewModel: SaleDetailsViewModel = viewModel()
@@ -267,7 +264,7 @@ fun VisitTicketScreen(
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Menu,
-                                        contentDescription = "Menú",
+                                        contentDescription = "Menú"
                                     )
                                 }
                                 Box(
@@ -279,7 +276,7 @@ fun VisitTicketScreen(
                                     Text(
                                         text = "Ticket de Visita",
                                         fontSize = 24.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -290,7 +287,6 @@ fun VisitTicketScreen(
                                     .padding(horizontal = 16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-
                                 Text("Seleccione el tipo:", fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 DropdownMenuWithOptions(
@@ -300,7 +296,7 @@ fun VisitTicketScreen(
                                         "Ticket de no Pago"
                                     ),
                                     selectedIndex = ticketType - 1,
-                                    onSelected = { ticketType = it + 1 },
+                                    onSelected = { ticketType = it + 1 }
                                 )
 
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -355,11 +351,7 @@ fun VisitTicketScreen(
 }
 
 @Composable
-fun DropdownMenuWithOptions(
-    options: List<String>,
-    selectedIndex: Int,
-    onSelected: (Int) -> Unit
-) {
+fun DropdownMenuWithOptions(options: List<String>, selectedIndex: Int, onSelected: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
 
     Box {

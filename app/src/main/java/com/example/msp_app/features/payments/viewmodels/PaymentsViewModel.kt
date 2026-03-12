@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.logReportSnapshot
 import com.example.msp_app.core.utils.ResultState
-import java.util.UUID
 import com.example.msp_app.core.utils.computeCentroids
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
@@ -23,13 +22,14 @@ import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 
 class PaymentsViewModel(application: Application) : AndroidViewModel(application) {
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
@@ -411,7 +411,6 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
     private val _paymentState = MutableStateFlow<ResultState<Payment>>(ResultState.Idle)
     val paymentState: StateFlow<ResultState<Payment>> = _paymentState
 
-
     fun getPaymentById(paymentId: String) {
         viewModelScope.launch {
             _paymentState.value = ResultState.Loading
@@ -429,5 +428,4 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             }
         }
     }
-
 }

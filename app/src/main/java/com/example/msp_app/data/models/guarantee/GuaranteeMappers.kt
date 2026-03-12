@@ -74,7 +74,7 @@ fun Guarantee.toApi(): GuaranteeApi = GuaranteeApi(
     observaciones = OBSERVACIONES
 )
 
-fun GuaranteeEventEntity.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest = 
+fun GuaranteeEventEntity.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest =
     com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest(
         id = ID,
         fechaEvento = FECHA_EVENTO,
@@ -82,7 +82,7 @@ fun GuaranteeEventEntity.toApiRequest(): com.example.msp_app.data.api.services.g
         tipoEvento = TIPO_EVENTO
     )
 
-fun GuaranteeEvent.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest = 
+fun GuaranteeEvent.toApiRequest(): com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest =
     com.example.msp_app.data.api.services.guarantee.GuaranteeEventRequest(
         id = ID,
         fechaEvento = FECHA_EVENTO,

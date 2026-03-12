@@ -1,13 +1,13 @@
 package com.example.msp_app.core.utils
 
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
-import org.apache.commons.math3.ml.clustering.DBSCANClusterer
-import org.apache.commons.math3.ml.clustering.DoublePoint
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import org.apache.commons.math3.ml.clustering.DBSCANClusterer
+import org.apache.commons.math3.ml.clustering.DoublePoint
 
 data class Coord(val lat: Double, val lng: Double)
 
@@ -52,8 +52,8 @@ private fun haversineDistance(a: Coord, b: Coord): Double {
     val sinDLat = sin(dLat / 2)
     val sinDLng = sin(dLng / 2)
     val aHarv = sinDLat * sinDLat +
-            cos(toRad(a.lat)) * cos(toRad(b.lat)) *
-            sinDLng * sinDLng
+        cos(toRad(a.lat)) * cos(toRad(b.lat)) *
+        sinDLng * sinDLng
     val c = 2 * atan2(sqrt(aHarv), sqrt(1 - aHarv))
-    return 6371e3 * c  // metros
+    return 6371e3 * c // metros
 }

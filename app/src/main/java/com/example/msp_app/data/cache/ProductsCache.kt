@@ -7,10 +7,10 @@ import com.google.gson.reflect.TypeToken
 import java.io.File
 
 class ProductsCache(private val context: Context) {
-    
+
     private val gson = Gson()
     private val cacheFile = File(context.filesDir, "products_cache.json")
-    
+
     suspend fun saveProducts(products: List<ProductInventoryEntity>) {
         try {
             val json = gson.toJson(products)
@@ -18,7 +18,7 @@ class ProductsCache(private val context: Context) {
         } catch (e: Exception) {
         }
     }
-    
+
     suspend fun getProducts(): List<ProductInventoryEntity> {
         return try {
             if (!cacheFile.exists()) {
@@ -32,16 +32,16 @@ class ProductsCache(private val context: Context) {
             emptyList()
         }
     }
-    
+
     fun hasProducts(): Boolean {
         return cacheFile.exists() && cacheFile.length() > 0
     }
-    
+
     suspend fun searchProducts(query: String): List<ProductInventoryEntity> {
         val products = getProducts()
-        return products.filter { 
+        return products.filter {
             it.ARTICULO.contains(query, ignoreCase = true) ||
-            it.LINEA_ARTICULO.contains(query, ignoreCase = true)
+                it.LINEA_ARTICULO.contains(query, ignoreCase = true)
         }
     }
 }

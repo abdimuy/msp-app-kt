@@ -1,12 +1,12 @@
 package com.example.msp_app.core.sync
 
 import com.google.gson.Gson
+import java.io.File
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.File
 
 /**
  * Helper para construir requests multipart de manera sencilla.
@@ -51,10 +51,7 @@ class MultipartRequestBuilder {
     /**
      * Agrega múltiples imágenes
      */
-    fun addImages(
-        files: List<File>,
-        fieldName: String = "imagenes"
-    ): MultipartRequestBuilder {
+    fun addImages(files: List<File>, fieldName: String = "imagenes"): MultipartRequestBuilder {
         files.forEach { file ->
             addImage(file, fieldName)
         }
@@ -78,10 +75,7 @@ class MultipartRequestBuilder {
     /**
      * Agrega un campo de texto
      */
-    fun addTextField(
-        fieldName: String,
-        value: String
-    ): MultipartRequestBuilder {
+    fun addTextField(fieldName: String, value: String): MultipartRequestBuilder {
         val part = MultipartBody.Part.createFormData(fieldName, value)
         parts.add(part)
         return this
@@ -172,10 +166,7 @@ object MultipartHelper {
     /**
      * Crea un MultipartBody.Part desde un archivo
      */
-    fun createImagePart(
-        file: File,
-        fieldName: String = "imagenes"
-    ): MultipartBody.Part? {
+    fun createImagePart(file: File, fieldName: String = "imagenes"): MultipartBody.Part? {
         if (!file.exists()) return null
 
         val mimeType = getMimeType(file)

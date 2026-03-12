@@ -25,7 +25,7 @@ fun ProductStock(stock: Int?) {
         fontSize = 14.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+        overflow = TextOverflow.Ellipsis
     )
 }
 

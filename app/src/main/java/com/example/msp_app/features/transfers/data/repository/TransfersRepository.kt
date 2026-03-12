@@ -11,9 +11,9 @@ import com.example.msp_app.features.transfers.domain.models.ProductCost
 import com.example.msp_app.features.transfers.domain.models.Transfer
 import com.example.msp_app.features.transfers.domain.models.TransferFilters
 import com.example.msp_app.features.transfers.domain.models.TransferWithDetails
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.time.format.DateTimeFormatter
 
 /**
  * Repository for transfers operations
@@ -201,10 +201,7 @@ class TransfersRepository(
     /**
      * Get product costs preview
      */
-    suspend fun getProductCosts(
-        almacenId: Int,
-        productIds: List<Int>
-    ): Result<List<ProductCost>> {
+    suspend fun getProductCosts(almacenId: Int, productIds: List<Int>): Result<List<ProductCost>> {
         return withContext(Dispatchers.IO) {
             try {
                 if (productIds.isEmpty()) {
@@ -250,10 +247,16 @@ class TransfersRepository(
 
     private fun parseDateTimeSafe(dateString: String): java.time.LocalDateTime {
         return try {
-            java.time.LocalDateTime.parse(dateString, DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"))
+            java.time.LocalDateTime.parse(
+                dateString,
+                DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
+            )
         } catch (e: Exception) {
             try {
-                val date = java.time.LocalDate.parse(dateString, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                val date = java.time.LocalDate.parse(
+                    dateString,
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                )
                 date.atStartOfDay()
             } catch (e2: Exception) {
                 java.time.LocalDateTime.now()

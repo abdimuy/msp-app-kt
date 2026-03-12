@@ -3,13 +3,10 @@ package com.example.msp_app.features.transfers.presentation.components
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -70,7 +67,9 @@ fun WarehouseSelector(
                 isError = error != null,
                 supportingText = if (error != null) {
                     { Text(error) }
-                } else null
+                } else {
+                    null
+                }
             )
 
             ExposedDropdownMenu(

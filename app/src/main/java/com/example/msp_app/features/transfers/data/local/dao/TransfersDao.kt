@@ -49,14 +49,16 @@ interface TransfersDao {
     fun getAllTransfersWithDetails(): Flow<List<TransferWithDetails>>
 
     @Transaction
-    @Query("""
+    @Query(
+        """
         SELECT * FROM transfers
         WHERE (:almacenOrigenId IS NULL OR almacen_origen_id = :almacenOrigenId)
         AND (:almacenDestinoId IS NULL OR almacen_destino_id = :almacenDestinoId)
         AND (:fechaInicio IS NULL OR fecha >= :fechaInicio)
         AND (:fechaFin IS NULL OR fecha <= :fechaFin)
         ORDER BY fecha DESC, docto_in_id DESC
-    """)
+    """
+    )
     fun getFilteredTransfersWithDetails(
         almacenOrigenId: Int? = null,
         almacenDestinoId: Int? = null,
@@ -106,17 +108,21 @@ interface TransfersDao {
     @Query("SELECT COUNT(*) FROM transfers WHERE fecha = :fecha")
     suspend fun getTransfersCountByDate(fecha: String): Int
 
-    @Query("""
+    @Query(
+        """
         SELECT COALESCE(SUM(costo_total), 0.0)
         FROM transfers
         WHERE fecha >= :fechaInicio AND fecha <= :fechaFin
-    """)
+    """
+    )
     suspend fun getTotalCostByDateRange(fechaInicio: String, fechaFin: String): Double
 
-    @Query("""
+    @Query(
+        """
         SELECT COALESCE(SUM(total_productos), 0)
         FROM transfers
         WHERE almacen_origen_id = :almacenId OR almacen_destino_id = :almacenId
-    """)
+    """
+    )
     suspend fun getTotalProductsByWarehouse(almacenId: Int): Int
 }

@@ -39,9 +39,9 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.components.CarouselItem
 import com.example.msp_app.features.productsInventory.components.CarrouselImage
+import com.example.msp_app.features.sales.components.comboinfocard.CombosInfoCard
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
-import com.example.msp_app.features.sales.components.comboinfocard.CombosInfoCard
 import com.example.msp_app.features.sales.components.productinfocard.ProductsInfoCard
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
@@ -76,9 +76,13 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     PRECIOS = "${productEntity.PRECIO_LISTA},${productEntity.PRECIO_CORTO_PLAZO},${productEntity.PRECIO_CONTADO}",
                     EXISTENCIAS = 0,
                     LINEA_ARTICULO_ID = 0,
-                    LINEA_ARTICULO = "",
+                    LINEA_ARTICULO = ""
                 )
-                productsViewModel.addProductToSale(productInventory, productEntity.CANTIDAD, productEntity.COMBO_ID)
+                productsViewModel.addProductToSale(
+                    productInventory,
+                    productEntity.CANTIDAD,
+                    productEntity.COMBO_ID
+                )
             }
         }
     }
@@ -140,7 +144,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                     elevation = CardDefaults.cardElevation(4.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.inverseOnSurface
-                    ),
+                    )
                 ) {
                     Column(
                         modifier = Modifier
@@ -241,7 +245,10 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                                     style = MaterialTheme.typography.titleLarge
                                 )
                                 Spacer(Modifier.height(8.dp))
-                                InfoRow("Enganche:", currentSale.ENGANCHE?.toCurrency(noDecimals = true) ?: "")
+                                InfoRow(
+                                    "Enganche:",
+                                    currentSale.ENGANCHE?.toCurrency(noDecimals = true) ?: ""
+                                )
                                 InfoRow(
                                     "Parcialidad:",
                                     currentSale.PARCIALIDAD?.toCurrency(noDecimals = true) ?: ""
@@ -309,11 +316,7 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
 }
 
 @Composable
-fun InfoRow(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
+fun InfoRow(label: String, value: String, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()

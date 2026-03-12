@@ -37,10 +37,9 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Package
 import com.composables.icons.lucide.X
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
+import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.sales.viewmodels.ComboItem
 import com.example.msp_app.features.sales.viewmodels.SaleItem
-import com.example.msp_app.data.models.productInventory.ProductInventory
-import com.example.msp_app.utils.PriceParser
 
 @Composable
 fun ProductsWithCombosSection(
@@ -65,7 +64,9 @@ fun ProductsWithCombosSection(
     val filteredIndividualProducts = remember(individualProducts, productsForCombos, combos) {
         if (productsForCombos.isNotEmpty() && combos.isNotEmpty()) {
             val comboIds = combos.map { it.comboId }.toSet()
-            val productsInCombos = productsForCombos.filter { it.COMBO_ID in comboIds }.map { it.ARTICULO_ID }.toSet()
+            val productsInCombos = productsForCombos.filter {
+                it.COMBO_ID in comboIds
+            }.map { it.ARTICULO_ID }.toSet()
             individualProducts.filter { it.product.ARTICULO_ID !in productsInCombos }
         } else {
             individualProducts
@@ -195,7 +196,9 @@ fun ProductsWithCombosSection(
                         val fromDb = productsForCombos
                             .filter { it.COMBO_ID == combo.comboId }
                             .mapNotNull { productEntity ->
-                                getProductInventory.invoke(productEntity.ARTICULO_ID)?.let { product ->
+                                getProductInventory.invoke(
+                                    productEntity.ARTICULO_ID
+                                )?.let { product ->
                                     SaleItem(product, productEntity.CANTIDAD, combo.comboId)
                                 }
                             }
@@ -204,7 +207,7 @@ fun ProductsWithCombosSection(
                     }
                     else -> getProductsInCombo(combo.comboId)
                 }
-                
+
                 ComboCard(
                     combo = combo,
                     products = productsInCombo,
@@ -218,7 +221,7 @@ fun ProductsWithCombosSection(
 
         // Productos individuales - use filtered list if productsForCombos is available
         val displayIndividualProducts = if (productsForCombos.isNotEmpty()) filteredIndividualProducts else individualProducts
-        
+
         if (displayIndividualProducts.isNotEmpty()) {
             Text(
                 text = if (combos.isNotEmpty()) "Productos individuales" else "Productos",

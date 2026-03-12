@@ -23,8 +23,13 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
+import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
 import com.example.msp_app.features.cart.screens.CartScreen
 import com.example.msp_app.features.common.NoModulesScreen
+import com.example.msp_app.features.guarantees.screens.CreateGuaranteeScreen
+import com.example.msp_app.features.guarantees.screens.GuaranteeDetailScreen
+import com.example.msp_app.features.guarantees.screens.GuaranteeListScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
@@ -33,7 +38,6 @@ import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.productsInventory.screens.SaleHomeScreen
-import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
 import com.example.msp_app.features.sales.screens.EditSaleScreen
 import com.example.msp_app.features.sales.screens.NewSaleScreen
@@ -42,16 +46,13 @@ import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
 import com.example.msp_app.features.sales.screens.SalesScreen
-import com.example.msp_app.features.visit.screens.VisitTicketScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
-import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
 import com.example.msp_app.features.transfers.presentation.create.NewTransferScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailScreen
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
-import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
-import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
-
+import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
+import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
+import com.example.msp_app.features.visit.screens.VisitTicketScreen
 
 sealed class Screen(val route: String) {
     object Loading : Screen("loading")
@@ -114,6 +115,13 @@ sealed class Screen(val route: String) {
 
     // Camioneta Assignment route
     object CamionetaAssignment : Screen("camioneta_assignment")
+
+    // Guarantee routes
+    object GuaranteeList : Screen("guarantee_list")
+    object CreateGuarantee : Screen("create_guarantee")
+    object GuaranteeDetail : Screen("guarantee_detail/{guaranteeId}") {
+        fun createRoute(guaranteeId: Int) = "guarantee_detail/$guaranteeId"
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -152,9 +160,14 @@ fun AppNavigation() {
 
                             val destination = when {
                                 modulos.isEmpty() -> Screen.NoModules.route
-                                modulos.contains("COBRO") -> Screen.Home.route          // Priority 1
-                                modulos.contains("VENTAS") -> Screen.SaleHome.route     // Priority 2
-                                modulos.contains("ALMACEN") -> Screen.TransfersList.route // Priority 3
+                                modulos.contains("COBRO") -> Screen.Home.route // Priority 1
+                                modulos.contains("VENTAS") -> Screen.SaleHome.route // Priority 2
+                                modulos.contains(
+                                    "ALMACEN"
+                                ) -> Screen.TransfersList.route // Priority 3
+                                modulos.contains(
+                                    "GARANTIAS"
+                                ) -> Screen.GuaranteeList.route // Priority 4
                                 else -> Screen.NoModules.route
                             }
 
@@ -217,7 +230,6 @@ fun AppNavigation() {
                     SaleMapScreen(navController = navController, saleId = saleId)
                 }
             }
-
 
             composable(Screen.PaymentTicket.route) { backStackEntry ->
                 val paymentId = backStackEntry.arguments?.getString("paymentId")
@@ -293,7 +305,7 @@ fun AppNavigation() {
 
             composable(Screen.Cart.route) {
                 CartScreen(
-                    navController = navController,
+                    navController = navController
                 )
             }
 
@@ -334,6 +346,26 @@ fun AppNavigation() {
                 }
             }
 
+            // Guarantee routes
+            composable(Screen.GuaranteeList.route) {
+                GuaranteeListScreen(navController = navController)
+            }
+
+            composable(Screen.CreateGuarantee.route) {
+                CreateGuaranteeScreen(navController = navController)
+            }
+
+            composable(Screen.GuaranteeDetail.route) { backStackEntry ->
+                val guaranteeId =
+                    backStackEntry.arguments?.getString("guaranteeId")?.toIntOrNull()
+                if (guaranteeId != null) {
+                    GuaranteeDetailScreen(
+                        guaranteeId = guaranteeId,
+                        navController = navController
+                    )
+                }
+            }
+
             // Camioneta Assignment route
             composable(Screen.CamionetaAssignment.route) {
                 val viewModel: CamionetaAssignmentViewModel = viewModel()
@@ -345,4 +377,3 @@ fun AppNavigation() {
         }
     }
 }
-

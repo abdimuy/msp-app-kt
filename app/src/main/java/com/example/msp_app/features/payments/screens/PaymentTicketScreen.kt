@@ -67,9 +67,9 @@ import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.infofield.InfoField
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.ui.theme.ThemeController
-import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 data class PaymentLine(
     val date: String,
@@ -80,10 +80,7 @@ data class PaymentLine(
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PaymentTicketScreen(
-    paymentId: String,
-    navController: NavController
-) {
+fun PaymentTicketScreen(paymentId: String, navController: NavController) {
     val isDark = ThemeController.isDarkMode
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -179,7 +176,8 @@ fun PaymentTicketScreen(
             Box(
                 modifier = Modifier
                     .padding(innerPadding)
-                    .fillMaxSize(), contentAlignment = Alignment.TopCenter
+                    .fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
                 var finalSale: Sale? = null
                 var finalProductos: List<Product> = emptyList()
@@ -194,8 +192,12 @@ fun PaymentTicketScreen(
                         selectedPayment == null -> Text("Cargando pago...")
                         saleResult is ResultState.Loading -> Text("Cargando venta...")
                         productsResult is ResultState.Loading -> Text("Cargando productos...")
-                        saleResult is ResultState.Error -> Text("Error: ${(saleResult as ResultState.Error).message}")
-                        productsResult is ResultState.Error -> Text("Error: ${(productsResult as ResultState.Error).message}")
+                        saleResult is ResultState.Error -> Text(
+                            "Error: ${(saleResult as ResultState.Error).message}"
+                        )
+                        productsResult is ResultState.Error -> Text(
+                            "Error: ${(productsResult as ResultState.Error).message}"
+                        )
 
                         saleResult is ResultState.Success && productsResult is ResultState.Success -> {
                             val sale = (saleResult as ResultState.Success<Sale?>).data
@@ -205,7 +207,7 @@ fun PaymentTicketScreen(
                             finalProductos = products
 
                             val saldoAnterior = (selectedPayment?.IMPORTE ?: 0.0) +
-                                    (sale?.SALDO_REST ?: 0.0)
+                                (sale?.SALDO_REST ?: 0.0)
 
                             finalFormattedDate = date
                             val lineBlanck = (" ").repeat(32)
@@ -346,12 +348,14 @@ fun PaymentTicketScreen(
                                         Text(
                                             text = if (isCondonacion) "Ticket de Condonación" else "Ticket de Pago",
                                             fontSize = 24.sp,
-                                            fontWeight = FontWeight.Bold,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
                                 OutlinedCard(
-                                    elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 0.dp else 6.dp),
+                                    elevation = CardDefaults.cardElevation(
+                                        defaultElevation = if (isDark) 0.dp else 6.dp
+                                    ),
                                     colors = CardDefaults.cardColors(
                                         containerColor = MaterialTheme.colorScheme.background
                                     ),
@@ -388,7 +392,9 @@ fun PaymentTicketScreen(
                                             InfoField(label = "FECHA VENTA:", value = sale.FECHA)
                                             InfoField(
                                                 label = "PRECIO TOTAL:",
-                                                value = sale.PRECIO_TOTAL.toCurrency(noDecimals = true)
+                                                value = sale.PRECIO_TOTAL.toCurrency(
+                                                    noDecimals = true
+                                                )
                                             )
                                             InfoField(
                                                 label = "PRECIO A ${sale.TIEMPO_A_CORTO_PLAZOMESES} MESES:",
@@ -408,7 +414,9 @@ fun PaymentTicketScreen(
                                             )
                                             InfoField(
                                                 label = "PARCIALIDAD:",
-                                                value = sale.PARCIALIDAD.toCurrency(noDecimals = true)
+                                                value = sale.PARCIALIDAD.toCurrency(
+                                                    noDecimals = true
+                                                )
                                             )
                                             InfoField(
                                                 label = "VENDEDORES:",
@@ -446,7 +454,9 @@ fun PaymentTicketScreen(
                                             )
                                             InfoField(
                                                 label = "SALDO ACTUAL:",
-                                                value = sale.SALDO_REST.toCurrency(noDecimals = true)
+                                                value = sale.SALDO_REST.toCurrency(
+                                                    noDecimals = true
+                                                )
                                             )
                                             Spacer(Modifier.height(12.dp))
                                             Text(" HISTORIAL DE PAGOS ")
@@ -466,7 +476,9 @@ fun PaymentTicketScreen(
                                                 }
 
                                                 is ResultState.Error -> {
-                                                    Text("Error: ${(paymentsState as ResultState.Error).message}")
+                                                    Text(
+                                                        "Error: ${(paymentsState as ResultState.Error).message}"
+                                                    )
                                                 }
 
                                                 else -> {
@@ -555,9 +567,15 @@ fun PaymentTicketScreen(
                                                     } x ${it.CANTIDAD}"
                                                 },
                                                 fechaPago = finalFormattedDate,
-                                                saldoAnterior = ((selectedPayment?.IMPORTE
-                                                    ?: 0.0) + (finalSale?.SALDO_REST
-                                                    ?: 0.0)).toCurrency(
+                                                saldoAnterior = (
+                                                    (
+                                                        selectedPayment?.IMPORTE
+                                                            ?: 0.0
+                                                        ) + (
+                                                        finalSale?.SALDO_REST
+                                                            ?: 0.0
+                                                        )
+                                                    ).toCurrency(
                                                     noDecimals = true
                                                 ),
                                                 abonado = selectedPayment?.IMPORTE?.toCurrency(

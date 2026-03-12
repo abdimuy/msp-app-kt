@@ -29,10 +29,7 @@ import com.example.msp_app.features.transfers.presentation.create.TransferStep
  * Step indicator component for wizard
  */
 @Composable
-fun StepIndicator(
-    currentStep: TransferStep,
-    modifier: Modifier = Modifier
-) {
+fun StepIndicator(currentStep: TransferStep, modifier: Modifier = Modifier) {
     val steps = listOf(
         StepInfo(TransferStep.WAREHOUSES, "Almacenes", 1),
         StepInfo(TransferStep.PRODUCTS, "Productos", 2),

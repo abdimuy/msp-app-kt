@@ -69,8 +69,8 @@ class ConnectivityMonitor(private val context: Context) {
             val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
 
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
         } catch (e: Exception) {
             false
         }

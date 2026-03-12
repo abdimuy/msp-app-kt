@@ -7,7 +7,7 @@ data class PaymentLineData(
     val date: String,
     val client: String,
     val amount: Double,
-    val paymentMethod: PaymentMethod,
+    val paymentMethod: PaymentMethod
 )
 
 data class PaymentTextData(
@@ -21,7 +21,7 @@ data class VisitLineData(
     val date: String,
     val collector: String,
     val type: String,
-    val note: String,
+    val note: String
 )
 
 data class VisitTextData(

@@ -2,16 +2,15 @@ package com.example.msp_app.features.sales.viewmodels
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.lifecycle.ViewModel
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.utils.PriceParser
 import java.util.UUID
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 data class SaleItem(
     val product: ProductInventory,
@@ -85,7 +84,7 @@ class SaleProductsViewModel : ViewModel() {
         return _saleItems.find {
             it.product.ARTICULO_ID == product.ARTICULO_ID
         }?.quantity ?: 0
-        }
+    }
 
     fun getTotalPrice(): Double = _saleItems.sumOf { it.totalPrice }
 
@@ -105,7 +104,7 @@ class SaleProductsViewModel : ViewModel() {
     fun validatePrices(): Boolean {
         return _saleItems.all {
             it.product.PRECIOS?.toDoubleOrNull() != null &&
-                    it.product.PRECIOS.toDouble() > 0
+                it.product.PRECIOS.toDouble() > 0
         }
     }
 
@@ -145,7 +144,7 @@ class SaleProductsViewModel : ViewModel() {
     fun toggleProductSelection(articleId: Int) {
         // Block product selection while creating a combo to prevent accidental deselection
         if (_isCreatingCombo.value) return
-        
+
         if (_selectedForCombo.contains(articleId)) {
             _selectedForCombo.remove(articleId)
         } else {
@@ -238,6 +237,20 @@ class SaleProductsViewModel : ViewModel() {
 
         _selectedForCombo.clear()
         return comboId
+    }
+
+    fun updateComboPrices(
+        comboId: String,
+        precioLista: Double,
+        precioCortoPlazo: Double,
+        precioContado: Double
+    ) {
+        val existing = _combos[comboId] ?: return
+        _combos[comboId] = existing.copy(
+            precioLista = precioLista,
+            precioCortoPlazo = precioCortoPlazo,
+            precioContado = precioContado
+        )
     }
 
     fun deleteCombo(comboId: String) {

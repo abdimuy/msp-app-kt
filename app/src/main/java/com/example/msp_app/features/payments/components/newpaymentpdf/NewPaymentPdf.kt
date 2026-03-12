@@ -216,11 +216,9 @@ object PaymentPdfGenerator {
                 y += lineSpacing
             }
 
-
-
             pdf.finishPage(page)
 
-            val file = File(context.cacheDir, "Ticket_${folio}.pdf")
+            val file = File(context.cacheDir, "Ticket_$folio.pdf")
 
             try {
                 FileOutputStream(file).use { outputStream ->
@@ -234,7 +232,6 @@ object PaymentPdfGenerator {
                 onComplete(false, null)
                 return
             }
-
         } catch (e: Exception) {
             e.printStackTrace()
             onComplete(false, null)
@@ -262,5 +259,4 @@ object PaymentPdfGenerator {
 
         return lines
     }
-
 }

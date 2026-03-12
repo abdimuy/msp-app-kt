@@ -8,13 +8,13 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Sistema de logging remoto reutilizable para cualquier módulo de la aplicación
@@ -33,12 +33,12 @@ class RemoteLogger private constructor(private val context: Context) {
         private const val EVENTS_COLLECTION = "app_events"
 
         @Volatile
-        private var INSTANCE: RemoteLogger? = null
+        private var instance: RemoteLogger? = null
 
         fun getInstance(context: Context): RemoteLogger {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: RemoteLogger(context.applicationContext).also {
-                    INSTANCE = it
+            return instance ?: synchronized(this) {
+                instance ?: RemoteLogger(context.applicationContext).also {
+                    instance = it
                 }
             }
         }
@@ -76,7 +76,10 @@ class RemoteLogger private constructor(private val context: Context) {
         scope.launch {
             try {
                 val currentUser = auth.currentUser
-                val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+                val timestamp = SimpleDateFormat(
+                    "yyyy-MM-dd HH:mm:ss",
+                    Locale.getDefault()
+                ).format(Date())
 
                 val logEntry = hashMapOf(
                     "id" to UUID.randomUUID().toString(),
@@ -114,7 +117,6 @@ class RemoteLogger private constructor(private val context: Context) {
                     .addOnFailureListener { e ->
                         Log.e(TAG, "Failed to send log to Firebase", e)
                     }
-
             } catch (e: Exception) {
                 Log.e(TAG, "Error in logging", e)
             }
@@ -152,7 +154,6 @@ class RemoteLogger private constructor(private val context: Context) {
                     .addOnFailureListener { e ->
                         Log.e(TAG, "Failed to send event to Firebase", e)
                     }
-
             } catch (e: Exception) {
                 Log.e(TAG, "Error logging event", e)
             }
@@ -162,23 +163,50 @@ class RemoteLogger private constructor(private val context: Context) {
     /**
      * Métodos de conveniencia para diferentes niveles
      */
-    fun debug(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun debug(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.DEBUG, message, data)
     }
 
-    fun info(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun info(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.INFO, message, data)
     }
 
-    fun warning(module: String, action: String, message: String, data: Map<String, Any?> = emptyMap()) {
+    fun warning(
+        module: String,
+        action: String,
+        message: String,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.WARNING, message, data)
     }
 
-    fun error(module: String, action: String, message: String, error: Throwable? = null, data: Map<String, Any?> = emptyMap()) {
+    fun error(
+        module: String,
+        action: String,
+        message: String,
+        error: Throwable? = null,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.ERROR, message, data, error)
     }
 
-    fun critical(module: String, action: String, message: String, error: Throwable? = null, data: Map<String, Any?> = emptyMap()) {
+    fun critical(
+        module: String,
+        action: String,
+        message: String,
+        error: Throwable? = null,
+        data: Map<String, Any?> = emptyMap()
+    ) {
         log(module, action, LogLevel.CRITICAL, message, data, error)
     }
 
@@ -208,11 +236,7 @@ class RemoteLogger private constructor(private val context: Context) {
     /**
      * Log de acción de usuario
      */
-    fun logUserAction(
-        module: String,
-        action: String,
-        data: Map<String, Any?> = emptyMap()
-    ) {
+    fun logUserAction(module: String, action: String, data: Map<String, Any?> = emptyMap()) {
         logEvent(
             module = module,
             eventType = EventType.USER_ACTION,
@@ -307,11 +331,7 @@ fun RemoteLogger.logCartAction(
     )
 }
 
-fun RemoteLogger.logAuthEvent(
-    event: String,
-    success: Boolean,
-    errorMessage: String? = null
-) {
+fun RemoteLogger.logAuthEvent(event: String, success: Boolean, errorMessage: String? = null) {
     val data = mutableMapOf<String, Any?>(
         "success" to success
     )
@@ -372,7 +392,10 @@ fun RemoteLogger.logReportSnapshot(
     val reportPaymentsChunks = paymentsInReport.chunked(chunkSize)
     val totalParts = maxOf(allPaymentsChunks.size, reportPaymentsChunks.size, 1)
 
-    Log.d("RemoteLogger", "logReportSnapshot: snapshotId=$snapshotId, totalPayments=${allPaymentsInDb.size}, chunks=$totalParts")
+    Log.d(
+        "RemoteLogger",
+        "logReportSnapshot: snapshotId=$snapshotId, totalPayments=${allPaymentsInDb.size}, chunks=$totalParts"
+    )
 
     for (part in 0 until totalParts) {
         info(

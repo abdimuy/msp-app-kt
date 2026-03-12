@@ -16,9 +16,9 @@ data class TransferFilters(
      */
     fun hasActiveFilters(): Boolean {
         return fechaInicio != null ||
-                fechaFin != null ||
-                almacenOrigenId != null ||
-                almacenDestinoId != null
+            fechaFin != null ||
+            almacenOrigenId != null ||
+            almacenDestinoId != null
     }
 
     /**

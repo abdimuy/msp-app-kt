@@ -36,4 +36,3 @@ data class OverduePaymentsEntity(
     val PARCIALIDADES_TRANSCURRIDAS: Double,
     val NUM_PAGOS_ATRASADOS: Double
 )
-

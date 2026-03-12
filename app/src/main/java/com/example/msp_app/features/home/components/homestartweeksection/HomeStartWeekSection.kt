@@ -26,11 +26,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun HomeStartWeekSection(
-    startDate: String,
-    isDark: Boolean,
-    modifier: Modifier = Modifier
-) {
+fun HomeStartWeekSection(startDate: String, isDark: Boolean, modifier: Modifier = Modifier) {
     val salesViewModel: SalesViewModel = viewModel()
     val lastSyncDate = salesViewModel.getLastSyncDate()
     OutlinedCard(
@@ -65,14 +61,15 @@ fun HomeStartWeekSection(
     Text(
         modifier = Modifier.padding(horizontal = 16.dp),
         text = "Última actualización de datos:\n ${
-            if (lastSyncDate.isBlank())
+            if (lastSyncDate.isBlank()) {
                 "No se ha sincronizado aún"
-            else {
+            } else {
                 val originalFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                 val parsed = originalFormat.parse(lastSyncDate)
                 if (parsed != null) {
                     val targetFormat = SimpleDateFormat(
-                        "dd/MM/yyyy hh:mm a", Locale.getDefault()
+                        "dd/MM/yyyy hh:mm a",
+                        Locale.getDefault()
                     )
                     targetFormat.format(parsed)
                 } else {
@@ -82,7 +79,7 @@ fun HomeStartWeekSection(
         }",
         fontSize = 14.sp,
         color = if (isDark) Color.LightGray else Color.DarkGray,
-        textAlign = TextAlign.Center,
+        textAlign = TextAlign.Center
     )
 
     Spacer(Modifier.height(16.dp))

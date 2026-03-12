@@ -11,7 +11,6 @@ import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.cache.ProductsCache
 import com.example.msp_app.data.cache.ZonesCache
-import com.example.msp_app.features.zones.ZonesRepository
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
@@ -23,6 +22,7 @@ import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
 import com.example.msp_app.data.models.sale.toSale
+import com.example.msp_app.features.zones.ZonesRepository
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -78,7 +78,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         // Resetear el estado de autenticación biométrica para volver a solicitarla
         MainActivity.isAuthenticated = false
     }
-
 
     fun getUserDataByEmail(email: String) {
         userDataListener?.remove()
@@ -181,8 +180,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     .collection(Constants.USERS_COLLECTION)
                     .document(userId)
                     .update(
-                        Constants.VERSION_APP, appVersion,
-                        Constants.FECHA_VERSION_APP, versionDate
+                        Constants.VERSION_APP,
+                        appVersion,
+                        Constants.FECHA_VERSION_APP,
+                        versionDate
                     ).await()
             } catch (e: Exception) {
                 Log.e("APPVERSION", "Error al actualizar la versión: ${e.message}")
@@ -258,4 +259,3 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         userDataListener = null
     }
 }
-

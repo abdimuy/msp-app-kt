@@ -5,12 +5,12 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
+import java.io.File
+import java.lang.reflect.Type
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.lang.reflect.Type
 
 /**
  * Interface base para todos los caches offline
@@ -149,7 +149,9 @@ abstract class BaseOfflineCache<T : Any>(
 
                     // Verificar versión
                     if (wrapper.metadata.version != config.version) {
-                        log("Cache version mismatch (cached: ${wrapper.metadata.version}, current: ${config.version}), clearing cache")
+                        log(
+                            "Cache version mismatch (cached: ${wrapper.metadata.version}, current: ${config.version}), clearing cache"
+                        )
                         clear()
                         return@withContext CacheResult.Empty
                     }
@@ -158,7 +160,9 @@ abstract class BaseOfflineCache<T : Any>(
                     memoryCache = wrapper.data
                     cachedMetadata = wrapper.metadata
 
-                    log("Loaded ${wrapper.data.size} items from file cache (age: ${wrapper.metadata.ageFormatted()})")
+                    log(
+                        "Loaded ${wrapper.data.size} items from file cache (age: ${wrapper.metadata.ageFormatted()})"
+                    )
 
                     return@withContext if (wrapper.metadata.isExpired()) {
                         CacheResult.Expired(wrapper.data, wrapper.metadata)
@@ -209,7 +213,7 @@ abstract class BaseOfflineCache<T : Any>(
      */
     override suspend fun hasData(): Boolean {
         return memoryCache?.isNotEmpty() == true ||
-                (cacheFile.exists() && cacheFile.length() > 0)
+            (cacheFile.exists() && cacheFile.length() > 0)
     }
 
     /**

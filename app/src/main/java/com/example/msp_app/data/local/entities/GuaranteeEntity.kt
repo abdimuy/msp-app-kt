@@ -16,10 +16,12 @@ data class GuaranteeEntity(
     @PrimaryKey(autoGenerate = true)
     val ID: Int = 0,
     val EXTERNAL_ID: String,
-    val DOCTO_CC_ID: Int,
+    val DOCTO_CC_ID: Int?,
     val ESTADO: String,
     val DESCRIPCION_FALLA: String,
     val OBSERVACIONES: String?,
     val UPLOADED: Int,
-    val FECHA_SOLICITUD: String
+    val FECHA_SOLICITUD: String,
+    val NOMBRE_CLIENTE: String? = null,
+    val NOMBRE_PRODUCTO: String? = null
 )

@@ -26,7 +26,7 @@ object ReportFormatters {
                 date = formattedDate,
                 client = payment.NOMBRE_CLIENTE,
                 amount = payment.IMPORTE,
-                paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+                paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID)
             )
         }
 
@@ -122,7 +122,7 @@ object ReportFormatters {
                 date = formattedDate,
                 client = payment.NOMBRE_CLIENTE,
                 amount = payment.IMPORTE,
-                paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID),
+                paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID)
             )
         }
 

@@ -17,7 +17,7 @@ object VisitStatusMapper {
     )
 
     private val noPagado = listOf(
-        Constants.NO_VA_A_DAR_PAGO,
+        Constants.NO_VA_A_DAR_PAGO
     )
 
     fun map(visitType: String): EstadoCobranza = when (visitType) {

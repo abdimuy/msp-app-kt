@@ -73,10 +73,14 @@ fun SelectBluetoothDevice(
     val permissionsLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { perms ->
-        val granted = (perms[Manifest.permission.BLUETOOTH_CONNECT] == true
-                || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) &&
-                (perms[Manifest.permission.BLUETOOTH_SCAN] == true
-                        || Build.VERSION.SDK_INT < Build.VERSION_CODES.S)
+        val granted = (
+            perms[Manifest.permission.BLUETOOTH_CONNECT] == true ||
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+            ) &&
+            (
+                perms[Manifest.permission.BLUETOOTH_SCAN] == true ||
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.S
+                )
         if (granted) {
             checkBluetoothRef.value()
         } else {
@@ -177,7 +181,12 @@ fun SelectBluetoothDevice(
                             selectedDevice?.let { device ->
                                 coroutineScope.launch {
                                     isPrinting = true
-                                    performPrintRequest(context, device, textToPrint, onPrintRequest)
+                                    performPrintRequest(
+                                        context,
+                                        device,
+                                        textToPrint,
+                                        onPrintRequest
+                                    )
                                     isPrinting = false
                                 }
                             }
@@ -223,7 +232,12 @@ fun SelectBluetoothDevice(
                             selectedDevice?.let { device ->
                                 coroutineScope.launch {
                                     isPrinting = true
-                                    performPrintRequest(context, device, textToPrint, onPrintRequest)
+                                    performPrintRequest(
+                                        context,
+                                        device,
+                                        textToPrint,
+                                        onPrintRequest
+                                    )
                                     isPrinting = false
                                 }
                             }

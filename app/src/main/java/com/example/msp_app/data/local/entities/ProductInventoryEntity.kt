@@ -8,8 +8,9 @@ import androidx.room.PrimaryKey
     tableName = "product_inventory",
     indices = [
         Index(
-            value = ["ARTICULO_ID"],
-        )]
+            value = ["ARTICULO_ID"]
+        )
+    ]
 )
 data class ProductInventoryEntity(
     @PrimaryKey val ARTICULO_ID: Int,

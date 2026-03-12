@@ -1,8 +1,9 @@
 package com.example.msp_app.data.models.payment
 
 import com.example.msp_app.data.local.entities.PaymentEntity
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
-import org.junit.Assert.*
 
 class PaymentMappersTest {
 
@@ -25,7 +26,7 @@ class PaymentMappersTest {
 
     private val samplePayment = Payment(
         ID = "TEST_ID_002",
-        COBRADOR = "Pedro Cobrador",  
+        COBRADOR = "Pedro Cobrador",
         DOCTO_CC_ACR_ID = 54321,
         DOCTO_CC_ID = 98760,
         FECHA_HORA_PAGO = "2024-02-15 14:45:00",
@@ -52,7 +53,7 @@ class PaymentMappersTest {
         LNG = -100.316113,
         CLIENTE_ID = 103,
         COBRADOR_ID = 203,
-        FORMA_COBRO_ID = 3, 
+        FORMA_COBRO_ID = 3,
         ZONA_CLIENTE_ID = 303,
         NOMBRE_CLIENTE = "Luis Martínez"
     )
@@ -60,7 +61,7 @@ class PaymentMappersTest {
     @Test
     fun `PaymentApi toEntity should map correctly with valid coordinates`() {
         val entity = samplePaymentApi.toEntity()
-        
+
         assertEquals(samplePaymentApi.ID, entity.ID)
         assertEquals(samplePaymentApi.COBRADOR, entity.COBRADOR)
         assertEquals(samplePaymentApi.DOCTO_CC_ACR_ID, entity.DOCTO_CC_ACR_ID)
@@ -83,9 +84,9 @@ class PaymentMappersTest {
             LAT = "invalid_lat",
             LNG = "invalid_lng"
         )
-        
+
         val entity = paymentApiWithInvalidCoords.toEntity()
-        
+
         assertNull(entity.LAT)
         assertNull(entity.LNG)
         assertEquals(paymentApiWithInvalidCoords.ID, entity.ID)
@@ -94,7 +95,7 @@ class PaymentMappersTest {
     @Test
     fun `Payment toEntity should map correctly`() {
         val entity = samplePayment.toEntity()
-        
+
         assertEquals(samplePayment.ID, entity.ID)
         assertEquals(samplePayment.COBRADOR, entity.COBRADOR)
         assertEquals(samplePayment.DOCTO_CC_ACR_ID, entity.DOCTO_CC_ACR_ID)
@@ -114,7 +115,7 @@ class PaymentMappersTest {
     @Test
     fun `PaymentEntity toDomainApi should map correctly`() {
         val domainApi = samplePaymentEntity.toDomainApi()
-        
+
         assertEquals(samplePaymentEntity.ID, domainApi.ID)
         assertEquals(samplePaymentEntity.COBRADOR, domainApi.COBRADOR)
         assertEquals(samplePaymentEntity.DOCTO_CC_ACR_ID, domainApi.DOCTO_CC_ACR_ID)
@@ -134,7 +135,7 @@ class PaymentMappersTest {
     @Test
     fun `PaymentEntity toDomain should map correctly`() {
         val domain = samplePaymentEntity.toDomain()
-        
+
         assertEquals(samplePaymentEntity.ID, domain.ID)
         assertEquals(samplePaymentEntity.COBRADOR, domain.COBRADOR)
         assertEquals(samplePaymentEntity.DOCTO_CC_ACR_ID, domain.DOCTO_CC_ACR_ID)
@@ -155,7 +156,7 @@ class PaymentMappersTest {
     fun `PaymentEntity with null coordinates should handle toString conversion`() {
         val entityWithNullCoords = samplePaymentEntity.copy(LAT = null, LNG = null)
         val domainApi = entityWithNullCoords.toDomainApi()
-        
+
         assertEquals("null", domainApi.LAT)
         assertEquals("null", domainApi.LNG)
     }

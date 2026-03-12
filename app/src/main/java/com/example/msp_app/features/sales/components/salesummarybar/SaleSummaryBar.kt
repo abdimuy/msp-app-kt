@@ -26,10 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
 
 @Composable
-fun SaleSummaryBar(
-    balance: String,
-    percentagePaid: String
-) {
+fun SaleSummaryBar(balance: String, percentagePaid: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth(0.92f)

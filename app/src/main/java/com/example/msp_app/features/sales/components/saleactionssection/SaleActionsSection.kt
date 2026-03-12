@@ -66,13 +66,12 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
             text = "AGREGAR PAGO",
             backgroundColor = Color(0xFF388E3C),
             iconRes = R.drawable.money,
-            onClick = { toggleDialog() },
+            onClick = { toggleDialog() }
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
             NewForgivenessDialog(
                 show = openForgivenessDialog,
                 onDismissRequest = { openForgivenessDialog = false },

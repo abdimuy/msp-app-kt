@@ -14,7 +14,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 enum class BadgesType {
-    Success, Warning, Danger, Primary
+    Success,
+    Warning,
+    Danger,
+    Primary
 }
 
 @Composable
@@ -44,4 +47,3 @@ fun AlertBadge(
         )
     }
 }
-

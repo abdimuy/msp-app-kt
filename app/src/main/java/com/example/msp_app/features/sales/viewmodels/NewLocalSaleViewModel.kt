@@ -6,6 +6,9 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.logging.RemoteLogger
+import com.example.msp_app.core.logging.logSaleError
+import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
@@ -15,19 +18,14 @@ import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.utils.PriceParser
 import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
+import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import com.example.msp_app.core.logging.Logger
-import com.example.msp_app.core.logging.RemoteLogger
-import com.example.msp_app.core.logging.logSaleError
-import com.example.msp_app.core.utils.ImageCompressor
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.UUID
 
 class NewLocalSaleViewModel(application: Application) : AndroidViewModel(application) {
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
@@ -142,7 +140,6 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
                 // Las imágenes se guardan siempre como JPEG después de la compresión
                 savedPaths.add(result.outputFile.absolutePath to "image/jpeg")
-
             } catch (e: Exception) {
                 Log.e("NewLocalSaleViewModel", "Error al comprimir imagen $index: ${e.message}", e)
 
@@ -174,7 +171,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
     ) {
         try {
             val savedPaths = saveImagesLocally(context, uris, saleId)
-            
+
             val images = savedPaths.map { (path, _) ->
                 LocalSaleImageEntity(
                     LOCAL_SALE_IMAGE_ID = UUID.randomUUID().toString(),
@@ -183,11 +180,10 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     FECHA_SUBIDA = fechasubida
                 )
             }
-            
+
             images.forEach { image ->
                 localSaleStore.insertSaleImage(image)
             }
-
         } catch (e: Exception) {
             Log.e("NewLocalSaleViewModel", "Error al guardar imágenes: ${e.message}", e)
             throw e
@@ -224,12 +220,16 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
         userEmail: String,
         zonaClienteId: Int? = null,
         zonaClienteNombre: String? = null,
-        combos: List<LocalSaleComboEntity> = emptyList()
+        combos: List<LocalSaleComboEntity> = emptyList(),
+        clienteId: Int? = null
     ) {
         viewModelScope.launch {
             // Verificar si ya hay una operación en curso (protección adicional contra doble click)
             if (saleMutex.isLocked) {
-                Log.w("NewLocalSaleViewModel", "Operación de guardado ya en curso, ignorando llamada duplicada")
+                Log.w(
+                    "NewLocalSaleViewModel",
+                    "Operación de guardado ya en curso, ignorando llamada duplicada"
+                )
                 return@launch
             }
 
@@ -302,7 +302,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         CIUDAD = ciudad,
                         TIPO_VENTA = tipoVenta,
                         ZONA_CLIENTE_ID = zonaClienteId,
-                        ZONA_CLIENTE = zonaClienteNombre
+                        ZONA_CLIENTE = zonaClienteNombre,
+                        CLIENTE_ID = clienteId
                     )
 
                     logger.debug(
@@ -314,7 +315,9 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     localSaleStore.insertSale(saleEntity)
 
                     val productEntities = saleProducts.map { saleItem ->
-                        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+                        val parsedPrices = PriceParser.parsePricesFromString(
+                            saleItem.product.PRECIOS
+                        )
                         LocalSaleProductEntity(
                             LOCAL_SALE_ID = saleId,
                             ARTICULO_ID = saleItem.product.ARTICULO_ID,
@@ -356,7 +359,6 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                             "imageCount" to imageUris.size
                         )
                     )
-
                 } catch (e: Exception) {
                     Log.e("NewLocalSaleViewModel", "Error creating sale: ${e.message}", e)
 
@@ -392,7 +394,6 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
                 loadAllSales()
                 _saveResult.value = SaveResult.Success("Venta eliminada correctamente")
-
             } catch (e: Exception) {
                 Log.e("NewLocalSaleViewModel", "Error deleting sale: ${e.message}", e)
                 _saveResult.value = SaveResult.Error("Error al eliminar la venta")
@@ -527,7 +528,8 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     }
                     3 -> {
                         // Error crítico con NullPointerException
-                        val npe = NullPointerException("Simulated NPE for testing - Something was null")
+                        val npe =
+                            NullPointerException("Simulated NPE for testing - Something was null")
                         logger.critical(
                             module = "SALES_TEST",
                             action = "CRITICAL_NPE",
@@ -569,7 +571,6 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                         "timestamp" to System.currentTimeMillis()
                     )
                 )
-
             } catch (e: Exception) {
                 logger.critical(
                     module = "SALES_TEST",

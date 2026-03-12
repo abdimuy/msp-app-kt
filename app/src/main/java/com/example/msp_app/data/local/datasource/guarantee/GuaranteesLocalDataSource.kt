@@ -20,6 +20,10 @@ class GuaranteesLocalDataSource(private val context: Context) {
         return guaranteesDao.getAllGuarantees()
     }
 
+    suspend fun getStandaloneGuarantees(): List<GuaranteeEntity> {
+        return guaranteesDao.getStandaloneGuarantees()
+    }
+
     suspend fun saveAllGurantees(guarantees: List<GuaranteeEntity>) {
         guaranteesDao.deleteAllGuarantees()
         val guaranteesAsUploaded = guarantees.map { it.copy(UPLOADED = 1) }

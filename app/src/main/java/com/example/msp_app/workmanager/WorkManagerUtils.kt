@@ -2,22 +2,22 @@ package com.example.msp_app.workmanager
 
 import android.content.Context
 import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
+import com.example.msp_app.workers.ClienteSyncWorker
+import com.example.msp_app.workers.PendingGuaranteeEventsWorker
+import com.example.msp_app.workers.PendingGuaranteesWorker
+import com.example.msp_app.workers.PendingLocalSalesWorker
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
-import com.example.msp_app.workers.PendingGuaranteesWorker
-import com.example.msp_app.workers.PendingGuaranteeEventsWorker
-import com.example.msp_app.workers.PendingLocalSalesWorker
+import java.util.concurrent.TimeUnit
 
-fun enqueuePendingPaymentsWorker(
-    context: Context,
-    paymentId: String,
-    replace: Boolean = false
-) {
+fun enqueuePendingPaymentsWorker(context: Context, paymentId: String, replace: Boolean = false) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -36,11 +36,7 @@ fun enqueuePendingPaymentsWorker(
         .enqueueUniqueWork(uniqueName, policy, request)
 }
 
-fun enqueuePendingVisitsWorker(
-    context: Context,
-    visitId: String,
-    replace: Boolean = false
-) {
+fun enqueuePendingVisitsWorker(context: Context, visitId: String, replace: Boolean = false) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -80,10 +76,7 @@ fun enqueuePendingGuaranteesWorker(
         .enqueueUniqueWork(uniqueName, policy, request)
 }
 
-fun enqueuePendingGuaranteeEventsWorker(
-    context: Context,
-    replace: Boolean = false
-) {
+fun enqueuePendingGuaranteeEventsWorker(context: Context, replace: Boolean = false) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -126,4 +119,21 @@ fun enqueuePendingLocalSalesWorker(
 
     WorkManager.getInstance(context)
         .enqueueUniqueWork(uniqueName, policy, request)
+}
+
+fun enqueueClienteSyncWorker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = PeriodicWorkRequestBuilder<ClienteSyncWorker>(24, TimeUnit.HOURS)
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniquePeriodicWork(
+            "sync_clientes",
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
 }

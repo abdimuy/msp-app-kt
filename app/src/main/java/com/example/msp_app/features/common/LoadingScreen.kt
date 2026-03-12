@@ -27,9 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun LoadingScreen(
-    message: String = "Cargando..."
-) {
+fun LoadingScreen(message: String = "Cargando...") {
     val infiniteTransition = rememberInfiniteTransition(label = "loading")
     val rotationAngle by infiniteTransition.animateFloat(
         initialValue = 0f,

@@ -23,14 +23,13 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val api: SalesApi get() = ApiProvider.create(SalesApi::class.java)
@@ -91,7 +90,6 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-
     fun getLocalSales() {
         viewModelScope.launch {
             _salesState.value = ResultState.Loading
@@ -133,14 +131,14 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                         ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
                     return@launch
                 }
-                
+
                 val pendingGuarantees = guaranteeStore.getPendingGuarantees()
                 if (pendingGuarantees.isNotEmpty()) {
                     _syncSalesState.value =
                         ResultState.Error("Hay ${pendingGuarantees.size} garantías pendientes")
                     return@launch
                 }
-                
+
                 val pendingGuaranteeEvents = guaranteeStore.getPendingGuaranteeEvents()
                 if (pendingGuaranteeEvents.isNotEmpty()) {
                     _syncSalesState.value =
@@ -165,7 +163,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                     val previous = currentSales.find { it.DOCTO_CC_ID == apiSale.DOCTO_CC_ID }
                     val safeSale = apiSale.copy(
                         FREC_PAGO = apiSale.FREC_PAGO ?: previous?.FREC_PAGO
-                        ?: FrecuenciaPago.SEMANAL
+                            ?: FrecuenciaPago.SEMANAL
                     )
 
                     val saleWithState = previous
@@ -200,7 +198,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
             putString("last_sync_date", date)
         }
     }
-    
+
     fun getLastSyncDate(): String {
         val prefs = getApplication<Application>()
             .getSharedPreferences("sync_prefs", Context.MODE_PRIVATE)

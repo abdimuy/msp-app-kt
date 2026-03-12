@@ -32,7 +32,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 fun SaleMapScreen(
     navController: NavController,
     saleId: Int? = null,
-    paymentsViewModel: PaymentsViewModel = viewModel(),
+    paymentsViewModel: PaymentsViewModel = viewModel()
 ) {
     val paymentsBySaleId = paymentsViewModel.paymentsBySaleIdState.collectAsState()
 

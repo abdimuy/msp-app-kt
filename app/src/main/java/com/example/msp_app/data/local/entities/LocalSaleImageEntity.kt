@@ -7,12 +7,14 @@ import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "sale_image",
-    foreignKeys = [ForeignKey(
-        entity = LocalSaleEntity::class,
-        parentColumns = ["LOCAL_SALE_ID"],
-        childColumns = ["LOCAL_SALE_ID"],
-        onDelete = ForeignKey.CASCADE
-    )],
+    foreignKeys = [
+        ForeignKey(
+            entity = LocalSaleEntity::class,
+            parentColumns = ["LOCAL_SALE_ID"],
+            childColumns = ["LOCAL_SALE_ID"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
     indices = [
         Index(value = ["LOCAL_SALE_ID"]),
         Index(value = ["FECHA_SUBIDA"])
