@@ -5,7 +5,6 @@ import android.location.Location
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,10 +21,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -351,68 +355,94 @@ fun HomeScreen(navController: NavController) {
                         val downloadState by ApkDownloader.state.collectAsState()
 
                         if (updateInfo != null) {
-                            Row(
+                            Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                                    .background(
-                                        color = Color(0xFF2196F3).copy(alpha = 0.1f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFF1565C0)
+                                ),
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = 4.dp
+                                )
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Nueva versión disponible",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF2196F3)
-                                    )
-                                    Text(
-                                        text = "Versión ${updateInfo!!.latestVersion}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Button(
-                                    onClick = {
-                                        when (downloadState) {
-                                            DownloadState.FAILED -> {
-                                                ApkDownloader.reset()
-                                                ApkDownloader.download(
-                                                    context,
-                                                    updateInfo!!.apkUrl,
-                                                    updateInfo!!.latestVersion
-                                                )
-                                            }
-                                            DownloadState.IDLE -> {
-                                                ApkDownloader.download(
-                                                    context,
-                                                    updateInfo!!.apkUrl,
-                                                    updateInfo!!.latestVersion
-                                                )
-                                            }
-                                            else -> {}
-                                        }
-                                    },
-                                    enabled = downloadState == DownloadState.IDLE ||
-                                        downloadState == DownloadState.FAILED,
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF2196F3)
-                                    )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        when (downloadState) {
-                                            DownloadState.IDLE -> "Descargar"
-                                            DownloadState.DOWNLOADING -> "Descargando..."
-                                            DownloadState.COMPLETED -> "Descargado"
-                                            DownloadState.FAILED -> "Reintentar"
-                                        }
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(
+                                                Color.White.copy(alpha = 0.2f),
+                                                shape = RoundedCornerShape(12.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Actualización disponible",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                        Text(
+                                            text = "v${updateInfo!!.latestVersion} lista para instalar",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Button(
+                                        onClick = {
+                                            when (downloadState) {
+                                                DownloadState.FAILED -> {
+                                                    ApkDownloader.reset()
+                                                    ApkDownloader.download(
+                                                        context,
+                                                        updateInfo!!.apkUrl,
+                                                        updateInfo!!.latestVersion
+                                                    )
+                                                }
+                                                DownloadState.IDLE -> {
+                                                    ApkDownloader.download(
+                                                        context,
+                                                        updateInfo!!.apkUrl,
+                                                        updateInfo!!.latestVersion
+                                                    )
+                                                }
+                                                else -> {}
+                                            }
+                                        },
+                                        enabled = downloadState == DownloadState.IDLE ||
+                                            downloadState == DownloadState.FAILED,
+                                        shape = RoundedCornerShape(20.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color.White,
+                                            contentColor = Color(0xFF1565C0)
+                                        )
+                                    ) {
+                                        Text(
+                                            text = when (downloadState) {
+                                                DownloadState.IDLE -> "Actualizar"
+                                                DownloadState.DOWNLOADING -> "Descargando..."
+                                                DownloadState.COMPLETED -> "Listo"
+                                                DownloadState.FAILED -> "Reintentar"
+                                            },
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
                             }
                         }
