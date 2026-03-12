@@ -334,6 +334,19 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
+                        HomeSummarySection(
+                            isDark = isDark,
+                            totalTodayPayments = totalTodayPayments,
+                            totalWeeklyPayments = totalWeeklyPayments,
+                            numberOfPaymentsToday = numberOfPaymentsToday,
+                            numberOfPaymentsWeekly = numberOfPaymentsWeekly,
+                            numberOfSales = numberOfSales,
+                            accountsPercentageRounded = accountsPercentageRounded,
+                            accountsPercentageAjusted = accountsPercentageAjustedRounded
+                        )
+                    }
+
+                    item {
                         val updateInfo by UpdateChecker.updateAvailable.collectAsState()
                         val downloadState by ApkDownloader.state.collectAsState()
 
@@ -403,19 +416,6 @@ fun HomeScreen(navController: NavController) {
                                 }
                             }
                         }
-                    }
-
-                    item {
-                        HomeSummarySection(
-                            isDark = isDark,
-                            totalTodayPayments = totalTodayPayments,
-                            totalWeeklyPayments = totalWeeklyPayments,
-                            numberOfPaymentsToday = numberOfPaymentsToday,
-                            numberOfPaymentsWeekly = numberOfPaymentsWeekly,
-                            numberOfSales = numberOfSales,
-                            accountsPercentageRounded = accountsPercentageRounded,
-                            accountsPercentageAjusted = accountsPercentageAjustedRounded
-                        )
                     }
 
                     item {
