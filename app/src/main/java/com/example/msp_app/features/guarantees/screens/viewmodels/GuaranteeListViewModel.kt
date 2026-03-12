@@ -17,7 +17,7 @@ class GuaranteeListViewModel(application: Application) : AndroidViewModel(applic
 
     fun loadGuarantees() {
         viewModelScope.launch {
-            _guarantees.value = guaranteeStore.getAllGuarantees()
+            _guarantees.value = guaranteeStore.getStandaloneGuarantees()
         }
     }
 }
