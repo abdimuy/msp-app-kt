@@ -100,7 +100,7 @@ fun ProductsInfoCard(
                                 style = MaterialTheme.typography.titleSmall
                             )
                             Text(
-                                "${productsViewModel.getTotalItems()}",
+                                "${saleProducts.sumOf { it.CANTIDAD }}",
                                 style = MaterialTheme.typography.titleSmall
                             )
                         }
@@ -166,9 +166,9 @@ private fun ProductRow(product: LocalSaleProductEntity) {
                     fontWeight = FontWeight.SemiBold
                 )
                 listOf(
-                    "Lista" to product.PRECIO_LISTA.toCurrency(),
+                    "Contado" to product.PRECIO_CONTADO.toCurrency(),
                     "Corto plazo" to product.PRECIO_CORTO_PLAZO.toCurrency(),
-                    "Contado" to product.PRECIO_CONTADO.toCurrency()
+                    "Lista" to product.PRECIO_LISTA.toCurrency()
                 ).forEach { (label, price) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -193,9 +193,9 @@ private fun ProductRow(product: LocalSaleProductEntity) {
                     style = MaterialTheme.typography.titleSmall
                 )
                 Column(horizontalAlignment = Alignment.Start) {
-                    Text("Lista", style = MaterialTheme.typography.labelSmall)
+                    Text("Contado", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        product.PRECIO_LISTA.toCurrency(),
+                        product.PRECIO_CONTADO.toCurrency(),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
@@ -209,9 +209,9 @@ private fun ProductRow(product: LocalSaleProductEntity) {
                 }
 
                 Column(horizontalAlignment = Alignment.Start) {
-                    Text("Contado", style = MaterialTheme.typography.labelSmall)
+                    Text("Lista", style = MaterialTheme.typography.labelSmall)
                     Text(
-                        product.PRECIO_CONTADO.toCurrency(),
+                        product.PRECIO_LISTA.toCurrency(),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

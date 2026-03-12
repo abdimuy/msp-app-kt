@@ -26,4 +26,8 @@ class ComboLocalDataSource(context: Context) {
     suspend fun deleteCombosForSale(saleId: String) {
         comboDao.deleteCombosForSale(saleId)
     }
+
+    suspend fun replaceCombosForSale(saleId: String, combos: List<LocalSaleComboEntity>) {
+        comboDao.replaceCombosForSale(saleId, combos)
+    }
 }

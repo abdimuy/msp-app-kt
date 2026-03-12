@@ -399,9 +399,9 @@ fun SaleConfirmationDialog(
                             ) {
                                 listOf(
                                     Triple(
-                                        "Lista",
-                                        currencyFormat.format(data.totalPrecioLista),
-                                        true
+                                        "Contado",
+                                        currencyFormat.format(data.totalContado),
+                                        false
                                     ),
                                     Triple(
                                         "Corto Plazo",
@@ -409,9 +409,9 @@ fun SaleConfirmationDialog(
                                         false
                                     ),
                                     Triple(
-                                        "Contado",
-                                        currencyFormat.format(data.totalContado),
-                                        false
+                                        "Lista",
+                                        currencyFormat.format(data.totalPrecioLista),
+                                        true
                                     )
                                 ).forEach { (label, price, isHighlighted) ->
                                     Row(

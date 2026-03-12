@@ -37,6 +37,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Package
 import com.composables.icons.lucide.X
+import java.text.NumberFormat
+import java.util.Locale
 
 /**
  * Validates price input according to business rules
@@ -95,6 +97,8 @@ fun CreateComboDialog(
     selectedProductNames: List<String> = emptyList()
 ) {
     if (!show) return
+
+    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
 
     // Generar nombre sugerido basado en los productos (max 100 caracteres)
     val suggestedName = remember(selectedProductNames) {
@@ -224,7 +228,7 @@ fun CreateComboDialog(
                     value = precioContado,
                     onValueChange = { newValue ->
                         precioContado = newValue
-                        val (isValid, error) = validatePriceInput(newValue, "Precio Contado")
+                        val (_, error) = validatePriceInput(newValue, "Precio Contado")
                         precioContadoError = error
                     },
                     label = { Text("Precio Contado") },
@@ -268,7 +272,7 @@ fun CreateComboDialog(
                     value = precioLista,
                     onValueChange = { newValue ->
                         precioLista = newValue
-                        val (isValid, error) = validatePriceInput(newValue, "Precio Lista")
+                        val (_, error) = validatePriceInput(newValue, "Precio Lista")
                         precioListaError = error
                     },
                     label = { Text("Precio Lista") },
@@ -279,6 +283,12 @@ fun CreateComboDialog(
                     isError = precioListaError != null,
                     supportingText = precioListaError?.let {
                         { Text(it, color = MaterialTheme.colorScheme.error) }
+                    } ?: {
+                        Text(
+                            text = "Suma sugerida: ${currencyFormat.format(suggestedPrices.first)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
                     },
                     shape = RoundedCornerShape(12.dp)
                 )

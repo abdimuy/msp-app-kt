@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 
 @Dao
@@ -20,4 +21,13 @@ interface LocalSaleComboDao {
 
     @Query("DELETE FROM local_sale_combos WHERE LOCAL_SALE_ID = :saleId")
     suspend fun deleteCombosForSale(saleId: String)
+
+    @Transaction
+    @Query("DELETE FROM local_sale_combos WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun replaceCombosForSale(saleId: String, combos: List<LocalSaleComboEntity>) {
+        deleteCombosForSale(saleId)
+        if (combos.isNotEmpty()) {
+            insertAllCombos(combos)
+        }
+    }
 }

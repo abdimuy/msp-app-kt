@@ -233,12 +233,12 @@ fun ComboCard(
                                     .padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                PriceRow("Lista", currencyFormat.format(combo.precioLista))
+                                PriceRow("Contado", currencyFormat.format(combo.precioContado))
                                 PriceRow(
                                     "Corto Plazo",
                                     currencyFormat.format(combo.precioCortoPlazo)
                                 )
-                                PriceRow("Contado", currencyFormat.format(combo.precioContado))
+                                PriceRow("Lista", currencyFormat.format(combo.precioLista))
                             }
                         } else {
                             Row(
@@ -253,12 +253,12 @@ fun ComboCard(
                                     .padding(12.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
-                                PriceColumn("Lista", currencyFormat.format(combo.precioLista))
+                                PriceColumn("Contado", currencyFormat.format(combo.precioContado))
                                 PriceColumn(
                                     "Corto Plazo",
                                     currencyFormat.format(combo.precioCortoPlazo)
                                 )
-                                PriceColumn("Contado", currencyFormat.format(combo.precioContado))
+                                PriceColumn("Lista", currencyFormat.format(combo.precioLista))
                             }
                         }
                     }
