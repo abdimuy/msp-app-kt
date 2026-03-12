@@ -4,8 +4,11 @@ import android.Manifest
 import android.location.Location
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,12 +17,14 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -48,6 +53,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.updates.ApkDownloader
+import com.example.msp_app.core.updates.DownloadState
+import com.example.msp_app.core.updates.UpdateChecker
 import com.example.msp_app.core.utils.Coord
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.LocationTracker
@@ -323,6 +331,78 @@ fun HomeScreen(navController: NavController) {
                             onToggleTheme = { ThemeController.toggle() },
                             backgroundColor = primary
                         )
+                    }
+
+                    item {
+                        val updateInfo by UpdateChecker.updateAvailable.collectAsState()
+                        val downloadState by ApkDownloader.state.collectAsState()
+
+                        if (updateInfo != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .background(
+                                        color = Color(0xFF2196F3).copy(alpha = 0.1f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Nueva versión disponible",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF2196F3)
+                                    )
+                                    Text(
+                                        text = "Versión ${updateInfo!!.latestVersion}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        when (downloadState) {
+                                            DownloadState.FAILED -> {
+                                                ApkDownloader.reset()
+                                                ApkDownloader.download(
+                                                    context,
+                                                    updateInfo!!.apkUrl,
+                                                    updateInfo!!.latestVersion
+                                                )
+                                            }
+                                            DownloadState.IDLE -> {
+                                                ApkDownloader.download(
+                                                    context,
+                                                    updateInfo!!.apkUrl,
+                                                    updateInfo!!.latestVersion
+                                                )
+                                            }
+                                            else -> {}
+                                        }
+                                    },
+                                    enabled = downloadState == DownloadState.IDLE ||
+                                        downloadState == DownloadState.FAILED,
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFF2196F3)
+                                    )
+                                ) {
+                                    Text(
+                                        when (downloadState) {
+                                            DownloadState.IDLE -> "Descargar"
+                                            DownloadState.DOWNLOADING -> "Descargando..."
+                                            DownloadState.COMPLETED -> "Descargado"
+                                            DownloadState.FAILED -> "Reintentar"
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     item {
