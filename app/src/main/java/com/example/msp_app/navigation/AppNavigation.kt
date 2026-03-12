@@ -28,6 +28,7 @@ import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.
 import com.example.msp_app.features.cart.screens.CartScreen
 import com.example.msp_app.features.common.NoModulesScreen
 import com.example.msp_app.features.guarantees.screens.CreateGuaranteeScreen
+import com.example.msp_app.features.guarantees.screens.GuaranteeDetailScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeListScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
@@ -118,6 +119,9 @@ sealed class Screen(val route: String) {
     // Guarantee routes
     object GuaranteeList : Screen("guarantee_list")
     object CreateGuarantee : Screen("create_guarantee")
+    object GuaranteeDetail : Screen("guarantee_detail/{guaranteeId}") {
+        fun createRoute(guaranteeId: Int) = "guarantee_detail/$guaranteeId"
+    }
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -349,6 +353,17 @@ fun AppNavigation() {
 
             composable(Screen.CreateGuarantee.route) {
                 CreateGuaranteeScreen(navController = navController)
+            }
+
+            composable(Screen.GuaranteeDetail.route) { backStackEntry ->
+                val guaranteeId =
+                    backStackEntry.arguments?.getString("guaranteeId")?.toIntOrNull()
+                if (guaranteeId != null) {
+                    GuaranteeDetailScreen(
+                        guaranteeId = guaranteeId,
+                        navController = navController
+                    )
+                }
             }
 
             // Camioneta Assignment route

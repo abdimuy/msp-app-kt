@@ -15,9 +15,18 @@ class GuaranteeListViewModel(application: Application) : AndroidViewModel(applic
     private val _guarantees = MutableStateFlow<List<GuaranteeEntity>>(emptyList())
     val guarantees: StateFlow<List<GuaranteeEntity>> = _guarantees
 
+    private val _selectedGuarantee = MutableStateFlow<GuaranteeEntity?>(null)
+    val selectedGuarantee: StateFlow<GuaranteeEntity?> = _selectedGuarantee
+
     fun loadGuarantees() {
         viewModelScope.launch {
             _guarantees.value = guaranteeStore.getStandaloneGuarantees()
+        }
+    }
+
+    fun loadGuaranteeById(id: Int) {
+        viewModelScope.launch {
+            _selectedGuarantee.value = guaranteeStore.getGuaranteeById(id)
         }
     }
 }

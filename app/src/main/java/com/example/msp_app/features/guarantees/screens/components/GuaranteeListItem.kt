@@ -29,7 +29,7 @@ import com.example.msp_app.data.local.entities.GuaranteeEntity
 import java.util.Locale
 
 @Composable
-fun GuaranteeListItem(guarantee: GuaranteeEntity) {
+fun GuaranteeListItem(guarantee: GuaranteeEntity, onClick: () -> Unit = {}) {
     val statusColor = when (guarantee.ESTADO) {
         "NOTIFICADO" -> Color(0xFFFFC107)
         "RECOLECTADO" -> Color(0xFF2196F3)
@@ -55,6 +55,7 @@ fun GuaranteeListItem(guarantee: GuaranteeEntity) {
     }
 
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(

@@ -84,7 +84,14 @@ fun GuaranteeListScreen(navController: NavController) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(guarantees) { guarantee ->
-                        GuaranteeListItem(guarantee = guarantee)
+                        GuaranteeListItem(
+                            guarantee = guarantee,
+                            onClick = {
+                                navController.navigate(
+                                    Screen.GuaranteeDetail.createRoute(guarantee.ID)
+                                )
+                            }
+                        )
                     }
                 }
             }
