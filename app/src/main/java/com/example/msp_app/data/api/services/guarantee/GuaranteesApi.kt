@@ -26,6 +26,18 @@ interface GuaranteesApi {
         @Part imagenes: List<MultipartBody.Part>
     )
 
+    @Multipart
+    @POST("garantias/nueva")
+    suspend fun createNewGuarantee(
+        @Part("externalId") externalId: RequestBody,
+        @Part("doctoCcId") doctoCcId: RequestBody?,
+        @Part("nombreCliente") nombreCliente: RequestBody?,
+        @Part("nombreProducto") nombreProducto: RequestBody?,
+        @Part("descripcionFalla") descripcionFalla: RequestBody,
+        @Part("observaciones") observaciones: RequestBody?,
+        @Part imagenes: List<MultipartBody.Part>
+    )
+
     @POST("garantias/{garantiaId}/eventos")
     suspend fun saveGuaranteeEvent(
         @Path("garantiaId") garantiaId: String,

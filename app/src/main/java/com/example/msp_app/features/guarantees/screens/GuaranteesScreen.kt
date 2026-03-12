@@ -465,7 +465,8 @@ fun GuaranteeScreen(saleId: Int, navController: NavController) {
                         DESCRIPCION_FALLA = defectDescription.text,
                         OBSERVACIONES = observations.text.takeIf { it.isNotBlank() },
                         UPLOADED = 1,
-                        FECHA_SOLICITUD = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
+                        FECHA_SOLICITUD = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
+                        NOMBRE_CLIENTE = sale?.CLIENTE
                     )
                     guaranteesViewModel.insertGuarantee(newGuarantee)
                     guaranteesViewModel.saveGuaranteeImages(

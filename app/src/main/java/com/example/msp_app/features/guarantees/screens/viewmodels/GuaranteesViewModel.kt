@@ -190,6 +190,8 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
     fun postGuaranteeRemote(guarantee: GuaranteeEntity) {
         viewModelScope.launch {
             try {
+                val doctoCcId = guarantee.DOCTO_CC_ID ?: return@launch
+
                 val images = guaranteeStore.getImagesByExternalId(guarantee.EXTERNAL_ID)
 
                 val externalIdBody =
@@ -212,7 +214,7 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 }
 
                 api.saveGuaranteeWithImages(
-                    doctoCcId = guarantee.DOCTO_CC_ID,
+                    doctoCcId = doctoCcId,
                     externalId = externalIdBody,
                     descripcionFalla = descripcionFallaBody,
                     observaciones = observacionesBody,

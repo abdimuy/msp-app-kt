@@ -29,6 +29,7 @@ import com.example.msp_app.data.local.entities.ProductInventoryEntity
 import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
 import com.example.msp_app.data.local.entities.SaleEntity
 import com.example.msp_app.data.local.entities.VisitEntity
+import com.example.msp_app.data.local.migrations.MIGRATION_20_21
 
 @Database(
     entities = [
@@ -47,7 +48,7 @@ import com.example.msp_app.data.local.entities.VisitEntity
         LocalSaleComboEntity::class,
         ClienteEntity::class
     ],
-    version = 20
+    version = 21
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
@@ -74,7 +75,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "msp_db"
 
                 )
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_20_21)
                     .build().also { instance = it }
             }
         }

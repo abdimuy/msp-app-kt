@@ -27,6 +27,8 @@ import com.example.msp_app.features.camionetaAssignment.presentation.screens.Cam
 import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
 import com.example.msp_app.features.cart.screens.CartScreen
 import com.example.msp_app.features.common.NoModulesScreen
+import com.example.msp_app.features.guarantees.screens.CreateGuaranteeScreen
+import com.example.msp_app.features.guarantees.screens.GuaranteeListScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
 import com.example.msp_app.features.payments.screens.DailyReportScreen
@@ -112,6 +114,10 @@ sealed class Screen(val route: String) {
 
     // Camioneta Assignment route
     object CamionetaAssignment : Screen("camioneta_assignment")
+
+    // Guarantee routes
+    object GuaranteeList : Screen("guarantee_list")
+    object CreateGuarantee : Screen("create_guarantee")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -155,6 +161,9 @@ fun AppNavigation() {
                                 modulos.contains(
                                     "ALMACEN"
                                 ) -> Screen.TransfersList.route // Priority 3
+                                modulos.contains(
+                                    "GARANTIAS"
+                                ) -> Screen.GuaranteeList.route // Priority 4
                                 else -> Screen.NoModules.route
                             }
 
@@ -331,6 +340,15 @@ fun AppNavigation() {
                         navController = navController
                     )
                 }
+            }
+
+            // Guarantee routes
+            composable(Screen.GuaranteeList.route) {
+                GuaranteeListScreen(navController = navController)
+            }
+
+            composable(Screen.CreateGuarantee.route) {
+                CreateGuaranteeScreen(navController = navController)
             }
 
             // Camioneta Assignment route
