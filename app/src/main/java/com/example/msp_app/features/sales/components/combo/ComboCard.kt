@@ -60,7 +60,8 @@ fun ComboCard(
             precioCortoPlazo: Double,
             precioContado: Double
         ) -> Unit
-    )? = null
+    )? = null,
+    tipoVenta: String = "CREDITO"
 ) {
     var expanded by remember { mutableStateOf(false) }
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
@@ -141,7 +142,9 @@ fun ComboCard(
                     }
 
                     Text(
-                        text = currencyFormat.format(combo.precioLista),
+                        text = currencyFormat.format(
+                            if (tipoVenta == "CONTADO") combo.precioContado else combo.precioLista
+                        ),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -182,7 +185,9 @@ fun ComboCard(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = currencyFormat.format(combo.precioLista),
+                            text = currencyFormat.format(
+                                if (tipoVenta == "CONTADO") combo.precioContado else combo.precioLista
+                            ),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -217,7 +222,8 @@ fun ComboCard(
                     if (onPriceChange != null) {
                         EditableComboPrices(
                             combo = combo,
-                            onPriceChange = onPriceChange
+                            onPriceChange = onPriceChange,
+                            tipoVenta = tipoVenta
                         )
                     } else {
                         if (useLargeLayout) {
@@ -233,12 +239,14 @@ fun ComboCard(
                                     .padding(12.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                PriceRow("Lista", currencyFormat.format(combo.precioLista))
-                                PriceRow(
-                                    "Corto Plazo",
-                                    currencyFormat.format(combo.precioCortoPlazo)
-                                )
                                 PriceRow("Contado", currencyFormat.format(combo.precioContado))
+                                if (tipoVenta != "CONTADO") {
+                                    PriceRow(
+                                        "Corto Plazo",
+                                        currencyFormat.format(combo.precioCortoPlazo)
+                                    )
+                                    PriceRow("Lista", currencyFormat.format(combo.precioLista))
+                                }
                             }
                         } else {
                             Row(
@@ -253,12 +261,14 @@ fun ComboCard(
                                     .padding(12.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
-                                PriceColumn("Lista", currencyFormat.format(combo.precioLista))
-                                PriceColumn(
-                                    "Corto Plazo",
-                                    currencyFormat.format(combo.precioCortoPlazo)
-                                )
                                 PriceColumn("Contado", currencyFormat.format(combo.precioContado))
+                                if (tipoVenta != "CONTADO") {
+                                    PriceColumn(
+                                        "Corto Plazo",
+                                        currencyFormat.format(combo.precioCortoPlazo)
+                                    )
+                                    PriceColumn("Lista", currencyFormat.format(combo.precioLista))
+                                }
                             }
                         }
                     }
@@ -287,7 +297,11 @@ fun ComboCard(
 }
 
 @Composable
-private fun EditableComboPrices(combo: ComboItem, onPriceChange: (Double, Double, Double) -> Unit) {
+private fun EditableComboPrices(
+    combo: ComboItem,
+    onPriceChange: (Double, Double, Double) -> Unit,
+    tipoVenta: String = "CREDITO"
+) {
     var priceList by remember(combo.comboId, combo.precioLista) {
         mutableStateOf(combo.precioLista.toString())
     }
@@ -344,80 +358,82 @@ private fun EditableComboPrices(combo: ComboItem, onPriceChange: (Double, Double
             )
         }
 
-        // Precio Corto Plazo
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "C.Plazo:",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.width(80.dp),
-                color = MaterialTheme.colorScheme.secondary,
-                fontWeight = FontWeight.Medium
-            )
-            OutlinedTextField(
-                value = shortTermPrice,
-                onValueChange = { newValue ->
-                    shortTermPrice = newValue
-                    newValue.toDoubleOrNull()?.let { price ->
-                        if (price > 0) {
-                            onPriceChange(
-                                priceList.toDoubleOrNull() ?: combo.precioLista,
-                                price,
-                                cashPrice.toDoubleOrNull() ?: combo.precioContado
-                            )
-                        }
-                    }
-                },
-                prefix = { Text("$") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(8.dp),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+        if (tipoVenta != "CONTADO") {
+            // Precio Corto Plazo
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "C.Plazo:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.width(80.dp),
+                    color = MaterialTheme.colorScheme.secondary,
+                    fontWeight = FontWeight.Medium
                 )
-            )
-        }
+                OutlinedTextField(
+                    value = shortTermPrice,
+                    onValueChange = { newValue ->
+                        shortTermPrice = newValue
+                        newValue.toDoubleOrNull()?.let { price ->
+                            if (price > 0) {
+                                onPriceChange(
+                                    priceList.toDoubleOrNull() ?: combo.precioLista,
+                                    price,
+                                    cashPrice.toDoubleOrNull() ?: combo.precioContado
+                                )
+                            }
+                        }
+                    },
+                    prefix = { Text("$") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                )
+            }
 
-        // Precio Lista
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Lista:",
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.width(80.dp),
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium
-            )
-            OutlinedTextField(
-                value = priceList,
-                onValueChange = { newValue ->
-                    priceList = newValue
-                    newValue.toDoubleOrNull()?.let { price ->
-                        if (price > 0) {
-                            onPriceChange(
-                                price,
-                                shortTermPrice.toDoubleOrNull() ?: combo.precioCortoPlazo,
-                                cashPrice.toDoubleOrNull() ?: combo.precioContado
-                            )
-                        }
-                    }
-                },
-                prefix = { Text("$") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(8.dp),
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+            // Precio Lista
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Lista:",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.width(80.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Medium
                 )
-            )
+                OutlinedTextField(
+                    value = priceList,
+                    onValueChange = { newValue ->
+                        priceList = newValue
+                        newValue.toDoubleOrNull()?.let { price ->
+                            if (price > 0) {
+                                onPriceChange(
+                                    price,
+                                    shortTermPrice.toDoubleOrNull() ?: combo.precioCortoPlazo,
+                                    cashPrice.toDoubleOrNull() ?: combo.precioContado
+                                )
+                            }
+                        }
+                    },
+                    prefix = { Text("$") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                )
+            }
         }
     }
 }

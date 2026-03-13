@@ -192,6 +192,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             poblacion = TextFieldValue(sale.POBLACION ?: "")
             ciudad = TextFieldValue(sale.CIUDAD ?: "")
             tipoVenta = sale.TIPO_VENTA ?: "CREDITO"
+            saleProductsViewModel.setTipoVenta(tipoVenta)
             downpayment = TextFieldValue(sale.ENGANCHE?.toString() ?: "")
             installment = TextFieldValue(sale.PARCIALIDAD.toString())
             guarantor = TextFieldValue(sale.AVAL_O_RESPONSABLE ?: "")
@@ -591,6 +592,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                                     text = { Text(option) },
                                     onClick = {
                                         tipoVenta = option
+                                        saleProductsViewModel.setTipoVenta(option)
                                         expandedTipoVenta = false
                                         if (option == "CONTADO") {
                                             selectedZoneId = null
@@ -1158,7 +1160,8 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                             if (producto != null) {
                                 saleProductsViewModel.addProductToSale(producto, cantidad)
                             }
-                        }
+                        },
+                        tipoVenta = tipoVenta
                     )
 
                     Spacer(Modifier.height(12.dp))

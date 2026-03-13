@@ -3,6 +3,7 @@ package com.example.msp_app.features.sales.viewmodels
 import android.app.Application
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.`test-fixtures`.RobolectricTestBase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -310,6 +311,185 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
         val data1 = viewModel.buildSaleData()
         val data2 = viewModel.buildSaleData()
         assertNotEquals(data1.saleId, data2.saleId)
+    }
+
+    // --- buildSaleData edge cases ---
+
+    @Test
+    fun `buildSaleData CREDITO preserves all credit fields`() {
+        viewModel.updateTipoVenta("CREDITO")
+        viewModel.updateInstallment("750")
+        viewModel.updateDownpayment("300")
+        viewModel.updatePaymentFrequency("QUINCENAL")
+        viewModel.updateCollectionDay("MIERCOLES")
+        viewModel.updateGuarantor("Pedro Garcia")
+
+        val data = viewModel.buildSaleData()
+        assertEquals("CREDITO", data.tipoVenta)
+        assertEquals(750.0, data.installment, 0.001)
+        assertEquals(300.0, data.downpayment, 0.001)
+        assertEquals("QUINCENAL", data.paymentFrequency)
+        assertEquals("MIERCOLES", data.collectionDay)
+        assertEquals("Pedro Garcia", data.guarantor)
+    }
+
+    @Test
+    fun `buildSaleData CONTADO zeroes installment even with valid value`() {
+        viewModel.updateInstallment("999")
+        viewModel.updateTipoVenta("CONTADO")
+        val data = viewModel.buildSaleData()
+        assertEquals(0.0, data.installment, 0.001)
+    }
+
+    @Test
+    fun `buildSaleData CONTADO zeroes downpayment even with valid value`() {
+        viewModel.updateDownpayment("500")
+        viewModel.updateTipoVenta("CONTADO")
+        val data = viewModel.buildSaleData()
+        assertEquals(0.0, data.downpayment, 0.001)
+    }
+
+    @Test
+    fun `buildSaleData CREDITO with invalid installment defaults to zero`() {
+        viewModel.updateTipoVenta("CREDITO")
+        viewModel.updateInstallment("abc")
+        val data = viewModel.buildSaleData()
+        assertEquals(0.0, data.installment, 0.001)
+    }
+
+    @Test
+    fun `buildSaleData CREDITO with empty installment defaults to zero`() {
+        viewModel.updateTipoVenta("CREDITO")
+        viewModel.updateInstallment("")
+        val data = viewModel.buildSaleData()
+        assertEquals(0.0, data.installment, 0.001)
+    }
+
+    @Test
+    fun `buildSaleData CREDITO with invalid downpayment defaults to zero`() {
+        viewModel.updateTipoVenta("CREDITO")
+        viewModel.updateDownpayment("xyz")
+        val data = viewModel.buildSaleData()
+        assertEquals(0.0, data.downpayment, 0.001)
+    }
+
+    @Test
+    fun `buildSaleData blank phone becomes empty string`() {
+        viewModel.updatePhone("   ")
+        val data = viewModel.buildSaleData()
+        assertEquals("", data.phone)
+    }
+
+    @Test
+    fun `buildSaleData CONTADO preserves phone`() {
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.updatePhone("5512345678")
+        val data = viewModel.buildSaleData()
+        assertEquals("5512345678", data.phone)
+    }
+
+    @Test
+    fun `buildSaleData CONTADO preserves note`() {
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.updateNote("Entregar por la tarde")
+        val data = viewModel.buildSaleData()
+        assertEquals("Entregar por la tarde", data.note)
+    }
+
+    @Test
+    fun `buildSaleData CONTADO preserves zonaClienteId as null after switching`() {
+        viewModel.updateZone(1, "Zona Norte")
+        viewModel.updateTipoVenta("CONTADO") // clears zone
+        val data = viewModel.buildSaleData()
+        assertNull(data.zonaClienteId)
+    }
+
+    @Test
+    fun `buildSaleData CREDITO preserves zonaClienteId`() {
+        viewModel.updateTipoVenta("CREDITO")
+        viewModel.updateZone(3, "Zona Sur")
+        val data = viewModel.buildSaleData()
+        assertEquals(3, data.zonaClienteId)
+        assertEquals("Zona Sur", data.zonaClienteNombre)
+    }
+
+    // --- applyDraft ---
+
+    @Test
+    fun `applyDraft restores all common fields to formState`() {
+        val draft = SaleDraft(
+            clientName = "Ana Garcia",
+            phone = "5598765432",
+            street = "Av Reforma 100",
+            numero = "456",
+            colonia = "Juarez",
+            poblacion = "CDMX",
+            ciudad = "CDMX",
+            note = "Nota importante",
+            latitude = 19.5,
+            longitude = -99.2,
+            tipoVenta = "CREDITO",
+            downpayment = "300",
+            installment = "600",
+            guarantor = "Pedro",
+            collectionDay = "VIERNES",
+            paymentFrequency = "QUINCENAL",
+            zonaClienteId = 2,
+            zonaClienteNombre = "Zona Centro"
+        )
+        viewModel.applyDraft(draft)
+
+        val state = viewModel.formState.value
+        assertEquals("Ana Garcia", state.clientName)
+        assertEquals("5598765432", state.phone)
+        assertEquals("Av Reforma 100", state.street)
+        assertEquals("456", state.numero)
+        assertEquals("Juarez", state.colonia)
+        assertEquals("CDMX", state.poblacion)
+        assertEquals("CDMX", state.ciudad)
+        assertEquals("Nota importante", state.note)
+        assertEquals(19.5, state.latitude, 0.001)
+        assertEquals(-99.2, state.longitude, 0.001)
+        assertEquals("CREDITO", state.tipoVenta)
+        assertEquals("300", state.downpayment)
+        assertEquals("600", state.installment)
+        assertEquals("Pedro", state.guarantor)
+        assertEquals("VIERNES", state.collectionDay)
+        assertEquals("QUINCENAL", state.paymentFrequency)
+        assertEquals(2, state.selectedZoneId)
+        assertEquals("Zona Centro", state.selectedZoneName)
+    }
+
+    @Test
+    fun `applyDraft CONTADO restores tipoVenta and credit fields as-is`() {
+        val draft = SaleDraft(
+            clientName = "Test",
+            tipoVenta = "CONTADO",
+            downpayment = "",
+            installment = "",
+            guarantor = "",
+            collectionDay = "",
+            paymentFrequency = ""
+        )
+        viewModel.applyDraft(draft)
+
+        val state = viewModel.formState.value
+        assertEquals("CONTADO", state.tipoVenta)
+        assertEquals("", state.downpayment)
+        assertEquals("", state.installment)
+        assertEquals("", state.guarantor)
+    }
+
+    @Test
+    fun `applyDraft with nonexistent image paths filters them out`() {
+        val draft = SaleDraft(
+            clientName = "Test",
+            imageUris = listOf("/nonexistent/path/image.jpg", "/also/nonexistent.jpg")
+        )
+        viewModel.applyDraft(draft)
+
+        val state = viewModel.formState.value
+        assertTrue(state.imageUris.isEmpty())
     }
 
     // --- clearAllFields ---

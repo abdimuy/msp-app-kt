@@ -55,7 +55,8 @@ fun ProductSaleSummary(
     saleProductsViewModel: SaleProductsViewModel,
     productosCamioneta: List<ProductInventory>,
     onOpenProductSheet: () -> Unit,
-    hasError: Boolean = false
+    hasError: Boolean = false,
+    tipoVenta: String = "CREDITO"
 ) {
     val saleItems = saleProductsViewModel.saleItems
     val combosList = saleProductsViewModel.getCombosList()
@@ -131,7 +132,8 @@ fun ProductSaleSummary(
                             precioCortoPlazo,
                             precioContado
                         )
-                    }
+                    },
+                    tipoVenta = tipoVenta
                 )
             }
         }
@@ -150,7 +152,8 @@ fun ProductSaleSummary(
                 SummaryProductCard(
                     saleItem = item,
                     saleProductsViewModel = saleProductsViewModel,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    tipoVenta = tipoVenta
                 )
             }
         }
@@ -183,7 +186,8 @@ fun ProductSaleSummary(
 private fun SummaryProductCard(
     saleItem: SaleItem,
     saleProductsViewModel: SaleProductsViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tipoVenta: String = "CREDITO"
 ) {
     val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
 
@@ -377,83 +381,85 @@ private fun SummaryProductCard(
                     )
                 }
 
-                // Precio Corto Plazo
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "C.Plazo:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(80.dp),
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontWeight = FontWeight.Medium
-                    )
-                    OutlinedTextField(
-                        value = shortTermPrice,
-                        onValueChange = { newValue ->
-                            shortTermPrice = newValue
-                            newValue.toDoubleOrNull()?.let { price ->
-                                if (price > 0) {
-                                    saleProductsViewModel.updateProductPrices(
-                                        saleItem.product,
-                                        priceList.toDoubleOrNull() ?: parsedPrices.precioLista,
-                                        price,
-                                        cashPrice.toDoubleOrNull() ?: parsedPrices.precioContado
-                                    )
-                                }
-                            }
-                        },
-                        prefix = { Text("$") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                if (tipoVenta != "CONTADO") {
+                    // Precio Corto Plazo
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "C.Plazo:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.width(80.dp),
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.Medium
                         )
-                    )
-                }
+                        OutlinedTextField(
+                            value = shortTermPrice,
+                            onValueChange = { newValue ->
+                                shortTermPrice = newValue
+                                newValue.toDoubleOrNull()?.let { price ->
+                                    if (price > 0) {
+                                        saleProductsViewModel.updateProductPrices(
+                                            saleItem.product,
+                                            priceList.toDoubleOrNull() ?: parsedPrices.precioLista,
+                                            price,
+                                            cashPrice.toDoubleOrNull() ?: parsedPrices.precioContado
+                                        )
+                                    }
+                                }
+                            },
+                            prefix = { Text("$") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                        )
+                    }
 
-                // Precio Lista
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Lista:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.width(80.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
-                    OutlinedTextField(
-                        value = priceList,
-                        onValueChange = { newValue ->
-                            priceList = newValue
-                            newValue.toDoubleOrNull()?.let { price ->
-                                if (price > 0) {
-                                    saleProductsViewModel.updateProductPrices(
-                                        saleItem.product,
-                                        price,
-                                        shortTermPrice.toDoubleOrNull()
-                                            ?: parsedPrices.precioCortoplazo,
-                                        cashPrice.toDoubleOrNull() ?: parsedPrices.precioContado
-                                    )
-                                }
-                            }
-                        },
-                        prefix = { Text("$") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp),
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                    // Precio Lista
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Lista:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.width(80.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Medium
                         )
-                    )
+                        OutlinedTextField(
+                            value = priceList,
+                            onValueChange = { newValue ->
+                                priceList = newValue
+                                newValue.toDoubleOrNull()?.let { price ->
+                                    if (price > 0) {
+                                        saleProductsViewModel.updateProductPrices(
+                                            saleItem.product,
+                                            price,
+                                            shortTermPrice.toDoubleOrNull()
+                                                ?: parsedPrices.precioCortoplazo,
+                                            cashPrice.toDoubleOrNull() ?: parsedPrices.precioContado
+                                        )
+                                    }
+                                }
+                            },
+                            prefix = { Text("$") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                        )
+                    }
                 }
             }
         }

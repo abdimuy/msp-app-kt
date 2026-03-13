@@ -42,6 +42,15 @@ class SaleProductsViewModel : ViewModel() {
     private val _isCreatingCombo = MutableStateFlow(false)
     val isCreatingCombo: StateFlow<Boolean> = _isCreatingCombo.asStateFlow()
 
+    var tipoVenta: String = "CREDITO"
+        private set
+
+    fun setTipoVenta(value: String) {
+        tipoVenta = value
+    }
+
+    private val isContado: Boolean get() = tipoVenta == "CONTADO"
+
     fun addProductToSale(product: ProductInventory, quantity: Int) {
         if (quantity <= 0) return
 
@@ -109,14 +118,20 @@ class SaleProductsViewModel : ViewModel() {
         }
     }
 
-    fun getTotalPrecioLista(): Double = _saleItems.sumOf { saleItem ->
-        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-        parsedPrices.precioLista * saleItem.quantity
+    fun getTotalPrecioLista(): Double {
+        if (isContado) return 0.0
+        return _saleItems.sumOf { saleItem ->
+            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+            parsedPrices.precioLista * saleItem.quantity
+        }
     }
 
-    fun getTotalMontoCortoplazo(): Double = _saleItems.sumOf { saleItem ->
-        val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
-        parsedPrices.precioCortoplazo * saleItem.quantity
+    fun getTotalMontoCortoplazo(): Double {
+        if (isContado) return 0.0
+        return _saleItems.sumOf { saleItem ->
+            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+            parsedPrices.precioCortoplazo * saleItem.quantity
+        }
     }
 
     fun getTotalMontoContado(): Double = _saleItems.sumOf { saleItem ->
@@ -134,7 +149,11 @@ class SaleProductsViewModel : ViewModel() {
         if (index != -1) {
             val oldItem = _saleItems[index]
             val updatedProduct = oldItem.product.copy(
-                PRECIOS = PriceParser.pricesToJson(newListPrice, newShortTermPrice, newCashPrice)
+                PRECIOS = PriceParser.pricesToJson(
+                    if (isContado) 0.0 else newListPrice,
+                    if (isContado) 0.0 else newShortTermPrice,
+                    newCashPrice
+                )
             )
             _saleItems[index] = oldItem.copy(product = updatedProduct)
         }
@@ -222,8 +241,8 @@ class SaleProductsViewModel : ViewModel() {
         val combo = ComboItem(
             comboId = comboId,
             nombreCombo = nombreCombo,
-            precioLista = precioLista,
-            precioCortoPlazo = precioCortoPlazo,
+            precioLista = if (isContado) 0.0 else precioLista,
+            precioCortoPlazo = if (isContado) 0.0 else precioCortoPlazo,
             precioContado = precioContado
         )
         _combos[comboId] = combo
@@ -248,8 +267,8 @@ class SaleProductsViewModel : ViewModel() {
     ) {
         val existing = _combos[comboId] ?: return
         _combos[comboId] = existing.copy(
-            precioLista = precioLista,
-            precioCortoPlazo = precioCortoPlazo,
+            precioLista = if (isContado) 0.0 else precioLista,
+            precioCortoPlazo = if (isContado) 0.0 else precioCortoPlazo,
             precioContado = precioContado
         )
     }
@@ -278,6 +297,7 @@ class SaleProductsViewModel : ViewModel() {
 
     // Totales considerando combos (combo tiene su precio, no suma de productos)
     fun getTotalPrecioListaWithCombos(): Double {
+        if (isContado) return 0.0
         val individualTotal = _saleItems.filter { it.comboId == null }.sumOf { saleItem ->
             val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
             parsedPrices.precioLista * saleItem.quantity
@@ -287,6 +307,7 @@ class SaleProductsViewModel : ViewModel() {
     }
 
     fun getTotalMontoCortoPlazoWithCombos(): Double {
+        if (isContado) return 0.0
         val individualTotal = _saleItems.filter { it.comboId == null }.sumOf { saleItem ->
             val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
             parsedPrices.precioCortoplazo * saleItem.quantity

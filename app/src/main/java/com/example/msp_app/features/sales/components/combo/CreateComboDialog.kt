@@ -92,7 +92,8 @@ fun CreateComboDialog(
     ) -> Unit,
     selectedProductsCount: Int,
     suggestedPrices: Triple<Double, Double, Double>,
-    selectedProductNames: List<String> = emptyList()
+    selectedProductNames: List<String> = emptyList(),
+    tipoVenta: String = "CREDITO"
 ) {
     if (!show) return
 
@@ -239,49 +240,54 @@ fun CreateComboDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                if (tipoVenta != "CONTADO") {
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                // Precio Corto Plazo
-                OutlinedTextField(
-                    value = precioCortoPlazo,
-                    onValueChange = { newValue ->
-                        precioCortoPlazo = newValue
-                        val (isValid, error) = validatePriceInput(newValue, "Precio Corto Plazo")
-                        precioCortoPlazoError = error
-                    },
-                    label = { Text("Precio Corto Plazo") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    leadingIcon = { Text("$", color = MaterialTheme.colorScheme.outline) },
-                    isError = precioCortoPlazoError != null,
-                    supportingText = precioCortoPlazoError?.let {
-                        { Text(it, color = MaterialTheme.colorScheme.error) }
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    // Precio Corto Plazo
+                    OutlinedTextField(
+                        value = precioCortoPlazo,
+                        onValueChange = { newValue ->
+                            precioCortoPlazo = newValue
+                            val (isValid, error) = validatePriceInput(
+                                newValue,
+                                "Precio Corto Plazo"
+                            )
+                            precioCortoPlazoError = error
+                        },
+                        label = { Text("Precio Corto Plazo") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        leadingIcon = { Text("$", color = MaterialTheme.colorScheme.outline) },
+                        isError = precioCortoPlazoError != null,
+                        supportingText = precioCortoPlazoError?.let {
+                            { Text(it, color = MaterialTheme.colorScheme.error) }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                // Precio Lista
-                OutlinedTextField(
-                    value = precioLista,
-                    onValueChange = { newValue ->
-                        precioLista = newValue
-                        val (isValid, error) = validatePriceInput(newValue, "Precio Lista")
-                        precioListaError = error
-                    },
-                    label = { Text("Precio Lista") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    leadingIcon = { Text("$", color = MaterialTheme.colorScheme.outline) },
-                    isError = precioListaError != null,
-                    supportingText = precioListaError?.let {
-                        { Text(it, color = MaterialTheme.colorScheme.error) }
-                    },
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    // Precio Lista
+                    OutlinedTextField(
+                        value = precioLista,
+                        onValueChange = { newValue ->
+                            precioLista = newValue
+                            val (isValid, error) = validatePriceInput(newValue, "Precio Lista")
+                            precioListaError = error
+                        },
+                        label = { Text("Precio Lista") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        leadingIcon = { Text("$", color = MaterialTheme.colorScheme.outline) },
+                        isError = precioListaError != null,
+                        supportingText = precioListaError?.let {
+                            { Text(it, color = MaterialTheme.colorScheme.error) }
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 

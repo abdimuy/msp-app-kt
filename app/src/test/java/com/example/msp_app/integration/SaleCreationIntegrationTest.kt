@@ -141,6 +141,265 @@ class SaleCreationIntegrationTest : RoomTestBase() {
     }
 
     @Test
+    fun `CONTADO sale products have zeroed lista and cortoplazo prices`() = runTest {
+        val sale = TestDataFactory.createLocalSaleEntity(
+            saleId = "contado-zeroed",
+            tipoVenta = "CONTADO",
+            precioTotal = 0.0,
+            montoACortoPlazo = 0.0,
+            montoDeContado = 2500.0
+        )
+        saleDataSource.insertSale(sale)
+
+        productDataSource.insertSaleProducts(
+            listOf(
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-zeroed",
+                    articuloId = 100,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 1500.0
+                ),
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-zeroed",
+                    articuloId = 101,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 1000.0
+                )
+            )
+        )
+
+        val retrieved = saleDataSource.getSaleById("contado-zeroed")!!
+        assertEquals(0.0, retrieved.PRECIO_TOTAL, 0.001)
+        assertEquals(0.0, retrieved.MONTO_A_CORTO_PLAZO, 0.001)
+        assertEquals(2500.0, retrieved.MONTO_DE_CONTADO, 0.001)
+
+        val products = productDataSource.getProductsForSale("contado-zeroed")
+        products.forEach { product ->
+            assertEquals(0.0, product.PRECIO_LISTA, 0.001)
+            assertEquals(0.0, product.PRECIO_CORTO_PLAZO, 0.001)
+            assertTrue(product.PRECIO_CONTADO > 0)
+        }
+        assertEquals(2500.0, products.sumOf { it.PRECIO_CONTADO }, 0.001)
+    }
+
+    @Test
+    fun `CONTADO sale combos have zeroed lista and cortoplazo prices`() = runTest {
+        val sale = TestDataFactory.createLocalSaleEntity(
+            saleId = "contado-combo-zeroed",
+            tipoVenta = "CONTADO",
+            precioTotal = 0.0,
+            montoACortoPlazo = 0.0,
+            montoDeContado = 4000.0
+        )
+        saleDataSource.insertSale(sale)
+
+        comboDataSource.insertCombo(
+            TestDataFactory.createLocalSaleComboEntity(
+                comboId = "combo-contado",
+                saleId = "contado-combo-zeroed",
+                precioLista = 0.0,
+                precioCortoplazo = 0.0,
+                precioContado = 4000.0
+            )
+        )
+
+        productDataSource.insertSaleProducts(
+            listOf(
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-combo-zeroed",
+                    articuloId = 100,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 2500.0,
+                    comboId = "combo-contado"
+                ),
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-combo-zeroed",
+                    articuloId = 101,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 2000.0,
+                    comboId = "combo-contado"
+                )
+            )
+        )
+
+        val combo = comboDataSource.getCombosForSale("contado-combo-zeroed")[0]
+        assertEquals(0.0, combo.PRECIO_LISTA, 0.001)
+        assertEquals(0.0, combo.PRECIO_CORTO_PLAZO, 0.001)
+        assertEquals(4000.0, combo.PRECIO_CONTADO, 0.001)
+
+        val products = productDataSource.getProductsForSale("contado-combo-zeroed")
+        products.forEach { product ->
+            assertEquals(0.0, product.PRECIO_LISTA, 0.001)
+            assertEquals(0.0, product.PRECIO_CORTO_PLAZO, 0.001)
+        }
+    }
+
+    @Test
+    fun `CONTADO sale with mixed individual and combo products all zeroed`() = runTest {
+        val sale = TestDataFactory.createLocalSaleEntity(
+            saleId = "contado-mixed",
+            tipoVenta = "CONTADO",
+            precioTotal = 0.0,
+            montoACortoPlazo = 0.0,
+            montoDeContado = 6500.0
+        )
+        saleDataSource.insertSale(sale)
+
+        comboDataSource.insertCombo(
+            TestDataFactory.createLocalSaleComboEntity(
+                comboId = "combo-mixed",
+                saleId = "contado-mixed",
+                precioLista = 0.0,
+                precioCortoplazo = 0.0,
+                precioContado = 4000.0
+            )
+        )
+
+        productDataSource.insertSaleProducts(
+            listOf(
+                // Products in combo
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-mixed",
+                    articuloId = 100,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 2500.0,
+                    comboId = "combo-mixed"
+                ),
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-mixed",
+                    articuloId = 101,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 2000.0,
+                    comboId = "combo-mixed"
+                ),
+                // Individual product
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-mixed",
+                    articuloId = 102,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 2500.0
+                )
+            )
+        )
+
+        val products = productDataSource.getProductsForSale("contado-mixed")
+        assertEquals(3, products.size)
+        // ALL products must have zeroed lista and cortoplazo
+        products.forEach { product ->
+            assertEquals(
+                "Product ${product.ARTICULO_ID} lista should be 0",
+                0.0,
+                product.PRECIO_LISTA,
+                0.001
+            )
+            assertEquals(
+                "Product ${product.ARTICULO_ID} cortoplazo should be 0",
+                0.0,
+                product.PRECIO_CORTO_PLAZO,
+                0.001
+            )
+        }
+
+        val combo = comboDataSource.getCombosForSale("contado-mixed")[0]
+        assertEquals(0.0, combo.PRECIO_LISTA, 0.001)
+        assertEquals(0.0, combo.PRECIO_CORTO_PLAZO, 0.001)
+
+        // Total contado = combo(4000) + individual(2500)
+        val totalContado =
+            combo.PRECIO_CONTADO + products.filter { it.COMBO_ID == null }.sumOf { it.PRECIO_CONTADO }
+        assertEquals(6500.0, totalContado, 0.001)
+    }
+
+    @Test
+    fun `CONTADO sale totals in header match sum of product contado prices`() = runTest {
+        val sale = TestDataFactory.createLocalSaleEntity(
+            saleId = "contado-totals",
+            tipoVenta = "CONTADO",
+            precioTotal = 0.0,
+            montoACortoPlazo = 0.0,
+            montoDeContado = 3500.0
+        )
+        saleDataSource.insertSale(sale)
+
+        productDataSource.insertSaleProducts(
+            listOf(
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-totals",
+                    articuloId = 100,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 1500.0,
+                    cantidad = 1
+                ),
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "contado-totals",
+                    articuloId = 101,
+                    precioLista = 0.0,
+                    precioCortoplazo = 0.0,
+                    precioContado = 2000.0,
+                    cantidad = 1
+                )
+            )
+        )
+
+        val retrievedSale = saleDataSource.getSaleById("contado-totals")!!
+        val products = productDataSource.getProductsForSale("contado-totals")
+
+        val productContadoSum = products.sumOf { it.PRECIO_CONTADO * it.CANTIDAD }
+        assertEquals(retrievedSale.MONTO_DE_CONTADO, productContadoSum, 0.001)
+        assertEquals(0.0, retrievedSale.PRECIO_TOTAL, 0.001)
+        assertEquals(0.0, retrievedSale.MONTO_A_CORTO_PLAZO, 0.001)
+    }
+
+    @Test
+    fun `CREDITO sale preserves all three price columns`() = runTest {
+        val sale = TestDataFactory.createLocalSaleEntity(
+            saleId = "credito-prices",
+            tipoVenta = "CREDITO",
+            precioTotal = 3000.0,
+            montoACortoPlazo = 2400.0,
+            montoDeContado = 2000.0
+        )
+        saleDataSource.insertSale(sale)
+
+        productDataSource.insertSaleProducts(
+            listOf(
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "credito-prices",
+                    articuloId = 100,
+                    precioLista = 1500.0,
+                    precioCortoplazo = 1200.0,
+                    precioContado = 1000.0
+                ),
+                TestDataFactory.createLocalSaleProductEntity(
+                    saleId = "credito-prices",
+                    articuloId = 101,
+                    precioLista = 1500.0,
+                    precioCortoplazo = 1200.0,
+                    precioContado = 1000.0
+                )
+            )
+        )
+
+        val products = productDataSource.getProductsForSale("credito-prices")
+        products.forEach { product ->
+            assertTrue(product.PRECIO_LISTA > 0)
+            assertTrue(product.PRECIO_CORTO_PLAZO > 0)
+            assertTrue(product.PRECIO_CONTADO > 0)
+        }
+        assertEquals(3000.0, products.sumOf { it.PRECIO_LISTA }, 0.001)
+        assertEquals(2400.0, products.sumOf { it.PRECIO_CORTO_PLAZO }, 0.001)
+        assertEquals(2000.0, products.sumOf { it.PRECIO_CONTADO }, 0.001)
+    }
+
+    @Test
     fun `CONTADO sale with products only (no combos)`() = runTest {
         val sale = TestDataFactory.createLocalSaleEntity(
             saleId = "contado-prod",

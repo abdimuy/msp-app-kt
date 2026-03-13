@@ -386,4 +386,296 @@ class SaleProductsViewModelTest : RobolectricTestBase() {
         assertTrue(viewModel.combos.isEmpty())
         assertTrue(viewModel.selectedForCombo.isEmpty())
     }
+
+    // --- CONTADO price zeroing ---
+
+    @Test
+    fun `getTotalPrecioLista returns 0 for CONTADO`() {
+        val product = TestDataFactory.createProductInventory(
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(product, 2)
+        viewModel.setTipoVenta("CONTADO")
+        assertEquals(0.0, viewModel.getTotalPrecioLista(), epsilon)
+    }
+
+    @Test
+    fun `getTotalPrecioLista returns value for CREDITO`() {
+        val product = TestDataFactory.createProductInventory(
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(product, 2)
+        assertEquals(3000.0, viewModel.getTotalPrecioLista(), epsilon)
+    }
+
+    @Test
+    fun `getTotalMontoCortoplazo returns 0 for CONTADO`() {
+        val product = TestDataFactory.createProductInventory(
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(product, 2)
+        viewModel.setTipoVenta("CONTADO")
+        assertEquals(0.0, viewModel.getTotalMontoCortoplazo(), epsilon)
+    }
+
+    @Test
+    fun `getTotalMontoCortoplazo returns value for CREDITO`() {
+        val product = TestDataFactory.createProductInventory(
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(product, 2)
+        assertEquals(2400.0, viewModel.getTotalMontoCortoplazo(), epsilon)
+    }
+
+    @Test
+    fun `getTotalMontoContado returns value regardless of tipoVenta`() {
+        val product = TestDataFactory.createProductInventory(
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(product, 2)
+        viewModel.setTipoVenta("CONTADO")
+        assertEquals(2000.0, viewModel.getTotalMontoContado(), epsilon)
+    }
+
+    @Test
+    fun `getTotalPrecioListaWithCombos returns 0 for CONTADO`() {
+        viewModel.setTipoVenta("CONTADO")
+        val p1 = TestDataFactory.createProductInventory(
+            id = 1,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        val p2 = TestDataFactory.createProductInventory(
+            id = 2,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        viewModel.createCombo("Combo", 2800.0, 2300.0, 1900.0)
+
+        assertEquals(0.0, viewModel.getTotalPrecioListaWithCombos(), epsilon)
+    }
+
+    @Test
+    fun `getTotalMontoCortoPlazoWithCombos returns 0 for CONTADO`() {
+        viewModel.setTipoVenta("CONTADO")
+        val p1 = TestDataFactory.createProductInventory(
+            id = 1,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        val p2 = TestDataFactory.createProductInventory(
+            id = 2,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        viewModel.createCombo("Combo", 2800.0, 2300.0, 1900.0)
+
+        assertEquals(0.0, viewModel.getTotalMontoCortoPlazoWithCombos(), epsilon)
+    }
+
+    @Test
+    fun `getTotalMontoContadoWithCombos returns value for CONTADO`() {
+        viewModel.setTipoVenta("CONTADO")
+        val p1 = TestDataFactory.createProductInventory(
+            id = 1,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        val p2 = TestDataFactory.createProductInventory(
+            id = 2,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        val p3 = TestDataFactory.createProductInventory(
+            id = 3,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.addProductToSale(p3, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        viewModel.createCombo("Combo", 2800.0, 2300.0, 1900.0)
+
+        // p3 individual: 1000.0, combo contado: 1900.0
+        assertEquals(2900.0, viewModel.getTotalMontoContadoWithCombos(), epsilon)
+    }
+
+    @Test
+    fun `updateProductPrices forces lista and cortoplazo to 0 for CONTADO`() {
+        val product = TestDataFactory.createProductInventory()
+        viewModel.addProductToSale(product, 1)
+        viewModel.setTipoVenta("CONTADO")
+        viewModel.updateProductPrices(product, 2000.0, 1800.0, 1500.0)
+        val updated = viewModel.saleItems[0].product.PRECIOS
+        val parsed = PriceParser.parsePricesFromString(updated)
+        assertEquals(0.0, parsed.precioLista, epsilon)
+        assertEquals(0.0, parsed.precioCortoplazo, epsilon)
+        assertEquals(1500.0, parsed.precioContado, epsilon)
+    }
+
+    @Test
+    fun `createCombo forces lista and cortoplazo to 0 for CONTADO`() {
+        viewModel.setTipoVenta("CONTADO")
+        val p1 = TestDataFactory.createProductInventory(id = 1)
+        val p2 = TestDataFactory.createProductInventory(id = 2)
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        val comboId = viewModel.createCombo("Combo", 3000.0, 2500.0, 2000.0)
+        val combo = viewModel.combos[comboId]!!
+        assertEquals(0.0, combo.precioLista, epsilon)
+        assertEquals(0.0, combo.precioCortoPlazo, epsilon)
+        assertEquals(2000.0, combo.precioContado, epsilon)
+    }
+
+    @Test
+    fun `setTipoVenta updates tipoVenta`() {
+        assertEquals("CREDITO", viewModel.tipoVenta)
+        viewModel.setTipoVenta("CONTADO")
+        assertEquals("CONTADO", viewModel.tipoVenta)
+    }
+
+    @Test
+    fun `default tipoVenta is CREDITO`() {
+        assertEquals("CREDITO", viewModel.tipoVenta)
+    }
+
+    @Test
+    fun `updateComboPrices forces lista and cortoplazo to 0 for CONTADO`() {
+        val p1 = TestDataFactory.createProductInventory(id = 1)
+        val p2 = TestDataFactory.createProductInventory(id = 2)
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        val comboId = viewModel.createCombo("Combo", 3000.0, 2500.0, 2000.0)
+
+        viewModel.setTipoVenta("CONTADO")
+        viewModel.updateComboPrices(comboId, 3500.0, 3000.0, 2500.0)
+        val combo = viewModel.combos[comboId]!!
+        assertEquals(0.0, combo.precioLista, epsilon)
+        assertEquals(0.0, combo.precioCortoPlazo, epsilon)
+        assertEquals(2500.0, combo.precioContado, epsilon)
+    }
+
+    @Test
+    fun `updateComboPrices preserves all prices for CREDITO`() {
+        val p1 = TestDataFactory.createProductInventory(id = 1)
+        val p2 = TestDataFactory.createProductInventory(id = 2)
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        val comboId = viewModel.createCombo("Combo", 3000.0, 2500.0, 2000.0)
+
+        viewModel.updateComboPrices(comboId, 3500.0, 3000.0, 2500.0)
+        val combo = viewModel.combos[comboId]!!
+        assertEquals(3500.0, combo.precioLista, epsilon)
+        assertEquals(3000.0, combo.precioCortoPlazo, epsilon)
+        assertEquals(2500.0, combo.precioContado, epsilon)
+    }
+
+    @Test
+    fun `updateProductPrices preserves all prices for CREDITO`() {
+        val product = TestDataFactory.createProductInventory()
+        viewModel.addProductToSale(product, 1)
+        viewModel.updateProductPrices(product, 2000.0, 1800.0, 1500.0)
+        val parsed = PriceParser.parsePricesFromString(viewModel.saleItems[0].product.PRECIOS)
+        assertEquals(2000.0, parsed.precioLista, epsilon)
+        assertEquals(1800.0, parsed.precioCortoplazo, epsilon)
+        assertEquals(1500.0, parsed.precioContado, epsilon)
+    }
+
+    @Test
+    fun `switching from CONTADO to CREDITO restores normal price behavior`() {
+        val product = TestDataFactory.createProductInventory(
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(product, 2)
+
+        viewModel.setTipoVenta("CONTADO")
+        assertEquals(0.0, viewModel.getTotalPrecioLista(), epsilon)
+        assertEquals(0.0, viewModel.getTotalMontoCortoplazo(), epsilon)
+
+        viewModel.setTipoVenta("CREDITO")
+        assertEquals(3000.0, viewModel.getTotalPrecioLista(), epsilon)
+        assertEquals(2400.0, viewModel.getTotalMontoCortoplazo(), epsilon)
+        assertEquals(2000.0, viewModel.getTotalMontoContado(), epsilon)
+    }
+
+    @Test
+    fun `switching CONTADO to CREDITO restores combo total behavior`() {
+        val p1 = TestDataFactory.createProductInventory(
+            id = 1,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        val p2 = TestDataFactory.createProductInventory(
+            id = 2,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        val p3 = TestDataFactory.createProductInventory(
+            id = 3,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(p1, 1)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.addProductToSale(p3, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+        viewModel.createCombo("Combo", 2800.0, 2300.0, 1900.0)
+
+        viewModel.setTipoVenta("CONTADO")
+        assertEquals(0.0, viewModel.getTotalPrecioListaWithCombos(), epsilon)
+
+        viewModel.setTipoVenta("CREDITO")
+        // p3 individual: 1500.0, combo: 2800.0
+        assertEquals(4300.0, viewModel.getTotalPrecioListaWithCombos(), epsilon)
+    }
+
+    @Test
+    fun `CONTADO updateProductPrices then switch to CREDITO prices stay zeroed in product`() {
+        val product = TestDataFactory.createProductInventory()
+        viewModel.addProductToSale(product, 1)
+        viewModel.setTipoVenta("CONTADO")
+        viewModel.updateProductPrices(product, 2000.0, 1800.0, 1500.0)
+
+        // Prices were stored as 0 for lista/cortoplazo
+        val parsed = PriceParser.parsePricesFromString(viewModel.saleItems[0].product.PRECIOS)
+        assertEquals(0.0, parsed.precioLista, epsilon)
+        assertEquals(0.0, parsed.precioCortoplazo, epsilon)
+
+        // Switching back doesn't magically restore stored prices - they're already 0 in the product
+        viewModel.setTipoVenta("CREDITO")
+        val parsedAfter = PriceParser.parsePricesFromString(viewModel.saleItems[0].product.PRECIOS)
+        assertEquals(0.0, parsedAfter.precioLista, epsilon)
+        assertEquals(1500.0, parsedAfter.precioContado, epsilon)
+    }
+
+    @Test
+    fun `getSelectedItemsSuggestedPrices calculates correctly`() {
+        val p1 = TestDataFactory.createProductInventory(
+            id = 1,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        val p2 = TestDataFactory.createProductInventory(
+            id = 2,
+            prices = TestDataFactory.VALID_PRICES_STRING
+        )
+        viewModel.addProductToSale(p1, 2)
+        viewModel.addProductToSale(p2, 1)
+        viewModel.toggleProductSelection(1)
+        viewModel.toggleProductSelection(2)
+
+        val (lista, cortoPlazo, contado) = viewModel.getSelectedItemsSuggestedPrices()
+        // p1: 1500*2=3000, p2: 1500*1=1500 → 4500
+        assertEquals(4500.0, lista, epsilon)
+        // p1: 1200*2=2400, p2: 1200*1=1200 → 3600
+        assertEquals(3600.0, cortoPlazo, epsilon)
+        // p1: 1000*2=2000, p2: 1000*1=1000 → 3000
+        assertEquals(3000.0, contado, epsilon)
+    }
 }

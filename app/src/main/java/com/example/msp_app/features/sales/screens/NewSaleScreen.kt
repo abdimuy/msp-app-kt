@@ -549,7 +549,8 @@ fun NewSaleScreen(navController: NavController) {
         },
         selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
         suggestedPrices = saleProductsViewModel.getSelectedItemsSuggestedPrices(),
-        selectedProductNames = saleProductsViewModel.getSelectedProductNames()
+        selectedProductNames = saleProductsViewModel.getSelectedProductNames(),
+        tipoVenta = formState.tipoVenta
     )
 
     // Dialog de confirmación de venta
@@ -696,6 +697,7 @@ fun NewSaleScreen(navController: NavController) {
                                     text = { Text(option) },
                                     onClick = {
                                         formViewModel.updateTipoVenta(option)
+                                        saleProductsViewModel.setTipoVenta(option)
                                         expandedTipoVenta = false
                                     }
                                 )
@@ -1167,7 +1169,8 @@ fun NewSaleScreen(navController: NavController) {
                         saleProductsViewModel = saleProductsViewModel,
                         productosCamioneta = productosCamioneta,
                         onOpenProductSheet = { showProductSheet = true },
-                        hasError = formState.errors.products
+                        hasError = formState.errors.products,
+                        tipoVenta = formState.tipoVenta
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
