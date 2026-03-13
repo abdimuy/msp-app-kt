@@ -36,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,7 +72,10 @@ fun ProductSelectionBottomSheet(
     onDismiss: () -> Unit,
     onShowCreateComboDialog: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden }
+    )
     var searchQuery by remember { mutableStateOf("") }
     val isCreatingCombo by saleProductsViewModel.isCreatingCombo.collectAsState()
 
@@ -92,15 +96,17 @@ fun ProductSelectionBottomSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState
+        sheetState = sheetState,
+        dragHandle = null
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(0.95f)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(8.dp))
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),

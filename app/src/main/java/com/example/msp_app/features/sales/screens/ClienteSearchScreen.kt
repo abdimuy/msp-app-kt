@@ -29,6 +29,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -60,19 +61,25 @@ fun ClienteSearchBottomSheet(
     val isSyncing by viewModel.isSyncing.collectAsState()
     val syncError by viewModel.syncError.collectAsState()
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { it != SheetValue.Hidden }
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = sheetState
+        sheetState = sheetState,
+        dragHandle = null
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(0.95f)
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -82,7 +89,8 @@ fun ClienteSearchBottomSheet(
                 Text(
                     text = "Buscar Cliente",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
                 IconButton(
                     onClick = { viewModel.syncFromServer() },
@@ -99,6 +107,12 @@ fun ClienteSearchBottomSheet(
                             contentDescription = "Actualizar lista de clientes"
                         )
                     }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Cerrar"
+                    )
                 }
             }
 
