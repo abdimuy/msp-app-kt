@@ -1,22 +1,16 @@
 package com.example.msp_app.components
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -39,16 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.msp_app.R
 import com.example.msp_app.core.context.LocalAuthViewModel
-import com.example.msp_app.core.updates.ApkDownloader
-import com.example.msp_app.core.updates.DownloadState
-import com.example.msp_app.core.updates.UpdateChecker
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
@@ -326,74 +316,7 @@ fun DrawerContainer(
                     }
 
                     Column {
-                        val updateInfo by UpdateChecker.updateAvailable.collectAsState()
-                        val downloadState by ApkDownloader.state.collectAsState()
-                        val context = LocalContext.current
-
-                        if (updateInfo != null) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                                    .background(
-                                        color = Color(0xFF2196F3).copy(alpha = 0.1f),
-                                        shape = RoundedCornerShape(12.dp)
-                                    )
-                                    .padding(12.dp)
-                            ) {
-                                Text(
-                                    text = "Actualización disponible",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF2196F3)
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Versión ${updateInfo!!.latestVersion}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = {
-                                        when (downloadState) {
-                                            DownloadState.FAILED -> {
-                                                ApkDownloader.reset()
-                                                ApkDownloader.download(
-                                                    context,
-                                                    updateInfo!!.apkUrl,
-                                                    updateInfo!!.latestVersion
-                                                )
-                                            }
-                                            DownloadState.IDLE -> {
-                                                ApkDownloader.download(
-                                                    context,
-                                                    updateInfo!!.apkUrl,
-                                                    updateInfo!!.latestVersion
-                                                )
-                                            }
-                                            else -> {}
-                                        }
-                                    },
-                                    enabled = downloadState == DownloadState.IDLE ||
-                                        downloadState == DownloadState.FAILED,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFF2196F3)
-                                    )
-                                ) {
-                                    Text(
-                                        when (downloadState) {
-                                            DownloadState.IDLE -> "Descargar"
-                                            DownloadState.DOWNLOADING -> "Descargando..."
-                                            DownloadState.COMPLETED -> "Descargado"
-                                            DownloadState.FAILED -> "Reintentar"
-                                        }
-                                    )
-                                }
-                            }
-                        }
+                        UpdateBanner(compact = true)
 
                         NavigationDrawerItem(
                             label = { Text("Cerrar sesión") },
