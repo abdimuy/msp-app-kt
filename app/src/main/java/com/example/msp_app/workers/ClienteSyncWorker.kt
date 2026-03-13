@@ -16,6 +16,12 @@ class ClienteSyncWorker(
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(appContext) }
 
     override suspend fun doWork(): Result {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        if (hour < 7 || hour >= 18) {
+            Log.d("ClienteSyncWorker", "Fuera de horario laboral ($hour hrs), omitiendo sync")
+            return Result.success()
+        }
+
         return try {
             repository.syncFromServer()
 

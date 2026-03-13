@@ -126,7 +126,7 @@ fun enqueueClienteSyncWorker(context: Context) {
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
 
-    val request = PeriodicWorkRequestBuilder<ClienteSyncWorker>(24, TimeUnit.HOURS)
+    val request = PeriodicWorkRequestBuilder<ClienteSyncWorker>(3, TimeUnit.HOURS)
         .setConstraints(constraints)
         .build()
 
