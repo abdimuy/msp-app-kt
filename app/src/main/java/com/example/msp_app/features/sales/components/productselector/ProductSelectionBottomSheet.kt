@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -181,142 +181,159 @@ fun ProductSelectionBottomSheet(
 
             // Cart section
             if (cartItemCount > 0) {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp)
-                        .verticalScroll(rememberScrollState())
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                    border = BorderStroke(
+                        1.dp,
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    )
                 ) {
-                    // Cart header
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(12.dp)
                     ) {
-                        Text(
-                            text = "Carrito ($cartItemCount)",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        TextButton(onClick = { saleProductsViewModel.clearAll() }) {
-                            Icon(
-                                imageVector = Lucide.Trash2,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.error
+                        // Cart header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Carrito ($cartItemCount)",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Limpiar", color = MaterialTheme.colorScheme.error)
+                            TextButton(onClick = { saleProductsViewModel.clearAll() }) {
+                                Icon(
+                                    imageVector = Lucide.Trash2,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Limpiar", color = MaterialTheme.colorScheme.error)
+                            }
                         }
-                    }
 
-                    // Combos
-                    if (combosList.isNotEmpty()) {
-                        Text(
-                            text = "Combos",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        combosList.forEach { combo ->
-                            ComboCard(
-                                combo = combo,
-                                products = saleProductsViewModel.getProductsInCombo(combo.comboId),
-                                onDelete = { saleProductsViewModel.deleteCombo(combo.comboId) },
+                        // Combos
+                        if (combosList.isNotEmpty()) {
+                            Text(
+                                text = "Combos",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    // Selection bar + Create Combo
-                    AnimatedVisibility(
-                        visible = selectedProductIds.isNotEmpty(),
-                        enter = slideInVertically() + fadeIn(),
-                        exit = slideOutVertically() + fadeOut()
-                    ) {
-                        Column(modifier = Modifier.padding(bottom = 8.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${selectedProductIds.size} seleccionados",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Medium
+                            combosList.forEach { combo ->
+                                ComboCard(
+                                    combo = combo,
+                                    products = saleProductsViewModel.getProductsInCombo(
+                                        combo.comboId
+                                    ),
+                                    onDelete = { saleProductsViewModel.deleteCombo(combo.comboId) },
+                                    modifier = Modifier.padding(bottom = 8.dp)
                                 )
-                                TextButton(onClick = { saleProductsViewModel.clearSelection() }) {
-                                    Icon(
-                                        imageVector = Lucide.X,
-                                        contentDescription = "Limpiar selección",
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Limpiar")
-                                }
                             }
-                            if (selectedProductIds.size >= 2) {
-                                Button(
-                                    onClick = onShowCreateComboDialog,
-                                    shape = RoundedCornerShape(20.dp),
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        // Selection bar + Create Combo
+                        AnimatedVisibility(
+                            visible = selectedProductIds.isNotEmpty(),
+                            enter = slideInVertically() + fadeIn(),
+                            exit = slideOutVertically() + fadeOut()
+                        ) {
+                            Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                                Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary
-                                    )
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Lucide.Package,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp)
+                                    Text(
+                                        text = "${selectedProductIds.size} seleccionados",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Medium
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Crear Combo")
+                                    TextButton(
+                                        onClick = { saleProductsViewModel.clearSelection() }
+                                    ) {
+                                        Icon(
+                                            imageVector = Lucide.X,
+                                            contentDescription = "Limpiar selección",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Limpiar")
+                                    }
+                                }
+                                if (selectedProductIds.size >= 2) {
+                                    Button(
+                                        onClick = onShowCreateComboDialog,
+                                        shape = RoundedCornerShape(20.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Lucide.Package,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Crear Combo")
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Individual products
-                    if (individualProducts.isNotEmpty()) {
-                        Text(
-                            text = if (combosList.isNotEmpty()) "Productos individuales" else "Productos",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                        Text(
-                            text = "Selecciona 2 o más productos para crear un combo",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.outline,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                        individualProducts.forEach { item ->
-                            ProductItemSelectable(
-                                saleItem = item,
-                                isSelected = selectedProductIds.contains(item.product.ARTICULO_ID),
-                                isInCombo = false,
-                                onToggleSelect = {
-                                    saleProductsViewModel.toggleProductSelection(
-                                        item.product.ARTICULO_ID
-                                    )
-                                },
-                                onQuantityChange = { newQty ->
-                                    val maxStock = item.product.EXISTENCIAS
-                                    val validQty = newQty.coerceIn(1, maxStock)
-                                    saleProductsViewModel.updateQuantity(item.product, validQty)
-                                },
-                                onRemove = {
-                                    saleProductsViewModel.removeProductFromSale(item.product)
-                                },
-                                modifier = Modifier.padding(bottom = 8.dp),
-                                isEnabled = !isCreatingCombo
+                        // Individual products
+                        if (individualProducts.isNotEmpty()) {
+                            Text(
+                                text = if (combosList.isNotEmpty()) "Productos individuales" else "Productos",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp)
                             )
+                            Text(
+                                text = "Selecciona 2 o más productos para crear un combo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                            individualProducts.forEach { item ->
+                                ProductItemSelectable(
+                                    saleItem = item,
+                                    isSelected = selectedProductIds.contains(
+                                        item.product.ARTICULO_ID
+                                    ),
+                                    isInCombo = false,
+                                    onToggleSelect = {
+                                        saleProductsViewModel.toggleProductSelection(
+                                            item.product.ARTICULO_ID
+                                        )
+                                    },
+                                    onQuantityChange = { newQty ->
+                                        val maxStock = item.product.EXISTENCIAS
+                                        val validQty = newQty.coerceIn(1, maxStock)
+                                        saleProductsViewModel.updateQuantity(item.product, validQty)
+                                    },
+                                    onRemove = {
+                                        saleProductsViewModel.removeProductFromSale(item.product)
+                                    },
+                                    modifier = Modifier.padding(bottom = 8.dp),
+                                    isEnabled = !isCreatingCombo
+                                )
+                            }
                         }
                     }
                 }
