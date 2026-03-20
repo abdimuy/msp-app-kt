@@ -232,9 +232,20 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
     fun syncPendingGuarantees() {
         viewModelScope.launch {
             try {
-                val pendingGuarantees =
+                val prefs = getApplication<Application>().getSharedPreferences(
+                    "guarantees_prefs",
+                    Context.MODE_PRIVATE
+                )
+                val alreadyResynced = prefs.getBoolean("guarantees_resynced_v298", false)
+
+                val guaranteesToSync = if (alreadyResynced) {
                     guaranteeStore.getAllGuarantees().filter { it.UPLOADED == 0 }
-                pendingGuarantees.forEach { guarantee ->
+                } else {
+                    prefs.edit().putBoolean("guarantees_resynced_v298", true).apply()
+                    guaranteeStore.getAllGuarantees()
+                }
+
+                guaranteesToSync.forEach { guarantee ->
                     enqueuePendingGuaranteesWorker(
                         getApplication(),
                         guarantee.EXTERNAL_ID,
