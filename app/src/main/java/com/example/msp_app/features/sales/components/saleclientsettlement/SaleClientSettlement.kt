@@ -152,21 +152,25 @@ fun calculatePaymentResult(settlement: Settlement): PaymentResults {
     val fiveDaysAgo = LocalDateTime.now().minusDays(5) // subtract(5, 'day')
     val elapsedMonths = ChronoUnit.MONTHS.between(saleEndOfDay, fiveDaysAgo) + 1
 
-    val shortTermInteres = (settlement.shortTermAmount - settlement.cashPrice) / 4
-    val longTermInterest = (settlement.totalPrice - settlement.shortTermAmount) / 7
+    val shortTermInteres = (settlement.shortTermAmount - settlement.cashPrice) / 3
     val totalPaid = settlement.totalPrice - settlement.remainingBalance
 
     val amount = when {
         elapsedMonths <= 1 -> settlement.cashPrice
-        elapsedMonths <= 3 -> settlement.cashPrice + elapsedMonths * shortTermInteres
+        elapsedMonths <= 3 -> settlement.cashPrice + (elapsedMonths - 1) * shortTermInteres
         elapsedMonths in 4..5 -> settlement.shortTermAmount
-        elapsedMonths < 12 -> settlement.shortTermAmount + (elapsedMonths - 4) * longTermInterest
+        elapsedMonths <= 12 -> {
+            val progress = (elapsedMonths - 5).toDouble() / 8.0
+            settlement.shortTermAmount + (settlement.totalPrice - settlement.shortTermAmount) * progress
+        }
+
         else -> settlement.totalPrice
     } - totalPaid
 
     val category = when {
         elapsedMonths <= 1 -> "Precio de contado"
         elapsedMonths < 12 -> "Precio a $elapsedMonths meses"
+        elapsedMonths.toInt() == 12 -> "Precio Promocional"
         else -> "Precio total"
     }
 

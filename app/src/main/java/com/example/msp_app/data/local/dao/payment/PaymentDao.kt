@@ -231,7 +231,8 @@ interface PaymentDao {
                     SELECT
                         sales.DOCTO_CC_ID,
                         sales.CLIENTE,
-                        COALESCE(MAX(payment.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
+                        sales.FECHA,
+                        COALESCE(MAX(payment.FECHA_HORA_PAGO), sales.FECHA) AS FECHA_ULT_PAGO,
                         COALESCE(COUNT(payment.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
                         COALESCE(SUM(payment.IMPORTE), 0) AS TOTAL_IMPORTE,
                         sales.FREC_PAGO,
@@ -306,7 +307,8 @@ interface PaymentDao {
     FROM (
         SELECT
             s.DOCTO_CC_ID,
-            COALESCE(MAX(p.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
+            s.FECHA,
+            COALESCE(MAX(p.FECHA_HORA_PAGO), s.FECHA) AS FECHA_ULT_PAGO,
             COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
             COALESCE(SUM(p.IMPORTE), 0) AS TOTAL_IMPORTE,
             s.FREC_PAGO,
@@ -338,22 +340,23 @@ interface PaymentDao {
     @Query(
         """
     SELECT
-        sales.DOCTO_CC_ID,
-        sales.FECHA_ULT_PAGO,
-        sales.NUM_IMPORTES,
-        sales.PARCIALIDADES_TRANSCURRIDAS,
-        CASE 
-            WHEN ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD) 
-                > (sales.SALDO_REST / sales.PARCIALIDAD)
-            THEN (sales.SALDO_REST / sales.PARCIALIDAD)
-            ELSE ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD)
-        END AS NUM_PAGOS_ATRASADOS
+            sales.DOCTO_CC_ID,
+            sales.FECHA_ULT_PAGO,
+            sales.NUM_IMPORTES,
+            sales.PARCIALIDADES_TRANSCURRIDAS,
+            CASE 
+                WHEN ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
+                      - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD) 
+                    > (sales.SALDO_REST / sales.PARCIALIDAD)
+                THEN (sales.SALDO_REST / sales.PARCIALIDAD)
+                ELSE ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
+                      - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD)
+            END AS NUM_PAGOS_ATRASADOS
     FROM (
         SELECT
             s.DOCTO_CC_ID,
-            COALESCE(MAX(p.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
+            s.FECHA,
+            COALESCE(MAX(p.FECHA_HORA_PAGO), s.FECHA) AS FECHA_ULT_PAGO,
             COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
             COALESCE(SUM(p.IMPORTE), 0) AS TOTAL_IMPORTE,
             s.FREC_PAGO,

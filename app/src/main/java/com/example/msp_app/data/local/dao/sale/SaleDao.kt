@@ -30,7 +30,7 @@ interface SaleDao {
     FROM (
         SELECT
             s.DOCTO_CC_ID,
-            COALESCE(MAX(p.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
+            COALESCE(MAX(p.FECHA_HORA_PAGO), s.FECHA) AS FECHA_ULT_PAGO,
             COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
             COALESCE(SUM(p.IMPORTE), 0) AS TOTAL_IMPORTE,
             s.FREC_PAGO,
