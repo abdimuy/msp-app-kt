@@ -69,7 +69,6 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             guaranteeStore.insertGuarantee(guarantee)
             loadAllGuarantees()
-            enqueueGuaranteeForUpload(guarantee)
         }
     }
 
@@ -190,16 +189,8 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
     fun postGuaranteeRemote(guarantee: GuaranteeEntity) {
         viewModelScope.launch {
             try {
-                val doctoCcId = guarantee.DOCTO_CC_ID ?: return@launch
-
                 val images = guaranteeStore.getImagesByExternalId(guarantee.EXTERNAL_ID)
-
-                val externalIdBody =
-                    guarantee.EXTERNAL_ID.toRequestBody("text/plain".toMediaTypeOrNull())
-                val descripcionFallaBody =
-                    guarantee.DESCRIPCION_FALLA.toRequestBody("text/plain".toMediaTypeOrNull())
-                val observacionesBody =
-                    guarantee.OBSERVACIONES?.toRequestBody("text/plain".toMediaTypeOrNull())
+                val textPlain = "text/plain".toMediaTypeOrNull()
 
                 val imageParts = images.mapNotNull { image ->
                     val file = java.io.File(image.IMG_PATH)
@@ -213,11 +204,13 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                     }
                 }
 
-                api.saveGuaranteeWithImages(
-                    doctoCcId = doctoCcId,
-                    externalId = externalIdBody,
-                    descripcionFalla = descripcionFallaBody,
-                    observaciones = observacionesBody,
+                api.createNewGuarantee(
+                    externalId = guarantee.EXTERNAL_ID.toRequestBody(textPlain),
+                    doctoCcId = guarantee.DOCTO_CC_ID?.toString()?.toRequestBody(textPlain),
+                    nombreCliente = guarantee.NOMBRE_CLIENTE?.toRequestBody(textPlain),
+                    nombreProducto = guarantee.NOMBRE_PRODUCTO?.toRequestBody(textPlain),
+                    descripcionFalla = guarantee.DESCRIPCION_FALLA.toRequestBody(textPlain),
+                    observaciones = guarantee.OBSERVACIONES?.toRequestBody(textPlain),
                     imagenes = imageParts
                 )
 

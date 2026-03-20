@@ -198,6 +198,8 @@ fun HomeScreen(navController: NavController) {
         paymentsViewModel.getCentroidsBySale()
         visitsViewModel.getPendingVisits()
         paymentsViewModel.getPendingPayments()
+        guaranteesViewModel.syncPendingGuarantees()
+        guaranteesViewModel.syncPendingGuaranteeEvents()
     }
 
     LaunchedEffect(startWeekDate) {

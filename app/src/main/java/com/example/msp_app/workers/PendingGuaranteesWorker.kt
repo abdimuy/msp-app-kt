@@ -41,36 +41,23 @@ class PendingGuaranteesWorker(
 
             val imageParts = buildImageParts(images)
 
-            val externalIdBody = externalId.toRequestBody("text/plain".toMediaTypeOrNull())
-            val descripcionFallaBody =
-                guarantee.DESCRIPCION_FALLA.toRequestBody("text/plain".toMediaTypeOrNull())
-            val observacionesBody =
-                guarantee.OBSERVACIONES?.toRequestBody("text/plain".toMediaTypeOrNull())
+            val textPlain = "text/plain".toMediaTypeOrNull()
+            val externalIdBody = externalId.toRequestBody(textPlain)
+            val descripcionFallaBody = guarantee.DESCRIPCION_FALLA.toRequestBody(textPlain)
+            val observacionesBody = guarantee.OBSERVACIONES?.toRequestBody(textPlain)
+            val doctoCcIdBody = guarantee.DOCTO_CC_ID?.toString()?.toRequestBody(textPlain)
+            val nombreClienteBody = guarantee.NOMBRE_CLIENTE?.toRequestBody(textPlain)
+            val nombreProductoBody = guarantee.NOMBRE_PRODUCTO?.toRequestBody(textPlain)
 
-            if (guarantee.DOCTO_CC_ID != null) {
-                api.saveGuaranteeWithImages(
-                    doctoCcId = guarantee.DOCTO_CC_ID,
-                    externalId = externalIdBody,
-                    descripcionFalla = descripcionFallaBody,
-                    observaciones = observacionesBody,
-                    imagenes = imageParts
-                )
-            } else {
-                val nombreClienteBody =
-                    guarantee.NOMBRE_CLIENTE?.toRequestBody("text/plain".toMediaTypeOrNull())
-                val nombreProductoBody =
-                    guarantee.NOMBRE_PRODUCTO?.toRequestBody("text/plain".toMediaTypeOrNull())
-
-                api.createNewGuarantee(
-                    externalId = externalIdBody,
-                    doctoCcId = null,
-                    nombreCliente = nombreClienteBody,
-                    nombreProducto = nombreProductoBody,
-                    descripcionFalla = descripcionFallaBody,
-                    observaciones = observacionesBody,
-                    imagenes = imageParts
-                )
-            }
+            api.createNewGuarantee(
+                externalId = externalIdBody,
+                doctoCcId = doctoCcIdBody,
+                nombreCliente = nombreClienteBody,
+                nombreProducto = nombreProductoBody,
+                descripcionFalla = descripcionFallaBody,
+                observaciones = observacionesBody,
+                imagenes = imageParts
+            )
 
             guaranteesStore.markGuaranteeAsUploaded(guarantee.EXTERNAL_ID)
             Result.success()

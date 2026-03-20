@@ -17,16 +17,6 @@ data class GuaranteeEventRequest(
 
 interface GuaranteesApi {
     @Multipart
-    @POST("garantias/{doctoCcId}/imagenes")
-    suspend fun saveGuaranteeWithImages(
-        @Path("doctoCcId") doctoCcId: Int,
-        @Part("externalId") externalId: RequestBody,
-        @Part("descripcionFalla") descripcionFalla: RequestBody,
-        @Part("observaciones") observaciones: RequestBody?,
-        @Part imagenes: List<MultipartBody.Part>
-    )
-
-    @Multipart
     @POST("garantias/nueva")
     suspend fun createNewGuarantee(
         @Part("externalId") externalId: RequestBody,
