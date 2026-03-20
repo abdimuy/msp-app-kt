@@ -464,7 +464,7 @@ fun GuaranteeScreen(saleId: Int, navController: NavController) {
                         ESTADO = NOTIFICADO,
                         DESCRIPCION_FALLA = defectDescription.text,
                         OBSERVACIONES = observations.text.takeIf { it.isNotBlank() },
-                        UPLOADED = 1,
+                        UPLOADED = 0,
                         FECHA_SOLICITUD = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
                         NOMBRE_CLIENTE = sale?.CLIENTE
                     )

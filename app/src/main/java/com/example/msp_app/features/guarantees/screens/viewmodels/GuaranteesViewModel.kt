@@ -69,6 +69,7 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             guaranteeStore.insertGuarantee(guarantee)
             loadAllGuarantees()
+            enqueueGuaranteeForUpload(guarantee)
         }
     }
 
