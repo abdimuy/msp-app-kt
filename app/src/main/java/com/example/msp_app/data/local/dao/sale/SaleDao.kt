@@ -13,49 +13,6 @@ interface SaleDao {
 
     @Query(
         """
-        WITH atrasos AS (
-            SELECT
-        sales.DOCTO_CC_ID,
-        sales.FECHA_ULT_PAGO,
-        sales.NUM_IMPORTES,
-        sales.PARCIALIDADES_TRANSCURRIDAS,
-        CASE 
-            WHEN ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD) 
-                > (sales.SALDO_REST / sales.PARCIALIDAD)
-            THEN (sales.SALDO_REST / sales.PARCIALIDAD)
-            ELSE ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD)
-        END AS NUM_PAGOS_ATRASADOS
-    FROM (
-        SELECT
-            s.DOCTO_CC_ID,
-            COALESCE(MAX(p.FECHA_HORA_PAGO), s.FECHA) AS FECHA_ULT_PAGO,
-            COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
-            COALESCE(SUM(p.IMPORTE), 0) AS TOTAL_IMPORTE,
-            s.FREC_PAGO,
-            s.SALDO_REST,
-            s.PRECIO_TOTAL,
-            s.PARCIALIDAD,
-            s.ENGANCHE,
-            (
-                JULIANDAY(
-                    CASE
-                        WHEN s.SALDO_REST = 0 THEN MAX(p.FECHA_HORA_PAGO)
-                        ELSE DATE('now')
-                    END
-                ) - JULIANDAY(s.FECHA)
-            ) / CASE 
-                WHEN s.FREC_PAGO = 'SEMANAL' THEN 7
-                WHEN s.FREC_PAGO = 'QUINCENAL' THEN 15
-                WHEN s.FREC_PAGO = 'MENSUAL' THEN 30
-                ELSE 1
-            END AS PARCIALIDADES_TRANSCURRIDAS
-        FROM sales AS s
-        LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID
-        GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO
-    ) AS sales
-        )
         SELECT
             s.DOCTO_CC_ACR_ID,
             s.DOCTO_CC_ID,
@@ -98,7 +55,7 @@ interface SaleDao {
             CAST(a.NUM_PAGOS_ATRASADOS AS INTEGER) AS NUM_PAGOS_ATRASADOS
         FROM sales AS s
         LEFT JOIN products AS p ON p.FOLIO = s.FOLIO
-        LEFT JOIN atrasos AS a ON a.DOCTO_CC_ID = s.DOCTO_CC_ID
+        LEFT JOIN overdue_payments_view AS a ON a.DOCTO_CC_ID = s.DOCTO_CC_ID
         GROUP BY s.DOCTO_CC_ID
 """
     )
@@ -226,5 +183,5 @@ interface SaleDao {
     suspend fun insertAll(sales: List<SaleEntity>)
 
     @Query("DELETE FROM sales")
-    suspend fun clearAll()
+    suspend fun deleteAll()
 }

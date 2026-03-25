@@ -15,7 +15,7 @@ class SalesLocalDataSource(context: Context) {
     }
 
     suspend fun saveAll(sales: List<SaleEntity>) {
-        saleDao.clearAll()
+        saleDao.deleteAll()
         saleDao.insertAll(sales)
     }
 
