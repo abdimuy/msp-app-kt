@@ -231,7 +231,8 @@ interface PaymentDao {
                     SELECT
                         sales.DOCTO_CC_ID,
                         sales.CLIENTE,
-                        COALESCE(MAX(payment.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
+                        sales.FECHA,
+                        COALESCE(MAX(payment.FECHA_HORA_PAGO), sales.FECHA) AS FECHA_ULT_PAGO,
                         COALESCE(COUNT(payment.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
                         COALESCE(SUM(payment.IMPORTE), 0) AS TOTAL_IMPORTE,
                         sales.FREC_PAGO,
@@ -251,7 +252,7 @@ interface PaymentDao {
                             WHEN sales.FREC_PAGO = 'SEMANAL'   THEN 7
                             WHEN sales.FREC_PAGO = 'QUINCENAL' THEN 15
                             WHEN sales.FREC_PAGO = 'MENSUAL'   THEN 30
-                            ELSE 0
+                            ELSE 1
                           END AS PARCIALIDADES_TRANSCURRIDAS
                     FROM sales
                     LEFT JOIN payment
@@ -288,99 +289,10 @@ interface PaymentDao {
     )
     suspend fun getSuggestedAmountsBySaleId(saleId: Int): List<Int>
 
-    @Query(
-        """
-    SELECT
-        sales.DOCTO_CC_ID,
-        sales.FECHA_ULT_PAGO,
-        sales.NUM_IMPORTES,
-        sales.PARCIALIDADES_TRANSCURRIDAS,
-        CASE 
-            WHEN ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD) 
-                > (sales.SALDO_REST / sales.PARCIALIDAD)
-            THEN (sales.SALDO_REST / sales.PARCIALIDAD)
-            ELSE ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD)
-        END AS NUM_PAGOS_ATRASADOS
-    FROM (
-        SELECT
-            s.DOCTO_CC_ID,
-            COALESCE(MAX(p.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
-            COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
-            COALESCE(SUM(p.IMPORTE), 0) AS TOTAL_IMPORTE,
-            s.FREC_PAGO,
-            s.SALDO_REST,
-            s.PRECIO_TOTAL,
-            s.PARCIALIDAD,
-            s.ENGANCHE,
-            (
-                JULIANDAY(
-                    CASE
-                        WHEN s.SALDO_REST = 0 THEN MAX(p.FECHA_HORA_PAGO)
-                        ELSE DATE('now')
-                    END
-                ) - JULIANDAY(s.FECHA)
-            ) / CASE 
-                WHEN s.FREC_PAGO = 'SEMANAL' THEN 7
-                WHEN s.FREC_PAGO = 'QUINCENAL' THEN 15
-                WHEN s.FREC_PAGO = 'MENSUAL' THEN 30
-                ELSE 1
-            END AS PARCIALIDADES_TRANSCURRIDAS
-        FROM sales AS s
-        LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID
-        GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO
-    ) AS sales
-    """
-    )
+    @Query("SELECT * FROM overdue_payments_view")
     suspend fun getOverduePayments(): List<OverduePaymentsEntity>
 
-    @Query(
-        """
-    SELECT
-        sales.DOCTO_CC_ID,
-        sales.FECHA_ULT_PAGO,
-        sales.NUM_IMPORTES,
-        sales.PARCIALIDADES_TRANSCURRIDAS,
-        CASE 
-            WHEN ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD) 
-                > (sales.SALDO_REST / sales.PARCIALIDAD)
-            THEN (sales.SALDO_REST / sales.PARCIALIDAD)
-            ELSE ((sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD 
-                  - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD)
-        END AS NUM_PAGOS_ATRASADOS
-    FROM (
-        SELECT
-            s.DOCTO_CC_ID,
-            COALESCE(MAX(p.FECHA_HORA_PAGO), DATE('now')) AS FECHA_ULT_PAGO,
-            COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
-            COALESCE(SUM(p.IMPORTE), 0) AS TOTAL_IMPORTE,
-            s.FREC_PAGO,
-            s.SALDO_REST,
-            s.PRECIO_TOTAL,
-            s.PARCIALIDAD,
-            s.ENGANCHE,
-            (
-                JULIANDAY(
-                    CASE
-                        WHEN s.SALDO_REST = 0 THEN MAX(p.FECHA_HORA_PAGO)
-                        ELSE DATE('now')
-                    END
-                ) - JULIANDAY(s.FECHA)
-            ) / CASE 
-                WHEN s.FREC_PAGO = 'SEMANAL' THEN 7
-                WHEN s.FREC_PAGO = 'QUINCENAL' THEN 15
-                WHEN s.FREC_PAGO = 'MENSUAL' THEN 30
-                ELSE 1
-            END AS PARCIALIDADES_TRANSCURRIDAS
-        FROM sales AS s
-        LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID
-        WHERE s.DOCTO_CC_ID = :saleId
-        GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO
-    ) AS sales
-    """
-    )
+    @Query("SELECT * FROM overdue_payments_view WHERE DOCTO_CC_ID = :saleId")
     suspend fun getOverduePaymentBySaleId(saleId: Int): OverduePaymentsEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

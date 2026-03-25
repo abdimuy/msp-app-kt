@@ -23,29 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.util.Locale
-
-data class Settlement(
-    val cashPrice: Double,
-    val shortTermAmount: Double,
-    val totalPrice: Double,
-    val remainingBalance: Double,
-    val date: String
-)
-
-data class PaymentResults(
-    val amount: Double,
-    val category: String,
-    val validUntil: String
-)
+import com.example.msp_app.features.sales.domain.models.Settlement
+import com.example.msp_app.features.sales.domain.models.calculatePaymentResult
 
 @Composable
 fun SaleClienteSettlement(sale: Sale) {
@@ -124,7 +105,7 @@ fun SaleClienteSettlement(sale: Sale) {
                         modifier = Modifier.height(8.dp)
                     )
                     Text(
-                        text = "Válido hasta ${result.validUntil}",
+                        text = "Valido hasta ${result.validUntil}",
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Light,
@@ -134,49 +115,4 @@ fun SaleClienteSettlement(sale: Sale) {
             }
         }
     }
-}
-
-fun calculatePaymentResult(settlement: Settlement): PaymentResults {
-    if (settlement.cashPrice == 0.0) {
-        return PaymentResults(
-            amount = 0.0,
-            category = "No disponible",
-            validUntil = "-"
-        )
-    }
-
-    val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-    val saleDate = LocalDate.parse(settlement.date, formatter)
-
-    val saleEndOfDay = saleDate.atTime(LocalTime.MAX) // endOf('day')
-    val fiveDaysAgo = LocalDateTime.now().minusDays(5) // subtract(5, 'day')
-    val elapsedMonths = ChronoUnit.MONTHS.between(saleEndOfDay, fiveDaysAgo) + 1
-
-    val shortTermInteres = (settlement.shortTermAmount - settlement.cashPrice) / 4
-    val longTermInterest = (settlement.totalPrice - settlement.shortTermAmount) / 7
-    val totalPaid = settlement.totalPrice - settlement.remainingBalance
-
-    val amount = when {
-        elapsedMonths <= 1 -> settlement.cashPrice
-        elapsedMonths <= 3 -> settlement.cashPrice + elapsedMonths * shortTermInteres
-        elapsedMonths in 4..5 -> settlement.shortTermAmount
-        elapsedMonths < 12 -> settlement.shortTermAmount + (elapsedMonths - 4) * longTermInterest
-        else -> settlement.totalPrice
-    } - totalPaid
-
-    val category = when {
-        elapsedMonths <= 1 -> "Precio de contado"
-        elapsedMonths < 12 -> "Precio a $elapsedMonths meses"
-        else -> "Precio total"
-    }
-
-    val validDate = saleDate.plusMonths(elapsedMonths).plusDays(14)
-
-    val formattedDate = DateUtils.formatIsoDate(
-        iso = validDate.toString(),
-        pattern = "dd/MM/yyyy",
-        locale = Locale("es", "MX")
-    )
-
-    return PaymentResults(amount, category, formattedDate)
 }
