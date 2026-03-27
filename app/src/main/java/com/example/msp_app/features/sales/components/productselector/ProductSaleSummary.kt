@@ -17,13 +17,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -80,7 +80,7 @@ fun ProductSaleSummary(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Add/Edit button
-        OutlinedButton(
+        Button(
             onClick = onOpenProductSheet,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)

@@ -71,7 +71,10 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
+import com.example.msp_app.data.local.entities.LocalSaleComboEntity
+import com.example.msp_app.features.sales.components.combo.CreateComboDialog
+import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
+import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.viewmodels.EditLocalSaleViewModel
@@ -92,6 +95,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     val selectedSale by viewModel.selectedSale.collectAsState()
     val existingImages by viewModel.saleImages.collectAsState()
     val existingProducts by viewModel.saleProducts.collectAsState()
+    val existingCombos by viewModel.saleCombos.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val imagesToDelete by viewModel.imagesToDelete.collectAsState()
     val saveResult by viewModel.saveResult.collectAsState()
@@ -145,8 +149,14 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     var showErrorDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
+    // Combos UI state
+    var showProductSheet by remember { mutableStateOf(false) }
+    var showCreateComboDialog by remember { mutableStateOf(false) }
+
     // Flag to track if form was initialized
     var formInitialized by remember { mutableStateOf(false) }
+    // Flag to track if combos were restored
+    var combosRestored by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
@@ -205,13 +215,39 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
             // Load products into SaleProductsViewModel
             existingProducts.forEach { productEntity ->
-                val product = productosCamioneta.find { it.ARTICULO_ID == productEntity.ARTICULO_ID }
+                val product =
+                    productosCamioneta.find { it.ARTICULO_ID == productEntity.ARTICULO_ID }
                 if (product != null) {
                     saleProductsViewModel.addProductToSale(product, productEntity.CANTIDAD)
                 }
             }
 
             formInitialized = true
+        }
+    }
+
+    LaunchedEffect(formInitialized, existingCombos, existingProducts) {
+        if (formInitialized && !combosRestored && existingCombos.isNotEmpty()) {
+            existingCombos.forEach { combo ->
+                val comboProductIds = existingProducts
+                    .filter { it.COMBO_ID == combo.COMBO_ID }
+                    .map { it.ARTICULO_ID }
+
+                comboProductIds.forEach { articleId ->
+                    saleProductsViewModel.toggleProductSelection(articleId)
+                }
+
+                if (comboProductIds.isNotEmpty()) {
+                    saleProductsViewModel.createComboWithId(
+                        comboId = combo.COMBO_ID,
+                        nombreCombo = combo.NOMBRE_COMBO,
+                        precioLista = combo.PRECIO_LISTA,
+                        precioCortoPlazo = combo.PRECIO_CORTO_PLAZO,
+                        precioContado = combo.PRECIO_CONTADO
+                    )
+                }
+            }
+            combosRestored = true
         }
     }
 
@@ -222,12 +258,14 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                 showSuccessDialog = true
                 viewModel.clearSaveResult()
             }
+
             is SaveResult.Error -> {
                 errorMessage = result.message
                 showErrorDialog = true
                 viewModel.clearSaveResult()
             }
-            null -> { }
+
+            null -> {}
         }
     }
 
@@ -357,7 +395,8 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     }
 
     fun validateImages(): Boolean {
-        val remainingExistingImages = existingImages.count { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
+        val remainingExistingImages =
+            existingImages.count { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
         val isValid = remainingExistingImages + newImageUris.size > 0
         imageError = !isValid
         return isValid
@@ -392,6 +431,17 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             else -> ""
         }
 
+        val comboEntities = saleProductsViewModel.getCombosList().map { combo ->
+            LocalSaleComboEntity(
+                COMBO_ID = combo.comboId,
+                LOCAL_SALE_ID = localSaleId,
+                NOMBRE_COMBO = combo.nombreCombo,
+                PRECIO_LISTA = combo.precioLista,
+                PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
+                PRECIO_CONTADO = combo.precioContado
+            )
+        }
+
         viewModel.updateSaleWithImages(
             saleId = localSaleId,
             clientName = defectName.text,
@@ -405,27 +455,39 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             poblacion = poblacion.text.ifBlank { null },
             ciudad = ciudad.text.ifBlank { null },
             tipoVenta = tipoVenta,
-            installment = if (tipoVenta == "CONTADO") 0.0 else installment.text.toDoubleOrNull() ?: 0.0,
-            downpayment = if (tipoVenta == "CONTADO") 0.0 else downpayment.text.toDoubleOrNull() ?: 0.0,
+            installment = if (tipoVenta == "CONTADO") {
+                0.0
+            } else {
+                installment.text.toDoubleOrNull()
+                    ?: 0.0
+            },
+            downpayment = if (tipoVenta == "CONTADO") {
+                0.0
+            } else {
+                downpayment.text.toDoubleOrNull()
+                    ?: 0.0
+            },
             phone = phone.text.ifBlank { "" },
             paymentfrequency = if (tipoVenta == "CONTADO") "" else paymentfrequency,
             avaloresponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
             note = note.text,
             collectionday = if (tipoVenta == "CONTADO") "" else collectionday,
-            totalprice = saleProductsViewModel.getTotalPrecioLista(),
+            totalprice = saleProductsViewModel.getTotalPrecioListaWithCombos(),
             shorttermtime = 0,
-            shorttermamount = saleProductsViewModel.getTotalMontoCortoplazo(),
-            cashamount = saleProductsViewModel.getTotalMontoContado(),
+            shorttermamount = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
+            cashamount = saleProductsViewModel.getTotalMontoContadoWithCombos(),
             saleProducts = saleProductsViewModel.saleItems,
             context = context,
             userEmail = userEmail,
             zonaClienteId = selectedZoneId,
-            zonaClienteNombre = selectedZoneName
+            zonaClienteNombre = selectedZoneName,
+            combos = comboEntities
         )
     }
 
     // All images to display (existing + new)
-    val displayableExistingImages = existingImages.filter { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
+    val displayableExistingImages =
+        existingImages.filter { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
 
     // Image viewer
     if (showImageViewer) {
@@ -445,6 +507,40 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             )
         }
     }
+
+    if (showProductSheet) {
+        ProductSelectionBottomSheet(
+            products = productosCamioneta,
+            saleProductsViewModel = saleProductsViewModel,
+            onDismiss = { showProductSheet = false },
+            onShowCreateComboDialog = {
+                saleProductsViewModel.setCreatingCombo(true)
+                showCreateComboDialog = true
+            }
+        )
+    }
+
+    CreateComboDialog(
+        show = showCreateComboDialog,
+        onDismiss = {
+            saleProductsViewModel.setCreatingCombo(false)
+            showCreateComboDialog = false
+        },
+        onConfirm = { nombre, precioLista, precioCortoPlazo, precioContado ->
+            saleProductsViewModel.createCombo(
+                nombreCombo = nombre,
+                precioLista = precioLista,
+                precioCortoPlazo = precioCortoPlazo,
+                precioContado = precioContado
+            )
+            saleProductsViewModel.setCreatingCombo(false)
+            showCreateComboDialog = false
+        },
+        selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
+        suggestedPrices = saleProductsViewModel.getSelectedItemsSuggestedPrices(),
+        selectedProductNames = saleProductsViewModel.getSelectedProductNames(),
+        tipoVenta = tipoVenta
+    )
 
     // Success dialog
     if (showSuccessDialog) {
@@ -1045,17 +1141,19 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                                                     shape = RoundedCornerShape(8.dp)
                                                 )
                                                 .clickable {
-                                                    val allImages = displayableExistingImages.mapNotNull { img ->
-                                                        try {
-                                                            Uri.parse("file://${img.IMAGE_URI}")
-                                                        } catch (
-                                                            e: Exception
-                                                        ) {
-                                                            null
-                                                        }
-                                                    } + newImageUris
+                                                    val allImages =
+                                                        displayableExistingImages.mapNotNull { img ->
+                                                            try {
+                                                                Uri.parse("file://${img.IMAGE_URI}")
+                                                            } catch (
+                                                                e: Exception
+                                                            ) {
+                                                                null
+                                                            }
+                                                        } + newImageUris
                                                     selectedImageIndex = allImages.indexOfFirst {
-                                                        it.toString().contains(imageEntity.IMAGE_URI)
+                                                        it.toString()
+                                                            .contains(imageEntity.IMAGE_URI)
                                                     }.coerceAtLeast(0)
                                                     showImageViewer = true
                                                 },
@@ -1100,7 +1198,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                                                 shape = RoundedCornerShape(8.dp)
                                             )
                                             .clickable {
-                                                val allImages = displayableExistingImages.mapNotNull { img ->
+                                                displayableExistingImages.mapNotNull { img ->
                                                     try {
                                                         Uri.parse("file://${img.IMAGE_URI}")
                                                     } catch (
@@ -1109,7 +1207,10 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                                                         null
                                                     }
                                                 } + newImageUris
-                                                selectedImageIndex = displayableExistingImages.size + newImageUris.indexOf(uri)
+                                                selectedImageIndex =
+                                                    displayableExistingImages.size + newImageUris.indexOf(
+                                                        uri
+                                                    )
                                                 showImageViewer = true
                                             },
                                         contentScale = ContentScale.Crop
@@ -1152,15 +1253,11 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                         }
                     }
 
-                    SimpleProductSelector(
-                        warehouseViewModel = warehouseViewModel,
+                    ProductSaleSummary(
                         saleProductsViewModel = saleProductsViewModel,
-                        onAddProduct = { articuloId, cantidad ->
-                            val producto = productosCamioneta.find { it.ARTICULO_ID == articuloId }
-                            if (producto != null) {
-                                saleProductsViewModel.addProductToSale(producto, cantidad)
-                            }
-                        },
+                        productosCamioneta = productosCamioneta,
+                        onOpenProductSheet = { showProductSheet = true },
+                        hasError = productsError,
                         tipoVenta = tipoVenta
                     )
 
