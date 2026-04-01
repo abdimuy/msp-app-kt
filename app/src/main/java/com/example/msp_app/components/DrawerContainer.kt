@@ -205,18 +205,6 @@ fun DrawerContainer(
                             )
 
                             NavigationDrawerItem(
-                                label = { Text("Catálogo de Productos") },
-                                selected = false,
-                                onClick = {
-                                    scope.launch {
-                                        drawerState.close()
-                                        navController.navigate("products_catalog") {
-                                            popUpTo("home")
-                                        }
-                                    }
-                                }
-                            )
-                            NavigationDrawerItem(
                                 label = { Text("Ventas") },
                                 selected = false,
                                 onClick = {
@@ -230,13 +218,13 @@ fun DrawerContainer(
                             )
 
                             NavigationDrawerItem(
-                                label = { Text("Ventas Realizadas") },
+                                label = { Text("Mi Camioneta") },
                                 selected = false,
                                 onClick = {
                                     scope.launch {
                                         drawerState.close()
-                                        navController.navigate("sales/details_list") {
-                                            popUpTo("sale_home")
+                                        navController.navigate("cart") {
+                                            popUpTo("home")
                                         }
                                     }
                                 }
