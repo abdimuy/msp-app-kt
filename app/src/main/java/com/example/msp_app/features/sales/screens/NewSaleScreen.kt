@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales.screens
 
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -121,6 +122,7 @@ fun NewSaleScreen(navController: NavController) {
     var expandedTipoVenta by remember { mutableStateOf(false) }
     var showProductSheet by remember { mutableStateOf(false) }
     var showClienteSearch by remember { mutableStateOf(false) }
+    var showExitConfirmDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
@@ -471,27 +473,16 @@ fun NewSaleScreen(navController: NavController) {
                 )
             },
             text = {
-                Text("La venta se ha guardado correctamente. ¿Deseas crear una nueva venta?")
+                Text("La venta se ha guardado correctamente.")
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showSuccessDialog = false
-                        formViewModel.clearAllFields()
-                        saleProductsViewModel.clearAll()
+                        navController.popBackStack()
                     }
                 ) {
-                    Text("Crear Nueva Venta")
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showSuccessDialog = false
-                        navController.navigate("sales/details_list")
-                    }
-                ) {
-                    Text("Ver Ventas")
+                    Text("Aceptar")
                 }
             }
         )
@@ -614,6 +605,42 @@ fun NewSaleScreen(navController: NavController) {
                 formViewModel.updateSelectedClienteId(null)
                 formViewModel.updateClientName(nombre)
                 showClienteSearch = false
+            }
+        )
+    }
+
+    BackHandler {
+        showExitConfirmDialog = true
+    }
+
+    if (showExitConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showExitConfirmDialog = false },
+            title = { Text("¿Salir de la venta?") },
+            text = {
+                Text(
+                    "Tu progreso se guarda automaticamente como borrador. Podras continuar la proxima vez que entres."
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showExitConfirmDialog = false
+                        navController.popBackStack()
+                    }
+                ) {
+                    Text("Salir", color = Color.White)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = { showExitConfirmDialog = false }
+                ) {
+                    Text(
+                        "Seguir editando",
+                        color = if (ThemeController.isDarkMode) Color.White else Color.Black
+                    )
+                }
             }
         )
     }
