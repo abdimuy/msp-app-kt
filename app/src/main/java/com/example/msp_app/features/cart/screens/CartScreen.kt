@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Printer
 import com.composables.icons.lucide.Truck
@@ -56,6 +57,7 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.cart.components.CartItemCard
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
+import com.example.msp_app.features.dailyReport.presentation.viewmodels.DailyReportViewModel
 import com.example.msp_app.features.payments.components.pdfgenerationdialog.PdfGenerationDialog
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
@@ -72,6 +74,7 @@ fun CartScreen(navController: NavController) {
     val warehouseViewModel: WarehouseViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
+    val dailyReportViewModel: DailyReportViewModel = viewModel()
     val authViewModel = LocalAuthViewModel.current
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -79,6 +82,10 @@ fun CartScreen(navController: NavController) {
     var isGeneratingPdf by remember { mutableStateOf(false) }
     var pdfUri by remember { mutableStateOf<Uri?>(null) }
     var showPdfDialog by remember { mutableStateOf(false) }
+
+    val dailyReportState by dailyReportViewModel.reportState.collectAsState()
+    val dailyReportPdfUri by dailyReportViewModel.pdfUri.collectAsState()
+    var showDailyReportPdfDialog by remember { mutableStateOf(false) }
 
     val cartProducts = cartViewModel.cartProducts
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
@@ -206,6 +213,22 @@ fun CartScreen(navController: NavController) {
         }
     }
 
+    LaunchedEffect(dailyReportPdfUri) {
+        dailyReportPdfUri?.let {
+            showDailyReportPdfDialog = true
+        }
+    }
+
+    LaunchedEffect(dailyReportState) {
+        when (val state = dailyReportState) {
+            is ResultState.Error -> {
+                snackbarHostState.showSnackbar("Error: ${state.message}")
+                dailyReportViewModel.clearState()
+            }
+            else -> {}
+        }
+    }
+
     LaunchedEffect(saveCartState) {
         when (saveCartState) {
             is ResultState.Success -> {
@@ -267,6 +290,38 @@ fun CartScreen(navController: NavController) {
                         }
                     },
                     actions = {
+                        // Daily Report Button
+                        if (camionetaAsignada != null && nombreAlmacenAsignado != null) {
+                            val isGeneratingReport = dailyReportState is ResultState.Loading
+                            IconButton(
+                                onClick = {
+                                    val vendedorName = when (val state = userData) {
+                                        is ResultState.Success -> state.data?.NOMBRE ?: "Vendedor"
+                                        else -> "Vendedor"
+                                    }
+                                    dailyReportViewModel.generateReport(
+                                        camionetaId = camionetaAsignada,
+                                        warehouseName = nombreAlmacenAsignado ?: "Camioneta",
+                                        vendedorName = vendedorName,
+                                        currentProducts = cartProducts.map { it.product }
+                                    )
+                                },
+                                enabled = !isGeneratingReport
+                            ) {
+                                if (isGeneratingReport) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Lucide.FileText,
+                                        contentDescription = "Reporte diario"
+                                    )
+                                }
+                            }
+                        }
+
                         // PDF Button
                         if (cartProducts.isNotEmpty() && nombreAlmacenAsignado != null) {
                             IconButton(
@@ -564,6 +619,17 @@ fun CartScreen(navController: NavController) {
                 onDismiss = {
                     showPdfDialog = false
                     pdfUri = null
+                }
+            )
+        }
+
+        // Daily Report PDF Dialog
+        if (showDailyReportPdfDialog && dailyReportPdfUri != null) {
+            PdfGenerationDialog(
+                pdfUri = dailyReportPdfUri!!,
+                onDismiss = {
+                    showDailyReportPdfDialog = false
+                    dailyReportViewModel.clearState()
                 }
             )
         }
