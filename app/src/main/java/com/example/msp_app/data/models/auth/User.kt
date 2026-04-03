@@ -16,5 +16,8 @@ data class User(
     val VERSION_APP: String = "",
     val FECHA_VERSION_APP: Timestamp? = null,
     val MODULOS: List<String> = emptyList(),
-    val CAMIONETA_ASIGNADA: Int? = null
+    val CAMIONETA_ASIGNADA: Int? = null,
+    val DEVICE_PROTECTION_ENABLED: Boolean = false,
+    val AUTHORIZED_DEVICES: List<Map<String, Any>> = emptyList(),
+    val PENDING_DEVICES: List<Map<String, Any>> = emptyList()
 )

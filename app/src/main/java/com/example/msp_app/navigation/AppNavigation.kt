@@ -10,8 +10,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -27,6 +29,8 @@ import com.example.msp_app.features.camionetaAssignment.presentation.screens.Cam
 import com.example.msp_app.features.camionetaAssignment.presentation.viewmodels.CamionetaAssignmentViewModel
 import com.example.msp_app.features.cart.screens.CartScreen
 import com.example.msp_app.features.common.NoModulesScreen
+import com.example.msp_app.features.deviceProtection.DeviceBlockedScreen
+import com.example.msp_app.features.deviceProtection.DeviceProtectionManager
 import com.example.msp_app.features.guarantees.screens.CreateGuaranteeScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeDetailScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeListScreen
@@ -116,6 +120,9 @@ sealed class Screen(val route: String) {
     // Camioneta Assignment route
     object CamionetaAssignment : Screen("camioneta_assignment")
 
+    // Device Protection
+    object DeviceBlocked : Screen("device_blocked")
+
     // Guarantee routes
     object GuaranteeList : Screen("guarantee_list")
     object CreateGuarantee : Screen("create_guarantee")
@@ -132,6 +139,26 @@ fun AppNavigation() {
     val currentUser by authViewModel.currentUser.collectAsState()
     val userDataState by authViewModel.userData.collectAsState()
     val navController = rememberNavController()
+    val context = LocalContext.current
+    val deviceProtection = remember { DeviceProtectionManager(context) }
+
+    // Global device protection listener — monitors revocation while user is inside the app
+    LaunchedEffect(userDataState) {
+        val userData = (userDataState as? ResultState.Success<User?>)?.data ?: return@LaunchedEffect
+        if (!userData.DEVICE_PROTECTION_ENABLED) return@LaunchedEffect
+
+        val isAuthorized = deviceProtection.isDeviceAuthorized(userData)
+        val currentRoute = navController.currentDestination?.route
+
+        if (!isAuthorized && currentRoute != Screen.DeviceBlocked.route &&
+            currentRoute != Screen.Loading.route && currentRoute != Screen.Login.route
+        ) {
+            deviceProtection.clearLocalAuthorization(userData.ID)
+            navController.navigate(Screen.DeviceBlocked.route) {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
 
     CompositionLocalProvider(LocalAuthViewModel provides authViewModel) {
         NavHost(
@@ -156,18 +183,32 @@ fun AppNavigation() {
 
                         userDataState is ResultState.Success -> {
                             val userData = (userDataState as ResultState.Success<User?>).data
+
+                            // Device protection check
+                            if (userData != null && userData.DEVICE_PROTECTION_ENABLED) {
+                                val isAuthorized = deviceProtection.isDeviceAuthorized(userData)
+                                if (!isAuthorized) {
+                                    // Check local cache for offline support
+                                    val locallyAuthorized =
+                                        deviceProtection.isLocallyAuthorized(userData.ID)
+                                    if (!locallyAuthorized) {
+                                        deviceProtection.registerAsPending(userData)
+                                        navController.navigate(Screen.DeviceBlocked.route) {
+                                            popUpTo(Screen.Loading.route) { inclusive = true }
+                                        }
+                                        return@LaunchedEffect
+                                    }
+                                }
+                            }
+
                             val modulos = userData?.MODULOS ?: emptyList()
 
                             val destination = when {
                                 modulos.isEmpty() -> Screen.NoModules.route
-                                modulos.contains("COBRO") -> Screen.Home.route // Priority 1
-                                modulos.contains("VENTAS") -> Screen.SaleHome.route // Priority 2
-                                modulos.contains(
-                                    "ALMACEN"
-                                ) -> Screen.TransfersList.route // Priority 3
-                                modulos.contains(
-                                    "GARANTIAS"
-                                ) -> Screen.GuaranteeList.route // Priority 4
+                                modulos.contains("COBRO") -> Screen.Home.route
+                                modulos.contains("VENTAS") -> Screen.SaleHome.route
+                                modulos.contains("ALMACEN") -> Screen.TransfersList.route
+                                modulos.contains("GARANTIAS") -> Screen.GuaranteeList.route
                                 else -> Screen.NoModules.route
                             }
 
@@ -181,6 +222,39 @@ fun AppNavigation() {
 
             composable(Screen.NoModules.route) {
                 NoModulesScreen(navController = navController)
+            }
+
+            composable(Screen.DeviceBlocked.route) {
+                DeviceBlockedScreen(
+                    deviceLabel = deviceProtection.deviceLabel,
+                    onLogout = {
+                        val userData = (userDataState as? ResultState.Success<User?>)?.data
+                        userData?.let { deviceProtection.clearLocalAuthorization(it.ID) }
+                        authViewModel.logout()
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+
+                // Listen for authorization changes in real-time
+                LaunchedEffect(userDataState) {
+                    val userData = (userDataState as? ResultState.Success<User?>)?.data
+                    if (userData != null && deviceProtection.isDeviceAuthorized(userData)) {
+                        val modulos = userData.MODULOS
+                        val destination = when {
+                            modulos.isEmpty() -> Screen.NoModules.route
+                            modulos.contains("COBRO") -> Screen.Home.route
+                            modulos.contains("VENTAS") -> Screen.SaleHome.route
+                            modulos.contains("ALMACEN") -> Screen.TransfersList.route
+                            modulos.contains("GARANTIAS") -> Screen.GuaranteeList.route
+                            else -> Screen.NoModules.route
+                        }
+                        navController.navigate(destination) {
+                            popUpTo(Screen.DeviceBlocked.route) { inclusive = true }
+                        }
+                    }
+                }
             }
 
             composable(Screen.Login.route) {
