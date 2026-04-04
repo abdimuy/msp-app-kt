@@ -8,6 +8,7 @@ import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.models.auth.User
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
+import java.util.Locale
 import kotlinx.coroutines.tasks.await
 
 class DeviceProtectionManager(private val context: Context) {
@@ -62,6 +63,14 @@ class DeviceProtectionManager(private val context: Context) {
                     "deviceId" to deviceId,
                     "platform" to "android",
                     "label" to deviceLabel,
+                    "manufacturer" to Build.MANUFACTURER,
+                    "model" to Build.MODEL,
+                    "brand" to Build.BRAND,
+                    "androidVersion" to Build.VERSION.RELEASE,
+                    "sdkVersion" to Build.VERSION.SDK_INT,
+                    "product" to Build.PRODUCT,
+                    "device" to Build.DEVICE,
+                    "language" to Locale.getDefault().displayLanguage,
                     "requestedAt" to Timestamp.now(),
                     "userId" to user.ID
                 )
