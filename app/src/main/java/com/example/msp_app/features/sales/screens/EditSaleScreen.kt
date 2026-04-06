@@ -71,6 +71,7 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
@@ -78,6 +79,7 @@ import com.example.msp_app.features.sales.viewmodels.EditLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
+import com.example.msp_app.utils.PriceParser
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -208,6 +210,21 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                 val product = productosCamioneta.find { it.ARTICULO_ID == productEntity.ARTICULO_ID }
                 if (product != null) {
                     saleProductsViewModel.addProductToSale(product, productEntity.CANTIDAD)
+                } else {
+                    val productPrices = PriceParser.pricesToJson(
+                        productEntity.PRECIO_LISTA,
+                        productEntity.PRECIO_CORTO_PLAZO,
+                        productEntity.PRECIO_CONTADO
+                    )
+                    val tempProduct = ProductInventory(
+                        ARTICULO_ID = productEntity.ARTICULO_ID,
+                        ARTICULO = productEntity.ARTICULO,
+                        EXISTENCIAS = 0,
+                        LINEA_ARTICULO_ID = 0,
+                        LINEA_ARTICULO = "",
+                        PRECIOS = productPrices
+                    )
+                    saleProductsViewModel.addProductToSale(tempProduct, productEntity.CANTIDAD)
                 }
             }
 
