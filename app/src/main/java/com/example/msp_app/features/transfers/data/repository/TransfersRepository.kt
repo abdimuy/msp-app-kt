@@ -100,7 +100,7 @@ class TransfersRepository(
                 )
 
                 if (response.isSuccessful) {
-                    val transfers = response.body()?.map { dto ->
+                    val transfers = response.body()?.body?.map { dto ->
                         Transfer(
                             doctoInId = dto.doctoInId,
                             almacenOrigenId = dto.almacenId,

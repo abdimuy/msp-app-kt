@@ -30,7 +30,7 @@ data class TransferListItemDto(
     @SerializedName("APLICADO")
     val aplicado: String? = null,
 
-    @SerializedName("ALMACEN")
+    @SerializedName("ALMACEN_ORIGEN")
     val almacen: String? = null,
 
     @SerializedName("ALMACEN_DESTINO")
@@ -40,5 +40,28 @@ data class TransferListItemDto(
     val totalProductos: Int? = null,
 
     @SerializedName("COSTO_TOTAL")
-    val costoTotal: Double? = null
+    val costoTotal: Double? = null,
+
+    @SerializedName("FECHA_HORA_CREACION")
+    val fechaHoraCreacion: String? = null,
+
+    @SerializedName("productos")
+    val productos: List<TransferProductDto>? = null
+)
+
+data class TransferProductDto(
+    @SerializedName("ARTICULO_ID")
+    val articuloId: Int = 0,
+
+    @SerializedName("CLAVE_ARTICULO")
+    val claveArticulo: String,
+
+    @SerializedName("ARTICULO_NOMBRE")
+    val articuloNombre: String? = null,
+
+    @SerializedName("UNIDADES")
+    val unidades: Int,
+
+    @SerializedName("TIPO_MOVTO")
+    val tipoMovto: String
 )

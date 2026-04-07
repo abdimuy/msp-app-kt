@@ -5,7 +5,7 @@ import com.example.msp_app.features.transfers.data.api.dto.CreateTransferRequest
 import com.example.msp_app.features.transfers.data.api.dto.CreateTransferResponse
 import com.example.msp_app.features.transfers.data.api.dto.ProductCostDto
 import com.example.msp_app.features.transfers.data.api.dto.TransferDetailResponse
-import com.example.msp_app.features.transfers.data.api.dto.TransferListItemDto
+import com.example.msp_app.features.transfers.data.api.dto.TransferListResponse
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -42,7 +42,7 @@ interface TransfersApiService {
         @Query("fechaFin") fechaFin: String? = null,
         @Query("almacenOrigenId") almacenOrigenId: Int? = null,
         @Query("almacenDestinoId") almacenDestinoId: Int? = null
-    ): Response<List<TransferListItemDto>>
+    ): Response<TransferListResponse>
 
     /**
      * Get detailed information about a specific transfer

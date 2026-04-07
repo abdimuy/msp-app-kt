@@ -5,9 +5,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 val MIGRATION_21_22 = object : Migration(21, 22) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP VIEW IF EXISTS `overdue_payments_view`")
         db.execSQL(
             """
-            CREATE VIEW IF NOT EXISTS `overdue_payments_view` AS
+            CREATE VIEW `overdue_payments_view` AS
             SELECT
                 base.DOCTO_CC_ID,
                 base.FECHA_ULT_PAGO,
