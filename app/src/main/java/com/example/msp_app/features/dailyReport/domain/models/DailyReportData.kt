@@ -18,7 +18,8 @@ data class DailyReportData(
 data class DailyReportInventoryItem(
     val name: String,
     val line: String,
-    val stock: Int
+    val stock: Int,
+    val originWarehouse: String? = null
 )
 
 data class DailyReportSale(
@@ -42,7 +43,8 @@ data class DailyReportTransfer(
     val destinationWarehouse: String,
     val description: String?,
     val products: List<DailyReportTransferProduct>,
-    val isInbound: Boolean
+    val isInbound: Boolean,
+    val hora: String? = null
 ) {
     val totalUnits: Int get() = products.sumOf { it.quantity }
 }

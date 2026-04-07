@@ -38,13 +38,23 @@ class GenerateDailyReportUseCase(
             )
         }
 
+        // Armar mapa de producto -> almacén origen usando traspasos de entrada de hoy
+        val transfers = transfersResult.getOrThrow()
+        val originMap = mutableMapOf<String, String>()
+        transfers.filter { it.isInbound }.forEach { transfer ->
+            transfer.products.forEach { product ->
+                originMap[product.name] = transfer.originWarehouse
+            }
+        }
+
         val inventory = currentProducts
             .sortedBy { it.ARTICULO }
             .map { product ->
                 DailyReportInventoryItem(
                     name = product.ARTICULO,
                     line = product.LINEA_ARTICULO,
-                    stock = product.EXISTENCIAS
+                    stock = product.EXISTENCIAS,
+                    originWarehouse = originMap[product.ARTICULO]
                 )
             }
 
@@ -55,7 +65,7 @@ class GenerateDailyReportUseCase(
                 vendedorName = vendedorName,
                 currentInventory = inventory,
                 sales = salesResult.getOrThrow(),
-                transfers = transfersResult.getOrThrow()
+                transfers = transfers
             )
         )
     }

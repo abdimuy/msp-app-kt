@@ -1,6 +1,7 @@
 package com.example.msp_app.core.utils
 
 import android.content.Context
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
@@ -453,12 +454,43 @@ object PdfGenerator {
             canvas.drawText("Sin existencias", marginLeft, yPos.toFloat(), paint)
             yPos += lineSpacing
         } else {
-            data.currentInventory.forEach { item ->
+            val stripePaint = Paint().apply {
+                color = Color.rgb(240, 240, 240)
+                style = Paint.Style.FILL
+            }
+
+            data.currentInventory.forEachIndexed { index, item ->
                 newPageIfNeeded()
+
+                val rowHeight = if (item.originWarehouse != null) lineSpacing * 2 else lineSpacing
+
+                // Fondo alternado
+                if (index % 2 == 0) {
+                    canvas.drawRect(
+                        marginLeft - 5f,
+                        yPos.toFloat() - lineSpacing + 4f,
+                        pageWidth - rightMargin + 5f,
+                        yPos.toFloat() - lineSpacing + 4f + rowHeight,
+                        stripePaint
+                    )
+                }
+
+                paint.color = Color.BLACK
                 canvas.drawText(item.name.take(40), xProduct, yPos.toFloat(), paint)
                 canvas.drawText(item.line.take(25), xLine, yPos.toFloat(), paint)
                 canvas.drawText("${item.stock} uds", xStock, yPos.toFloat(), paint)
                 yPos += lineSpacing
+
+                // Mostrar almacén de origen si entró hoy
+                item.originWarehouse?.let { origin ->
+                    newPageIfNeeded()
+                    paint.color = Color.rgb(0, 100, 0)
+                    paint.textSize = 8f
+                    canvas.drawText("← $origin", xProduct + 10f, yPos.toFloat(), paint)
+                    paint.color = Color.BLACK
+                    paint.textSize = 10f
+                    yPos += lineSpacing
+                }
             }
         }
 
@@ -607,103 +639,98 @@ object PdfGenerator {
             )
             yPos += lineSpacing
         } else {
-            val inbound = data.transfers.filter { it.isInbound }
-            val outbound = data.transfers.filter { !it.isInbound }
-
-            if (inbound.isNotEmpty()) {
-                paint.isFakeBoldText = true
-                canvas.drawText("Entradas a la camioneta", marginLeft, yPos.toFloat(), paint)
-                yPos += lineSpacing + 3
-
-                inbound.forEachIndexed { index, transfer ->
-                    newPageIfNeeded(80)
-                    paint.isFakeBoldText = true
-                    canvas.drawText(
-                        "${index + 1}. ${transfer.originWarehouse} -> ${transfer.destinationWarehouse}",
-                        marginLeft + 10f,
-                        yPos.toFloat(),
-                        paint
-                    )
-                    yPos += lineSpacing
-
-                    transfer.description?.let { desc ->
-                        paint.isFakeBoldText = false
-                        canvas.drawText(
-                            "  ${desc.take(60)}",
-                            marginLeft + 10f,
-                            yPos.toFloat(),
-                            paint
-                        )
-                        yPos += lineSpacing
-                    }
-
-                    paint.isFakeBoldText = false
-                    transfer.products.forEach { product ->
-                        newPageIfNeeded()
-                        canvas.drawText(
-                            "  - ${product.name.take(35)}: ${product.quantity} uds",
-                            marginLeft + 20f,
-                            yPos.toFloat(),
-                            paint
-                        )
-                        yPos += lineSpacing
-                    }
-                    yPos += 5
-                }
-                yPos += lineSpacing
-            }
-
-            if (outbound.isNotEmpty()) {
+            data.transfers.forEachIndexed { index, transfer ->
                 newPageIfNeeded(80)
-                paint.isFakeBoldText = true
-                canvas.drawText("Salidas de la camioneta", marginLeft, yPos.toFloat(), paint)
-                yPos += lineSpacing + 3
 
-                outbound.forEachIndexed { index, transfer ->
-                    newPageIfNeeded(80)
-                    paint.isFakeBoldText = true
+                paint.isFakeBoldText = true
+                val warehouse = if (transfer.isInbound) transfer.originWarehouse else transfer.destinationWarehouse
+                val horaText = transfer.hora ?: ""
+                val direction = if (transfer.isInbound) "ENTRADA" else "SALIDA"
+                val dirColor = if (transfer.isInbound) {
+                    Color.rgb(
+                        0,
+                        128,
+                        0
+                    )
+                } else {
+                    Color.rgb(200, 0, 0)
+                }
+
+                // Hora en negro
+                paint.color = Color.BLACK
+                canvas.drawText(horaText, marginLeft, yPos.toFloat(), paint)
+                val horaWidth = if (horaText.isNotEmpty()) paint.measureText("$horaText  ") else 0f
+
+                // Dirección en color
+                paint.color = dirColor
+                canvas.drawText(direction, marginLeft + horaWidth, yPos.toFloat(), paint)
+                paint.color = Color.BLACK
+                yPos += lineSpacing
+
+                paint.isFakeBoldText = false
+                val preposition = if (transfer.isInbound) "De:" else "A:"
+                canvas.drawText(
+                    "$preposition $warehouse",
+                    marginLeft + 15f,
+                    yPos.toFloat(),
+                    paint
+                )
+                yPos += lineSpacing
+
+                if (transfer.products.isEmpty()) {
                     canvas.drawText(
-                        "${index + 1}. ${transfer.originWarehouse} -> ${transfer.destinationWarehouse}",
-                        marginLeft + 10f,
+                        "Sin productos registrados",
+                        marginLeft + 15f,
                         yPos.toFloat(),
                         paint
                     )
                     yPos += lineSpacing
-
-                    transfer.description?.let { desc ->
-                        paint.isFakeBoldText = false
-                        canvas.drawText(
-                            "  ${desc.take(60)}",
-                            marginLeft + 10f,
-                            yPos.toFloat(),
-                            paint
-                        )
-                        yPos += lineSpacing
+                } else {
+                    val transferStripePaint = Paint().apply {
+                        color = Color.rgb(240, 240, 240)
+                        style = Paint.Style.FILL
                     }
-
-                    paint.isFakeBoldText = false
-                    transfer.products.forEach { product ->
+                    transfer.products.forEachIndexed { pIndex, product ->
                         newPageIfNeeded()
+                        if (pIndex % 2 == 0) {
+                            canvas.drawRect(
+                                marginLeft + 10f,
+                                yPos.toFloat() - lineSpacing + 4f,
+                                pageWidth - rightMargin + 5f,
+                                yPos.toFloat() + 4f,
+                                transferStripePaint
+                            )
+                        }
+                        paint.color = Color.BLACK
                         canvas.drawText(
-                            "  - ${product.name.take(35)}: ${product.quantity} uds",
-                            marginLeft + 20f,
+                            product.name.take(40),
+                            marginLeft + 15f,
+                            yPos.toFloat(),
+                            paint
+                        )
+                        val qtyText = "${product.quantity} uds"
+                        canvas.drawText(
+                            qtyText,
+                            pageWidth - rightMargin - paint.measureText(qtyText),
                             yPos.toFloat(),
                             paint
                         )
                         yPos += lineSpacing
                     }
-                    yPos += 5
                 }
+                yPos += 10
             }
 
             // Resumen traspasos
             newPageIfNeeded()
             drawSeparator()
             paint.isFakeBoldText = true
-            val transfersCountText = "Total traspasos: ${data.totalTransfersCount}"
+            val inCount = data.transfers.count { it.isInbound }
+            val outCount = data.transfers.count { !it.isInbound }
+            val transfersSummary = "Entradas: $inCount  |  Salidas: $outCount  |  Total: ${data.totalTransfersCount}"
             canvas.drawText(
-                transfersCountText,
-                pageWidth - rightMargin - paint.measureText(transfersCountText),
+                transfersSummary,
+                pageWidth - rightMargin - paint.measureText(transfersSummary),
                 yPos.toFloat(),
                 paint
             )

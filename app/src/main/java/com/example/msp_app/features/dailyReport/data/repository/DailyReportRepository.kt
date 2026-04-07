@@ -53,43 +53,62 @@ class DailyReportRepository(
         withContext(Dispatchers.IO) {
             try {
                 val today = LocalDate.now()
+                val todayStr = today.format(dateFormatter)
 
-                val response = transfersApi.getTransfers(
-                    fechaInicio = today.format(dateFormatter),
-                    fechaFin = today.format(dateFormatter)
+                val inboundResponse = transfersApi.getTransfers(
+                    fechaInicio = todayStr,
+                    fechaFin = todayStr,
+                    almacenDestinoId = camionetaId
+                )
+                val outboundResponse = transfersApi.getTransfers(
+                    fechaInicio = todayStr,
+                    fechaFin = todayStr,
+                    almacenOrigenId = camionetaId
                 )
 
-                if (!response.isSuccessful) {
+                if (!inboundResponse.isSuccessful || !outboundResponse.isSuccessful) {
                     return@withContext Result.failure(
-                        Exception("Error al obtener traspasos: ${response.code()}")
+                        Exception(
+                            "Error al obtener traspasos: ${inboundResponse.code()}/${outboundResponse.code()}"
+                        )
                     )
                 }
 
-                val allTransfers = response.body() ?: emptyList()
-                val camionetaTransfers = allTransfers.filter {
-                    it.almacenId == camionetaId || it.almacenDestinoId == camionetaId
-                }
+                val inboundList = inboundResponse.body()?.body ?: emptyList()
+                val outboundList = outboundResponse.body()?.body ?: emptyList()
 
-                val reportTransfers = camionetaTransfers.map { transfer ->
-                    val detailResponse = transfersApi.getTransferDetail(transfer.doctoInId)
-                    val detail = detailResponse.body()
+                val allTransfers = (inboundList.map { it to true } + outboundList.map { it to false })
+                    .sortedBy { (transfer, _) -> transfer.fechaHoraCreacion ?: "" }
 
-                    val isInbound = transfer.almacenDestinoId == camionetaId
-                    val movements = detail?.detallesCompletos ?: emptyList()
+                val reportTransfers = allTransfers.map { (transfer, isInbound) ->
+                    val products = transfer.productos ?: emptyList()
+                    val relevantProducts = products.filter {
+                        if (isInbound) it.tipoMovto == "E" else it.tipoMovto == "S"
+                    }
+
+                    val hora = transfer.fechaHoraCreacion?.let { fechaHora ->
+                        try {
+                            val parsed = java.time.OffsetDateTime.parse(fechaHora)
+                            parsed.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a"))
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
 
                     DailyReportTransfer(
                         originWarehouse = transfer.almacen ?: "Almacén ${transfer.almacenId}",
                         destinationWarehouse = transfer.almacenDestino
                             ?: "Almacén ${transfer.almacenDestinoId}",
                         description = transfer.descripcion,
-                        products = movements.map { movement ->
+                        products = relevantProducts.map { product ->
                             DailyReportTransferProduct(
-                                name = movement.articulo
-                                    ?: "Producto ${movement.articuloId}",
-                                quantity = movement.unidades
+                                name = product.articuloNombre
+                                    ?: product.claveArticulo,
+                                quantity = product.unidades
                             )
                         },
-                        isInbound = isInbound
+                        isInbound = isInbound,
+                        hora = hora
                     )
                 }
 
