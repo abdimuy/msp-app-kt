@@ -15,18 +15,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
-import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 
 @Composable
 fun ProductsInfoCard(
     saleProducts: List<LocalSaleProductEntity>,
-    productsViewModel: SaleProductsViewModel,
-    total: Double
+    total: Double,
+    tipoVenta: String = "CONTADO"
 ) {
     Card(
         modifier = Modifier
@@ -76,7 +74,7 @@ fun ProductsInfoCard(
                 Spacer(Modifier.height(8.dp))
 
                 saleProducts.forEach { product ->
-                    ProductRow(product = product)
+                    ProductRow(product = product, tipoVenta = tipoVenta)
                     Spacer(Modifier.height(4.dp))
                 }
 
@@ -100,7 +98,7 @@ fun ProductsInfoCard(
                                 style = MaterialTheme.typography.titleSmall
                             )
                             Text(
-                                "${productsViewModel.getTotalItems()}",
+                                "${saleProducts.sumOf { it.CANTIDAD }}",
                                 style = MaterialTheme.typography.titleSmall
                             )
                         }
@@ -113,7 +111,7 @@ fun ProductsInfoCard(
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Text(
-                                if (total != null) total.toCurrency(noDecimals = true) else "0.0",
+                                total.toCurrency(noDecimals = true),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -126,10 +124,7 @@ fun ProductsInfoCard(
 }
 
 @Composable
-private fun ProductRow(product: LocalSaleProductEntity) {
-    val fontScale = LocalDensity.current.fontScale
-    val useLargeLayout = fontScale > 1.3f
-
+private fun ProductRow(product: LocalSaleProductEntity, tipoVenta: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -155,33 +150,20 @@ private fun ProductRow(product: LocalSaleProductEntity) {
 
         Spacer(Modifier.height(4.dp))
 
-        if (useLargeLayout) {
-            Column(
+        if (tipoVenta == "CONTADO") {
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    "Precios",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
+                    "Precio",
+                    style = MaterialTheme.typography.titleSmall
                 )
-                listOf(
-                    "Lista" to product.PRECIO_LISTA.toCurrency(),
-                    "Corto plazo" to product.PRECIO_CORTO_PLAZO.toCurrency(),
-                    "Contado" to product.PRECIO_CONTADO.toCurrency()
-                ).forEach { (label, price) ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(label, style = MaterialTheme.typography.labelMedium)
-                        Text(
-                            price,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
+                Text(
+                    product.PRECIO_CONTADO.toCurrency(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
             }
         } else {
             Row(

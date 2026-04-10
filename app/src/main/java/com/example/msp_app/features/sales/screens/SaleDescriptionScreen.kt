@@ -36,7 +36,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.toCurrency
-import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.productsInventory.components.CarouselItem
 import com.example.msp_app.features.productsInventory.components.CarrouselImage
 import com.example.msp_app.features.sales.components.comboinfocard.CombosInfoCard
@@ -44,15 +43,12 @@ import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
 import com.example.msp_app.features.sales.components.productinfocard.ProductsInfoCard
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
-import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.navigation.Screen
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
 fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
     val viewModel: NewLocalSaleViewModel = viewModel()
-    val productsViewModel: SaleProductsViewModel = viewModel()
-
     val sale by viewModel.selectedSale.collectAsState()
     val saleProducts by viewModel.saleProducts.collectAsState()
     val saleImages by viewModel.saleImages.collectAsState()
@@ -63,24 +59,6 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
         viewModel.loadImagesBySaleId(localSaleId)
         viewModel.loadProductsBySaleId(localSaleId)
         viewModel.loadCombosBySaleId(localSaleId)
-    }
-
-    LaunchedEffect(saleProducts) {
-        if (saleProducts.isNotEmpty()) {
-            productsViewModel.clearSale()
-
-            saleProducts.forEach { productEntity ->
-                val productInventory = ProductInventory(
-                    ARTICULO_ID = productEntity.ARTICULO_ID,
-                    ARTICULO = productEntity.ARTICULO,
-                    PRECIOS = "${productEntity.PRECIO_LISTA},${productEntity.PRECIO_CORTO_PLAZO},${productEntity.PRECIO_CONTADO}",
-                    EXISTENCIAS = 0,
-                    LINEA_ARTICULO_ID = 0,
-                    LINEA_ARTICULO = ""
-                )
-                productsViewModel.addProductToSale(productInventory, productEntity.CANTIDAD)
-            }
-        }
     }
 
     DrawerContainer(
@@ -276,13 +254,17 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
 
                 // Productos individuales (sin combo)
                 val individualProducts = saleProducts.filter { it.COMBO_ID == null }
-                val calculatedTotal = individualProducts.sumOf { it.PRECIO_LISTA * it.CANTIDAD }
+                val tipoVenta = sale?.TIPO_VENTA ?: "CONTADO"
+                val calculatedTotal = individualProducts.sumOf {
+                    val price = if (tipoVenta == "CONTADO") it.PRECIO_CONTADO else it.PRECIO_LISTA
+                    price * it.CANTIDAD
+                }
 
                 if (individualProducts.isNotEmpty()) {
                     ProductsInfoCard(
                         saleProducts = individualProducts,
-                        productsViewModel = productsViewModel,
-                        total = calculatedTotal
+                        total = calculatedTotal,
+                        tipoVenta = tipoVenta
                     )
                     Spacer(Modifier.height(8.dp))
                 }
