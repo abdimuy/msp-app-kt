@@ -73,7 +73,9 @@ import com.example.msp_app.features.productsInventory.viewmodels.ProductsInvento
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private enum class TimeFilter(val label: String) {
@@ -157,18 +159,24 @@ fun UnifiedSalesScreen(navController: NavController) {
 
     val filteredSales = remember(salesList, selectedTimeFilter, selectedStatusFilter) {
         val today = LocalDate.now()
-        val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+        val localZone = ZoneId.systemDefault()
 
         salesList.filter { sale ->
             val matchesTime = when (selectedTimeFilter) {
-                TimeFilter.TODAY -> sale.FECHA_VENTA.startsWith(today.format(dateFormatter))
+                TimeFilter.TODAY -> {
+                    try {
+                        val saleLocalDate = Instant.parse(sale.FECHA_VENTA)
+                            .atZone(localZone).toLocalDate()
+                        saleLocalDate == today
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
                 TimeFilter.THIS_WEEK -> {
                     try {
-                        val saleDate = LocalDate.parse(
-                            sale.FECHA_VENTA.take(10),
-                            dateFormatter
-                        )
-                        !saleDate.isBefore(today.minusDays(7))
+                        val saleLocalDate = Instant.parse(sale.FECHA_VENTA)
+                            .atZone(localZone).toLocalDate()
+                        !saleLocalDate.isBefore(today.minusDays(7))
                     } catch (_: Exception) {
                         true
                     }
@@ -187,8 +195,15 @@ fun UnifiedSalesScreen(navController: NavController) {
     }
 
     val todaySales = remember(salesList) {
-        val todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-        salesList.filter { it.FECHA_VENTA.startsWith(todayPrefix) }
+        val today = LocalDate.now()
+        val localZone = ZoneId.systemDefault()
+        salesList.filter {
+            try {
+                Instant.parse(it.FECHA_VENTA).atZone(localZone).toLocalDate() == today
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
     val todayTotal = todaySales.sumOf { it.PRECIO_TOTAL }
 
