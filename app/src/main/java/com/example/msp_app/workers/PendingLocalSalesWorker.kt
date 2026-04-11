@@ -95,6 +95,17 @@ class PendingLocalSalesWorker(
             }
 
             val response = api.saveLocalSale(datosRequestBody, imageParts)
+
+            if (!response.success) {
+                logger.error(
+                    module = "SALES_WORKER",
+                    action = "UPLOAD_REJECTED",
+                    message = "Servidor rechazó la venta: ${response.message}",
+                    data = mapOf("saleId" to saleId)
+                )
+                return Result.retry()
+            }
+
             localSaleStore.changeSaleStatus(saleId, true)
 
             logger.info(
