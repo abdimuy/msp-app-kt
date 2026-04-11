@@ -71,7 +71,10 @@ import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.features.sales.components.productselector.SimpleProductSelector
+import com.example.msp_app.data.local.entities.LocalSaleComboEntity
+import com.example.msp_app.features.sales.components.combo.CreateComboDialog
+import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
+import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.viewmodels.EditLocalSaleViewModel
@@ -92,9 +95,13 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     val selectedSale by viewModel.selectedSale.collectAsState()
     val existingImages by viewModel.saleImages.collectAsState()
     val existingProducts by viewModel.saleProducts.collectAsState()
+    val existingCombos by viewModel.saleCombos.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val imagesToDelete by viewModel.imagesToDelete.collectAsState()
     val saveResult by viewModel.saveResult.collectAsState()
+
+    var showProductSheet by remember { mutableStateOf(false) }
+    var showCreateComboDialog by remember { mutableStateOf(false) }
 
     var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
     var newImageUris by remember { mutableStateOf(listOf<Uri>()) }
@@ -179,7 +186,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     }
 
     // Initialize form with sale data
-    LaunchedEffect(selectedSale, existingProducts, productosCamioneta) {
+    LaunchedEffect(selectedSale, existingProducts, existingCombos, productosCamioneta) {
         if (!formInitialized && selectedSale != null && existingProducts.isNotEmpty() && productosCamioneta.isNotEmpty()) {
             val sale = selectedSale!!
             defectName = TextFieldValue(sale.NOMBRE_CLIENTE)
@@ -203,12 +210,27 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             selectedZoneName = sale.ZONA_CLIENTE ?: ""
             saleDate = sale.FECHA_VENTA
 
-            // Load products into SaleProductsViewModel
+            // Load products into SaleProductsViewModel with their comboId
             existingProducts.forEach { productEntity ->
                 val product = productosCamioneta.find { it.ARTICULO_ID == productEntity.ARTICULO_ID }
                 if (product != null) {
-                    saleProductsViewModel.addProductToSale(product, productEntity.CANTIDAD)
+                    saleProductsViewModel.addProductToSaleWithCombo(
+                        product,
+                        productEntity.CANTIDAD,
+                        productEntity.COMBO_ID
+                    )
                 }
+            }
+
+            // Restore combo metadata
+            existingCombos.forEach { combo ->
+                saleProductsViewModel.createComboWithId(
+                    comboId = combo.COMBO_ID,
+                    nombreCombo = combo.NOMBRE_COMBO,
+                    precioLista = combo.PRECIO_LISTA,
+                    precioCortoPlazo = combo.PRECIO_CORTO_PLAZO,
+                    precioContado = combo.PRECIO_CONTADO
+                )
             }
 
             formInitialized = true
@@ -392,6 +414,17 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             else -> ""
         }
 
+        val comboEntities = saleProductsViewModel.getCombosList().map { combo ->
+            LocalSaleComboEntity(
+                COMBO_ID = combo.comboId,
+                LOCAL_SALE_ID = localSaleId,
+                NOMBRE_COMBO = combo.nombreCombo,
+                PRECIO_LISTA = combo.precioLista,
+                PRECIO_CORTO_PLAZO = combo.precioCortoPlazo,
+                PRECIO_CONTADO = combo.precioContado
+            )
+        }
+
         viewModel.updateSaleWithImages(
             saleId = localSaleId,
             clientName = defectName.text,
@@ -412,11 +445,12 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             avaloresponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
             note = note.text,
             collectionday = if (tipoVenta == "CONTADO") "" else collectionday,
-            totalprice = saleProductsViewModel.getTotalPrecioLista(),
+            totalprice = saleProductsViewModel.getTotalPrecioListaWithCombos(),
             shorttermtime = 0,
-            shorttermamount = saleProductsViewModel.getTotalMontoCortoplazo(),
-            cashamount = saleProductsViewModel.getTotalMontoContado(),
+            shorttermamount = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
+            cashamount = saleProductsViewModel.getTotalMontoContadoWithCombos(),
             saleProducts = saleProductsViewModel.saleItems,
+            combos = comboEntities,
             context = context,
             userEmail = userEmail,
             zonaClienteId = selectedZoneId,
@@ -504,6 +538,42 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             }
         )
     }
+
+    // Product selection bottom sheet
+    if (showProductSheet) {
+        ProductSelectionBottomSheet(
+            products = productosCamioneta,
+            saleProductsViewModel = saleProductsViewModel,
+            onDismiss = { showProductSheet = false },
+            onShowCreateComboDialog = {
+                saleProductsViewModel.setCreatingCombo(true)
+                showCreateComboDialog = true
+            }
+        )
+    }
+
+    // Create combo dialog
+    CreateComboDialog(
+        show = showCreateComboDialog,
+        onDismiss = {
+            saleProductsViewModel.setCreatingCombo(false)
+            showCreateComboDialog = false
+        },
+        onConfirm = { nombre, precioLista, precioCortoPlazo, precioContado ->
+            saleProductsViewModel.createCombo(
+                nombreCombo = nombre,
+                precioLista = precioLista,
+                precioCortoPlazo = precioCortoPlazo,
+                precioContado = precioContado
+            )
+            saleProductsViewModel.setCreatingCombo(false)
+            showCreateComboDialog = false
+        },
+        selectedProductsCount = saleProductsViewModel.getSelectedProductsCount(),
+        suggestedPrices = saleProductsViewModel.getSelectedItemsSuggestedPrices(),
+        selectedProductNames = saleProductsViewModel.getSelectedProductNames(),
+        tipoVenta = tipoVenta
+    )
 
     Scaffold(
         modifier = Modifier.statusBarsPadding(),
@@ -1152,15 +1222,11 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                         }
                     }
 
-                    SimpleProductSelector(
-                        warehouseViewModel = warehouseViewModel,
+                    ProductSaleSummary(
                         saleProductsViewModel = saleProductsViewModel,
-                        onAddProduct = { articuloId, cantidad ->
-                            val producto = productosCamioneta.find { it.ARTICULO_ID == articuloId }
-                            if (producto != null) {
-                                saleProductsViewModel.addProductToSale(producto, cantidad)
-                            }
-                        },
+                        productosCamioneta = productosCamioneta,
+                        onOpenProductSheet = { showProductSheet = true },
+                        hasError = productsError,
                         tipoVenta = tipoVenta
                     )
 

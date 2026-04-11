@@ -70,6 +70,25 @@ class SaleProductsViewModel : ViewModel() {
         }
     }
 
+    fun addProductToSaleWithCombo(product: ProductInventory, quantity: Int, comboId: String?) {
+        if (quantity <= 0) return
+
+        val maxStock = product.EXISTENCIAS
+        val existingIndex = _saleItems.indexOfFirst {
+            it.product.ARTICULO_ID == product.ARTICULO_ID
+        }
+
+        if (existingIndex != -1) {
+            val existingItem = _saleItems[existingIndex]
+            _saleItems[existingIndex] = existingItem.copy(
+                quantity = (existingItem.quantity + quantity).coerceAtMost(maxStock),
+                comboId = comboId
+            )
+        } else {
+            _saleItems.add(SaleItem(product, quantity.coerceAtMost(maxStock), comboId = comboId))
+        }
+    }
+
     fun removeProductFromSale(product: ProductInventory) {
         _saleItems.removeAll { it.product.ARTICULO_ID == product.ARTICULO_ID }
     }
