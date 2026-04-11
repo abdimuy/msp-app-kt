@@ -13,6 +13,8 @@ import com.example.msp_app.data.local.entities.OVERDUE_PAYMENTS_VIEW_SQL
 val MIGRATION_22_23 = object : Migration(22, 23) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("DROP VIEW IF EXISTS `overdue_payments_view`")
-        db.execSQL("CREATE VIEW `overdue_payments_view` AS $OVERDUE_PAYMENTS_VIEW_SQL")
+        db.execSQL(
+            "CREATE VIEW `overdue_payments_view` AS ${OVERDUE_PAYMENTS_VIEW_SQL.trim()}"
+        )
     }
 }
