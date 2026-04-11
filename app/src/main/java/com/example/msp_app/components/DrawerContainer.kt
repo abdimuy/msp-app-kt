@@ -230,6 +230,19 @@ fun DrawerContainer(
                                 }
                             )
 
+                            NavigationDrawerItem(
+                                label = { Text("Catálogo de Productos") },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        navController.navigate("products_catalog") {
+                                            popUpTo("home")
+                                        }
+                                    }
+                                }
+                            )
+
                             if (hasAlmacen || hasGarantias) {
                                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             }
