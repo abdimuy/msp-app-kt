@@ -30,9 +30,11 @@ data class PaymentEntity(
     val NOMBRE_CLIENTE: String
 )
 
-@DatabaseView(
-    viewName = "overdue_payments_view",
-    value = """
+/**
+ * Single source of truth for the overdue_payments_view SQL.
+ * Used by both @DatabaseView and migrations to prevent whitespace mismatches.
+ */
+const val OVERDUE_PAYMENTS_VIEW_SQL = """
     SELECT
         base.DOCTO_CC_ID,
         base.FECHA_ULT_PAGO,
@@ -73,7 +75,11 @@ data class PaymentEntity(
         LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID
         GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO
     ) AS base
-    """
+"""
+
+@DatabaseView(
+    viewName = "overdue_payments_view",
+    value = OVERDUE_PAYMENTS_VIEW_SQL
 )
 data class OverduePaymentsEntity(
     val DOCTO_CC_ID: Int,
