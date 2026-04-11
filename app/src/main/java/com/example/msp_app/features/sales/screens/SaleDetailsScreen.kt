@@ -2,10 +2,8 @@ package com.example.msp_app.features.sales.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,10 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.example.msp_app.components.DrawerContainer
-import com.example.msp_app.components.badges.AlertBadge
-import com.example.msp_app.components.badges.BadgesType
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
 import com.example.msp_app.features.sales.components.CustomMap
@@ -55,7 +50,7 @@ import com.example.msp_app.features.sales.components.saleactionssection.SaleActi
 import com.example.msp_app.features.sales.components.saleclientdetailssection.SaleClientDetailsSection
 import com.example.msp_app.features.sales.components.saleclientsettlement.SaleClienteSettlement
 import com.example.msp_app.features.sales.components.saleproductssection.SaleProductsSection
-import com.example.msp_app.features.sales.components.salesummarybar.SaleSummaryBar
+import com.example.msp_app.features.sales.components.salesummarybar.PaymentProgressCard
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.navigation.Screen
@@ -305,118 +300,76 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         GuaranteeSection(
             sale,
             navController
         )
 
-        Box {
-            Column {
-                Spacer(modifier = Modifier.height(26.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-                val porcentage = ((1 - (sale.SALDO_REST / sale.PRECIO_TOTAL)) * 100)
-
-                SaleSummaryBar(
-                    balance = sale.SALDO_REST.toCurrency(noDecimals = true),
-                    percentagePaid = String.format("%.2f%%", porcentage)
-                )
-                Spacer(modifier = Modifier.height(26.dp))
-
-                Column(
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    when (overduePaymentBySaleState) {
-                        is ResultState.Loading -> {
-                            Text("Cargando pagos atrasados de esta venta...")
-                        }
-
-                        is ResultState.Error -> {
-                            Text(
-                                "Error: ${(overduePaymentBySaleState as ResultState.Error).message}"
-                            )
-                        }
-
-                        is ResultState.Success -> {
-                            val latePayment =
-                                (overduePaymentBySaleState as ResultState.Success).data
-
-                            if (latePayment != null) {
-                                val latePayments = latePayment.NUM_PAGOS_ATRASADOS.toInt()
-                                val message = when {
-                                    latePayments < 1 -> "No tiene pagos atrasados"
-                                    latePayments < 5 -> "Pagos atrasados: $latePayments"
-                                    else -> "Pagos atrasados: $latePayments"
-                                }
-                                val badgeType = when {
-                                    latePayments < 1 -> BadgesType.Success
-                                    latePayments < 5 -> BadgesType.Warning
-                                    else -> BadgesType.Danger
-                                }
-
-                                AlertBadge(
-                                    message = message,
-                                    type = badgeType,
-                                    padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            ElapsedTimeAlert(latePayment?.FECHA_ULT_PAGO.toString())
-                        }
-
-                        else -> {}
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-                SaleActionSection(
-                    sale,
-                    navController
-                )
-
-                Spacer(modifier = Modifier.height(15.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth(0.92f)
-                        .background(Color.Transparent, RoundedCornerShape(16.dp))
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Spacer(
-                            modifier = Modifier.height(12.dp)
-                        )
-                        Text(
-                            "Historial de pagos",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp,
-                            textAlign = TextAlign.Left
-                        )
-
-                        PaymentsHistory(sale, navController)
-                    }
-                }
+        // Payment progress with overdue badges
+        val overdueCount = when (overduePaymentBySaleState) {
+            is ResultState.Success -> {
+                (overduePaymentBySaleState as ResultState.Success).data
+                    ?.NUM_PAGOS_ATRASADOS?.toInt()
             }
+            else -> null
+        }
+        val lastPaymentText = when (overduePaymentBySaleState) {
+            is ResultState.Success -> {
+                (overduePaymentBySaleState as ResultState.Success).data
+                    ?.FECHA_ULT_PAGO?.let { formatElapsedTime(it) }
+            }
+            else -> null
+        }
+
+        PaymentProgressCard(
+            precioTotal = sale.PRECIO_TOTAL,
+            saldoRest = sale.SALDO_REST,
+            overduePayments = overdueCount,
+            lastPaymentText = lastPaymentText
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        SaleActionSection(
+            sale,
+            navController
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Column(
+            modifier = Modifier.fillMaxWidth(0.92f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "Historial de pagos",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp,
+                textAlign = TextAlign.Left
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            PaymentsHistory(sale, navController)
         }
     }
 }
 
-@Composable
-fun ElapsedTimeAlert(lastPaymentDateIso: String) {
+fun formatElapsedTime(lastPaymentDateIso: String): String {
     val lastPaymentDateTime = runCatching {
         Instant.parse(lastPaymentDateIso)
             .atZone(ZoneId.systemDefault())
             .toLocalDateTime()
     }.getOrElse {
-        LocalDate.parse(lastPaymentDateIso)
-            .atStartOfDay()
+        runCatching {
+            LocalDate.parse(lastPaymentDateIso)
+                .atStartOfDay()
+        }.getOrElse {
+            return "Sin datos"
+        }
     }
 
     val now = LocalDateTime.now()
@@ -428,19 +381,15 @@ fun ElapsedTimeAlert(lastPaymentDateIso: String) {
     val months = totalDays / 30
     val years = totalDays / 365
 
-    val message = when {
+    val elapsed = when {
         years > 0 -> "$years año${if (years > 1) "s" else ""}"
         months > 0 -> "$months mes${if (months > 1) "es" else ""}"
         weeks > 0 -> "$weeks semana${if (weeks > 1) "s" else ""}"
         totalDays > 0 -> "$totalDays día${if (totalDays > 1) "s" else ""}"
         totalHours > 0 -> "${totalHours % 24} hora${if ((totalHours % 24) > 1) "s" else ""}"
         totalMinutes > 0 -> "${totalMinutes % 60} minuto${if ((totalMinutes % 60) > 1) "s" else ""}"
-        else -> "Hace unos segundos"
+        else -> "unos segundos"
     }
 
-    AlertBadge(
-        "Último pago: hace $message",
-        BadgesType.Primary,
-        padding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
-    )
+    return "Hace $elapsed"
 }

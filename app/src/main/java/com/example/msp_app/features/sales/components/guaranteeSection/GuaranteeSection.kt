@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -154,18 +155,20 @@ fun GuaranteeSection(sale: Sale, navController: NavController) {
                     }
                 }
             }
-        } ?: TextButton(
-            onClick = { navController.navigate(Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())) },
+        } ?: OutlinedButton(
+            onClick = {
+                navController.navigate(
+                    Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())
+                )
+            },
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp))
-                .heightIn(min = 48.dp)
                 .fillMaxWidth()
+                .heightIn(min = 44.dp),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Text(
-                "INICIAR GARANTIA",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.bodyLarge
+                "Iniciar Garantía",
+                fontWeight = FontWeight.Medium
             )
         }
     }
