@@ -51,8 +51,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 39
-        versionName = "2.9.9"
+        versionCode = 40
+        versionName = "2.10.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
