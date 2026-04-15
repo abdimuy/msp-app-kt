@@ -58,11 +58,16 @@ data class LocalSaleComboRequest(
 )
 
 data class LocalSaleResponse(
-    val success: Boolean,
-    val message: String? = null,
+    val error: String,
+    val body: LocalSaleResponseBody? = null
+)
+
+data class LocalSaleResponseBody(
     val localSaleId: String? = null,
     val combosRegistrados: Int? = null,
-    val traspasoOmitido: Boolean? = null
+    val traspasoOmitido: Boolean? = null,
+    val message: String? = null,
+    val imagenesSubidas: Int? = null
 )
 
 // Request para edición (sin localSaleId, se pasa en URL)

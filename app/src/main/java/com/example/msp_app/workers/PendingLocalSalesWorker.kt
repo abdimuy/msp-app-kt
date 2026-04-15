@@ -96,16 +96,6 @@ class PendingLocalSalesWorker(
 
             val response = api.saveLocalSale(datosRequestBody, imageParts)
 
-            if (!response.success) {
-                logger.error(
-                    module = "SALES_WORKER",
-                    action = "UPLOAD_REJECTED",
-                    message = "Servidor rechazó la venta: ${response.message}",
-                    data = mapOf("saleId" to saleId)
-                )
-                return Result.retry()
-            }
-
             localSaleStore.changeSaleStatus(saleId, true)
 
             logger.info(
@@ -114,19 +104,18 @@ class PendingLocalSalesWorker(
                 message = "Venta enviada exitosamente",
                 data = mapOf(
                     "saleId" to saleId,
+                    "serverSaleId" to (response.body?.localSaleId ?: ""),
+                    "attemptCount" to runAttemptCount,
                     "imageCount" to imageParts.size,
+                    "imagesUploaded" to (response.body?.imagenesSubidas ?: 0),
                     "comboCount" to combos.size,
+                    "combosRegistrados" to (response.body?.combosRegistrados ?: 0),
                     "productCount" to products.size
                 )
             )
 
             Result.success()
         } catch (e: Exception) {
-            if (e is retrofit2.HttpException && e.code() == 409) {
-                localSaleStore.changeSaleStatus(saleId, true)
-                return Result.success()
-            }
-
             Log.e("PendingLocalSalesWorker", "Error al enviar venta local ${sale.LOCAL_SALE_ID}", e)
             logger.error(
                 module = "SALES_WORKER",
