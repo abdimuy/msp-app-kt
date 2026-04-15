@@ -23,3 +23,7 @@ keystore.properties
 
 # Kotlin compiler error logs
 .kotlin/.worktrees
+
+# Git worktrees and superpowers state
+.worktrees/
+.superpowers/
