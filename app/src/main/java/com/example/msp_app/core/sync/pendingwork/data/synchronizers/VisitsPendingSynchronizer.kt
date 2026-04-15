@@ -1,0 +1,35 @@
+package com.example.msp_app.core.sync.pendingwork.data.synchronizers
+
+import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
+import com.example.msp_app.core.sync.pendingwork.domain.models.SyncResult
+import com.example.msp_app.core.sync.pendingwork.domain.ports.PendingWorkSynchronizer
+import com.example.msp_app.core.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
+import com.example.msp_app.core.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase.Companion.MAX_ITEMS_PER_SYNC
+import com.example.msp_app.data.local.entities.VisitEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+class VisitsPendingSynchronizer(
+    private val fetchPending: suspend () -> List<VisitEntity>,
+    private val enqueuer: VisitsWorkEnqueuer
+) : PendingWorkSynchronizer {
+
+    override val name: String = NAME
+
+    override suspend fun sync(context: SyncContext): SyncResult = withContext(Dispatchers.IO) {
+        val pending = fetchPending()
+        if (pending.isEmpty()) return@withContext SyncResult.NothingPending
+
+        val capped = pending.take(MAX_ITEMS_PER_SYNC)
+        var successCount = 0
+        capped.forEach { visit ->
+            runCatching { enqueuer.enqueue(visit.ID, replace = true) }
+                .onSuccess { successCount++ }
+        }
+        SyncResult.Enqueued(itemCount = capped.size, workRequestCount = successCount)
+    }
+
+    companion object {
+        const val NAME: String = "VISITS"
+    }
+}

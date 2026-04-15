@@ -1,6 +1,7 @@
 package com.example.msp_app.navigation
 
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,8 +20,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.msp_app.MspApplication
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
+import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen
@@ -57,6 +61,7 @@ import com.example.msp_app.features.transfers.presentation.detail.TransferDetail
 import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
 import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
 import com.example.msp_app.features.visit.screens.VisitTicketScreen
+import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
     object Loading : Screen("loading")
@@ -156,6 +161,31 @@ fun AppNavigation() {
             deviceProtection.clearLocalAuthorization(userData.ID)
             navController.navigate(Screen.DeviceBlocked.route) {
                 popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
+    // Session pending-work sync — keyed on user.ID so Firestore snapshot
+    // churn on userDataState does not re-fire this. The heavy lifting runs
+    // on MspApplication.applicationScope so it survives cancellation of this
+    // LaunchedEffect (e.g. from recomposition). A process-scoped gate inside
+    // the use case enforces idempotency.
+    LaunchedEffect(
+        key1 = (userDataState as? ResultState.Success<User?>)?.data?.ID
+    ) {
+        val user = (userDataState as? ResultState.Success<User?>)?.data ?: return@LaunchedEffect
+        val userId = user.ID.takeIf { it.isNotBlank() } ?: return@LaunchedEffect
+        val syncCtx = SyncContext(
+            userId = userId,
+            userEmail = user.EMAIL.takeIf { it.isNotBlank() }
+        )
+        val app = context.applicationContext as MspApplication
+        app.applicationScope.launch {
+            try {
+                PendingWorkSyncFactory.createUseCase(app).execute(syncCtx)
+            } catch (t: Throwable) {
+                // Defense in depth: never let an exception escape to the UI layer.
+                Log.e("SessionSync", "Unexpected error in session-sync", t)
             }
         }
     }

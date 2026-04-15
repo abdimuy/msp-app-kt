@@ -5,8 +5,21 @@ import com.example.msp_app.core.debug.RemoteDbDebugger
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 class MspApplication : Application() {
+
+    /**
+     * Process-scoped coroutine scope used by background, fire-and-forget work
+     * that must survive Activity/Composition recreation (e.g. the session
+     * pending-work sync dispatched from AppNavigation).
+     *
+     * SupervisorJob so a failure in one child does not cancel siblings; IO
+     * dispatcher so the default home for DB + network work is the right one.
+     */
+    val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
