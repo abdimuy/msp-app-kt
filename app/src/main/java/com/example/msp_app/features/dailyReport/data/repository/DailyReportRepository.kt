@@ -1,6 +1,8 @@
 package com.example.msp_app.features.dailyReport.data.repository
 
 import android.content.Context
+import com.example.msp_app.core.time.AppClock
+import com.example.msp_app.core.time.AppTime
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.entities.LocalSaleEntity
@@ -9,9 +11,8 @@ import com.example.msp_app.features.dailyReport.domain.models.DailyReportSale
 import com.example.msp_app.features.dailyReport.domain.models.DailyReportSaleProduct
 import com.example.msp_app.features.dailyReport.domain.models.DailyReportTransfer
 import com.example.msp_app.features.dailyReport.domain.models.DailyReportTransferProduct
+import com.example.msp_app.features.dailyReport.domain.onBusinessDate
 import com.example.msp_app.features.transfers.data.api.TransfersApiService
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -22,6 +23,7 @@ interface DailyReportDataSource {
 
 class DailyReportRepository(
     private val context: Context,
+    private val clock: AppClock = AppClock.System,
     private val transfersApi: TransfersApiService = ApiProvider.create(
         TransfersApiService::class.java
     )
@@ -29,14 +31,13 @@ class DailyReportRepository(
 
     private val localSaleDao = AppDatabase.getInstance(context).localSaleDao()
     private val localSaleProductDao = AppDatabase.getInstance(context).localSaleProduct()
-    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
     override suspend fun getTodaySales(): Result<List<DailyReportSale>> =
         withContext(Dispatchers.IO) {
             try {
                 val allSales = localSaleDao.getAllSales()
-                val todayPrefix = LocalDate.now().format(dateFormatter)
-                val todaySales = allSales.filter { it.FECHA_VENTA.startsWith(todayPrefix) }
+                val today = AppTime.todayInBusinessZone(clock)
+                val todaySales = allSales.onBusinessDate(today)
 
                 val reportSales = todaySales.map { sale ->
                     val products = localSaleProductDao.getProductsForSale(sale.LOCAL_SALE_ID)
@@ -52,8 +53,8 @@ class DailyReportRepository(
     override suspend fun getTodayTransfers(camionetaId: Int): Result<List<DailyReportTransfer>> =
         withContext(Dispatchers.IO) {
             try {
-                val today = LocalDate.now()
-                val todayStr = today.format(dateFormatter)
+                val today = AppTime.todayInBusinessZone(clock)
+                val todayStr = AppTime.toWireDate(today)
 
                 val inboundResponse = transfersApi.getTransfers(
                     fechaInicio = todayStr,
