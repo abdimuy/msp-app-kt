@@ -99,4 +99,21 @@ class TransferDateFilterTest {
         val filtered = listOf(productionBug).onBusinessDate(LocalDate.of(2026, 4, 15))
         assertEquals(listOf(productionBug), filtered)
     }
+
+    /**
+     * Contract test: real backend emits `FECHA_HORA_CREACION` as ISO-8601 with
+     * explicit CDMX offset (-06:00) and millisecond precision. Captured from live
+     * API response on 2026-04-22 — if this format changes, we need to know.
+     */
+    @Test
+    fun `accepts real backend FECHA_HORA_CREACION format`() {
+        val lateEvening = transfer(1, "2026-04-22T19:43:56.000-06:00") // 19:43 CDMX 22-abr
+        val earlyMorning = transfer(2, "2026-04-22T08:15:35.000-06:00") // 08:15 CDMX 22-abr
+        val yesterday = transfer(3, "2026-04-21T16:22:00.000-06:00") // 16:22 CDMX 21-abr
+
+        val filtered = listOf(lateEvening, earlyMorning, yesterday)
+            .onBusinessDate(LocalDate.of(2026, 4, 22))
+
+        assertEquals(listOf("T-1", "T-2"), filtered.map { it.folio })
+    }
 }

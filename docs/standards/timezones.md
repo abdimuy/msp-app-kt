@@ -200,6 +200,23 @@ Wire API usa exactamente el mismo formato. **No hay "formato de DB" vs "formato 
 
 **Al emitir siempre usamos la primera forma.** Los otros solo se aceptan al leer data histórica o de backends legacy.
 
+## Contrato real con el backend (verificado 2026-04-22)
+
+Lo que el backend actualmente manda en las respuestas de la API:
+
+| Campo | Formato | Ejemplo | Semántica |
+|---|---|---|---|
+| `FECHA_HORA_CREACION` | ISO 8601 con offset `-06:00` y milisegundos | `2026-04-22T19:43:56.000-06:00` | Timestamp completo, hora local CDMX con offset explícito |
+| `FECHA` | ISO 8601 UTC con `Z` en medianoche CDMX | `2026-04-22T06:00:00.000Z` | Fecha calendario. Se traduce: `06:00 UTC = 00:00 CDMX`. Representa el día 22-abr en CDMX. |
+
+Ambos formatos son válidos ISO 8601 y `AppTime.parseWireFormat` los maneja correctamente (branch `OffsetDateTime.parse` para el primero, branch `Instant.parse` para el segundo). El test `accepts real backend FECHA_HORA_CREACION format` en `TransferDateFilterTest` lo verifica.
+
+**Lo que NOSOTROS emitimos a la API** (al crear entidades):
+- Timestamps: siempre `Instant.toString()` → `yyyy-MM-ddTHH:mm:ssZ` (UTC con `Z`)
+- Fechas calendario: siempre `LocalDate.toString()` → `yyyy-MM-dd`
+
+**Discrepancia a considerar:** nuestro output es UTC-Z puro; el backend responde con offset `-06:00`. Ambos son válidos y equivalentes — solo documentar que la asimetría existe. Si en el futuro se unifica, mejor.
+
 ---
 
 ## Tests obligatorios para lógica de fechas
