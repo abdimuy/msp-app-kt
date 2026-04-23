@@ -54,16 +54,21 @@ class DailyReportRepository(
         withContext(Dispatchers.IO) {
             try {
                 val today = AppTime.todayInBusinessZone(clock)
-                val todayStr = AppTime.toWireDate(today)
+                // Widen the server window by one day on each side to cover TZ drift:
+                // a transfer created at 18:00 CDMX has a UTC timestamp on the next day,
+                // so narrow server-side filtering would drop it. We fetch the bracket
+                // and filter by business date client-side below.
+                val rangeStart = AppTime.toWireDate(today.minusDays(1))
+                val rangeEnd = AppTime.toWireDate(today.plusDays(1))
 
                 val inboundResponse = transfersApi.getTransfers(
-                    fechaInicio = todayStr,
-                    fechaFin = todayStr,
+                    fechaInicio = rangeStart,
+                    fechaFin = rangeEnd,
                     almacenDestinoId = camionetaId
                 )
                 val outboundResponse = transfersApi.getTransfers(
-                    fechaInicio = todayStr,
-                    fechaFin = todayStr,
+                    fechaInicio = rangeStart,
+                    fechaFin = rangeEnd,
                     almacenOrigenId = camionetaId
                 )
 
@@ -75,8 +80,10 @@ class DailyReportRepository(
                     )
                 }
 
-                val inboundList = inboundResponse.body()?.body ?: emptyList()
-                val outboundList = outboundResponse.body()?.body ?: emptyList()
+                // Client-side filter to business zone — independent of whatever TZ the
+                // backend uses for the range parameters.
+                val inboundList = inboundResponse.body()?.body.orEmpty().onBusinessDate(today)
+                val outboundList = outboundResponse.body()?.body.orEmpty().onBusinessDate(today)
 
                 val allTransfers = (inboundList.map { it to true } + outboundList.map { it to false })
                     .sortedBy { (transfer, _) -> transfer.fechaHoraCreacion ?: "" }
@@ -87,12 +94,9 @@ class DailyReportRepository(
                         if (isInbound) it.tipoMovto == "E" else it.tipoMovto == "S"
                     }
 
-                    val hora = transfer.fechaHoraCreacion?.let { fechaHora ->
-                        try {
-                            val parsed = java.time.OffsetDateTime.parse(fechaHora)
-                            parsed.format(java.time.format.DateTimeFormatter.ofPattern("hh:mm a"))
-                        } catch (e: Exception) {
-                            null
+                    val hora = transfer.fechaHoraCreacion?.let { iso ->
+                        AppTime.parseWireFormatOrNull(iso)?.let { instant ->
+                            AppTime.formatForDisplay(instant, AppTime.Formats.TIME_12H)
                         }
                     }
 
