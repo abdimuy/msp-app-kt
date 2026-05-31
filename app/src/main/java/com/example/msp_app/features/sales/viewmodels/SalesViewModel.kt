@@ -18,7 +18,6 @@ import com.example.msp_app.data.models.guarantee.toEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.product.toEntity
-import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
@@ -115,77 +114,40 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Sincroniza catálogos auxiliares (productos, garantías y eventos de
+     * garantías) desde el endpoint legacy del backend Node. Las ventas y los
+     * pagos ya no se traen por esta ruta — el
+     * [com.example.msp_app.core.sync.cobranza.CobranzaSyncManager] los
+     * mantiene actualizados cada 30 s contra el backend v2 de forma
+     * incremental y offline-aware.
+     */
     fun syncSales(zona: Int, dateInit: String) {
         viewModelScope.launch {
             _syncSalesState.value = ResultState.Loading
             try {
-                val pendingPayments = paymentStore.getPendingPayments()
-                if (pendingPayments.isNotEmpty()) {
-                    _syncSalesState.value =
-                        ResultState.Error("Hay ${pendingPayments.size} pagos pendientes")
-                    return@launch
-                }
-                val pendingVisits = visitsStore.getPendingVisits()
-                if (pendingVisits.isNotEmpty()) {
-                    _syncSalesState.value =
-                        ResultState.Error("Hay ${pendingVisits.size} visitas pendientes")
-                    return@launch
-                }
-
-                val pendingGuarantees = guaranteeStore.getPendingGuarantees()
-                if (pendingGuarantees.isNotEmpty()) {
-                    _syncSalesState.value =
-                        ResultState.Error("Hay ${pendingGuarantees.size} garantías pendientes")
-                    return@launch
-                }
-
-                val pendingGuaranteeEvents = guaranteeStore.getPendingGuaranteeEvents()
-                if (pendingGuaranteeEvents.isNotEmpty()) {
-                    _syncSalesState.value =
-                        ResultState.Error("Hay ${pendingGuaranteeEvents.size} eventos de garantías pendientes")
-                    return@launch
-                }
-
                 val salesData = api.getAll(
                     zona = zona,
                     dateInit = dateInit
                 )
 
-                val sales = salesData.body.ventas
                 val products = salesData.body.productos
-                val payments = salesData.body.pagos
                 val guarantees = salesData.body.garantias
                 val guaranteesEvent = salesData.body.eventosGarantias
 
-                val currentSales = saleStore.getAll().map { it.toDomain() }
-
-                val salesToSave = sales.map { apiSale ->
-                    val previous = currentSales.find { it.DOCTO_CC_ID == apiSale.DOCTO_CC_ID }
-                    val safeSale = apiSale.copy(
-                        FREC_PAGO = apiSale.FREC_PAGO ?: previous?.FREC_PAGO
-                            ?: FrecuenciaPago.SEMANAL
-                    )
-
-                    val saleWithState = previous
-                        ?.let { safeSale.copy(ESTADO_COBRANZA = it.ESTADO_COBRANZA) }
-                        ?: safeSale
-                    saleWithState.toEntity()
-                }
-                saleStore.saveAll(salesToSave)
                 productStore.saveAll(products.map { it.toEntity() })
-                paymentStore.saveAll(payments.map { it.toEntity() })
                 guaranteeStore.saveAllGurantees(guarantees.map { it.toEntity() })
                 guaranteeStore.saveAllGuaranteeEvents(guaranteesEvent.map { it.toEntity() })
                 visitsStore.deleteAllVisits()
 
-                _syncSalesState.value = ResultState.Success(sales)
+                _syncSalesState.value = ResultState.Success(emptyList())
 
                 val lastSync = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                     .format(Date())
                 saveLastSyncDate(lastSync)
             } catch (e: Exception) {
                 if (_syncSalesState.value !is ResultState.Success) {
-                    _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar ventas")
+                    _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar productos y garantías")
                 }
             }
         }
