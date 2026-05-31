@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.msp_app.data.local.dao.ClienteDao
+import com.example.msp_app.data.local.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.data.local.dao.guarantee.GuaranteeDao
 import com.example.msp_app.data.local.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.data.local.dao.localsale.LocalSaleDao
@@ -16,6 +17,7 @@ import com.example.msp_app.data.local.dao.productInventoryImage.ProductInventory
 import com.example.msp_app.data.local.dao.sale.SaleDao
 import com.example.msp_app.data.local.dao.visit.VisitDao
 import com.example.msp_app.data.local.entities.ClienteEntity
+import com.example.msp_app.data.local.entities.CobranzaSyncStateEntity
 import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.local.entities.GuaranteeEventEntity
 import com.example.msp_app.data.local.entities.GuaranteeImageEntity
@@ -33,6 +35,7 @@ import com.example.msp_app.data.local.entities.VisitEntity
 import com.example.msp_app.data.local.migrations.MIGRATION_20_21
 import com.example.msp_app.data.local.migrations.MIGRATION_21_22
 import com.example.msp_app.data.local.migrations.MIGRATION_22_23
+import com.example.msp_app.data.local.migrations.MIGRATION_23_24
 
 @Database(
     entities = [
@@ -49,10 +52,11 @@ import com.example.msp_app.data.local.migrations.MIGRATION_22_23
         LocalSaleImageEntity::class,
         LocalSaleProductEntity::class,
         LocalSaleComboEntity::class,
-        ClienteEntity::class
+        ClienteEntity::class,
+        CobranzaSyncStateEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 23
+    version = 24
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
@@ -66,6 +70,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun localSaleProduct(): LocalSaleProductDao
     abstract fun localSaleComboDao(): LocalSaleComboDao
     abstract fun clienteDao(): ClienteDao
+    abstract fun cobranzaSyncStateDao(): CobranzaSyncStateDao
 
     companion object {
         @Volatile
@@ -79,7 +84,12 @@ abstract class AppDatabase : RoomDatabase() {
                     "msp_db"
 
                 )
-                    .addMigrations(MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
+                    .addMigrations(
+                        MIGRATION_20_21,
+                        MIGRATION_21_22,
+                        MIGRATION_22_23,
+                        MIGRATION_23_24
+                    )
                     .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
                     .build().also { instance = it }
             }

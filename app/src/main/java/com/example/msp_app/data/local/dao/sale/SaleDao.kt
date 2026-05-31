@@ -182,6 +182,27 @@ interface SaleDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(sales: List<SaleEntity>)
 
+    @Query(
+        """
+        SELECT
+            DOCTO_CC_ACR_ID, DOCTO_CC_ID, sales.FOLIO, CLIENTE_ID, APLICADO,
+            COBRADOR_ID, CLIENTE, ZONA_CLIENTE_ID, LIMITE_CREDITO, NOTAS,
+            ZONA_NOMBRE, IMPORTE_PAGO_PROMEDIO, TOTAL_IMPORTE, NUM_IMPORTES,
+            FECHA, PARCIALIDAD, ENGANCHE, TIEMPO_A_CORTO_PLAZOMESES,
+            MONTO_A_CORTO_PLAZO, VENDEDOR_1, VENDEDOR_2, VENDEDOR_3,
+            PRECIO_TOTAL, IMPTE_REST, SALDO_REST, FECHA_ULT_PAGO,
+            CALLE, CIUDAD, ESTADO, TELEFONO, NOMBRE_COBRADOR,
+            ESTADO_COBRANZA, DIA_COBRANZA, DIA_TEMPORAL_COBRANZA,
+            PRECIO_DE_CONTADO, AVAL_O_RESPONSABLE, FREC_PAGO
+        FROM sales
+        WHERE DOCTO_CC_ID = :doctoCcId
+        """
+    )
+    suspend fun findByDoctoCcId(doctoCcId: Int): SaleEntity?
+
+    @Query("DELETE FROM sales WHERE DOCTO_CC_ID = :doctoCcId")
+    suspend fun deleteByDoctoCcId(doctoCcId: Int)
+
     @Query("DELETE FROM sales")
     suspend fun deleteAll()
 }

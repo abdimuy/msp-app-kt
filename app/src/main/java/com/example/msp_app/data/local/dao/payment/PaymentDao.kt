@@ -307,6 +307,9 @@ interface PaymentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)
 
+    @Query("DELETE FROM Payment WHERE DOCTO_CC_ACR_ID = :doctoCcAcrId")
+    suspend fun deleteByDoctoCcAcrId(doctoCcAcrId: Int)
+
     @Query("DELETE FROM payment")
     suspend fun deleteAll()
 }
