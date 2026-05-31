@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * Monitor reactivo de conectividad
  * Proporciona Flow de estado de red para observación reactiva
  */
-class ConnectivityMonitor(private val context: Context) {
+open class ConnectivityMonitor(private val context: Context) {
 
     private val connectivityManager: ConnectivityManager by lazy {
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -23,7 +23,7 @@ class ConnectivityMonitor(private val context: Context) {
     /**
      * Flow que emite cambios en el estado de conectividad
      */
-    val isConnected: Flow<Boolean> = callbackFlow {
+    open val isConnected: Flow<Boolean> = callbackFlow {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
                 trySend(true)
@@ -63,7 +63,7 @@ class ConnectivityMonitor(private val context: Context) {
     /**
      * Verifica síncronamente si hay red disponible
      */
-    fun isNetworkAvailable(): Boolean {
+    open fun isNetworkAvailable(): Boolean {
         return try {
             val network = connectivityManager.activeNetwork ?: return false
             val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false

@@ -23,6 +23,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.msp_app.MspApplication
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.sync.cobranza.CobranzaSyncObserver
+import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.utils.ResultState
@@ -188,6 +190,18 @@ fun AppNavigation() {
                 Log.e("SessionSync", "Unexpected error in session-sync", t)
             }
         }
+    }
+
+    // Drive the cobranza incremental sync (ventas + pagos) while the user is
+    // authenticated and has a zona assigned. The manager polls every 30 s
+    // and reacts to connectivity changes; the observer ties its lifecycle
+    // to the host's ON_START/ON_STOP.
+    val authedUserData = (userDataState as? ResultState.Success<User?>)?.data
+    if (authedUserData != null && authedUserData.ZONA_CLIENTE_ID > 0) {
+        val cobranzaSyncManager = remember(authedUserData.ZONA_CLIENTE_ID) {
+            CobranzaSyncProvider.get(context) { authedUserData.ZONA_CLIENTE_ID }
+        }
+        CobranzaSyncObserver(cobranzaSyncManager)
     }
 
     CompositionLocalProvider(LocalAuthViewModel provides authViewModel) {
