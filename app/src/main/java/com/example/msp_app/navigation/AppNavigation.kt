@@ -25,6 +25,7 @@ import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncObserver
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
+import com.example.msp_app.core.sync.cobranza.UserContext
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.utils.ResultState
@@ -196,10 +197,38 @@ fun AppNavigation() {
     // authenticated and has a zona assigned. The manager polls every 30 s
     // and reacts to connectivity changes; the observer ties its lifecycle
     // to the host's ON_START/ON_STOP.
+    //
+    // FECHA_CARGA_INICIAL (Firestore) marca el inicio de la ventana visible
+    // del cobrador: se envía como `?desde=` al backend para conservar las
+    // saldadas con pago en ventana, y dispara el prune local cuando cambia.
     val authedUserData = (userDataState as? ResultState.Success<User?>)?.data
     if (authedUserData != null && authedUserData.ZONA_CLIENTE_ID > 0) {
-        val cobranzaSyncManager = remember(authedUserData.ZONA_CLIENTE_ID) {
-            CobranzaSyncProvider.get(context) { authedUserData.ZONA_CLIENTE_ID }
+        val zonaActual = authedUserData.ZONA_CLIENTE_ID
+        val fechaCargaInicialIso = authedUserData.FECHA_CARGA_INICIAL
+            ?.toDate()?.toInstant()?.toString()
+        val cobranzaSyncManager = remember { CobranzaSyncProvider.get(context) }
+        // Empuja el contexto vigente al provider en cada cambio. Como el
+        // manager lee `currentContext.value` en cada tick, este push es
+        // suficiente para que el siguiente sync use la zona/fecha nueva
+        // — sin reconstruir el manager (rompería el ciclo del observer).
+        LaunchedEffect(zonaActual, fechaCargaInicialIso) {
+            CobranzaSyncProvider.setContext(
+                UserContext(
+                    zona = zonaActual,
+                    fechaCargaInicial = authedUserData.FECHA_CARGA_INICIAL
+                        ?.toDate()?.toInstant()
+                )
+            )
+        }
+        // Cuando FECHA_CARGA_INICIAL avanza (típicamente al cambiar de
+        // semana) las saldadas cuyos pagos quedaron fuera de la nueva
+        // ventana deben evictarse sin esperar al siguiente tick — el sync
+        // incremental no propaga estas bajas porque el row del backend
+        // no cambió.
+        LaunchedEffect(fechaCargaInicialIso) {
+            val iso = fechaCargaInicialIso ?: return@LaunchedEffect
+            runCatching { cobranzaSyncManager.pruneSaldadasFueraDeVentana(iso) }
+                .onFailure { Log.w("AppNavigation", "prune saldadas falló: ${it.message}") }
         }
         CobranzaSyncObserver(cobranzaSyncManager)
     }

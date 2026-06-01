@@ -310,6 +310,22 @@ interface PaymentDao {
     @Query("DELETE FROM Payment WHERE DOCTO_CC_ACR_ID = :doctoCcAcrId")
     suspend fun deleteByDoctoCcAcrId(doctoCcAcrId: Int)
 
+    /**
+     * Cuenta los pagos del cargo cuyo `FECHA_HORA_PAGO` cae dentro de la
+     * ventana del cobrador (>= `fechaIso`). Lo usa el merge del sync para
+     * decidir si una venta saldada que llega debe conservarse — basta con
+     * que tenga un pago en ventana para mantenerla visible.
+     */
+    @Query(
+        """
+        SELECT COUNT(*)
+        FROM Payment
+        WHERE DOCTO_CC_ACR_ID = :doctoCcAcrId
+          AND FECHA_HORA_PAGO >= :fechaIso
+        """
+    )
+    suspend fun countPagosDesde(doctoCcAcrId: Int, fechaIso: String): Int
+
     @Query("DELETE FROM payment")
     suspend fun deleteAll()
 }
