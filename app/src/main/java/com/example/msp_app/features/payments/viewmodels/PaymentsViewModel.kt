@@ -23,7 +23,6 @@ import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import java.time.OffsetDateTime
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -128,11 +127,16 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
 
     private fun groupPaymentsByMonthAndYear(payments: List<Payment>): Map<String, List<Payment>> {
         val locale = java.util.Locale("es", "MX")
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSX")
+        // OffsetDateTime.parse() sin formatter usa ISO_OFFSET_DATE_TIME, que
+        // acepta cualquier variante valida de RFC3339/ISO-8601: con o sin
+        // milisegundos, con Z o con offset (+06:00). Un formatter custom
+        // truena si el wire format cambia minimamente (lo que paso aqui:
+        // el backend Go manda timestamps sin ms cuando el origen no los
+        // tiene, p.ej. "2024-10-18T06:00:00Z").
 
         val grouped = payments.groupBy { payment ->
             val dateTime =
-                OffsetDateTime.parse(payment.FECHA_HORA_PAGO, formatter).toLocalDateTime()
+                OffsetDateTime.parse(payment.FECHA_HORA_PAGO).toLocalDateTime()
             val month = dateTime.month.getDisplayName(java.time.format.TextStyle.FULL, locale)
                 .uppercase(locale)
             val year = dateTime.year
@@ -153,7 +157,7 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
             }
             .associate { (label, list) ->
                 label to list.sortedByDescending {
-                    OffsetDateTime.parse(it.FECHA_HORA_PAGO, formatter)
+                    OffsetDateTime.parse(it.FECHA_HORA_PAGO)
                 }
             }
     }
