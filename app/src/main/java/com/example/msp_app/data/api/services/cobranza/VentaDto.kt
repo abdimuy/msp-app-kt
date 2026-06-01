@@ -51,9 +51,10 @@ data class VentaDto(
     val monto_corto_plazo: String?,
     val precio_de_contado: String?,
     val aval_o_responsable: String,
-    val vendedor_1_id: Int?,
-    val vendedor_2_id: Int?,
-    val vendedor_3_id: Int?
+    val vendedor_1: String,
+    val vendedor_2: String,
+    val vendedor_3: String,
+    val frec_pago: String
 )
 
 /**
@@ -76,7 +77,7 @@ fun VentaDto.toEntity(): SaleEntity {
     val enganche = parseAmount(enganche)
     val montoCortoPlazo = parseAmount(monto_corto_plazo)
     val precioDeContado = parseAmount(precio_de_contado)
-    val frecPago = FrecuenciaPago.SEMANAL.name
+    val frecPago = frec_pago.ifBlank { FrecuenciaPago.SEMANAL.name }
     val diaCobranza = computeDiaCobranza(fecha_cargo, frecPago)
     val importePromedio = if (num_pagos > 0) totalImporte / num_pagos else null
 
@@ -100,9 +101,9 @@ fun VentaDto.toEntity(): SaleEntity {
         ENGANCHE = enganche,
         TIEMPO_A_CORTO_PLAZOMESES = tiempo_corto_plazo_meses ?: 0,
         MONTO_A_CORTO_PLAZO = montoCortoPlazo,
-        VENDEDOR_1 = vendedor_1_id?.toString().orEmpty(),
-        VENDEDOR_2 = vendedor_2_id?.toString().orEmpty(),
-        VENDEDOR_3 = vendedor_3_id?.toString().orEmpty(),
+        VENDEDOR_1 = vendedor_1,
+        VENDEDOR_2 = vendedor_2,
+        VENDEDOR_3 = vendedor_3,
         PRECIO_TOTAL = precioTotal,
         IMPTE_REST = impteRest,
         SALDO_REST = saldoRest,

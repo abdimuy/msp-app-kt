@@ -3,8 +3,15 @@ package com.example.msp_app.data.api.services.cobranza
 import com.example.msp_app.data.local.entities.PaymentEntity
 
 /**
- * Wire format for /v2/cobranza/sync/pagos/zona/{id}. Mirrors the backend's
- * MSP_PAGOS_VENTAS projection one-to-one.
+ * Wire format for /v2/cobranza/sync/pagos/zona/{id}.
+ *
+ * Coincide 1:1 con la proyeccion enriquecida del backend (cache
+ * MSP_PAGOS_VENTAS + JOINs con DOCTOS_CC, CLIENTES y FORMAS_COBRO_DOCTOS).
+ *
+ * - `importe` ya viene con IVA incluido (IMPORTE + IMPUESTO en SQL).
+ * - `forma_cobro_id` es el medio de pago real (efectivo, cheque,
+ *   transferencia), distinto de `concepto_cc_id` que clasifica la naturaleza
+ *   del cargo en Microsip.
  */
 data class PagoDto(
     val impte_docto_cc_id: Int,
@@ -21,19 +28,24 @@ data class PagoDto(
     val lon: String?,
     val cancelado: Boolean,
     val aplicado: Boolean,
-    val updated_at: String
+    val updated_at: String,
+    val cobrador: String,
+    val cobrador_id: Int?,
+    val nombre_cliente: String,
+    val forma_cobro_id: Int?
 )
 
 /**
- * Maps a sync'd pago to the local [PaymentEntity]. A pago that arrives via
- * sync is, by definition, already in Microsip — so `GUARDADO_EN_MICROSIP`
- * is `true`. NOMBRE_CLIENTE and COBRADOR are display-only placeholders; the
- * UI joins to `sales.CLIENTE` when rendering, so we leave them blank to
- * avoid a second JOIN at the backend.
+ * Mapea un PagoDto sincronizado a la entidad local [PaymentEntity]. Por
+ * definicion todo pago que llega via /sync/pagos ya esta en Microsip
+ * (GUARDADO_EN_MICROSIP=true). Los campos enriquecidos (COBRADOR,
+ * NOMBRE_CLIENTE, COBRADOR_ID, FORMA_COBRO_ID) ya vienen resueltos del
+ * backend — antes los dejabamos en blanco, lo que rompia la UI del
+ * "historial de pagos" en el detalle de venta.
  */
 fun PagoDto.toEntity(): PaymentEntity = PaymentEntity(
     ID = impte_docto_cc_id.toString(),
-    COBRADOR = "",
+    COBRADOR = cobrador,
     DOCTO_CC_ACR_ID = docto_cc_acr_id,
     DOCTO_CC_ID = docto_cc_id,
     FECHA_HORA_PAGO = fecha,
@@ -42,8 +54,8 @@ fun PagoDto.toEntity(): PaymentEntity = PaymentEntity(
     LAT = lat?.toDoubleOrNull(),
     LNG = lon?.toDoubleOrNull(),
     CLIENTE_ID = cliente_id,
-    COBRADOR_ID = 0,
-    FORMA_COBRO_ID = concepto_cc_id,
+    COBRADOR_ID = cobrador_id ?: 0,
+    FORMA_COBRO_ID = forma_cobro_id ?: concepto_cc_id,
     ZONA_CLIENTE_ID = zona_cliente_id ?: 0,
-    NOMBRE_CLIENTE = ""
+    NOMBRE_CLIENTE = nombre_cliente
 )
