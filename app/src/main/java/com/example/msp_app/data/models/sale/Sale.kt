@@ -54,7 +54,20 @@ enum class EstadoCobranza {
 enum class FrecuenciaPago {
     SEMANAL,
     QUINCENAL,
-    MENSUAL
+    MENSUAL,
+    CONTADO;
+
+    companion object {
+        /**
+         * Resuelve el valor recibido del backend a una constante del enum.
+         * Si el texto no coincide con ningun valor conocido (catalogo nuevo
+         * en LISTAS_ATRIBUTOS), cae en [SEMANAL] como default — el cobrador
+         * sigue viendo la venta en su ruta semanal sin que la app truene.
+         */
+        fun fromWire(value: String?): FrecuenciaPago = runCatching {
+            valueOf(value.orEmpty().uppercase())
+        }.getOrDefault(SEMANAL)
+    }
 }
 
 data class SaleWithProducts(
