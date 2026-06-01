@@ -25,9 +25,13 @@ import com.example.msp_app.data.models.sale.toEntity
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
@@ -89,16 +93,25 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Cargada una sola vez: arranca un colector de Room que emite cada vez
+     * que cambia la tabla `sales` (ya sea por el sync incremental, por un
+     * pago local que actualiza SALDO_REST, etc.). Llamar a esta funcion
+     * mas de una vez es idempotente — el colector previo se cancela.
+     */
+    private var localSalesJob: Job? = null
+
     fun getLocalSales() {
-        viewModelScope.launch {
-            _salesState.value = ResultState.Loading
-            try {
-                val cached = saleStore.getAll().map { it.toDomain() }
-                _salesState.value = ResultState.Success(cached)
-            } catch (e: Exception) {
+        if (localSalesJob?.isActive == true) return
+        _salesState.value = ResultState.Loading
+        localSalesJob = saleStore.observeAll()
+            .onEach { rows ->
+                _salesState.value = ResultState.Success(rows.map { it.toDomain() })
+            }
+            .catch { e ->
                 _salesState.value = ResultState.Error(e.message ?: "Error leyendo ventas locales")
             }
-        }
+            .launchIn(viewModelScope)
     }
 
     fun getSalesByClientId(clientId: Int) {
