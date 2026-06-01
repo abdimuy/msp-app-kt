@@ -11,6 +11,8 @@ import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.PaymentLocation
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 @Dao
 interface PaymentDao {
@@ -162,6 +164,67 @@ interface PaymentDao {
         return paymentsByDay.mapValues { (_, paymentList) ->
             paymentList.sortedByDescending { it.FECHA_HORA_PAGO }
         }.toSortedMap(compareByDescending { it })
+    }
+
+    /**
+     * Reactive variant of [getPaymentsByDate]. Room re-emits the full list
+     * every time a row in `Payment` is inserted/updated/deleted within the
+     * date+forma_cobro filter, so any subscriber stays in sync with persisted
+     * state without manual re-query calls.
+     */
+    @Query(
+        """SELECT
+                ID,
+                COBRADOR,
+                DOCTO_CC_ACR_ID,
+                DOCTO_CC_ID,
+                FECHA_HORA_PAGO,
+                GUARDADO_EN_MICROSIP,
+                IMPORTE,
+                LAT,
+                LNG,
+                CLIENTE_ID,
+                COBRADOR_ID,
+                FORMA_COBRO_ID,
+                ZONA_CLIENTE_ID,
+                NOMBRE_CLIENTE
+            FROM Payment
+            WHERE
+                FECHA_HORA_PAGO BETWEEN :start AND :end
+                AND FORMA_COBRO_ID IN
+                (
+                    ${Constants.PAGO_EN_EFECTIVO_ID},
+                    ${Constants.PAGO_CON_CHEQUE_ID},
+                    ${Constants.PAGO_CON_TRANSFERENCIA_ID}
+                )
+            ORDER BY FECHA_HORA_PAGO DESC
+        """
+    )
+    fun observePaymentsByDate(start: String, end: String): Flow<List<PaymentEntity>>
+
+    /**
+     * Reactive sibling of [getPaymentsGroupedByDaySince]: returns a [Flow]
+     * that emits the same day-grouped map whenever the underlying `Payment`
+     * table changes. The end date is fixed at subscription (now + 100 days),
+     * which matches the one-shot semantics — payments cannot be future-dated
+     * meaningfully within that horizon.
+     *
+     * The grouping/sort is performed downstream from Room's emission and
+     * does not block Room's own thread.
+     */
+    fun observePaymentsGroupedByDaySince(
+        startDate: String
+    ): Flow<Map<String, List<PaymentEntity>>> {
+        val endDate = LocalDate
+            .now()
+            .plusDays(100)
+            .format(DateTimeFormatter.ISO_DATE)
+        return observePaymentsByDate(startDate, endDate).map { payments ->
+            payments
+                .groupBy { DateUtils.formatIsoDate(it.FECHA_HORA_PAGO, "yyyy-MM-dd") }
+                .mapValues { (_, list) -> list.sortedByDescending { it.FECHA_HORA_PAGO } }
+                .toSortedMap(compareByDescending { it })
+        }
     }
 
     @Query(

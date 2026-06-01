@@ -25,8 +25,17 @@ import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import java.time.OffsetDateTime
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -56,10 +65,49 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<List<Payment>>>(ResultState.Idle)
     val forgivenessByDateState: StateFlow<ResultState<List<Payment>>> = _forgivenessByDateState
 
-    private val _paymentsGroupedByDayWeeklyState =
-        MutableStateFlow<ResultState<Map<String, List<Payment>>>>(ResultState.Idle)
+    // Filter drives the reactive [paymentsGroupedByDayWeeklyState] below.
+    // `null` means "no week selected yet" → state stays Idle so the UI keeps
+    // its initial empty/loading state until the caller sets a week.
+    // Private; mutated only via [getPaymentsGroupedByDayWeekly].
+    private val weekFilter: MutableStateFlow<String?> = MutableStateFlow(null)
+
+    /**
+     * Day-grouped pagos for the currently-selected week, kept in sync with
+     * the local DB by Room's invalidation tracker. Any background sync that
+     * INSERTs/UPDATEs in `Payment` causes Room to re-run the query and this
+     * StateFlow to re-emit; the Home dashboard recomposes automatically with
+     * no manual refresh trigger required.
+     *
+     * Lifecycle: shared across subscribers while at least one is active and
+     * for 5s after the last unsubscribes (covers configuration changes /
+     * brief navigation away). The upstream Flow is cancelled when nobody is
+     * listening, so we don't keep a Room cursor open in the background.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val paymentsGroupedByDayWeeklyState: StateFlow<ResultState<Map<String, List<Payment>>>> =
-        _paymentsGroupedByDayWeeklyState
+        weekFilter
+            .filterNotNull()
+            .flatMapLatest { startWeek ->
+                paymentStore
+                    .observePaymentsGroupedByDaySince(startWeek)
+                    .map { entityMap ->
+                        val domainMap = entityMap.mapValues { (_, list) ->
+                            list.map { it.toDomain() }
+                        }
+                        ResultState.Success(domainMap)
+                            as ResultState<Map<String, List<Payment>>>
+                    }
+                    .onStart { emit(ResultState.Loading) }
+                    .catch { e ->
+                        emit(ResultState.Error(e.message ?: "Error al cargar pagos"))
+                    }
+                    .flowOn(Dispatchers.Default)
+            }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000L),
+                ResultState.Idle
+            )
 
     private val _centroidsBySaleState =
         MutableStateFlow<ResultState<List<PaymentLocationsGroup>>>(ResultState.Idle)
@@ -250,20 +298,16 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * Selects the week the dashboard summarises. Setting the same value
+     * twice in a row is a no-op (MutableStateFlow drops duplicates), so it
+     * is safe to call from any [LaunchedEffect] without debouncing.
+     *
+     * The actual data load is performed by [paymentsGroupedByDayWeeklyState]
+     * downstream — no `viewModelScope.launch` here.
+     */
     fun getPaymentsGroupedByDayWeekly(startWeek: String) {
-        viewModelScope.launch {
-            _paymentsGroupedByDayWeeklyState.value = ResultState.Loading
-            try {
-                val paymentsGrouped = paymentStore.getPaymentsGroupedByDaySince(startWeek)
-                val payments = paymentsGrouped.mapValues { (_, paymentList) ->
-                    paymentList.map { it.toDomain() }
-                }.toSortedMap(compareByDescending { it })
-                _paymentsGroupedByDayWeeklyState.value = ResultState.Success(payments)
-            } catch (e: Exception) {
-                _paymentsGroupedByDayWeeklyState.value =
-                    ResultState.Error(e.message ?: "Error al cargar pagos")
-            }
-        }
+        weekFilter.value = startWeek
     }
 
     fun getCentroidsBySale() {

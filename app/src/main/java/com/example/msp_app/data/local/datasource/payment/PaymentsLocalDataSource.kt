@@ -7,6 +7,7 @@ import com.example.msp_app.data.local.entities.OverduePaymentsEntity
 import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.EstadoCobranza
+import kotlinx.coroutines.flow.Flow
 
 class PaymentsLocalDataSource(private val context: Context) {
     private val paymentDao = AppDatabase.getInstance(context).paymentDao()
@@ -30,6 +31,18 @@ class PaymentsLocalDataSource(private val context: Context) {
 
     suspend fun getPaymentsGroupedByDaySince(startDate: String): Map<String, List<PaymentEntity>> {
         return paymentDao.getPaymentsGroupedByDaySince(startDate)
+    }
+
+    /**
+     * Reactive variant: subscribers receive a fresh day-grouped map every
+     * time the `Payment` table changes within the filter window. Preferred
+     * over the suspend variant for UI consumers that need to stay in sync
+     * with periodic background syncs.
+     */
+    fun observePaymentsGroupedByDaySince(
+        startDate: String
+    ): Flow<Map<String, List<PaymentEntity>>> {
+        return paymentDao.observePaymentsGroupedByDaySince(startDate)
     }
 
     suspend fun getLocationsGroupedBySaleId(): List<PaymentLocationsGroup> {
