@@ -192,6 +192,47 @@ class CobranzaSyncManager(
     }
 
     /**
+     * Path optimista SSE: en lugar de re-sincronizar todo el cursor, trae
+     * solo los registros afectados por [ids] usando el endpoint by-ids.
+     *
+     * Adquiere el mutex compartido antes de escribir a Room para serializar
+     * con el reconciler (evita la race condition phantom-delete vs apply).
+     *
+     * @param kind  Stream de origen (PAGOS o SALDOS).
+     * @param ids   Lista de IDs notificados por el servidor via SSE.
+     */
+    suspend fun applyByIds(kind: SseKind, ids: List<Int>) {
+        if (ids.isEmpty()) return
+        val ctx = userContextFlow.value ?: run {
+            Log.i(TAG, "applyByIds: skip — sin contexto de zona")
+            return
+        }
+        val zona = ctx.zona
+        Log.i(TAG, "applyByIds kind=$kind ids=${ids.size} zona=$zona")
+        mutex.withLock {
+            try {
+                if (kind == SseKind.PAGOS) {
+                    val pagos = ByIdsChunker.fetchInChunks(ids) { chunk ->
+                        api.pagosByIds(zona, chunk)
+                    }
+                    mergePagos(pagos)
+                    Log.i(TAG, "applyByIds PAGOS: merged ${pagos.size} registros")
+                } else {
+                    val ventas = ByIdsChunker.fetchInChunks(ids) { chunk ->
+                        api.saldosByIds(zona, chunk)
+                    }
+                    val desdeIso = ctx.fechaCargaInicial?.toString()
+                    mergeVentas(ventas, desdeIso)
+                    Log.i(TAG, "applyByIds SALDOS: merged ${ventas.size} registros")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "applyByIds kind=$kind falló: ${e.message}", e)
+                throw e
+            }
+        }
+    }
+
+    /**
      * Detecta si la zona efectiva del cobrador cambió y limpia el cache
      * local en transacción atómica para que el próximo sync arranque desde
      * cero. Dispara cuando se cumple cualquiera de las dos condiciones:

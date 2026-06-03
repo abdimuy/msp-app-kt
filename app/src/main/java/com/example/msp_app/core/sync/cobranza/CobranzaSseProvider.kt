@@ -50,9 +50,22 @@ object CobranzaSseProvider {
             okHttpClient = client,
             baseUrl = V2ApiProvider.BASE_URL,
             userContextFlow = CobranzaSyncProvider.userContextFlow,
-            // El glue by-ids se completa en el siguiente commit (applyByIds).
-            // Por ahora se cae al cursor-sync para todos los eventos.
-            onEvent = { _, _ -> manager.syncNow() },
+            onEvent = { kind, ids ->
+                if (ByIdsChunker.byIdsAvailable.get() && ids.isNotEmpty()) {
+                    // Path optimista: trae solo los registros afectados.
+                    try {
+                        manager.applyByIds(kind, ids)
+                    } catch (_: Exception) {
+                        // Si applyByIds falla (p.ej. el endpoint 404 o red),
+                        // caemos al cursor-sync para garantizar consistencia.
+                        manager.syncNow()
+                    }
+                } else {
+                    // byIdsAvailable=false (404 previo) o ids vacíos →
+                    // cursor-sync completo.
+                    manager.syncNow()
+                }
+            },
             coroutineScope = scope
         )
     }

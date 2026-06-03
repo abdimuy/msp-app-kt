@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -25,6 +26,11 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class CobranzaSyncManagerTest : RoomTestBase() {
+
+    @After
+    fun resetByIdsFlag() {
+        ByIdsChunker.byIdsAvailable.set(true)
+    }
 
     private class FakeConnectivity(private val online: Boolean) :
         ConnectivityMonitor(ApplicationProvider.getApplicationContext()) {
@@ -664,6 +670,118 @@ class CobranzaSyncManagerTest : RoomTestBase() {
 
         val state = db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_PAGOS)
         assertEquals("2026-06-02T20:00:00Z", state?.CURSOR)
+    }
+
+    // ─── applyByIds ─────────────────────────────────────────────────────────
+
+    /**
+     * applyByIds(PAGOS) llama a pagosByIds y mergea los resultados en Room.
+     */
+    @Test
+    fun applyByIds_pagos_mergesResultsIntoRoom() = runTest {
+        var byIdsCsvCalled: String? = null
+        val api = object : V2CobranzaApi {
+            override suspend fun syncVentas(
+                zonaId: Int,
+                cursor: String?,
+                afterId: Int,
+                limit: Int,
+                desde: String?
+            ) = error("not used")
+
+            override suspend fun syncPagos(
+                zonaId: Int,
+                cursor: String?,
+                afterId: Int,
+                limit: Int,
+                desde: String?
+            ) = error("not used")
+
+            override suspend fun pagosDigest(zonaId: Int, desde: String?) = error("not used")
+
+            override suspend fun saldosDigest(zonaId: Int, desde: String?) = error("not used")
+
+            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
+                error("not used")
+
+            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
+                error("not used")
+
+            override suspend fun pagosByIds(zonaId: Int, ids: String): List<PagoDto> {
+                byIdsCsvCalled = ids
+                return listOf(pagoDto(impteId = 1001, doctoCcId = 501))
+            }
+
+            override suspend fun saldosByIds(zonaId: Int, ids: String) = error("not used")
+        }
+
+        ByIdsChunker.byIdsAvailable.set(true)
+        val mgr = newManager(api)
+        mgr.applyByIds(SseKind.PAGOS, listOf(1001))
+
+        assertEquals("1001", byIdsCsvCalled)
+        // pagoDto(impteId=1001, doctoCcId=501) → docto_cc_acr_id=501
+        assertEquals(1, db.paymentDao().getPaymentsBySaleId(501).size)
+    }
+
+    /**
+     * applyByIds(SALDOS) llama a saldosByIds y mergea en Room.
+     */
+    @Test
+    fun applyByIds_saldos_mergesResultsIntoRoom() = runTest {
+        var byIdsCsvCalled: String? = null
+        val api = object : V2CobranzaApi {
+            override suspend fun syncVentas(
+                zonaId: Int,
+                cursor: String?,
+                afterId: Int,
+                limit: Int,
+                desde: String?
+            ) = error("not used")
+
+            override suspend fun syncPagos(
+                zonaId: Int,
+                cursor: String?,
+                afterId: Int,
+                limit: Int,
+                desde: String?
+            ) = error("not used")
+
+            override suspend fun pagosDigest(zonaId: Int, desde: String?) = error("not used")
+
+            override suspend fun saldosDigest(zonaId: Int, desde: String?) = error("not used")
+
+            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
+                error("not used")
+
+            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
+                error("not used")
+
+            override suspend fun pagosByIds(zonaId: Int, ids: String) = error("not used")
+
+            override suspend fun saldosByIds(zonaId: Int, ids: String): List<VentaDto> {
+                byIdsCsvCalled = ids
+                return listOf(ventaDto(3001))
+            }
+        }
+
+        ByIdsChunker.byIdsAvailable.set(true)
+        val mgr = newManager(api)
+        mgr.applyByIds(SseKind.SALDOS, listOf(3001))
+
+        assertEquals("3001", byIdsCsvCalled)
+        assertNotNull(db.saleDao().findByDoctoCcId(3001))
+    }
+
+    /**
+     * applyByIds con ids vacío no llama a la API.
+     */
+    @Test
+    fun applyByIds_emptyIds_doesNotCallApi() = runTest {
+        val api = failingApi()
+        val mgr = newManager(api)
+        mgr.applyByIds(SseKind.PAGOS, emptyList())
+        // Si llegamos aquí sin excepción, el API no fue llamado.
     }
 
     // ─── fixtures ───────────────────────────────────────────────────────────
