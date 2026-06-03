@@ -374,6 +374,39 @@ interface PaymentDao {
     suspend fun deleteByDoctoCcAcrId(doctoCcAcrId: Int)
 
     /**
+     * Tombstone-aware single-row delete. Used by the cobranza sync when the
+     * backend reports a pago as `cancelado=true`: the row in `MSP_PAGOS_VENTAS`
+     * is kept server-side with `IMPORTE=0` to make the cancellation visible to
+     * the incremental cursor, and the client deletes it locally so the
+     * cobrador never sees a phantom $0 pago. Idempotent: if the row is not
+     * present (e.g. the tombstone arrived for a pago that was never seen
+     * locally), this is a no-op DELETE with zero rows affected. Mirrors the
+     * cargo-side [deleteByDoctoCcAcrId] but scoped to a single
+     * IMPTE_DOCTO_CC_ID (the PK of `Payment`).
+     */
+    @Query("DELETE FROM Payment WHERE ID = :id")
+    suspend fun deleteByID(id: String)
+
+    /**
+     * Bulk variant of [deleteByID]. Used by the digest-driven reconcile when
+     * a set of orphaned IDs (present locally but absent on the server) must
+     * be evicted in one round-trip. Empty list short-circuits to no-op.
+     */
+    @Query("DELETE FROM Payment WHERE ID IN (:ids)")
+    suspend fun deleteByIDs(ids: List<String>)
+
+    /**
+     * Returns the full set of locally-cached pago IDs for the given zone.
+     * Used by the digest-driven reconcile to compute the local fingerprint
+     * and to enumerate orphans. Excludes nothing (there is no client-side
+     * tombstone flag — the row either exists or it doesn't).
+     */
+    @Query(
+        "SELECT ID FROM Payment WHERE ZONA_CLIENTE_ID = :zonaId ORDER BY CAST(ID AS INTEGER) ASC"
+    )
+    suspend fun getActiveIDsByZona(zonaId: Int): List<String>
+
+    /**
      * Cuenta los pagos del cargo cuyo `FECHA_HORA_PAGO` cae dentro de la
      * ventana del cobrador (>= `fechaIso`). Lo usa el merge del sync para
      * decidir si una venta saldada que llega debe conservarse — basta con

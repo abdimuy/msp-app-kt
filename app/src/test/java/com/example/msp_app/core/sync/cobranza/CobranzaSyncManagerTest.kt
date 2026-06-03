@@ -548,6 +548,98 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         assertEquals("2026-05-30T18:10:00Z", state.CURSOR)
     }
 
+    // ─── Tombstones de pagos individuales (mig 20 server-side) ──────────────
+
+    /**
+     * Contrato: cuando el backend manda un pago con `cancelado=true`, el
+     * cliente debe borrarlo de Room. Sin este branch, el UPSERT pegaba un
+     * fantasma de $0 (IMPORTE viene en cero porque el server convierte la
+     * cancelación en tombstone). Cubre tanto cancelaciones lógicas (flag
+     * `CANCELADO='S'` en IMPORTES_DOCTOS_CC) como DELETE físicos (mig 20
+     * los convierte en UPDATE tombstone con CANCELADO='S').
+     */
+    @Test
+    fun tombstoneDePagoBorraPaymentLocal() = runTest {
+        val impteId = 555
+        val seed = samplePayment(701).copy(ID = impteId.toString())
+        db.paymentDao().saveAll(listOf(seed))
+
+        val canceladoDto = pagoDto(impteId = impteId, doctoCcId = 701).copy(cancelado = true)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(canceladoDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        assertTrue(
+            "tombstone con cancelado=true debe borrar el pago local",
+            db.paymentDao().getPaymentsBySaleId(701).isEmpty()
+        )
+    }
+
+    /**
+     * Idempotencia: si la primera vez que vemos un pago ya viene tombstoneado
+     * (e.g. la app se instaló durante una ventana de inactividad), el DELETE
+     * no debe fallar — SQLite trata el DELETE WHERE PK=x sin match como
+     * cero rows affected.
+     */
+    @Test
+    fun tombstoneDePagoQueNoEstabaEnLocalNoFalla() = runTest {
+        val canceladoDto = pagoDto(impteId = 556, doctoCcId = 702).copy(cancelado = true)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(canceladoDto), hasMore = false))
+        )
+        val outcome = newManager(api).syncNow()
+        assertTrue(outcome is SyncOutcome.Ok)
+        assertTrue(db.paymentDao().getPaymentsBySaleId(702).isEmpty())
+    }
+
+    /**
+     * Mezcla en la misma página: el merge debe particionar tombstones
+     * (DELETE) y vivos (UPSERT) sin perder ninguno de los dos lados. Una
+     * regresión común sería iterar y solo aplicar la rama tombstone.
+     */
+    @Test
+    fun mergePagosParticionaTombstonesYUpserts() = runTest {
+        val seed = samplePayment(801).copy(ID = "1001")
+        db.paymentDao().saveAll(listOf(seed))
+
+        val tombstone = pagoDto(impteId = 1001, doctoCcId = 801).copy(cancelado = true)
+        val vivo = pagoDto(impteId = 1002, doctoCcId = 801)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(tombstone, vivo), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val pagos = db.paymentDao().getPaymentsBySaleId(801)
+        assertEquals("solo el pago vivo queda en local", 1, pagos.size)
+        assertEquals("1002", pagos.first().ID)
+    }
+
+    /**
+     * El cursor debe avanzar aunque la página solo traiga tombstones — sin
+     * esto, una racha de cancelaciones haría el sync inicial replayar el
+     * mismo cursor en cada tick.
+     */
+    @Test
+    fun tombstoneAvanzaCursorAunqueLaPaginaSoloTraigaTombstones() = runTest {
+        val seed = samplePayment(901).copy(ID = "2001")
+        db.paymentDao().saveAll(listOf(seed))
+
+        val tombstone = pagoDto(impteId = 2001, doctoCcId = 901)
+            .copy(cancelado = true, updated_at = "2026-06-02T20:00:00Z")
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(tombstone), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val state = db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_PAGOS)
+        assertEquals("2026-06-02T20:00:00Z", state?.CURSOR)
+    }
+
     // ─── fixtures ───────────────────────────────────────────────────────────
 
     private data class VentaPage(val items: List<VentaDto>, val hasMore: Boolean)

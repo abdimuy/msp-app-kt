@@ -12,7 +12,6 @@ import com.example.msp_app.data.local.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.data.local.dao.payment.PaymentDao
 import com.example.msp_app.data.local.dao.sale.SaleDao
 import com.example.msp_app.data.local.entities.CobranzaSyncStateEntity
-import com.example.msp_app.data.local.entities.PaymentEntity
 import java.time.Instant
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -311,10 +310,35 @@ class CobranzaSyncManager(
         }
     }
 
+    /**
+     * Merge contract for pagos:
+     *
+     *  - `cancelado=true` → tombstone: borra el pago local por su PK
+     *    (`IMPTE_DOCTO_CC_ID`). El backend mantiene la fila en
+     *    `MSP_PAGOS_VENTAS` con `IMPORTE=0` para propagar la cancelación
+     *    por el cursor incremental; aquí la quitamos para que el cobrador
+     *    no vea un pago fantasma de $0. Cubre ambos casos del server:
+     *    `CANCELADO='S'` por flag de Microsip y DELETE físico en
+     *    `IMPORTES_DOCTOS_CC` (mig 20 los unifica como tombstone).
+     *
+     *  - `cancelado=false` → upsert normal por PK (idempotente).
+     *
+     * La partición evita una segunda pasada y mantiene la ergonomía del
+     * `paymentDao.saveAll` actual (un solo UPSERT batch). Los DELETE se
+     * ejecutan en secuencia por simplicidad — el volumen por página
+     * (`limit=1000`) hace que el costo de N statements sea despreciable
+     * comparado con un único `DELETE ... WHERE ID IN (...)`. Si crece la
+     * presión, [PaymentDao.deleteByIDs] está disponible para bulk.
+     */
     private suspend fun mergePagos(items: List<PagoDto>) {
         if (items.isEmpty()) return
-        val entities: List<PaymentEntity> = items.map { it.toEntity() }
-        paymentDao.saveAll(entities)
+        val (tombstones, alive) = items.partition { it.cancelado }
+        for (t in tombstones) {
+            paymentDao.deleteByID(t.impte_docto_cc_id.toString())
+        }
+        if (alive.isNotEmpty()) {
+            paymentDao.saveAll(alive.map { it.toEntity() })
+        }
     }
 
     private suspend fun tickLoop() = coroutineScope {
