@@ -397,9 +397,14 @@ interface PaymentDao {
 
     /**
      * Returns the full set of locally-cached pago IDs for the given zone.
-     * Used by the digest-driven reconcile to compute the local fingerprint
-     * and to enumerate orphans. Excludes nothing (there is no client-side
-     * tombstone flag — the row either exists or it doesn't).
+     * Used by CobranzaReconciler to compute the local digest fingerprint
+     * and to enumerate orphans (phantoms). Excludes nothing — there is no
+     * client-side tombstone flag; the row either exists or it doesn't.
+     *
+     * The server /digest and /ids filters are now aligned with /sync
+     * (CANCELADO='N' + CONCEPTO_CC_ID IN (87327,27969) + SALDO > 0).
+     * In steady state `extras` should be 0; non-zero extras across many
+     * runs indicate a server-side filter regression.
      */
     @Query(
         "SELECT ID FROM Payment WHERE ZONA_CLIENTE_ID = :zonaId ORDER BY CAST(ID AS INTEGER) ASC"

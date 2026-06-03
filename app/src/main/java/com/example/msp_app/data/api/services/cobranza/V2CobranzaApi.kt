@@ -37,22 +37,41 @@ interface V2CobranzaApi {
         @Query("desde") desde: String? = null
     ): SyncPagosResponse
 
-    // Digest endpoints intencionalmente omitidos: ver KDoc de CobranzaReconciler.
+    @GET("v2/cobranza/sync/pagos/zona/{zona_id}/digest")
+    suspend fun pagosDigest(
+        @Path("zona_id") zonaId: Int,
+        @Query("desde") desde: String? = null
+    ): DigestResponse
+
+    @GET("v2/cobranza/sync/saldos/zona/{zona_id}/digest")
+    suspend fun saldosDigest(
+        @Path("zona_id") zonaId: Int,
+        @Query("desde") desde: String? = null
+    ): DigestResponse
 
     @GET("v2/cobranza/sync/pagos/zona/{zona_id}/ids")
     suspend fun listPagoIds(
         @Path("zona_id") zonaId: Int,
         @Query("after") after: Int = 0,
-        @Query("limit") limit: Int = 5000
+        @Query("limit") limit: Int = 5000,
+        @Query("desde") desde: String? = null
     ): IdsResponse
 
     @GET("v2/cobranza/sync/saldos/zona/{zona_id}/ids")
     suspend fun listSaldoIds(
         @Path("zona_id") zonaId: Int,
         @Query("after") after: Int = 0,
-        @Query("limit") limit: Int = 5000
+        @Query("limit") limit: Int = 5000,
+        @Query("desde") desde: String? = null
     ): IdsResponse
 }
+
+data class DigestResponse(
+    val count_activos: Int,
+    val ids_xor: String,
+    val ids_sum: String,
+    val max_updated_at: String?
+)
 
 data class SyncVentasResponse(
     val items: List<VentaDto>,

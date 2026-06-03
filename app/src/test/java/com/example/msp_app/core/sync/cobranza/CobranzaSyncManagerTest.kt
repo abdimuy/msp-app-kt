@@ -2,6 +2,7 @@ package com.example.msp_app.core.sync.cobranza
 
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.network.ConnectivityMonitor
+import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.SyncPagosResponse
 import com.example.msp_app.data.api.services.cobranza.SyncVentasResponse
@@ -297,9 +298,23 @@ class CobranzaSyncManagerTest : RoomTestBase() {
                 limit: Int,
                 desde: String?
             ) = throw RuntimeException("network down")
-            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int) =
+            override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse =
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse =
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
                 error("not used in sync tests")
-            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int) =
+            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
                 error("not used in sync tests")
         }
         val outcome = newManager(api).syncNow()
@@ -710,10 +725,16 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             )
         }
 
-        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int) =
+        override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse =
+            DigestResponse(count_activos = 0, ids_xor = "0", ids_sum = "0", max_updated_at = null)
+
+        override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse =
+            DigestResponse(count_activos = 0, ids_xor = "0", ids_sum = "0", max_updated_at = null)
+
+        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
             error("not used in sync tests")
 
-        override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int) =
+        override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
             error("not used in sync tests")
     }
 
@@ -741,9 +762,13 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             fail("API should not be called when offline / unzoned")
             error("unreachable")
         }
-        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int) =
+        override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse =
+            DigestResponse(count_activos = 0, ids_xor = "0", ids_sum = "0", max_updated_at = null)
+        override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse =
+            DigestResponse(count_activos = 0, ids_xor = "0", ids_sum = "0", max_updated_at = null)
+        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
             error("not used in sync tests")
-        override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int) =
+        override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
             error("not used in sync tests")
     }
 

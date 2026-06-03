@@ -2,6 +2,7 @@ package com.example.msp_app.core.sync.cobranza
 
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.network.ConnectivityMonitor
+import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
 import com.example.msp_app.data.api.services.cobranza.SyncPagosResponse
 import com.example.msp_app.data.api.services.cobranza.SyncVentasResponse
@@ -10,6 +11,7 @@ import com.example.msp_app.data.api.services.cobranza.VentaDto
 import com.example.msp_app.data.api.services.cobranza.toEntity
 import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.`test-fixtures`.RoomTestBase
+import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,18 +40,58 @@ class CobranzaReconcilerTest : RoomTestBase() {
     /**
      * Simple fake API for reconcile tests. Holds lists of pages per endpoint;
      * each call advances an index.
+     *
+     * Digest stubs default to DigestResponse(0, "0", "0", null) which always
+     * mismatches local state (unless local is also empty), ensuring all existing
+     * /ids-based tests continue to exercise the /ids path unchanged.
      */
     private inner class FakeV2CobranzaApi(
         var pagoIdPages: List<IdsResponse> = listOf(IdsResponse(emptyList(), false)),
-        var saldoIdPages: List<IdsResponse> = listOf(IdsResponse(emptyList(), false))
+        var saldoIdPages: List<IdsResponse> = listOf(IdsResponse(emptyList(), false)),
+        var pagosDigestResponses: List<DigestResponse> = listOf(
+            DigestResponse(count_activos = 0, ids_xor = "0", ids_sum = "0", max_updated_at = null)
+        ),
+        var saldosDigestResponses: List<DigestResponse> = listOf(
+            DigestResponse(count_activos = 0, ids_xor = "0", ids_sum = "0", max_updated_at = null)
+        )
     ) : V2CobranzaApi {
         private var pagoIdx = 0
         private var saldoIdx = 0
+        private var pagosDigestIdx = 0
+        private var saldosDigestIdx = 0
 
         var listPagoIdsCalled = 0
         var listSaldoIdsCalled = 0
+        var pagosDigestCalled = 0
+        var saldosDigestCalled = 0
 
-        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int): IdsResponse {
+        var lastPagosDigestDesde: String? = null
+        var lastSaldosDigestDesde: String? = null
+
+        override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse {
+            pagosDigestCalled++
+            lastPagosDigestDesde = desde
+            val resp = pagosDigestResponses.getOrNull(pagosDigestIdx)
+                ?: error("pagosDigest called too many times (idx=$pagosDigestIdx)")
+            pagosDigestIdx++
+            return resp
+        }
+
+        override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse {
+            saldosDigestCalled++
+            lastSaldosDigestDesde = desde
+            val resp = saldosDigestResponses.getOrNull(saldosDigestIdx)
+                ?: error("saldosDigest called too many times (idx=$saldosDigestIdx)")
+            saldosDigestIdx++
+            return resp
+        }
+
+        override suspend fun listPagoIds(
+            zonaId: Int,
+            after: Int,
+            limit: Int,
+            desde: String?
+        ): IdsResponse {
             listPagoIdsCalled++
             val page = pagoIdPages.getOrNull(pagoIdx)
                 ?: error("listPagoIds called too many times (idx=$pagoIdx)")
@@ -57,7 +99,12 @@ class CobranzaReconcilerTest : RoomTestBase() {
             return page
         }
 
-        override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int): IdsResponse {
+        override suspend fun listSaldoIds(
+            zonaId: Int,
+            after: Int,
+            limit: Int,
+            desde: String?
+        ): IdsResponse {
             listSaldoIdsCalled++
             val page = saldoIdPages.getOrNull(saldoIdx)
                 ?: error("listSaldoIds called too many times (idx=$saldoIdx)")
@@ -91,14 +138,15 @@ class CobranzaReconcilerTest : RoomTestBase() {
     private fun newReconciler(
         api: V2CobranzaApi,
         online: Boolean = true,
-        zona: Int? = 21
+        zona: Int? = 21,
+        fechaCargaInicial: Instant? = null
     ): CobranzaReconciler = CobranzaReconciler(
         api = api,
         saleDao = db.saleDao(),
         paymentDao = db.paymentDao(),
         connectivity = FakeConnectivity(online),
         userContextFlow = MutableStateFlow(
-            zona?.let { UserContext(zona = it, fechaCargaInicial = null) }
+            zona?.let { UserContext(zona = it, fechaCargaInicial = fechaCargaInicial) }
         ).asStateFlow()
     )
 
@@ -159,10 +207,17 @@ class CobranzaReconcilerTest : RoomTestBase() {
         NOMBRE_CLIENTE = ""
     )
 
+    // Helper: compute XOR of a list of ints as Long.
+    private fun xorOf(vararg ids: Int): Long = ids.fold(0L) { acc, id -> acc xor id.toLong() }
+
+    // Helper: compute SUM of a list of ints as Long.
+    private fun sumOf(vararg ids: Int): Long = ids.fold(0L) { acc, id -> acc + id.toLong() }
+
     // ─── Tests ──────────────────────────────────────────────────────────────
 
     /**
      * Happy path: local set equals server set — no phantoms, no extras.
+     * Digest mismatches (default stub) → falls through to /ids path.
      */
     @Test
     fun happyPathNoDriftReturnsOkZeroZero() = runTest {
@@ -303,11 +358,29 @@ class CobranzaReconcilerTest : RoomTestBase() {
     @Test
     fun skipOfflineNoApiCall() = runTest {
         val api = object : V2CobranzaApi {
-            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int): IdsResponse {
+            override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse {
                 fail("API must not be called when offline")
                 error("unreachable")
             }
-            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int): IdsResponse {
+            override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse {
+                fail("API must not be called when offline")
+                error("unreachable")
+            }
+            override suspend fun listPagoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse {
+                fail("API must not be called when offline")
+                error("unreachable")
+            }
+            override suspend fun listSaldoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse {
                 fail("API must not be called when offline")
                 error("unreachable")
             }
@@ -340,11 +413,29 @@ class CobranzaReconcilerTest : RoomTestBase() {
     @Test
     fun skipNoZoneNoApiCall() = runTest {
         val api = object : V2CobranzaApi {
-            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int): IdsResponse {
+            override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse {
                 fail("API must not be called without zone")
                 error("unreachable")
             }
-            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int): IdsResponse {
+            override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse {
+                fail("API must not be called without zone")
+                error("unreachable")
+            }
+            override suspend fun listPagoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse {
+                fail("API must not be called without zone")
+                error("unreachable")
+            }
+            override suspend fun listSaldoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse {
                 fail("API must not be called without zone")
                 error("unreachable")
             }
@@ -372,17 +463,29 @@ class CobranzaReconcilerTest : RoomTestBase() {
     }
 
     /**
-     * Network error during /ids fetch → returns Error(cause), no rows deleted.
+     * Network error during /digest fetch → returns Error(cause), no rows deleted.
      */
     @Test
     fun networkErrorReturnsErrorOutcomeNoRowsDeleted() = runTest {
         db.saleDao().insertAll(listOf(sampleVenta(601).toEntity()))
 
         val api = object : V2CobranzaApi {
-            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int): IdsResponse =
+            override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse =
                 throw RuntimeException("network down")
-            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int): IdsResponse =
+            override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse =
                 throw RuntimeException("network down")
+            override suspend fun listPagoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse = throw RuntimeException("network down")
+            override suspend fun listSaldoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse = throw RuntimeException("network down")
             override suspend fun syncVentas(
                 zonaId: Int,
                 cursor: String?,
@@ -410,6 +513,195 @@ class CobranzaReconcilerTest : RoomTestBase() {
         assertTrue(db.saleDao().findByDoctoCcId(601) != null)
     }
 
+    // ─── New digest-first tests ──────────────────────────────────────────────
+
+    /**
+     * When both digests match, /ids is NOT called and outcome is Ok(0,0,0,0).
+     */
+    @Test
+    fun digestMatchesSkipsIds() = runTest {
+        // Seed Room: 3 pago IDs [10, 20, 30] in zona 21.
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(10, 100),
+                samplePayment(20, 200),
+                samplePayment(30, 300)
+            )
+        )
+        // Seed Room: 3 saldo IDs [10, 20, 30] in zona 21.
+        db.saleDao().insertAll(
+            listOf(
+                sampleVenta(10).toEntity(),
+                sampleVenta(20).toEntity(),
+                sampleVenta(30).toEntity()
+            )
+        )
+
+        val pagoXor = xorOf(10, 20, 30)
+        val pagoSum = sumOf(10, 20, 30)
+        val saldoXor = xorOf(10, 20, 30)
+        val saldoSum = sumOf(10, 20, 30)
+
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 3,
+                    ids_xor = pagoXor.toString(),
+                    ids_sum = pagoSum.toString(),
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 3,
+                    ids_xor = saldoXor.toString(),
+                    ids_sum = saldoSum.toString(),
+                    max_updated_at = null
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        val ok = outcome as ReconcileOutcome.Ok
+        assertEquals(0, ok.pagosPhantomsDeleted)
+        assertEquals(0, ok.saldosPhantomsDeleted)
+        assertEquals(0, ok.pagosExtrasOnServer)
+        assertEquals(0, ok.saldosExtrasOnServer)
+
+        // /ids must NOT have been called.
+        assertEquals(0, api.listPagoIdsCalled)
+        assertEquals(0, api.listSaldoIdsCalled)
+    }
+
+    /**
+     * When pagos digest mismatches (server count=4), /ids is called for pagos
+     * only. Saldos digest matches so saldos /ids is skipped.
+     */
+    @Test
+    fun digestMismatchTriggersIds() = runTest {
+        // Seed local: 3 pagos.
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(10, 100),
+                samplePayment(20, 200),
+                samplePayment(30, 300)
+            )
+        )
+        // Saldos: empty local, empty server → digest matches (0,0,0).
+
+        val api = FakeV2CobranzaApi(
+            // Pagos digest: server says count=4 → mismatch.
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 4,
+                    ids_xor = "99",
+                    ids_sum = "99",
+                    max_updated_at = null
+                )
+            ),
+            // Saldos digest: matches empty local (count=0, xor=0, sum=0).
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            // /ids pagos: server has [10, 20, 30, 40] — 40 is extra.
+            pagoIdPages = listOf(IdsResponse(listOf(10, 20, 30, 40), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false))
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        val ok = outcome as ReconcileOutcome.Ok
+        assertEquals(0, ok.pagosPhantomsDeleted)
+        assertEquals(0, ok.saldosPhantomsDeleted)
+        assertEquals(1, ok.pagosExtrasOnServer)
+        assertEquals(0, ok.saldosExtrasOnServer)
+
+        // Only pagos /ids was called; saldos /ids was skipped.
+        assertEquals(1, api.listPagoIdsCalled)
+        assertEquals(0, api.listSaldoIdsCalled)
+    }
+
+    /**
+     * Pagos digest matches → pagos /ids skipped.
+     * Saldos digest mismatches → saldos /ids called.
+     */
+    @Test
+    fun digestMatchOnPagosSkipsPagosIds() = runTest {
+        // Pagos: empty local, server digest also empty → match.
+        // Saldos: empty local, server says count=2 → mismatch.
+
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 2,
+                    ids_xor = "99",
+                    ids_sum = "99",
+                    max_updated_at = null
+                )
+            ),
+            pagoIdPages = listOf(IdsResponse(emptyList(), false)),
+            saldoIdPages = listOf(IdsResponse(listOf(50, 51), false))
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+
+        // Pagos /ids must NOT have been called; saldos /ids must have been called once.
+        assertEquals(0, api.listPagoIdsCalled)
+        assertEquals(1, api.listSaldoIdsCalled)
+    }
+
+    /**
+     * When fechaCargaInicial is non-null, its toString() is forwarded as
+     * `desde` to both /digest calls.
+     */
+    @Test
+    fun desdeIsForwarded() = runTest {
+        val ventana = Instant.parse("2026-04-01T00:00:00Z")
+
+        // Both digests match empty local → early return, desde is still set.
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            )
+        )
+
+        newReconciler(api, fechaCargaInicial = ventana).reconcileNow()
+
+        assertEquals(ventana.toString(), api.lastPagosDigestDesde)
+        assertEquals(ventana.toString(), api.lastSaldosDigestDesde)
+    }
+
     /**
      * Prueba estructural del Mutex: la segunda llamada a reconcileNow() debe
      * BLOQUEAR mientras la primera tiene el lock. Para distinguir "se
@@ -418,6 +710,8 @@ class CobranzaReconcilerTest : RoomTestBase() {
      * antes de soltar la primera. La versión previa solo afirmaba
      * `callCount == 2` después de joinear las dos — eso prueba completitud,
      * no serialización.
+     *
+     * El bloqueo ocurre en pagosDigest (primer call del reconcileNow).
      */
     @Test
     fun mutexSerializesConcurrentCalls() = runTest {
@@ -426,14 +720,37 @@ class CobranzaReconcilerTest : RoomTestBase() {
         val gate = CompletableDeferred<Unit>()
 
         val api = object : V2CobranzaApi {
-            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int): IdsResponse {
+            override suspend fun pagosDigest(zonaId: Int, desde: String?): DigestResponse {
                 entered.complete(Unit)
                 gate.await()
                 callCount++
-                return IdsResponse(emptyList(), false)
+                // Return mismatch so it falls through to /ids.
+                return DigestResponse(
+                    count_activos = 99,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
             }
-            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int): IdsResponse =
-                IdsResponse(emptyList(), false)
+            override suspend fun saldosDigest(zonaId: Int, desde: String?): DigestResponse =
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            override suspend fun listPagoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse = IdsResponse(emptyList(), false)
+            override suspend fun listSaldoIds(
+                zonaId: Int,
+                after: Int,
+                limit: Int,
+                desde: String?
+            ): IdsResponse = IdsResponse(emptyList(), false)
             override suspend fun syncVentas(
                 zonaId: Int,
                 cursor: String?,

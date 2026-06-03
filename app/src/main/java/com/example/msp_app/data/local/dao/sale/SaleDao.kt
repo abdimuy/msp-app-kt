@@ -299,17 +299,15 @@ interface SaleDao {
 
     /**
      * Devuelve los DOCTO_CC_IDs de TODAS las ventas en local para esta zona.
-     * Usado por CobranzaReconciler para detectar phantoms (rows que el
-     * server ya no tiene activas).
+     * Usado por CobranzaReconciler para computar el digest local y detectar
+     * phantoms (rows que el server ya no tiene activas).
      *
-     * La query NO replica el filtro `SALDO > 0` ni la ventana de
-     * `deleteSaldadasFueraDeVentana` — intencional. El server `/ids` filtra
-     * sólo por `CARGO_CANCELADO='N' AND ZONA=?` (sin saldo, sin desde),
-     * así que el set del server es un SUPERSET del local. La intersección
-     * `local - server` solo contiene rows genuinamente cancelados en el
-     * server (tombstones perdidos, snapshot restore, retención >30 días).
-     * Filtrar acá por SALDO produciría falsos phantoms cuando una venta
-     * recién saldada todavía no llegó al prune.
+     * Los filtros del server /digest y /ids están alineados con /sync
+     * (CARGO_CANCELADO='N' + SALDO > 0 + opcional desde). En steady state
+     * `extras` debe ser 0 — si persiste, indica una divergencia de filtros
+     * server-side. La query local no filtra por SALDO porque las ventas
+     * saldadas se pruenan localmente por pruneSaldadasFueraDeVentana;
+     * filtrar aquí produciría falsos phantoms durante ese intervalo.
      */
     @Query("SELECT DOCTO_CC_ID FROM sales WHERE ZONA_CLIENTE_ID = :zonaId ORDER BY DOCTO_CC_ID ASC")
     suspend fun getActiveIdsByZona(zonaId: Int): List<Int>

@@ -2,6 +2,7 @@ package com.example.msp_app.core.sync.cobranza
 
 import android.util.Log
 import com.example.msp_app.core.network.ConnectivityMonitor
+import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.local.dao.payment.PaymentDao
@@ -24,26 +25,29 @@ import kotlinx.coroutines.sync.withLock
  *     a tocar.
  *  3. Bugs locales que hayan dejado state inconsistente.
  *
- * --- Por qué NO se llama al endpoint /digest ---
- * Server-side (commit a1ceffb del repo msp-api) el endpoint /digest
- * filtra sólo por `CANCELADO='N' AND ZONA_CLIENTE_ID=?`, mientras que
- * /sync también filtra por `CONCEPTO_CC_ID IN (87327, 27969)` y
- * `s.SALDO > 0`. El set del digest es estructuralmente un superset del
- * que el sync entrega, así que un digest local nunca igualaría al del
- * server en steady state — y el call al /digest sería siempre ruido.
+ * --- Protocolo digest-first ---
+ * Antes de bajar el set completo de IDs vía /ids (operación cara), el
+ * reconciler llama a /digest para pagos y saldos en paralelo. El digest
+ * del server es un triplete (count, XOR, SUM) sobre los IDs activos de
+ * la zona con los mismos filtros que /sync aplica:
  *
- * TODO(server): cuando el endpoint /digest acepte un `desde=` y aplique
- * los mismos filtros de saldo/concepto que /sync, podemos llamarlo
- * primero como pre-check barato (matching server-vs-local digest sin
- * pedir todos los IDs). Por ahora vamos directo a /ids.
+ *   - Pagos:  CANCELADO='N' + CONCEPTO_CC_ID IN (87327, 27969) + SALDO > 0
+ *             (o FECHA >= desde si se pasa `desde`).
+ *   - Saldos: CARGO_CANCELADO='N' + SALDO > 0
+ *             (o FECHA_ULT_PAGO >= desde si se pasa `desde`).
  *
- * --- Semántica del reconcile ---
- * Se baja el set completo de IDs activos del server (zona-scoped, via
- * /ids paginado), se compara con los IDs locales y se borra
- * `local - server` (phantoms). El delta `server - local` es esperado
- * en steady state por la asimetría arriba; se loguea para
- * observabilidad pero no se actúa — el sync incremental los traerá si
- * caen dentro del filtro server-side (saldo/concepto/desde).
+ * Se computa el mismo triplete sobre los IDs locales en Room. Si coinciden
+ * → no hay drift → se devuelve Ok(0, 0, 0, 0) sin llamar a /ids. Si
+ * alguno no coincide → se cae al path /ids SOLO PARA ESE KIND. Esto hace
+ * que el caso steady-state (sin drift) cueste dos llamadas HTTP ligeras
+ * en lugar de descargar todos los IDs paginados.
+ *
+ * --- Steady-state y extras ---
+ * Tras la alineación de filtros en el server (commit 5b42b55 de msp-api),
+ * /digest y /ids aplican exactamente los mismos predicados que /sync. En
+ * steady state `extras` debe converger a 0. Si persiste no-cero a lo
+ * largo de muchos runs, indica una divergencia de filtros en el server
+ * (regresión). Se loguea para observabilidad.
  *
  * Idempotente: corre tantas veces como quieras, el resultado converge.
  * Mutex-protegido: dos llamadas concurrentes serializan.
@@ -68,74 +72,137 @@ class CobranzaReconciler(
                 return ReconcileOutcome.SkippedNoZone
             }
             val zona = ctx.zona
+            val desdeIso = ctx.fechaCargaInicial?.toString()
 
             try {
                 Log.i(TAG, "reconcileNow start zona=$zona")
 
-                // Collect full server-side ID sets via paginated /ids endpoints.
-                val serverPagoIds = fetchAllServerIds { after ->
-                    api.listPagoIds(zona, after = after, limit = PAGE_LIMIT)
+                // Pre-check: compare server vs local digest. Saves the /ids round-trip
+                // when there's no drift, which should be the common case.
+                val pagoMatched = checkDigestMatch(
+                    server = api.pagosDigest(zona, desde = desdeIso),
+                    localIds = paymentDao.getActiveIDsByZona(zona).map { it.toInt() }
+                )
+                val saldoMatched = checkDigestMatch(
+                    server = api.saldosDigest(zona, desde = desdeIso),
+                    localIds = saleDao.getActiveIdsByZona(zona)
+                )
+
+                if (pagoMatched && saldoMatched) {
+                    Log.i(TAG, "reconcileNow zona=$zona — both digests match, skip ids")
+                    return@withLock ReconcileOutcome.Ok(0, 0, 0, 0)
                 }
-                val serverSaldoIds = fetchAllServerIds { after ->
-                    api.listSaldoIds(zona, after = after, limit = PAGE_LIMIT)
-                }
 
-                // Read local ID sets.
-                val localPagoIds = paymentDao.getActiveIDsByZona(zona).map { it.toInt() }.toSet()
-                val localSaldoIds = saleDao.getActiveIdsByZona(zona).toSet()
-
-                // Phantoms = local − server: rows the client has but server no longer serves.
-                val pagoPhantoms = localPagoIds - serverPagoIds
-                val saldoPhantoms = localSaldoIds - serverSaldoIds
-
-                // Extras = server − local: expected in steady state due to filter asymmetry.
-                // Do NOT fetch — the incremental sync will bring them when they fall within
-                // the saldo/concepto/desde filters. Log for observability only.
-                val pagosExtras = serverPagoIds - localPagoIds
-                val saldosExtras = serverSaldoIds - localSaldoIds
-
-                if (pagosExtras.isNotEmpty()) {
-                    Log.i(
-                        TAG,
-                        "reconcile: ${pagosExtras.size} pago IDs on server but not local " +
-                            "(expected — server /ids superset vs /sync filters)"
+                // Mismatch → /ids reconcile FOR THAT KIND ONLY.
+                val pagoStats = if (pagoMatched) {
+                    Pair(
+                        0,
+                        0
                     )
+                } else {
+                    reconcilePagosViaIds(zona, desdeIso)
                 }
-                if (saldosExtras.isNotEmpty()) {
-                    Log.i(
-                        TAG,
-                        "reconcile: ${saldosExtras.size} saldo IDs on server but not local " +
-                            "(expected — server /ids superset vs /sync filters)"
+                val saldoStats = if (saldoMatched) {
+                    Pair(
+                        0,
+                        0
                     )
-                }
-
-                // Bulk-delete phantoms in one round-trip each.
-                if (pagoPhantoms.isNotEmpty()) {
-                    Log.i(TAG, "reconcile: deleting ${pagoPhantoms.size} phantom pagos")
-                    paymentDao.deleteByIDs(pagoPhantoms.map { it.toString() })
-                }
-                if (saldoPhantoms.isNotEmpty()) {
-                    Log.i(TAG, "reconcile: deleting ${saldoPhantoms.size} phantom saldos")
-                    saleDao.deleteByDoctoCcIds(saldoPhantoms.toList())
+                } else {
+                    reconcileSaldosViaIds(zona, desdeIso)
                 }
 
                 Log.i(
                     TAG,
                     "reconcileNow ok zona=$zona " +
-                        "pagoPhantoms=${pagoPhantoms.size} saldoPhantoms=${saldoPhantoms.size} " +
-                        "pagosExtras=${pagosExtras.size} saldosExtras=${saldosExtras.size}"
+                        "pagoPhantoms=${pagoStats.first} saldoPhantoms=${saldoStats.first} " +
+                        "pagosExtras=${pagoStats.second} saldosExtras=${saldoStats.second}"
                 )
                 ReconcileOutcome.Ok(
-                    pagosPhantomsDeleted = pagoPhantoms.size,
-                    saldosPhantomsDeleted = saldoPhantoms.size,
-                    pagosExtrasOnServer = pagosExtras.size,
-                    saldosExtrasOnServer = saldosExtras.size
+                    pagosPhantomsDeleted = pagoStats.first,
+                    saldosPhantomsDeleted = saldoStats.first,
+                    pagosExtrasOnServer = pagoStats.second,
+                    saldosExtrasOnServer = saldoStats.second
                 )
             } catch (e: Exception) {
                 Log.w(TAG, "reconcile failed: ${e.message}", e)
                 ReconcileOutcome.Error(e)
             }
         }
+    }
+
+    private suspend fun reconcilePagosViaIds(zona: Int, desdeIso: String?): Pair<Int, Int> {
+        val serverPagoIds = fetchAllServerIds { after ->
+            api.listPagoIds(zona, after = after, limit = PAGE_LIMIT, desde = desdeIso)
+        }
+        val localPagoIds = paymentDao.getActiveIDsByZona(zona).map { it.toInt() }.toSet()
+
+        val pagoPhantoms = localPagoIds - serverPagoIds
+        val pagosExtras = serverPagoIds - localPagoIds
+
+        if (pagosExtras.isNotEmpty()) {
+            Log.i(
+                TAG,
+                "reconcile: ${pagosExtras.size} pago IDs on server but not local " +
+                    "(smoke signal — expected 0 with aligned filters; non-zero may indicate regression)"
+            )
+        }
+        if (pagoPhantoms.isNotEmpty()) {
+            Log.i(TAG, "reconcile: deleting ${pagoPhantoms.size} phantom pagos")
+            paymentDao.deleteByIDs(pagoPhantoms.map { it.toString() })
+        }
+
+        return Pair(pagoPhantoms.size, pagosExtras.size)
+    }
+
+    private suspend fun reconcileSaldosViaIds(zona: Int, desdeIso: String?): Pair<Int, Int> {
+        val serverSaldoIds = fetchAllServerIds { after ->
+            api.listSaldoIds(zona, after = after, limit = PAGE_LIMIT, desde = desdeIso)
+        }
+        val localSaldoIds = saleDao.getActiveIdsByZona(zona).toSet()
+
+        val saldoPhantoms = localSaldoIds - serverSaldoIds
+        val saldosExtras = serverSaldoIds - localSaldoIds
+
+        if (saldosExtras.isNotEmpty()) {
+            Log.i(
+                TAG,
+                "reconcile: ${saldosExtras.size} saldo IDs on server but not local " +
+                    "(smoke signal — expected 0 with aligned filters; non-zero may indicate regression)"
+            )
+        }
+        if (saldoPhantoms.isNotEmpty()) {
+            Log.i(TAG, "reconcile: deleting ${saldoPhantoms.size} phantom saldos")
+            saleDao.deleteByDoctoCcIds(saldoPhantoms.toList())
+        }
+
+        return Pair(saldoPhantoms.size, saldosExtras.size)
+    }
+
+    /**
+     * Computes the local digest triplet over [localIds] and compares it
+     * against the server's [DigestResponse]. Returns true when all three
+     * fields (count, XOR, SUM) agree — meaning there is no drift for this
+     * kind and /ids can be skipped.
+     *
+     * Uses Long (int64) arithmetic for XOR and SUM to match server semantics
+     * and avoid 32-bit overflow on the SUM (worst case: 50k rows × 100M IDs
+     * ≈ 5e15 — fits in int64, blows int32).
+     */
+    private fun checkDigestMatch(server: DigestResponse, localIds: List<Int>): Boolean {
+        val localCount = localIds.size
+        val localXor = localIds.fold(0L) { acc, id -> acc xor id.toLong() }
+        val localSum = localIds.fold(0L) { acc, id -> acc + id.toLong() }
+        val serverXor = server.ids_xor.toLong()
+        val serverSum = server.ids_sum.toLong()
+        val matched = server.count_activos == localCount && serverXor == localXor && serverSum == localSum
+        if (!matched) {
+            Log.i(
+                TAG,
+                "digest mismatch: server(count=${server.count_activos}, xor=$serverXor, sum=$serverSum) " +
+                    "local(count=$localCount, xor=$localXor, sum=$localSum)"
+            )
+        }
+        return matched
     }
 
     /**
