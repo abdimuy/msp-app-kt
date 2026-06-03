@@ -17,8 +17,11 @@ object V2ApiProvider : V2BaseApi() {
      * Base URL del backend Go. `10.0.2.2` es el alias del host de la maquina
      * desde el emulador Android. Para device fisico hay que cambiar por la
      * IP LAN; para staging/prod, por la URL publica.
+     *
+     * Visible `internal` para que [CobranzaSseProvider] pueda reutilizar la
+     * misma URL sin duplicarla.
      */
-    private const val BASE_URL = "http://10.0.2.2:3001/"
+    internal const val BASE_URL = "http://10.0.2.2:3001/"
 
     @Volatile private var retrofit: Retrofit? = null
 

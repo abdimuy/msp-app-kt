@@ -42,8 +42,12 @@ open class V2BaseApi {
  * token is fetched via [FirebaseAuth.currentUser]?.getIdToken; requests issued
  * with no signed-in user pass through without the header so the backend
  * responds 401 explicitly instead of stalling on missing creds.
+ *
+ * Visibility promoted to `internal` so that [CobranzaSseProvider] can reuse
+ * the same interceptor pattern for the SSE OkHttpClient without duplicating
+ * the auth logic.
  */
-private class FirebaseBearerInterceptor : Interceptor {
+internal class FirebaseBearerInterceptor : Interceptor {
 
     private val tokenCache = TokenCache()
 
