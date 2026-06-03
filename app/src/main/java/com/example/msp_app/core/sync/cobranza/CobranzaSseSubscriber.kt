@@ -174,14 +174,38 @@ class CobranzaSseSubscriber(
 
     // ─── Debounce ────────────────────────────────────────────────────────────
 
-    private fun scheduleOnEvent() {
+    /**
+     * Programa la llamada a [onEvent] tras un debounce. Si recibe el ts del
+     * server (en `data`), loggea el transit time (server→cliente) y el total
+     * desde la llegada del evento hasta que [onEvent] retorna (incluye
+     * debounce + syncNow). Permite medir end-to-end real-time desde logcat
+     * sin recursos extras.
+     */
+    private fun scheduleOnEvent(eventReceivedAt: Long, kind: String) {
         synchronized(mu) {
             debounceJob?.cancel()
             debounceJob = coroutineScope.launch {
                 delay(DEBOUNCE_MS)
+                val syncStartedAt = System.currentTimeMillis()
                 onEvent()
+                val syncEndedAt = System.currentTimeMillis()
+                Log.i(
+                    TAG,
+                    "SSE $kind sync done: sync=${syncEndedAt - syncStartedAt}ms " +
+                        "total_since_event=${syncEndedAt - eventReceivedAt}ms"
+                )
             }
         }
+    }
+
+    /**
+     * Extrae `ts` (millis epoch UTC) del payload SSE `data: {"ts":N}`.
+     * El server lo incluye en cada evento; ausente o malformed → null.
+     * Sin alocar JSONObject: regex simple para no traer dependencias.
+     */
+    private fun parseServerTs(data: String): Long? {
+        val match = Regex("\"ts\"\\s*:\\s*(\\d+)").find(data) ?: return null
+        return match.groupValues[1].toLongOrNull()
     }
 
     // ─── Backoff ─────────────────────────────────────────────────────────────
@@ -205,8 +229,14 @@ class CobranzaSseSubscriber(
         }
 
         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-            Log.d(TAG, "SSE pagos evento: type=$type")
-            scheduleOnEvent()
+            val receivedAt = System.currentTimeMillis()
+            val serverTs = parseServerTs(data)
+            val transit = serverTs?.let { receivedAt - it }
+            Log.i(
+                TAG,
+                "SSE pagos evento: type=$type transit=${transit ?: "?"}ms"
+            )
+            scheduleOnEvent(receivedAt, "pagos")
         }
 
         override fun onClosed(eventSource: EventSource) {
@@ -256,8 +286,14 @@ class CobranzaSseSubscriber(
         }
 
         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-            Log.d(TAG, "SSE saldos evento: type=$type")
-            scheduleOnEvent()
+            val receivedAt = System.currentTimeMillis()
+            val serverTs = parseServerTs(data)
+            val transit = serverTs?.let { receivedAt - it }
+            Log.i(
+                TAG,
+                "SSE saldos evento: type=$type transit=${transit ?: "?"}ms"
+            )
+            scheduleOnEvent(receivedAt, "saldos")
         }
 
         override fun onClosed(eventSource: EventSource) {
