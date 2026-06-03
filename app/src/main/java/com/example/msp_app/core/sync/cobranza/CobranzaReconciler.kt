@@ -5,6 +5,7 @@ import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
+import com.example.msp_app.data.api.services.cobranza.toEntity
 import com.example.msp_app.data.local.dao.payment.PaymentDao
 import com.example.msp_app.data.local.dao.sale.SaleDao
 import kotlinx.coroutines.flow.StateFlow
@@ -144,21 +145,40 @@ class CobranzaReconciler(
         val localPagoIds = paymentDao.getActiveIDsByZona(zona).map { it.toInt() }.toSet()
 
         val pagoPhantoms = localPagoIds - serverPagoIds
-        val pagosExtras = serverPagoIds - localPagoIds
+        val pagosMissing = serverPagoIds - localPagoIds
 
-        if (pagosExtras.isNotEmpty()) {
-            Log.i(
-                TAG,
-                "reconcile: ${pagosExtras.size} pago IDs on server but not local " +
-                    "(smoke signal — expected 0 with aligned filters; non-zero may indicate regression)"
-            )
-        }
+        // Phantoms: en local pero no en servidor → borrar.
         if (pagoPhantoms.isNotEmpty()) {
             Log.i(TAG, "reconcile: deleting ${pagoPhantoms.size} phantom pagos")
             paymentDao.deleteByIDs(pagoPhantoms.map { it.toString() })
         }
 
-        return Pair(pagoPhantoms.size, pagosExtras.size)
+        // Missing: en servidor pero no en local → traer quirúrgicamente si
+        // byIdsAvailable; de lo contrario loguear como smoke signal (el cursor-
+        // sync del próximo tick los incorporará).
+        if (pagosMissing.isNotEmpty()) {
+            if (ByIdsChunker.byIdsAvailable.get()) {
+                Log.i(TAG, "reconcile: fetching ${pagosMissing.size} missing pagos via by-ids")
+                val fetched = ByIdsChunker.fetchInChunks(pagosMissing.toList()) { chunk ->
+                    api.pagosByIds(zona, chunk)
+                }
+                // Merge: upsert solo vivos (cancelado=false). Los tombstones en este
+                // path son raros (el server no los incluye en /ids activos), pero por
+                // defensividad respetamos el flag.
+                val alive = fetched.filter { !it.cancelado }
+                if (alive.isNotEmpty()) {
+                    paymentDao.saveAll(alive.map { it.toEntity() })
+                }
+            } else {
+                Log.i(
+                    TAG,
+                    "reconcile: ${pagosMissing.size} pago IDs on server but not local " +
+                        "(byIds no disponible — el cursor-sync los incorporará en el próximo tick)"
+                )
+            }
+        }
+
+        return Pair(pagoPhantoms.size, pagosMissing.size)
     }
 
     private suspend fun reconcileSaldosViaIds(zona: Int, desdeIso: String?): Pair<Int, Int> {
@@ -168,21 +188,36 @@ class CobranzaReconciler(
         val localSaldoIds = saleDao.getActiveIdsByZona(zona).toSet()
 
         val saldoPhantoms = localSaldoIds - serverSaldoIds
-        val saldosExtras = serverSaldoIds - localSaldoIds
+        val saldosMissing = serverSaldoIds - localSaldoIds
 
-        if (saldosExtras.isNotEmpty()) {
-            Log.i(
-                TAG,
-                "reconcile: ${saldosExtras.size} saldo IDs on server but not local " +
-                    "(smoke signal — expected 0 with aligned filters; non-zero may indicate regression)"
-            )
-        }
+        // Phantoms: en local pero no en servidor → borrar.
         if (saldoPhantoms.isNotEmpty()) {
             Log.i(TAG, "reconcile: deleting ${saldoPhantoms.size} phantom saldos")
             saleDao.deleteByDoctoCcIds(saldoPhantoms.toList())
         }
 
-        return Pair(saldoPhantoms.size, saldosExtras.size)
+        // Missing: en servidor pero no en local → traer quirúrgicamente.
+        if (saldosMissing.isNotEmpty()) {
+            if (ByIdsChunker.byIdsAvailable.get()) {
+                Log.i(TAG, "reconcile: fetching ${saldosMissing.size} missing saldos via by-ids")
+                val fetched = ByIdsChunker.fetchInChunks(saldosMissing.toList()) { chunk ->
+                    api.saldosByIds(zona, chunk)
+                }
+                // Merge: solo activos (cargo_cancelado=false, saldo>0 ó sin ventana).
+                val alive = fetched.filter { !it.cargo_cancelado }
+                if (alive.isNotEmpty()) {
+                    saleDao.insertAll(alive.map { it.toEntity() })
+                }
+            } else {
+                Log.i(
+                    TAG,
+                    "reconcile: ${saldosMissing.size} saldo IDs on server but not local " +
+                        "(byIds no disponible — el cursor-sync los incorporará en el próximo tick)"
+                )
+            }
+        }
+
+        return Pair(saldoPhantoms.size, saldosMissing.size)
     }
 
     /**

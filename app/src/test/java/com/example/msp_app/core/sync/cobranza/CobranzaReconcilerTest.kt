@@ -4,6 +4,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
+import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.SyncPagosResponse
 import com.example.msp_app.data.api.services.cobranza.SyncVentasResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -28,6 +30,11 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class CobranzaReconcilerTest : RoomTestBase() {
+
+    @After
+    fun resetByIdsFlag() {
+        ByIdsChunker.byIdsAvailable.set(true)
+    }
 
     // ─── Fakes ──────────────────────────────────────────────────────────────
 
@@ -53,7 +60,9 @@ class CobranzaReconcilerTest : RoomTestBase() {
         ),
         var saldosDigestResponses: List<DigestResponse> = listOf(
             DigestResponse(count_activos = 0, ids_xor = "0", ids_sum = "0", max_updated_at = null)
-        )
+        ),
+        var pagosByIdsResult: List<PagoDto> = emptyList(),
+        var saldosByIdsResult: List<VentaDto> = emptyList()
     ) : V2CobranzaApi {
         private var pagoIdx = 0
         private var saldoIdx = 0
@@ -64,6 +73,8 @@ class CobranzaReconcilerTest : RoomTestBase() {
         var listSaldoIdsCalled = 0
         var pagosDigestCalled = 0
         var saldosDigestCalled = 0
+        var pagosByIdsCalled = 0
+        var saldosByIdsCalled = 0
 
         var lastPagosDigestDesde: String? = null
         var lastSaldosDigestDesde: String? = null
@@ -134,11 +145,15 @@ class CobranzaReconcilerTest : RoomTestBase() {
             error("unreachable")
         }
 
-        override suspend fun pagosByIds(zonaId: Int, ids: String) =
-            error("pagosByIds not used in reconciler tests")
+        override suspend fun pagosByIds(zonaId: Int, ids: String): List<PagoDto> {
+            pagosByIdsCalled++
+            return pagosByIdsResult
+        }
 
-        override suspend fun saldosByIds(zonaId: Int, ids: String) =
-            error("saldosByIds not used in reconciler tests")
+        override suspend fun saldosByIds(zonaId: Int, ids: String): List<VentaDto> {
+            saldosByIdsCalled++
+            return saldosByIdsResult
+        }
     }
 
     private fun newReconciler(
@@ -714,6 +729,117 @@ class CobranzaReconcilerTest : RoomTestBase() {
 
         assertEquals(ventana.toString(), api.lastPagosDigestDesde)
         assertEquals(ventana.toString(), api.lastSaldosDigestDesde)
+    }
+
+    // ─── Fetch missing via by-ids ────────────────────────────────────────────
+
+    /**
+     * IDs en servidor pero no en local (missing pagos) → se traen via pagosByIds
+     * y se insertan en Room.
+     */
+    @Test
+    fun missingPagosFetchedViaByIds() = runTest {
+        ByIdsChunker.byIdsAvailable.set(true)
+
+        // Local: sin pagos. Server /ids: [10, 20].
+        val pagoDto = samplePayment(10, 100)
+        val pagoDto2 = samplePayment(20, 200)
+
+        val api = FakeV2CobranzaApi(
+            // Digest mismatch para forzar el path /ids: server dice count=2.
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 2,
+                    ids_xor = "30",
+                    ids_sum = "30",
+                    max_updated_at = null
+                )
+            ),
+            // Saldos digest: matches empty local (count=0).
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            pagoIdPages = listOf(IdsResponse(listOf(10, 20), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false)),
+            pagosByIdsResult = listOf(
+                PagoDto(
+                    impte_docto_cc_id = 10,
+                    docto_cc_id = 101,
+                    docto_cc_acr_id = 100,
+                    cliente_id = 99,
+                    zona_cliente_id = 21,
+                    folio = "abono",
+                    concepto_cc_id = 87327,
+                    fecha = "2026-05-20T14:30:00Z",
+                    importe = "200.00",
+                    impuesto = "0.00",
+                    lat = null,
+                    lon = null,
+                    cancelado = false,
+                    aplicado = true,
+                    updated_at = "2026-05-30T18:25:13Z",
+                    cobrador = "",
+                    cobrador_id = null,
+                    nombre_cliente = "",
+                    forma_cobro_id = null
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        val ok = outcome as ReconcileOutcome.Ok
+        assertEquals(0, ok.pagosPhantomsDeleted)
+        assertEquals(2, ok.pagosExtrasOnServer)
+        // El pago con id=10 debe haberse insertado en Room.
+        assertEquals(1, api.pagosByIdsCalled)
+        assertEquals(1, db.paymentDao().getPaymentsBySaleId(100).size)
+    }
+
+    /**
+     * Con byIdsAvailable=false, los IDs missing en pagos se loguean pero
+     * no se llama a pagosByIds.
+     */
+    @Test
+    fun missingPagosNotFetchedWhenByIdsUnavailable() = runTest {
+        ByIdsChunker.byIdsAvailable.set(false)
+
+        val api = FakeV2CobranzaApi(
+            // Digest mismatch para forzar el path /ids.
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 2,
+                    ids_xor = "30",
+                    ids_sum = "30",
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            pagoIdPages = listOf(IdsResponse(listOf(10, 20), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false))
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        val ok = outcome as ReconcileOutcome.Ok
+        assertEquals(0, ok.pagosPhantomsDeleted)
+        assertEquals(2, ok.pagosExtrasOnServer)
+        // pagosByIds NO debe haberse llamado.
+        assertEquals(0, api.pagosByIdsCalled)
     }
 
     /**
