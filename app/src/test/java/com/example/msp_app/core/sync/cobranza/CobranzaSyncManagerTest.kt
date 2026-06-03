@@ -316,6 +316,10 @@ class CobranzaSyncManagerTest : RoomTestBase() {
                 error("not used in sync tests")
             override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
                 error("not used in sync tests")
+            override suspend fun pagosByIds(zonaId: Int, ids: String) =
+                error("not used in sync tests")
+            override suspend fun saldosByIds(zonaId: Int, ids: String) =
+                error("not used in sync tests")
         }
         val outcome = newManager(api).syncNow()
         assertTrue(outcome is SyncOutcome.Error)
@@ -736,6 +740,10 @@ class CobranzaSyncManagerTest : RoomTestBase() {
 
         override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
             error("not used in sync tests")
+
+        override suspend fun pagosByIds(zonaId: Int, ids: String) = error("not used in sync tests")
+
+        override suspend fun saldosByIds(zonaId: Int, ids: String) = error("not used in sync tests")
     }
 
     private fun fakeApi(ventas: List<VentaPage>, pagos: List<PagoPage>): V2CobranzaApi =
@@ -770,6 +778,8 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             error("not used in sync tests")
         override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int, desde: String?) =
             error("not used in sync tests")
+        override suspend fun pagosByIds(zonaId: Int, ids: String) = error("not used in sync tests")
+        override suspend fun saldosByIds(zonaId: Int, ids: String) = error("not used in sync tests")
     }
 
     private fun samplePayment(doctoCcId: Int) = PaymentEntity(

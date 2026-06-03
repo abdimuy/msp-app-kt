@@ -133,6 +133,12 @@ class CobranzaReconcilerTest : RoomTestBase() {
             fail("syncPagos should not be called by reconciler")
             error("unreachable")
         }
+
+        override suspend fun pagosByIds(zonaId: Int, ids: String) =
+            error("pagosByIds not used in reconciler tests")
+
+        override suspend fun saldosByIds(zonaId: Int, ids: String) =
+            error("saldosByIds not used in reconciler tests")
     }
 
     private fun newReconciler(
@@ -402,6 +408,8 @@ class CobranzaReconcilerTest : RoomTestBase() {
             ): SyncPagosResponse {
                 error("unreachable")
             }
+            override suspend fun pagosByIds(zonaId: Int, ids: String) = error("unreachable")
+            override suspend fun saldosByIds(zonaId: Int, ids: String) = error("unreachable")
         }
         val outcome = newReconciler(api, online = false).reconcileNow()
         assertTrue(outcome is ReconcileOutcome.SkippedOffline)
@@ -457,6 +465,8 @@ class CobranzaReconcilerTest : RoomTestBase() {
             ): SyncPagosResponse {
                 error("unreachable")
             }
+            override suspend fun pagosByIds(zonaId: Int, ids: String) = error("unreachable")
+            override suspend fun saldosByIds(zonaId: Int, ids: String) = error("unreachable")
         }
         val outcome = newReconciler(api, zona = null).reconcileNow()
         assertTrue(outcome is ReconcileOutcome.SkippedNoZone)
@@ -504,6 +514,8 @@ class CobranzaReconcilerTest : RoomTestBase() {
             ): SyncPagosResponse {
                 error("unreachable")
             }
+            override suspend fun pagosByIds(zonaId: Int, ids: String) = error("unreachable")
+            override suspend fun saldosByIds(zonaId: Int, ids: String) = error("unreachable")
         }
         val outcome = newReconciler(api).reconcileNow()
 
@@ -769,6 +781,8 @@ class CobranzaReconcilerTest : RoomTestBase() {
             ): SyncPagosResponse {
                 error("unreachable")
             }
+            override suspend fun pagosByIds(zonaId: Int, ids: String) = error("unreachable")
+            override suspend fun saldosByIds(zonaId: Int, ids: String) = error("unreachable")
         }
 
         val reconciler = newReconciler(api)

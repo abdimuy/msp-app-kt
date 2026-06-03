@@ -64,6 +64,26 @@ interface V2CobranzaApi {
         @Query("limit") limit: Int = 5000,
         @Query("desde") desde: String? = null
     ): IdsResponse
+
+    /**
+     * Trae los pagos cuyos IDs vienen en [ids] (CSV, máx 500 por llamada).
+     * Usado por el path optimista SSE: en lugar de re-sincronizar todo,
+     * solo pedimos los registros afectados.
+     *
+     * @param ids IDs separados por coma, p.ej. "1,2,3"
+     */
+    @GET("v2/cobranza/sync/pagos/by-ids")
+    suspend fun pagosByIds(@Query("zona_id") zonaId: Int, @Query("ids") ids: String): List<PagoDto>
+
+    /**
+     * Trae los saldos (ventas) cuyos IDs vienen en [ids] (CSV, máx 500 por
+     * llamada). Simétrico de [pagosByIds] para el stream de saldos.
+     */
+    @GET("v2/cobranza/sync/saldos/by-ids")
+    suspend fun saldosByIds(
+        @Query("zona_id") zonaId: Int,
+        @Query("ids") ids: String
+    ): List<VentaDto>
 }
 
 data class DigestResponse(
