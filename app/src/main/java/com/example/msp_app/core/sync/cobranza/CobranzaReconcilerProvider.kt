@@ -35,7 +35,8 @@ object CobranzaReconcilerProvider {
             saleDao = db.saleDao(),
             paymentDao = db.paymentDao(),
             connectivity = ConnectivityMonitor.getInstance(context),
-            userContextFlow = CobranzaSyncProvider.userContextFlow
+            userContextFlow = CobranzaSyncProvider.userContextFlow,
+            cobranzaWriteMutex = CobranzaWriteMutexProvider.get()
         )
     }
 }

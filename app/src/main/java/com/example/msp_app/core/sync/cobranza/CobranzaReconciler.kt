@@ -8,7 +8,6 @@ import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.local.dao.payment.PaymentDao
 import com.example.msp_app.data.local.dao.sale.SaleDao
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
@@ -57,9 +56,17 @@ class CobranzaReconciler(
     private val saleDao: SaleDao,
     private val paymentDao: PaymentDao,
     private val connectivity: ConnectivityMonitor,
-    private val userContextFlow: StateFlow<UserContext?>
+    private val userContextFlow: StateFlow<UserContext?>,
+    /**
+     * Mutex compartido con [CobranzaSyncManager] para serializar escrituras a
+     * Room. Inyectado para que el reconciler y el sync nunca solapen sus
+     * operaciones de escritura y evitar la race condition phantom-delete vs
+     * SSE-apply.
+     * Default: mutex de proceso gestionado por [CobranzaWriteMutexProvider].
+     */
+    private val cobranzaWriteMutex: CobranzaWriteMutex = CobranzaWriteMutexProvider.get()
 ) {
-    private val mutex = Mutex()
+    private val mutex get() = cobranzaWriteMutex.mutex
 
     suspend fun reconcileNow(): ReconcileOutcome {
         return mutex.withLock {

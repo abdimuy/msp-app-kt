@@ -62,7 +62,8 @@ object CobranzaSyncProvider {
             paymentDao = db.paymentDao(),
             syncStateDao = db.cobranzaSyncStateDao(),
             connectivity = ConnectivityMonitor.getInstance(context),
-            userContextFlow = currentContext.asStateFlow()
+            userContextFlow = currentContext.asStateFlow(),
+            cobranzaWriteMutex = CobranzaWriteMutexProvider.get()
         )
     }
 }

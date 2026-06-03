@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
@@ -57,6 +56,13 @@ class CobranzaSyncManager(
     private val connectivity: ConnectivityMonitor,
     private val userContextFlow: StateFlow<UserContext?>,
     /**
+     * Mutex compartido con [CobranzaReconciler] para serializar escrituras a
+     * Room. Inyectado para que el reconciler y el sync nunca solapen sus
+     * operaciones de escritura y evitar la race condition SSE vs phantom-delete.
+     * Default: mutex de proceso gestionado por [CobranzaWriteMutexProvider].
+     */
+    private val cobranzaWriteMutex: CobranzaWriteMutex = CobranzaWriteMutexProvider.get(),
+    /**
      * Dispatcher en el que corren los tres jobs background del manager
      * (tick / connectivity / context). Default `Dispatchers.IO` para
      * producción (no bloquea Main). Los tests inyectan el dispatcher del
@@ -65,7 +71,7 @@ class CobranzaSyncManager(
     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
-    private val mutex = Mutex()
+    private val mutex get() = cobranzaWriteMutex.mutex
     private var tickJob: Job? = null
     private var connectivityJob: Job? = null
     private var contextJob: Job? = null

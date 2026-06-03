@@ -50,7 +50,9 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         connectivity = newConnectivity(online),
         userContextFlow = MutableStateFlow(
             zona?.let { UserContext(zona = it, fechaCargaInicial = fechaCargaInicial) }
-        ).asStateFlow()
+        ).asStateFlow(),
+        // Mutex fresco por test para evitar dependencias entre tests al usar el singleton de proceso.
+        cobranzaWriteMutex = CobranzaWriteMutex()
     )
 
     private fun ventaDto(
@@ -443,7 +445,8 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             connectivity = newConnectivity(true),
             userContextFlow = MutableStateFlow(
                 UserContext(zona = 21, fechaCargaInicial = ventana)
-            ).asStateFlow()
+            ).asStateFlow(),
+            cobranzaWriteMutex = CobranzaWriteMutex()
         )
         mgr.syncNow()
 

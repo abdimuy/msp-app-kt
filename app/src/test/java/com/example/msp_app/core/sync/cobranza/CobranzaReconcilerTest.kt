@@ -153,7 +153,9 @@ class CobranzaReconcilerTest : RoomTestBase() {
         connectivity = FakeConnectivity(online),
         userContextFlow = MutableStateFlow(
             zona?.let { UserContext(zona = it, fechaCargaInicial = fechaCargaInicial) }
-        ).asStateFlow()
+        ).asStateFlow(),
+        // Mutex fresco por test para evitar dependencias entre tests al usar el singleton de proceso.
+        cobranzaWriteMutex = CobranzaWriteMutex()
     )
 
     // ─── Helper fixtures ────────────────────────────────────────────────────
