@@ -78,7 +78,7 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
      */
     private fun buildSubscriber(
         userContext: UserContext? = UserContext(zona = 21, fechaCargaInicial = null),
-        onEvent: suspend () -> Unit = {},
+        onEvent: suspend (SseKind, List<Int>) -> Unit = { _, _ -> },
         contextFlow: MutableStateFlow<UserContext?> = MutableStateFlow(userContext),
         scope: CoroutineScope = testScope
     ): CobranzaSseSubscriber {
@@ -108,7 +108,7 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse(pagoEvent))
         server.enqueue(sseResponse("")) // saldos: sin eventos
 
-        val subscriber = buildSubscriber(onEvent = { latch.countDown() })
+        val subscriber = buildSubscriber(onEvent = { _, _ -> latch.countDown() })
         subscriber.start()
 
         val fired = latch.await(3, TimeUnit.SECONDS)
@@ -133,7 +133,7 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse("")) // saldos: sin eventos
 
         val subscriber = buildSubscriber(
-            onEvent = {
+            onEvent = { _, _ ->
                 called.incrementAndGet()
                 firstLatch.countDown()
             }
@@ -192,7 +192,7 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse(sseBody("event: pagos_changed", "data: {}")))
         server.enqueue(sseResponse(""))
 
-        val subscriber = buildSubscriber(onEvent = { latch.countDown() })
+        val subscriber = buildSubscriber(onEvent = { _, _ -> latch.countDown() })
         subscriber.start()
 
         // Backoff base = 1s; toleramos hasta 5s para latencia del hilo.
@@ -212,7 +212,7 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
             okHttpClient = OkHttpClient(),
             baseUrl = "http://localhost/",
             userContextFlow = MutableStateFlow<UserContext?>(null).asStateFlow(),
-            onEvent = {},
+            onEvent = { _, _ -> },
             coroutineScope = TestScope(StandardTestDispatcher())
         )
 
@@ -236,7 +236,7 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse(sseBody("event: pagos_changed", "data: {}")))
         server.enqueue(sseResponse(""))
 
-        val subscriber = buildSubscriber(onEvent = { latch.countDown() })
+        val subscriber = buildSubscriber(onEvent = { _, _ -> latch.countDown() })
         subscriber.start()
 
         // Esperar el primer evento para confirmar la conexión.
@@ -276,7 +276,7 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
             okHttpClient = client,
             baseUrl = server.url("/").toString(),
             userContextFlow = contextFlow.asStateFlow(),
-            onEvent = {},
+            onEvent = { _, _ -> },
             coroutineScope = testScope
         )
 
@@ -317,12 +317,61 @@ class CobranzaSseSubscriberTest : RobolectricTestBase() {
         val saldosEvent = sseBody("event: saldos_changed", "data: {}")
         server.enqueue(sseResponse(saldosEvent))
 
-        val subscriber = buildSubscriber(onEvent = { latch.countDown() })
+        val subscriber = buildSubscriber(onEvent = { _, _ -> latch.countDown() })
         subscriber.start()
 
         val fired = latch.await(3, TimeUnit.SECONDS)
         subscriber.stop()
 
         assertTrue("Un evento en el stream de saldos debe disparar onEvent", fired)
+    }
+
+    // ─── parseServerTsAndIds ─────────────────────────────────────────────────
+
+    /** Fixture para tests puramente unitarios de parseServerTsAndIds. */
+    private fun stubSubscriber(): CobranzaSseSubscriber = buildSubscriber()
+
+    /**
+     * 9. `{"ts":1234567890,"ids":[1,2,3]}` → ts=1234567890, ids=[1,2,3].
+     */
+    @Test
+    fun parseServerTsAndIds_fullPayload() {
+        val sub = stubSubscriber()
+        val (ts, ids) = sub.parseServerTsAndIds("""{"ts":1234567890,"ids":[1,2,3]}""")
+        assertEquals(1234567890L, ts)
+        assertEquals(listOf(1, 2, 3), ids)
+    }
+
+    /**
+     * 10. `{}` → ts=null, ids=null (campo ausente).
+     */
+    @Test
+    fun parseServerTsAndIds_emptyPayload() {
+        val sub = stubSubscriber()
+        val (ts, ids) = sub.parseServerTsAndIds("{}")
+        assertEquals(null, ts)
+        assertEquals(null, ids)
+    }
+
+    /**
+     * 11. `{"ts":999,"ids":[]}` → ids=emptyList() (campo presente pero vacío).
+     */
+    @Test
+    fun parseServerTsAndIds_emptyIdsList() {
+        val sub = stubSubscriber()
+        val (ts, ids) = sub.parseServerTsAndIds("""{"ts":999,"ids":[]}""")
+        assertEquals(999L, ts)
+        assertEquals(emptyList<Int>(), ids)
+    }
+
+    /**
+     * 12. Solo `ids`, sin `ts` → ts=null, ids=[10,20].
+     */
+    @Test
+    fun parseServerTsAndIds_onlyIds() {
+        val sub = stubSubscriber()
+        val (ts, ids) = sub.parseServerTsAndIds("""{"ids":[10,20]}""")
+        assertEquals(null, ts)
+        assertEquals(listOf(10, 20), ids)
     }
 }

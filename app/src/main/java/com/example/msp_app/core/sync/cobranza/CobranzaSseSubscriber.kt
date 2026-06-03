@@ -16,9 +16,17 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 
 /**
+ * Tipo del stream SSE que disparó el evento: pagos o saldos.
+ * El callback [CobranzaSseSubscriber.onEvent] recibe el kind para que el caller
+ * pueda enrutar al endpoint correcto (pagosByIds vs saldosByIds).
+ */
+enum class SseKind { PAGOS, SALDOS }
+
+/**
  * Abre dos streams SSE contra el backend v2 (pagos + saldos) y dispara
- * [onEvent] ante cualquier notificación del servidor. El payload del
- * evento es una señal vacía — el cliente debe invocar su sync habitual.
+ * [onEvent] ante cualquier notificación del servidor. El payload del evento
+ * incluye los IDs afectados en el campo `ids`, que se pasan al callback para
+ * permitir un fetch quirúrgico en lugar de un re-sync completo.
  *
  * Comportamiento ante fallos:
  *  - 503: el feature flag está apagado en el servidor; se latchea
@@ -28,8 +36,9 @@ import okhttp3.sse.EventSources
  *    1s → 2s → 4s → 8s → 16s → 30s (cap). Se resetea a 1s en cada
  *    conexión exitosa.
  *
- * Eventos en ráfaga: se debouncea [DEBOUNCE_MS] = 100ms para evitar N
- * llamadas a syncNow cuando llegan pagos+saldos en un mismo instante.
+ * Eventos en ráfaga: se debouncea [DEBOUNCE_MS] = 100ms. Durante la ventana
+ * de debounce, todos los IDs recibidos se acumulan y el callback recibe la
+ * unión de todos los IDs del kind (pagos y saldos se despachan por separado).
  *
  * Ciclo de vida: llamar [start] en ON_START y [stop] en ON_STOP. Ambos
  * son idempotentes.
@@ -38,7 +47,7 @@ class CobranzaSseSubscriber(
     private val okHttpClient: OkHttpClient,
     private val baseUrl: String,
     private val userContextFlow: StateFlow<UserContext?>,
-    private val onEvent: suspend () -> Unit,
+    private val onEvent: suspend (kind: SseKind, ids: List<Int>) -> Unit,
     private val coroutineScope: CoroutineScope,
     /** Inyectable para tests: devuelve el epoch ms actual. */
     private val clock: () -> Long = System::currentTimeMillis
@@ -58,7 +67,23 @@ class CobranzaSseSubscriber(
     private var saldoAttempt = 0
 
     @GuardedBy("mu")
-    private var debounceJob: Job? = null
+    private var pagosDebounceJob: Job? = null
+
+    @GuardedBy("mu")
+    private var saldosDebounceJob: Job? = null
+
+    /**
+     * IDs acumulados durante la ventana de debounce de pagos. Se limpia al
+     * despachar y se une con la siguiente ráfaga.
+     */
+    @GuardedBy("mu")
+    private val pendingPagosIds = mutableListOf<Int>()
+
+    /**
+     * IDs acumulados durante la ventana de debounce de saldos.
+     */
+    @GuardedBy("mu")
+    private val pendingSaldosIds = mutableListOf<Int>()
 
     /**
      * Se latchea a true cuando el servidor responde 503 (feature flag off).
@@ -119,8 +144,12 @@ class CobranzaSseSubscriber(
             pagoSource = null
             saldoSource?.cancel()
             saldoSource = null
-            debounceJob?.cancel()
-            debounceJob = null
+            pagosDebounceJob?.cancel()
+            pagosDebounceJob = null
+            saldosDebounceJob?.cancel()
+            saldosDebounceJob = null
+            pendingPagosIds.clear()
+            pendingSaldosIds.clear()
         }
         Log.i(TAG, "stop: streams cancelados")
     }
@@ -175,37 +204,101 @@ class CobranzaSseSubscriber(
     // ─── Debounce ────────────────────────────────────────────────────────────
 
     /**
-     * Programa la llamada a [onEvent] tras un debounce. Si recibe el ts del
-     * server (en `data`), loggea el transit time (server→cliente) y el total
-     * desde la llegada del evento hasta que [onEvent] retorna (incluye
-     * debounce + syncNow). Permite medir end-to-end real-time desde logcat
-     * sin recursos extras.
+     * Acumula los IDs recibidos y programa una llamada a [onEvent] para este
+     * kind tras la ventana de debounce. Si llegan más eventos del mismo kind
+     * antes de que expire la ventana, los IDs se unen y el job se reinicia.
+     *
+     * Loguea el transit time (server→cliente) y el tiempo total hasta que
+     * [onEvent] retorna (incluye debounce + fetch). Permite medir end-to-end
+     * real-time desde logcat sin recursos extras.
+     *
+     * @param eventReceivedAt  Timestamp del momento en que llegó el evento.
+     * @param kind             Stream de origen (pagos o saldos).
+     * @param incomingIds      IDs incluidos en este evento (puede ser null si
+     *                         el servidor no los incluyó, o vacío si el campo
+     *                         `ids` era `[]`).
      */
-    private fun scheduleOnEvent(eventReceivedAt: Long, kind: String) {
+    private fun scheduleOnEvent(eventReceivedAt: Long, kind: SseKind, incomingIds: List<Int>?) {
         synchronized(mu) {
-            debounceJob?.cancel()
-            debounceJob = coroutineScope.launch {
-                delay(DEBOUNCE_MS)
-                val syncStartedAt = System.currentTimeMillis()
-                onEvent()
-                val syncEndedAt = System.currentTimeMillis()
-                Log.i(
-                    TAG,
-                    "SSE $kind sync done: sync=${syncEndedAt - syncStartedAt}ms " +
-                        "total_since_event=${syncEndedAt - eventReceivedAt}ms"
-                )
+            val pendingIds = if (kind == SseKind.PAGOS) pendingPagosIds else pendingSaldosIds
+            if (incomingIds != null) {
+                pendingIds.addAll(incomingIds)
+            }
+
+            val jobRef: Job?
+            if (kind == SseKind.PAGOS) {
+                pagosDebounceJob?.cancel()
+                jobRef = coroutineScope.launch {
+                    delay(DEBOUNCE_MS)
+                    val idsToDispatch: List<Int>
+                    synchronized(mu) {
+                        idsToDispatch = pendingPagosIds.toList()
+                        pendingPagosIds.clear()
+                    }
+                    val syncStartedAt = System.currentTimeMillis()
+                    onEvent(SseKind.PAGOS, idsToDispatch)
+                    val syncEndedAt = System.currentTimeMillis()
+                    Log.i(
+                        TAG,
+                        "SSE pagos sync done: ids=${idsToDispatch.size} " +
+                            "sync=${syncEndedAt - syncStartedAt}ms " +
+                            "total_since_event=${syncEndedAt - eventReceivedAt}ms"
+                    )
+                }
+                pagosDebounceJob = jobRef
+            } else {
+                saldosDebounceJob?.cancel()
+                jobRef = coroutineScope.launch {
+                    delay(DEBOUNCE_MS)
+                    val idsToDispatch: List<Int>
+                    synchronized(mu) {
+                        idsToDispatch = pendingSaldosIds.toList()
+                        pendingSaldosIds.clear()
+                    }
+                    val syncStartedAt = System.currentTimeMillis()
+                    onEvent(SseKind.SALDOS, idsToDispatch)
+                    val syncEndedAt = System.currentTimeMillis()
+                    Log.i(
+                        TAG,
+                        "SSE saldos sync done: ids=${idsToDispatch.size} " +
+                            "sync=${syncEndedAt - syncStartedAt}ms " +
+                            "total_since_event=${syncEndedAt - eventReceivedAt}ms"
+                    )
+                }
+                saldosDebounceJob = jobRef
             }
         }
     }
 
     /**
-     * Extrae `ts` (millis epoch UTC) del payload SSE `data: {"ts":N}`.
-     * El server lo incluye en cada evento; ausente o malformed → null.
+     * Extrae `ts` (millis epoch UTC) y `ids` (lista de Int) del payload SSE
+     * `data: {"ts":N,"ids":[1,2,3]}`.
+     *
+     * - `ts` ausente o malformado → null.
+     * - `ids` ausente → null (señal de que el servidor no envió el campo).
+     * - `ids` presente pero vacío `[]` → emptyList().
+     *
      * Sin alocar JSONObject: regex simple para no traer dependencias.
+     *
+     * @return Par (ts, ids). Ambos campos son independientes y pueden ser null.
      */
-    private fun parseServerTs(data: String): Long? {
-        val match = Regex("\"ts\"\\s*:\\s*(\\d+)").find(data) ?: return null
-        return match.groupValues[1].toLongOrNull()
+    internal fun parseServerTsAndIds(data: String): Pair<Long?, List<Int>?> {
+        val ts = Regex("\"ts\"\\s*:\\s*(\\d+)").find(data)
+            ?.groupValues?.get(1)?.toLongOrNull()
+
+        val idsMatch = Regex("\"ids\"\\s*:\\s*\\[([^\\]]*)\\]").find(data)
+        val ids: List<Int>? = if (idsMatch == null) {
+            null
+        } else {
+            val inner = idsMatch.groupValues[1].trim()
+            if (inner.isEmpty()) {
+                emptyList()
+            } else {
+                inner.split(",").mapNotNull { it.trim().toIntOrNull() }
+            }
+        }
+
+        return Pair(ts, ids)
     }
 
     // ─── Backoff ─────────────────────────────────────────────────────────────
@@ -230,13 +323,13 @@ class CobranzaSseSubscriber(
 
         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
             val receivedAt = System.currentTimeMillis()
-            val serverTs = parseServerTs(data)
+            val (serverTs, ids) = parseServerTsAndIds(data)
             val transit = serverTs?.let { receivedAt - it }
             Log.i(
                 TAG,
-                "SSE pagos evento: type=$type transit=${transit ?: "?"}ms"
+                "SSE pagos evento: type=$type ids=${ids?.size ?: "?"} transit=${transit ?: "?"}ms"
             )
-            scheduleOnEvent(receivedAt, "pagos")
+            scheduleOnEvent(receivedAt, SseKind.PAGOS, ids)
         }
 
         override fun onClosed(eventSource: EventSource) {
@@ -287,13 +380,13 @@ class CobranzaSseSubscriber(
 
         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
             val receivedAt = System.currentTimeMillis()
-            val serverTs = parseServerTs(data)
+            val (serverTs, ids) = parseServerTsAndIds(data)
             val transit = serverTs?.let { receivedAt - it }
             Log.i(
                 TAG,
-                "SSE saldos evento: type=$type transit=${transit ?: "?"}ms"
+                "SSE saldos evento: type=$type ids=${ids?.size ?: "?"} transit=${transit ?: "?"}ms"
             )
-            scheduleOnEvent(receivedAt, "saldos")
+            scheduleOnEvent(receivedAt, SseKind.SALDOS, ids)
         }
 
         override fun onClosed(eventSource: EventSource) {

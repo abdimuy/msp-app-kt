@@ -50,7 +50,9 @@ object CobranzaSseProvider {
             okHttpClient = client,
             baseUrl = V2ApiProvider.BASE_URL,
             userContextFlow = CobranzaSyncProvider.userContextFlow,
-            onEvent = { manager.syncNow() },
+            // El glue by-ids se completa en el siguiente commit (applyByIds).
+            // Por ahora se cae al cursor-sync para todos los eventos.
+            onEvent = { _, _ -> manager.syncNow() },
             coroutineScope = scope
         )
     }
