@@ -22,6 +22,13 @@ object CobranzaSyncProvider {
 
     private val currentContext = MutableStateFlow<UserContext?>(null)
 
+    /**
+     * Read-only view of the active user context. Shared with
+     * [CobranzaReconcilerProvider] so both components observe the same
+     * zone / FECHA_CARGA_INICIAL without duplicating state.
+     */
+    val userContextFlow = currentContext.asStateFlow()
+
     @Volatile private var instance: CobranzaSyncManager? = null
 
     /**

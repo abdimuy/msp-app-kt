@@ -297,6 +297,10 @@ class CobranzaSyncManagerTest : RoomTestBase() {
                 limit: Int,
                 desde: String?
             ) = throw RuntimeException("network down")
+            override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int) =
+                error("not used in sync tests")
+            override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int) =
+                error("not used in sync tests")
         }
         val outcome = newManager(api).syncNow()
         assertTrue(outcome is SyncOutcome.Error)
@@ -705,6 +709,12 @@ class CobranzaSyncManagerTest : RoomTestBase() {
                 has_more = p.hasMore
             )
         }
+
+        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int) =
+            error("not used in sync tests")
+
+        override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int) =
+            error("not used in sync tests")
     }
 
     private fun fakeApi(ventas: List<VentaPage>, pagos: List<PagoPage>): V2CobranzaApi =
@@ -731,6 +741,10 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             fail("API should not be called when offline / unzoned")
             error("unreachable")
         }
+        override suspend fun listPagoIds(zonaId: Int, after: Int, limit: Int) =
+            error("not used in sync tests")
+        override suspend fun listSaldoIds(zonaId: Int, after: Int, limit: Int) =
+            error("not used in sync tests")
     }
 
     private fun samplePayment(doctoCcId: Int) = PaymentEntity(

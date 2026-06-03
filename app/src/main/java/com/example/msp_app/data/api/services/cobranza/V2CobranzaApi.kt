@@ -36,6 +36,22 @@ interface V2CobranzaApi {
         @Query("limit") limit: Int = 1000,
         @Query("desde") desde: String? = null
     ): SyncPagosResponse
+
+    // Digest endpoints intencionalmente omitidos: ver KDoc de CobranzaReconciler.
+
+    @GET("v2/cobranza/sync/pagos/zona/{zona_id}/ids")
+    suspend fun listPagoIds(
+        @Path("zona_id") zonaId: Int,
+        @Query("after") after: Int = 0,
+        @Query("limit") limit: Int = 5000
+    ): IdsResponse
+
+    @GET("v2/cobranza/sync/saldos/zona/{zona_id}/ids")
+    suspend fun listSaldoIds(
+        @Path("zona_id") zonaId: Int,
+        @Query("after") after: Int = 0,
+        @Query("limit") limit: Int = 5000
+    ): IdsResponse
 }
 
 data class SyncVentasResponse(
@@ -49,5 +65,10 @@ data class SyncPagosResponse(
     val items: List<PagoDto>,
     val max_updated_at: String,
     val server_now: String,
+    val has_more: Boolean
+)
+
+data class IdsResponse(
+    val ids: List<Int>,
     val has_more: Boolean
 )

@@ -297,6 +297,30 @@ interface SaleDao {
     )
     suspend fun deleteSaldadasFueraDeVentana(fechaIso: String): Int
 
+    /**
+     * Devuelve los DOCTO_CC_IDs de TODAS las ventas en local para esta zona.
+     * Usado por CobranzaReconciler para detectar phantoms (rows que el
+     * server ya no tiene activas).
+     *
+     * La query NO replica el filtro `SALDO > 0` ni la ventana de
+     * `deleteSaldadasFueraDeVentana` — intencional. El server `/ids` filtra
+     * sólo por `CARGO_CANCELADO='N' AND ZONA=?` (sin saldo, sin desde),
+     * así que el set del server es un SUPERSET del local. La intersección
+     * `local - server` solo contiene rows genuinamente cancelados en el
+     * server (tombstones perdidos, snapshot restore, retención >30 días).
+     * Filtrar acá por SALDO produciría falsos phantoms cuando una venta
+     * recién saldada todavía no llegó al prune.
+     */
+    @Query("SELECT DOCTO_CC_ID FROM sales WHERE ZONA_CLIENTE_ID = :zonaId ORDER BY DOCTO_CC_ID ASC")
+    suspend fun getActiveIdsByZona(zonaId: Int): List<Int>
+
+    /**
+     * Bulk delete por PK. Idempotente: si una de las PK no existe, simplemente
+     * no la borra. Usado por CobranzaReconciler para evictar phantoms.
+     */
+    @Query("DELETE FROM sales WHERE DOCTO_CC_ID IN (:doctoCcIds)")
+    suspend fun deleteByDoctoCcIds(doctoCcIds: List<Int>)
+
     @Query("DELETE FROM sales")
     suspend fun deleteAll()
 }
