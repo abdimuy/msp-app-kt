@@ -30,4 +30,8 @@ class ComboLocalDataSource(context: Context) {
     suspend fun replaceCombosForSale(saleId: String, combos: List<LocalSaleComboEntity>) {
         comboDao.replaceCombosForSale(saleId, combos)
     }
+
+    suspend fun updateServerUuid(comboId: String, saleId: String, serverUuid: String) {
+        comboDao.updateServerUuid(comboId, saleId, serverUuid)
+    }
 }

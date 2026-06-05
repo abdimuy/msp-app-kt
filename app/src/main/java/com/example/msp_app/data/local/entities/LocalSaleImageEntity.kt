@@ -24,5 +24,6 @@ class LocalSaleImageEntity(
     @PrimaryKey val LOCAL_SALE_IMAGE_ID: String,
     val LOCAL_SALE_ID: String,
     val IMAGE_URI: String,
-    val FECHA_SUBIDA: String
+    val FECHA_SUBIDA: String,
+    val SERVER_UUID: String? = null
 )

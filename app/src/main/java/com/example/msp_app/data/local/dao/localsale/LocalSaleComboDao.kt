@@ -22,6 +22,11 @@ interface LocalSaleComboDao {
     @Query("DELETE FROM local_sale_combos WHERE LOCAL_SALE_ID = :saleId")
     suspend fun deleteCombosForSale(saleId: String)
 
+    @Query(
+        "UPDATE local_sale_combos SET SERVER_UUID = :serverUuid WHERE COMBO_ID = :comboId AND LOCAL_SALE_ID = :saleId"
+    )
+    suspend fun updateServerUuid(comboId: String, saleId: String, serverUuid: String)
+
     @Transaction
     suspend fun replaceCombosForSale(saleId: String, combos: List<LocalSaleComboEntity>) {
         deleteCombosForSale(saleId)

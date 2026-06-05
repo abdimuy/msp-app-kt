@@ -1,13 +1,25 @@
 package com.example.msp_app.data.models.sale.localsale
 
+import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.api.services.localSales.LocalSaleComboRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleProductRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleUpdateRequest
+import com.example.msp_app.data.api.services.ventas.ClienteSnapshotDTO
+import com.example.msp_app.data.api.services.ventas.ComboDTO
+import com.example.msp_app.data.api.services.ventas.CrearVentaBody
+import com.example.msp_app.data.api.services.ventas.DiaCobranzaDTO
+import com.example.msp_app.data.api.services.ventas.DireccionDTO
+import com.example.msp_app.data.api.services.ventas.GPSDTO
+import com.example.msp_app.data.api.services.ventas.MontosDTO
+import com.example.msp_app.data.api.services.ventas.PlanCreditoDTO
+import com.example.msp_app.data.api.services.ventas.ProductoDTO
+import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
+import java.util.UUID
 
 class LocalSaleMappers {
     fun LocalSale.toEntity(): LocalSaleEntity {
@@ -165,6 +177,127 @@ class LocalSaleMappers {
             precioContado = this.PRECIO_CONTADO
         )
     }
+
+    /**
+     * Maps Room entities to the V2 Go API request body for POST /v2/ventas.
+     *
+     * Known approximations (verify with QA):
+     * - Combo `cantidad` is hardcoded to "1" — local catalog does not store
+     *   decimal quantity per combo.
+     * - `almacen_origen_id` uses [camionetaId] when set, otherwise falls back
+     *   to [Constants.ALMACEN_GENERAL_ID].
+     * - `almacen_destino_id` always uses [Constants.ALMACEN_GENERAL_ID].
+     * - Products inside a combo send null almacen ids (the combo carries them).
+     * - `dia_cobranza.semana` only — the UI captures weekday names, not day-of-month.
+     * - `cliente.referencia` is always null (no current UI capture).
+     */
+    fun LocalSaleEntity.toV2VentaBody(
+        products: List<LocalSaleProductEntity>,
+        combos: List<LocalSaleComboEntity>,
+        vendedores: List<VendedorDTO>,
+        camionetaId: Int?
+    ): CrearVentaBody {
+        val almacenOrigen = camionetaId ?: Constants.ALMACEN_GENERAL_ID
+        val almacenDestino = Constants.ALMACEN_GENERAL_ID
+
+        val combosDtos = combos.map { c ->
+            val cid = c.SERVER_UUID ?: UUID.randomUUID().toString()
+            ComboDTO(
+                id = cid,
+                nombre = c.NOMBRE_COMBO,
+                precio_anual = c.PRECIO_LISTA.toString(),
+                precio_corto = c.PRECIO_CORTO_PLAZO.toString(),
+                precio_contado = c.PRECIO_CONTADO.toString(),
+                cantidad = "1",
+                almacen_origen_id = almacenOrigen,
+                almacen_destino_id = almacenDestino
+            )
+        }
+        val comboIdByCatalog = combos.zip(combosDtos).associate { (entity, dto) ->
+            entity.COMBO_ID to dto.id
+        }
+
+        val productosDtos = products.map { p ->
+            val isInCombo = p.COMBO_ID != null
+            ProductoDTO(
+                id = p.SERVER_UUID ?: UUID.randomUUID().toString(),
+                articulo_id = p.ARTICULO_ID,
+                articulo = p.ARTICULO,
+                cantidad = p.CANTIDAD.toString(),
+                precio_anual = p.PRECIO_LISTA.toString(),
+                precio_corto = p.PRECIO_CORTO_PLAZO.toString(),
+                precio_contado = p.PRECIO_CONTADO.toString(),
+                combo_id = p.COMBO_ID?.let { comboIdByCatalog[it] },
+                almacen_origen_id = if (isInCombo) null else almacenOrigen,
+                almacen_destino_id = if (isInCombo) null else almacenDestino
+            )
+        }
+
+        val isCredito = this.TIPO_VENTA == "CREDITO"
+
+        return CrearVentaBody(
+            id = this.LOCAL_SALE_ID,
+            cliente = ClienteSnapshotDTO(
+                cliente_id = this.CLIENTE_ID,
+                nombre = this.NOMBRE_CLIENTE,
+                telefono = this.TELEFONO.takeIf { it.isNotBlank() },
+                aval = this.AVAL_O_RESPONSABLE?.takeIf { it.isNotBlank() },
+                referencia = null
+            ),
+            direccion = DireccionDTO(
+                calle = this.DIRECCION,
+                numero_exterior = this.NUMERO,
+                colonia = this.COLONIA ?: "",
+                poblacion = this.POBLACION ?: "",
+                ciudad = this.CIUDAD ?: "",
+                zona_cliente_id = this.ZONA_CLIENTE_ID
+            ),
+            gps = GPSDTO(latitud = this.LATITUD, longitud = this.LONGITUD),
+            fecha_venta = this.FECHA_VENTA,
+            tipo_venta = this.TIPO_VENTA ?: "CONTADO",
+            montos = MontosDTO(
+                anual = this.PRECIO_TOTAL.toString(),
+                corto_plazo = this.MONTO_A_CORTO_PLAZO.toString(),
+                contado = this.MONTO_DE_CONTADO.toString()
+            ),
+            plan_credito = if (isCredito) {
+                PlanCreditoDTO(
+                    plazo_meses = this.TIEMPO_A_CORTO_PLAZOMESES,
+                    enganche = (this.ENGANCHE ?: 0.0).toString(),
+                    parcialidad = this.PARCIALIDAD.toString(),
+                    frec_pago = normalizeFrecPago(this.FREC_PAGO)
+                )
+            } else {
+                null
+            },
+            dia_cobranza = if (isCredito) {
+                DiaCobranzaDTO(
+                    semana = normalizeDiaCobranza(this.DIA_COBRANZA),
+                    mes = null
+                )
+            } else {
+                null
+            },
+            nota = this.NOTA?.takeIf { it.isNotBlank() },
+            combos = combosDtos,
+            productos = productosDtos,
+            vendedores = vendedores
+        )
+    }
+
+    private fun normalizeFrecPago(raw: String): String = raw.uppercase()
+        .replace("Á", "A").replace("á", "a")
+        .replace("É", "E").replace("é", "e")
+        .replace("Í", "I").replace("í", "i")
+        .replace("Ó", "O").replace("ó", "o")
+        .replace("Ú", "U").replace("ú", "u")
+
+    private fun normalizeDiaCobranza(raw: String): String = raw.uppercase()
+        .replace("Á", "A").replace("á", "a")
+        .replace("É", "E").replace("é", "e")
+        .replace("Í", "I").replace("í", "i")
+        .replace("Ó", "O").replace("ó", "o")
+        .replace("Ú", "U").replace("ú", "u")
 
     fun LocalSaleEntity.toUpdateRequest(
         products: List<LocalSaleProductEntity>,

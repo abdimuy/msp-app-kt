@@ -16,5 +16,6 @@ data class LocalSaleProductEntity(
     val PRECIO_LISTA: Double,
     val PRECIO_CORTO_PLAZO: Double,
     val PRECIO_CONTADO: Double,
-    val COMBO_ID: String? = null
+    val COMBO_ID: String? = null,
+    val SERVER_UUID: String? = null
 )

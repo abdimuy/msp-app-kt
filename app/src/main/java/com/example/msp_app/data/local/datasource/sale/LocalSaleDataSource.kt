@@ -89,4 +89,8 @@ class LocalSaleDataSource(context: Context) {
             localSaleDao.deleteImagesByIds(imageIds)
         }
     }
+
+    suspend fun updateImageServerUuid(imageId: String, serverUuid: String) {
+        localSaleDao.updateImageServerUuid(imageId, serverUuid)
+    }
 }

@@ -26,4 +26,8 @@ class SaleProductLocalDataSource(context: Context) {
     suspend fun deleteProductsForSale(saleId: String) {
         saleProductDao.deleteProductsForSale(saleId)
     }
+
+    suspend fun updateServerUuid(saleId: String, articuloId: Int, serverUuid: String) {
+        saleProductDao.updateServerUuid(saleId, articuloId, serverUuid)
+    }
 }

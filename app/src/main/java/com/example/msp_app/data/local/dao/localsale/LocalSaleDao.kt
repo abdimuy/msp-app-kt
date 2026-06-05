@@ -87,7 +87,7 @@ interface LocalSaleDao {
     suspend fun insertSaleImage(saleImage: LocalSaleImageEntity)
 
     @Query(
-        "SELECT LOCAL_SALE_IMAGE_ID, LOCAL_SALE_ID, IMAGE_URI, FECHA_SUBIDA FROM sale_image WHERE LOCAL_SALE_ID = :saleId ORDER BY FECHA_SUBIDA"
+        "SELECT LOCAL_SALE_IMAGE_ID, LOCAL_SALE_ID, IMAGE_URI, FECHA_SUBIDA, SERVER_UUID FROM sale_image WHERE LOCAL_SALE_ID = :saleId ORDER BY FECHA_SUBIDA"
     )
     suspend fun getImagesForSale(saleId: String): List<LocalSaleImageEntity>
 
@@ -138,6 +138,9 @@ interface LocalSaleDao {
 
     @Query("DELETE FROM sale_image WHERE LOCAL_SALE_IMAGE_ID IN (:imageIds)")
     suspend fun deleteImagesByIds(imageIds: List<String>)
+
+    @Query("UPDATE sale_image SET SERVER_UUID = :serverUuid WHERE LOCAL_SALE_IMAGE_ID = :imageId")
+    suspend fun updateImageServerUuid(imageId: String, serverUuid: String)
 
     @Query(
         """

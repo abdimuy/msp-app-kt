@@ -36,6 +36,7 @@ import com.example.msp_app.data.local.migrations.MIGRATION_20_21
 import com.example.msp_app.data.local.migrations.MIGRATION_21_22
 import com.example.msp_app.data.local.migrations.MIGRATION_22_23
 import com.example.msp_app.data.local.migrations.MIGRATION_23_24
+import com.example.msp_app.data.local.migrations.MIGRATION_24_25
 
 @Database(
     entities = [
@@ -56,7 +57,7 @@ import com.example.msp_app.data.local.migrations.MIGRATION_23_24
         CobranzaSyncStateEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 24
+    version = 25
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
@@ -88,7 +89,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_20_21,
                         MIGRATION_21_22,
                         MIGRATION_22_23,
-                        MIGRATION_23_24
+                        MIGRATION_23_24,
+                        MIGRATION_24_25
                     )
                     .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
                     .build().also { instance = it }

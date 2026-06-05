@@ -16,10 +16,15 @@ interface LocalSaleProductDao {
     suspend fun insertAllSaleProducts(saleProducts: List<LocalSaleProductEntity>)
 
     @Query(
-        "SELECT LOCAL_SALE_ID, ARTICULO_ID, ARTICULO, CANTIDAD, PRECIO_LISTA, PRECIO_CORTO_PLAZO, PRECIO_CONTADO, COMBO_ID FROM local_sale_products WHERE LOCAL_SALE_ID = :saleId"
+        "SELECT LOCAL_SALE_ID, ARTICULO_ID, ARTICULO, CANTIDAD, PRECIO_LISTA, PRECIO_CORTO_PLAZO, PRECIO_CONTADO, COMBO_ID, SERVER_UUID FROM local_sale_products WHERE LOCAL_SALE_ID = :saleId"
     )
     suspend fun getProductsForSale(saleId: String): List<LocalSaleProductEntity>
 
     @Query("DELETE FROM local_sale_products WHERE LOCAL_SALE_ID = :saleId")
     suspend fun deleteProductsForSale(saleId: String)
+
+    @Query(
+        "UPDATE local_sale_products SET SERVER_UUID = :serverUuid WHERE LOCAL_SALE_ID = :saleId AND ARTICULO_ID = :articuloId"
+    )
+    suspend fun updateServerUuid(saleId: String, articuloId: Int, serverUuid: String)
 }
