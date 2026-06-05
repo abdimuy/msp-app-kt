@@ -2,11 +2,13 @@ package com.example.msp_app.workers
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.sync.ventas.VendedorResolver
 import com.example.msp_app.data.api.V2ApiProvider
+import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
@@ -21,10 +23,37 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.HttpException
 
 class PendingLocalSalesWorker(
     appContext: Context,
-    workerParams: WorkerParameters
+    workerParams: WorkerParameters,
+    /**
+     * Resolves vendedores and the camioneta id for a given user e-mail.
+     * Returns a [Pair] of (vendedores list, camionetaId). camionetaId may be
+     * null when the user has no camioneta assigned.
+     *
+     * Defaults to the production Firestore + Go API flow.
+     * Overridable in tests without touching WorkManager's factory.
+     */
+    @VisibleForTesting
+    internal val resolveVendedoresForEmail:
+    suspend (userEmail: String) -> Pair<List<VendedorDTO>, Int?> =
+        run {
+            val repo = CamionetaAssignmentRepository()
+            val resolver = VendedorResolver(repo);
+            { email ->
+                val allUsers = repo.getAllUsers().getOrElse { throw it }
+                val camionetaId = allUsers.firstOrNull { it.EMAIL == email }?.CAMIONETA_ASIGNADA
+                Pair(resolver.resolve(camionetaId), camionetaId)
+            }
+        },
+    /**
+     * Retrofit service for `POST /v2/ventas`.
+     * Overridable in tests to inject a MockWebServer-backed or fake implementation.
+     */
+    @VisibleForTesting
+    internal val ventasApi: VentasApi = V2ApiProvider.create(VentasApi::class.java)
 ) : CoroutineWorker(appContext, workerParams) {
 
     private val localSaleStore = LocalSaleDataSource(appContext)
@@ -32,8 +61,6 @@ class PendingLocalSalesWorker(
     private val comboDataSource = ComboLocalDataSource(appContext)
     private val mappers = LocalSaleMappers()
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(appContext) }
-    private val camionetaRepo = CamionetaAssignmentRepository()
-    private val vendedorResolver = VendedorResolver(camionetaRepo)
 
     override suspend fun doWork(): Result {
         val saleId = inputData.getString("local_sale_id")
@@ -81,24 +108,17 @@ class PendingLocalSalesWorker(
                 return Result.failure()
             }
 
-            val allUsers = camionetaRepo.getAllUsers().getOrElse { throw it }
-            val currentUser = allUsers.firstOrNull { it.EMAIL == userEmail }
-            val camionetaId = currentUser?.CAMIONETA_ASIGNADA
-
-            val vendedores = vendedorResolver.resolve(camionetaId)
+            val (vendedores, camionetaId) = resolveVendedoresForEmail(userEmail)
             if (vendedores.isEmpty()) {
                 Log.e(
                     "PendingLocalSalesWorker",
-                    "No se resolvieron vendedores para camioneta $camionetaId"
+                    "No se resolvieron vendedores para userEmail $userEmail"
                 )
                 logger.error(
                     module = "SALES_WORKER",
                     action = "NO_VENDEDORES",
                     message = "No se pudieron resolver los vendedores de la camioneta",
-                    data = mapOf(
-                        "saleId" to saleId,
-                        "camionetaId" to (camionetaId?.toString() ?: "null")
-                    )
+                    data = mapOf("saleId" to saleId, "userEmail" to userEmail)
                 )
                 return Result.failure()
             }
@@ -171,7 +191,7 @@ class PendingLocalSalesWorker(
                 }
             }
 
-            val response = V2ApiProvider.create(VentasApi::class.java).crearVenta(
+            val response = ventasApi.crearVenta(
                 idempotencyKey = saleId,
                 datos = datosRequestBody,
                 imagen = imageParts
@@ -195,6 +215,37 @@ class PendingLocalSalesWorker(
             )
 
             Result.success()
+        } catch (e: HttpException) {
+            if (e.code() == 409) {
+                // 409 Conflict from the idempotency middleware means the request was
+                // already processed. Treat as success so the worker does not re-enqueue.
+                Log.i(
+                    "PendingLocalSalesWorker",
+                    "Venta $saleId ya procesada (409), marcando como enviada"
+                )
+                localSaleStore.changeSaleStatus(saleId, true)
+                logger.info(
+                    module = "SALES_WORKER",
+                    action = "UPLOAD_IDEMPOTENT",
+                    message = "Venta ya procesada por idempotency middleware (409)",
+                    data = mapOf("saleId" to saleId)
+                )
+                Result.success()
+            } else {
+                Log.e(
+                    "PendingLocalSalesWorker",
+                    "Error HTTP ${e.code()} al enviar venta $saleId",
+                    e
+                )
+                logger.error(
+                    module = "SALES_WORKER",
+                    action = "HTTP_ERROR",
+                    message = "Error HTTP ${e.code()} al enviar venta: ${e.message}",
+                    error = e,
+                    data = mapOf("saleId" to saleId, "attemptCount" to runAttemptCount)
+                )
+                Result.retry()
+            }
         } catch (e: IOException) {
             Log.w(
                 "PendingLocalSalesWorker",
