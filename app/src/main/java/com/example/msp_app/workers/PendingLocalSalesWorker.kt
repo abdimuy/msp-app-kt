@@ -25,7 +25,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 
-class PendingLocalSalesWorker(
+class PendingLocalSalesWorker @JvmOverloads constructor(
     appContext: Context,
     workerParams: WorkerParameters,
     /**
