@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -805,6 +806,15 @@ private fun SaleCard(
                 }
             }
 
+            if (!sale.ENVIADO && !sale.LAST_UPLOAD_ERROR_MESSAGE.isNullOrBlank()) {
+                UploadErrorBanner(
+                    httpCode = sale.LAST_UPLOAD_HTTP_CODE,
+                    errorCode = sale.LAST_UPLOAD_ERROR_CODE,
+                    message = sale.LAST_UPLOAD_ERROR_MESSAGE!!,
+                    isPermanent = sale.LAST_UPLOAD_PERMANENT == true
+                )
+            }
+
             if (isExpanded) {
                 HorizontalDivider(
                     modifier = Modifier.padding(horizontal = 16.dp),
@@ -886,6 +896,77 @@ private fun SaleCard(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Inline banner shown inside [SaleCard] when an upload has failed. The
+ * vendedor sees the server's actual error message in Spanish (already
+ * localized by the backend's apperror layer) and, for permanent failures,
+ * a hint to edit the sale to retry.
+ */
+@Composable
+private fun UploadErrorBanner(
+    httpCode: Int?,
+    errorCode: String?,
+    message: String,
+    isPermanent: Boolean
+) {
+    val bgColor = if (isPermanent) Color(0xFFFEF2F2) else Color(0xFFFFF7ED)
+    val accent = if (isPermanent) Color(0xFFDC2626) else Color(0xFFEA580C)
+    val bodyColor = if (isPermanent) Color(0xFF7F1D1D) else Color(0xFF7C2D12)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bgColor)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = Icons.Default.Warning,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier
+                .size(16.dp)
+                .padding(top = 2.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (isPermanent) "Error al enviar" else "No se pudo enviar (reintentando)",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = accent
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = bodyColor,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+            val techHint = listOfNotNull(
+                httpCode?.takeIf { it > 0 }?.let { "HTTP $it" },
+                errorCode?.takeIf { it.isNotBlank() }
+            ).joinToString(" · ")
+            if (techHint.isNotBlank()) {
+                Text(
+                    text = techHint,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = bodyColor.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            if (isPermanent) {
+                Text(
+                    text = "Tocá la venta para editarla y reintentar",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent.copy(alpha = 0.9f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }
