@@ -2,10 +2,12 @@ package com.example.msp_app.data.api.services.ventas
 
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Path
 
 // ─── Request body ──────────────────────────────────────────────────────────
 
@@ -122,4 +124,12 @@ interface VentasApi {
         @Part("datos") datos: RequestBody,
         @Part imagen: List<MultipartBody.Part>
     ): VentaDTO
+
+    /**
+     * Verifica si una venta existe server-side. Usado por el worker para
+     * reconciliar cuando el POST falla pero el server pudo haber creado la
+     * venta vía replay-with-multipart admin u otro path asíncrono.
+     */
+    @GET("v2/ventas/{id}")
+    suspend fun obtenerVenta(@Path("id") id: String): VentaDTO
 }
