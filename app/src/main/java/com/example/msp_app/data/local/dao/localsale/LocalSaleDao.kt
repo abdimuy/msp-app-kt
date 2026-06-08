@@ -14,73 +14,14 @@ interface LocalSaleDao {
 
     @Query(
         """
-        SELECT
-            LOCAL_SALE_ID,
-            NOMBRE_CLIENTE,
-            FECHA_VENTA,
-            LATITUD,
-            LONGITUD,
-            DIRECCION,
-            PARCIALIDAD,
-            ENGANCHE,
-            TELEFONO,
-            FREC_PAGO,
-            AVAL_O_RESPONSABLE,
-            NOTA,
-            DIA_COBRANZA,
-            PRECIO_TOTAL,
-            TIEMPO_A_CORTO_PLAZOMESES,
-            MONTO_A_CORTO_PLAZO,
-            MONTO_DE_CONTADO,
-            ENVIADO,
-            NUMERO,
-            COLONIA,
-            POBLACION,
-            CIUDAD,
-            TIPO_VENTA,
-            ZONA_CLIENTE_ID,
-            ZONA_CLIENTE,
-            CLIENTE_ID
-            FROM local_sale
-            WHERE FECHA_VENTA >= datetime('now', '-7 days')
-            ORDER BY FECHA_VENTA DESC
+        SELECT * FROM local_sale
+        WHERE FECHA_VENTA >= datetime('now', '-7 days')
+        ORDER BY FECHA_VENTA DESC
         """
     )
     suspend fun getAllSales(): List<LocalSaleEntity>
 
-    @Query(
-        """
-            SELECT
-            LOCAL_SALE_ID,
-            NOMBRE_CLIENTE,
-            FECHA_VENTA,
-            LATITUD,
-            LONGITUD,
-            DIRECCION,
-            PARCIALIDAD,
-            ENGANCHE,
-            TELEFONO,
-            FREC_PAGO,
-            AVAL_O_RESPONSABLE,
-            NOTA,
-            DIA_COBRANZA,
-            PRECIO_TOTAL,
-            TIEMPO_A_CORTO_PLAZOMESES,
-            MONTO_A_CORTO_PLAZO,
-            MONTO_DE_CONTADO,
-            ENVIADO,
-            NUMERO,
-            COLONIA,
-            POBLACION,
-            CIUDAD,
-            TIPO_VENTA,
-            ZONA_CLIENTE_ID,
-            ZONA_CLIENTE,
-            CLIENTE_ID
-            FROM local_sale
-            WHERE LOCAL_SALE_ID = :sale_Id
-        """
-    )
+    @Query("SELECT * FROM local_sale WHERE LOCAL_SALE_ID = :sale_Id")
     suspend fun getSaleById(sale_Id: String): LocalSaleEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -97,38 +38,63 @@ interface LocalSaleDao {
     @Query("UPDATE local_sale SET ENVIADO = :enviado WHERE LOCAL_SALE_ID = :saleId")
     suspend fun updateSaleStatus(saleId: String, enviado: Boolean)
 
+    /**
+     * Persists the upload failure on the local sale. Called from the worker's
+     * error-handling path. The first informative error wins over a later
+     * less-informative one (see UploadFailureRepository for the precedence
+     * rule); this query is the bare write — precedence logic is upstream.
+     */
     @Query(
         """
-        SELECT
-            LOCAL_SALE_ID,
-            NOMBRE_CLIENTE,
-            FECHA_VENTA,
-            LATITUD,
-            LONGITUD,
-            DIRECCION,
-            PARCIALIDAD,
-            ENGANCHE,
-            TELEFONO,
-            FREC_PAGO,
-            AVAL_O_RESPONSABLE,
-            NOTA,
-            DIA_COBRANZA,
-            PRECIO_TOTAL,
-            TIEMPO_A_CORTO_PLAZOMESES,
-            MONTO_A_CORTO_PLAZO,
-            MONTO_DE_CONTADO,
-            ENVIADO,
-            NUMERO,
-            COLONIA,
-            POBLACION,
-            CIUDAD,
-            TIPO_VENTA,
-            ZONA_CLIENTE_ID,
-            ZONA_CLIENTE,
-            CLIENTE_ID
-            FROM local_sale
-            WHERE ENVIADO = :enviado
-            ORDER BY FECHA_VENTA DESC
+        UPDATE local_sale SET
+            LAST_UPLOAD_HTTP_CODE = :httpCode,
+            LAST_UPLOAD_ERROR_CODE = :errorCode,
+            LAST_UPLOAD_ERROR_MESSAGE = :errorMessage,
+            LAST_UPLOAD_AT = :at,
+            LAST_UPLOAD_PERMANENT = :permanent
+        WHERE LOCAL_SALE_ID = :saleId
+        """
+    )
+    suspend fun updateUploadFailure(
+        saleId: String,
+        httpCode: Int,
+        errorCode: String?,
+        errorMessage: String?,
+        at: Long,
+        permanent: Boolean
+    )
+
+    /**
+     * Clears upload-failure tracking — called when the worker succeeds, or
+     * when the user edits a failed sale (so the UI doesn't show a stale
+     * error after a corrected resubmit).
+     */
+    @Query(
+        """
+        UPDATE local_sale SET
+            LAST_UPLOAD_HTTP_CODE = NULL,
+            LAST_UPLOAD_ERROR_CODE = NULL,
+            LAST_UPLOAD_ERROR_MESSAGE = NULL,
+            LAST_UPLOAD_AT = NULL,
+            LAST_UPLOAD_PERMANENT = NULL
+        WHERE LOCAL_SALE_ID = :saleId
+        """
+    )
+    suspend fun clearUploadFailure(saleId: String)
+
+    /**
+     * Sets a fresh Idempotency-Key on the sale. Used by edit-and-retry so the
+     * corrected body doesn't collide with a cached 2xx (which would otherwise
+     * return 422 idempotency_key_mismatch from the server middleware).
+     */
+    @Query("UPDATE local_sale SET IDEMPOTENCY_KEY = :key WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun updateIdempotencyKey(saleId: String, key: String)
+
+    @Query(
+        """
+        SELECT * FROM local_sale
+        WHERE ENVIADO = :enviado
+        ORDER BY FECHA_VENTA DESC
         """
     )
     suspend fun getSalesByStatus(enviado: Boolean): List<LocalSaleEntity>

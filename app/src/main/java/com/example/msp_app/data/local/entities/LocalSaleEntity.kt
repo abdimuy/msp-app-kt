@@ -36,5 +36,11 @@ class LocalSaleEntity(
     val TIPO_VENTA: String? = "CONTADO",
     val ZONA_CLIENTE_ID: Int? = null,
     val ZONA_CLIENTE: String? = null,
-    val CLIENTE_ID: Int? = null
+    val CLIENTE_ID: Int? = null,
+    val LAST_UPLOAD_HTTP_CODE: Int? = null,
+    val LAST_UPLOAD_ERROR_CODE: String? = null,
+    val LAST_UPLOAD_ERROR_MESSAGE: String? = null,
+    val LAST_UPLOAD_AT: Long? = null,
+    val LAST_UPLOAD_PERMANENT: Boolean? = null,
+    val IDEMPOTENCY_KEY: String? = null
 )
