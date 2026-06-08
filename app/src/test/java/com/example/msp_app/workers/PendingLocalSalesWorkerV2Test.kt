@@ -140,6 +140,27 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
             datos: RequestBody,
             imagen: List<MultipartBody.Part>
         ): VentaDTO = fakeVentaDTO
+
+        override suspend fun obtenerVenta(id: String): VentaDTO = fakeVentaDTO
+    }
+
+    /**
+     * Builds a [VentasApi] fake from two suspend lambdas. Tests that don't
+     * exercise [obtenerVenta] should pass a body that throws so an
+     * unexpected call fails the test loudly.
+     */
+    private fun fakeApi(
+        crear: suspend (String, RequestBody, List<MultipartBody.Part>) -> VentaDTO,
+        obtener: suspend (String) -> VentaDTO =
+            { throw AssertionError("obtenerVenta should not be called in this test") }
+    ): VentasApi = object : VentasApi {
+        override suspend fun crearVenta(
+            idempotencyKey: String,
+            datos: RequestBody,
+            imagen: List<MultipartBody.Part>
+        ): VentaDTO = crear(idempotencyKey, datos, imagen)
+
+        override suspend fun obtenerVenta(id: String): VentaDTO = obtener(id)
     }
 
     // ─── scenario setup ───────────────────────────────────────────────────────
@@ -172,17 +193,13 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         // Track crearVenta call count and capture the idempotency key.
         var callCount = 0
         var capturedKey: String? = null
-        val trackingApi = object : VentasApi {
-            override suspend fun crearVenta(
-                idempotencyKey: String,
-                datos: RequestBody,
-                imagen: List<MultipartBody.Part>
-            ): VentaDTO {
+        val trackingApi = fakeApi(
+            crear = { idempotencyKey, _, _ ->
                 callCount++
                 capturedKey = idempotencyKey
-                return fakeVentaDTO
+                fakeVentaDTO
             }
-        }
+        )
 
         val result = buildAndRunWorker(saleId = saleId, api = trackingApi)
 
@@ -210,16 +227,12 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         // No images inserted.
 
         var apiCalled = false
-        val trackingApi = object : VentasApi {
-            override suspend fun crearVenta(
-                idempotencyKey: String,
-                datos: RequestBody,
-                imagen: List<MultipartBody.Part>
-            ): VentaDTO {
+        val trackingApi = fakeApi(
+            crear = { _, _, _ ->
                 apiCalled = true
-                return fakeVentaDTO
+                fakeVentaDTO
             }
-        }
+        )
 
         val result = buildAndRunWorker(saleId = saleId, api = trackingApi)
 
@@ -234,13 +247,9 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
     fun upload_v2_io_exception_returns_retry() = runTest {
         val saleId = seedHappySale("sale-io-err")
 
-        val ioApi = object : VentasApi {
-            override suspend fun crearVenta(
-                idempotencyKey: String,
-                datos: RequestBody,
-                imagen: List<MultipartBody.Part>
-            ): VentaDTO = throw IOException("simulated network failure")
-        }
+        val ioApi = fakeApi(
+            crear = { _, _, _ -> throw IOException("simulated network failure") }
+        )
 
         val result = buildAndRunWorker(saleId = saleId, api = ioApi)
 
@@ -251,32 +260,122 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
     }
 
     @Test
-    fun upload_v2_409_returns_retry() = runTest {
+    fun upload_v2_409_with_existing_venta_reconciles_via_get() = runTest {
         val saleId = seedHappySale("sale-409")
 
-        val conflictApi = object : VentasApi {
-            override suspend fun crearVenta(
-                idempotencyKey: String,
-                datos: RequestBody,
-                imagen: List<MultipartBody.Part>
-            ): VentaDTO = throw HttpException(
-                retrofit2.Response.error<VentaDTO>(
-                    409,
-                    "{}".toResponseBody("application/json".toMediaTypeOrNull())
+        val conflictApi = fakeApi(
+            crear = { _, _, _ ->
+                throw HttpException(
+                    retrofit2.Response.error<VentaDTO>(
+                        409,
+                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                    )
                 )
-            )
-        }
+            },
+            obtener = { fakeVentaDTO }
+        )
 
         val result = buildAndRunWorker(saleId = saleId, api = conflictApi)
 
         assertEquals(
-            "409 (idempotency_key_mismatch) must trigger retry, not be silently accepted",
+            "409 with venta present server-side must be reconciled via GET",
+            ListenableWorker.Result.success(),
+            result
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)
+        assert(sale!!.ENVIADO) { "ENVIADO must flip to true after reconcile via GET" }
+    }
+
+    @Test
+    fun upload_v2_4xx_with_existing_venta_reconciles_via_get() = runTest {
+        val saleId = seedHappySale("sale-422")
+
+        val api = fakeApi(
+            crear = { _, _, _ ->
+                throw HttpException(
+                    retrofit2.Response.error<VentaDTO>(
+                        422,
+                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                    )
+                )
+            },
+            obtener = { fakeVentaDTO }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = api)
+
+        assertEquals(
+            "Any 4xx with venta present server-side must reconcile via GET",
+            ListenableWorker.Result.success(),
+            result
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)
+        assert(sale!!.ENVIADO) { "ENVIADO must flip to true after reconcile via GET" }
+    }
+
+    @Test
+    fun upload_v2_4xx_with_404_on_verify_returns_retry() = runTest {
+        val saleId = seedHappySale("sale-422-404")
+
+        val api = fakeApi(
+            crear = { _, _, _ ->
+                throw HttpException(
+                    retrofit2.Response.error<VentaDTO>(
+                        422,
+                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                    )
+                )
+            },
+            obtener = {
+                throw HttpException(
+                    retrofit2.Response.error<VentaDTO>(
+                        404,
+                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                    )
+                )
+            }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = api)
+
+        assertEquals(
+            "4xx + GET 404 means venta truly does not exist — retry",
             ListenableWorker.Result.retry(),
             result
         )
 
         val sale = saleDataSource.getSaleById(saleId)
-        assertFalse("ENVIADO must stay false on 409", sale!!.ENVIADO)
+        assertFalse("ENVIADO must stay false when venta is absent server-side", sale!!.ENVIADO)
+    }
+
+    @Test
+    fun upload_v2_5xx_with_get_failure_returns_retry() = runTest {
+        val saleId = seedHappySale("sale-500-io")
+
+        val api = fakeApi(
+            crear = { _, _, _ ->
+                throw HttpException(
+                    retrofit2.Response.error<VentaDTO>(
+                        500,
+                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                    )
+                )
+            },
+            obtener = { throw IOException("verify endpoint also down") }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = api)
+
+        assertEquals(
+            "Inconclusive verify (transient error) must result in retry",
+            ListenableWorker.Result.retry(),
+            result
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)
+        assertFalse("ENVIADO must stay false on inconclusive verify", sale!!.ENVIADO)
     }
 
     @Test
@@ -284,16 +383,12 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         val saleId = seedHappySale("sale-no-vend")
 
         var apiCalled = false
-        val trackingApi = object : VentasApi {
-            override suspend fun crearVenta(
-                idempotencyKey: String,
-                datos: RequestBody,
-                imagen: List<MultipartBody.Part>
-            ): VentaDTO {
+        val trackingApi = fakeApi(
+            crear = { _, _, _ ->
                 apiCalled = true
-                return fakeVentaDTO
+                fakeVentaDTO
             }
-        }
+        )
 
         // Resolver returns empty list — no camioneta assigned.
         val emptyResolver: suspend (String) -> Pair<List<VendedorDTO>, Int?> = {

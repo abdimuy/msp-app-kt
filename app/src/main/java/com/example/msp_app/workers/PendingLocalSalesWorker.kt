@@ -258,14 +258,40 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                     "responseBody" to (errBody ?: "")
                 )
             )
-            // 409 from the idempotency middleware can be either:
-            //   - replay of an earlier success (rare: replays return the original
-            //     status code, so we don't see 409 there)
-            //   - idempotency_key_mismatch (current request body differs from the
-            //     one cached against the same key) — never a success.
-            // So we treat 409 like any other 4xx and retry (the worker should fix
-            // the body before retrying — see deterministic vendedor UUIDs above).
-            Result.retry()
+
+            // Reconcile via GET: la venta puede haber sido creada server-side por
+            // replay-with admin (failed_intents), por una corrida anterior cuyo 2xx
+            // no nos llegó, o por algún otro flujo asíncrono. Antes de gastar otro
+            // intento contra un cache de error de 24h, verificamos.
+            val existeEnServer: Boolean? = try {
+                val existing = ventasApi.obtenerVenta(saleId)
+                Log.i(
+                    "PendingLocalSalesWorker",
+                    "Venta $saleId encontrada en servidor (situacion=${existing.situacion})"
+                )
+                true
+            } catch (verifyErr: HttpException) {
+                if (verifyErr.code() == 404) false else null
+            } catch (_: Exception) {
+                null
+            }
+
+            if (existeEnServer == true) {
+                localSaleStore.changeSaleStatus(saleId, true)
+                logger.info(
+                    module = "SALES_WORKER",
+                    action = "RECONCILED_VIA_GET",
+                    message = "Venta ya existía server-side; reconciliada sin reintentar",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "originalHttpCode" to e.code(),
+                        "attemptCount" to runAttemptCount
+                    )
+                )
+                Result.success()
+            } else {
+                Result.retry()
+            }
         } catch (e: IOException) {
             Log.w(
                 "PendingLocalSalesWorker",
