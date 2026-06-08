@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.logging.logSaleError
 import com.example.msp_app.core.utils.ImageCompressor
+import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
@@ -17,6 +18,8 @@ import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.features.sales.sync.enqueueLocalSaleUpdate
+import com.example.msp_app.features.sales.upload.data.RoomUploadFailureRepository
+import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
 import com.example.msp_app.utils.PriceParser
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +32,10 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
     private val localSaleStore = LocalSaleDataSource(application.applicationContext)
     private val saleProduct = SaleProductLocalDataSource(application.applicationContext)
     private val comboDataSource = ComboLocalDataSource(application.applicationContext)
+    private val uploadFailureRepository: UploadFailureRepository =
+        RoomUploadFailureRepository(
+            AppDatabase.getInstance(application.applicationContext).localSaleDao()
+        )
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(application) }
 
     private val _selectedSale = MutableStateFlow<LocalSaleEntity?>(null)
@@ -297,6 +304,18 @@ class EditLocalSaleViewModel(application: Application) : AndroidViewModel(applic
                     data = mapOf("saleId" to saleId, "clientName" to clientName)
                 )
                 localSaleStore.updateSale(saleEntity)
+
+                // Edit-and-retry hand-off: mint a fresh Idempotency-Key so the
+                // corrected body doesn't collide with any cached 2xx, and
+                // clear the persisted failure so the UI no longer shows the
+                // old error after this save.
+                val freshKey = uploadFailureRepository.resetForEditAndRetry(saleId)
+                logger.debug(
+                    module = "SALES",
+                    action = "EDIT_RETRY_KEY_ROTATED",
+                    message = "Idempotency-Key rotated for edit-and-retry",
+                    data = mapOf("saleId" to saleId, "newKey" to freshKey)
+                )
 
                 // Delete old products and insert new ones
                 saleProduct.deleteProductsForSale(saleId)

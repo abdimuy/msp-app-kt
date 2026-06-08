@@ -3,6 +3,7 @@ package com.example.msp_app.features.sales.upload.data
 import com.example.msp_app.data.local.dao.localsale.LocalSaleDao
 import com.example.msp_app.features.sales.upload.domain.UploadFailure
 import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
+import java.util.UUID
 
 /**
  * Adapter: implements [UploadFailureRepository] against the Room DAO.
@@ -10,9 +11,14 @@ import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
  * Kept in the `data` package of the upload feature so the domain stays
  * Android-free. The worker constructs this directly — no DI framework in
  * this project — and tests substitute an in-memory or fake implementation.
+ *
+ * @param dao         Room DAO carrying the upload-failure columns.
+ * @param keyFactory  Idempotency-Key minter, defaults to a random UUID.
+ *                    Overridable in tests so assertions can pin the key.
  */
 class RoomUploadFailureRepository(
-    private val dao: LocalSaleDao
+    private val dao: LocalSaleDao,
+    private val keyFactory: () -> String = { UUID.randomUUID().toString() }
 ) : UploadFailureRepository {
 
     override suspend fun recordFailure(saleId: String, failure: UploadFailure) {
@@ -37,5 +43,12 @@ class RoomUploadFailureRepository(
 
     override suspend fun rotateIdempotencyKey(saleId: String, newKey: String) {
         dao.updateIdempotencyKey(saleId, newKey)
+    }
+
+    override suspend fun resetForEditAndRetry(saleId: String): String {
+        val freshKey = keyFactory()
+        dao.clearUploadFailure(saleId)
+        dao.updateIdempotencyKey(saleId, freshKey)
+        return freshKey
     }
 }

@@ -32,4 +32,15 @@ interface UploadFailureRepository {
 
     /** Rotates the Idempotency-Key to [newKey]. Used by edit-and-retry. */
     suspend fun rotateIdempotencyKey(saleId: String, newKey: String)
+
+    /**
+     * Atomic edit-and-retry hand-off: clears the persisted failure (so the
+     * UI doesn't show a stale error after the corrected resubmit) and rotates
+     * the Idempotency-Key (so the corrected body avoids cache-mismatch
+     * against a prior cached 2xx).
+     *
+     * @return the freshly-minted key — callers may persist it, log it, or
+     *         pass it into a worker enqueue payload.
+     */
+    suspend fun resetForEditAndRetry(saleId: String): String
 }

@@ -160,6 +160,49 @@ class RoomUploadFailureRepositoryTest : RoomTestBase() {
         )
     }
 
+    @Test
+    fun resetForEditAndRetry_clears_failure_and_rotates_key() = runTest {
+        val saleId = seedSale("sale-edit-reset")
+        // Pre-condition: a permanent failure is on the sale.
+        repo.recordFailure(
+            saleId,
+            UploadFailure(
+                httpCode = 422,
+                errorCode = "plazo_invalido",
+                errorMessage = "el plazo en meses debe ser mayor a cero",
+                classification = UploadFailureClassification.PERMANENT,
+                atEpochMillis = 1L
+            )
+        )
+
+        // Override the key factory so we can assert on the value.
+        val deterministicRepo = RoomUploadFailureRepository(
+            dao = dao,
+            keyFactory = { "fresh-edit-key-v1" }
+        )
+        val returnedKey = deterministicRepo.resetForEditAndRetry(saleId)
+
+        assertEquals("fresh-edit-key-v1", returnedKey)
+        val stored = dao.getSaleById(saleId)!!
+        assertEquals("fresh-edit-key-v1", stored.IDEMPOTENCY_KEY)
+        assertNull(stored.LAST_UPLOAD_HTTP_CODE)
+        assertNull(stored.LAST_UPLOAD_ERROR_CODE)
+        assertNull(stored.LAST_UPLOAD_ERROR_MESSAGE)
+        assertNull(stored.LAST_UPLOAD_PERMANENT)
+    }
+
+    @Test
+    fun resetForEditAndRetry_default_key_factory_returns_uuid() = runTest {
+        val saleId = seedSale("sale-edit-uuid")
+        // Default keyFactory uses UUID.randomUUID; only assert shape.
+        val returnedKey = repo.resetForEditAndRetry(saleId)
+        assertTrue(
+            "default key factory must mint a UUID — got '$returnedKey'",
+            Regex("^[0-9a-f-]{36}$").matches(returnedKey)
+        )
+        assertEquals(returnedKey, dao.getSaleById(saleId)!!.IDEMPOTENCY_KEY)
+    }
+
     private suspend fun seedSale(saleId: String): String {
         dao.insertSale(TestDataFactory.createLocalSaleEntity(saleId = saleId))
         return saleId
