@@ -10,12 +10,19 @@ import com.example.msp_app.core.sync.ventas.VendedorResolver
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
+import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.models.sale.localsale.LocalSaleMappers
 import com.example.msp_app.features.camionetaAssignment.data.repository.CamionetaAssignmentRepository
+import com.example.msp_app.features.sales.upload.data.RoomUploadFailureRepository
+import com.example.msp_app.features.sales.upload.domain.UploadFailure
+import com.example.msp_app.features.sales.upload.domain.UploadFailureClassification
+import com.example.msp_app.features.sales.upload.domain.UploadFailureClassifier
+import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
 import com.google.gson.Gson
+import com.google.gson.JsonParser
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -53,7 +60,21 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
      * Overridable in tests to inject a MockWebServer-backed or fake implementation.
      */
     @VisibleForTesting
-    internal val ventasApi: VentasApi = V2ApiProvider.create(VentasApi::class.java)
+    internal val ventasApi: VentasApi = V2ApiProvider.create(VentasApi::class.java),
+    /**
+     * Persists/clears the per-sale upload-failure record and the rotating
+     * Idempotency-Key. See [UploadFailureRepository] for the contract.
+     * Default uses the Room DAO via the app database singleton.
+     */
+    @VisibleForTesting
+    internal val uploadFailureRepository: UploadFailureRepository =
+        RoomUploadFailureRepository(AppDatabase.getInstance(appContext).localSaleDao()),
+    /**
+     * Wall-clock provider for stamping LAST_UPLOAD_AT. Overridable so tests
+     * can assert on a deterministic timestamp.
+     */
+    @VisibleForTesting
+    internal val nowEpochMillis: () -> Long = System::currentTimeMillis
 ) : CoroutineWorker(appContext, workerParams) {
 
     private val localSaleStore = LocalSaleDataSource(appContext)
@@ -211,13 +232,23 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 }
             }
 
+            // Idempotency-Key defaults to the saleId but can be rotated by
+            // edit-and-retry so a corrected body avoids cache mismatch.
+            val idempotencyKey = uploadFailureRepository.currentIdempotencyKey(
+                saleId = saleId,
+                defaultKey = saleId
+            )
+
             val response = ventasApi.crearVenta(
-                idempotencyKey = saleId,
+                idempotencyKey = idempotencyKey,
                 datos = datosRequestBody,
                 imagen = imageParts
             )
 
             localSaleStore.changeSaleStatus(saleId, true)
+            // Clear any prior upload-failure tracking so the UI doesn't keep
+            // showing a stale error after a successful retry.
+            uploadFailureRepository.clearFailure(saleId)
 
             logger.info(
                 module = "SALES_WORKER",
@@ -236,12 +267,12 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
 
             Result.success()
         } catch (e: HttpException) {
-            // Capture response body so 4xx/5xx errors are diagnosable.
             val errBody = try {
                 e.response()?.errorBody()?.string()
             } catch (_: Exception) {
                 null
             }
+            val parsed = parseProblemDetails(errBody)
             Log.e(
                 "PendingLocalSalesWorker",
                 "Error HTTP ${e.code()} al enviar venta $saleId  body=$errBody",
@@ -262,7 +293,7 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             // Reconcile via GET: la venta puede haber sido creada server-side por
             // replay-with admin (failed_intents), por una corrida anterior cuyo 2xx
             // no nos llegó, o por algún otro flujo asíncrono. Antes de gastar otro
-            // intento contra un cache de error de 24h, verificamos.
+            // intento (o rendirnos en un 4xx permanente), verificamos.
             val existeEnServer: Boolean? = try {
                 val existing = ventasApi.obtenerVenta(saleId)
                 Log.i(
@@ -278,6 +309,7 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
 
             if (existeEnServer == true) {
                 localSaleStore.changeSaleStatus(saleId, true)
+                uploadFailureRepository.clearFailure(saleId)
                 logger.info(
                     module = "SALES_WORKER",
                     action = "RECONCILED_VIA_GET",
@@ -290,7 +322,34 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 )
                 Result.success()
             } else {
-                Result.retry()
+                val classification = UploadFailureClassifier.classify(e.code())
+                uploadFailureRepository.recordFailure(
+                    saleId = saleId,
+                    failure = UploadFailure(
+                        httpCode = e.code(),
+                        errorCode = parsed.code,
+                        errorMessage = parsed.detail,
+                        classification = classification,
+                        atEpochMillis = nowEpochMillis()
+                    )
+                )
+
+                if (classification == UploadFailureClassification.PERMANENT) {
+                    logger.info(
+                        module = "SALES_WORKER",
+                        action = "PERMANENT_FAILURE",
+                        message = "Venta rechazada con error permanente; no se reintentará",
+                        data = mapOf(
+                            "saleId" to saleId,
+                            "httpCode" to e.code(),
+                            "errorCode" to (parsed.code ?: ""),
+                            "errorMessage" to (parsed.detail ?: "")
+                        )
+                    )
+                    Result.failure()
+                } else {
+                    Result.retry()
+                }
             }
         } catch (e: IOException) {
             Log.w(
@@ -305,6 +364,18 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 error = e,
                 data = mapOf("saleId" to saleId, "attemptCount" to runAttemptCount)
             )
+            // Network failures are transient by definition. Persist for UI
+            // visibility but keep retrying.
+            uploadFailureRepository.recordFailure(
+                saleId = saleId,
+                failure = UploadFailure(
+                    httpCode = 0,
+                    errorCode = "network_error",
+                    errorMessage = e.message ?: "error de red",
+                    classification = UploadFailureClassification.TRANSIENT,
+                    atEpochMillis = nowEpochMillis()
+                )
+            )
             Result.retry()
         } catch (e: Exception) {
             Log.e("PendingLocalSalesWorker", "Error al enviar venta local $saleId", e)
@@ -316,6 +387,29 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 data = mapOf("saleId" to saleId, "attemptCount" to runAttemptCount)
             )
             Result.retry()
+        }
+    }
+
+    /** Parsed Problem-Details fragment from an RFC 7807-style error response. */
+    private data class ProblemDetails(val code: String?, val detail: String?)
+
+    /**
+     * Best-effort parse of an `application/problem+json` body. Returns
+     * (null, null) if the body is missing, malformed, or doesn't carry
+     * the expected fields. Never throws — diagnostic parsing must not
+     * upstage the original HTTP error.
+     */
+    private fun parseProblemDetails(body: String?): ProblemDetails {
+        if (body.isNullOrBlank()) return ProblemDetails(null, null)
+        return try {
+            val obj = JsonParser.parseString(body).asJsonObject
+            ProblemDetails(
+                code = obj["code"]?.takeUnless { it.isJsonNull }?.asString,
+                detail = obj["detail"]?.takeUnless { it.isJsonNull }?.asString
+                    ?: obj["message"]?.takeUnless { it.isJsonNull }?.asString
+            )
+        } catch (_: Exception) {
+            ProblemDetails(null, null)
         }
     }
 }

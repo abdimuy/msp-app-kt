@@ -10,6 +10,8 @@ import com.example.msp_app.data.api.services.ventas.VentasApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
+import com.example.msp_app.features.sales.upload.data.RoomUploadFailureRepository
+import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import com.google.firebase.FirebaseApp
@@ -102,7 +104,9 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         saleId: String = "sale-001",
         userEmail: String = "test@muebleriamsp.mx",
         resolver: suspend (String) -> Pair<List<VendedorDTO>, Int?> = { Pair(fakeVendedores, 3) },
-        api: VentasApi = happyPathApi()
+        api: VentasApi = happyPathApi(),
+        repository: UploadFailureRepository = RoomUploadFailureRepository(db.localSaleDao()),
+        now: () -> Long = { 1_700_000_000_000L }
     ): ListenableWorker.Result {
         val inputData = androidx.work.Data.Builder()
             .putString("local_sale_id", saleId)
@@ -120,7 +124,9 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
                         appContext = appContext,
                         workerParams = workerParameters,
                         resolveVendedoresForEmail = resolver,
-                        ventasApi = api
+                        ventasApi = api,
+                        uploadFailureRepository = repository,
+                        nowEpochMillis = now
                     )
                 }
             })
@@ -316,15 +322,17 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
     }
 
     @Test
-    fun upload_v2_4xx_with_404_on_verify_returns_retry() = runTest {
+    fun upload_v2_422_validation_with_404_on_verify_returns_failure_permanent() = runTest {
         val saleId = seedHappySale("sale-422-404")
 
+        val problemBody =
+            """{"code":"plazo_invalido","detail":"el plazo en meses debe ser mayor a cero","title":"Unprocessable Entity"}"""
         val api = fakeApi(
             crear = { _, _, _ ->
                 throw HttpException(
                     retrofit2.Response.error<VentaDTO>(
                         422,
-                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                        problemBody.toResponseBody("application/problem+json".toMediaTypeOrNull())
                     )
                 )
             },
@@ -341,13 +349,182 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         val result = buildAndRunWorker(saleId = saleId, api = api)
 
         assertEquals(
-            "4xx + GET 404 means venta truly does not exist — retry",
-            ListenableWorker.Result.retry(),
+            "422 validation + GET 404 means a permanent client error — worker must surrender",
+            ListenableWorker.Result.failure(),
             result
         )
 
-        val sale = saleDataSource.getSaleById(saleId)
-        assertFalse("ENVIADO must stay false when venta is absent server-side", sale!!.ENVIADO)
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertFalse("ENVIADO must stay false when venta is rejected permanently", sale.ENVIADO)
+        assertEquals("LAST_UPLOAD_HTTP_CODE must be persisted", 422, sale.LAST_UPLOAD_HTTP_CODE)
+        assertEquals("plazo_invalido", sale.LAST_UPLOAD_ERROR_CODE)
+        assertEquals(
+            "el plazo en meses debe ser mayor a cero",
+            sale.LAST_UPLOAD_ERROR_MESSAGE
+        )
+        assertEquals(true, sale.LAST_UPLOAD_PERMANENT)
+    }
+
+    @Test
+    fun upload_v2_500_transient_with_404_on_verify_returns_retry_and_persists_transient() =
+        runTest {
+            val saleId = seedHappySale("sale-500-404")
+
+            val api = fakeApi(
+                crear = { _, _, _ ->
+                    throw HttpException(
+                        retrofit2.Response.error<VentaDTO>(
+                            500,
+                            "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                        )
+                    )
+                },
+                obtener = {
+                    throw HttpException(
+                        retrofit2.Response.error<VentaDTO>(
+                            404,
+                            "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                        )
+                    )
+                }
+            )
+
+            val result = buildAndRunWorker(saleId = saleId, api = api)
+
+            assertEquals(
+                "5xx is transient — worker must retry",
+                ListenableWorker.Result.retry(),
+                result
+            )
+
+            val sale = saleDataSource.getSaleById(saleId)!!
+            assertFalse(sale.ENVIADO)
+            assertEquals(500, sale.LAST_UPLOAD_HTTP_CODE)
+            assertEquals(
+                "500 must be classified as transient so the user sees it but the worker keeps retrying",
+                false,
+                sale.LAST_UPLOAD_PERMANENT
+            )
+        }
+
+    @Test
+    fun upload_v2_reconcile_via_get_clears_persisted_failure() = runTest {
+        val saleId = seedHappySale("sale-reconcile-clears")
+
+        // Pre-seed a failure from an earlier attempt.
+        val repo = RoomUploadFailureRepository(db.localSaleDao())
+        repo.recordFailure(
+            saleId,
+            com.example.msp_app.features.sales.upload.domain.UploadFailure(
+                httpCode = 500,
+                errorCode = "boom",
+                errorMessage = "previously transient",
+                classification =
+                com.example.msp_app.features.sales.upload.domain.UploadFailureClassification.TRANSIENT,
+                atEpochMillis = 1L
+            )
+        )
+
+        // Now the POST fails again but the GET reconcile finds the venta.
+        val api = fakeApi(
+            crear = { _, _, _ ->
+                throw HttpException(
+                    retrofit2.Response.error<VentaDTO>(
+                        500,
+                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
+                    )
+                )
+            },
+            obtener = { fakeVentaDTO }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = api, repository = repo)
+        assertEquals(ListenableWorker.Result.success(), result)
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assert(sale.ENVIADO) { "ENVIADO must flip to true after GET reconcile" }
+        assertEquals(
+            "Reconcile-via-GET must clear the stale failure so the UI doesn't keep showing it",
+            null,
+            sale.LAST_UPLOAD_HTTP_CODE
+        )
+        assertEquals(null, sale.LAST_UPLOAD_ERROR_CODE)
+        assertEquals(null, sale.LAST_UPLOAD_ERROR_MESSAGE)
+        assertEquals(null, sale.LAST_UPLOAD_PERMANENT)
+    }
+
+    @Test
+    fun upload_v2_io_exception_persists_network_error_transient() = runTest {
+        val saleId = seedHappySale("sale-io-persist")
+
+        val ioApi = fakeApi(
+            crear = { _, _, _ -> throw IOException("connection reset") }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = ioApi)
+
+        assertEquals(ListenableWorker.Result.retry(), result)
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertEquals(0, sale.LAST_UPLOAD_HTTP_CODE)
+        assertEquals("network_error", sale.LAST_UPLOAD_ERROR_CODE)
+        assertEquals("connection reset", sale.LAST_UPLOAD_ERROR_MESSAGE)
+        assertEquals(false, sale.LAST_UPLOAD_PERMANENT)
+    }
+
+    @Test
+    fun upload_v2_happy_path_clears_prior_failure() = runTest {
+        val saleId = seedHappySale("sale-cleared-on-success")
+
+        val repo = RoomUploadFailureRepository(db.localSaleDao())
+        repo.recordFailure(
+            saleId,
+            com.example.msp_app.features.sales.upload.domain.UploadFailure(
+                httpCode = 422,
+                errorCode = "plazo_invalido",
+                errorMessage = "el plazo en meses debe ser mayor a cero",
+                classification =
+                com.example.msp_app.features.sales.upload.domain.UploadFailureClassification.PERMANENT,
+                atEpochMillis = 1L
+            )
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, repository = repo)
+        assertEquals(ListenableWorker.Result.success(), result)
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assert(sale.ENVIADO)
+        assertEquals(
+            "Successful upload must clear any prior failure so the UI doesn't show a stale error",
+            null,
+            sale.LAST_UPLOAD_ERROR_MESSAGE
+        )
+    }
+
+    @Test
+    fun upload_v2_uses_rotated_idempotency_key_when_set() = runTest {
+        val saleId = seedHappySale("sale-rotated-key")
+
+        // Rotate the key beforehand — simulates edit-and-retry having minted
+        // a fresh Idempotency-Key before this worker run.
+        val repo = RoomUploadFailureRepository(db.localSaleDao())
+        repo.rotateIdempotencyKey(saleId, "rotated-uuid-99")
+
+        var capturedKey: String? = null
+        val trackingApi = fakeApi(
+            crear = { idempotencyKey, _, _ ->
+                capturedKey = idempotencyKey
+                fakeVentaDTO
+            }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = trackingApi, repository = repo)
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertEquals(
+            "Worker must send the rotated Idempotency-Key when one has been set",
+            "rotated-uuid-99",
+            capturedKey
+        )
     }
 
     @Test
