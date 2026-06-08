@@ -962,7 +962,7 @@ private fun UploadErrorBanner(
             }
             if (isPermanent) {
                 Text(
-                    text = "Tocá la venta para editarla y reintentar",
+                    text = "Pendiente de corrección",
                     style = MaterialTheme.typography.labelSmall,
                     color = accent.copy(alpha = 0.9f),
                     modifier = Modifier.padding(top = 4.dp)
