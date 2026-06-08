@@ -251,7 +251,7 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
     }
 
     @Test
-    fun upload_v2_idempotency_409_treats_as_success() = runTest {
+    fun upload_v2_409_returns_retry() = runTest {
         val saleId = seedHappySale("sale-409")
 
         val conflictApi = object : VentasApi {
@@ -270,13 +270,13 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         val result = buildAndRunWorker(saleId = saleId, api = conflictApi)
 
         assertEquals(
-            "409 from idempotency middleware must be treated as success",
-            ListenableWorker.Result.success(),
+            "409 (idempotency_key_mismatch) must trigger retry, not be silently accepted",
+            ListenableWorker.Result.retry(),
             result
         )
 
         val sale = saleDataSource.getSaleById(saleId)
-        assert(sale!!.ENVIADO) { "ENVIADO must flip to true on 409 (idempotent replay)" }
+        assertFalse("ENVIADO must stay false on 409", sale!!.ENVIADO)
     }
 
     @Test

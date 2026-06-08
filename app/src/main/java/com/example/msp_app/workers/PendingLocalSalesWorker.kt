@@ -95,6 +95,17 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 )
             }
 
+        Log.d(
+            "PendingLocalSalesWorker",
+            "DEBUG_SALE saleId=$saleId" +
+                " COLONIA='${sale.COLONIA}'" +
+                " POBLACION='${sale.POBLACION}'" +
+                " CIUDAD='${sale.CIUDAD}'" +
+                " TIEMPO_A_CORTO_PLAZOMESES=${sale.TIEMPO_A_CORTO_PLAZOMESES}" +
+                " TIPO_VENTA='${sale.TIPO_VENTA}'" +
+                " FREC_PAGO='${sale.FREC_PAGO}'" +
+                " DIA_COBRANZA='${sale.DIA_COBRANZA}'"
+        )
         return try {
             val images = localSaleStore.getImagesForSale(saleId)
             if (images.isEmpty()) {
@@ -108,7 +119,16 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 return Result.failure()
             }
 
-            val (vendedores, camionetaId) = resolveVendedoresForEmail(userEmail)
+            val (rawVendedores, camionetaId) = resolveVendedoresForEmail(userEmail)
+            // Deterministic snapshot UUID per (saleId, usuario_id) so retries
+            // produce the SAME body → no idempotency_key_mismatch.
+            val vendedores = rawVendedores.map { v ->
+                v.copy(
+                    id = UUID.nameUUIDFromBytes(
+                        "$saleId|${v.usuario_id}".toByteArray()
+                    ).toString()
+                )
+            }
             if (vendedores.isEmpty()) {
                 Log.e(
                     "PendingLocalSalesWorker",
@@ -216,36 +236,36 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
 
             Result.success()
         } catch (e: HttpException) {
-            if (e.code() == 409) {
-                // 409 Conflict from the idempotency middleware means the request was
-                // already processed. Treat as success so the worker does not re-enqueue.
-                Log.i(
-                    "PendingLocalSalesWorker",
-                    "Venta $saleId ya procesada (409), marcando como enviada"
-                )
-                localSaleStore.changeSaleStatus(saleId, true)
-                logger.info(
-                    module = "SALES_WORKER",
-                    action = "UPLOAD_IDEMPOTENT",
-                    message = "Venta ya procesada por idempotency middleware (409)",
-                    data = mapOf("saleId" to saleId)
-                )
-                Result.success()
-            } else {
-                Log.e(
-                    "PendingLocalSalesWorker",
-                    "Error HTTP ${e.code()} al enviar venta $saleId",
-                    e
-                )
-                logger.error(
-                    module = "SALES_WORKER",
-                    action = "HTTP_ERROR",
-                    message = "Error HTTP ${e.code()} al enviar venta: ${e.message}",
-                    error = e,
-                    data = mapOf("saleId" to saleId, "attemptCount" to runAttemptCount)
-                )
-                Result.retry()
+            // Capture response body so 4xx/5xx errors are diagnosable.
+            val errBody = try {
+                e.response()?.errorBody()?.string()
+            } catch (_: Exception) {
+                null
             }
+            Log.e(
+                "PendingLocalSalesWorker",
+                "Error HTTP ${e.code()} al enviar venta $saleId  body=$errBody",
+                e
+            )
+            logger.error(
+                module = "SALES_WORKER",
+                action = "HTTP_ERROR",
+                message = "Error HTTP ${e.code()} al enviar venta: $errBody",
+                error = e,
+                data = mapOf(
+                    "saleId" to saleId,
+                    "attemptCount" to runAttemptCount,
+                    "responseBody" to (errBody ?: "")
+                )
+            )
+            // 409 from the idempotency middleware can be either:
+            //   - replay of an earlier success (rare: replays return the original
+            //     status code, so we don't see 409 there)
+            //   - idempotency_key_mismatch (current request body differs from the
+            //     one cached against the same key) — never a success.
+            // So we treat 409 like any other 4xx and retry (the worker should fix
+            // the body before retrying — see deterministic vendedor UUIDs above).
+            Result.retry()
         } catch (e: IOException) {
             Log.w(
                 "PendingLocalSalesWorker",

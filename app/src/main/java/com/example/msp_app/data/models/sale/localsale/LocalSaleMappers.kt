@@ -240,7 +240,7 @@ class LocalSaleMappers {
             cliente = ClienteSnapshotDTO(
                 cliente_id = this.CLIENTE_ID,
                 nombre = this.NOMBRE_CLIENTE,
-                telefono = this.TELEFONO.takeIf { it.isNotBlank() },
+                telefono = normalizeTelefonoE164(this.TELEFONO),
                 aval = this.AVAL_O_RESPONSABLE?.takeIf { it.isNotBlank() },
                 referencia = null
             ),
@@ -283,6 +283,20 @@ class LocalSaleMappers {
             productos = productosDtos,
             vendedores = vendedores
         )
+    }
+
+    /**
+     * Normalizes a phone number to E.164. Returns null if blank.
+     * If the input lacks a `+` prefix, assumes Mexico (+52) and strips
+     * non-digit characters before prepending the country code.
+     */
+    private fun normalizeTelefonoE164(raw: String): String? {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return null
+        if (trimmed.startsWith("+")) return trimmed
+        val digits = trimmed.filter { it.isDigit() }
+        if (digits.isEmpty()) return null
+        return "+52$digits"
     }
 
     private fun normalizeFrecPago(raw: String): String = raw.uppercase()
