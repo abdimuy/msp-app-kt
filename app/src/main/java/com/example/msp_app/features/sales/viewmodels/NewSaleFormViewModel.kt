@@ -282,6 +282,7 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
                 longitude = draft.longitude,
                 selectedZoneId = draft.zonaClienteId,
                 selectedZoneName = draft.zonaClienteNombre,
+                selectedClienteId = draft.clienteId,
                 imageUris = draft.imageUris.mapNotNull { path ->
                     try {
                         val file = File(path)
@@ -351,7 +352,8 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
                 productsJson = draftManager.saleItemsToJson(saleItems),
                 combosJson = draftManager.combosToJson(draftCombos),
                 zonaClienteId = state.selectedZoneId,
-                zonaClienteNombre = state.selectedZoneName
+                zonaClienteNombre = state.selectedZoneName,
+                clienteId = state.selectedClienteId
             )
             draftManager.saveDraft(draft)
         }

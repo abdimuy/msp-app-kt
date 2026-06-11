@@ -138,6 +138,7 @@ object TestDataFactory {
         combosJson: String = "",
         zonaClienteId: Int? = 1,
         zonaClienteNombre: String = "Zona Norte",
+        clienteId: Int? = null,
         timestamp: Long = System.currentTimeMillis()
     ) = SaleDraft(
         clientName = clientName,
@@ -161,6 +162,7 @@ object TestDataFactory {
         combosJson = combosJson,
         zonaClienteId = zonaClienteId,
         zonaClienteNombre = zonaClienteNombre,
+        clienteId = clienteId,
         timestamp = timestamp
     )
 

@@ -78,6 +78,12 @@ data class SaleDraft(
     val zonaClienteId: Int? = null,
     val zonaClienteNombre: String = "",
 
+    // Existing-cliente link (Microsip CLIENTE_ID). Null when the sale is for a
+    // brand-new cliente that the backend must auto-create on apply. MUST survive
+    // a draft save/restore: losing it makes an existing cliente look new, so the
+    // backend tries to re-create it in Microsip and the insert fails.
+    val clienteId: Int? = null,
+
     val timestamp: Long = System.currentTimeMillis()
 ) {
     /**
@@ -203,6 +209,9 @@ class SaleDraftManager(private val context: Context) {
         private val ZONA_CLIENTE_ID = intPreferencesKey("draft_zona_cliente_id")
         private val ZONA_CLIENTE_NOMBRE = stringPreferencesKey("draft_zona_cliente_nombre")
 
+        // Existing-cliente link
+        private val CLIENTE_ID = intPreferencesKey("draft_cliente_id")
+
         // Combos
         private val COMBOS_JSON = stringPreferencesKey("draft_combos_json")
 
@@ -248,6 +257,15 @@ class SaleDraftManager(private val context: Context) {
             // Zone fields
             draft.zonaClienteId?.let { preferences[ZONA_CLIENTE_ID] = it }
             preferences[ZONA_CLIENTE_NOMBRE] = draft.zonaClienteNombre
+
+            // Existing-cliente link. Write when present; explicitly REMOVE when
+            // null so a previously-saved id never sticks to a now-new cliente
+            // (which would make the backend reject/duplicate it in Microsip).
+            if (draft.clienteId != null) {
+                preferences[CLIENTE_ID] = draft.clienteId
+            } else {
+                preferences.remove(CLIENTE_ID)
+            }
 
             preferences[TIMESTAMP] = draft.timestamp.toString()
         }
@@ -297,6 +315,7 @@ class SaleDraftManager(private val context: Context) {
             paymentFrequency = preferences[PAYMENT_FREQUENCY] ?: "",
             zonaClienteId = preferences[ZONA_CLIENTE_ID],
             zonaClienteNombre = preferences[ZONA_CLIENTE_NOMBRE] ?: "",
+            clienteId = preferences[CLIENTE_ID],
             timestamp = preferences[TIMESTAMP]?.toLongOrNull() ?: 0L
         )
     }

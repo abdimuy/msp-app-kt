@@ -338,6 +338,78 @@ class SaleDraftIntegrationTest : RobolectricTestBase() {
     }
 
     // ========================
+    // Existing-cliente link roundtrip (regression)
+    //
+    // A sale for an existing Microsip cliente must keep its CLIENTE_ID across a
+    // draft save/restore. If it is lost, the venta looks new and the backend
+    // tries to re-create the cliente in Microsip on apply, which fails.
+    // ========================
+
+    @Test
+    fun `save and load preserves clienteId for an existing cliente`() = runTest {
+        val draft = TestDataFactory.createSaleDraft(
+            clientName = "EDITH FLORES MORENO",
+            clienteId = 11513
+        )
+        draftManager.saveDraft(draft)
+        val loaded = draftManager.loadDraft()
+
+        assertNotNull(loaded)
+        assertEquals(11513, loaded!!.clienteId)
+        assertEquals("EDITH FLORES MORENO", loaded.clientName)
+    }
+
+    @Test
+    fun `save and load keeps null clienteId for a new cliente`() = runTest {
+        val draft = TestDataFactory.createSaleDraft(
+            clientName = "CLIENTE NUEVO SIN ID",
+            clienteId = null
+        )
+        draftManager.saveDraft(draft)
+        val loaded = draftManager.loadDraft()
+
+        assertNotNull(loaded)
+        assertNull(loaded!!.clienteId)
+    }
+
+    @Test
+    fun `re-saving as a new cliente clears a previously saved clienteId`() = runTest {
+        // 1. Draft for an existing cliente.
+        draftManager.saveDraft(
+            TestDataFactory.createSaleDraft(clientName = "EXISTENTE", clienteId = 11513)
+        )
+        assertEquals(11513, draftManager.loadDraft()!!.clienteId)
+
+        // 2. Overwrite with a brand-new cliente (no id): the old id must NOT stick.
+        draftManager.saveDraft(
+            TestDataFactory.createSaleDraft(clientName = "NUEVO", clienteId = null)
+        )
+        val loaded = draftManager.loadDraft()
+
+        assertNotNull(loaded)
+        assertNull("stale clienteId must be cleared for a new cliente", loaded!!.clienteId)
+        assertEquals("NUEVO", loaded.clientName)
+    }
+
+    @Test
+    fun `full existing-cliente draft roundtrip preserves clienteId alongside zona`() = runTest {
+        val draft = TestDataFactory.createSaleDraft(
+            clientName = "MARIA DE LA LUZ REYES HERNANDEZ",
+            tipoVenta = "CREDITO",
+            zonaClienteId = 21563,
+            zonaClienteNombre = "Zona Tehuacan",
+            clienteId = 3075141
+        )
+        draftManager.saveDraft(draft)
+        val loaded = draftManager.loadDraft()
+
+        assertNotNull(loaded)
+        assertEquals(3075141, loaded!!.clienteId)
+        assertEquals(21563, loaded.zonaClienteId)
+        assertEquals("MARIA DE LA LUZ REYES HERNANDEZ", loaded.clientName)
+    }
+
+    // ========================
     // Old draft boundary
     // ========================
 

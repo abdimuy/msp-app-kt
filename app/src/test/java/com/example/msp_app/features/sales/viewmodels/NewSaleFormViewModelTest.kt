@@ -492,6 +492,25 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
         assertTrue(state.imageUris.isEmpty())
     }
 
+    // --- Existing-cliente link survives the draft cycle (regression) ---
+
+    @Test
+    fun `applyDraft restores selectedClienteId for an existing cliente`() {
+        val draft = SaleDraft(clientName = "EDITH FLORES MORENO", clienteId = 11513)
+        viewModel.applyDraft(draft)
+        assertEquals(11513, viewModel.formState.value.selectedClienteId)
+    }
+
+    @Test
+    fun `applyDraft clears selectedClienteId for a new-cliente draft`() {
+        // Stale in-memory value from a previous selection must be overwritten by
+        // the draft (null = new cliente), so the sale is not sent with a wrong id.
+        viewModel.updateSelectedClienteId(999)
+        val draft = SaleDraft(clientName = "CLIENTE NUEVO", clienteId = null)
+        viewModel.applyDraft(draft)
+        assertNull(viewModel.formState.value.selectedClienteId)
+    }
+
     // --- clearAllFields ---
 
     @Test

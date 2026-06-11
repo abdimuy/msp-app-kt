@@ -14,6 +14,18 @@ class SaleDraftDataClassTest {
     }
 
     @Test
+    fun `default clienteId is null (new cliente)`() {
+        val draft = SaleDraft()
+        assertEquals(null, draft.clienteId)
+    }
+
+    @Test
+    fun `clienteId holds the existing Microsip cliente id`() {
+        val draft = SaleDraft(clienteId = 11513)
+        assertEquals(11513, draft.clienteId)
+    }
+
+    @Test
     fun `hasData returns false for empty draft`() {
         val draft = SaleDraft()
         assertFalse(draft.hasData())
