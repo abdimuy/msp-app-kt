@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "305734432149",
+    "project_id": "msp-dev-96ff5",
+    "storage_bucket": "msp-dev-96ff5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:305734432149:android:c595794b2c02a20554329c",
+        "android_client_info": {
+          "package_name": "com.example.msp_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAx9Ts4kGoqEmzDiI-mQCp8Jd4FZhczxos"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:305734432149:android:c595794b2c02a20554329c",
+        "android_client_info": {
+          "package_name": "com.example.msp_app.test"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAx9Ts4kGoqEmzDiI-mQCp8Jd4FZhczxos"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

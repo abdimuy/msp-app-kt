@@ -21,6 +21,18 @@ fun loadProperties(file: File): Properties {
 
 val localProps = loadProperties(rootProject.file("local.properties"))
 
+// ── LOCAL backend hosts (debug builds only) ────────────────────────────────
+// Per-developer, overridable in local.properties (gitignored). Defaults target
+// the Android emulator, where 10.0.2.2 is an alias for the host machine. On a
+// physical device set LOCAL_API_HOST to your Mac's LAN IP. The Go API and the
+// Node legacy must listen on different ports locally (both default to 3001 in
+// their own repos, so the legacy here defaults to 3000).
+val localApiHost = localProps.getProperty("LOCAL_API_HOST", "10.0.2.2")!!
+val localV2Port = localProps.getProperty("LOCAL_V2_PORT", "3001")!!
+val localLegacyPort = localProps.getProperty("LOCAL_LEGACY_PORT", "3000")!!
+val localV2Url = "http://$localApiHost:$localV2Port/"
+val localLegacyUrl = "http://$localApiHost:$localLegacyPort/"
+
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = loadProperties(keystorePropertiesFile)
 
@@ -81,6 +93,51 @@ android {
         }
     }
 
+    // ── 3 entornos = 3 flavors (dimensión `environment`) ──────────────────────
+    // El flavor ES el entorno; se elige en código (Build Variant) y cada uno es
+    // de primera clase, independiente de debug/release:
+    //
+    //   devlocal  → Firebase dev  + APIs LOCALES (tu máquina, local.properties)
+    //   devserver → Firebase dev  + APIs del server de pruebas (apidev/apidb)
+    //   prod      → Firebase prod + APIs de producción
+    //
+    // `devlocal` se declara primero y va primero alfabéticamente (devlocal <
+    // devserver < prod), así el variant por defecto que abre el ▶ de Android
+    // Studio —sin tocar nada— es `devlocalDebug`. `devlocal` y `devserver`
+    // comparten el proyecto Firebase dev y usan sufijo `.test` (su
+    // google-services registra ese package). Nota: el flavor NO puede llamarse
+    // "test" — AGP lo rechaza (choca con el source set de tests `src/test/`).
+    flavorDimensions += "environment"
+    productFlavors {
+        create("devlocal") {
+            dimension = "environment"
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-local"
+            resValue("string", "app_name", "msp-app LOCAL")
+            // Hosts/puertos por desarrollador desde local.properties (def 10.0.2.2).
+            buildConfigField("String", "V2_BASE_URL", "\"$localV2Url\"")
+            buildConfigField("String", "LEGACY_BASE_URL", "\"$localLegacyUrl\"")
+            buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
+        }
+        create("devserver") {
+            dimension = "environment"
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "msp-app DEV")
+            buildConfigField("String", "V2_BASE_URL", "\"https://apidev.loclx.io/\"")
+            buildConfigField("String", "LEGACY_BASE_URL", "\"https://apidb.loclx.io/\"")
+            buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
+        }
+        create("prod") {
+            dimension = "environment"
+            resValue("string", "app_name", "msp-app")
+            buildConfigField("String", "LEGACY_BASE_URL", "\"https://msp2025.loclx.io/\"")
+            // TODO: confirmar el host real del Go de prod cuando se despliegue.
+            buildConfigField("String", "V2_BASE_URL", "\"https://todo-go-prod-host.invalid/\"")
+            buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -96,6 +153,18 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+        }
+    }
+}
+
+// `prod` solo se compila como RELEASE (APK de producción). Deshabilitamos
+// `prodDebug` para que el ▶ de Android Studio —que siempre prefiere un variant
+// debug— no pueda quedarse en prod: el único default posible es `devlocalDebug`
+// (dev Firebase + API local). `devlocalRelease` tampoco tiene sentido.
+androidComponents {
+    beforeVariants { variant ->
+        if (variant.name == "prodDebug" || variant.name == "devlocalRelease") {
+            variant.enable = false
         }
     }
 }

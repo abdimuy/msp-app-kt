@@ -11,7 +11,7 @@ fi
 echo "Lint passed"
 
 echo "Running tests..."
-./gradlew testDebugUnitTest --quiet
+./gradlew testDevlocalDebugUnitTest --quiet
 TEST_RESULT=$?
 
 if [ $TEST_RESULT -ne 0 ]; then

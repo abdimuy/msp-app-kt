@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">msp-app</string>
+    <!-- app_name se define por flavor vía resValue en app/build.gradle.kts
+         (prod: "msp-app", pruebas: "msp-app TEST"). No declararlo aquí: chocaría. -->
 </resources>

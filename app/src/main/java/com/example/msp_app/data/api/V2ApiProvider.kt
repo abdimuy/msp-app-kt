@@ -1,5 +1,6 @@
 package com.example.msp_app.data.api
 
+import com.example.msp_app.BuildConfig
 import retrofit2.Retrofit
 
 /**
@@ -14,14 +15,15 @@ import retrofit2.Retrofit
 object V2ApiProvider : V2BaseApi() {
 
     /**
-     * Base URL del backend Go. `10.0.2.2` es el alias del host de la maquina
-     * desde el emulador Android. Para device fisico hay que cambiar por la
-     * IP LAN; para staging/prod, por la URL publica.
+     * Base URL del backend Go, vía `BuildConfig.V2_BASE_URL`, según el flavor:
+     *   - devlocal  → API local (`local.properties`, def 10.0.2.2:3001)
+     *   - devserver → apidev (server de pruebas)
+     *   - prod      → host del Go de prod
      *
      * Visible `internal` para que [CobranzaSseProvider] pueda reutilizar la
      * misma URL sin duplicarla.
      */
-    internal const val BASE_URL = "http://10.0.2.2:3001/"
+    internal val BASE_URL = BuildConfig.V2_BASE_URL
 
     @Volatile private var retrofit: Retrofit? = null
 
