@@ -153,6 +153,13 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            // La JVM forkeada de los unit tests usa el heap default (~512m),
+            // insuficiente para la suite de Robolectric (cada test carga un
+            // classloader de ~100M) → OOM/SIGSEGV. Le damos heap y metaspace.
+            all {
+                it.maxHeapSize = "2g"
+                it.jvmArgs("-XX:MaxMetaspaceSize=1g")
+            }
         }
     }
 }
