@@ -19,7 +19,17 @@ import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.local.entities.LocalSaleImageEntity
 import com.example.msp_app.data.local.entities.LocalSaleProductEntity
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.util.UUID
+
+// Formatea un monto a exactamente 2 decimales para el API (columna NUMERIC(14,2)).
+// Double.toString() puede emitir basura de punto flotante (p. ej. una suma de
+// componentes de combo: 300.29999999999995), y el backend rechaza >2 decimales
+// con HTTP 422 ("el monto admite máximo 2 decimales"). BigDecimal(this) captura
+// el valor exacto del double y setScale lo redondea a 2.
+internal fun Double.toMoneyString(): String =
+    BigDecimal(this).setScale(2, RoundingMode.HALF_UP).toPlainString()
 
 class LocalSaleMappers {
     fun LocalSale.toEntity(): LocalSaleEntity {
@@ -205,9 +215,9 @@ class LocalSaleMappers {
             ComboDTO(
                 id = cid,
                 nombre = c.NOMBRE_COMBO,
-                precio_anual = c.PRECIO_LISTA.toString(),
-                precio_corto = c.PRECIO_CORTO_PLAZO.toString(),
-                precio_contado = c.PRECIO_CONTADO.toString(),
+                precio_anual = c.PRECIO_LISTA.toMoneyString(),
+                precio_corto = c.PRECIO_CORTO_PLAZO.toMoneyString(),
+                precio_contado = c.PRECIO_CONTADO.toMoneyString(),
                 cantidad = "1",
                 almacen_origen_id = almacenOrigen,
                 almacen_destino_id = almacenDestino
@@ -224,9 +234,9 @@ class LocalSaleMappers {
                 articulo_id = p.ARTICULO_ID,
                 articulo = p.ARTICULO,
                 cantidad = p.CANTIDAD.toString(),
-                precio_anual = p.PRECIO_LISTA.toString(),
-                precio_corto = p.PRECIO_CORTO_PLAZO.toString(),
-                precio_contado = p.PRECIO_CONTADO.toString(),
+                precio_anual = p.PRECIO_LISTA.toMoneyString(),
+                precio_corto = p.PRECIO_CORTO_PLAZO.toMoneyString(),
+                precio_contado = p.PRECIO_CONTADO.toMoneyString(),
                 combo_id = p.COMBO_ID?.let { comboIdByCatalog[it] },
                 almacen_origen_id = if (isInCombo) null else almacenOrigen,
                 almacen_destino_id = if (isInCombo) null else almacenDestino
@@ -256,15 +266,15 @@ class LocalSaleMappers {
             fecha_venta = this.FECHA_VENTA,
             tipo_venta = this.TIPO_VENTA ?: "CONTADO",
             montos = MontosDTO(
-                anual = this.PRECIO_TOTAL.toString(),
-                corto_plazo = this.MONTO_A_CORTO_PLAZO.toString(),
-                contado = this.MONTO_DE_CONTADO.toString()
+                anual = this.PRECIO_TOTAL.toMoneyString(),
+                corto_plazo = this.MONTO_A_CORTO_PLAZO.toMoneyString(),
+                contado = this.MONTO_DE_CONTADO.toMoneyString()
             ),
             plan_credito = if (isCredito) {
                 PlanCreditoDTO(
                     plazo_meses = this.TIEMPO_A_CORTO_PLAZOMESES,
-                    enganche = (this.ENGANCHE ?: 0.0).toString(),
-                    parcialidad = this.PARCIALIDAD.toString(),
+                    enganche = (this.ENGANCHE ?: 0.0).toMoneyString(),
+                    parcialidad = this.PARCIALIDAD.toMoneyString(),
                     frec_pago = normalizeFrecPago(this.FREC_PAGO)
                 )
             } else {
