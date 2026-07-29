@@ -61,9 +61,9 @@ import com.example.msp_app.components.fullscreendialog.FullScreenDialog
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.toCurrency
-import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.payments.newpayment.PaymentFactory
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
@@ -160,21 +160,13 @@ fun NewPaymentDialog(
                 val idTicket = UUID.randomUUID().toString()
                 val date = Instant.now().toString()
 
-                val payment = Payment(
-                    CLIENTE_ID = sale.CLIENTE_ID,
-                    ID = idTicket,
-                    LAT = 0.0,
-                    LNG = 0.0,
-                    IMPORTE = inputValue.toDouble(),
-                    NOMBRE_CLIENTE = sale.CLIENTE,
-                    FECHA_HORA_PAGO = date,
-                    COBRADOR = sale.NOMBRE_COBRADOR,
-                    COBRADOR_ID = currentUser.COBRADOR_ID,
-                    DOCTO_CC_ID = 0,
-                    FORMA_COBRO_ID = selectedPaymentMethod,
-                    DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,
-                    ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
-                    GUARDADO_EN_MICROSIP = false
+                val payment = PaymentFactory.fromSale(
+                    sale = sale,
+                    currentUser = currentUser,
+                    importe = inputValue.toDouble(),
+                    formaCobroId = selectedPaymentMethod,
+                    id = idTicket,
+                    fecha = date
                 )
 
                 // Guardar el ID del pago pendiente
