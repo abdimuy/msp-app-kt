@@ -260,7 +260,13 @@ class CobranzaSyncManager(
         )
         db.withTransaction {
             saleDao.deleteAll()
-            paymentDao.deleteAll()
+            // NO borrar los pagos pendientes de subir (GUARDADO_EN_MICROSIP=0):
+            // son trabajo del cobrador aún no sincronizado y deben sobrevivir el
+            // cambio de zona/cobrador para no perder dinero. Un cobrador que
+            // registró pagos offline y luego cambió de sesión (o volvió el
+            // internet en otra zona) los conserva y se suben después con su
+            // propia atribución. Solo se descarta el cache ya confirmado (=1).
+            paymentDao.deleteUploaded()
             syncStateDao.clear(RESOURCE_VENTAS)
             syncStateDao.clear(RESOURCE_PAGOS)
         }

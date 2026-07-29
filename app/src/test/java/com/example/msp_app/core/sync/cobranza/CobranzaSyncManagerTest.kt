@@ -504,6 +504,178 @@ class CobranzaSyncManagerTest : RoomTestBase() {
     }
 
     @Test
+    fun cambioDeZonaPreservaPagosPendientesNoSubidos() = runTest {
+        // REGRESIÓN (pérdida de dinero): un cobrador registra pagos OFFLINE,
+        // cambia de sesión/zona (o vuelve el internet en otra zona) y la
+        // limpieza por cambio de zona NO debe borrar los pagos aún sin subir.
+        // Antes, zonaChangeCleanupIfNeeded llamaba paymentDao.deleteAll() y
+        // los eliminaba antes de que el worker los enviara.
+
+        // Sync inicial en zona 21 — deja el state en zona 21.
+        val apiZona21 = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(1101, zonaId = 21)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiZona21, zona = 21).syncNow()
+
+        // El cobrador registró un pago OFFLINE (pendiente, GUARDADO=0); además
+        // hay un pago ya confirmado en cache (descargado, GUARDADO=1).
+        val pendiente = samplePayment(1102).copy(
+            ID = "offline-pendiente-1",
+            GUARDADO_EN_MICROSIP = false
+        )
+        val yaSubido = samplePayment(1103).copy(
+            ID = "ya-subido-1",
+            GUARDADO_EN_MICROSIP = true
+        )
+        db.paymentDao().saveAll(listOf(pendiente, yaSubido))
+
+        // Cambia a zona 42 → dispara la limpieza por cambio de zona.
+        val apiZona42 = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(1104, zonaId = 42)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiZona42, zona = 42).syncNow()
+
+        // CRÍTICO: el pago pendiente sobrevive — jamás se pierde el trabajo
+        // sin sincronizar del cobrador al cambiar de zona/usuario.
+        val pendientes = db.paymentDao().getPendingPayments()
+        assertEquals(1, pendientes.size)
+        assertEquals("offline-pendiente-1", pendientes.first().ID)
+
+        // El pago ya confirmado (GUARDADO=1) sí se descarta con el cache viejo.
+        assertTrue(db.paymentDao().getPaymentsBySaleId(1103).isEmpty())
+    }
+
+    @Test
+    fun cambioDeZonaPreservaPagosMultiCobrador() = runTest {
+        // Extiende la regresión de pérdida de dinero a un escenario más
+        // realista: varios cobradores comparten el mismo dispositivo/caché
+        // local en distintos momentos (o hay pagos pendientes de más de un
+        // cobrador acumulados por retrasos de red) y cada uno tiene su
+        // propia atribución (COBRADOR_ID) y zona de origen. El cleanup por
+        // cambio de zona NUNCA debe mezclar ni perder la atribución de
+        // ninguno de ellos, sin importar cuántos cobradores distintos haya.
+
+        // Sync inicial en zona 21 — deja el state en zona 21.
+        val apiZona21 = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(1201, zonaId = 21)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiZona21, zona = 21).syncNow()
+
+        // Dos pagos pendientes de dos cobradores/zonas distintas, más uno
+        // ya confirmado que sí debe descartarse con el cache viejo.
+        val pendienteCobrador7 = samplePayment(1202).copy(
+            ID = "pendiente-cobrador-7",
+            GUARDADO_EN_MICROSIP = false,
+            COBRADOR = "Ricardo Flores Mendoza",
+            COBRADOR_ID = 7,
+            ZONA_CLIENTE_ID = 21
+        )
+        val pendienteCobrador9 = samplePayment(1203).copy(
+            ID = "pendiente-cobrador-9",
+            GUARDADO_EN_MICROSIP = false,
+            COBRADOR = "Sandra Patricia Gomez Ruiz",
+            COBRADOR_ID = 9,
+            ZONA_CLIENTE_ID = 30
+        )
+        val yaSubido = samplePayment(1204).copy(
+            ID = "ya-subido-multi",
+            GUARDADO_EN_MICROSIP = true,
+            COBRADOR = "Otro Cobrador",
+            COBRADOR_ID = 3,
+            ZONA_CLIENTE_ID = 21
+        )
+        db.paymentDao().saveAll(listOf(pendienteCobrador7, pendienteCobrador9, yaSubido))
+
+        // Cambia a zona 42 → dispara la limpieza por cambio de zona.
+        val apiZona42 = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(1205, zonaId = 42)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiZona42, zona = 42).syncNow()
+
+        val pendientes = db.paymentDao().getPendingPayments()
+        assertEquals(2, pendientes.size)
+        val porId = pendientes.associateBy { it.ID }
+
+        val cobrador7 = porId.getValue("pendiente-cobrador-7")
+        assertEquals(7, cobrador7.COBRADOR_ID)
+        assertEquals(21, cobrador7.ZONA_CLIENTE_ID)
+        assertEquals("Ricardo Flores Mendoza", cobrador7.COBRADOR)
+
+        val cobrador9 = porId.getValue("pendiente-cobrador-9")
+        assertEquals(9, cobrador9.COBRADOR_ID)
+        assertEquals(30, cobrador9.ZONA_CLIENTE_ID)
+        assertEquals("Sandra Patricia Gomez Ruiz", cobrador9.COBRADOR)
+
+        // El pago confirmado se descarta con el cache viejo, sin importar
+        // que perteneciera a un tercer cobrador.
+        assertTrue(porId["ya-subido-multi"] == null)
+        assertTrue(db.paymentDao().getPaymentsBySaleId(1204).isEmpty())
+    }
+
+    @Test
+    fun cambioDeZonaOfflineNoBorraPendientes() = runTest {
+        // Si el cambio de zona se detecta mientras el dispositivo está
+        // offline, el guard de conectividad debe cortar ANTES de llegar a
+        // zonaChangeCleanupIfNeeded. Probamos que el cleanup jamás corrió
+        // dejando los pendientes (de dos cobradores distintos) intactos.
+
+        // Deja el state apuntando a zona 21 (sync previo, ya persistido).
+        val apiZona21 = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(1301, zonaId = 21)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiZona21, zona = 21).syncNow()
+
+        val pendienteA = samplePayment(1302).copy(
+            ID = "offline-pendiente-A",
+            GUARDADO_EN_MICROSIP = false,
+            COBRADOR = "Carlos Ivan Mendez Soto",
+            COBRADOR_ID = 11,
+            ZONA_CLIENTE_ID = 21
+        )
+        val pendienteB = samplePayment(1303).copy(
+            ID = "offline-pendiente-B",
+            GUARDADO_EN_MICROSIP = false,
+            COBRADOR = "Laura Beatriz Cruz Jimenez",
+            COBRADOR_ID = 15,
+            ZONA_CLIENTE_ID = 30
+        )
+        db.paymentDao().saveAll(listOf(pendienteA, pendienteB))
+
+        // Ahora el cobrador aparece en zona 42 pero SIN conectividad — el
+        // manager debe salir por SkippedOffline antes del cleanup.
+        val mgrOffline = newManager(failingApi(), online = false, zona = 42)
+        val outcome = mgrOffline.syncNow()
+
+        assertTrue(outcome is SyncOutcome.SkippedOffline)
+
+        val pendientes = db.paymentDao().getPendingPayments()
+        assertEquals(2, pendientes.size)
+        val porId = pendientes.associateBy { it.ID }
+
+        val a = porId.getValue("offline-pendiente-A")
+        assertEquals(11, a.COBRADOR_ID)
+        assertEquals(21, a.ZONA_CLIENTE_ID)
+        assertEquals("Carlos Ivan Mendez Soto", a.COBRADOR)
+
+        val b = porId.getValue("offline-pendiente-B")
+        assertEquals(15, b.COBRADOR_ID)
+        assertEquals(30, b.ZONA_CLIENTE_ID)
+        assertEquals("Laura Beatriz Cruz Jimenez", b.COBRADOR)
+
+        // El state de sync sigue apuntando a la zona vieja: el cleanup
+        // nunca se disparó (no hubo limpieza ni de ventas ni de state).
+        assertEquals(
+            21,
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.ZONA_CLIENTE_ID
+        )
+    }
+
+    @Test
     fun residuosDeOtraZonaActivanCleanupAunqueElStateYaCoincida() = runTest {
         // Caso edge: el state ya apunta a la zona actual (42), pero quedaron
         // rows huérfanos de la zona 21 — situación que solo aparece tras

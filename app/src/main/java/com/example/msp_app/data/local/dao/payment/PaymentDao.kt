@@ -38,7 +38,7 @@ interface PaymentDao {
         WHERE ID = :id
         """
     )
-    suspend fun getPaymentById(id: String): PaymentEntity
+    suspend fun getPaymentById(id: String): PaymentEntity?
 
     @Query(
         """SELECT 
@@ -429,4 +429,15 @@ interface PaymentDao {
 
     @Query("DELETE FROM payment")
     suspend fun deleteAll()
+
+    /**
+     * Borra solo los pagos ya confirmados por el servidor
+     * (`GUARDADO_EN_MICROSIP = 1`), preservando los pendientes de subir
+     * (`= 0`). Se usa en la limpieza por cambio de zona/cobrador: el cache
+     * descargado de la zona anterior se descarta, pero el trabajo sin
+     * sincronizar del cobrador NUNCA se pierde — se sube después con su
+     * propia atribución (COBRADOR_ID/zona horneados en la fila).
+     */
+    @Query("DELETE FROM payment WHERE GUARDADO_EN_MICROSIP = 1")
+    suspend fun deleteUploaded()
 }

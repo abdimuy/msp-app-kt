@@ -13,7 +13,7 @@ class PaymentsLocalDataSource(private val context: Context) {
     private val paymentDao = AppDatabase.getInstance(context).paymentDao()
     private val saleDao = AppDatabase.getInstance(context).saleDao()
 
-    suspend fun getPaymentById(id: String): PaymentEntity {
+    suspend fun getPaymentById(id: String): PaymentEntity? {
         return paymentDao.getPaymentById(id)
     }
 

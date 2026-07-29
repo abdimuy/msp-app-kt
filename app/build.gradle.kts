@@ -118,6 +118,9 @@ android {
             buildConfigField("String", "V2_BASE_URL", "\"$localV2Url\"")
             buildConfigField("String", "LEGACY_BASE_URL", "\"$localLegacyUrl\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
+            // Pagos por el API v2 (msp-api Go). En test los pagos entran por
+            // /v2/cobranza/pagos; un fallido queda capturado server-side.
+            buildConfigField("boolean", "PAGOS_USE_V2", "true")
         }
         create("devserver") {
             dimension = "environment"
@@ -127,6 +130,7 @@ android {
             buildConfigField("String", "V2_BASE_URL", "\"https://apidev.loclx.io/\"")
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://apidb.loclx.io/\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
+            buildConfigField("boolean", "PAGOS_USE_V2", "true")
         }
         create("prod") {
             dimension = "environment"
@@ -135,6 +139,9 @@ android {
             // TODO: confirmar el host real del Go de prod cuando se despliegue.
             buildConfigField("String", "V2_BASE_URL", "\"https://todo-go-prod-host.invalid/\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
+            // Prod sigue por el backend legacy hasta que exista el Go de prod
+            // (V2_BASE_URL de arriba es un placeholder inválido a propósito).
+            buildConfigField("boolean", "PAGOS_USE_V2", "false")
         }
     }
 
@@ -203,6 +210,14 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    // ── instrumented e2e suite (payment-upload pipeline, B5/B6/B7) ─────────
+    androidTestImplementation("androidx.work:work-testing:2.10.2")
+    androidTestImplementation("androidx.room:room-testing:2.6.1")
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    androidTestImplementation("androidx.test:core:1.5.0")
+    androidTestImplementation("androidx.test:runner:1.5.2")
+    androidTestImplementation("androidx.test:rules:1.5.0")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 
