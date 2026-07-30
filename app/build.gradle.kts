@@ -121,6 +121,8 @@ android {
             // Pagos por el API v2 (msp-api Go). En test los pagos entran por
             // /v2/cobranza/pagos; un fallido queda capturado server-side.
             buildConfigField("boolean", "PAGOS_USE_V2", "true")
+            // Visitas por el API v2 (msp-api Go), mismo host que pagos.
+            buildConfigField("boolean", "VISITAS_USE_V2", "true")
         }
         create("devserver") {
             dimension = "environment"
@@ -131,6 +133,7 @@ android {
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://apidb.loclx.io/\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
             buildConfigField("boolean", "PAGOS_USE_V2", "true")
+            buildConfigField("boolean", "VISITAS_USE_V2", "true")
         }
         create("prod") {
             dimension = "environment"
@@ -142,6 +145,7 @@ android {
             // Prod sigue por el backend legacy hasta que exista el Go de prod
             // (V2_BASE_URL de arriba es un placeholder inválido a propósito).
             buildConfigField("boolean", "PAGOS_USE_V2", "false")
+            buildConfigField("boolean", "VISITAS_USE_V2", "false")
         }
     }
 
