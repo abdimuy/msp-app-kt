@@ -151,7 +151,12 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 productStore.saveAll(products.map { it.toEntity() })
                 guaranteeStore.saveAllGurantees(guarantees.map { it.toEntity() })
                 guaranteeStore.saveAllGuaranteeEvents(guaranteesEvent.map { it.toEntity() })
-                visitsStore.deleteAllVisits()
+                // Solo se podan las visitas ya confirmadas por el servidor
+                // (GUARDADO_EN_MICROSIP = 1). Las pendientes son datos de campo
+                // del cobrador aún sin enviar y deben sobrevivir hasta que
+                // PendingVisitsWorker las entregue — deleteAllVisits() borraba
+                // TODO sin condición y perdía visitas nunca subidas.
+                visitsStore.deleteUploadedVisits()
 
                 _syncSalesState.value = ResultState.Success(emptyList())
 

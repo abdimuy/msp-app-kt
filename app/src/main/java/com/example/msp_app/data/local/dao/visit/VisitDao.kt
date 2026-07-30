@@ -88,4 +88,12 @@ interface VisitDao {
 
     @Query("DELETE FROM Visit")
     suspend fun deleteAllVisits()
+
+    /**
+     * Prunes only visitas already confirmed by the server (GUARDADO_EN_MICROSIP = 1).
+     * Unlike [deleteAllVisits], this never touches a visita still pending upload —
+     * see [com.example.msp_app.features.sales.viewmodels.SalesViewModel.syncSales].
+     */
+    @Query("DELETE FROM Visit WHERE GUARDADO_EN_MICROSIP = 1")
+    suspend fun deleteUploadedVisits()
 }

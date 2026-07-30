@@ -62,4 +62,9 @@ class VisitsLocalDataSource(private val context: Context) {
     suspend fun deleteAllVisits() {
         visitDao.deleteAllVisits()
     }
+
+    /** Prunes only visitas already confirmed by the server; see [VisitDao.deleteUploadedVisits]. */
+    suspend fun deleteUploadedVisits() {
+        visitDao.deleteUploadedVisits()
+    }
 }
