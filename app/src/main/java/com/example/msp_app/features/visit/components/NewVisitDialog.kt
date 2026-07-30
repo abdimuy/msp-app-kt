@@ -56,8 +56,8 @@ import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
-import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.visit.newvisit.VisitFactory
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.services.UpdateLocationService
@@ -163,25 +163,18 @@ fun NewVisitDialog(
             return
         }
 
-        val cobradorId = user?.COBRADOR_ID ?: 0
         coroutineScope.launch {
             val id = UUID.randomUUID().toString()
             val date = Instant.now().toString()
 
-            val visit = Visit(
-                ID = id,
-                COBRADOR_ID = cobradorId,
-                COBRADOR = sale.NOMBRE_COBRADOR,
-                LNG = 0.0,
-                LAT = 0.0,
-                FORMA_COBRO_ID = 0,
-                CLIENTE_ID = sale.CLIENTE_ID,
-                ZONA_CLIENTE_ID = sale.ZONA_CLIENTE_ID,
-                GUARDADO_EN_MICROSIP = 0,
-                FECHA = date,
-                IMPTE_DOCTO_CC_ID = sale.DOCTO_CC_ACR_ID,
-                TIPO_VISITA = selectedOption,
-                NOTA = note
+            val visit = VisitFactory.fromSale(
+                sale = sale,
+                currentUser = user,
+                tipoVisita = selectedOption,
+                formaCobroId = 0,
+                nota = note,
+                id = id,
+                fecha = date
             )
 
             if (selectedOption == Constants.PIDE_REAGENDAR) {
