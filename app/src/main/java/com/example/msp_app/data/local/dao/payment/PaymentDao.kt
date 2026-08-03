@@ -412,6 +412,18 @@ interface PaymentDao {
     suspend fun getActiveIDsByZona(zonaId: Int): List<String>
 
     /**
+     * Filtra [ids] a solo aquellos que existen localmente Y ya están
+     * confirmados por el servidor (`GUARDADO_EN_MICROSIP = 1`). Usado por
+     * el merge de pagos para colapsar el gemelo local UUID de un pago
+     * cuando llega su versión numérica con `pago_recibido_id`: nunca borra
+     * un pago pendiente de subir (`GUARDADO_EN_MICROSIP = 0`), aunque por
+     * error llegara referenciado — un pendiente jamás pudo haber llegado
+     * al servidor, así que esto es una red de seguridad defensiva.
+     */
+    @Query("SELECT ID FROM Payment WHERE ID IN (:ids) AND GUARDADO_EN_MICROSIP = 1")
+    suspend fun filterUploadedIDs(ids: List<String>): List<String>
+
+    /**
      * Cuenta los pagos del cargo cuyo `FECHA_HORA_PAGO` cae dentro de la
      * ventana del cobrador (>= `fechaIso`). Lo usa el merge del sync para
      * decidir si una venta saldada que llega debe conservarse — basta con

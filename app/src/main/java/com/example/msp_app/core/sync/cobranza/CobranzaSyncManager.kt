@@ -110,6 +110,7 @@ class CobranzaSyncManager(
             // Patrón estándar offline-first / multi-tenant: full clear +
             // resync — ver Android Developers, "Build an offline-first app".
             zonaChangeCleanupIfNeeded(zona)
+            resetPagosCursorForPagoRecibidoIdMigrationIfNeeded()
             Log.i(TAG, "syncNow start zona=$zona desde=$desdeIso")
             try {
                 // ORDEN INTENCIONAL: pagos antes que ventas.
@@ -285,6 +286,39 @@ class CobranzaSyncManager(
     suspend fun pruneSaldadasFueraDeVentana(fechaIso: String): Int =
         saleDao.deleteSaldadasFueraDeVentana(fechaIso)
 
+    /**
+     * Migración one-time: los dispositivos que ya sincronizaron pagos antes
+     * de que el backend agregara `pago_recibido_id` tienen el cursor de
+     * pagos avanzado — el server jamás volvería a mandar esos pagos viejos
+     * (su `UPDATED_AT` no cambió), así que el gemelo UUID local que quedó
+     * en Room NUNCA se colapsaría porque el pago numérico correspondiente
+     * no se vuelve a bajar. Limpiar el cursor de pagos fuerza un replay
+     * completo en el próximo `syncResource(RESOURCE_PAGOS, ...)`: cada pago
+     * activo vuelve a bajar trayendo `pago_recibido_id`, y [mergePagos]
+     * colapsa cualquier gemelo UUID que siga en local. Las escrituras del
+     * replay son idempotentes (UPSERT por PK / DELETE por PK), así que el
+     * único costo real es red.
+     *
+     * Guardado por una fila marcador en `cobranza_sync_state`
+     * (RESOURCE=[MIGRATION_PAGO_RECIBIDO_ID]) para que esto corra
+     * exactamente una vez por instalación, sin importar cuántos
+     * ticks/syncs corran después.
+     */
+    private suspend fun resetPagosCursorForPagoRecibidoIdMigrationIfNeeded() {
+        if (syncStateDao.get(MIGRATION_PAGO_RECIBIDO_ID) != null) return
+        Log.i(TAG, "migración pago_recibido_id: limpiando cursor de pagos para full resync")
+        syncStateDao.clear(RESOURCE_PAGOS)
+        syncStateDao.upsert(
+            CobranzaSyncStateEntity(
+                RESOURCE = MIGRATION_PAGO_RECIBIDO_ID,
+                ZONA_CLIENTE_ID = 0,
+                CURSOR = null,
+                LAST_SYNCED_AT = Instant.now().toString(),
+                LAST_ERROR = null
+            )
+        )
+    }
+
     private suspend fun syncResource(
         resource: String,
         zona: Int,
@@ -376,21 +410,45 @@ class CobranzaSyncManager(
      *
      *  - `cancelado=false` → upsert normal por PK (idempotente).
      *
+     *  - `pago_recibido_id` non-null → colapso de gemelo UUID: el pago
+     *    entrante es la versión numérica (IMPTE_DOCTO_CC_ID) de un pago que
+     *    el app capturó offline con un UUID local. Se borra la fila UUID
+     *    local (si sigue existiendo Y ya está confirmada,
+     *    `GUARDADO_EN_MICROSIP=1`) para que "Historial de pagos" no
+     *    muestre el mismo pago dos veces. Solo se borra por el
+     *    `pago_recibido_id` exacto — nunca por contenido/monto — y jamás
+     *    un pago pendiente de subir (ver [PaymentDao.filterUploadedIDs]).
+     *
      * La partición evita una segunda pasada y mantiene la ergonomía del
      * `paymentDao.saveAll` actual (un solo UPSERT batch). Los DELETE se
      * ejecutan en secuencia por simplicidad — el volumen por página
      * (`limit=1000`) hace que el costo de N statements sea despreciable
      * comparado con un único `DELETE ... WHERE ID IN (...)`. Si crece la
      * presión, [PaymentDao.deleteByIDs] está disponible para bulk.
+     *
+     * Todo el merge corre en una sola transacción para que el colapso del
+     * gemelo UUID y el upsert/delete de la fila numérica sean atómicos: si
+     * algo falla a medias, Room revierte y no queda un estado intermedio
+     * (por ejemplo, la UUID borrada sin que la numérica haya entrado).
      */
     private suspend fun mergePagos(items: List<PagoDto>) {
         if (items.isEmpty()) return
         val (tombstones, alive) = items.partition { it.cancelado }
-        for (t in tombstones) {
-            paymentDao.deleteByID(t.impte_docto_cc_id.toString())
-        }
-        if (alive.isNotEmpty()) {
-            paymentDao.saveAll(alive.map { it.toEntity() })
+        val pagoRecibidoIds = items.mapNotNull { it.pago_recibido_id }.distinct()
+        db.withTransaction {
+            if (pagoRecibidoIds.isNotEmpty()) {
+                val uuidTwins = paymentDao.filterUploadedIDs(pagoRecibidoIds)
+                if (uuidTwins.isNotEmpty()) {
+                    Log.i(TAG, "mergePagos: colapsando ${uuidTwins.size} gemelo(s) UUID")
+                    paymentDao.deleteByIDs(uuidTwins)
+                }
+            }
+            for (t in tombstones) {
+                paymentDao.deleteByID(t.impte_docto_cc_id.toString())
+            }
+            if (alive.isNotEmpty()) {
+                paymentDao.saveAll(alive.map { it.toEntity() })
+            }
         }
     }
 
@@ -453,6 +511,14 @@ class CobranzaSyncManager(
         const val RESOURCE_VENTAS = "ventas"
         const val RESOURCE_PAGOS = "pagos"
         const val TICK_INTERVAL_MILLIS = 30_000L
+
+        /**
+         * RESOURCE marcador (en `cobranza_sync_state`) que registra que ya
+         * corrió la migración one-time de [resetPagosCursorForPagoRecibidoIdMigrationIfNeeded].
+         * No es un cursor real de sync — su fila solo existe para el check
+         * de idempotencia.
+         */
+        const val MIGRATION_PAGO_RECIBIDO_ID = "migration_pago_recibido_id_v1"
         private const val TAG = "CobranzaSyncManager"
     }
 }

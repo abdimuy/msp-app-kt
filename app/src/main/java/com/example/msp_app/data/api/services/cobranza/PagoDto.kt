@@ -32,7 +32,17 @@ data class PagoDto(
     val cobrador: String,
     val cobrador_id: Int?,
     val nombre_cliente: String,
-    val forma_cobro_id: Int?
+    val forma_cobro_id: Int?,
+    /**
+     * UUID local original que el app generó para este pago cuando se
+     * capturó offline (Payment.ID de la fila UUID). Non-null solo cuando
+     * el pago se aplicó a través del server v2 y este puede resolver su
+     * origen; null/ausente para pagos legacy nunca aplicados por ese
+     * camino. Usado por CobranzaSyncManager.mergePagos para colapsar el
+     * gemelo local UUID una vez que su versión numérica llega por sync —
+     * ver bug "pago duplicado en Historial de pagos".
+     */
+    val pago_recibido_id: String? = null
 )
 
 /**

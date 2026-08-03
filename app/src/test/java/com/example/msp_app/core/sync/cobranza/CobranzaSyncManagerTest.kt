@@ -106,7 +106,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         frec_pago = "SEMANAL"
     )
 
-    private fun pagoDto(impteId: Int, doctoCcId: Int) = PagoDto(
+    private fun pagoDto(impteId: Int, doctoCcId: Int, pagoRecibidoId: String? = null) = PagoDto(
         impte_docto_cc_id = impteId,
         docto_cc_id = doctoCcId + 1,
         docto_cc_acr_id = doctoCcId,
@@ -125,7 +125,8 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         cobrador = "",
         cobrador_id = null,
         nombre_cliente = "",
-        forma_cobro_id = null
+        forma_cobro_id = null,
+        pago_recibido_id = pagoRecibidoId
     )
 
     @Test
@@ -844,6 +845,199 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         assertEquals("2026-06-02T20:00:00Z", state?.CURSOR)
     }
 
+    // ─── Colapso de gemelos UUID vía pago_recibido_id ───────────────────────
+
+    /**
+     * Bug: un pago cobrado offline se guarda con ID=UUID local. Al subirse a
+     * Microsip queda también en el cursor de sync con su ID numérico real
+     * (IMPTE_DOCTO_CC_ID). Sin colapso, ambas filas coexisten y "Historial de
+     * pagos" muestra el mismo pago dos veces. Contrato nuevo: cuando el pago
+     * numérico entrante trae `pago_recibido_id` == el UUID local, el merge
+     * debe borrar la fila UUID y dejar solo la numérica.
+     */
+    @Test
+    fun mergePagosColapsaGemeloUuidCuandoPagoRecibidoIdCoincide() = runTest {
+        val uuidLocal = "b6e6b7b0-1c2d-4a3e-9f0a-2f7a2e6b9c11"
+        val seedUuid = samplePayment(1401).copy(
+            ID = uuidLocal,
+            GUARDADO_EN_MICROSIP = true
+        )
+        db.paymentDao().saveAll(listOf(seedUuid))
+
+        val numericoDto = pagoDto(impteId = 88001, doctoCcId = 1401, pagoRecibidoId = uuidLocal)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(numericoDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val pagos = db.paymentDao().getPaymentsBySaleId(1401)
+        assertEquals("solo debe quedar la fila numérica", 1, pagos.size)
+        assertEquals("88001", pagos.first().ID)
+    }
+
+    /**
+     * Legacy: pagos aplicados antes del v2 server no traen `pago_recibido_id`
+     * (null). El merge NO debe tocar ninguna fila UUID preexistente — solo
+     * hace el upsert normal de la fila numérica.
+     */
+    @Test
+    fun mergePagosLegacySinPagoRecibidoIdNoBorraFilaUuid() = runTest {
+        val uuidLocal = "a1a1a1a1-2222-3333-4444-555555555555"
+        val seedUuid = samplePayment(1402).copy(
+            ID = uuidLocal,
+            GUARDADO_EN_MICROSIP = true
+        )
+        db.paymentDao().saveAll(listOf(seedUuid))
+
+        val numericoDto = pagoDto(impteId = 88002, doctoCcId = 1402, pagoRecibidoId = null)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(numericoDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val pagos = db.paymentDao().getPaymentsBySaleId(1402)
+        assertEquals(
+            "sin pago_recibido_id el merge preserva la fila UUID Y agrega la numérica",
+            2,
+            pagos.size
+        )
+        val ids = pagos.map { it.ID }.toSet()
+        assertTrue(ids.contains(uuidLocal))
+        assertTrue(ids.contains("88002"))
+    }
+
+    /**
+     * Defensa: un pago PENDIENTE (GUARDADO_EN_MICROSIP=0, aún sin subir)
+     * jamás debe borrarse, aunque — de una forma que nunca debería pasar —
+     * un pago entrante trajera su mismo ID como pago_recibido_id. El server
+     * solo conoce el UUID de un pago que ya subió (GUARDADO=1); un
+     * pendiente nunca pudo haber llegado al server. Se prueba de todos
+     * modos como red de seguridad.
+     */
+    @Test
+    fun mergePagosNuncaBorraFilaUuidPendienteAunSiVieneReferenciada() = runTest {
+        val uuidPendiente = "c3c3c3c3-4444-5555-6666-777777777777"
+        val seedPendiente = samplePayment(1403).copy(
+            ID = uuidPendiente,
+            GUARDADO_EN_MICROSIP = false
+        )
+        db.paymentDao().saveAll(listOf(seedPendiente))
+
+        val numericoDto = pagoDto(impteId = 88003, doctoCcId = 1403, pagoRecibidoId = uuidPendiente)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(numericoDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val pendientes = db.paymentDao().getPendingPayments()
+        assertTrue(
+            "la fila pendiente jamás se borra, sin importar pago_recibido_id",
+            pendientes.any { it.ID == uuidPendiente }
+        )
+    }
+
+    /**
+     * Caso mínimo: un pago pendiente de OTRO pago (no referenciado por
+     * ningún pago_recibido_id entrante) sobrevive un merge normal sin
+     * cambios.
+     */
+    @Test
+    fun mergePagosPendienteNoReferenciadoSobreviveMergeNormal() = runTest {
+        val uuidPendiente = "d4d4d4d4-5555-6666-7777-888888888888"
+        val seedPendiente = samplePayment(1404).copy(
+            ID = uuidPendiente,
+            GUARDADO_EN_MICROSIP = false
+        )
+        db.paymentDao().saveAll(listOf(seedPendiente))
+
+        val otroDto = pagoDto(impteId = 88004, doctoCcId = 9999)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(otroDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val pendientes = db.paymentDao().getPendingPayments()
+        assertTrue(pendientes.any { it.ID == uuidPendiente })
+    }
+
+    // ─── Migración one-time: resync completo de pagos (pago_recibido_id) ───
+
+    /**
+     * Antes de esta migración, dispositivos con pagos ya sincronizados
+     * tienen un cursor de pagos avanzado que jamás volvería a traer pagos
+     * viejos (el server no los re-manda porque su UPDATED_AT no cambió).
+     * Sin un resync completo, los gemelos UUID ya guardados en el
+     * dispositivo NUNCA se colapsarían porque el pago numérico
+     * correspondiente no se vuelve a bajar. La migración limpia el cursor
+     * de pagos UNA SOLA VEZ (marcada por una fila en cobranza_sync_state)
+     * para forzar un replay completo que traiga pago_recibido_id en cada
+     * fila y dispare el colapso.
+     */
+    @Test
+    fun migracionPagoRecibidoIdFuerzaResyncCompletoUnaSolaVez() = runTest {
+        // Simula un dispositivo pre-migración: cursor de pagos ya avanzado.
+        db.cobranzaSyncStateDao().upsert(
+            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+                RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
+                ZONA_CLIENTE_ID = 21,
+                CURSOR = "2020-01-01T00:00:00Z",
+                LAST_SYNCED_AT = "2020-01-01T00:00:00Z",
+                LAST_ERROR = null
+            )
+        )
+
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        // El primer sync post-migración DEBE ignorar el cursor viejo (lo pasa
+        // como null), forzando el replay completo desde el inicio.
+        assertEquals(listOf(null), api.pagosCursorCalls)
+
+        // La migración quedó marcada — no debe volver a limpiarse en runs futuros.
+        assertNotNull(
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID)
+        )
+    }
+
+    @Test
+    fun migracionPagoRecibidoIdNoSeRepiteEnSyncsPosteriores() = runTest {
+        db.cobranzaSyncStateDao().upsert(
+            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+                RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
+                ZONA_CLIENTE_ID = 21,
+                CURSOR = "2020-01-01T00:00:00Z",
+                LAST_SYNCED_AT = "2020-01-01T00:00:00Z",
+                LAST_ERROR = null
+            )
+        )
+
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty(), pagoPageEmpty()),
+            pagos = listOf(
+                pagoPage(items = listOf(pagoDto(9101, 9100)), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        // Primera llamada: cursor viejo descartado (null forzado por la
+        // migración). Segunda llamada: cursor real ya persistido — la
+        // migración NO se repite.
+        assertEquals(
+            listOf(null, "2026-05-30T18:25:13.456789Z"),
+            api.pagosCursorCalls
+        )
+    }
+
     // ─── applyByIds ─────────────────────────────────────────────────────────
 
     /**
@@ -985,6 +1179,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         private var pagosIdx = 0
         val ventasDesdeCalls = mutableListOf<String?>()
         val pagosDesdeCalls = mutableListOf<String?>()
+        val pagosCursorCalls = mutableListOf<String?>()
 
         override suspend fun syncVentas(
             zonaId: Int,
@@ -1012,6 +1207,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             desde: String?
         ): SyncPagosResponse {
             pagosDesdeCalls.add(desde)
+            pagosCursorCalls.add(cursor)
             val p = pagos.getOrNull(pagosIdx) ?: error("syncPagos called too many times")
             pagosIdx++
             return SyncPagosResponse(

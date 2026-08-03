@@ -89,7 +89,13 @@ class CobranzaReconciler(
                 // when there's no drift, which should be the common case.
                 val pagoMatched = checkDigestMatch(
                     server = api.pagosDigest(zona, desde = desdeIso),
-                    localIds = paymentDao.getActiveIDsByZona(zona).map { it.toInt() }
+                    // mapNotNull: getActiveIDsByZona incluye filas locales con
+                    // ID=UUID (pagos offline aún no subidos, o gemelos UUID
+                    // pendientes de colapsar por mergePagos). Un `.map { it.toInt() }`
+                    // lanza NumberFormatException ante cualquier UUID y aborta
+                    // TODO el reconcile — el digest solo debe considerar ids
+                    // numéricos, que son los únicos que el server conoce.
+                    localIds = paymentDao.getActiveIDsByZona(zona).mapNotNull { it.toIntOrNull() }
                 )
                 val saldoMatched = checkDigestMatch(
                     server = api.saldosDigest(zona, desde = desdeIso),
@@ -142,7 +148,12 @@ class CobranzaReconciler(
         val serverPagoIds = fetchAllServerIds { after ->
             api.listPagoIds(zona, after = after, limit = PAGE_LIMIT, desde = desdeIso)
         }
-        val localPagoIds = paymentDao.getActiveIDsByZona(zona).map { it.toInt() }.toSet()
+        // mapNotNull por la misma razón que en el pre-check de digest: ids
+        // UUID locales (offline / gemelos pendientes) se ignoran, nunca se
+        // cuentan como phantom ni se borran.
+        val localPagoIds = paymentDao.getActiveIDsByZona(
+            zona
+        ).mapNotNull { it.toIntOrNull() }.toSet()
 
         val pagoPhantoms = localPagoIds - serverPagoIds
         val pagosMissing = serverPagoIds - localPagoIds

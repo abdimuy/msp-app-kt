@@ -230,6 +230,28 @@ class CobranzaReconcilerTest : RoomTestBase() {
         NOMBRE_CLIENTE = ""
     )
 
+    private fun uuidPayment(
+        id: String,
+        doctoCcId: Int,
+        zonaId: Int = 21,
+        guardado: Boolean = false
+    ) = PaymentEntity(
+        ID = id,
+        COBRADOR = "",
+        DOCTO_CC_ACR_ID = doctoCcId,
+        DOCTO_CC_ID = doctoCcId + 1,
+        FECHA_HORA_PAGO = "2026-05-01T00:00:00Z",
+        GUARDADO_EN_MICROSIP = guardado,
+        IMPORTE = 200.0,
+        LAT = null,
+        LNG = null,
+        CLIENTE_ID = 99,
+        COBRADOR_ID = 0,
+        FORMA_COBRO_ID = 1,
+        ZONA_CLIENTE_ID = zonaId,
+        NOMBRE_CLIENTE = ""
+    )
+
     // Helper: compute XOR of a list of ints as Long.
     private fun xorOf(vararg ids: Int): Long = ids.fold(0L) { acc, id -> acc xor id.toLong() }
 
@@ -840,6 +862,115 @@ class CobranzaReconcilerTest : RoomTestBase() {
         assertEquals(2, ok.pagosExtrasOnServer)
         // pagosByIds NO debe haberse llamado.
         assertEquals(0, api.pagosByIdsCalled)
+    }
+
+    // ─── UUID rows must never crash the numeric reconcile ──────────────────
+
+    /**
+     * Bug: getActiveIDsByZona devuelve TODOS los ids de la zona, incluidos
+     * los locales con ID=UUID (pagos cobrados offline aún no subidos, o
+     * gemelos UUID pendientes de colapsar). El pre-check de digest hacía
+     * `.map { it.toInt() }` sobre esa lista completa — cualquier UUID
+     * lanzaba NumberFormatException y abortaba TODO el reconcile (incluido
+     * saldos). El fix filtra con `.mapNotNull { it.toIntOrNull() }` para que
+     * el digest se calcule solo sobre los ids numéricos.
+     */
+    @Test
+    fun reconcilePreCheckIgnoraFilasUuidEnElDigestSinExplotar() = runTest {
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(10, 100),
+                samplePayment(20, 200)
+            )
+        )
+        // Fila UUID mezclada en la misma zona — antes del fix esto tronaba
+        // el reconcile completo con NumberFormatException.
+        db.paymentDao().saveAll(listOf(uuidPayment("uuid-pendiente-1", 300)))
+
+        val pagoXor = xorOf(10, 20)
+        val pagoSum = sumOf(10, 20)
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 2,
+                    ids_xor = pagoXor.toString(),
+                    ids_sum = pagoSum.toString(),
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue("no debe lanzar ni devolver Error", outcome is ReconcileOutcome.Ok)
+        val ok = outcome as ReconcileOutcome.Ok
+        // Digest coincide (ignorando la fila UUID) → no se llama a /ids.
+        assertEquals(0, ok.pagosPhantomsDeleted)
+        assertEquals(0, api.listPagoIdsCalled)
+
+        // La fila UUID sigue intacta — nunca se tocó.
+        assertEquals(1, db.paymentDao().getPaymentsBySaleId(300).size)
+    }
+
+    /**
+     * Con digest mismatch (fuerza el path /ids), la fila UUID local se
+     * ignora al calcular localPagoIds (mapNotNull descarta el UUID) y por
+     * lo tanto NUNCA se cuenta como phantom ni se borra — aunque el
+     * servidor no la conozca. Los pagos numéricos se reconcilian
+     * normalmente sin crashear.
+     */
+    @Test
+    fun reconcileViaIdsIgnoraFilasUuidYNoLasBorraComoPhantom() = runTest {
+        db.paymentDao().saveAll(listOf(samplePayment(301, 101)))
+        db.paymentDao().saveAll(
+            listOf(uuidPayment("uuid-pendiente-2", 999, guardado = false))
+        )
+
+        val api = FakeV2CobranzaApi(
+            // Fuerza mismatch para caer al path /ids.
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 99,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            // El servidor solo conoce el pago numérico 301.
+            pagoIdPages = listOf(IdsResponse(listOf(301), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false))
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue("no debe lanzar NumberFormatException", outcome is ReconcileOutcome.Ok)
+        val ok = outcome as ReconcileOutcome.Ok
+        // 301 está en el servidor → no es phantom. La fila UUID se ignora
+        // por completo (ni phantom ni extra).
+        assertEquals(0, ok.pagosPhantomsDeleted)
+
+        assertEquals(1, db.paymentDao().getPaymentsBySaleId(101).size)
+        assertEquals(
+            "la fila UUID pendiente jamás se borra como phantom",
+            1,
+            db.paymentDao().getPaymentsBySaleId(999).size
+        )
     }
 
     /**
