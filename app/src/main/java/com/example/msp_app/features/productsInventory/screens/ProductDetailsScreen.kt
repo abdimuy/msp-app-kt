@@ -100,6 +100,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
 
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()
     val product by detailsViewModel.product.collectAsState()
+    val productState by detailsViewModel.productState.collectAsState()
     val transferState by warehouseViewModel.transferState.collectAsState()
     val userData by authViewModel.userData.collectAsState()
     val warehouseProducts by warehouseViewModel.warehouseProducts.collectAsState()
@@ -874,14 +875,50 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(24.dp)
                     ) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Cargando producto...",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        when (val state = productState) {
+                            is ResultState.Error -> {
+                                Icon(
+                                    imageVector = Icons.Filled.Warning,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = state.message,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(
+                                    onClick = {
+                                        productId.toIntOrNull()?.let { id ->
+                                            detailsViewModel.loadProductById(id)
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(text = "Reintentar")
+                                }
+                            }
+
+                            else -> {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "Cargando producto...",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
                     }
                 }
             }
