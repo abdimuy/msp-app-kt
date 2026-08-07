@@ -1038,6 +1038,117 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         )
     }
 
+    // ─── Segundo replay one-time: pago_recibido_id ya persistido ───────────
+
+    /**
+     * Dispositivo que ya corrió el build af750fe: el marcador viejo
+     * ([CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID]) ya existe, pero ese
+     * build nunca escribía `PAGO_RECIBIDO_ID` en la fila numérica (la
+     * columna llegó recién en este fix). El marcador nuevo
+     * ([MIGRATION_PAGO_RECIBIDO_ID_PERSIST]) está ausente, así que el
+     * segundo replay debe correr — el cursor de pagos se limpia una vez más
+     * aunque el viejo marcador ya estuviera puesto.
+     */
+    @Test
+    fun migracionPagoRecibidoIdPersistFuerzaResyncCuandoMarcadorViejoYaConsumido() = runTest {
+        db.cobranzaSyncStateDao().upsert(
+            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+                RESOURCE = CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID,
+                ZONA_CLIENTE_ID = 0,
+                CURSOR = null,
+                LAST_SYNCED_AT = "2026-01-01T00:00:00Z",
+                LAST_ERROR = null
+            )
+        )
+        db.cobranzaSyncStateDao().upsert(
+            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+                RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
+                ZONA_CLIENTE_ID = 21,
+                CURSOR = "2020-01-01T00:00:00Z",
+                LAST_SYNCED_AT = "2020-01-01T00:00:00Z",
+                LAST_ERROR = null
+            )
+        )
+
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        // El nuevo marcador fuerza el cursor a null aunque el viejo ya existiera.
+        assertEquals(listOf(null), api.pagosCursorCalls)
+        assertNotNull(
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID_PERSIST)
+        )
+    }
+
+    /**
+     * Una vez que el segundo replay corrió (marcador nuevo puesto), los
+     * syncs posteriores usan el cursor real persistido — no se vuelve a
+     * forzar null.
+     */
+    @Test
+    fun migracionPagoRecibidoIdPersistNoSeRepiteEnSyncsPosteriores() = runTest {
+        db.cobranzaSyncStateDao().upsert(
+            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+                RESOURCE = CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID,
+                ZONA_CLIENTE_ID = 0,
+                CURSOR = null,
+                LAST_SYNCED_AT = "2026-01-01T00:00:00Z",
+                LAST_ERROR = null
+            )
+        )
+        db.cobranzaSyncStateDao().upsert(
+            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+                RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
+                ZONA_CLIENTE_ID = 21,
+                CURSOR = "2020-01-01T00:00:00Z",
+                LAST_SYNCED_AT = "2020-01-01T00:00:00Z",
+                LAST_ERROR = null
+            )
+        )
+
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty(), pagoPageEmpty()),
+            pagos = listOf(
+                pagoPage(items = listOf(pagoDto(9201, 9200)), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        // Primera llamada: cursor forzado a null por el segundo replay.
+        // Segunda llamada: cursor real ya persistido — no se vuelve a forzar.
+        assertEquals(
+            listOf(null, "2026-05-30T18:25:13.456789Z"),
+            api.pagosCursorCalls
+        )
+    }
+
+    /**
+     * Instalación nueva: ni el marcador viejo ni el nuevo existen. Ambas
+     * migraciones one-time corren en el mismo primer `syncNow()` y quedan
+     * marcadas — sin duplicar el costo real (solo el cursor se limpia,
+     * ambas veces sobre un cursor ya null).
+     */
+    @Test
+    fun freshInstallCorreAmbasMigracionesUnaVez() = runTest {
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        assertNotNull(db.cobranzaSyncStateDao().get(CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID))
+        assertNotNull(
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID_PERSIST)
+        )
+        assertEquals(listOf(null), api.pagosCursorCalls)
+    }
+
     // ─── applyByIds ─────────────────────────────────────────────────────────
 
     /**

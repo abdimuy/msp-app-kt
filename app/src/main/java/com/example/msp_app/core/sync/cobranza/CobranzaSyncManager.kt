@@ -111,6 +111,18 @@ class CobranzaSyncManager(
             // resync — ver Android Developers, "Build an offline-first app".
             zonaChangeCleanupIfNeeded(zona)
             resetPagosCursorForPagoRecibidoIdMigrationIfNeeded()
+            // Segundo replay one-time: los dispositivos que ya corrieron el
+            // build af750fe consumieron el marcador de arriba, pero ese build
+            // nunca persistía `pago_recibido_id` en la fila numérica (recién
+            // se agregó PaymentEntity.PAGO_RECIBIDO_ID / mig 26->27 en este
+            // build). Resultado: sus filas numéricas viejas quedan con
+            // PAGO_RECIBIDO_ID=NULL para siempre y el barrido auto-sanable
+            // del reconciler nunca las ve, así que el gemelo UUID sigue
+            // atorado (solo "borrar datos" lo quitaba). Forzar UN replay más
+            // en ESTE build re-baja esos pagos con toEntity ya poblando
+            // pago_recibido_id, sin afectar instalaciones frescas (que
+            // también lo corren, sin costo extra real más que red).
+            resetPagosCursorOnce(MIGRATION_PAGO_RECIBIDO_ID_PERSIST)
             Log.i(TAG, "syncNow start zona=$zona desde=$desdeIso")
             try {
                 // ORDEN INTENCIONAL: pagos antes que ventas.
@@ -305,12 +317,32 @@ class CobranzaSyncManager(
      * ticks/syncs corran después.
      */
     private suspend fun resetPagosCursorForPagoRecibidoIdMigrationIfNeeded() {
-        if (syncStateDao.get(MIGRATION_PAGO_RECIBIDO_ID) != null) return
-        Log.i(TAG, "migración pago_recibido_id: limpiando cursor de pagos para full resync")
+        resetPagosCursorOnce(MIGRATION_PAGO_RECIBIDO_ID)
+    }
+
+    /**
+     * Helper compartido por las migraciones one-time de resync de pagos
+     * ([MIGRATION_PAGO_RECIBIDO_ID] y [MIGRATION_PAGO_RECIBIDO_ID_PERSIST]):
+     * limpia el cursor de [RESOURCE_PAGOS] para forzar un replay completo en
+     * el próximo `syncResource`, y marca [marker] para que esto corra
+     * exactamente una vez por instalación.
+     *
+     * IMPORTANTE: el marcador se persiste ANTES de que el replay realmente
+     * termine (no espera a que `syncResource(RESOURCE_PAGOS, ...)` aplique
+     * las páginas). Si el proceso se interrumpe a mitad del replay, esta
+     * migración NO reintenta — pero el barrido auto-sanable del reconciler
+     * (idempotente, corre en cada tick usando `pago_recibido_id` ya
+     * persistido) es la red que cubre ese caso: el cursor limpiado retoma
+     * desde el inicio en los siguientes `syncNow()` hasta traer de vuelta
+     * todos los pagos activos, y el reconciler colapsa lo que vaya llegando.
+     */
+    private suspend fun resetPagosCursorOnce(marker: String) {
+        if (syncStateDao.get(marker) != null) return
+        Log.i(TAG, "migración $marker: limpiando cursor de pagos para full resync")
         syncStateDao.clear(RESOURCE_PAGOS)
         syncStateDao.upsert(
             CobranzaSyncStateEntity(
-                RESOURCE = MIGRATION_PAGO_RECIBIDO_ID,
+                RESOURCE = marker,
                 ZONA_CLIENTE_ID = 0,
                 CURSOR = null,
                 LAST_SYNCED_AT = Instant.now().toString(),
@@ -519,6 +551,18 @@ class CobranzaSyncManager(
          * de idempotencia.
          */
         const val MIGRATION_PAGO_RECIBIDO_ID = "migration_pago_recibido_id_v1"
+
+        /**
+         * Segundo marcador one-time, para dispositivos que ya consumieron
+         * [MIGRATION_PAGO_RECIBIDO_ID] en un build (af750fe) que todavía no
+         * persistía `pago_recibido_id` en `Payment.PAGO_RECIBIDO_ID` (esa
+         * columna llegó en mig 26->27, en este mismo fix). Sin este segundo
+         * replay, esos dispositivos quedarían con filas numéricas viejas en
+         * NULL para siempre y el barrido auto-sanable del reconciler nunca
+         * vería el gemelo UUID a colapsar. Mismo patrón que el marcador
+         * original — ver [resetPagosCursorOnce].
+         */
+        const val MIGRATION_PAGO_RECIBIDO_ID_PERSIST = "migration_pago_recibido_id_v1_persist"
         private const val TAG = "CobranzaSyncManager"
     }
 }
