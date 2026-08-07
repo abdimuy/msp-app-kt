@@ -4,13 +4,27 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Decisión de producto: un 5xx SIEMPRE reintenta, nunca marca listo. Un 5xx
- * puede originarse en un gateway/proxy ANTES de que msp-api capture el
- * intent — asumir "ya capturado" podía perder el pago. Es preferible un
- * pago atorado-y-visible (reintentando por siempre) a uno perdido.
+ * Decisión de producto (refinada): el server (`msp-api`) captura como
+ * failed-intent cualquier respuesta >=400 que él mismo emite — 4xx Y 5xx —
+ * sin deduplicar por reintento (cada captura es un ID nuevo). Reintentar un
+ * 5xx que SÍ llegó a msp-api de forma indefinida solo spammea esa bandeja.
  *
- * Solo dos caminos llegan a DONE: 2xx (aplicado) y 4xx-no-401 (capturado por
- * el middleware de fallidos). Red y 5xx nunca marcan listo.
+ * Por eso "marcar listo" ya no depende solo del código: depende de si la
+ * respuesta VINO de msp-api. La señal confirmada es el `Content-Type`:
+ * msp-api siempre responde sus errores como `application/problem+json`
+ * (ver msp-api `response.go`); un 5xx de gateway/proxy en frente de msp-api
+ * devuelve HTML/texto plano, nunca problem+json — esa respuesta jamás
+ * llegó a la captura de fallidos, así que el pago NO puede darse por
+ * capturado y debe reintentarse por siempre.
+ *
+ * Reglas:
+ * - 2xx → DONE.
+ * - 401 → RETRY (token blip, no rechazo de datos).
+ * - 408/409/425/429 → RETRY (señales de backoff).
+ * - otro 4xx → DONE (siempre viene de msp-api con problem+json → capturado).
+ * - 5xx && reachedMspApi → DONE (llegó y se capturó una vez; el desk lo resuelve).
+ * - 5xx && !reachedMspApi → RETRY (gateway/proxy: nunca llegó, no se pierde).
+ * - código desconocido → RETRY.
  */
 class PaymentUploadClassifierTest {
 
@@ -20,14 +34,21 @@ class PaymentUploadClassifierTest {
             assertEquals(
                 "code=$code",
                 PaymentUploadDecision.DONE,
-                PaymentUploadClassifier.classifyHttpCode(code)
+                PaymentUploadClassifier.classify(code, reachedMspApi = true)
             )
         }
     }
 
     @Test
-    fun `401 is RETRY (token blip, not a data rejection)`() {
-        assertEquals(PaymentUploadDecision.RETRY, PaymentUploadClassifier.classifyHttpCode(401))
+    fun `401 is RETRY regardless of reachedMspApi (token blip, not a data rejection)`() {
+        assertEquals(
+            PaymentUploadDecision.RETRY,
+            PaymentUploadClassifier.classify(401, reachedMspApi = true)
+        )
+        assertEquals(
+            PaymentUploadDecision.RETRY,
+            PaymentUploadClassifier.classify(401, reachedMspApi = false)
+        )
     }
 
     @Test
@@ -36,7 +57,7 @@ class PaymentUploadClassifierTest {
             assertEquals(
                 "code=$code",
                 PaymentUploadDecision.RETRY,
-                PaymentUploadClassifier.classifyHttpCode(code)
+                PaymentUploadClassifier.classify(code, reachedMspApi = true)
             )
         }
     }
@@ -47,24 +68,42 @@ class PaymentUploadClassifierTest {
             assertEquals(
                 "code=$code",
                 PaymentUploadDecision.DONE,
-                PaymentUploadClassifier.classifyHttpCode(code)
+                PaymentUploadClassifier.classify(code, reachedMspApi = true)
             )
         }
     }
 
     @Test
-    fun `5xx is always RETRY, never DONE`() {
+    fun `5xx with reachedMspApi=true is DONE — captured once, desk resolves it`() {
+        listOf(500, 502, 503, 504).forEach { code ->
+            assertEquals(
+                "code=$code",
+                PaymentUploadDecision.DONE,
+                PaymentUploadClassifier.classify(code, reachedMspApi = true)
+            )
+        }
+    }
+
+    @Test
+    fun `5xx with reachedMspApi=false is RETRY — gateway never captured it`() {
         listOf(500, 502, 503, 504).forEach { code ->
             assertEquals(
                 "code=$code",
                 PaymentUploadDecision.RETRY,
-                PaymentUploadClassifier.classifyHttpCode(code)
+                PaymentUploadClassifier.classify(code, reachedMspApi = false)
             )
         }
     }
 
     @Test
     fun `unknown code defaults to RETRY`() {
-        assertEquals(PaymentUploadDecision.RETRY, PaymentUploadClassifier.classifyHttpCode(999))
+        assertEquals(
+            PaymentUploadDecision.RETRY,
+            PaymentUploadClassifier.classify(999, reachedMspApi = true)
+        )
+        assertEquals(
+            PaymentUploadDecision.RETRY,
+            PaymentUploadClassifier.classify(999, reachedMspApi = false)
+        )
     }
 }

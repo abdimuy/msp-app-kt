@@ -30,12 +30,15 @@ import retrofit2.HttpException
  *
  * The v2 path targets msp-api's `POST /v2/cobranza/pagos` (atomic + idempotent
  * by `datos.id`). Its robustness rule: a pago is marked "done" ONLY when the
- * server is known to hold it — a 2xx, or a 4xx which the cobranza failed-intent
- * capture middleware guarantees is persisted server-side for desk correction.
- * A network failure or a 5xx is NEVER marked done — retried forever, with no
- * attempt cap — because a 5xx can originate at a gateway/proxy in front of
- * msp-api, before the failed-intent capture middleware ever runs; assuming
- * the server has it would risk silently losing the pago. See
+ * server is known to hold it — a 2xx, a 4xx, or a 5xx that msp-api ITSELF
+ * produced (the cobranza failed-intent capture middleware guarantees any of
+ * those is persisted server-side for desk correction). "msp-api itself
+ * produced it" is confirmed by `Content-Type: application/problem+json`
+ * (msp-api's uniform error envelope) — a 5xx from a gateway/proxy in front of
+ * msp-api never carries that header, because the request never reached the
+ * capture middleware. That case is NEVER marked done — retried forever, with
+ * no attempt cap — so a pago a gateway silently swallowed is never lost. A
+ * network failure is likewise never marked done. See
  * [com.example.msp_app.features.payments.upload.domain.PaymentUploadClassifier].
  * Idempotency by `datos.id` makes a resend safe (no double-collection).
  *
@@ -86,9 +89,18 @@ class PendingPaymentsWorker @JvmOverloads constructor(
             Log.i(TAG, "Pago aplicado en v2: ${payment.ID} (server=${response.id})")
             Result.success()
         } catch (e: HttpException) {
-            when (PaymentUploadClassifier.classifyHttpCode(e.code())) {
+            // msp-api SIEMPRE responde sus errores con problem+json (ver
+            // response.go); un 5xx de gateway/proxy en frente de msp-api
+            // devuelve HTML/texto plano — esa respuesta nunca llegó a la
+            // captura de fallidos. No se consume errorBody() a propósito:
+            // solo se lee el header, para no arriesgar romper nada leyendo
+            // el cuerpo de una respuesta que Retrofit ya cerró/streameó.
+            val contentType = e.response()?.headers()?.get("Content-Type").orEmpty()
+            val reachedMspApi = contentType.contains("problem+json", ignoreCase = true)
+            when (PaymentUploadClassifier.classify(e.code(), reachedMspApi)) {
                 PaymentUploadDecision.DONE -> {
-                    // 4xx captured server-side → el desk lo corrige; el teléfono terminó.
+                    // Capturado server-side (4xx siempre, o 5xx que sí llegó a
+                    // msp-api) → el desk lo corrige; el teléfono terminó.
                     markDone(payment.ID)
                     Log.w(
                         TAG,

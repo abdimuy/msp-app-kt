@@ -19,6 +19,8 @@ import java.io.IOException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.Protocol
+import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
@@ -38,8 +40,10 @@ import retrofit2.Response
  * the worker logs via android.util.Log only).
  *
  * The invariant under test is the robustness rule: the pago is marked
- * GUARDADO_EN_MICROSIP=true ONLY when the server is known to hold it
- * (2xx, or a captured 4xx), never on a network failure.
+ * GUARDADO_EN_MICROSIP=true ONLY when the server is known to hold it — 2xx,
+ * a captured 4xx, or a 5xx that msp-api itself produced (confirmed by the
+ * `application/problem+json` Content-Type; see [httpError]). A network
+ * failure or a gateway/proxy 5xx (no problem+json) never marks done.
  */
 class PendingPaymentsWorkerV2Test : RoomTestBase() {
 
@@ -100,12 +104,32 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         }
     }
 
-    private fun httpError(code: Int, body: String = "{}"): HttpException = HttpException(
-        Response.error<PagoRecibidoDTO>(
-            code,
-            body.toResponseBody("application/json".toMediaTypeOrNull())
+    /**
+     * Builds an [HttpException] with a real `Content-Type` header on the raw
+     * HTTP response — `retrofit2.Response.error(code, body)` does NOT copy the
+     * body's media type into the response headers, so testing the
+     * `problem+json` signal requires the 2-arg overload with a hand-built raw
+     * [okhttp3.Response]. Pass `contentType = null` to simulate a response
+     * with the header entirely absent (some gateways omit it).
+     */
+    private fun httpError(
+        code: Int,
+        body: String = "{}",
+        contentType: String? = "application/problem+json"
+    ): HttpException {
+        val responseBody = body.toResponseBody(contentType?.toMediaTypeOrNull())
+        val rawResponseBuilder = okhttp3.Response.Builder()
+            .code(code)
+            .message("test")
+            .protocol(Protocol.HTTP_1_1)
+            .request(Request.Builder().url("http://localhost/").build())
+        if (contentType != null) {
+            rawResponseBuilder.header("Content-Type", contentType)
+        }
+        return HttpException(
+            Response.error<PagoRecibidoDTO>(responseBody, rawResponseBuilder.build())
         )
-    )
+    }
 
     private fun RequestBody.asString(): String {
         val buffer = Buffer()
@@ -245,39 +269,78 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         assertFalse(guardadoFlag("pago-001"))
     }
 
+    /**
+     * A 5xx that msp-api ITSELF produced answers with the uniform
+     * `application/problem+json` error envelope (see msp-api `response.go`).
+     * That means the failed-intent capture middleware already ran and
+     * persisted it once — retrying forever would only spam that inbox with
+     * duplicate captures (fresh ID per attempt, no dedup). So it is DONE:
+     * the desk resolves it from there.
+     */
     @Test
-    fun v2_5xx_returns_retry() = runTest {
+    fun v2_5xx_from_msp_api_marks_done() = runTest {
         seed(pendingPayment())
-        val api = fakeV2Api { _, _ -> throw httpError(500) }
+        val api =
+            fakeV2Api { _, _ -> throw httpError(500, contentType = "application/problem+json") }
 
         val result = buildAndRunWorker(api = api)
 
-        assertEquals(ListenableWorker.Result.retry(), result)
-        assertFalse("a 5xx must keep retrying, never mark done", guardadoFlag("pago-001"))
+        assertEquals(
+            "a 5xx that reached msp-api (problem+json) was captured once; the phone is done",
+            ListenableWorker.Result.success(),
+            result
+        )
+        assertTrue(guardadoFlag("pago-001"))
     }
 
     /**
-     * Garantía de durabilidad (decisión de producto): un 5xx puede originarse
-     * en un gateway/proxy ANTES de que msp-api capture el intent — asumir
-     * "ya capturado" podía perder el pago. Por eso un 5xx repetido, sin
-     * importar cuántos intentos lleve, JAMÁS marca el pago como guardado.
-     * No hay tope de intentos: mejor atorado-y-visible que perdido.
+     * Garantía de durabilidad (decisión de producto): un 5xx de gateway/proxy
+     * en frente de msp-api NUNCA llegó a la captura de fallidos — no trae
+     * `problem+json`. Asumir "ya capturado" podía perder el pago, así que
+     * reintenta por siempre y JAMÁS marca listo, sin importar el
+     * `Content-Type` exacto (HTML, texto plano, o el header ausente).
      */
     @Test
-    fun v2_5xx_repeated_indefinitely_never_marks_done() = runTest {
+    fun v2_5xx_from_gateway_returns_retry_and_never_marks_done() = runTest {
+        listOf("text/html", null).forEachIndexed { index, contentType ->
+            val id = "pago-gw-$index"
+            seed(pendingPayment(id = id))
+            val api = fakeV2Api { _, _ -> throw httpError(502, contentType = contentType) }
+
+            val result = buildAndRunWorker(paymentId = id, api = api)
+
+            assertEquals(
+                "contentType=$contentType: a gateway 5xx (no problem+json) must retry",
+                ListenableWorker.Result.retry(),
+                result
+            )
+            assertFalse(
+                "contentType=$contentType: must never mark done — never reached msp-api",
+                guardadoFlag(id)
+            )
+        }
+    }
+
+    /**
+     * Extiende la garantía anterior: un 5xx de gateway repetido, sin importar
+     * cuántos intentos lleve, JAMÁS marca el pago como guardado. No hay tope
+     * de intentos: mejor atorado-y-visible que perdido.
+     */
+    @Test
+    fun v2_5xx_from_gateway_repeated_indefinitely_never_marks_done() = runTest {
         seed(pendingPayment())
-        val api = fakeV2Api { _, _ -> throw httpError(503) }
+        val api = fakeV2Api { _, _ -> throw httpError(503, contentType = "text/html") }
 
         // Simula intentos muy avanzados (lo que antes era "el tope").
         val result = buildAndRunWorker(api = api, runAttemptCount = 999)
 
         assertEquals(
-            "a 5xx never reaches DONE, no matter how many attempts",
+            "a gateway 5xx never reaches DONE, no matter how many attempts",
             ListenableWorker.Result.retry(),
             result
         )
         assertFalse(
-            "a repeated 5xx must NEVER mark the pago done — durability guarantee",
+            "a repeated gateway 5xx must NEVER mark the pago done — durability guarantee",
             guardadoFlag("pago-001")
         )
     }
