@@ -5,32 +5,33 @@ package com.example.msp_app.features.payments.upload.domain
  *
  * The semantics differ deliberately from the sales `UploadFailureClassifier`: a
  * pago that fails validation (4xx) is **not** surrendered — because the cobranza
- * route now mounts the failed-intent capture middleware, any 4xx/5xx the server
+ * route now mounts the failed-intent capture middleware, any 4xx the server
  * produces is persisted server-side with its full body. So a 4xx means "the
  * server has it; correct it from the desk", which for the phone is DONE.
+ *
+ * A 5xx is different: it can originate at a gateway/proxy in front of msp-api,
+ * before the app ever captures the intent. Assuming "the server has it" on a
+ * 5xx could silently drop the pago. Product decision: a 5xx ALWAYS retries and
+ * NEVER reaches DONE — there is no attempt cap. Better a pago stuck-and-visible
+ * (retrying forever) than one lost. See [PaymentUploadClassifier].
  */
 enum class PaymentUploadDecision {
     /**
      * The server has the pago. Either it was applied/accepted (2xx) or it was
-     * rejected but captured as a failed-intent (data 4xx). Mark
-     * GUARDADO_EN_MICROSIP=true — the phone is finished; resolution lives desk-side.
+     * rejected but captured as a failed-intent (data 4xx, excluding 401/408/
+     * 409/425/429). Mark GUARDADO_EN_MICROSIP=true — the phone is finished;
+     * resolution lives desk-side.
      */
     DONE,
 
     /**
-     * Transient — retry without marking. The server either did not see the pago
-     * (401 token blip refreshed by the interceptor) or asked us to back off
-     * (408/409/425/429).
+     * Never mark done — keep retrying. Covers the token blip (401), backoff
+     * signals (408/409/425/429), and — by product decision — EVERY 5xx,
+     * indefinitely: a 5xx might come from a gateway/proxy that never reached
+     * msp-api's failed-intent capture, so the pago can never be assumed
+     * captured. Only 2xx and a captured 4xx are trusted enough to stop.
      */
-    RETRY,
-
-    /**
-     * Server-side 5xx. Retry (it may be a transient blip that never persisted);
-     * once the attempt cap is reached, treat as DONE — an app-level 5xx was
-     * captured as a failed-intent, so the pago is recoverable from the desk and
-     * the phone should stop spinning.
-     */
-    RETRY_THEN_DONE
+    RETRY
 }
 
 /**
@@ -38,14 +39,18 @@ enum class PaymentUploadDecision {
  * DONE when there is confidence the server holds the pago (a 2xx, or a 4xx that
  * the capture middleware guarantees is persisted). Network failures never reach
  * this function — they are always retried by the worker so the pago is never
- * lost from a device that alone still holds it.
+ * lost from a device that alone still holds it. 5xx is classified the same way
+ * as a network failure: retry forever, never DONE.
  */
 object PaymentUploadClassifier {
     fun classifyHttpCode(code: Int): PaymentUploadDecision = when (code) {
         // 401 is inside 400..499 but is a token blip, not a data rejection.
         401 -> PaymentUploadDecision.RETRY
         408, 409, 425, 429 -> PaymentUploadDecision.RETRY
-        in 500..599 -> PaymentUploadDecision.RETRY_THEN_DONE
+        // Product decision: 5xx retries forever, never DONE. It may originate
+        // at a gateway/proxy before msp-api's failed-intent capture ever ran,
+        // so the pago can never be assumed persisted server-side.
+        in 500..599 -> PaymentUploadDecision.RETRY
         // Any other 4xx (400 malformed, 403 missing permission, 422 validation)
         // is captured server-side → the desk corrects it.
         in 400..499 -> PaymentUploadDecision.DONE

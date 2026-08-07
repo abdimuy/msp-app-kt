@@ -32,9 +32,12 @@ import retrofit2.HttpException
  * by `datos.id`). Its robustness rule: a pago is marked "done" ONLY when the
  * server is known to hold it — a 2xx, or a 4xx which the cobranza failed-intent
  * capture middleware guarantees is persisted server-side for desk correction.
- * A network failure is never marked done, so a device that alone holds a pago
- * keeps retrying instead of dropping it. Idempotency by `datos.id` makes a
- * resend safe (no double-collection).
+ * A network failure or a 5xx is NEVER marked done — retried forever, with no
+ * attempt cap — because a 5xx can originate at a gateway/proxy in front of
+ * msp-api, before the failed-intent capture middleware ever runs; assuming
+ * the server has it would risk silently losing the pago. See
+ * [com.example.msp_app.features.payments.upload.domain.PaymentUploadClassifier].
+ * Idempotency by `datos.id` makes a resend safe (no double-collection).
  *
  * The legacy path is preserved unchanged for prod until a prod Go host exists;
  * [useV2] (from `BuildConfig.PAGOS_USE_V2`) selects between them. There is no
@@ -53,9 +56,7 @@ class PendingPaymentsWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val legacyApi: PaymentsApi = ApiProvider.create(PaymentsApi::class.java),
     @VisibleForTesting
-    internal val useV2: Boolean = BuildConfig.PAGOS_USE_V2,
-    @VisibleForTesting
-    internal val maxAttempts: Int = DEFAULT_MAX_ATTEMPTS
+    internal val useV2: Boolean = BuildConfig.PAGOS_USE_V2
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -100,22 +101,6 @@ class PendingPaymentsWorker @JvmOverloads constructor(
                     Log.w(TAG, "Pago ${payment.ID}: HTTP ${e.code()} transitorio, reintentando")
                     Result.retry()
                 }
-
-                PaymentUploadDecision.RETRY_THEN_DONE -> {
-                    // runAttemptCount is 0 on the first run; +1 counts this attempt.
-                    if (runAttemptCount + 1 >= maxAttempts) {
-                        markDone(payment.ID)
-                        Log.w(
-                            TAG,
-                            "Pago ${payment.ID}: 5xx tras ${runAttemptCount + 1} intentos; " +
-                                "ya capturado server-side, marcado listo"
-                        )
-                        Result.success()
-                    } else {
-                        Log.w(TAG, "Pago ${payment.ID}: HTTP ${e.code()} server, reintentando")
-                        Result.retry()
-                    }
-                }
             }
         } catch (e: IOException) {
             // El server no lo vio: jamás marcar listo. El teléfono lo conserva.
@@ -147,8 +132,5 @@ class PendingPaymentsWorker @JvmOverloads constructor(
 
     companion object {
         private const val TAG = "PendingPaymentsWorker"
-
-        /** Max attempts before a server-side 5xx is treated as captured/done. */
-        const val DEFAULT_MAX_ATTEMPTS = 10
     }
 }

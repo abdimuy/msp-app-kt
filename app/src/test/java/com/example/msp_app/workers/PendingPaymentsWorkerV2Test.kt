@@ -120,7 +120,6 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         api: V2PaymentsApi = happyApi(),
         legacyApi: PaymentsApi = throwingLegacyApi(),
         useV2: Boolean = true,
-        maxAttempts: Int = 10,
         runAttemptCount: Int = 0
     ): ListenableWorker.Result {
         val inputBuilder = Data.Builder()
@@ -142,8 +141,7 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
                     paymentsStore = PaymentsLocalDataSource(appContext),
                     v2Api = api,
                     legacyApi = legacyApi,
-                    useV2 = useV2,
-                    maxAttempts = maxAttempts
+                    useV2 = useV2
                 )
             })
             .build()
@@ -248,30 +246,40 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
     }
 
     @Test
-    fun v2_5xx_below_cap_returns_retry() = runTest {
+    fun v2_5xx_returns_retry() = runTest {
         seed(pendingPayment())
         val api = fakeV2Api { _, _ -> throw httpError(500) }
 
-        val result = buildAndRunWorker(api = api, maxAttempts = 3, runAttemptCount = 0)
+        val result = buildAndRunWorker(api = api)
 
         assertEquals(ListenableWorker.Result.retry(), result)
-        assertFalse("5xx below the cap must keep retrying, not mark done", guardadoFlag("pago-001"))
+        assertFalse("a 5xx must keep retrying, never mark done", guardadoFlag("pago-001"))
     }
 
+    /**
+     * Garantía de durabilidad (decisión de producto): un 5xx puede originarse
+     * en un gateway/proxy ANTES de que msp-api capture el intent — asumir
+     * "ya capturado" podía perder el pago. Por eso un 5xx repetido, sin
+     * importar cuántos intentos lleve, JAMÁS marca el pago como guardado.
+     * No hay tope de intentos: mejor atorado-y-visible que perdido.
+     */
     @Test
-    fun v2_5xx_at_cap_marks_done() = runTest {
+    fun v2_5xx_repeated_indefinitely_never_marks_done() = runTest {
         seed(pendingPayment())
         val api = fakeV2Api { _, _ -> throw httpError(503) }
 
-        // maxAttempts=3, runAttemptCount=2 → this is the 3rd (final) attempt.
-        val result = buildAndRunWorker(api = api, maxAttempts = 3, runAttemptCount = 2)
+        // Simula intentos muy avanzados (lo que antes era "el tope").
+        val result = buildAndRunWorker(api = api, runAttemptCount = 999)
 
         assertEquals(
-            "at the attempt cap a server 5xx (captured server-side) is marked done",
-            ListenableWorker.Result.success(),
+            "a 5xx never reaches DONE, no matter how many attempts",
+            ListenableWorker.Result.retry(),
             result
         )
-        assertTrue(guardadoFlag("pago-001"))
+        assertFalse(
+            "a repeated 5xx must NEVER mark the pago done — durability guarantee",
+            guardadoFlag("pago-001")
+        )
     }
 
     @Test
