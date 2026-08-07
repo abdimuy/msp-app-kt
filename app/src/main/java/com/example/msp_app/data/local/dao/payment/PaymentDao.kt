@@ -396,6 +396,19 @@ interface PaymentDao {
     suspend fun deleteByIDs(ids: List<String>)
 
     /**
+     * IDs de filas UUID (captura local) cuyo gemelo numérico ya está local
+     * (existe una fila con PAGO_RECIBIDO_ID = ese UUID). Colapsables: la
+     * numérica es la canónica. Solo UUID ya subidas (GUARDADO_EN_MICROSIP=1);
+     * nunca una captura pendiente. Red de seguridad idempotente para el caso
+     * que mergePagos no atrapó (carrera pull-vs-markDone / histórico).
+     */
+    @Query(
+        "SELECT ID FROM Payment WHERE GUARDADO_EN_MICROSIP = 1 " +
+            "AND ID IN (SELECT PAGO_RECIBIDO_ID FROM Payment WHERE PAGO_RECIBIDO_ID IS NOT NULL)"
+    )
+    suspend fun findCollapsibleUuidTwins(): List<String>
+
+    /**
      * Returns the full set of locally-cached pago IDs for the given zone.
      * Used by CobranzaReconciler to compute the local digest fingerprint
      * and to enumerate orphans (phantoms). Excludes nothing — there is no

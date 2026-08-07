@@ -1077,4 +1077,60 @@ class CobranzaReconcilerTest : RoomTestBase() {
 
         assertEquals("ambas llamadas completaron al API", 2, callCount)
     }
+
+    // ─── Self-heal del gemelo UUID (siempre corre, aun sin drift) ───────────
+
+    /**
+     * Bug: mergePagos solo colapsa el gemelo UUID de un tiro, en el instante
+     * en que la numérica llega con `pago_recibido_id` y el UUID ya está
+     * `GUARDADO_EN_MICROSIP=1`. Si esa ventana se pierde (carrera
+     * pull-vs-markDone, o el `pago_recibido_id` llegó antes de que se
+     * empezara a persistir), el gemelo queda huérfano para siempre — el
+     * reconciliador ignoraba las filas UUID por completo. El self-heal corre
+     * SIEMPRE al inicio de reconcileNow(), incluso cuando los digests
+     * coinciden y /ids nunca se llama, para converger en ese caso también.
+     */
+    @Test
+    fun selfHealColapsaGemeloUuidAunSinDriftEnDigest() = runTest {
+        // Fila numérica ya confirmada, apuntando a su gemelo UUID original.
+        db.paymentDao().saveAll(
+            listOf(samplePayment(40, 100).copy(PAGO_RECIBIDO_ID = "uuid-twin"))
+        )
+        // El gemelo UUID, ya subido, quedó huérfano (el colapso de un tiro no ocurrió).
+        db.paymentDao().saveAll(listOf(uuidPayment("uuid-twin", 100, guardado = true)))
+
+        val pagoXor = xorOf(40)
+        val pagoSum = sumOf(40)
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 1,
+                    ids_xor = pagoXor.toString(),
+                    ids_sum = pagoSum.toString(),
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        // Digest coincide (el UUID se ignora en el pre-check) → /ids nunca se llama;
+        // el self-heal corrió de todas formas.
+        assertEquals(0, api.listPagoIdsCalled)
+
+        assertNull(
+            "el gemelo UUID debe quedar colapsado aunque no hubiera drift de digest",
+            db.paymentDao().getPaymentById("uuid-twin")
+        )
+        assertEquals(1, db.paymentDao().getPaymentsBySaleId(100).size)
+    }
 }

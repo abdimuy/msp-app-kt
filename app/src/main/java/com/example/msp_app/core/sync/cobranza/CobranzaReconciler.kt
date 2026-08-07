@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.cobranza
 
 import android.util.Log
+import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
@@ -84,6 +85,24 @@ class CobranzaReconciler(
 
             try {
                 Log.i(TAG, "reconcileNow start zona=$zona")
+
+                // Self-heal del gemelo UUID: colapsa toda captura local cuya
+                // fila numérica ya llegó (PAGO_RECIBIDO_ID persistido). Corre
+                // SIEMPRE porque mergePagos solo colapsa de un tiro; si esa
+                // falló (carrera / histórico), aquí converge. Idempotente.
+                val collapsed = paymentDao.findCollapsibleUuidTwins()
+                if (collapsed.isNotEmpty()) {
+                    paymentDao.deleteByIDs(collapsed)
+                    Log.i(TAG, "reconcile: colapsados ${collapsed.size} gemelo(s) UUID")
+                    runCatching {
+                        Logger.get().info(
+                            module = "COBRANZA",
+                            action = "COLLAPSE_TWIN",
+                            message = "Colapsados ${collapsed.size} gemelos UUID de pago",
+                            data = mapOf("count" to collapsed.size, "ids" to collapsed)
+                        )
+                    }
+                }
 
                 // Pre-check: compare server vs local digest. Saves the /ids round-trip
                 // when there's no drift, which should be the common case.

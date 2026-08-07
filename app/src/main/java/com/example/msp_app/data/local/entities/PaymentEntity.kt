@@ -27,7 +27,8 @@ data class PaymentEntity(
     val COBRADOR_ID: Int,
     val FORMA_COBRO_ID: Int,
     val ZONA_CLIENTE_ID: Int,
-    val NOMBRE_CLIENTE: String
+    val NOMBRE_CLIENTE: String,
+    val PAGO_RECIBIDO_ID: String? = null
 )
 
 /**

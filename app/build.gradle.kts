@@ -33,6 +33,15 @@ val localLegacyPort = localProps.getProperty("LOCAL_LEGACY_PORT", "3000")!!
 val localV2Url = "http://$localApiHost:$localV2Port/"
 val localLegacyUrl = "http://$localApiHost:$localLegacyPort/"
 
+fun gitShortSha(): String = try {
+    ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+        .directory(rootDir)
+        .start().inputStream.bufferedReader().readText().trim()
+        .ifEmpty { "nogit" }
+} catch (e: Exception) {
+    "nogit"
+}
+
 val keystorePropertiesFile = rootProject.file("keystore.properties")
 val keystoreProperties = loadProperties(keystorePropertiesFile)
 
@@ -63,8 +72,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 49
-        versionName = "2.12.1"
+        versionCode = 50
+        versionName = "2.12.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -112,7 +121,7 @@ android {
         create("devlocal") {
             dimension = "environment"
             applicationIdSuffix = ".test"
-            versionNameSuffix = "-local"
+            versionNameSuffix = "-local+${gitShortSha()}"
             resValue("string", "app_name", "msp-app LOCAL")
             // Hosts/puertos por desarrollador desde local.properties (def 10.0.2.2).
             buildConfigField("String", "V2_BASE_URL", "\"$localV2Url\"")
@@ -127,7 +136,7 @@ android {
         create("devserver") {
             dimension = "environment"
             applicationIdSuffix = ".test"
-            versionNameSuffix = "-dev"
+            versionNameSuffix = "-dev+${gitShortSha()}"
             resValue("string", "app_name", "msp-app DEV")
             buildConfigField("String", "V2_BASE_URL", "\"https://apidev.loclx.io/\"")
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://apidb.loclx.io/\"")

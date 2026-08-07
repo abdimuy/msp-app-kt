@@ -67,5 +67,6 @@ fun PagoDto.toEntity(): PaymentEntity = PaymentEntity(
     COBRADOR_ID = cobrador_id ?: 0,
     FORMA_COBRO_ID = forma_cobro_id ?: concepto_cc_id,
     ZONA_CLIENTE_ID = zona_cliente_id ?: 0,
-    NOMBRE_CLIENTE = nombre_cliente
+    NOMBRE_CLIENTE = nombre_cliente,
+    PAGO_RECIBIDO_ID = pago_recibido_id
 )
