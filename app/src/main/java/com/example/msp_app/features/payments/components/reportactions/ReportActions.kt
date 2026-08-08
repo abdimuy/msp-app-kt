@@ -23,7 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
-import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.features.payments.components.pdfgenerationdialog.PdfGenerationDialog
@@ -67,9 +67,9 @@ fun ReportActions(
                             title = "REPORTE DE PAGOS SEMANAL",
                             nameCollector = collectorName,
                             fileName = "reporte_semanal_${
-                                DateUtils.formatIsoDate(startIso, "dd_MM_yy")
+                                AppTime.formatIsoForDisplay(startIso, "dd_MM_yy")
                             }_${
-                                DateUtils.formatIsoDate(endIso, "dd_MM_yy")
+                                AppTime.formatIsoForDisplay(endIso, "dd_MM_yy")
                             }.pdf"
                         )
                     }

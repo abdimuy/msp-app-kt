@@ -28,14 +28,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.payments.components.weeklyreportcontent.WeeklyReportContent
 import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
-import java.time.Instant
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
@@ -48,10 +48,11 @@ fun WeeklyReportScreen(navController: NavController, viewModel: PaymentsViewMode
 
     val startIso = remember(userDataState) {
         val startDate = (userDataState as? ResultState.Success)?.data?.FECHA_CARGA_INICIAL
-        DateUtils.parseDateToIso(startDate?.toDate())
-    } ?: DateUtils.parseDateToIso(null)
+        val startInstant = startDate?.toDate()?.toInstant() ?: AppClock.System.now()
+        AppTime.toWireFormat(startInstant)
+    }
 
-    val endIso = Instant.now().toString()
+    val endIso = AppTime.toWireFormat(AppClock.System.now())
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
 

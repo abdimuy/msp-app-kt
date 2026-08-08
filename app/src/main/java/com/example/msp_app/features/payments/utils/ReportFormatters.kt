@@ -1,7 +1,7 @@
 package com.example.msp_app.features.payments.utils
 
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.models.PaymentMethod
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
@@ -11,16 +11,48 @@ import com.example.msp_app.features.payments.models.PaymentTextData
 import com.example.msp_app.features.payments.models.VisitLineData
 import com.example.msp_app.features.payments.models.VisitTextData
 import com.example.msp_app.features.payments.screens.PaymentMethodBreakdown
-import java.util.Locale
+import java.time.LocalDate
+
+/**
+ * Half-open range covering all of [startIso, endIso) — [startIso] is midnight of the report
+ * date in business zone, [endIso] is midnight of the NEXT day (exclusive). See
+ * [ReportFormatters.dateRangeFor].
+ */
+data class ReportDateRange(val startIso: String, val endIso: String)
 
 object ReportFormatters {
 
+    /**
+     * Half-open one-day range `[startOfDay(date), startOfNextDay(date))` in business zone,
+     * matching `msp-api`'s `[desde, hasta)` semantics byte-for-byte (see
+     * `AppTime.startOfDay`/`AppTime.startOfNextDay` kdoc and
+     * `msp-api/docs/module-standards/DATETIME_HANDLING.md`).
+     *
+     * Replaces the legacy `DateUtils.parseLocalDateToIso(date)` (start, computed in the
+     * DEVICE zone via `ZoneId.systemDefault()`) + `DateUtils.addToIsoDate(addToIsoDate(iso, 1,
+     * DAYS), -1, SECONDS)` (end, "+1 day -1 second"). That legacy pattern had two independent
+     * bugs (`date-lib-audit.md`): (1) the day boundary was anchored to the device's timezone,
+     * not the business zone — a cobrador with a misconfigured/roaming phone could see the wrong
+     * payments in a "daily" report; (2) `addToIsoDate` round-trips through `LocalDateTime`,
+     * dropping the UTC offset carried by the input string and silently re-interpreting the
+     * result as UTC (bug #3) — the "-1 second" end (`23:59:59`) could land at the wrong instant
+     * by exactly the device's UTC offset, and always missed the last second/millisecond of the
+     * day regardless.
+     *
+     * Pure and side-effect free — this is the function under test in
+     * `ReportFormattersDateRangeTest` (boundary, device-zone independence, old-vs-new
+     * characterization).
+     */
+    fun dateRangeFor(date: LocalDate): ReportDateRange = ReportDateRange(
+        startIso = AppTime.toWireFormat(AppTime.startOfDay(date)),
+        endIso = AppTime.toWireFormat(AppTime.startOfNextDay(date))
+    )
+
     fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
         val lines = payments.map { payment ->
-            val formattedDate = DateUtils.formatIsoDate(
+            val formattedDate = AppTime.formatIsoForDisplay(
                 payment.FECHA_HORA_PAGO,
-                "dd/MM/yy HH:mm",
-                Locale("es", "MX")
+                "dd/MM/yy HH:mm"
             )
             PaymentLineData(
                 date = formattedDate,
@@ -62,7 +94,7 @@ object ReportFormatters {
         builder.appendLine(String.format("%-8s %-14s %8s", "Fecha", "Cliente", "Importe"))
 
         payments.forEach { pago ->
-            val date = DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "dd/MM/yy", Locale("es", "MX"))
+            val date = AppTime.formatIsoForDisplay(pago.FECHA_HORA_PAGO, "dd/MM/yy")
             val client = pago.NOMBRE_CLIENTE.take(14)
             val amount = "$%,d".format(pago.IMPORTE.toInt())
 
@@ -91,7 +123,7 @@ object ReportFormatters {
             builder.appendLine(" ".repeat(32))
             forgiveness.forEach { pago ->
                 val date =
-                    DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "dd/MM", Locale("es", "MX"))
+                    AppTime.formatIsoForDisplay(pago.FECHA_HORA_PAGO, "dd/MM")
                 val client =
                     pago.NOMBRE_CLIENTE.takeIf { it.length <= 16 } ?: pago.NOMBRE_CLIENTE.take(16)
                 builder.appendLine(
@@ -113,10 +145,9 @@ object ReportFormatters {
 
     fun formatForgivenessTextList(forgiveness: List<Payment>): ForgivenessTextData {
         val lines = forgiveness.map { payment ->
-            val formattedDate = DateUtils.formatIsoDate(
+            val formattedDate = AppTime.formatIsoForDisplay(
                 payment.FECHA_HORA_PAGO,
-                "dd/MM/yy HH:mm",
-                Locale("es", "MX")
+                "dd/MM/yy HH:mm"
             )
             PaymentLineData(
                 date = formattedDate,
@@ -135,7 +166,7 @@ object ReportFormatters {
     fun formatVisitsTextList(visits: List<Visit>): VisitTextData {
         val lines = visits.map {
             VisitLineData(
-                date = DateUtils.formatIsoDate(it.FECHA, "dd/MM/yy HH:mm", Locale("es", "MX")),
+                date = AppTime.formatIsoForDisplay(it.FECHA, "dd/MM/yy HH:mm"),
                 collector = it.COBRADOR,
                 type = it.TIPO_VISITA,
                 note = it.NOTA ?: "-"

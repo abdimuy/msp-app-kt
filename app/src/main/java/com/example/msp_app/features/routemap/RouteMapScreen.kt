@@ -46,11 +46,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
-import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
+import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
@@ -58,8 +59,6 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @RequiresApi(Build.VERSION_CODES.S)
@@ -68,27 +67,19 @@ fun RouteMapScreen(navController: NavController, viewModel: PaymentsViewModel = 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
-    var selectedDate by remember { mutableStateOf(DateUtils.getCurrentDate()) }
+    var selectedDate by remember { mutableStateOf(AppTime.todayInBusinessZone()) }
     var textDate by remember { mutableStateOf(TextFieldValue("")) }
     var reportDateIso by remember { mutableStateOf("") }
     val cameraPositionState = rememberCameraPositionState()
     val context = LocalContext.current
 
     fun prepareReportDate(date: LocalDate) {
-        val iso = DateUtils.parseLocalDateToIso(date)
-        val text = TextFieldValue(
-            DateUtils.formatIsoDate(iso, "dd/MM/yyyy", Locale("es", "MX"))
-        )
-        val start = iso
-        val end = DateUtils.addToIsoDate(
-            DateUtils.addToIsoDate(iso, 1, ChronoUnit.DAYS),
-            -1,
-            ChronoUnit.SECONDS
-        )
-        reportDateIso = iso
+        val range = ReportFormatters.dateRangeFor(date)
+        val text = TextFieldValue(AppTime.formatDate(date, AppTime.Formats.DATE_SHORT))
+        reportDateIso = range.startIso
         textDate = text
         selectedDate = date
-        viewModel.getPaymentsByDate(start, end)
+        viewModel.getPaymentsByDate(range.startIso, range.endIso)
     }
 
     fun moveCameraToLocation(lat: Double, lng: Double) {
@@ -132,9 +123,9 @@ fun RouteMapScreen(navController: NavController, viewModel: PaymentsViewModel = 
                 lat = payment.LAT,
                 lon = payment.LNG,
                 description = "Pago: $${payment.IMPORTE} - ${
-                    DateUtils.formatIsoDate(
+                    AppTime.formatIsoForDisplay(
                         payment.FECHA_HORA_PAGO,
-                        "dd/MM/yyyy hh:mm a"
+                        AppTime.Formats.DATE_TIME_12H
                     )
                 }"
             )

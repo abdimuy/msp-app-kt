@@ -20,7 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.map.MapPin
@@ -53,7 +53,10 @@ fun SaleMapScreen(
         val lat = payment.LAT ?: 0.0
         val lon = payment.LNG ?: 0.0
         if (lat == 0.0 && lon == 0.0) return@mapNotNull null
-        val dateFormatted = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a")
+        val dateFormatted = AppTime.formatIsoForDisplay(
+            payment.FECHA_HORA_PAGO,
+            AppTime.Formats.DATE_TIME_12H
+        )
         MapPin(
             lat = lat,
             lon = lon,

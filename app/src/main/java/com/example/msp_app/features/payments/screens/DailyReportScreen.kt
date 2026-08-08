@@ -54,8 +54,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.models.PaymentMethod
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
@@ -68,14 +68,13 @@ import com.example.msp_app.features.payments.models.PaymentLineData
 import com.example.msp_app.features.payments.models.PaymentTextData
 import com.example.msp_app.features.payments.models.VisitLineData
 import com.example.msp_app.features.payments.models.VisitTextData
+import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -88,17 +87,14 @@ private data class ReportDateData(
 )
 
 private fun prepareReportDate(date: LocalDate): ReportDateData {
-    val iso = DateUtils.parseLocalDateToIso(date)
-    val text = TextFieldValue(
-        DateUtils.formatIsoDate(iso, "dd/MM/yyyy", Locale("es", "MX"))
+    val range = ReportFormatters.dateRangeFor(date)
+    val text = TextFieldValue(AppTime.formatDate(date, AppTime.Formats.DATE_SHORT))
+    return ReportDateData(
+        iso = range.startIso,
+        textField = text,
+        startIso = range.startIso,
+        endIso = range.endIso
     )
-    val start = iso
-    val end = DateUtils.addToIsoDate(
-        DateUtils.addToIsoDate(iso, 1, ChronoUnit.DAYS),
-        -1,
-        ChronoUnit.SECONDS
-    )
-    return ReportDateData(iso, text, start, end)
 }
 
 private fun buildPaymentsTicketText(
@@ -115,7 +111,7 @@ private fun buildPaymentsTicketText(
     builder.appendLine("-".repeat(32))
     builder.appendLine(String.format("%-6s %-16s %8s", "Hora", "Cliente", "Importe"))
     payments.forEach { pago ->
-        val date = DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "HH:mm", Locale("es", "MX"))
+        val date = AppTime.formatIsoForDisplay(pago.FECHA_HORA_PAGO, AppTime.Formats.TIME_24H)
         val client = pago.NOMBRE_CLIENTE.takeIf { it.length <= 16 } ?: pago.NOMBRE_CLIENTE.take(16)
         builder.appendLine(
             String.format(
@@ -146,7 +142,7 @@ private fun buildPaymentsTicketText(
         builder.appendLine("Condonaciones:")
         builder.appendLine(" ".repeat(32))
         forgiveness.forEach { pago ->
-            val date = DateUtils.formatIsoDate(pago.FECHA_HORA_PAGO, "HH:mm", Locale("es", "MX"))
+            val date = AppTime.formatIsoForDisplay(pago.FECHA_HORA_PAGO, AppTime.Formats.TIME_24H)
             val client =
                 pago.NOMBRE_CLIENTE.takeIf { it.length <= 16 } ?: pago.NOMBRE_CLIENTE.take(16)
             builder.appendLine(
@@ -319,10 +315,9 @@ fun DailyReportScreen(navController: NavController, viewModel: PaymentsViewModel
                             var pdfUri by remember { mutableStateOf<Uri?>(null) }
                             var showDialog by remember { mutableStateOf(false) }
                             val reportDate =
-                                DateUtils.formatIsoDate(
+                                AppTime.formatIsoForDisplay(
                                     reportDateIso,
-                                    "yyyy-MM-dd",
-                                    Locale("es", "MX")
+                                    AppTime.Formats.ISO_DATE
                                 )
 
                             if (payments.isEmpty()) {
@@ -539,10 +534,9 @@ data class PaymentMethodBreakdown(
 
 fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
     val lines = payments.map { payment ->
-        val formattedDate = DateUtils.formatIsoDate(
+        val formattedDate = AppTime.formatIsoForDisplay(
             payment.FECHA_HORA_PAGO,
-            "dd/MM/yy HH:mm",
-            Locale("es", "MX")
+            "dd/MM/yy HH:mm"
         )
         PaymentLineData(
             date = formattedDate,
@@ -570,7 +564,7 @@ fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
 fun formatVisitsTextList(visits: List<Visit>): VisitTextData {
     val lines = visits.map {
         VisitLineData(
-            date = DateUtils.formatIsoDate(it.FECHA, "dd/MM/yy HH:mm", Locale("es", "MX")),
+            date = AppTime.formatIsoForDisplay(it.FECHA, "dd/MM/yy HH:mm"),
             collector = it.COBRADOR,
             type = it.TIPO_VISITA,
             note = it.NOTA ?: "-"
@@ -582,10 +576,9 @@ fun formatVisitsTextList(visits: List<Visit>): VisitTextData {
 fun formatForgivenessTextList(forgiveness: List<Payment>): ForgivenessTextData {
     val lines = forgiveness.map { payment ->
         PaymentLineData(
-            date = DateUtils.formatIsoDate(
+            date = AppTime.formatIsoForDisplay(
                 payment.FECHA_HORA_PAGO,
-                "dd/MM/yy HH:mm",
-                Locale("es", "MX")
+                "dd/MM/yy HH:mm"
             ),
             client = payment.NOMBRE_CLIENTE,
             amount = payment.IMPORTE,

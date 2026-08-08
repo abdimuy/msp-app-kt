@@ -13,7 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
-import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.payments.components.paymentslist.PaymentsList
@@ -21,6 +21,7 @@ import com.example.msp_app.features.payments.components.reportactions.ReportActi
 import com.example.msp_app.features.payments.components.sortingbuttons.SortingButtons
 import com.example.msp_app.features.payments.models.VisitTextData
 import com.example.msp_app.features.payments.utils.ReportFormatters
+import java.time.Instant
 
 @RequiresApi(Build.VERSION_CODES.S)
 @Composable
@@ -49,11 +50,11 @@ fun WeeklyReportContent(
                 val forgivenessList =
                     (forgivenessState as? ResultState.Success)?.data ?: emptyList()
                 val dateStr = "Del ${
-                    DateUtils.formatIsoDate(
+                    AppTime.formatIsoForDisplay(
                         startIso,
                         "dd/MM/yy"
                     )
-                } al ${DateUtils.formatIsoDate(endIso, "dd/MM/yy")}"
+                } al ${AppTime.formatIsoForDisplay(endIso, "dd/MM/yy")}"
 
                 val paymentTextData = ReportFormatters.formatPaymentsTextList(visiblePayments)
                 val forgivenessTextData =
@@ -74,7 +75,7 @@ fun WeeklyReportContent(
                         },
                         onSortByDate = {
                             visiblePayments = visiblePayments.sortedBy {
-                                DateUtils.parseIsoToDateTime(it.FECHA_HORA_PAGO)
+                                AppTime.parseWireFormatOrNull(it.FECHA_HORA_PAGO) ?: Instant.EPOCH
                             }
                         }
                     )
