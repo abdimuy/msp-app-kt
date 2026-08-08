@@ -15,7 +15,17 @@ lo específico de la tarea.
 - NUNCA `--no-verify`. NUNCA push. El pre-commit corre ktlint + `:build-logic` ktlint/compile + `testDevlocalDebugUnitTest` y DEBE pasar.
 - Hexagonal + YAGNI: puerto/abstracción solo si hay consumidor real (≥2 impl o cruza módulo). Sin triple-map ritual.
 - Tests: fakes-only (estado + recording/spy), NO MockK/Mockito NUNCA; Turbine para Flows; `kotlinx-coroutines-test`.
-- Money-path (outbox/pagos/WorkManager/red): comportamiento IDÉNTICO; si un cambio lo alteraría, reportar BLOCKED en vez de adivinar.
+- **POLÍTICA DE MIGRACIÓN (instrucción del usuario 2026-08-08): AUDITAR + REESCRIBIR, no mover a ciegas.** El
+  código de `:app` NO se confía: al migrar una pieza, (1) auditarla por bugs, (2) VERIFICAR el contrato de la API
+  (formatos de request/response, SOBRE TODO fechas — estándar RFC3339 UTC; cruzar con el backend Go en
+  `/Volumes/M2-1TB/Developer/msp-api` si aplica), (3) reescribir limpio con **tests de cobertura y robustez SUPREMA**
+  (casos borde exhaustivos), (4) review. Un test verde solo cuenta si es exhaustivo Y el formato casa con el API.
+- **EXCEPCIÓN dura:** el **schema de Room (v27, DDL en disco)** es un contrato de datos de producción — NO se
+  reescribe (corrompería datos en teléfonos reales). Se reescribe la LÓGICA alrededor (queries de DAO, mappers/DTOs,
+  utils, outbox, sync, repos), no el schema. Fechas custom → `java.time` (desugaring on).
+- Money-path (outbox/pagos/WorkManager/red): si REESCRIBES, primero caracteriza el comportamiento correcto contra el
+  contrato real del API (no el comportamiento viejo si estaba mal); un cambio de comportamiento money = conscientemente
+  documentado (es corregir un bug), NO accidental. Si no puedes verificar el contrato, reportar BLOCKED.
 - `msp.hilt` convention plugin es para módulos NUEVOS; `:app` usa Hilt directo (KSP ya aplicado por Room).
 
 ## Contrato de reporte (IMPORTANTE para ahorrar contexto)

@@ -19,8 +19,11 @@ El suite instrumentado de worker-e2e (`PendingPaymentsWorkerE2ETest`, `PendingVi
 Nunca se corrían en un gate, por eso nadie lo notó. **Impacto:** el money-path NO tiene hoy una red e2e de
 dispositivo funcional. Diagnóstico: es problema del HARNESS de test (producción corre bien por logcat), probable
 interacción `WorkManagerTestInitHelper` vs init on-demand. Detalle en `.superpowers/sdd/2026-08-07-plan1-cimiento/`
-(`e2e-worker-diagnosis.md` + `e2e-baseline-main.md`). **Pendiente de decisión:** ¿arreglar este harness antes del
-cierre de Plan 2 (que también quiere el e2e de dispositivo)? No bloquea el trabajo JVM-first de Plan 2.
+(`e2e-worker-diagnosis.md` + `e2e-baseline-main.md`).
+**✅ RESUELTO (commit `27cc246`):** la causa REAL no era WorkManager — era el bloqueo de Android a HTTP CLEARTEXT
+hacia `localhost` (el MockWebServer del test) → el worker lo veía como fallo de red → retry → ENQUEUED. Fix
+TEST-only: `app/src/debug/res/xml/network_security_config.xml` (superset de main + localhost); prod/release
+intactos. **connectedDevlocalDebugAndroidTest = 10/10 VERDE.** Revisado por 2. El money-path ya tiene red e2e.
 - **App corre idéntica:** sí (aún sin cambios de comportamiento)
 
 ## Setup / pre-flight
