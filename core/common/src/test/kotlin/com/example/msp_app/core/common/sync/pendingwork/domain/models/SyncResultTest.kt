@@ -1,4 +1,4 @@
-package com.example.msp_app.core.sync.pendingwork.domain.models
+package com.example.msp_app.core.common.sync.pendingwork.domain.models
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals

@@ -1,11 +1,11 @@
 package com.example.msp_app.core.sync.cobranza
 
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.PaymentsPendingSynchronizer
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncResult
-import com.example.msp_app.core.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.SyncPagosResponse

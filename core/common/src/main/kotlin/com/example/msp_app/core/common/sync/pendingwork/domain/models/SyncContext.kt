@@ -1,4 +1,4 @@
-package com.example.msp_app.core.sync.pendingwork.domain.models
+package com.example.msp_app.core.common.sync.pendingwork.domain.models
 
 data class SyncContext(
     val userId: String,

@@ -1,6 +1,6 @@
 package com.example.msp_app.core.sync.pendingwork.data.gates
 
-import com.example.msp_app.core.sync.pendingwork.domain.ports.SessionSyncGate
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SessionSyncGate
 import java.util.concurrent.atomic.AtomicReference
 
 /**

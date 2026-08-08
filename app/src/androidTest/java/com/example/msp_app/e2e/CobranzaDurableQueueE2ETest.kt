@@ -2,6 +2,8 @@ package com.example.msp_app.e2e
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.WorkInfo
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncManager
 import com.example.msp_app.core.sync.cobranza.CobranzaWriteMutex
@@ -9,8 +11,6 @@ import com.example.msp_app.core.sync.cobranza.SyncOutcome
 import com.example.msp_app.core.sync.cobranza.UserContext
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.PaymentsPendingSynchronizer
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncResult
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
 import com.example.msp_app.data.api.services.cobranza.PagoDto

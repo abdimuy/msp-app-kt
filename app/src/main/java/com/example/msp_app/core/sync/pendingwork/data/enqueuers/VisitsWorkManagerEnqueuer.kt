@@ -1,7 +1,7 @@
 package com.example.msp_app.core.sync.pendingwork.data.enqueuers
 
 import android.content.Context
-import com.example.msp_app.core.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 
 class VisitsWorkManagerEnqueuer(

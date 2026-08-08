@@ -22,12 +22,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.msp_app.MspApplication
 import com.example.msp_app.components.ModernSpinner
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncObserver
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.cobranza.UserContext
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.features.auth.screens.LoginScreen

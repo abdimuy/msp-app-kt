@@ -1,4 +1,4 @@
-package com.example.msp_app.core.sync.pendingwork.domain.ports
+package com.example.msp_app.core.common.sync.pendingwork.domain.ports
 
 interface SessionSyncGate {
     /**

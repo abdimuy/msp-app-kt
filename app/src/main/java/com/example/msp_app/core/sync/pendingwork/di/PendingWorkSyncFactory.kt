@@ -1,6 +1,8 @@
 package com.example.msp_app.core.sync.pendingwork.di
 
 import android.content.Context
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SessionSyncGate
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.GuaranteeEventsWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.GuaranteesWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.LocalSalesWorkManagerEnqueuer
@@ -13,8 +15,6 @@ import com.example.msp_app.core.sync.pendingwork.data.synchronizers.GuaranteesPe
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.LocalSalesPendingSynchronizer
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.PaymentsPendingSynchronizer
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.VisitsPendingSynchronizer
-import com.example.msp_app.core.sync.pendingwork.domain.ports.SessionSyncGate
-import com.example.msp_app.core.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource

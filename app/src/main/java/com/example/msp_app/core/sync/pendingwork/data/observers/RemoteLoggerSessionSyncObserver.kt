@@ -1,9 +1,9 @@
 package com.example.msp_app.core.sync.pendingwork.data.observers
 
 import android.content.Context
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SessionSyncObserver
 import com.example.msp_app.core.logging.RemoteLogger
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncResult
-import com.example.msp_app.core.sync.pendingwork.domain.ports.SessionSyncObserver
 
 class RemoteLoggerSessionSyncObserver(
     private val context: Context

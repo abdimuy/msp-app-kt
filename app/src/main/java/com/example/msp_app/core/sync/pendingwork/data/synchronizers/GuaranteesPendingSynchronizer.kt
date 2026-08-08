@@ -1,10 +1,10 @@
 package com.example.msp_app.core.sync.pendingwork.data.synchronizers
 
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncContext
-import com.example.msp_app.core.sync.pendingwork.domain.models.SyncResult
-import com.example.msp_app.core.sync.pendingwork.domain.ports.GuaranteesWorkEnqueuer
-import com.example.msp_app.core.sync.pendingwork.domain.ports.PendingWorkSynchronizer
-import com.example.msp_app.core.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase.Companion.MAX_ITEMS_PER_SYNC
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
+import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.GuaranteesWorkEnqueuer
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingWorkSynchronizer
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase.Companion.MAX_ITEMS_PER_SYNC
 import com.example.msp_app.data.local.entities.GuaranteeEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
