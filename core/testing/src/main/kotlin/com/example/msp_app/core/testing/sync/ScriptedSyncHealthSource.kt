@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.flow
  * Room/WorkManager dependency — the real counting implementation lives in
  * `:core:database`/`:app` in later plans.
  */
-class RecordingSyncHealthSource(private val emissions: List<SyncHealth>) : SyncHealthSource {
+class ScriptedSyncHealthSource(private val emissions: List<SyncHealth>) : SyncHealthSource {
     override fun observe(): Flow<SyncHealth> = flow {
         emissions.forEach { emit(it) }
     }

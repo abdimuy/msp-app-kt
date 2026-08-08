@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
  * implementation here on purpose: computing real counts means querying Room
  * (`:core:database`, Plan 2) or the WorkManager-backed adapters that still
  * live in `:app` — neither dependency belongs in this pure-JVM domain module.
- * Tests drive this port with `RecordingSyncHealthSource` (`:core:testing`).
+ * Tests drive this port with `ScriptedSyncHealthSource` (`:core:testing`).
  */
 fun interface SyncHealthSource {
     fun observe(): Flow<SyncHealth>
