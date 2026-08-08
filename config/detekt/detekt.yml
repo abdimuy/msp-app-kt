@@ -1,0 +1,22 @@
+# Config de detekt para el gate "anti-Double para dinero" (Task 9, Plan 1,
+# spec §13 Tier A). Deliberadamente NO usa el ruleset por defecto de detekt
+# (naming, complexity, style...): este archivo se aplica con
+# `buildUponDefaultConfig = false`, así que solo lo que se declara `active`
+# aquí corre. El objetivo de esta tarea es un guard específico de dinero, no
+# un lint general — un ban repo-wide de Double/Float sería falso-positivo
+# masivo sobre código legítimo (coordenadas de mapas, geometría, fracciones
+# de progreso) que hoy vive fuera del alcance de este archivo.
+#
+# La regla `money > NoDoubleForMoney` la implementa
+# `:build-tools:detekt-rules` (ver MoneyRuleSetProvider / NoDoubleForMoneyRule)
+# y se registra vía ServiceLoader al declarar
+# `detektPlugins(project(":build-tools:detekt-rules"))` en el módulo que
+# aplica este config (hoy `:core:common`; agregar `:feature:collectionReport`
+# en Plan 5 es repetir el mismo trío: plugin detekt + este config +
+# detektPlugins).
+build:
+  maxIssues: 0
+
+money:
+  NoDoubleForMoney:
+    active: true
