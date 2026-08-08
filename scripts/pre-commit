@@ -10,6 +10,26 @@ if [ $LINT_RESULT -ne 0 ]; then
 fi
 echo "Lint passed"
 
+echo "Running ktlint on build-logic..."
+./gradlew :build-logic:ktlintCheck --quiet
+BUILD_LOGIC_LINT_RESULT=$?
+
+if [ $BUILD_LOGIC_LINT_RESULT -ne 0 ]; then
+    echo "build-logic lint failed. Run './gradlew :build-logic:ktlintFormat' to auto-fix, then retry."
+    exit 1
+fi
+echo "build-logic lint passed"
+
+echo "Compiling build-logic..."
+./gradlew :build-logic:compileKotlin --quiet
+BUILD_LOGIC_COMPILE_RESULT=$?
+
+if [ $BUILD_LOGIC_COMPILE_RESULT -ne 0 ]; then
+    echo "build-logic failed to compile. Fix the convention plugins before committing."
+    exit 1
+fi
+echo "build-logic compiled"
+
 echo "Running tests..."
 ./gradlew testDevlocalDebugUnitTest --quiet
 TEST_RESULT=$?
