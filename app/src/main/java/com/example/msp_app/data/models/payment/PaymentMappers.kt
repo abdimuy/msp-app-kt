@@ -1,6 +1,6 @@
 package com.example.msp_app.data.models.payment
 
-import com.example.msp_app.data.local.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.PaymentEntity
 
 fun PaymentApi.toEntity(): PaymentEntity = PaymentEntity(
     ID,

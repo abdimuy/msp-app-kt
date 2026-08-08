@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
 import com.example.msp_app.components.badges.AlertBadge
 import com.example.msp_app.components.badges.BadgesType
-import com.example.msp_app.data.models.sale.EstadoCobranza
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.ui.theme.ThemeController
 import java.time.ZoneId

@@ -1,8 +1,8 @@
 package com.example.msp_app.data.local.datasource.product
 
 import android.content.Context
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.ProductEntity
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.entities.ProductEntity
 
 class ProductsLocalDataSource(context: Context) {
     private val productDao = AppDatabase.getInstance(context).productDao()

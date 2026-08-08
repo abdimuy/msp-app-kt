@@ -1,6 +1,6 @@
 package com.example.msp_app.features.dailyReport.domain
 
-import com.example.msp_app.data.local.entities.LocalSaleEntity
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

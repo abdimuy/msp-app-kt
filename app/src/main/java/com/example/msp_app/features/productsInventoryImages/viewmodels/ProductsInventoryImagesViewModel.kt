@@ -4,11 +4,11 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
 import com.example.msp_app.data.api.ApiProviderImages
 import com.example.msp_app.data.api.services.productsInventoryImages.ProductsInventoryImagesApi
-import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.datasource.productInventoryImage.ProductInventoryImageLocalDataSource
-import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection

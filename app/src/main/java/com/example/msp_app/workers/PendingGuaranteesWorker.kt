@@ -4,10 +4,10 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.msp_app.core.database.entities.GuaranteeImageEntity
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.guarantee.GuaranteesApi
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
-import com.example.msp_app.data.local.entities.GuaranteeImageEntity
 import java.io.File
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody

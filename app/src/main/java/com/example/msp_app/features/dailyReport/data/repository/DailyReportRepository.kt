@@ -1,12 +1,12 @@
 package com.example.msp_app.features.dailyReport.data.repository
 
 import android.content.Context
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.entities.LocalSaleEntity
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.time.AppClock
 import com.example.msp_app.core.time.AppTime
 import com.example.msp_app.data.api.ApiProvider
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.LocalSaleEntity
-import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.features.dailyReport.domain.models.DailyReportSale
 import com.example.msp_app.features.dailyReport.domain.models.DailyReportSaleProduct
 import com.example.msp_app.features.dailyReport.domain.models.DailyReportTransfer

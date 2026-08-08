@@ -1,5 +1,7 @@
 package com.example.msp_app.data.models.sale
 
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+
 data class Sale(
     val DOCTO_CC_ACR_ID: Int,
     val DOCTO_CC_ID: Int,
@@ -42,14 +44,6 @@ data class Sale(
     val AVAL_O_RESPONSABLE: String,
     val FREC_PAGO: FrecuenciaPago?
 )
-
-enum class EstadoCobranza {
-    PAGADO,
-    NO_PAGADO,
-    PENDIENTE,
-    VISITADO,
-    VOLVER_VISITAR
-}
 
 enum class FrecuenciaPago {
     SEMANAL,

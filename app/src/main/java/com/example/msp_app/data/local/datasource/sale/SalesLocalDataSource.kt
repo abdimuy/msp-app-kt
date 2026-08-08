@@ -1,9 +1,9 @@
 package com.example.msp_app.data.local.datasource.sale
 
 import android.content.Context
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.SaleEntity
-import com.example.msp_app.data.local.entities.SaleWithProductsEntity
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.entities.SaleEntity
+import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 import kotlinx.coroutines.flow.Flow
 
 class SalesLocalDataSource(context: Context) {

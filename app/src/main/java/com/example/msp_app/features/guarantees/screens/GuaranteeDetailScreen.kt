@@ -111,16 +111,21 @@ fun GuaranteeDetailScreen(guaranteeId: Int, navController: NavController) {
                 DetailField(label = "Cliente", value = g.NOMBRE_CLIENTE ?: "Cliente desconocido")
 
                 // Producto
-                if (!g.NOMBRE_PRODUCTO.isNullOrBlank()) {
-                    DetailField(label = "Producto", value = g.NOMBRE_PRODUCTO)
+                // `nombreProducto`/`observaciones` se capturan en local: `g`
+                // es una entidad Room de `:core:database` y Kotlin no puede
+                // smart-cast una propiedad publica declarada en otro modulo.
+                val nombreProducto = g.NOMBRE_PRODUCTO
+                if (!nombreProducto.isNullOrBlank()) {
+                    DetailField(label = "Producto", value = nombreProducto)
                 }
 
                 // Descripción de falla
                 DetailField(label = "Descripción de falla", value = g.DESCRIPCION_FALLA)
 
                 // Observaciones
-                if (!g.OBSERVACIONES.isNullOrBlank()) {
-                    DetailField(label = "Observaciones", value = g.OBSERVACIONES)
+                val observaciones = g.OBSERVACIONES
+                if (!observaciones.isNullOrBlank()) {
+                    DetailField(label = "Observaciones", value = observaciones)
                 }
 
                 // Fecha

@@ -7,12 +7,12 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.data.api.services.visits.CrearVisitaBody
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitaDTO
 import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
-import com.example.msp_app.data.local.entities.VisitEntity
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import java.io.IOException

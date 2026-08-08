@@ -3,7 +3,7 @@ package com.example.msp_app.core.sync.pendingwork.data.synchronizers
 import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.LocalSalesWorkEnqueuer
-import com.example.msp_app.data.local.entities.LocalSaleEntity
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

@@ -1,10 +1,10 @@
 package com.example.msp_app.core.sync.cobranza
 
 import android.content.Context
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
-import com.example.msp_app.data.local.AppDatabase
 
 /**
  * Process-wide singleton factory for [CobranzaReconciler].

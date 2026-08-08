@@ -1,6 +1,6 @@
 package com.example.msp_app.data.models.productInventoryImage
 
-import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
+import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
 
 fun ProductInventoryImage.toEntity(): ProductInventoryImageEntity = ProductInventoryImageEntity(
     IMAGEN_ID = IMAGEN_ID,

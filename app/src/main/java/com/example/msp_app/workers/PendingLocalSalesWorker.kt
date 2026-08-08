@@ -5,12 +5,12 @@ import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.sync.ventas.VendedorResolver
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
-import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource

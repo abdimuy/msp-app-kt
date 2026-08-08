@@ -6,12 +6,12 @@ import android.os.Build
 import android.util.Log
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.debug.models.CommandStatus
 import com.example.msp_app.core.debug.models.CommandType
 import com.example.msp_app.core.debug.models.DebugCommand
 import com.example.msp_app.core.debug.models.DebugConfig
 import com.example.msp_app.core.debug.models.DebugResult
-import com.example.msp_app.data.local.AppDatabase
 import com.google.firebase.Timestamp
 
 /**

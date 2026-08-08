@@ -1,7 +1,7 @@
 package com.example.msp_app.features.visit.newvisit
 
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.data.models.auth.User
-import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
 import org.junit.Assert.assertEquals

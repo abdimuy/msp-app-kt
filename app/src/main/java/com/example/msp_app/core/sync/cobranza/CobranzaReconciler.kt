@@ -1,14 +1,14 @@
 package com.example.msp_app.core.sync.cobranza
 
 import android.util.Log
+import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.toEntity
-import com.example.msp_app.data.local.dao.payment.PaymentDao
-import com.example.msp_app.data.local.dao.sale.SaleDao
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.withLock
 

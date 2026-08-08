@@ -2,9 +2,9 @@ package com.example.msp_app.features.sales.sync
 
 import android.content.Context
 import androidx.work.WorkerParameters
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.sync.BaseSyncWorker
 import com.example.msp_app.core.sync.SyncHandler
-import com.example.msp_app.data.local.entities.LocalSaleEntity
 
 /**
  * Worker para sincronizar ventas locales (CREATE y UPDATE).

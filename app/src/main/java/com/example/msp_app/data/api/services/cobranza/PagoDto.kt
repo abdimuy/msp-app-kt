@@ -1,6 +1,6 @@
 package com.example.msp_app.data.api.services.cobranza
 
-import com.example.msp_app.data.local.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.PaymentEntity
 
 /**
  * Wire format for /v2/cobranza/sync/pagos/zona/{id}.

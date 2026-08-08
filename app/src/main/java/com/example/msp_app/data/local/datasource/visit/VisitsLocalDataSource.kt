@@ -2,9 +2,9 @@ package com.example.msp_app.data.local.datasource.visit
 
 import android.content.Context
 import androidx.room.Transaction
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.VisitEntity
-import com.example.msp_app.data.models.sale.EstadoCobranza
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.VisitEntity
 
 class VisitsLocalDataSource(private val context: Context) {
     private val visitDao = AppDatabase.getInstance(context).visitDao()

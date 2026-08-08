@@ -25,5 +25,7 @@ dependencies {
     // requisito directo de este módulo (Task 4), no solo heredado del piso
     // común de testing.
     testImplementation(libs.androidx.room.testing)
+    // ApplicationProvider (Robolectric in-memory DB smoke test, ver AppDatabaseTest).
+    testImplementation(libs.bundles.android.test.support)
     testImplementation(project(":core:testing"))
 }

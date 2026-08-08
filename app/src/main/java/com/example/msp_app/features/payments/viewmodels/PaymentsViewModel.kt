@@ -4,6 +4,9 @@ import android.app.Application
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.PaymentLocation
+import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.logReportSnapshot
 import com.example.msp_app.core.utils.ResultState
@@ -14,13 +17,10 @@ import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
-import com.example.msp_app.data.local.entities.ProductEntity
 import com.example.msp_app.data.models.payment.Payment
-import com.example.msp_app.data.models.payment.PaymentLocation
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.models.payment.toEntity
-import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import java.time.OffsetDateTime
 import java.util.UUID

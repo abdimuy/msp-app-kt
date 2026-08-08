@@ -1,9 +1,9 @@
 package com.example.msp_app.data.local.datasource.productInventoryImage
 
 import android.content.Context
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.dao.productInventory.ProductInventoryDao
-import com.example.msp_app.data.local.entities.ProductInventoryImageEntity
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
+import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
 
 class ProductInventoryImageLocalDataSource(
     context: Context,

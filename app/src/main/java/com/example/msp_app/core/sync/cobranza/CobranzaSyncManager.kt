@@ -2,16 +2,16 @@ package com.example.msp_app.core.sync.cobranza
 
 import android.util.Log
 import androidx.room.withTransaction
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
+import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.VentaDto
 import com.example.msp_app.data.api.services.cobranza.toEntity
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.dao.cobranzasync.CobranzaSyncStateDao
-import com.example.msp_app.data.local.dao.payment.PaymentDao
-import com.example.msp_app.data.local.dao.sale.SaleDao
-import com.example.msp_app.data.local.entities.CobranzaSyncStateEntity
 import java.time.Instant
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope

@@ -12,8 +12,8 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestDriver
 import androidx.work.testing.WorkManagerTestInitHelper
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.data.api.services.payment.V2PaymentsApi
-import com.example.msp_app.data.local.AppDatabase
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.google.gson.GsonBuilder

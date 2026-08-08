@@ -17,8 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.utils.toCurrency
-import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 
 @Composable
 fun ProductsInfoCard(

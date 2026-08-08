@@ -1,6 +1,6 @@
 package com.example.msp_app.data.local.dao.payment
 
-import com.example.msp_app.data.local.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

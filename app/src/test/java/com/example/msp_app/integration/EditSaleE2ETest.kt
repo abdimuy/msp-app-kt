@@ -1,11 +1,11 @@
 package com.example.msp_app.integration
 
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.database.entities.LocalSaleComboEntity
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
-import com.example.msp_app.data.local.entities.LocalSaleComboEntity
-import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory

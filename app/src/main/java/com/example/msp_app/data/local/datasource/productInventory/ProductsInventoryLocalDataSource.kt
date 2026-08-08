@@ -1,8 +1,8 @@
 package com.example.msp_app.data.local.datasource.productInventory
 
 import android.content.Context
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.ProductInventoryEntity
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.entities.ProductInventoryEntity
 
 class ProductInventoryLocalDataSource(private val context: Context) {
 

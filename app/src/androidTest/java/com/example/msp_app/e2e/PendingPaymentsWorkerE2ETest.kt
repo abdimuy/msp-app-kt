@@ -2,8 +2,8 @@ package com.example.msp_app.e2e
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.work.WorkInfo
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
-import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse

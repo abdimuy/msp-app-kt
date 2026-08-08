@@ -1,6 +1,6 @@
 package com.example.msp_app.data.models.visit
 
-import com.example.msp_app.data.local.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitEntity
 
 fun Visit.toEntity(): VisitEntity = VisitEntity(
     ID,

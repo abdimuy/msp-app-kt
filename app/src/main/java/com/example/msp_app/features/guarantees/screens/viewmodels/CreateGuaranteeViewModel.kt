@@ -5,11 +5,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.database.entities.GuaranteeEntity
+import com.example.msp_app.core.database.entities.GuaranteeImageEntity
 import com.example.msp_app.core.utils.Constants.NOTIFICADO
 import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
-import com.example.msp_app.data.local.entities.GuaranteeEntity
-import com.example.msp_app.data.local.entities.GuaranteeImageEntity
 import com.example.msp_app.workmanager.enqueuePendingGuaranteesWorker
 import java.time.Instant
 import java.time.format.DateTimeFormatter

@@ -1,7 +1,8 @@
 package com.example.msp_app.data.models.sale
 
-import com.example.msp_app.data.local.entities.SaleEntity
-import com.example.msp_app.data.local.entities.SaleWithProductsEntity
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.SaleEntity
+import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 
 fun Sale.toEntity(): SaleEntity = SaleEntity(
     DOCTO_CC_ACR_ID,

@@ -1,7 +1,7 @@
 package com.example.msp_app.data.api.services.payment
 
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.time.AppTime
-import com.example.msp_app.data.local.entities.PaymentEntity
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.temporal.ChronoUnit

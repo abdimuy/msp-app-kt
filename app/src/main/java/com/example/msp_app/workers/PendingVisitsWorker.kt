@@ -6,13 +6,13 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.visits.VisitsApi
 import com.example.msp_app.data.api.services.visits.toCrearVisitaBody
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
-import com.example.msp_app.data.local.entities.VisitEntity
 import com.example.msp_app.data.models.visit.toDomain
 import com.example.msp_app.features.visit.upload.domain.VisitUploadClassifier
 import com.example.msp_app.features.visit.upload.domain.VisitUploadDecision

@@ -5,7 +5,7 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PendingWorkSynchronizer
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase.Companion.MAX_ITEMS_PER_SYNC
-import com.example.msp_app.data.local.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.PaymentEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

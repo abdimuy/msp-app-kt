@@ -1,6 +1,7 @@
 package com.example.msp_app.data.local.dao.visit
 
-import com.example.msp_app.data.local.entities.VisitEntity
+import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -18,7 +19,7 @@ import org.junit.Test
  * offline and had not yet gotten connectivity to upload it would silently
  * lose that visita on the next sync sweep.
  *
- * This test runs against a real, in-memory Room [com.example.msp_app.data.local.AppDatabase]
+ * This test runs against a real, in-memory Room [com.example.msp_app.core.database.AppDatabase]
  * and the REAL [VisitDao] (no fakes) — it proves the fix directly at the SQL
  * level: [VisitDao.deleteUploadedVisits] deletes only confirmed rows and
  * leaves pending rows untouched.

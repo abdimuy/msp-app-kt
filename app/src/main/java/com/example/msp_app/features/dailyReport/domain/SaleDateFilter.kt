@@ -1,7 +1,7 @@
 package com.example.msp_app.features.dailyReport.domain
 
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.time.AppTime
-import com.example.msp_app.data.local.entities.LocalSaleEntity
 import java.time.LocalDate
 
 /**

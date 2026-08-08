@@ -71,8 +71,8 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.data.local.entities.LocalSaleComboEntity
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
 import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet

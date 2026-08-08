@@ -1,7 +1,7 @@
 package com.example.msp_app.data.models.productInventory
 
+import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.utils.parsePrice
-import com.example.msp_app.data.local.entities.ProductInventoryEntity
 import com.google.gson.Gson
 
 fun ProductInventory.toEntity(): ProductInventoryEntity {

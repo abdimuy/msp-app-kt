@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.sales.SalesApi
@@ -13,7 +14,6 @@ import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
-import com.example.msp_app.data.local.entities.OverduePaymentsEntity
 import com.example.msp_app.data.models.guarantee.toEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity

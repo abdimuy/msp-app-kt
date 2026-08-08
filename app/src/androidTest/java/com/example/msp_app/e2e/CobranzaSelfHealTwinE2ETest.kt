@@ -2,6 +2,8 @@ package com.example.msp_app.e2e
 
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.core.sync.cobranza.CobranzaReconciler
 import com.example.msp_app.core.sync.cobranza.CobranzaWriteMutex
@@ -14,8 +16,6 @@ import com.example.msp_app.data.api.services.cobranza.SyncPagosResponse
 import com.example.msp_app.data.api.services.cobranza.SyncVentasResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.VentaDto
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.PaymentEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

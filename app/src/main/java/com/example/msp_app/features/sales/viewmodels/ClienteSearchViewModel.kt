@@ -3,7 +3,7 @@ package com.example.msp_app.features.sales.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.msp_app.data.local.entities.ClienteEntity
+import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.data.repository.ClienteRepository
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow

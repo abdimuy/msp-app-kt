@@ -1,10 +1,10 @@
 package com.example.msp_app.data.local.datasource.guarantee
 
 import android.content.Context
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.GuaranteeEntity
-import com.example.msp_app.data.local.entities.GuaranteeEventEntity
-import com.example.msp_app.data.local.entities.GuaranteeImageEntity
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.entities.GuaranteeEntity
+import com.example.msp_app.core.database.entities.GuaranteeEventEntity
+import com.example.msp_app.core.database.entities.GuaranteeImageEntity
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID

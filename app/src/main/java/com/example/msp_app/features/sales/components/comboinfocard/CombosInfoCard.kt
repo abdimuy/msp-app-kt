@@ -29,8 +29,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Package
-import com.example.msp_app.data.local.entities.LocalSaleComboEntity
-import com.example.msp_app.data.local.entities.LocalSaleProductEntity
+import com.example.msp_app.core.database.entities.LocalSaleComboEntity
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import java.text.NumberFormat
 import java.util.Locale
 

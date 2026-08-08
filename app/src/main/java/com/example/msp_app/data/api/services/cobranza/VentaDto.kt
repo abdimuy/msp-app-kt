@@ -1,7 +1,7 @@
 package com.example.msp_app.data.api.services.cobranza
 
-import com.example.msp_app.data.local.entities.SaleEntity
-import com.example.msp_app.data.models.sale.EstadoCobranza
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import java.time.LocalDate
 import java.time.OffsetDateTime

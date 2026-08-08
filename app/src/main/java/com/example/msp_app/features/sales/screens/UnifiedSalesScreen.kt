@@ -66,9 +66,9 @@ import coil.compose.rememberAsyncImagePainter
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Truck
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
@@ -693,7 +693,7 @@ fun UnifiedSalesScreen(navController: NavController) {
 private fun SaleCard(
     sale: LocalSaleEntity,
     isExpanded: Boolean,
-    saleImages: List<com.example.msp_app.data.local.entities.LocalSaleImageEntity>,
+    saleImages: List<com.example.msp_app.core.database.entities.LocalSaleImageEntity>,
     onCardClick: () -> Unit,
     onExpandToggle: () -> Unit,
     onImageClick: (Int, List<Uri>) -> Unit

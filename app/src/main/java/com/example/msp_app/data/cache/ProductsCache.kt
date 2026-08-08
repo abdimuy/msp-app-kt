@@ -1,7 +1,7 @@
 package com.example.msp_app.data.cache
 
 import android.content.Context
-import com.example.msp_app.data.local.entities.ProductInventoryEntity
+import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File

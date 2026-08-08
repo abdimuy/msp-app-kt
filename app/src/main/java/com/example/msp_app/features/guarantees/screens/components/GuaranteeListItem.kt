@@ -24,8 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.utils.DateUtils
-import com.example.msp_app.data.local.entities.GuaranteeEntity
 import java.util.Locale
 
 @Composable
@@ -102,10 +102,14 @@ fun GuaranteeListItem(guarantee: GuaranteeEntity, onClick: () -> Unit = {}) {
             }
 
             // Producto
-            if (!guarantee.NOMBRE_PRODUCTO.isNullOrBlank()) {
+            // `nombreProducto` se captura en local: `guarantee` es una entidad
+            // Room de `:core:database` y Kotlin no puede smart-cast una
+            // propiedad publica declarada en otro modulo.
+            val nombreProducto = guarantee.NOMBRE_PRODUCTO
+            if (!nombreProducto.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = guarantee.NOMBRE_PRODUCTO,
+                    text = nombreProducto,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

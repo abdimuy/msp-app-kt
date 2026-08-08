@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.cobranza
 
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
@@ -10,7 +11,6 @@ import com.example.msp_app.data.api.services.cobranza.SyncVentasResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.VentaDto
 import com.example.msp_app.data.api.services.cobranza.toEntity
-import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred

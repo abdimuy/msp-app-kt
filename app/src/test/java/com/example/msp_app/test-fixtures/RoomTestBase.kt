@@ -2,8 +2,8 @@ package com.example.msp_app.`test-fixtures`
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.testing.RobolectricTestBase
-import com.example.msp_app.data.local.AppDatabase
 import org.junit.After
 import org.junit.Before
 

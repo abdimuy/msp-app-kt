@@ -43,7 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.msp_app.data.local.entities.ClienteEntity
+import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.features.sales.viewmodels.ClienteSearchViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)

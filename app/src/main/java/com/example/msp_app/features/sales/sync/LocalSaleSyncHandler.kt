@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales.sync
 
 import android.content.Context
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.sync.BaseSyncHandler
 import com.example.msp_app.core.sync.ConflictType
 import com.example.msp_app.core.sync.MultipartRequest
@@ -16,7 +17,6 @@ import com.example.msp_app.data.api.services.localSales.LocalSalesApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
-import com.example.msp_app.data.local.entities.LocalSaleEntity
 import com.example.msp_app.data.models.sale.localsale.LocalSaleMappers
 import java.io.File
 

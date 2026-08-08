@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.MainActivity
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
@@ -15,10 +17,8 @@ import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
-import com.example.msp_app.data.local.entities.ProductInventoryEntity
 import com.example.msp_app.data.local.repository.WarehouseRepository
 import com.example.msp_app.data.models.auth.User
-import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
 import com.example.msp_app.data.models.sale.toSale

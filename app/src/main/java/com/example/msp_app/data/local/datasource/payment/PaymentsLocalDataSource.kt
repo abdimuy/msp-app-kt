@@ -2,11 +2,11 @@ package com.example.msp_app.data.local.datasource.payment
 
 import android.content.Context
 import androidx.room.Transaction
-import com.example.msp_app.data.local.AppDatabase
-import com.example.msp_app.data.local.entities.OverduePaymentsEntity
-import com.example.msp_app.data.local.entities.PaymentEntity
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.OverduePaymentsEntity
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
-import com.example.msp_app.data.models.sale.EstadoCobranza
 import kotlinx.coroutines.flow.Flow
 
 class PaymentsLocalDataSource(private val context: Context) {

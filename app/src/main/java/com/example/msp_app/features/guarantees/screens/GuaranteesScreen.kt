@@ -61,11 +61,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.utils.Constants.NOTIFICADO
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
-import com.example.msp_app.data.local.entities.GuaranteeEntity
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel

@@ -43,9 +43,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.searchSimilarItems
-import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.sales.components.sale_item.SaleItem
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel

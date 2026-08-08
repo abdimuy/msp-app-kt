@@ -3,6 +3,7 @@ package com.example.msp_app.features.warehouses
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.core.utils.Constants.ALMACEN_GENERAL_ID
 import com.example.msp_app.core.utils.ResultState
@@ -13,7 +14,6 @@ import com.example.msp_app.data.api.services.warehouses.WarehouseResponse
 import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.cache.ProductsCache
 import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
-import com.example.msp_app.data.local.entities.ProductInventoryEntity
 import com.example.msp_app.data.local.repository.WarehouseRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest

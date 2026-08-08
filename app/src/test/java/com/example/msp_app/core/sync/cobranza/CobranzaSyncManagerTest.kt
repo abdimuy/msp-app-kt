@@ -1,6 +1,8 @@
 package com.example.msp_app.core.sync.cobranza
 
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.PagoDto
@@ -9,8 +11,6 @@ import com.example.msp_app.data.api.services.cobranza.SyncVentasResponse
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.VentaDto
 import com.example.msp_app.data.api.services.cobranza.toEntity
-import com.example.msp_app.data.local.entities.PaymentEntity
-import com.example.msp_app.data.models.sale.EstadoCobranza
 import com.example.msp_app.`test-fixtures`.RoomTestBase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -684,7 +684,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         // el conteo de residuos, no solo por la zona del state.
         db.saleDao().insertAll(listOf(ventaDto(801, zonaId = 21).toEntity()))
         db.cobranzaSyncStateDao().upsert(
-            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+            com.example.msp_app.core.database.entities.CobranzaSyncStateEntity(
                 RESOURCE = CobranzaSyncManager.RESOURCE_VENTAS,
                 ZONA_CLIENTE_ID = 42,
                 CURSOR = "2026-05-30T00:00:00Z",
@@ -981,7 +981,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
     fun migracionPagoRecibidoIdFuerzaResyncCompletoUnaSolaVez() = runTest {
         // Simula un dispositivo pre-migración: cursor de pagos ya avanzado.
         db.cobranzaSyncStateDao().upsert(
-            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+            com.example.msp_app.core.database.entities.CobranzaSyncStateEntity(
                 RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
                 ZONA_CLIENTE_ID = 21,
                 CURSOR = "2020-01-01T00:00:00Z",
@@ -1009,7 +1009,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
     @Test
     fun migracionPagoRecibidoIdNoSeRepiteEnSyncsPosteriores() = runTest {
         db.cobranzaSyncStateDao().upsert(
-            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+            com.example.msp_app.core.database.entities.CobranzaSyncStateEntity(
                 RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
                 ZONA_CLIENTE_ID = 21,
                 CURSOR = "2020-01-01T00:00:00Z",
@@ -1052,7 +1052,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
     @Test
     fun migracionPagoRecibidoIdPersistFuerzaResyncCuandoMarcadorViejoYaConsumido() = runTest {
         db.cobranzaSyncStateDao().upsert(
-            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+            com.example.msp_app.core.database.entities.CobranzaSyncStateEntity(
                 RESOURCE = CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID,
                 ZONA_CLIENTE_ID = 0,
                 CURSOR = null,
@@ -1061,7 +1061,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             )
         )
         db.cobranzaSyncStateDao().upsert(
-            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+            com.example.msp_app.core.database.entities.CobranzaSyncStateEntity(
                 RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
                 ZONA_CLIENTE_ID = 21,
                 CURSOR = "2020-01-01T00:00:00Z",
@@ -1091,7 +1091,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
     @Test
     fun migracionPagoRecibidoIdPersistNoSeRepiteEnSyncsPosteriores() = runTest {
         db.cobranzaSyncStateDao().upsert(
-            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+            com.example.msp_app.core.database.entities.CobranzaSyncStateEntity(
                 RESOURCE = CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID,
                 ZONA_CLIENTE_ID = 0,
                 CURSOR = null,
@@ -1100,7 +1100,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             )
         )
         db.cobranzaSyncStateDao().upsert(
-            com.example.msp_app.data.local.entities.CobranzaSyncStateEntity(
+            com.example.msp_app.core.database.entities.CobranzaSyncStateEntity(
                 RESOURCE = CobranzaSyncManager.RESOURCE_PAGOS,
                 ZONA_CLIENTE_ID = 21,
                 CURSOR = "2020-01-01T00:00:00Z",

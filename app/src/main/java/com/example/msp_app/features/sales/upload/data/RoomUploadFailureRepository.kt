@@ -1,6 +1,6 @@
 package com.example.msp_app.features.sales.upload.data
 
-import com.example.msp_app.data.local.dao.localsale.LocalSaleDao
+import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
 import com.example.msp_app.features.sales.upload.domain.UploadFailure
 import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
 import java.util.UUID

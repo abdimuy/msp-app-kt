@@ -1,10 +1,10 @@
 package com.example.msp_app.`test-fixtures`
 
+import com.example.msp_app.core.database.entities.LocalSaleComboEntity
+import com.example.msp_app.core.database.entities.LocalSaleEntity
+import com.example.msp_app.core.database.entities.LocalSaleImageEntity
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.draft.SaleDraft
-import com.example.msp_app.data.local.entities.LocalSaleComboEntity
-import com.example.msp_app.data.local.entities.LocalSaleEntity
-import com.example.msp_app.data.local.entities.LocalSaleImageEntity
-import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import com.example.msp_app.data.models.productInventory.ProductInventory
 
 object TestDataFactory {

@@ -1,5 +1,9 @@
 package com.example.msp_app.data.models.sale.localsale
 
+import com.example.msp_app.core.database.entities.LocalSaleComboEntity
+import com.example.msp_app.core.database.entities.LocalSaleEntity
+import com.example.msp_app.core.database.entities.LocalSaleImageEntity
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.api.services.localSales.LocalSaleComboRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleProductRequest
@@ -15,10 +19,6 @@ import com.example.msp_app.data.api.services.ventas.MontosDTO
 import com.example.msp_app.data.api.services.ventas.PlanCreditoDTO
 import com.example.msp_app.data.api.services.ventas.ProductoDTO
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
-import com.example.msp_app.data.local.entities.LocalSaleComboEntity
-import com.example.msp_app.data.local.entities.LocalSaleEntity
-import com.example.msp_app.data.local.entities.LocalSaleImageEntity
-import com.example.msp_app.data.local.entities.LocalSaleProductEntity
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID

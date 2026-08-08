@@ -1,8 +1,8 @@
 package com.example.msp_app.data.models.guarantee
 
-import com.example.msp_app.data.local.entities.GuaranteeEntity
-import com.example.msp_app.data.local.entities.GuaranteeEventEntity
-import com.example.msp_app.data.local.entities.GuaranteeImageEntity
+import com.example.msp_app.core.database.entities.GuaranteeEntity
+import com.example.msp_app.core.database.entities.GuaranteeEventEntity
+import com.example.msp_app.core.database.entities.GuaranteeImageEntity
 
 fun Guarantee.toEntity(): GuaranteeEntity = GuaranteeEntity(
     ID,

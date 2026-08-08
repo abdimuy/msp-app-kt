@@ -1,6 +1,6 @@
 package com.example.msp_app.data.models.product
 
-import com.example.msp_app.data.local.entities.ProductEntity
+import com.example.msp_app.core.database.entities.ProductEntity
 
 fun Product.toEntity(): ProductEntity = ProductEntity(
     DOCTO_PV_DET_ID,

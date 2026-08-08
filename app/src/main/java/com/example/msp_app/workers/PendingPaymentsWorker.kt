@@ -6,6 +6,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
@@ -13,7 +14,6 @@ import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.api.services.payment.V2PaymentsApi
 import com.example.msp_app.data.api.services.payment.toCrearPagoBody
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
-import com.example.msp_app.data.local.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.features.payments.upload.domain.PaymentUploadClassifier
 import com.example.msp_app.features.payments.upload.domain.PaymentUploadDecision
