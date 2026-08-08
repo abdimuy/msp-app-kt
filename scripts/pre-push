@@ -1,0 +1,14 @@
+#!/bin/sh
+
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+
+echo "Running full gate (all modules)..."
+./gradlew prePushCheck --quiet
+GATE_RESULT=$?
+
+if [ $GATE_RESULT -ne 0 ]; then
+    echo "Pre-push gate failed. Fix the issue before pushing."
+    exit 1
+fi
+
+echo "Pre-push gate passed."
