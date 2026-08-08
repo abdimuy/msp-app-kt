@@ -174,7 +174,7 @@ fun DailyReportScreen(navController: NavController, viewModel: PaymentsViewModel
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
 
     LaunchedEffect(Unit) {
-        prepareReportDate(LocalDate.now()).let { data ->
+        prepareReportDate(ReportFormatters.todayForReport()).let { data ->
             reportDateIso = data.iso
             textDate = data.textField
             viewModel.getPaymentsByDate(data.startIso, data.endIso, "DAILY_REPORT")

@@ -1,5 +1,6 @@
 package com.example.msp_app.features.payments.utils
 
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.ThermalPrinting
@@ -47,6 +48,17 @@ object ReportFormatters {
         startIso = AppTime.toWireFormat(AppTime.startOfDay(date)),
         endIso = AppTime.toWireFormat(AppTime.startOfNextDay(date))
     )
+
+    /**
+     * The default report date for an unopened "today" report — business zone, NEVER device
+     * zone. Canonical call site for the "today" default used by `DailyReportScreen` (initial
+     * `LaunchedEffect`) and `RouteMapScreen` (initial `selectedDate`), replacing the bare
+     * `LocalDate.now()` / `DateUtils.getCurrentDate()` calls that both anchored to
+     * `ZoneId.systemDefault()` (bug #1: a device near midnight in another zone opened the
+     * report on the wrong business day).
+     */
+    fun todayForReport(clock: AppClock = AppClock.System): LocalDate =
+        AppTime.todayInBusinessZone(clock)
 
     fun formatPaymentsTextList(payments: List<Payment>): PaymentTextData {
         val lines = payments.map { payment ->

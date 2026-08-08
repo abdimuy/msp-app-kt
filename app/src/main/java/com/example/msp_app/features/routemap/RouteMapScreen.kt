@@ -67,7 +67,7 @@ fun RouteMapScreen(navController: NavController, viewModel: PaymentsViewModel = 
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
     val paymentsState by viewModel.paymentsByDateState.collectAsState()
-    var selectedDate by remember { mutableStateOf(AppTime.todayInBusinessZone()) }
+    var selectedDate by remember { mutableStateOf(ReportFormatters.todayForReport()) }
     var textDate by remember { mutableStateOf(TextFieldValue("")) }
     var reportDateIso by remember { mutableStateOf("") }
     val cameraPositionState = rememberCameraPositionState()

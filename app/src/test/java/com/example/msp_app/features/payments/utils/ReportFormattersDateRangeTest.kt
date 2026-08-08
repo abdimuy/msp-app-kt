@@ -1,6 +1,7 @@
 package com.example.msp_app.features.payments.utils
 
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.core.utils.DateUtils
 import java.time.Instant
 import java.time.LocalDate
@@ -196,6 +197,54 @@ class ReportFormattersDateRangeTest {
                 "queda correctamente fuera del rango de D",
             isWithinRange(exactBusinessMidnightOfNextDay, newRange)
         )
+    }
+
+    // endregion
+
+    // region — Default "today" for an unopened report (fix round 1/5: DailyReportScreen bug #1
+    // NOT actually fixed — the initial LaunchedEffect still called raw LocalDate.now(), device
+    // zone, instead of the business-zone default RouteMapScreen already used correctly).
+
+    @Test
+    fun `todayForReport resuelve la fecha de negocio, no la del dispositivo, cerca de medianoche`() {
+        // 23:30 CDMX 15-abr == 05:30 UTC 16-abr: LocalDate.now() en un dispositivo con zona
+        // UTC (o cualquiera adelantada respecto a CDMX) leeria 16-abr, un dia de negocio
+        // adelantado — exactamente el escenario del bug.
+        val clock = FakeClock.at("2026-04-15T23:30:00-06:00")
+
+        assertEquals(LocalDate.of(2026, 4, 15), ReportFormatters.todayForReport(clock))
+    }
+
+    @Test
+    fun `todayForReport no depende de la zona horaria del dispositivo`() {
+        val clock = FakeClock.at("2026-04-15T23:30:00-06:00")
+
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        val underUtc = ReportFormatters.todayForReport(clock)
+
+        TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+        val underTijuana = ReportFormatters.todayForReport(clock)
+
+        assertEquals(LocalDate.of(2026, 4, 15), underUtc)
+        assertEquals(underUtc, underTijuana)
+    }
+
+    @Test
+    fun `caracterizacion old-vs-new - todayForReport difiere de LocalDate-now de zona dispositivo cerca de medianoche`() {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        val instant = AppTime.parseWireFormat("2026-04-16T05:30:00Z") // 23:30 CDMX 15-abr
+
+        // Comportamiento VIEJO (bug #1, reintroducido por DailyReportScreen.kt:177 antes de
+        // este fix de ronda 1/5): LocalDate.now() usa la zona del DISPOSITIVO.
+        val oldDeviceDate = instant.atZone(TimeZone.getDefault().toZoneId()).toLocalDate()
+
+        // Comportamiento NUEVO: zona de NEGOCIO, via el helper compartido
+        // DailyReportScreen/RouteMapScreen ya usan.
+        val newBusinessDate = ReportFormatters.todayForReport(FakeClock(instant))
+
+        assertEquals(LocalDate.of(2026, 4, 16), oldDeviceDate)
+        assertEquals(LocalDate.of(2026, 4, 15), newBusinessDate)
+        assertNotEquals(oldDeviceDate, newBusinessDate)
     }
 
     // endregion
