@@ -1,5 +1,6 @@
 package com.example.msp_app.features.sales.domain.models
 
+import com.example.msp_app.core.common.time.AppTime
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -32,7 +33,7 @@ private const val VALIDITY_EXTRA_DAYS = 14L
 
 fun calculatePaymentResult(
     settlement: Settlement,
-    now: LocalDateTime = LocalDateTime.now(),
+    now: LocalDateTime = AppTime.nowInBusinessZone(),
     gracePeriodDays: Long = DEFAULT_GRACE_PERIOD_DAYS
 ): PaymentResults {
     if (settlement.cashPrice == 0.0 && settlement.shortTermAmount == 0.0) {

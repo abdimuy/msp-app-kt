@@ -1,7 +1,14 @@
 package com.example.msp_app.features.sales.domain.models
 
+import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.testing.time.FakeClock
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class SettlementCalculatorTest {
@@ -634,5 +641,163 @@ class SettlementCalculatorTest {
         val result = calculatePaymentResult(s, now)
         // cashPrice(5000) - totalPaid(7800-5800=2000) = 3000
         assertEquals(3000.0, result.amount, 0.01)
+    }
+
+    // ============================================================
+    // Fix bug #6: "ahora" en zona de negocio (America/Mexico_City), no en la
+    // zona del dispositivo. Ver AppTime.nowInBusinessZone.
+    // ============================================================
+
+    /**
+     * Reproduce el bug corregido: con la fecha de venta 31/07/2026 y el instante fijo
+     * 2026-09-01T02:00:00Z (grace=0 para aislar el efecto de zona):
+     *  - Interpretado con zona de dispositivo UTC  -> 01/09/2026 02:00 (ya "septiembre")
+     *  - Interpretado con zona de dispositivo CDMX (-06:00) -> 31/08/2026 20:00 (aun "agosto")
+     *  - Interpretado con zona de dispositivo Tijuana (-07:00 en esa fecha) -> 31/08/2026 19:00
+     *
+     * El viejo `LocalDateTime.now()` (zona del dispositivo) hacia que un cobrador con el
+     * telefono en UTC ofreciera "Precio a 2 meses" mientras uno en CDMX/Tijuana ofrecia
+     * "Precio de contado" para la MISMA venta en el MISMO instante real — categoria y monto
+     * distintos por un accidente de reloj del telefono, no por tiempo transcurrido real.
+     */
+    @Test
+    fun `bug reproducido - LocalDateTime now() en zona dispositivo cambia categoria cerca de limite de mes`() {
+        val s = settlement(date = "31/07/2026")
+        val instant = Instant.parse("2026-09-01T02:00:00Z")
+
+        val oldStyleNowUtc = instant.atZone(ZoneId.of("UTC")).toLocalDateTime()
+        val oldStyleNowTijuana = instant.atZone(ZoneId.of("America/Tijuana")).toLocalDateTime()
+
+        val resultUtc = calculatePaymentResult(s, oldStyleNowUtc, gracePeriodDays = 0)
+        val resultTijuana = calculatePaymentResult(s, oldStyleNowTijuana, gracePeriodDays = 0)
+
+        // Mismo instante real, mismo cliente, misma venta -> categorias DISTINTAS: el bug.
+        assertEquals("Precio a 2 meses", resultUtc.category)
+        assertEquals("Precio de contado", resultTijuana.category)
+        assertNotEquals(
+            "se esperaba reproducir el bug: categorias deberian diferir segun zona del dispositivo",
+            resultUtc.category,
+            resultTijuana.category
+        )
+    }
+
+    @Test
+    fun `fix - now de negocio (CDMX) no depende de la zona del dispositivo en limite de mes`() {
+        val originalTz = TimeZone.getDefault()
+        try {
+            val s = settlement(date = "31/07/2026")
+            val instant = Instant.parse("2026-09-01T02:00:00Z")
+            val fakeClock = FakeClock(instant)
+
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+            val nowUnderUtcDefault = AppTime.nowInBusinessZone(fakeClock)
+            val resultUnderUtcDefault =
+                calculatePaymentResult(s, nowUnderUtcDefault, gracePeriodDays = 0)
+
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+            val nowUnderTijuanaDefault = AppTime.nowInBusinessZone(fakeClock)
+            val resultUnderTijuanaDefault =
+                calculatePaymentResult(s, nowUnderTijuanaDefault, gracePeriodDays = 0)
+
+            // AppTime.nowInBusinessZone ignora TimeZone.getDefault(): misma hora de negocio
+            // (CDMX) sin importar en que zona este configurado el telefono.
+            assertEquals(nowUnderUtcDefault, nowUnderTijuanaDefault)
+            assertEquals("Precio de contado", resultUnderUtcDefault.category)
+            assertEquals("Precio de contado", resultUnderTijuanaDefault.category)
+            assertEquals(resultUnderUtcDefault.amount, resultUnderTijuanaDefault.amount, 0.01)
+        } finally {
+            TimeZone.setDefault(originalTz)
+        }
+    }
+
+    @Test
+    fun `default de calculatePaymentResult usa AppTime nowInBusinessZone sin importar zona del dispositivo`() {
+        val originalTz = TimeZone.getDefault()
+        try {
+            // Venta muy antigua: cae en "Precio total" sin importar el dia exacto de "hoy",
+            // asi que sirve como smoke test de que el default (sin pasar `now`) no revienta
+            // y no depende de la zona del dispositivo.
+            val s = settlement(date = "01/01/2020")
+
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+            val resultUtc = calculatePaymentResult(s)
+
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+            val resultTijuana = calculatePaymentResult(s)
+
+            assertNotNull(resultUtc)
+            assertEquals("Precio total", resultUtc.category)
+            assertEquals(resultUtc.category, resultTijuana.category)
+            assertEquals(resultUtc.amount, resultTijuana.amount, 0.01)
+        } finally {
+            TimeZone.setDefault(originalTz)
+        }
+    }
+
+    // ============================================================
+    // Fin de mes: dia 31 vs meses de 30/28 dias (ChronoUnit.MONTHS.between).
+    // Comportamiento ACTUAL de la libreria, documentado (verificado empiricamente con
+    // java.time directo) — no se altera con este fix, solo se caracteriza.
+    // ============================================================
+
+    @Test
+    fun `fin de mes - venta dia 31 de enero sigue en mes 1 el 1 de marzo (febrero de 28 dias)`() {
+        // 2026 no es bisiesto -> febrero tiene 28 dias. ChronoUnit.MONTHS.between no cuenta
+        // el mes calendario completo entre 31/01 y 01/03 sino hasta el 02/03 (ver siguiente test).
+        val s = settlement(date = "31/01/2026")
+        val now = LocalDateTime.of(2026, 3, 1, 0, 0)
+
+        val result = calculatePaymentResult(s, now, gracePeriodDays = 0)
+
+        assertEquals("Precio de contado", result.category)
+        assertEquals(5000.0, result.amount, 0.01)
+    }
+
+    @Test
+    fun `fin de mes - venta dia 31 de enero pasa a mes 2 el 2 de marzo`() {
+        val s = settlement(date = "31/01/2026")
+        val now = LocalDateTime.of(2026, 3, 2, 0, 0)
+
+        val result = calculatePaymentResult(s, now, gracePeriodDays = 0)
+
+        assertEquals("Precio a 2 meses", result.category)
+        assertEquals(5266.67, result.amount, 0.01)
+    }
+
+    @Test
+    fun `fin de mes - venta dia 28 de enero ya esta en mes 2 un dia antes que la venta dia 31`() {
+        // Mismo "now" (01/03), pero la venta del dia 28 (sin recorte de mes corto) ya cuenta
+        // un mes completo, mientras que la del dia 31 (test anterior) todavia no. Documenta que
+        // una venta fechada el ultimo dia de un mes largo obtiene, por aritmetica de calendario,
+        // un dia extra de "Precio de contado" frente a una fechada unos dias antes.
+        val s = settlement(date = "28/01/2026")
+        val now = LocalDateTime.of(2026, 3, 1, 0, 0)
+
+        val result = calculatePaymentResult(s, now, gracePeriodDays = 0)
+
+        assertEquals("Precio a 2 meses", result.category)
+        assertEquals(5266.67, result.amount, 0.01)
+    }
+
+    @Test
+    fun `fin de mes - venta dia 31 de enero, meses de 30 dias (abril) tambien corren la frontera`() {
+        val s = settlement(date = "31/01/2026")
+        val now = LocalDateTime.of(2026, 5, 1, 0, 0)
+
+        val result = calculatePaymentResult(s, now, gracePeriodDays = 0)
+
+        assertEquals("Precio a 3 meses", result.category)
+        assertEquals(5533.33, result.amount, 0.01)
+    }
+
+    @Test
+    fun `fin de mes - venta dia 31 de enero pasa a mes 4 el 2 de mayo`() {
+        val s = settlement(date = "31/01/2026")
+        val now = LocalDateTime.of(2026, 5, 2, 0, 0)
+
+        val result = calculatePaymentResult(s, now, gracePeriodDays = 0)
+
+        assertEquals("Precio a 4 meses", result.category)
+        assertEquals(5800.0, result.amount, 0.01)
     }
 }
