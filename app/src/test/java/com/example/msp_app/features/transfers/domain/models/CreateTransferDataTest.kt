@@ -9,6 +9,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -112,6 +113,50 @@ class CreateTransferDataTest {
 
         assertEquals(LocalDateTime.of(2026, 8, 7, 22, 15, 0), data.fecha)
         assertFalse(data.toRequest().fecha!!.startsWith("2026-08-08"))
+    }
+
+    // endregion
+
+    // region — device-zone independence (brief-mandated): `AppTime.nowInBusinessZone(clock)`
+    // is exactly the call `NewTransferViewModel.createTransfer()` makes for `fecha` (see
+    // NewTransferViewModel.kt:412) — exercised here directly since that ViewModel needs an
+    // Android `Application` and isn't unit-testable in this module. The generated fecha, and
+    // the exact wire string this module sends to the backend, must be identical regardless
+    // of the device's default timezone.
+
+    @Test
+    fun `fecha generated via the NewTransferViewModel call path is identical under UTC and America-Tijuana`() {
+        val originalDefault = TimeZone.getDefault()
+        try {
+            val fixed = Instant.parse("2026-08-08T18:30:45Z")
+            val expected = AppTime.toBusinessDateTime(fixed)
+
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+            val fechaUnderUtc = AppTime.nowInBusinessZone(FakeClock(fixed))
+            val wireUnderUtc = CreateTransferData(
+                almacenOrigenId = 1,
+                almacenDestinoId = 2,
+                fecha = fechaUnderUtc,
+                productos = listOf(producto)
+            ).toRequest().fecha
+
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+            val fechaUnderTijuana = AppTime.nowInBusinessZone(FakeClock(fixed))
+            val wireUnderTijuana = CreateTransferData(
+                almacenOrigenId = 1,
+                almacenDestinoId = 2,
+                fecha = fechaUnderTijuana,
+                productos = listOf(producto)
+            ).toRequest().fecha
+
+            assertEquals(expected, fechaUnderUtc)
+            assertEquals(expected, fechaUnderTijuana)
+            assertEquals(fechaUnderUtc, fechaUnderTijuana)
+            assertEquals("2026-08-08T12:30:45", wireUnderUtc)
+            assertEquals(wireUnderUtc, wireUnderTijuana)
+        } finally {
+            TimeZone.setDefault(originalDefault)
+        }
     }
 
     // endregion

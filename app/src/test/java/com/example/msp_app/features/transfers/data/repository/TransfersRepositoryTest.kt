@@ -13,6 +13,7 @@ import com.example.msp_app.features.transfers.data.api.dto.TransferListResponse
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.TimeZone
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -153,6 +154,85 @@ class TransfersRepositoryTest {
 
             assertNotEquals(before, after)
             assertEquals(AppTime.toBusinessDateTime(Instant.parse("2026-08-08T21:30:00Z")), after)
+        }
+
+    // endregion
+
+    // region — 1b. Device-zone independence (brief-mandated): the injected clock's instant
+    // must produce the SAME business-zone timestamp regardless of the device/JVM default
+    // timezone, exercised through the actual generation path this repository uses
+    // (getTransferDetail's createdAt/updatedAt, and the `fecha` clock-fallback), not just
+    // AppTime directly.
+
+    @Test
+    fun `stamped createdAt is identical under UTC and America-Tijuana device defaults`() = runTest {
+        val originalDefault = TimeZone.getDefault()
+        try {
+            val fixed = Instant.parse("2026-08-08T18:30:00Z")
+            val expected = AppTime.toBusinessDateTime(fixed)
+
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+            val repoUnderUtc = TransfersRepository(
+                apiService = FakeTransfersApiService(
+                    detailResponse = Response.success(detail(fecha = "2026-08-08T09:00:00"))
+                ),
+                clock = FakeClock(fixed)
+            )
+            val underUtc = repoUnderUtc.getTransferDetail(501).getOrThrow().transfer.createdAt
+
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+            val repoUnderTijuana = TransfersRepository(
+                apiService = FakeTransfersApiService(
+                    detailResponse = Response.success(detail(fecha = "2026-08-08T09:00:00"))
+                ),
+                clock = FakeClock(fixed)
+            )
+            val underTijuana = repoUnderTijuana.getTransferDetail(
+                501
+            ).getOrThrow().transfer.createdAt
+
+            assertEquals(expected, underUtc)
+            assertEquals(expected, underTijuana)
+            assertEquals(underUtc, underTijuana)
+        } finally {
+            TimeZone.setDefault(originalDefault)
+        }
+    }
+
+    @Test
+    fun `unparseable-fecha clock fallback is identical under UTC and America-Tijuana device defaults`() =
+        runTest {
+            val originalDefault = TimeZone.getDefault()
+            try {
+                val fixed = Instant.parse("2026-08-08T18:30:00Z")
+                val expected = AppTime.toBusinessDateTime(fixed)
+
+                TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+                val repoUnderUtc = TransfersRepository(
+                    apiService = FakeTransfersApiService(
+                        detailResponse = Response.success(detail(fecha = "no es una fecha"))
+                    ),
+                    clock = FakeClock(fixed)
+                )
+                val underUtc = repoUnderUtc.getTransferDetail(501).getOrThrow().transfer.fecha
+
+                TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+                val repoUnderTijuana = TransfersRepository(
+                    apiService = FakeTransfersApiService(
+                        detailResponse = Response.success(detail(fecha = "no es una fecha"))
+                    ),
+                    clock = FakeClock(fixed)
+                )
+                val underTijuana = repoUnderTijuana.getTransferDetail(
+                    501
+                ).getOrThrow().transfer.fecha
+
+                assertEquals(expected, underUtc)
+                assertEquals(expected, underTijuana)
+                assertEquals(underUtc, underTijuana)
+            } finally {
+                TimeZone.setDefault(originalDefault)
+            }
         }
 
     // endregion

@@ -1,11 +1,14 @@
 package com.example.msp_app.features.transfers.data.mappers
 
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.features.transfers.data.local.entities.TransferEntity
 import java.time.Instant
 import java.time.LocalDateTime
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -70,12 +73,47 @@ class TransferMappersTest {
     }
 
     @Test
-    fun `default clock parameter keeps the Room mapper compiling without an explicit clock`() {
-        // Sanity only — real wall clock; asserts only that it does not throw and returns
-        // a non-null business-zone LocalDateTime for malformed input.
+    fun `default clock parameter falls back to the real business-zone wall clock`() {
+        val before = Instant.now()
         val domain = entity(fecha = "garbage").toDomain()
-        assertEquals(domain.fecha, domain.fecha)
+        val after = Instant.now()
+
+        // Real, not a placeholder: the fallback must land inside the actual call window,
+        // measured in BUSINESS_ZONE (not whatever zone the JVM default happens to be).
+        val stampedAsInstant = domain.fecha.atZone(BUSINESS_ZONE).toInstant()
+        assertTrue(
+            "default-clock fallback must fall within the real call window",
+            !stampedAsInstant.isBefore(before.minusSeconds(2)) &&
+                !stampedAsInstant.isAfter(after.plusSeconds(2))
+        )
     }
+
+    // region — device-zone independence (brief-mandated): the fallback must be identical
+    // regardless of the JVM's default timezone, because it is always computed in
+    // BUSINESS_ZONE via AppTime.toBusinessDateTime, never via the device/JVM default zone.
+
+    @Test
+    fun `toDomain fallback is identical under UTC and America-Tijuana device defaults`() {
+        val originalDefault = TimeZone.getDefault()
+        try {
+            val fixed = Instant.parse("2026-08-08T18:30:00Z")
+            val expected = AppTime.toBusinessDateTime(fixed)
+
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+            val underUtc = entity(fecha = "garbage").toDomain(FakeClock(fixed)).fecha
+
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+            val underTijuana = entity(fecha = "garbage").toDomain(FakeClock(fixed)).fecha
+
+            assertEquals(expected, underUtc)
+            assertEquals(expected, underTijuana)
+            assertEquals(underUtc, underTijuana)
+        } finally {
+            TimeZone.setDefault(originalDefault)
+        }
+    }
+
+    // endregion
 
     @Test
     fun `list extension propagates the clock to every element's fallback`() {
