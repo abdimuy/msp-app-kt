@@ -3,8 +3,12 @@ package com.example.msp_app.features.sales.domain.models
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.testing.time.FakeClock
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -710,13 +714,95 @@ class SettlementCalculatorTest {
         }
     }
 
+    /**
+     * Mata la mutacion `AppTime.nowInBusinessZone()` -> `LocalDateTime.now()` en el default de
+     * `calculatePaymentResult` — sin pasar `now` explicito (eso es justo lo que hay que probar).
+     *
+     * Reto: no se puede fijar el instante real ("ahora" real, al momento de correr el test), asi
+     * que hay que construir una venta cuya frontera de categoria (elapsedMonths 1->2, via
+     * `ChronoUnit.MONTHS.between`) caiga EXACTAMENTE junto al "hoy" real de negocio,
+     * cualquiera que este sea, y verificar que un desfase de zona de dispositivo (que solo
+     * afecta al mutante) cruza esa frontera.
+     *
+     * Mecanismo (determinista, sin importar la hora real ni el dia del año):
+     *  1. Localiza la frontera real (funcion pura de la JDK, no logica de negocio nueva — el
+     *     mismo `ChronoUnit.MONTHS.between` ya caracterizado en "Fin de mes" arriba) para una
+     *     venta ~2 meses antes de "hoy".
+     *  2. Construccion A: usa `gracePeriodDays` (parametro normal, sin tocar la firma publica)
+     *     para anclar `adjustedNow` de negocio EXACTAMENTE en el ultimo dia de la categoria
+     *     vieja, luego corre el default bajo un dispositivo 20h ADELANTE de CDMX
+     *     (`Etc/GMT-14`, sin DST — el maximo real posible desde CDMX). Si la hora real de CDMX
+     *     es >= 04:00, ese adelanto cruza la medianoche hacia la categoria nueva SOLO si el
+     *     default usa la zona del dispositivo (el mutante).
+     *  3. Construccion B: ancla `adjustedNow` en el PRIMER dia de la categoria nueva, corre el
+     *     default bajo un dispositivo 6h ATRAS de CDMX (`Etc/GMT+12`, sin DST — el maximo real
+     *     posible). Si la hora real de CDMX es < 06:00, ese atraso cruza de vuelta a la
+     *     categoria vieja bajo el mutante.
+     *  4. [4,24) U [0,6) = las 24 horas del dia -> para CUALQUIER hora real de CDMX en que
+     *     corra el test, al menos una de las dos construcciones cruza la frontera bajo el
+     *     mutante. Verificado exhaustivamente (fuera de este archivo) contra las 24 horas x 366
+     *     dias del año: cobertura completa, sin huecos.
+     *
+     * No es circular: el oraculo (`oracleA`/`oracleB`) se calcula con `now` EXPLICITO (la ruta
+     * ya caracterizada por los 45+ tests de arriba), nunca con el default. `AppTime.nowInBusinessZone()`
+     * se usa una sola vez, solo para saber "que dia de negocio es hoy" y construir el escenario
+     * — no para fabricar el resultado esperado.
+     */
+    @Test
+    fun `mutante zona - default now debe coincidir con zona de negocio explicita sin importar hora real`() {
+        val originalTz = TimeZone.getDefault()
+        try {
+            val todayBiz = AppTime.nowInBusinessZone()
+            val todayDate = todayBiz.toLocalDate()
+
+            val saleDate = todayDate.minusMonths(2)
+            val s = settlement(date = saleDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
+            val saleEndOfDay = saleDate.atTime(LocalTime.MAX)
+
+            var probe = saleDate.plusDays(1)
+            while (ChronoUnit.MONTHS.between(saleEndOfDay, probe.atStartOfDay()) < 1) {
+                probe = probe.plusDays(1)
+            }
+            val thresholdDate: LocalDate = probe
+            val dayBeforeFlip = thresholdDate.minusDays(1)
+
+            val graceDaysA = ChronoUnit.DAYS.between(dayBeforeFlip, todayDate)
+            val graceDaysB = ChronoUnit.DAYS.between(thresholdDate, todayDate)
+
+            val oracleA = calculatePaymentResult(s, todayBiz, graceDaysA)
+            val oracleB = calculatePaymentResult(s, todayBiz, graceDaysB)
+            assertNotEquals(
+                "el ancla no encontro una frontera real de categoria; revisar construccion del test",
+                oracleA.validUntil,
+                oracleB.validUntil
+            )
+
+            TimeZone.setDefault(TimeZone.getTimeZone("Etc/GMT-14")) // UTC+14 fijo, sin DST
+            val resultA = calculatePaymentResult(s, gracePeriodDays = graceDaysA)
+
+            TimeZone.setDefault(TimeZone.getTimeZone("Etc/GMT+12")) // UTC-12 fijo, sin DST
+            val resultB = calculatePaymentResult(s, gracePeriodDays = graceDaysB)
+
+            assertEquals(oracleA.category, resultA.category)
+            assertEquals(oracleA.amount, resultA.amount, 0.01)
+            assertEquals(oracleA.validUntil, resultA.validUntil)
+
+            assertEquals(oracleB.category, resultB.category)
+            assertEquals(oracleB.amount, resultB.amount, 0.01)
+            assertEquals(oracleB.validUntil, resultB.validUntil)
+        } finally {
+            TimeZone.setDefault(originalTz)
+        }
+    }
+
     @Test
     fun `default de calculatePaymentResult usa AppTime nowInBusinessZone sin importar zona del dispositivo`() {
         val originalTz = TimeZone.getDefault()
         try {
             // Venta muy antigua: cae en "Precio total" sin importar el dia exacto de "hoy",
             // asi que sirve como smoke test de que el default (sin pasar `now`) no revienta
-            // y no depende de la zona del dispositivo.
+            // y no depende de la zona del dispositivo. (No cruza ninguna frontera de categoria
+            // — ver el test anterior para la prueba real de mutacion sobre el default.)
             val s = settlement(date = "01/01/2020")
 
             TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
