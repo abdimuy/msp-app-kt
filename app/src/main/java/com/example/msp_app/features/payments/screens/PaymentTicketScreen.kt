@@ -50,10 +50,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.Constants
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.core.utils.toCurrency
@@ -68,7 +68,6 @@ import com.example.msp_app.features.sales.components.infofield.InfoField
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.ui.theme.ThemeController
 import java.io.File
-import java.util.Locale
 import kotlinx.coroutines.launch
 
 data class PaymentLine(
@@ -134,10 +133,9 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
     }
     fun buildPaymentLines(payments: List<Payment>): List<String> {
         return payments.asReversed().map { pago ->
-            val datepayment = DateUtils.formatIsoDate(
+            val datepayment = AppTime.formatIsoForDisplay(
                 iso = pago.FECHA_HORA_PAGO,
-                pattern = "dd/MM/yyyy",
-                locale = Locale("es", "MX")
+                pattern = "dd/MM/yyyy"
             )
             "ABONO: $datepayment - ${pago.IMPORTE.toCurrency(noDecimals = true)}"
         }
@@ -145,10 +143,9 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
 
     fun buildPaymentLineData(payments: List<Payment>): List<PaymentLine> {
         return payments.asReversed().map { pago ->
-            val date = DateUtils.formatIsoDate(
+            val date = AppTime.formatIsoForDisplay(
                 iso = pago.FECHA_HORA_PAGO,
-                pattern = "EEEE, dd/MM/yyyy",
-                locale = Locale("es", "MX")
+                pattern = "EEEE, dd/MM/yyyy"
             ).replaceFirstChar { it.uppercaseChar() }
 
             val method = PaymentMethod.fromId(pago.FORMA_COBRO_ID).label
@@ -161,13 +158,10 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
         }
     }
 
-    val date = selectedPayment?.let {
-        DateUtils.formatIsoDate(
-            iso = it.FECHA_HORA_PAGO,
-            pattern = "dd/MM/yy HH:mm",
-            locale = Locale("es", "MX")
-        )
-    } ?: ""
+    val date = AppTime.formatIsoForDisplay(
+        iso = selectedPayment?.FECHA_HORA_PAGO,
+        pattern = "dd/MM/yy HH:mm"
+    )
 
     DrawerContainer(
         navController = navController

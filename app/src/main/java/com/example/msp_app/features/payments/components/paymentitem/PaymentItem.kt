@@ -31,8 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.models.PaymentMethod
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.ui.theme.ThemeController
@@ -79,7 +79,10 @@ fun PaymentItem(
                     .weight(1f)
             ) {
                 Text(
-                    text = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    text = AppTime.formatIsoForDisplay(
+                        payment.FECHA_HORA_PAGO,
+                        "dd/MM/yyyy hh:mm a"
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -162,7 +165,10 @@ fun PaymentItem(
                     .weight(1f)
             ) {
                 Text(
-                    text = DateUtils.formatIsoDate(payment.FECHA_HORA_PAGO, "dd/MM/yyyy hh:mm a"),
+                    text = AppTime.formatIsoForDisplay(
+                        payment.FECHA_HORA_PAGO,
+                        "dd/MM/yyyy hh:mm a"
+                    ),
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

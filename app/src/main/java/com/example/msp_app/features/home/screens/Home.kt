@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.Coord
 import com.example.msp_app.core.utils.DateUtils
@@ -270,11 +271,10 @@ fun HomeScreen(navController: NavController) {
         else -> null
     }
 
-    val startDate = DateUtils.formatIsoDate(
+    val startDate = AppTime.formatIsoForDisplay(
         iso = userData?.FECHA_CARGA_INICIAL?.toDate()?.toInstant()?.atZone(ZoneOffset.UTC)
             .toString(),
-        pattern = "EEE. dd/MM/yyyy hh:mm a",
-        locale = Locale("es", "MX")
+        pattern = "EEE. dd/MM/yyyy hh:mm a"
     )
 
     val accountsPercentage = if (numberOfSales > 0) {
