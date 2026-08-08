@@ -25,5 +25,6 @@ dependencyResolutionManagement {
 rootProject.name = "msp-app"
 include(":app")
 include(":core:common")
+include(":core:database")
 include(":core:testing")
 include(":build-tools:detekt-rules")
