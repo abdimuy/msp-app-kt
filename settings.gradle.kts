@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "msp-app"
 include(":app")
+include(":core:common")
