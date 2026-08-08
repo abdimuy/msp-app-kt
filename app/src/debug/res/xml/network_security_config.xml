@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  DEBUG-ONLY network security config. Overrides the `main` resource of the
+  same name for debug build variants (devlocalDebug/devserverDebug) ONLY —
+  release builds (prodRelease = producción) keep `main/res/xml/
+  network_security_config.xml` untouched, so production runtime behaviour is
+  unchanged.
+
+  Adds cleartext to localhost/127.0.0.1 on top of the dev domains so the
+  instrumented worker-E2E suite (PendingPaymentsWorkerE2ETest,
+  PendingVisitsWorkerE2ETest, CobranzaDurableQueueE2ETest) can talk to its
+  in-process MockWebServer over plain HTTP. Without this, Android's default
+  cleartext policy (API 28+) blocks the request with UnknownServiceException
+  ("CLEARTEXT communication to localhost not permitted"), the worker treats it
+  as a network failure and retries forever, and the tests time out stuck in
+  ENQUEUED.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">loclx.io</domain>
+        <!-- Backend Go en desarrollo: 10.0.2.2 es el alias del host desde el emulador Android. -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- MockWebServer de los tests instrumentados corre en el propio proceso. -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>
