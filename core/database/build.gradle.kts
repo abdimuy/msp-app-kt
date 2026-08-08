@@ -28,4 +28,9 @@ dependencies {
     // ApplicationProvider (Robolectric in-memory DB smoke test, ver AppDatabaseTest).
     testImplementation(libs.bundles.android.test.support)
     testImplementation(project(":core:testing"))
+
+    // Hilt-en-JVM para el graph test de DatabaseModule (Task 3): mismo par de
+    // deps que :app usa para sus propios HiltAndroidTest sobre Robolectric.
+    testImplementation(libs.hilt.android.testing)
+    kspTest(libs.hilt.compiler)
 }
