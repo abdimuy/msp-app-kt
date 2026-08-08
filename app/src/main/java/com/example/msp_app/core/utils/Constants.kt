@@ -1,7 +1,17 @@
 package com.example.msp_app.core.utils
 
+import com.example.msp_app.BuildConfig
+
 object Constants {
-    const val APP_VERSION = "2.12.2"
+    /**
+     * Versión de release BASE (sin el sufijo de flavor/git-sha). Única fuente:
+     * `versionName` en app/build.gradle.kts. El sufijo `+<sha>` vive en
+     * [BuildConfig.VERSION_NAME] (footer/drawer/RemoteLogger) para trazabilidad
+     * del build exacto; el update-check compara solo esta base de release
+     * (p.ej. "2.12.2") contra `LATEST_VERSION` de Firestore, así que no se
+     * desincroniza con la versión del build ni entra en bucle de actualización.
+     */
+    val APP_VERSION: String = BuildConfig.VERSION_NAME.substringBefore("-")
 
     const val PAGO_EN_EFECTIVO_ID = 157
     const val PAGO_CON_CHEQUE_ID = 158
