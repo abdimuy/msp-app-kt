@@ -143,20 +143,26 @@ class WireContractTest {
     // region — 5. [desde, hasta) half-open range semantics (ventas dto.go: ">= desde", "< hasta")
 
     @Test
-    fun `startOfDay is the inclusive lower bound desde`() {
+    fun `startOfDay resolves to exactly 00-00-00 CDMX for the given business date`() {
         // internal/ventas/infra/venthttp/dto.go:359 doc:"Filtra FECHA_VENTA >= desde"
+        // CDMX has a fixed UTC-06:00 offset (Mexico stopped observing DST nationally in 2022),
+        // so midnight CDMX of 2026-04-15 is exactly 06:00 UTC. Pinned against a concrete
+        // expected Instant (not against itself) so a wrong implementation — e.g. one that
+        // resolves to a different day, or to noon instead of midnight — actually fails here.
         val d = LocalDate.of(2026, 4, 15)
-        val exactStart = AppTime.startOfDay(d)
-        assertFalse(exactStart.isBefore(AppTime.startOfDay(d)))
+        assertEquals(Instant.parse("2026-04-15T06:00:00Z"), AppTime.startOfDay(d))
     }
 
     @Test
-    fun `startOfNextDay is the exclusive upper bound hasta - an instant exactly at it is NOT inside the range`() {
+    fun `startOfNextDay is exactly one CDMX calendar day after startOfDay, not the same instant`() {
         // internal/ventas/infra/venthttp/dto.go:360 doc:"Filtra FECHA_VENTA < hasta"
+        // Pinned against the concrete expected Instant for 2026-04-16 CDMX midnight, and cross
+        // checked against startOfDay(d + 1) — a wrong startOfNextDay (e.g. one that returns
+        // startOfDay(d) unchanged, or jumps a month instead of a day) fails both assertions.
         val d = LocalDate.of(2026, 4, 15)
         val hasta = AppTime.startOfNextDay(d)
-        // An event exactly at `hasta` must fail the "< hasta" test msp-api applies server-side.
-        assertFalse(hasta.isBefore(hasta))
+        assertEquals(Instant.parse("2026-04-16T06:00:00Z"), hasta)
+        assertEquals(AppTime.startOfDay(d.plusDays(1)), hasta)
     }
 
     @Test
