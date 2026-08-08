@@ -5,24 +5,23 @@ plugins {
     id("msp.android.library")
     id("msp.test") // DESPUÉS de msp.android.library
     id("msp.kover")
+    // Ruleset completo (Plan 2: detekt-strict); + money rule vía detektPlugins abajo.
+    id("msp.detekt")
     alias(libs.plugins.ktlint) // para que el ktlintCheck raíz cubra el módulo
-    alias(libs.plugins.detekt) // Task 9: gate "anti-Double para dinero"
 }
 
 android {
     namespace = "com.example.msp_app.core.common"
 }
 
-// Task 9 (Plan 1, spec §13 Tier A): `:core:common` es el primer módulo de
-// dominio nuevo, así que es donde se arma el gate "anti-Double para dinero"
-// (money VOs reales llegan en Plan 5). `buildUponDefaultConfig = false` +
-// `config/detekt/detekt.yml` (que solo activa `money > NoDoubleForMoney`)
-// evitan que el ruleset por defecto de detekt (naming, complexity, style...)
-// explote sobre código que no es el objetivo de esta tarea — ver el archivo
-// de config para el razonamiento completo.
+// `:core:common` es el único módulo que hoy declara `detektPlugins(project(
+// ":build-tools:detekt-rules"))` abajo, así que es el único con el ruleset
+// `money` en su classpath de análisis. `config.from` AGREGA este archivo al
+// que ya puso `msp.detekt` (`detekt.yml`) — un `config.setFrom` acá lo
+// reemplazaría en vez de sumarlo. Ver `config/detekt/detekt-money.yml` para
+// el porqué de la separación en dos archivos.
 detekt {
-    buildUponDefaultConfig = false
-    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    config.from(files("$rootDir/config/detekt/detekt-money.yml"))
 }
 
 // `msp.kover` deja un piso placeholder de 0% (ver KoverConventionPlugin) hasta

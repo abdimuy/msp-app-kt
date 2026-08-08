@@ -20,6 +20,17 @@ import kotlinx.coroutines.flow.map
  * `:core:database`). Si esos IDs cambian en Microsip, actualizar ambos
  * lados.
  */
+
+/**
+ * Ventana hacia adelante usada como límite superior "abierto" al agrupar
+ * pagos por día desde [PaymentDao.getPaymentsGroupedByDaySince] /
+ * [PaymentDao.observePaymentsGroupedByDaySince]: los pagos no se registran
+ * con fecha futura dentro de este horizonte, así que basta con `hoy + 100
+ * días` como cota superior en vez de una fecha real de "hoy" que se
+ * recalcularía en cada request.
+ */
+private const val PAYMENT_LOOKAHEAD_WINDOW_DAYS = 100L
+
 @Dao
 interface PaymentDao {
 
@@ -160,7 +171,7 @@ interface PaymentDao {
     suspend fun getPaymentsGroupedByDaySince(startDate: String): Map<String, List<PaymentEntity>> {
         val endDate = LocalDate
             .now()
-            .plusDays(100)
+            .plusDays(PAYMENT_LOOKAHEAD_WINDOW_DAYS)
             .format(DateTimeFormatter.ISO_DATE)
         val payments = getPaymentsByDate(startDate, endDate)
 
@@ -223,7 +234,7 @@ interface PaymentDao {
     ): Flow<Map<String, List<PaymentEntity>>> {
         val endDate = LocalDate
             .now()
-            .plusDays(100)
+            .plusDays(PAYMENT_LOOKAHEAD_WINDOW_DAYS)
             .format(DateTimeFormatter.ISO_DATE)
         return observePaymentsByDate(startDate, endDate).map { payments ->
             payments

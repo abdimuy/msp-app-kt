@@ -1,22 +1,99 @@
-# Config de detekt para el gate "anti-Double para dinero" (Task 9, Plan 1,
-# spec §13 Tier A). Deliberadamente NO usa el ruleset por defecto de detekt
-# (naming, complexity, style...): este archivo se aplica con
-# `buildUponDefaultConfig = false`, así que solo lo que se declara `active`
-# aquí corre. El objetivo de esta tarea es un guard específico de dinero, no
-# un lint general — un ban repo-wide de Double/Float sería falso-positivo
-# masivo sobre código legítimo (coordenadas de mapas, geometría, fracciones
-# de progreso) que hoy vive fuera del alcance de este archivo.
+# Config compartida de detekt para módulos NUEVOS/migrados de la migración
+# multi-módulo (`msp.detekt` convention plugin, `build-logic/.../DetektConventionPlugin.kt`).
+# Aplicada con `buildUponDefaultConfig = true`: corre el ruleset COMPLETO de
+# detekt 1.23 (complexity, potential-bugs, style, performance, coroutines,
+# exceptions, naming, empty-blocks, comments...), no solo la regla de dinero.
+# `:app` (legacy, pre-migración) NO aplica este plugin ni este archivo — sigue
+# con ktlint + `NoDoubleForMoney` nada más, sin cambios por esta tarea.
 #
-# La regla `money > NoDoubleForMoney` la implementa
-# `:build-tools:detekt-rules` (ver MoneyRuleSetProvider / NoDoubleForMoneyRule)
-# y se registra vía ServiceLoader al declarar
-# `detektPlugins(project(":build-tools:detekt-rules"))` en el módulo que
-# aplica este config (hoy `:core:common`; agregar `:feature:collectionReport`
-# en Plan 5 es repetir el mismo trío: plugin detekt + este config +
-# detektPlugins).
+# Cada sección de abajo es un AJUSTE puntual a una regla del default, con la
+# razón documentada — nunca se desactiva un ruleset completo. Si una regla no
+# aparece aquí, corre con los valores por defecto de detekt.
+#
+# La regla custom `money > NoDoubleForMoney` (Task 9, Plan 1) NO vive en este
+# archivo: detekt valida el config contra los `RuleSetProvider` realmente
+# presentes en el classpath de análisis de CADA módulo (`config.validation`,
+# default `true`), y `money` solo existe donde el módulo declara
+# `detektPlugins(project(":build-tools:detekt-rules"))`. Si se declarara acá
+# (aplicado a los 4 módulos vía `msp.detekt`), fallaría con "Property 'money'
+# is misspelled or does not exist" en cualquier módulo que NO tenga ese
+# classpath (p.ej. `:build-tools:detekt-rules` mismo, que no puede depender de
+# sí mismo). Por eso vive en `detekt-money.yml`, un fragmento aparte que solo
+# agregan (`config.from`, no `setFrom` — no reemplaza este archivo) los
+# módulos que también declaran `detektPlugins(...)`.
 build:
   maxIssues: 0
 
-money:
-  NoDoubleForMoney:
-    active: true
+complexity:
+  # Los composables de Compose reciben legítimamente Modifier + varios
+  # callbacks/estado — es el idioma del framework, no un code smell. Se
+  # sube el piso general (código no-Compose con muchos parámetros SIGUE
+  # siendo señal real) y se ignoran del todo las funciones @Composable.
+  # Las entidades Room de `core/database/entities/**` mirrorean 1:1 tablas
+  # anchas de Microsip (constructores de 20-30+ columnas) — partirlas en
+  # sub-objetos sería un refactor de infraestructura fuera del alcance de
+  # este gate de lint, no una mejora real de legibilidad para un DTO 1:1.
+  LongParameterList:
+    functionThreshold: 7
+    constructorThreshold: 7
+    ignoreAnnotated: ['Composable']
+    excludes: ['**/core/database/entities/**']
+  LongMethod:
+    ignoreAnnotated: ['Composable']
+  # Los DAOs de Room (`@Dao`) agrupan TODAS las queries de una tabla en una
+  # sola interfaz por diseño del framework — partirlos por umbral de conteo
+  # dispersaría queries relacionadas sin ganar nada. Mismo razonamiento para
+  # `@Database` (Room exige un método abstracto por DAO expuesto) y
+  # `@Module` de Hilt (un `@Provides` por binding es el patrón, no fan-out
+  # accidental).
+  TooManyFunctions:
+    ignoreAnnotated: ['Composable', 'Dao', 'Database', 'Module']
+  CyclomaticComplexMethod:
+    ignoreAnnotated: ['Composable']
+
+style:
+  # Ya es una decisión tomada para todo el repo (`.editorconfig`:
+  # `ktlint_standard_max-line-length = disabled`) — las queries `@Query` de
+  # Room crudas en una sola línea son más legibles/greppables así que
+  # envueltas a 120 columnas. Se alinea detekt con esa misma política en vez
+  # de contradecirla con un límite que ktlint ya decidió no imponer.
+  MaxLineLength:
+    active: false
+  # Constantes de negocio (folios, códigos de forma de cobro, tamaños de
+  # página, thresholds de reintento) son más legibles como literal que como
+  # una constante con nombre inventado solo para callar el linter; se
+  # mantiene activa para el resto (loops mágicos SÍ son señal real).
+  MagicNumber:
+    ignoreAnnotated: ['Composable']
+    ignorePropertyDeclaration: true
+    ignoreLocalVariableDeclaration: false
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreEnums: true
+    ignoreRanges: true
+    ignoreHashCodeFunction: true
+  # Kotlin idiomático usa "return temprano" como guard clause; el default de
+  # detekt (2) penaliza ese estilo, no un problema real de legibilidad.
+  ReturnCount:
+    max: 4
+
+naming:
+  # Compose usa PascalCase para funciones @Composable (son "widgets", no
+  # verbos) — es la convención oficial del framework, no una violación.
+  FunctionNaming:
+    ignoreAnnotated: ['Composable']
+  # `core/database/entities/**`: las entidades Room mirrorean 1:1 columnas
+  # de Microsip (`DOCTO_CC_ACR_ID`, `CLIENTE_ID`, etc.) y los DAOs las
+  # referencian tal cual en `@Query` con SQL crudo — camelCase-ar el nombre
+  # de la propiedad rompería esas queries (cambio de comportamiento, no
+  # solo de estilo). Ver `core/database/entities/*Entity.kt`.
+  ConstructorParameterNaming:
+    excludes: ['**/core/database/entities/**']
+  # El pattern default de detekt rechaza `_` en cualquier segmento; el
+  # `applicationId`/paquete raíz `com.example.msp_app` es una decisión ya
+  # tomada y fija para TODO el repo (ver DISPATCH-CONVENTIONS.md: "NO se
+  # toca") — todo módulo nuevo vive bajo `com.example.msp_app.core.*` /
+  # `.feature.*`, así que sin este ajuste CADA archivo de CADA módulo nuevo
+  # dispararía este hallazgo. Se sigue exigiendo minúscula inicial por
+  # segmento; solo se permite `_` además de alfanumérico.
+  PackageNaming:
+    packagePattern: '[a-z][a-zA-Z0-9_]*(\.[a-z][a-zA-Z0-9_]*)*'

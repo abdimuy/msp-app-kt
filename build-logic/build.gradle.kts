@@ -38,6 +38,12 @@ dependencies {
     // `msp.hilt` / `msp.kover`.
     implementation(libs.hilt.gradle.plugin)
     implementation(libs.kover.gradle.plugin)
+
+    // detekt-gradle-plugin NO está declarado en ningún otro build.gradle.kts
+    // todavía; build-logic es la única fuente de sus clases (DetektExtension),
+    // por lo que viaja como `implementation` para llegar al classpath de
+    // quien aplique `msp.detekt`.
+    implementation(libs.detekt.gradle.plugin)
 }
 
 gradlePlugin {
@@ -61,6 +67,10 @@ gradlePlugin {
         register("kover") {
             id = "msp.kover"
             implementationClass = "buildlogic.KoverConventionPlugin"
+        }
+        register("detekt") {
+            id = "msp.detekt"
+            implementationClass = "buildlogic.DetektConventionPlugin"
         }
     }
 }

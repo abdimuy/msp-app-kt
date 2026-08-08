@@ -18,6 +18,7 @@ import java.util.Locale
  * ciclo). Si `DateUtils.formatIsoDate` cambia de comportamiento en `:app`,
  * esta copia debe actualizarse a mano.
  */
+@Suppress("TooGenericExceptionCaught", "SwallowedException")
 internal fun formatIsoDateForGrouping(
     iso: String,
     pattern: String,
@@ -35,6 +36,12 @@ internal fun formatIsoDateForGrouping(
             .withZone(ZoneId.systemDefault())
         formatter.format(zonedLocal)
     } catch (e: Exception) {
+        // Fallback intencional: esta función es una copia byte-idéntica en
+        // algoritmo de `DateUtils.formatIsoDate` (`:app`, ver KDoc de
+        // arriba) — el contrato es "si el parseo falla por CUALQUIER motivo,
+        // devolver el ISO original sin agrupar", no solo para un subtipo de
+        // excepción. Acotar el catch cambiaría ese comportamiento de
+        // fallback, que debe seguir siendo idéntico al de `:app`.
         iso
     }
 }

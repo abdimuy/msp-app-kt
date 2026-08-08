@@ -153,6 +153,12 @@ class SyncAllPendingWorkUseCaseTest {
     @Test
     fun `flaky observer does not tumble the flow`() = runTest {
         val sync = FakeSynchronizer("S", SyncResult.NothingPending)
+
+        // El test simula un observer arbitrariamente "flaky": el punto es que
+        // el tipo de excepción NO importa (cualquier Throwable debe quedar
+        // contenido), así que un RuntimeException genérico es intencional acá,
+        // no un caso real de negocio que amerite un tipo específico.
+        @Suppress("TooGenericExceptionThrown")
         val observer = object : SessionSyncObserver {
             override fun onResult(synchronizerName: String, result: SyncResult) {
                 throw RuntimeException("observer explodes")

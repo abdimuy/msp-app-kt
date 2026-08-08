@@ -21,8 +21,8 @@ interface LocalSaleDao {
     )
     suspend fun getAllSales(): List<LocalSaleEntity>
 
-    @Query("SELECT * FROM local_sale WHERE LOCAL_SALE_ID = :sale_Id")
-    suspend fun getSaleById(sale_Id: String): LocalSaleEntity?
+    @Query("SELECT * FROM local_sale WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun getSaleById(saleId: String): LocalSaleEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSaleImage(saleImage: LocalSaleImageEntity)
@@ -108,6 +108,15 @@ interface LocalSaleDao {
     @Query("UPDATE sale_image SET SERVER_UUID = :serverUuid WHERE LOCAL_SALE_IMAGE_ID = :imageId")
     suspend fun updateImageServerUuid(imageId: String, serverUuid: String)
 
+    // Un parámetro por columna editable de `local_sale` — Room enlaza cada
+    // `:nombreParametro` de la query por NOMBRE de parámetro Kotlin, así que
+    // envolver esto en un objeto (para bajar el conteo de LongParameterList)
+    // exigiría el binding "entity parcial" de Room (`@Update(entity = ...)`
+    // con una data class de columnas), que es un cambio de forma de
+    // persistencia — no un simple refactor de estilo — para una query de
+    // edición de venta ya en uso. Se prefiere suprimir con esta nota a
+    // arriesgar el comportamiento de escritura.
+    @Suppress("LongParameterList")
     @Query(
         """
         UPDATE local_sale SET

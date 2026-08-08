@@ -69,14 +69,21 @@ tasks.named("prepareKotlinBuildScriptModel") {
 //     y :build-logic (build compuesto, referenciado vía `gradle.includedBuild`
 //     porque sus tareas no viven en el grafo de tareas del build principal).
 //   - unit tests de cada módulo con tests.
-//   - detekt (`:core:common:detekt`) — la regla anti-`Double` de dinero
-//     (Task 9), que hasta esta tarea no corría en ningún hook.
+//   - detekt, ruleset COMPLETO vía `msp.detekt` (Plan 2, detekt-strict):
+//     `:core:common`, `:core:database`, `:core:testing`,
+//     `:build-tools:detekt-rules` — todo módulo nuevo que aplique el
+//     convention plugin. `:app` (legacy) NO corre detekt, ni acá ni en
+//     ningún otro lado — sigue solo con ktlint.
 //   - `:core:common:koverVerify` — cobertura ~90% acotada al domain de
 //     `:core:common` (resolución del orquestador, Task 4/10: NO hay gate de
 //     cobertura repo-wide sobre `:app`).
 //   - `:app:assembleDevlocalDebug` — build real de la variante de gate.
 // Deliberadamente NO incluye tareas `connected*` (device/emulador): el e2e
 // instrumentado es de Plan 2/5, no de este gate local.
+// NOTA: `:core:database:testDebugUnitTest`/`ktlintCheck` NO se agregan acá —
+// es deuda explícita del cierre de Plan 2 (ver
+// `docs/superpowers/plans/2026-08-07-plan2-database.md`, sección "Acciones"),
+// tarea separada de este dispatch de detekt-strict.
 tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + build, todos los módulos."
@@ -93,6 +100,9 @@ tasks.register("prePushCheck") {
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
         ":core:common:detekt",
+        ":core:database:detekt",
+        ":core:testing:detekt",
+        ":build-tools:detekt-rules:detekt",
         ":app:assembleDevlocalDebug",
     )
 }

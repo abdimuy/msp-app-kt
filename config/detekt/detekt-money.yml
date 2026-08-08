@@ -1,0 +1,13 @@
+# Fragmento OPCIONAL, agregado (no reemplaza) sobre `detekt.yml` — ver el
+# comentario de esa cabecera para el porqué de la separación. Solo lo suman
+# los módulos que también declaran
+# `detektPlugins(project(":build-tools:detekt-rules"))` en su
+# `build.gradle.kts` (hoy: `:core:common`).
+#
+# Regla custom del proyecto (Task 9, Plan 1, spec §13 Tier A): prohíbe
+# `Double`/`Float` en propiedades/parámetros/funciones cuyo nombre sugiera
+# dinero. La implementa `:build-tools:detekt-rules`
+# (MoneyRuleSetProvider / NoDoubleForMoneyRule), registrada vía ServiceLoader.
+money:
+  NoDoubleForMoney:
+    active: true

@@ -20,6 +20,11 @@ plugins {
     // sin versión, Gradle reutiliza la que ya está cargada (2.0.21, la misma
     // del catálogo).
     id("org.jetbrains.kotlin.jvm")
+    // `msp.detekt` SÍ se puede aplicar aquí aunque el módulo no use
+    // `msp.android.library` (ver comentario de arriba): solo aplica el
+    // plugin `io.gitlab.arturbosch.detekt` + configura el ruleset completo,
+    // no depende de AGP ni de una versión propia de Kotlin.
+    id("msp.detekt")
     alias(libs.plugins.ktlint) // para que el ktlintCheck raíz cubra el módulo, igual que el resto
 }
 

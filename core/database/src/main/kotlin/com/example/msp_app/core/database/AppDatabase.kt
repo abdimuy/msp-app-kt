@@ -80,6 +80,12 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
+        // `fallbackToDestructiveMigrationFrom` enumera versiones históricas de
+        // schema (1..19, previas a que existiera migración incremental) —
+        // son literales de un catálogo cerrado y ya congelado, no "cifras
+        // mágicas" de negocio; nombrarlas una por una (`SCHEMA_VERSION_1`...)
+        // sería puro ruido sin ganar legibilidad.
+        @Suppress("MagicNumber")
         fun getInstance(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
