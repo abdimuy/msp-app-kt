@@ -1,6 +1,6 @@
 package com.example.msp_app.core.sync.cobranza
 
-import com.example.msp_app.`test-fixtures`.RobolectricTestBase
+import com.example.msp_app.core.testing.RobolectricTestBase
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger

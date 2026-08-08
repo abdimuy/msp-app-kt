@@ -1,4 +1,4 @@
-package com.example.msp_app.`test-fixtures`
+package com.example.msp_app.core.testing
 
 import org.junit.Rule
 import org.junit.runner.RunWith

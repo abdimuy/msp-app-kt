@@ -1,4 +1,4 @@
-package com.example.msp_app.`test-fixtures`
+package com.example.msp_app.core.testing
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi

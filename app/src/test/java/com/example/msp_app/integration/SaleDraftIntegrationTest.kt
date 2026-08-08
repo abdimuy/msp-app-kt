@@ -5,7 +5,7 @@ import com.example.msp_app.core.draft.DraftCombo
 import com.example.msp_app.core.draft.DraftProduct
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
-import com.example.msp_app.`test-fixtures`.RobolectricTestBase
+import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

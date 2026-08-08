@@ -4,7 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.draft.SaleDraft
-import com.example.msp_app.`test-fixtures`.RobolectricTestBase
+import com.example.msp_app.core.testing.RobolectricTestBase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals

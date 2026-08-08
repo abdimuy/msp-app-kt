@@ -2,7 +2,7 @@ package com.example.msp_app.data.local.migrations
 
 import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
-import com.example.msp_app.`test-fixtures`.RobolectricTestBase
+import com.example.msp_app.core.testing.RobolectricTestBase
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals

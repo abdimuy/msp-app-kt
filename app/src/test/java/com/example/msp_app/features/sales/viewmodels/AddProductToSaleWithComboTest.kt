@@ -1,6 +1,6 @@
 package com.example.msp_app.features.sales.viewmodels
 
-import com.example.msp_app.`test-fixtures`.RobolectricTestBase
+import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
