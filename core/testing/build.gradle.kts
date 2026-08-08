@@ -10,6 +10,10 @@ android {
 dependencies {
     api(project(":core:common"))
 
+    // RecordingSyncHealthSource (fake de core.common.sync.health.SyncHealthSource)
+    // usa `Flow`/`flow {}` directamente, no solo a través de coroutines-test.
+    api(libs.kotlinx.coroutines.core)
+
     // Las libs de test se exponen como `api` porque este módulo ES la infra
     // de test: cualquier módulo que dependa de `:core:testing` en su propio
     // `testImplementation` necesita ver JUnit/coroutines-test/Robolectric/etc.
