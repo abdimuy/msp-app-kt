@@ -7,29 +7,29 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.utils.Constants.ALMACEN_GENERAL_ID
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.warehouses.TransferDetail
 import com.example.msp_app.data.api.services.warehouses.TransferRequest
 import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
 import com.example.msp_app.data.api.services.warehouses.WarehouseResponse
-import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import com.example.msp_app.data.cache.ProductsCache
-import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
 import com.example.msp_app.data.local.entities.ProductInventoryEntity
 import com.example.msp_app.data.local.repository.WarehouseRepository
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.productInventory.toDomain
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class WarehouseViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+class WarehouseViewModel @Inject constructor(
+    application: Application,
+    private val repository: WarehouseRepository
+) : AndroidViewModel(application) {
 
-    private val warehousesApi: WarehousesApi = ApiProvider.create(WarehousesApi::class.java)
-    private val remoteDataSource = WarehouseRemoteDataSource(warehousesApi)
-    private val repository = WarehouseRepository(remoteDataSource)
     private val productsCache = ProductsCache(application.applicationContext)
 
     private val _warehouseProducts =

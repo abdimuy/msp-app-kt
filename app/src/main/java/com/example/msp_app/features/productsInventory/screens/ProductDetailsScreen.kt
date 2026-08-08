@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -85,6 +86,7 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.features.productsInventory.viewmodels.ProductDetailsViewModel
 import com.example.msp_app.features.productsInventory.viewmodels.ProductsInventoryViewModel
 import com.example.msp_app.features.productsInventoryImages.viewmodels.ProductInventoryImagesViewModel
+import com.example.msp_app.features.warehouses.WarehouseViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
 import java.io.File
@@ -95,7 +97,7 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
     val detailsViewModel: ProductDetailsViewModel = viewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
-    val warehouseViewModel: com.example.msp_app.features.warehouses.WarehouseViewModel = viewModel()
+    val warehouseViewModel: WarehouseViewModel = hiltViewModel()
     val authViewModel = LocalAuthViewModel.current
 
     val imagesByProduct by imagesViewModel.imagesByProduct.collectAsState()

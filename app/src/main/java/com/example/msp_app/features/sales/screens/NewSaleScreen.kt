@@ -62,6 +62,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -94,7 +95,7 @@ import com.google.maps.android.compose.rememberCameraPositionState
 @Composable
 fun NewSaleScreen(navController: NavController) {
     val viewModel: NewLocalSaleViewModel = viewModel()
-    val warehouseViewModel: WarehouseViewModel = viewModel()
+    val warehouseViewModel: WarehouseViewModel = hiltViewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
     val clienteSearchViewModel: ClienteSearchViewModel = viewModel()

@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.composables.icons.lucide.FileText
@@ -62,7 +63,7 @@ import com.example.msp_app.ui.theme.ThemeController
 @Composable
 fun CartScreen(navController: NavController) {
     val cartViewModel: CartViewModel = viewModel()
-    val warehouseViewModel: WarehouseViewModel = viewModel()
+    val warehouseViewModel: WarehouseViewModel = hiltViewModel()
     val imagesViewModel: ProductInventoryImagesViewModel = viewModel()
     val productsInventoryViewModel: ProductsInventoryViewModel = viewModel()
     val dailyReportViewModel: DailyReportViewModel = viewModel()

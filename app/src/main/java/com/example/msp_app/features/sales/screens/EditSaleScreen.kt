@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
@@ -87,7 +88,7 @@ import java.io.File
 @Composable
 fun EditSaleScreen(localSaleId: String, navController: NavController) {
     val viewModel: EditLocalSaleViewModel = viewModel()
-    val warehouseViewModel: WarehouseViewModel = viewModel()
+    val warehouseViewModel: WarehouseViewModel = hiltViewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
     val context = LocalContext.current
