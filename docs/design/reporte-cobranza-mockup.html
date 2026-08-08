@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reporte de cobranza · Aireado (B)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:"Manrope",-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;background:radial-gradient(120% 120% at 50% 0%,#101a2e,#070b13 70%);min-height:100vh;padding:30px 16px 70px;color:#e7edf5;-webkit-font-smoothing:antialiased}
+  .lead{max-width:640px;margin:0 auto 22px;text-align:center}
+  .lead h1{font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .lead p{color:#93a6c0;font-size:13.5px;line-height:1.55;margin-top:8px}
+  .lead .hint{display:inline-flex;gap:8px;margin-top:14px;font-size:12px;font-weight:700;color:#bcd0ea;background:#13233c;border:1px solid #23384f;padding:7px 14px;border-radius:999px}
+  .stage{display:flex;justify-content:center}
+
+  .phone{position:relative;width:384px;padding:12px;border-radius:46px;background:#0c1622;box-shadow:0 40px 90px -30px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.05),inset 0 0 0 2px #05090f}
+  .notch{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:130px;height:28px;background:#0c1622;border-radius:0 0 18px 18px;z-index:60}
+  .screen{position:relative;border-radius:34px;overflow:hidden;height:788px;display:flex;flex-direction:column;background:var(--bg);color:var(--onSurface)}
+  .reveal{position:absolute;inset:12px;z-index:50}
+
+  .screen[data-theme="light"]{--brand:#2563EB;--brand2:#1D4ED8;--onBrand:#fff;--tint:#EAF0FE;--bg:#F4F6F5;--bg0:rgba(244,246,245,0);--surface:#fff;--onSurface:#141A18;--muted:#5C6863;--outline:#E7ECF2;--paid:#177245;--paidT:#E4F1E9;--partial:#B26A00;--partialT:#FBEEDC;--overdue:#B42318;--pending:#5C6863;--heroFill:#6FE3C2;--track:#EAEEF3;--chartTrack:#DDE7E3;--shadow:0 1px 2px rgba(20,26,24,.05),0 10px 26px -16px rgba(37,99,235,.24)}
+  .screen[data-theme="dark"]{--brand:#3B82F6;--brand2:#1D5FB0;--onBrand:#fff;--tint:#0E2440;--bg:#000;--bg0:rgba(0,0,0,0);--surface:#0F1520;--onSurface:#E9EFEC;--muted:#8B99AC;--outline:#1E2836;--paid:#40CB84;--paidT:#0F2A1C;--partial:#E3AC4E;--partialT:#2C220F;--overdue:#F26A5C;--pending:#8B99AC;--heroFill:#6FE3C2;--track:#182230;--chartTrack:#1E2836;--shadow:0 1px 2px rgba(0,0,0,.4),0 12px 28px -18px rgba(0,0,0,.7)}
+  .num{font-variant-numeric:tabular-nums lining-nums}.prop{font-variant-numeric:lining-nums}
+
+  .sb{height:40px;display:flex;align-items:center;justify-content:space-between;padding:8px 24px 0;font-size:12.5px;font-weight:700;color:var(--muted)}
+  .scroll{flex:1;overflow-y:auto;padding:6px 16px 104px;display:flex;flex-direction:column;gap:12px}
+  .scroll>*{flex-shrink:0}.scroll::-webkit-scrollbar{width:0}
+  .pc{display:flex;flex-direction:column;gap:12px}
+  @keyframes swR{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}
+  @keyframes swL{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}
+  .pc.sw-r{animation:swR .3s cubic-bezier(.2,.7,.2,1)}
+  .pc.sw-l{animation:swL .3s cubic-bezier(.2,.7,.2,1)}
+
+  .hdr{display:flex;align-items:center;gap:10px}
+  .hdr .tt{flex:1}.hdr h2{font-size:21px;font-weight:800;letter-spacing:-.02em}
+  .hdr span{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:1px}
+  .ctrl{width:40px;height:40px;border-radius:12px;background:var(--surface);border:1px solid var(--outline);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);flex-shrink:0;transition:transform .12s}
+  .ctrl:active{transform:scale(.92)}
+  .ctrl svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  .period{display:flex;background:var(--track);border-radius:999px;padding:4px}
+  .period button{flex:1;border:none;font-family:inherit;font-size:13px;font-weight:800;padding:10px 0;border-radius:999px;color:var(--muted);background:transparent;cursor:pointer;transition:color .2s}
+  .period button.on{background:var(--surface);color:var(--brand);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+
+  .subrow{display:flex;align-items:center;gap:9px}
+  .rangepill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--brand);background:var(--tint);padding:8px 12px;border-radius:999px}
+  .rangepill svg{stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+  .syncpill{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;color:var(--partial)}
+  .syncpill .d{width:8px;height:8px;border-radius:50%;background:var(--partial);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--partial) 55%,transparent)}70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+
+  /* HERO — grande, aireado, con sparkline embebida */
+  .hero{border-radius:22px;padding:17px;color:var(--onBrand);background:linear-gradient(150deg,var(--brand),var(--brand2));cursor:pointer}
+  .hrow{display:flex;align-items:flex-start}
+  .over{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;opacity:.72}
+  .delta{margin-left:auto;font-size:12px;font-weight:800;background:rgba(255,255,255,.16);padding:4px 10px;border-radius:999px}
+  .big{font-size:37px;font-weight:800;letter-spacing:-.03em;margin-top:4px;line-height:1}
+  .insight{font-size:12.5px;font-weight:600;opacity:.9;margin-top:7px;line-height:1.4}
+  .hbar{height:8px;border-radius:999px;background:rgba(255,255,255,.2);margin-top:13px;overflow:hidden}
+  .hbar i{display:block;height:100%;border-radius:999px;background:var(--heroFill);transition:width .8s cubic-bezier(.2,.7,.2,1)}
+  .goalcap{font-size:11.5px;font-weight:600;opacity:.75;margin-top:6px}
+  .spark{display:flex;align-items:flex-end;gap:4px;height:38px;margin-top:13px}
+  .spark .b{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer}
+  .spark i{width:100%;border-radius:3px;background:rgba(255,255,255,.22)}
+  .spark i.on{background:var(--heroFill)}
+  .spark small{font-size:8.5px;font-weight:700;opacity:.7}
+  .wells{display:flex;gap:10px;margin-top:13px}
+  .well{flex:1;background:rgba(255,255,255,.12);border-radius:13px;padding:9px 11px}
+  .well .k{font-size:11px;font-weight:600;opacity:.72}.well .v{font-size:15px;font-weight:800;margin-top:2px}
+
+  /* dos tiles protagonistas */
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .tile{background:var(--surface);border:1px solid var(--outline);border-radius:16px;padding:14px;box-shadow:var(--shadow);cursor:pointer;transition:transform .12s}
+  .tile:active{transform:scale(.98)}
+  .tk{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--muted)}.tk .dot{width:8px;height:8px;border-radius:50%}
+  .tv{font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:7px}
+  .trr{font-size:12px;font-weight:600;margin-top:3px;color:var(--muted)}
+
+  /* chips secundarios */
+  .chips{display:flex;gap:10px}
+  .chip{flex:1;display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--outline);border-radius:14px;padding:11px 13px;box-shadow:var(--shadow);cursor:pointer;transition:transform .12s}
+  .chip:active{transform:scale(.97)}
+  .chip .cd{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .chip .ct{font-size:11.5px;font-weight:600;color:var(--muted)}
+  .chip .cv{font-size:15px;font-weight:800;letter-spacing:-.01em;margin-left:auto}
+  .chip .cv.amb{color:var(--partial)}
+
+  .lhdr{display:flex;align-items:center;justify-content:space-between;padding:2px}
+  .lhdr b{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+  .seg{display:flex;background:var(--track);border-radius:999px;padding:3px}
+  .seg span{font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;color:var(--muted);cursor:pointer}
+  .seg span.on{background:var(--surface);color:var(--brand);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+
+  .rows{background:var(--surface);border:1px solid var(--outline);border-radius:18px;padding:6px 14px;box-shadow:var(--shadow)}
+  .prow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--outline);cursor:pointer}
+  .prow:last-child{border-bottom:none}
+  .ava{width:38px;height:38px;border-radius:12px;background:var(--tint);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+  .pn{flex:1;min-width:0}.pn b{font-size:15px;font-weight:700}.pn span{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:1px}
+  .pr{text-align:right;flex-shrink:0}.pr .pv{font-size:15px;font-weight:800}
+  .m{display:inline-block;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-top:3px}
+  .m.cash{background:var(--paidT);color:var(--paid)}.m.tr{background:var(--tint);color:var(--brand)}
+  .pend{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--partial);margin-left:5px}
+
+  .actions{position:absolute;left:0;right:0;bottom:0;z-index:40;display:flex;gap:9px;padding:32px 16px 16px;background:linear-gradient(to bottom,var(--bg0) 0%,var(--bg) 44%);pointer-events:none}
+  .actions button{flex:1;border:none;font-family:inherit;font-size:14px;font-weight:800;padding:14px 0;border-radius:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:transform .12s;pointer-events:auto}
+  .actions button:active{transform:scale(.96)}
+  .actions .ghost{background:var(--tint);color:var(--brand)}.actions .solid{background:var(--brand);color:var(--onBrand)}
+  .actions svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+  .scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .25s;z-index:70}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);color:var(--onSurface);border-radius:24px 24px 0 0;padding:8px 18px 20px;transform:translateY(101%);transition:transform .34s cubic-bezier(.2,.7,.2,1);z-index:80;max-height:78%;overflow-y:auto;box-shadow:0 -12px 44px rgba(0,0,0,.32)}
+  .sheet.on{transform:none}.sheet::-webkit-scrollbar{width:0}
+  .handle{width:40px;height:4px;border-radius:999px;background:var(--outline);margin:6px auto 14px}
+  .sheet h3{font-size:18px;font-weight:800;letter-spacing:-.01em}
+  .ssub{font-size:12.5px;color:var(--muted);font-weight:600;margin:2px 0 12px}
+  .srow{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--outline)}.srow:last-child{border-bottom:none}
+  .srow .sa{width:34px;height:34px;border-radius:10px;background:var(--tint);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+  .srow .sn{flex:1}.srow .sn b{font-size:14px;font-weight:700}.srow .sn span{display:block;font-size:11.5px;color:var(--muted);font-weight:500}
+  .srow .sv{font-size:14px;font-weight:800}
+
+  .an{opacity:0;transform:translateY(9px);animation:rise .5s forwards}
+  .an:nth-child(1){animation-delay:.03s}.an:nth-child(2){animation-delay:.09s}.an:nth-child(3){animation-delay:.15s}.an:nth-child(4){animation-delay:.21s}.an:nth-child(5){animation-delay:.27s}.an:nth-child(6){animation-delay:.33s}.an:nth-child(7){animation-delay:.39s}
+  @keyframes rise{to{opacity:1;transform:none}}
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.an{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+  <div class="lead">
+    <h1>Reporte de cobranza · dirección <b style="color:#cfe0f5">B · Aireado</b></h1>
+    <p>Menos por pantalla, más aire. Hero grande con sparkline embebida + frase-insight. Progreso en mint-teal (armoniza con el azul).</p>
+    <span class="hint">Día/Semana · cards → sheet · 🌙 reveal · 👁 ocultar cifras</span>
+  </div>
+
+  <div class="stage">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="screen" id="screen" data-theme="light">
+        <div class="sb"><span>9:41</span><span>4G ▪▪▪</span></div>
+        <div class="scroll">
+          <div class="hdr an">
+            <div class="ctrl" title="Menú"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg></div>
+            <div class="tt"><h2>Cobranza</h2><span>Reporte · Gabriel Roque</span></div>
+            <div class="ctrl" id="eyeBtn" onclick="toggleMask(this)" title="Ocultar cifras"><svg id="eyeIcon" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+            <div class="ctrl" onclick="flipTheme(event)" title="Modo oscuro"><svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg></div>
+          </div>
+
+          <div class="period an"><button class="on" id="btnDia" onclick="setPeriod('dia')">Día</button><button id="btnSem" onclick="setPeriod('semana')">Semana</button></div>
+          <div class="subrow an">
+            <div class="rangepill"><svg width="14" height="14" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span id="rangeText">viernes 7 ago 2026</span></div>
+            <div class="syncpill"><span class="d"></span> 3 por subir</div>
+          </div>
+
+          <div class="pc" id="pc">
+          <div class="hero an" onclick="openSheet('hero')">
+            <div class="hrow"><div class="over" id="hOver">Cobrado · vie 7 ago</div><div class="delta" id="hDelta">▲ 12% vs ayer</div></div>
+            <div class="big prop money" id="hAmount" data-real="$18,300">$18,300</div>
+            <div class="insight" id="hInsight">32 pagos · vas al <b>91%</b> de tu meta · a este ritmo cierras en <b>$19,800</b></div>
+            <div class="hbar"><i id="hBar" style="width:91%"></i></div>
+            <div class="goalcap" id="hGoalCap">meta del día $20,000</div>
+            <div class="spark" id="spark"></div>
+            <div class="wells">
+              <div class="well"><div class="k">Efectivo en mano</div><div class="v money" id="wEf" data-real="$12,100">$12,100</div></div>
+              <div class="well"><div class="k">Ticket prom.</div><div class="v money" id="wTk" data-real="$572">$572</div></div>
+            </div>
+          </div>
+
+          <div class="duo an">
+            <div class="tile" onclick="openSheet('efectivo')"><div class="tk"><span class="dot" style="background:var(--paid)"></span>Efectivo</div><div class="tv prop money" id="tEf" data-real="$12,100">$12,100</div><div class="trr num" id="tEfN">22 pagos</div></div>
+            <div class="tile" onclick="openSheet('transfer')"><div class="tk"><span class="dot" style="background:var(--brand)"></span>Transferencia</div><div class="tv prop money" id="tTr" data-real="$6,200">$6,200</div><div class="trr num" id="tTrN">10 pagos</div></div>
+          </div>
+
+          <div class="chips an">
+            <div class="chip" onclick="openSheet('condon')"><span class="cd" style="background:var(--partial)"></span><span class="ct">Condonado</span><span class="cv amb money" id="cCo" data-real="$1,400">$1,400</span></div>
+            <div class="chip" onclick="openSheet('visitas')"><span class="cd" style="background:var(--pending)"></span><span class="ct">Visitas</span><span class="cv num" id="cVi">14</span></div>
+          </div>
+
+          <div class="lhdr an"><b id="detHdr">Pagos del día · 32</b><div class="seg" id="detSeg"><span class="on" onclick="segTap(this)">Hora</span><span onclick="segTap(this)">Nombre</span></div></div>
+          <div id="detailBlock" class="an"></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="ghost"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Compartir</button>
+          <button class="ghost"><svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Imprimir</button>
+          <button class="solid"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>PDF</button>
+        </div>
+
+        <div class="scrim" id="scrim" onclick="closeSheet()"></div>
+        <div class="sheet" id="sheet"><div class="handle"></div><div id="sheetBody"></div></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const DATA={
+    dia:{over:'Cobrado · vie 7 ago',amount:'$18,300',delta:'▲ 12% vs ayer',insight:'32 pagos · vas al <b>91%</b> de tu meta · a este ritmo cierras en <b>$19,800</b>',bar:91,goalcap:'meta del día $20,000',
+      ef:'$12,100',efn:'22 pagos',tr:'$6,200',trn:'10 pagos',co:'$1,400',vi:'14',wef:'$12,100',wtk:'$572',range:'viernes 7 ago 2026',
+      bars:[['8h',30],['9h',100],['10h',72],['11h',58],['12h',44],['13h',30],['14h',22],['15h',26],['16h',18]],today:1,detHdr:'Pagos del día · 32',detail:'list'},
+    semana:{over:'Cobrado · ciclo actual',amount:'$118,400',delta:'▲ 6% vs ciclo',insight:'214 pagos · vas al <b>91%</b> de la meta · día 5 de 5 del ciclo',bar:91,goalcap:'meta de la semana $130,000',
+      ef:'$79,900',efn:'146 pagos',tr:'$38,500',trn:'68 pagos',co:'$9,200',vi:'71',wef:'$79,900',wtk:'$553',range:'semana · lun 3 – vie 7 ago · 5 días',
+      bars:[['lun',74],['mar',87],['mié',100],['jue',89],['vie',64]],today:4,detHdr:'Resumen por día · 5 días',detail:'days'}
+  };
+  const DAYS=[['lun 3 ago','$21,300','39 pagos','L3'],['mar 4 ago','$24,800','46 pagos','M4'],['mié 5 ago','$28,600','51 pagos','M5'],['jue 6 ago','$25,400','46 pagos','J6'],['vie 7 ago (hoy)','$18,300','32 pagos','V7']];
+  const PAYS=[['ML','María López Hernández','09:12 · Muebles Bahía','$1,200','cash','Efectivo'],['JP','Juan Pérez Ramírez','09:40 · Recámara Diana','$850','tr','Transfer.'],['RM','Rosa Martínez Cruz','10:05 · Sala Toscana','$1,500','cash','Efectivo'],['PS','Pedro Sánchez Ortiz','11:20 · Comedor Roble','$2,000','cash','Efectivo']];
+  let period='dia',masked=false;
+  const M=v=>masked?'$••••':v;
+  function render(){
+    const d=DATA[period];
+    setH('hOver',d.over);setM('hAmount',d.amount);setH('hDelta',d.delta);setH('hInsight',masked?'&bull;&bull;&bull;':d.insight);
+    document.getElementById('hBar').style.width=d.bar+'%';setH('hGoalCap',d.goalcap);
+    setM('wEf',d.wef);setM('wTk',d.wtk);setM('tEf',d.ef);setH('tEfN',d.efn);setM('tTr',d.tr);setH('tTrN',d.trn);setM('cCo',d.co);setH('cVi',d.vi);setH('rangeText',d.range);setH('detHdr',d.detHdr);
+    const sp=document.getElementById('spark');sp.innerHTML='';
+    d.bars.forEach((b,i)=>sp.insertAdjacentHTML('beforeend',`<div class="b" onclick="event.stopPropagation();${period==='semana'?`openSheet('day',${i})`:''}"><i class="${i===d.today?'on':''}" style="height:${Math.max(b[1]*0.4,6)}px"></i><small>${b[0]}</small></div>`));
+    document.getElementById('detSeg').style.display=d.detail==='list'?'flex':'none';
+    const db=document.getElementById('detailBlock');
+    if(d.detail==='list')db.innerHTML=`<div class="rows">`+PAYS.map(p=>`<div class="prow" onclick="openSheet('pay')"><div class="ava">${p[0]}</div><div class="pn"><b>${p[1]}</b><span class="num">${p[2]}</span></div><div class="pr"><div class="pv money" data-real="${p[3]}">${M(p[3])}</div><span class="m ${p[4]}">${p[5]}</span></div></div>`).join('')+`</div>`;
+    else db.innerHTML=`<div class="rows">`+DAYS.map((p,i)=>`<div class="prow" onclick="openSheet('day',${i})"><div class="ava">${p[3]}</div><div class="pn"><b>${p[0]}</b><span class="num">${p[2]}</span></div><div class="pr"><div class="pv money" data-real="${p[1]}">${M(p[1])}</div></div></div>`).join('')+`</div>`;
+  }
+  function setH(id,t){const e=document.getElementById(id);if(e)e.innerHTML=t;}
+  function setM(id,v){const e=document.getElementById(id);if(e){e.dataset.real=v;e.textContent=M(v);}}
+  function setPeriod(p){if(p===period)return;const fwd=(period==='dia'&&p==='semana');period=p;document.getElementById('btnDia').classList.toggle('on',p==='dia');document.getElementById('btnSem').classList.toggle('on',p==='semana');render();
+    const pc=document.getElementById('pc');if(pc&&!window.matchMedia('(prefers-reduced-motion:reduce)').matches){pc.classList.remove('sw-l','sw-r');void pc.offsetWidth;pc.classList.add(fwd?'sw-r':'sw-l');}}
+
+  const SHEETS={
+    hero:()=>({t:'Resumen del '+(period==='dia'?'día':'ciclo'),s:period==='dia'?'vie 7 ago · meta $20,000':'lun 3 – vie 7 ago · meta $130,000',rows:[['📊','Cobrado','91% de la meta',period==='dia'?'$18,300':'$118,400'],['⚡','Ritmo','proyección a cierre',period==='dia'?'$19,800':'—'],['🕘','Mejor momento',period==='dia'?'9–10 h':'miércoles','$4,200'],['🎯','Falta para meta','',period==='dia'?'$1,700':'$11,600']]}),
+    efectivo:()=>({t:'Efectivo',s:M(DATA[period].ef)+' · '+DATA[period].efn,rows:PAYS.filter(p=>p[4]==='cash').map(p=>[p[0],p[1],p[2],p[3]]).concat([['','…y más','','']])}),
+    transfer:()=>({t:'Transferencia',s:M(DATA[period].tr)+' · '+DATA[period].trn,rows:PAYS.filter(p=>p[4]==='tr').map(p=>[p[0],p[1],p[2]+' · ref 4821',p[3]]).concat([['','…y más','','']])}),
+    condon:()=>({t:'Condonado',s:M(DATA[period].co),rows:[['AR','Ana Ruiz','saldo mínimo · autorizado','$600'],['LG','Luis Gómez','ajuste de intereses','$500'],['MT','María Tovar','redondeo de cierre','$300']]}),
+    visitas:()=>({t:'Visitas',s:DATA[period].vi+' visitas',rows:[['','Carlos Vega','No estaba — dejé recado',''],['','Sofía Luna','Promesa de pago mañana',''],['','Diego Mora','Cliente inconforme',''],['','…y más','','']]}),
+    day:(i)=>({t:DAYS[i][0],s:DAYS[i][1]+' · '+DAYS[i][2],rows:PAYS.map(p=>[p[0],p[1],p[2],p[3]]).concat([['','…y más','','']])}),
+    pay:()=>({t:'Detalle de pago',s:'María López · 09:12',rows:[['','Importe','','$1,200'],['','Forma','','Efectivo'],['','Venta','','Muebles Bahía'],['','Folio','','A-10482'],['','Estado','','✔ Sincronizado']]})
+  };
+  function openSheet(k,a){const d=SHEETS[k](a);document.getElementById('sheetBody').innerHTML=`<h3>${d.t}</h3><div class="ssub">${d.s}</div>`+d.rows.map(r=>`<div class="srow">${r[0]!==''?`<div class="sa">${r[0]||'•'}</div>`:''}<div class="sn"><b>${r[1]}</b>${r[2]?`<span>${r[2]}</span>`:''}</div>${r[3]?`<div class="sv">${/\$/.test(r[3])?M(r[3]):r[3]}</div>`:''}</div>`).join('');document.getElementById('scrim').classList.add('on');document.getElementById('sheet').classList.add('on');}
+  function closeSheet(){document.getElementById('scrim').classList.remove('on');document.getElementById('sheet').classList.remove('on');}
+
+  const SUN='<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  const MOON='<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>';
+  const EYE='<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>';
+  const EYEOFF='<path d="M17.9 17.9A10.4 10.4 0 0 1 12 19C5 19 1 12 1 12a19 19 0 0 1 5.1-5.9M9.9 4.2A10.5 10.5 0 0 1 12 4c7 0 11 8 11 8a19 19 0 0 1-2.2 3.2M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M1 1l22 22"/>';
+  function toggleMask(btn){masked=!masked;document.getElementById('eyeIcon').innerHTML=masked?EYEOFF:EYE;btn.style.color=masked?'var(--brand)':'var(--muted)';render();}
+  function flipTheme(e){const s=document.getElementById('screen');const cur=s.dataset.theme,next=cur==='dark'?'light':'dark';document.getElementById('themeIcon').innerHTML=next==='dark'?SUN:MOON;const r=s.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;if(window.matchMedia('(prefers-reduced-motion:reduce)').matches){s.dataset.theme=next;return;}const c=s.cloneNode(true);c.dataset.theme=next;c.classList.add('reveal');c.id='';const rad=Math.hypot(Math.max(x,r.width-x),Math.max(y,r.height-y));c.style.clipPath=`circle(0px at ${x}px ${y}px)`;s.parentNode.appendChild(c);requestAnimationFrame(()=>requestAnimationFrame(()=>{c.style.transition='clip-path .52s cubic-bezier(.4,0,.2,1)';c.style.clipPath=`circle(${rad}px at ${x}px ${y}px)`;}));c.addEventListener('transitionend',()=>{s.dataset.theme=next;c.remove();},{once:true});}
+  function segTap(el){el.parentNode.querySelectorAll('span').forEach(s=>s.classList.remove('on'));el.classList.add('on');}
+  render();
+</script>
+</body>
+</html>

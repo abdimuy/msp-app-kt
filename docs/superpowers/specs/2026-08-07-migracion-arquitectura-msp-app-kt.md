@@ -60,10 +60,10 @@ msp-app-kt/                     (mismo repo git)
 
 | Paso | Feature | Pantalla(s) | Ruta(s) | Notas |
 |---|---|---|---|---|
-| 1a **(piloto)** | dailyReport | `DailyReportScreen` | `daily_reports` | read-heavy core; **acopla a `transfers`** (~23 refs) y su composable hoy vive en `payments/screens/` → el piloto (i) **extrae la pantalla a su módulo** y (ii) **fija el patrón de lectura cross-módulo por contrato** (`:core:network`/contrato). Riesgo asumido a cambio de un primer entregable 100% core |
+| 1a **(piloto)** | dailyReport | **Reporte de cobranza unificado** (`DailyReportScreen`, con toggle **Día/Semana**) | `daily_reports` | read-heavy core rediseñado (ver [spec de diseño](2026-08-07-reporte-cobranza-rediseno-design.md)); **acopla a `transfers`** (~23 refs) y su composable hoy vive en `payments/screens/` → el piloto (i) **extrae la pantalla a su módulo**, (ii) **fija el patrón de lectura cross-módulo por contrato**, y (iii) **absorbe el semanal** (mismo pipeline; semana = ciclo del cobrador desde `FECHA_CARGA_INICIAL`) |
 | 1b | home | `Home` | `home` | dashboard; su rol de navegación se mantiene **puenteado** mientras el resto migra |
 | 1c | visit | `VisitTicketScreen` + captura | `visit_ticket/{saleId}` | **primera captura-pesada**; su migración corrige el bug vivo `RETRY_THEN_DONE` vía el outbox endurecido. La captura se dispara desde `sales` en algunos puntos → trazar ese seam con cuidado |
-| 1d | payments | `PaymentTicket` + `WeeklyReportScreen` + captura de pago | `payment_ticket/{paymentId}`, `weekly_reports` | **dinero; último del bloque**, protegido por el outbox ya probado en visitas. Incluye `WeeklyReportScreen` (hoy en `payments/`, lee datos de pagos) |
+| 1d | payments | `PaymentTicket` + captura de pago | `payment_ticket/{paymentId}` | **dinero; último del bloque**, protegido por el outbox ya probado en visitas. *(El semanal ya NO va aquí: se colapsó en el reporte unificado del paso 1a.)* |
 
 *(Primer plan = Ola 0 + paso 1a; ver §9.)*
 
@@ -140,11 +140,11 @@ Reusa el mismo puerto/cola/Postgres. **Taxonomía:** `screen_view` (pantalla+dur
 5. `:core:common` (incl. **outbox endurecido** §13 #1 + **widget de salud de sync** §13 #2) + `:core:testing` (fakes compartidos, reglas de test, config Roborazzi).
 6. Hilt en `:app` (`@HiltAndroidApp`, `@Provides` envolviendo lo existente).
 7. Lint **anti-`Double` para dinero** (detekt/regla) + gate **pre-push** (tests JVM + ktlint) + **cobertura por capa** (domain ~90% / app ~80% / infra-ui pragmático) vía tarea Gradle.
-8. **Migrar `:feature:dailyReport` (`DailyReportScreen`)** end-to-end como prueba del template: módulo Gradle, hexagonal (domain/data/ui), `@HiltViewModel`, tema azul, `trackClick`, ruta `daily_reports` re-apuntada en el `NavHost`, pantalla vieja borrada. Como la pantalla vive hoy en `payments/screens/` y su data acopla a `transfers` (~23 refs), este paso además (a) **extrae `DailyReportScreen` de `payments/`** y (b) **fija el patrón de lectura cross-módulo por contrato** (`:core:network` o contrato de solo-lectura hacia transfers/ventas) — la primera prueba real de fronteras entre módulos. `WeeklyReportScreen` **NO entra** (vive en `payments/`, migra en el paso 1d). Tests por capa (§12).
+8. **Migrar `:feature:dailyReport` como el Reporte de cobranza rediseñado** (ver [spec de diseño](2026-08-07-reporte-cobranza-rediseno-design.md)) end-to-end como prueba del template: módulo Gradle, hexagonal (domain/data/ui), `@HiltViewModel`, design system azul + telemetría, ruta `daily_reports` re-apuntada en el `NavHost`, pantalla vieja borrada. Incluye: (a) **extraer la pantalla de `payments/screens/`** a su módulo; (b) **fijar el patrón de lectura cross-módulo por contrato** (transfers/pagos); (c) **unificar Día/Semana** (el semanal se absorbe; semana = ciclo del cobrador desde `FECHA_CARGA_INICIAL` del doc de usuario). Tests por capa (§12).
 9. Gate: `./gradlew :app:testDevlocalDebugUnitTest` + `connectedDevlocalDebugAndroidTest` (migración Room) + `ktlintCheck` + `assembleDevserverRelease` verdes; la app corre idéntica salvo la pantalla de reporte diario (ahora en su módulo, con tema azul + telemetría).
 
 ## 10. Specs-compañeros (después del cimiento)
-- **Design system (detalle):** tokens completos, todos los componentes firma, dark/light, guía de uso.
+- **Design system (detalle) + Reporte de cobranza:** ver [spec de diseño 2026-08-07](2026-08-07-reporte-cobranza-rediseno-design.md) — azul derivado de kollect (Azul A `#2563EB`), Manrope, componentes firma, reveal de tema, ocultar cifras, barra difuminada, accesibilidad Tier 1/2 con animaciones desactivables, y el rediseño del piloto (Día/Semana, sheets). Mockup: `docs/design/reporte-cobranza-mockup.html`.
 - **Backend de observabilidad:** VM Linux, docker-compose (GlitchTip + Postgres + Metabase), esquema `telemetry_events`, endpoint de ingest Go, retención/rollups LFPDPPP, dashboards.
 - **Migración de features restantes:** orden, y el plan específico para `payments` y la descomposición de `sales`.
 - **Corte del día reconciliador (msp-api):** endpoint/servicio que concilia capturado-vs-servidor y marca discrepancias (la mitad servidor de §13 #2).
