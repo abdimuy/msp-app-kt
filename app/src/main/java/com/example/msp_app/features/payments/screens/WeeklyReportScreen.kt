@@ -52,14 +52,26 @@ fun WeeklyReportScreen(navController: NavController, viewModel: PaymentsViewMode
         AppTime.toWireFormat(startInstant)
     }
 
+    // Display bound only (label "Del ... al DD/MM/yy" + PDF filename): today's date,
+    // rendered in business zone by AppTime.formatIsoForDisplay downstream.
     val endIso = AppTime.toWireFormat(AppClock.System.now())
+
+    // Query bound: EXCLUSIVE end of today in business zone, consistent with the half-open
+    // DAO (`getPaymentsByDate`/`getVisitsByDate`/`getForgivenessByDate` now filter `< :end`).
+    // A raw now() end would transiently UNDERCOUNT: a pago saved "now" and truncated to whole
+    // seconds (Task 5b Cambio A) — e.g. `2026-04-15T18:30:00Z` — is NOT `< 2026-04-15T18:30:00.123Z`
+    // under SQLite BINARY collation (`Z`=0x5A sorts after `.`=0x2E), so it would be excluded
+    // from its own weekly report until the fraction rounds off. `startOfNextDay(today)`
+    // includes all of today. Start bound (FECHA_CARGA_INICIAL) is left untouched.
+    val queryEndIso = ReportFormatters.dateRangeFor(ReportFormatters.todayForReport()).endIso
+
     val visitsViewModel: VisitsViewModel = viewModel()
     val visitsState by visitsViewModel.visitsByDate.collectAsState()
 
     LaunchedEffect(startIso) {
-        viewModel.getPaymentsByDate(startIso, endIso, "WEEKLY_REPORT")
-        visitsViewModel.getVisitsByDate(startIso, endIso)
-        viewModel.getForgivenessByDate(startIso, endIso)
+        viewModel.getPaymentsByDate(startIso, queryEndIso, "WEEKLY_REPORT")
+        visitsViewModel.getVisitsByDate(startIso, queryEndIso)
+        viewModel.getForgivenessByDate(startIso, queryEndIso)
     }
 
     val visitTextData = ReportFormatters.formatVisitsTextList(

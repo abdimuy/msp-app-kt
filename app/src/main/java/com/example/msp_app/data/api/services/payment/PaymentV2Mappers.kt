@@ -9,12 +9,15 @@ import java.time.temporal.ChronoUnit
 /**
  * Maps a locally-stored [PaymentEntity] to the v2 [CrearPagoBody].
  *
- * The three fiddly conversions the Go side is strict about:
+ * The three fiddly conversions to get right for the Go side:
  *  - **importe**: a 2-decimal fixed string (`BigDecimal.setScale(2, HALF_UP)`),
  *    never a float — the server parses it as an exact decimal.
- *  - **fecha_hora_pago**: RFC3339 UTC truncated to whole seconds. Go's
- *    `time.RFC3339` rejects fractional seconds, so we normalise via AppTime and
- *    `truncatedTo(SECONDS)`. If the stored string can't be parsed we forward it
+ *  - **fecha_hora_pago**: RFC3339 UTC truncated to whole seconds via AppTime and
+ *    `truncatedTo(SECONDS)`. NOTE: this is NOT because Go rejects fractions —
+ *    `time.RFC3339` parses fractional seconds fine — but to keep a single, stable
+ *    second-precision width both on the wire and in local storage, so Room's
+ *    lexicographic comparisons stay consistent between locally-captured and
+ *    server-normalised rows. If the stored string can't be parsed we forward it
  *    as-is; the server will 422 and (thanks to the cobranza failed-intent
  *    capture) the pago is preserved server-side for correction from the desk.
  *  - **lat/lon**: optional strings. Omitted when null or 0.0 (a 0/0 coordinate

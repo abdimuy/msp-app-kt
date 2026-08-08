@@ -11,15 +11,16 @@ import java.time.temporal.ChronoUnit
  *
  * **Task 5b — truncated to whole seconds (contract fidelity).** The stored value is
  * now `AppTime.toWireFormat(now.truncatedTo(SECONDS))` — RFC3339 UTC with NO fractional
- * seconds. This matches, byte-for-byte, the shape the payment upload already sends
- * (`PaymentV2Mappers.normalizeFechaHoraPago` truncates to seconds because Go's
- * `time.RFC3339` rejects fractional seconds) AND the shape the server returns for
- * confirmed pagos. Previously local captures kept `Instant.now().toString()`'s
- * millisecond fraction (`.SSS`), so an un-synced local pago and a server-normalized one
- * had different string widths — which breaks Room's lexicographic comparison at day
- * boundaries. Standardizing the write width to seconds makes those comparisons
- * consistent and, together with the half-open DAO ranges, removes the business-midnight
- * double-count.
+ * seconds. The reason is NOT that the server rejects fractions (Go's `time.RFC3339`
+ * parses fractional seconds fine): it is that the upload mapper
+ * (`PaymentV2Mappers.normalizeFechaHoraPago`) already truncates to whole seconds
+ * independently, and the server returns confirmed pagos at that same second precision.
+ * Previously local captures kept `Instant.now().toString()`'s millisecond fraction
+ * (`.SSS`), so an un-synced local pago and a server-normalized one had DIFFERENT string
+ * widths — which breaks Room's lexicographic (SQLite BINARY collation) comparison at day
+ * boundaries. Aligning the write width to seconds makes those comparisons consistent
+ * across synced and unsynced rows and, together with the half-open DAO ranges, removes
+ * the business-midnight double-count.
  *
  * This is a deliberate money-path behavior change with zero server-visible effect: the
  * upload already truncated, so the server receives the exact same value either way; only

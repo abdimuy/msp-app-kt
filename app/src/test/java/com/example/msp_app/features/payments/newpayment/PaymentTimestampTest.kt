@@ -19,7 +19,8 @@ import org.junit.Test
  * millisecond fraction that `Instant.now().toString()` produced (`.SSS`). The new width
  * matches, byte-for-byte:
  *  - what the payment upload already sends (`PaymentV2Mappers.normalizeFechaHoraPago`
- *    truncates to seconds — Go's `time.RFC3339` rejects fractional seconds), and
+ *    truncates to seconds — NOT because Go rejects fractions, `time.RFC3339` parses them
+ *    fine, but to keep one stable second-precision width), and
  *  - what the server returns for confirmed pagos.
  *
  * With both local captures and server-normalized rows now at second precision, Room's

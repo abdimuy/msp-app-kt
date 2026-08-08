@@ -27,17 +27,16 @@ import org.junit.Test
  * `getVisitsByDate`) — this is a 100% local, Room-only range. This suite pins the intended
  * Kotlin-level half-open contract `[startOfDay(date), startOfNextDay(date))`.
  *
- * KNOWN CAVEAT (documented, not fixed here — out of Task 5's file scope): SQLite `BETWEEN` is
- * inclusive on BOTH ends. Passing `[startOfDay, startOfNextDay)` as `(:start, :end)` to a
- * `BETWEEN :start AND :end` query makes the SQL layer still treat `:end` as inclusive, so a
- * payment landing at the *exact* string value of `startOfNextDay` (to the same sub-second
- * precision) would still match. In practice this requires an exact lexicographic tie on a
- * TEXT column with variable fractional-second width (captured payments carry milliseconds via
- * `Instant.now().toString()`; the boundary carries none) — vanishingly unlikely, and strictly
- * narrower than the bug this task fixes (which shifted results by up to a device's full UTC
- * offset). Fixing the SQL layer itself (`BETWEEN` -> `>= AND <`, plus standardizing
- * `FECHA_HORA_PAGO` wire-format precision) is cataloged as follow-up work, not in this task's
- * file scope (`PaymentDao.kt`/`VisitDao.kt` are not listed in the Task 5 brief).
+ * SQL-LAYER STATUS (resolved in Task 5b): this suite pins only the Kotlin-level pair
+ * `[startOfDay, startOfNextDay)`. Task 5 left the DAO queries on `BETWEEN :start AND :end`
+ * (inclusive on BOTH ends in SQLite), so `:end` was still treated as inclusive and a row at
+ * the exact `startOfNextDay` string was double-counted (in D and in D+1). Task 5b changed
+ * `PaymentDao.getPaymentsByDate`/`getForgivenessByDate`/`observePaymentsByDate` and
+ * `VisitDao.getVisitsByDate` to `>= :start AND < :end` (real half-open) AND standardized the
+ * write width of `FECHA_HORA_PAGO` to whole seconds (`currentPaymentTimestamp`), so the
+ * boundary double-count is gone. The SQL-level proof lives in
+ * `core/database/.../dao/payment/PaymentDateRangeHalfOpenTest` and
+ * `dao/visit/VisitDateRangeHalfOpenTest` (real Room/SQLite, BINARY collation).
  */
 class ReportFormattersDateRangeTest {
 
@@ -245,6 +244,67 @@ class ReportFormattersDateRangeTest {
         assertEquals(LocalDate.of(2026, 4, 16), oldDeviceDate)
         assertEquals(LocalDate.of(2026, 4, 15), newBusinessDate)
         assertNotEquals(oldDeviceDate, newBusinessDate)
+    }
+
+    // endregion
+
+    // region — Fix round 1/5: fin de ventana del reporte SEMANAL. WeeklyReportScreen
+    // pasaba end = now() (sin truncar) a getPaymentsByDate, ahora medio-abierto (< :end).
+    // El fin correcto es startOfNextDay(hoy) en zona de negocio, que incluye un pago
+    // guardado "ahora" y truncado a segundos (Cambio A). Estos tests fijan ese bound.
+
+    @Test
+    fun `fin de ventana semanal (startOfNextDay de hoy) incluye un pago guardado ahora truncado a segundos`() {
+        // Dispositivo en UTC (adelantado respecto a CDMX) — el bound no debe depender de la zona.
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        // 18:30 CDMX 15-abr == 00:30 UTC 16-abr, con fracción de ms.
+        val nowWithFraction = AppTime.parseWireFormat("2026-04-16T00:30:00.123Z")
+        val clock = FakeClock(nowWithFraction)
+
+        // Bound que WeeklyReportScreen calcula ahora para el fin de la query.
+        val queryEndIso = ReportFormatters.dateRangeFor(
+            ReportFormatters.todayForReport(clock)
+        ).endIso
+        assertEquals("2026-04-16T06:00:00Z", queryEndIso)
+
+        // Cambio A: el pago se guarda truncado a segundos.
+        val savedTruncatedIso = AppTime.toWireFormat(
+            nowWithFraction.truncatedTo(ChronoUnit.SECONDS)
+        )
+
+        // Con el fin exclusivo de hoy, el pago recién guardado SÍ entra (< end).
+        assertTrue(
+            "un pago guardado ahora (truncado) debe quedar antes del fin exclusivo de hoy",
+            AppTime.parseWireFormat(
+                savedTruncatedIso
+            ).isBefore(AppTime.parseWireFormat(queryEndIso))
+        )
+
+        // Por qué el bug viejo (fin = now() sin truncar) lo excluía: en comparación
+        // lexicográfica de string (colación BINARY de SQLite), el pago truncado ordena
+        // DESPUÉS del fin=now() con fracción (`Z`=0x5A > `.`=0x2E), así que NO es `< :end`.
+        val oldEndIso = AppTime.toWireFormat(nowWithFraction)
+        assertTrue(
+            "el pago truncado ordena lexicográficamente después del fin=now() sin truncar",
+            savedTruncatedIso > oldEndIso
+        )
+    }
+
+    @Test
+    fun `fin de ventana semanal es independiente de la zona del dispositivo`() {
+        val nowWithFraction = AppTime.parseWireFormat("2026-04-16T00:30:00.123Z")
+        val clock = FakeClock(nowWithFraction)
+
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        val underUtc = ReportFormatters.dateRangeFor(ReportFormatters.todayForReport(clock)).endIso
+
+        TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana"))
+        val underTijuana = ReportFormatters.dateRangeFor(
+            ReportFormatters.todayForReport(clock)
+        ).endIso
+
+        assertEquals("2026-04-16T06:00:00Z", underUtc)
+        assertEquals(underUtc, underTijuana)
     }
 
     // endregion
