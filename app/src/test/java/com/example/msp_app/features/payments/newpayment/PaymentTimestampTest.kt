@@ -3,44 +3,68 @@ package com.example.msp_app.features.payments.newpayment
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.testing.time.FakeClock
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Task 6 — [currentPaymentTimestamp] is the seam that replaced the inline
- * `Instant.now().toString()` calls in `NewPaymentDialog` and `NewForgivenessDialog`
- * (bug #10 of the date-lib audit: not testable, silent-regression risk).
+ * Task 6 introduced [currentPaymentTimestamp] as the seam that replaced the inline
+ * `Instant.now().toString()` calls in `NewPaymentDialog` and `NewForgivenessDialog`.
  *
- * This is a MONEY-PATH refactor with an explicit no-behavior-change constraint: the string
- * written to `FECHA_HORA_PAGO` must stay byte-identical to what `Instant.now().toString()`
- * used to produce. Test (2) below is the characterization proof of that equivalence — it is
- * the test that would fail if a future edit swapped [AppTime.toWireFormat] for a formatter
- * that behaves differently from `Instant.toString()` (e.g. truncates fractional seconds).
+ * **Task 5b — DELIBERATE money-path behavior change (documented, not accidental):**
+ * the helper now truncates to whole seconds
+ * (`AppTime.toWireFormat(now.truncatedTo(SECONDS))`). Previously it emitted the
+ * millisecond fraction that `Instant.now().toString()` produced (`.SSS`). The new width
+ * matches, byte-for-byte:
+ *  - what the payment upload already sends (`PaymentV2Mappers.normalizeFechaHoraPago`
+ *    truncates to seconds — Go's `time.RFC3339` rejects fractional seconds), and
+ *  - what the server returns for confirmed pagos.
+ *
+ * With both local captures and server-normalized rows now at second precision, Room's
+ * lexicographic string comparison at day boundaries is consistent, and (together with the
+ * half-open DAO ranges in Task 5b) the business-midnight double-count is removed. The
+ * server-visible value is unchanged (the upload already truncated); only the stored width
+ * changes. Idempotency is keyed on `payment.ID` (a UUID), never on the timestamp.
+ *
+ * The old→new characterization lives in region 2 below.
  */
 class PaymentTimestampTest {
 
-    // region — 1. currentPaymentTimestamp(fake) == AppTime.toWireFormat(fixedInstant), exactly
+    // region — 1. currentPaymentTimestamp truncates the clock's instant to whole seconds
 
     @Test
-    fun `currentPaymentTimestamp uses the clock's instant, formatted as Z-UTC wire format (whole seconds)`() {
+    fun `currentPaymentTimestamp emits the clock's instant as Z-UTC wire format (whole seconds unchanged)`() {
         val fixed = Instant.parse("2026-05-13T18:00:00Z")
         val clock = FakeClock(fixed)
 
         val result = currentPaymentTimestamp(clock)
 
+        // No fraction to drop — identical to formatting the raw instant.
         assertEquals(AppTime.toWireFormat(fixed), result)
         assertEquals("2026-05-13T18:00:00Z", result)
     }
 
     @Test
-    fun `currentPaymentTimestamp uses the clock's instant, formatted as Z-UTC wire format (millis fraction)`() {
+    fun `currentPaymentTimestamp truncates a millisecond fraction to whole seconds`() {
         val fixed = Instant.parse("2026-05-13T18:05:23.142Z")
         val clock = FakeClock(fixed)
 
         val result = currentPaymentTimestamp(clock)
 
-        assertEquals(AppTime.toWireFormat(fixed), result)
-        assertEquals("2026-05-13T18:05:23.142Z", result)
+        assertEquals("2026-05-13T18:05:23Z", result)
+        assertEquals(AppTime.toWireFormat(fixed.truncatedTo(ChronoUnit.SECONDS)), result)
+    }
+
+    @Test
+    fun `currentPaymentTimestamp truncates a nanosecond fraction to whole seconds`() {
+        val fixed = Instant.parse("2026-05-13T18:05:23.142789456Z")
+        val clock = FakeClock(fixed)
+
+        val result = currentPaymentTimestamp(clock)
+
+        assertEquals("2026-05-13T18:05:23Z", result)
     }
 
     @Test
@@ -57,93 +81,79 @@ class PaymentTimestampTest {
 
     // endregion
 
-    // region — 2. Characterization: AppTime.toWireFormat(i) == i.toString() for all instants
+    // region — 2. Characterization old→new: the fraction that USED to be written is now dropped
     //
-    // This is the behavior-neutral proof required by the brief: the old call sites did
-    // `Instant.now().toString()`; the new seam does `AppTime.toWireFormat(clock.now())`. Both
-    // format via DateTimeFormatter.ISO_INSTANT under the hood, so for ANY instant the two must
-    // agree exactly. If this ever stops holding, the refactor silently changed the wire value
-    // sent to msp-api — a money-path regression.
+    // OLD behavior (Task 6): currentPaymentTimestamp(clock) == clock.now().toString() —
+    //   `Instant.toString()` keeps whatever sub-second fraction the instant carries.
+    // NEW behavior (Task 5b): the fraction is truncated to whole seconds before formatting.
+    // The matrix below pins that difference so a revert (dropping `truncatedTo(SECONDS)`)
+    // fails loudly instead of silently re-widening the stored FECHA_HORA_PAGO.
 
     @Test
-    fun `AppTime toWireFormat matches Instant toString exactly - whole seconds`() {
-        val i = Instant.parse("2026-05-13T18:00:00Z")
-        assertEquals(i.toString(), AppTime.toWireFormat(i))
-    }
-
-    @Test
-    fun `AppTime toWireFormat matches Instant toString exactly - millis fraction`() {
-        val i = Instant.parse("2026-05-13T18:05:23.142Z")
-        assertEquals(i.toString(), AppTime.toWireFormat(i))
-    }
-
-    @Test
-    fun `AppTime toWireFormat matches Instant toString exactly - nanos fraction`() {
-        val i = Instant.parse("2026-05-13T18:05:23.142789456Z")
-        assertEquals(i.toString(), AppTime.toWireFormat(i))
-    }
-
-    @Test
-    fun `AppTime toWireFormat matches Instant toString exactly - epoch`() {
-        val i = Instant.EPOCH
-        assertEquals(i.toString(), AppTime.toWireFormat(i))
-    }
-
-    @Test
-    fun `AppTime toWireFormat matches Instant toString exactly - year boundary`() {
-        val i = Instant.parse("2025-12-31T23:59:59.999Z")
-        assertEquals(i.toString(), AppTime.toWireFormat(i))
-    }
-
-    @Test
-    fun `currentPaymentTimestamp itself is proven identical to the old Instant now toString shape via the clock's instant`() {
-        // Not "now()" (non-deterministic) — pins that currentPaymentTimestamp(clock) for a given
-        // instant is exactly what `instant.toString()` (the old inline call's behavior) produces,
-        // closing the loop between the characterization above and the actual seam under test.
+    fun `char-test old-to-new - a fractional instant now stores without its fraction`() {
         val fixed = Instant.parse("2026-05-13T18:05:23.142Z")
         val clock = FakeClock(fixed)
 
+        val old = fixed.toString() // what Task 6 (Instant.now().toString()) would have stored
+        val new = currentPaymentTimestamp(clock) // what Task 5b stores
+
+        assertEquals("2026-05-13T18:05:23.142Z", old)
+        assertEquals("2026-05-13T18:05:23Z", new)
+        assertFalse("Task 5b must drop the sub-second fraction the old path kept", old == new)
+        // Same instant to the second — the truncation removes only the sub-second part.
+        assertEquals(
+            AppTime.parseWireFormat(new),
+            AppTime.parseWireFormat(old).truncatedTo(ChronoUnit.SECONDS)
+        )
+    }
+
+    @Test
+    fun `char-test old-to-new - a whole-second instant is unaffected (old == new)`() {
+        val fixed = Instant.parse("2026-05-13T18:00:00Z")
+        val clock = FakeClock(fixed)
+
+        // With no fraction to drop, the new path is byte-identical to the old one.
         assertEquals(fixed.toString(), currentPaymentTimestamp(clock))
     }
 
     // endregion
 
-    // region — 3. Shape msp-api accepts (RFC3339 `Z`-UTC) — reuses the contract fixed by
-    // WireContractTest (core/common) / Task 2: `time.Parse(time.RFC3339, raw)` accepts both the
-    // whole-second and fractional-second forms below.
+    // region — 3. Shape msp-api accepts (RFC3339 `Z`-UTC, no fractional seconds).
+    // The whole point of Task 5b's truncation is that the stored value is now ALWAYS the
+    // no-fraction shape the server's `time.Parse(time.RFC3339, raw)` contract wants.
 
     @Test
-    fun `currentPaymentTimestamp output matches the FechaHoraPago shape emitted and accepted by msp-api (no fraction)`() {
+    fun `output is always the no-fraction RFC3339 shape - whole-second input`() {
         val clock = FakeClock(Instant.parse("2026-05-13T18:00:00Z"))
         val result = currentPaymentTimestamp(clock)
 
         assertEquals("2026-05-13T18:00:00Z", result)
-        // Round-trips cleanly through AppTime.parseWireFormat, the same parser msp-api's
-        // `time.Parse(time.RFC3339, raw)` contract is pinned against in WireContractTest.
+        assertFalse("no fractional seconds", result.contains('.'))
         assertEquals(Instant.parse("2026-05-13T18:00:00Z"), AppTime.parseWireFormat(result))
     }
 
     @Test
-    fun `currentPaymentTimestamp output matches the RFC3339 shape with fractional seconds`() {
+    fun `output is always the no-fraction RFC3339 shape - fractional input is truncated`() {
         val clock = FakeClock(Instant.parse("2026-05-13T18:05:23.142Z"))
         val result = currentPaymentTimestamp(clock)
 
-        assertEquals("2026-05-13T18:05:23.142Z", result)
-        assertEquals(Instant.parse("2026-05-13T18:05:23.142Z"), AppTime.parseWireFormat(result))
+        assertEquals("2026-05-13T18:05:23Z", result)
+        assertFalse("no fractional seconds", result.contains('.'))
+        assertEquals(Instant.parse("2026-05-13T18:05:23Z"), AppTime.parseWireFormat(result))
     }
 
     // endregion
 
-    // region — 4. Default parameter uses AppClock.System (production wiring, sanity check only)
+    // region — 4. Default parameter uses AppClock.System (production wiring, sanity only)
 
     @Test
-    fun `default clock parameter produces a well-formed Z-UTC wire string`() {
+    fun `default clock parameter produces a well-formed no-fraction Z-UTC wire string`() {
         val result = currentPaymentTimestamp()
 
-        // Not asserting a fixed value (this is real wall-clock time) — only the shape, and
-        // that it round-trips through AppTime's own parser.
+        // Real wall-clock time — assert only the shape and a clean round-trip.
         assertEquals(result, AppTime.toWireFormat(AppTime.parseWireFormat(result)))
-        assertEquals(true, result.endsWith("Z"))
+        assertTrue(result.endsWith("Z"))
+        assertFalse("truncated write path never emits fractional seconds", result.contains('.'))
     }
 
     // endregion
