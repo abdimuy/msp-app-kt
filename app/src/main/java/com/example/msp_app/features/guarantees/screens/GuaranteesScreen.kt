@@ -61,9 +61,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.utils.Constants.NOTIFICADO
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.data.models.sale.Sale
@@ -72,7 +72,6 @@ import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import java.io.File
 import java.time.Instant
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -140,10 +139,9 @@ fun GuaranteeScreen(saleId: Int, navController: NavController) {
     val currentGuarantee = guaranteeState.value
     if (currentGuarantee?.ESTADO == NOTIFICADO) {
         val date = try {
-            DateUtils.formatIsoDate(
+            AppTime.formatIsoForDisplay(
                 iso = currentGuarantee.FECHA_SOLICITUD,
-                pattern = "dd/MM/yyyy",
-                locale = Locale("es", "MX")
+                pattern = "dd/MM/yyyy"
             )
         } catch (e: Exception) {
             "N/A"

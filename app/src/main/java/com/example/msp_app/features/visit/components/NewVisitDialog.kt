@@ -52,8 +52,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.fullscreendialog.FullScreenDialog
+import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.utils.Constants
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
@@ -120,7 +121,7 @@ fun NewVisitDialog(
         if (selectedDate != null) {
             val timeToUse = selectedTime ?: LocalTime.MIDNIGHT // 00:00 por defecto
             val dateTime = LocalDateTime.of(selectedDate, timeToUse)
-            val formatted = DateUtils.formatLocalDateTime(dateTime)
+            val formatted = formatRescheduleDateTime(dateTime)
             note = "La cita ha sido reagendada para el $formatted"
         }
     }
@@ -433,3 +434,22 @@ fun NewVisitDialog(
         )
     }
 }
+
+/**
+ * Formats the reschedule date/time chosen via the date/time pickers for the "cita reagendada"
+ * note text.
+ *
+ * [dateTime] is a naive (zone-less) `LocalDateTime` built from `selectedDate` (the calendar day
+ * picked in [DatePicker], read out of its UTC-epoch millis) and `selectedTime` (the wall clock
+ * picked in [TimePickerDialog]) — it represents the calendar date and time the cobrador chose
+ * for the rescheduled visit, always interpreted in [BUSINESS_ZONE] (Mexico City), matching how
+ * the rest of the app treats picker-selected wall-clock values. It is never the device zone.
+ *
+ * Previously `DateUtils.formatLocalDateTime` formatted this naive `LocalDateTime` directly with
+ * no zone attached at all. Routing it through an explicit [BUSINESS_ZONE] instant keeps the
+ * printed pattern identical (`AppTime.Formats.DATE_TIME_24H` == the old hardcoded
+ * `"dd/MM/yyyy HH:mm"`, `AppTime.BUSINESS_LOCALE` == the old hardcoded `Locale("es", "MX")`) —
+ * display-only, output unchanged for a fixed zone since Mexico no longer observes DST.
+ */
+internal fun formatRescheduleDateTime(dateTime: LocalDateTime): String =
+    AppTime.formatForDisplay(dateTime.atZone(BUSINESS_ZONE).toInstant())

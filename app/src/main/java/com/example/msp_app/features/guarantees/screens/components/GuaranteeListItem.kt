@@ -24,9 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.GuaranteeEntity
-import com.example.msp_app.core.utils.DateUtils
-import java.util.Locale
 
 @Composable
 fun GuaranteeListItem(guarantee: GuaranteeEntity, onClick: () -> Unit = {}) {
@@ -45,11 +44,10 @@ fun GuaranteeListItem(guarantee: GuaranteeEntity, onClick: () -> Unit = {}) {
     }
 
     val formattedDate = try {
-        DateUtils.formatIsoDate(
+        AppTime.formatIsoForDisplay(
             iso = guarantee.FECHA_SOLICITUD,
-            pattern = "dd MMM yyyy",
-            locale = Locale("es", "MX")
-        ) ?: guarantee.FECHA_SOLICITUD
+            pattern = "dd MMM yyyy"
+        )
     } catch (_: Exception) {
         guarantee.FECHA_SOLICITUD
     }

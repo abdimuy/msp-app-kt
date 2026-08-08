@@ -53,7 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.DrawerContainer
-import com.example.msp_app.core.utils.DateUtils.formatIsoDate
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.ui.theme.ThemeController
@@ -118,7 +118,7 @@ fun SaleDetailsListScreen(navController: NavController) {
                         .padding(8.dp)
                 ) {
                     items(salesList) { sale ->
-                        val dateSale = formatIsoDate(
+                        val dateSale = AppTime.formatIsoForDisplay(
                             iso = sale.FECHA_VENTA,
                             pattern = "dd/MM/yyyy HH:mm a"
                         )

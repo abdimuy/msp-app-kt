@@ -66,8 +66,8 @@ import coil.compose.rememberAsyncImagePainter
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Truck
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.LocalSaleEntity
-import com.example.msp_app.core.utils.DateUtils.formatIsoDate
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.cart.viewmodels.CartViewModel
@@ -698,7 +698,7 @@ private fun SaleCard(
     onExpandToggle: () -> Unit,
     onImageClick: (Int, List<Uri>) -> Unit
 ) {
-    val dateSale = formatIsoDate(
+    val dateSale = AppTime.formatIsoForDisplay(
         iso = sale.FECHA_VENTA,
         pattern = "dd/MM/yyyy HH:mm a"
     )

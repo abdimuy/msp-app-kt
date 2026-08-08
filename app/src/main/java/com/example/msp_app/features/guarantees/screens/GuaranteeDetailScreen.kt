@@ -36,11 +36,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.features.guarantees.screens.components.GuaranteeStatusBadge
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteeListViewModel
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,11 +86,10 @@ fun GuaranteeDetailScreen(guaranteeId: Int, navController: NavController) {
             }
 
             val formattedDate = try {
-                DateUtils.formatIsoDate(
+                AppTime.formatIsoForDisplay(
                     iso = g.FECHA_SOLICITUD,
-                    pattern = "dd MMM yyyy, hh:mm a",
-                    locale = Locale("es", "MX")
-                ) ?: g.FECHA_SOLICITUD
+                    pattern = "dd MMM yyyy, hh:mm a"
+                )
             } catch (_: Exception) {
                 g.FECHA_SOLICITUD
             }

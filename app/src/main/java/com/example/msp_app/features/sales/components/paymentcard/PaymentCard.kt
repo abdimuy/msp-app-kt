@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.R
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
@@ -115,7 +116,7 @@ fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: 
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        DateUtils.formatIsoDate(
+                        AppTime.formatIsoForDisplay(
                             payment.FECHA_HORA_PAGO,
                             pattern = "EE dd/MM/yyyy hh:mm a"
                         ).uppercase(),

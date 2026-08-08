@@ -3,7 +3,7 @@ package com.example.msp_app.features.sales.viewmodels
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.msp_app.core.utils.DateUtils
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.models.sale.Sale
@@ -29,7 +29,7 @@ class SaleDetailsViewModel(application: Application) : AndroidViewModel(applicat
                 }
 
                 val sale = res.toDomain().copy(
-                    FECHA = DateUtils.formatIsoDate(res.FECHA)
+                    FECHA = AppTime.formatIsoForDisplay(res.FECHA, AppTime.Formats.DATE_SHORT)
                 )
                 _saleState.value = ResultState.Success(sale)
             } catch (e: Exception) {

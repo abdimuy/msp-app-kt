@@ -39,6 +39,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.example.msp_app.components.DrawerContainer
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
@@ -56,10 +58,6 @@ import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.navigation.Screen
 import com.example.msp_app.ui.theme.ThemeController
 import java.time.Duration
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.ZoneId
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 
@@ -358,21 +356,29 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
     }
 }
 
-fun formatElapsedTime(lastPaymentDateIso: String): String {
-    val lastPaymentDateTime = runCatching {
-        Instant.parse(lastPaymentDateIso)
-            .atZone(ZoneId.systemDefault())
-            .toLocalDateTime()
-    }.getOrElse {
-        runCatching {
-            LocalDate.parse(lastPaymentDateIso)
-                .atStartOfDay()
-        }.getOrElse {
-            return "Sin datos"
-        }
-    }
+/**
+ * Renders "Hace X" (elapsed time since the last payment) for the overdue-payments card.
+ *
+ * **Zone-consistency audit (Task 9):** both operands of [Duration.between] must be in the
+ * SAME zone or the elapsed value is meaningless. Before this migration, `lastPaymentDateTime`
+ * came from `Instant.parse(...).atZone(ZoneId.systemDefault())` (device zone) and `now` came
+ * from a bare `LocalDateTime.now()` (also implicitly device zone via
+ * `Clock.systemDefaultZone()`) — self-consistent only by accident, and it made the rendered
+ * elapsed string depend on the device's configured timezone. Both sides now go through
+ * [AppTime]'s business zone ([AppTime.toBusinessDateTime] / [AppTime.nowInBusinessZone]), so
+ * the result is deterministic and independent of the device's zone. [clock] follows the same
+ * seam as [com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp]: this is
+ * a top-level function called directly from the `SaleDetailsContent` composable (no owning
+ * ViewModel for this calculation), so a default-parameter [AppClock] is the minimum-viable
+ * testable seam rather than plumbing a clock through `SaleDetailsViewModel`, which has no other
+ * "now" concept.
+ */
+fun formatElapsedTime(lastPaymentDateIso: String, clock: AppClock = AppClock.System): String {
+    val lastPaymentInstant = AppTime.parseWireFormatOrNull(lastPaymentDateIso)
+        ?: return "Sin datos"
+    val lastPaymentDateTime = AppTime.toBusinessDateTime(lastPaymentInstant)
 
-    val now = LocalDateTime.now()
+    val now = AppTime.nowInBusinessZone(clock)
     val duration = Duration.between(lastPaymentDateTime, now)
     val totalMinutes = duration.toMinutes()
     val totalHours = duration.toHours()
