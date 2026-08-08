@@ -9,6 +9,15 @@ plugins {
 
 android {
     namespace = "com.example.msp_app.core.database"
+
+    // MigrationTestHelper (SchemaIntegrityTest) lee el JSON exportado desde los
+    // assets del propio test — sin este wiring solo lo verían tests
+    // instrumentados (androidTest), no los unit tests Robolectric de este módulo.
+    sourceSets {
+        getByName("test") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
 }
 
 // Room exporta el esquema a un dir versionado (contrato de la DB). KSP recibe
