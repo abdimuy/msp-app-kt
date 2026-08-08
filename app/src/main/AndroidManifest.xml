@@ -67,6 +67,24 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
+
+        <!--
+          Quita el WorkManagerInitializer por defecto (androidx.startup): la
+          inicialización on-demand toma la Configuration de MspApplication
+          (Configuration.Provider), que arma WorkManager con HiltWorkerFactory.
+          Sin este remove, declarar Configuration.Provider produce doble
+          inicialización (IllegalStateException en runtime).
+        -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 
 
