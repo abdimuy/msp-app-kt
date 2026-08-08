@@ -7,6 +7,12 @@ plugins {
     alias(libs.plugins.google.services)
     alias(libs.plugins.ksp)
     alias(libs.plugins.ktlint)
+    // Hilt aplicado directo (NO vía convention plugin `msp.hilt`): `:app` ya
+    // aplica `alias(libs.plugins.ksp)` arriba para Room, y `msp.hilt` también
+    // hace `pluginManager.apply("com.google.devtools.ksp")` — se evita el
+    // doble-apply usando solo el alias de Hilt + sus deps a mano. `msp.hilt`
+    // queda reservado para módulos nuevos `:core:*`/`:feature:*`.
+    alias(libs.plugins.hilt.android)
 }
 
 fun loadProperties(file: File): Properties {
@@ -242,6 +248,9 @@ dependencies {
 
     implementation(libs.bundles.room)
     ksp(libs.androidx.room.compiler)
+
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 
     // DataStore for draft saving
     implementation(libs.androidx.datastore.preferences)

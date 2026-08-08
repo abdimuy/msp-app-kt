@@ -5,10 +5,12 @@ import com.example.msp_app.core.debug.RemoteDbDebugger
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.workmanager.enqueueClienteSyncWorker
+import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
+@HiltAndroidApp
 class MspApplication : Application() {
 
     /**
