@@ -1,15 +1,18 @@
 package com.example.msp_app.data.local.datasource.guarantee
 
 import android.content.Context
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.database.entities.GuaranteeEventEntity
 import com.example.msp_app.core.database.entities.GuaranteeImageEntity
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 
-class GuaranteesLocalDataSource(private val context: Context) {
+class GuaranteesLocalDataSource(
+    private val context: Context,
+    private val clock: AppClock = AppClock.System
+) {
     private val guaranteesDao = AppDatabase.getInstance(context).guaranteeDao()
 
     suspend fun getGuaranteeById(id: Int): GuaranteeEntity? {
@@ -96,7 +99,7 @@ class GuaranteesLocalDataSource(private val context: Context) {
             ID = UUID.randomUUID().toString(),
             GARANTIA_ID = externalId,
             TIPO_EVENTO = tipoEvento,
-            FECHA_EVENTO = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+            FECHA_EVENTO = AppTime.toWireFormat(clock.now()),
             COMENTARIO = comentario,
             ENVIADO = 0
         )

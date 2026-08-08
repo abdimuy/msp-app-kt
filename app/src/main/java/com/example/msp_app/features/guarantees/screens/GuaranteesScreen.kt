@@ -61,24 +61,24 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.utils.Constants.NOTIFICADO
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.features.guarantees.currentGuaranteeTimestamp
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import java.io.File
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.S)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GuaranteeScreen(saleId: Int, navController: NavController) {
+fun GuaranteeScreen(saleId: Int, navController: NavController, clock: AppClock = AppClock.System) {
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
     val saleViewModel: SaleDetailsViewModel = viewModel()
     var defectDescription by remember { mutableStateOf(TextFieldValue("")) }
@@ -463,7 +463,7 @@ fun GuaranteeScreen(saleId: Int, navController: NavController) {
                         DESCRIPCION_FALLA = defectDescription.text,
                         OBSERVACIONES = observations.text.takeIf { it.isNotBlank() },
                         UPLOADED = 0,
-                        FECHA_SOLICITUD = DateTimeFormatter.ISO_INSTANT.format(Instant.now()),
+                        FECHA_SOLICITUD = currentGuaranteeTimestamp(clock),
                         NOMBRE_CLIENTE = sale?.CLIENTE
                     )
                     guaranteesViewModel.insertGuarantee(newGuarantee)

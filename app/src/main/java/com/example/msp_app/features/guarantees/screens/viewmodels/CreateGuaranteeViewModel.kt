@@ -5,14 +5,14 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.database.entities.GuaranteeImageEntity
 import com.example.msp_app.core.utils.Constants.NOTIFICADO
 import com.example.msp_app.core.utils.ImageCompressor
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
+import com.example.msp_app.features.guarantees.currentGuaranteeTimestamp
 import com.example.msp_app.workmanager.enqueuePendingGuaranteesWorker
-import java.time.Instant
-import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,7 +21,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class CreateGuaranteeViewModel(application: Application) : AndroidViewModel(application) {
-    private val guaranteeStore = GuaranteesLocalDataSource(application.applicationContext)
+    // Not a constructor param: the default `viewModel()` factory resolves this class via
+    // reflection on an (Application)-only constructor. Adding `clock` as a constructor
+    // parameter (even with a default) breaks that reflection — same pattern as
+    // NewTransferViewModel.
+    private val clock: AppClock = AppClock.System
+    private val guaranteeStore = GuaranteesLocalDataSource(application.applicationContext, clock)
 
     private val _clienteNombre = MutableStateFlow("")
     val clienteNombre: StateFlow<String> = _clienteNombre
@@ -78,7 +83,7 @@ class CreateGuaranteeViewModel(application: Application) : AndroidViewModel(appl
             _isSaving.value = true
             try {
                 val externalId = UUID.randomUUID().toString()
-                val fechaSolicitud = DateTimeFormatter.ISO_INSTANT.format(Instant.now())
+                val fechaSolicitud = currentGuaranteeTimestamp(clock)
 
                 val entity = GuaranteeEntity(
                     ID = 0,
