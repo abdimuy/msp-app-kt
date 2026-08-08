@@ -51,10 +51,10 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
-import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -103,7 +103,7 @@ fun NewForgivenessDialog(
         val forgivenessAmount = inputValue.toDoubleOrNull()
         if (forgivenessAmount != null && forgivenessAmount > 0) {
             coroutineScope.launch {
-                val date = Instant.now().toString()
+                val date = currentPaymentTimestamp()
 
                 val forgiveness = Payment(
                     CLIENTE_ID = sale.CLIENTE_ID,

@@ -64,10 +64,10 @@ import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.payments.newpayment.PaymentFactory
+import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
-import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.launch
 
@@ -158,7 +158,7 @@ fun NewPaymentDialog(
         coroutineScope.launch {
             try {
                 val idTicket = UUID.randomUUID().toString()
-                val date = Instant.now().toString()
+                val date = currentPaymentTimestamp()
 
                 val payment = PaymentFactory.fromSale(
                     sale = sale,
