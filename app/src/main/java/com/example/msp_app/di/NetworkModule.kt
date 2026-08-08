@@ -6,7 +6,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
 
 /**
  * Expone por Hilt los servicios de red que hoy se obtienen vía los `object`
@@ -28,7 +27,25 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
+    /**
+     * Deliberadamente SIN `@Singleton`: `WarehousesApi` es una interfaz cuya
+     * única fuente de verdad de baseURL es el `Retrofit` interno y mutable de
+     * [ApiProvider], reescrito en runtime por el listener de Firestore
+     * (kill-switch remoto en release). Si esta función fuera `@Singleton`,
+     * Hilt memoizaría el proxy devuelto por `ApiProvider.create(...)` para
+     * TODA la vida del proceso — el kill-switch dejaría de alcanzar a
+     * cualquier consumidor inyectado tras el primer flip de baseURL.
+     *
+     * Sin scope, cada punto de inyección obtiene su propia llamada a
+     * `create(...)` (Hilt no cachea el resultado), calcada del patrón legacy
+     * dominante: un `val` congelado en el constructor de un ViewModel/Worker
+     * que se refresca cuando ese ViewModel/Worker se recrea — ni mejor ni
+     * peor que hoy, solo el mismo trade-off ya aceptado en el resto del
+     * código. Un consumidor que además necesite reactividad DENTRO de su
+     * propio ciclo de vida (sin esperar a una recreación) puede en su lugar
+     * inyectar `Provider<WarehousesApi>` y llamar `.get()` en cada uso, o
+     * inyectar [ApiProvider] mismo y llamar `create(...)` directamente.
+     */
     @Provides
-    @Singleton
     fun provideWarehousesApi(): WarehousesApi = ApiProvider.create(WarehousesApi::class.java)
 }
