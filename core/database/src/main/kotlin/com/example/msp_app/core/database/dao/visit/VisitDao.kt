@@ -74,7 +74,7 @@ interface VisitDao {
             IMPTE_DOCTO_CC_ID,
             GUARDADO_EN_MICROSIP
         FROM Visit
-        WHERE FECHA BETWEEN :start AND :end
+        WHERE FECHA >= :start AND FECHA < :end
         ORDER BY FECHA DESC
         """
     )

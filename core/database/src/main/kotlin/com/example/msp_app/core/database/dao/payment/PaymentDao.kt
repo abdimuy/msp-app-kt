@@ -121,8 +121,8 @@ interface PaymentDao {
                 NOMBRE_CLIENTE
             FROM Payment
             WHERE
-                FECHA_HORA_PAGO BETWEEN :start  AND :end
-                AND FORMA_COBRO_ID IN 
+                FECHA_HORA_PAGO >= :start AND FECHA_HORA_PAGO < :end
+                AND FORMA_COBRO_ID IN
                 (
                     157,
                     158,
@@ -151,7 +151,7 @@ interface PaymentDao {
                 NOMBRE_CLIENTE
             FROM Payment
             WHERE
-                FECHA_HORA_PAGO BETWEEN :start  AND :end
+                FECHA_HORA_PAGO >= :start AND FECHA_HORA_PAGO < :end
                 AND FORMA_COBRO_ID = 137026
             ORDER BY FECHA_HORA_PAGO DESC
         """
@@ -230,7 +230,7 @@ interface PaymentDao {
                 NOMBRE_CLIENTE
             FROM Payment
             WHERE
-                FECHA_HORA_PAGO BETWEEN :start AND :end
+                FECHA_HORA_PAGO >= :start AND FECHA_HORA_PAGO < :end
                 AND FORMA_COBRO_ID IN
                 (
                     157,
