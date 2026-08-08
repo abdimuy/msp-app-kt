@@ -2,11 +2,13 @@ package com.example.msp_app.features.warehouses
 
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.ViewModelProvider
+import com.example.msp_app.data.local.repository.WarehouseRepository
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Rule
@@ -59,5 +61,49 @@ class WarehouseHiltGraphTest {
         // Misma instancia mientras viva el ViewModelStore de la activity —
         // igual que el scoping que usan las pantallas reales con hiltViewModel().
         assertSame(viewModel, ViewModelProvider(activity)[WarehouseViewModel::class.java])
+    }
+
+    /**
+     * Guarda de regresión (post-revisión Task 8): `WarehouseRepository` traía
+     * un `@Singleton` dormido desde antes de Hilt, que esta tarea despertó al
+     * volver la cadena viva. Un `@Singleton` aquí congelaría por valor la
+     * `WarehousesApi` (kill-switch de baseURL por Firestore, commit `bbd66f8`)
+     * en la primera visita a cualquier pantalla de almacenes — peor que el
+     * código pre-Hilt, que llamaba `ApiProvider.create(...)` fresco en cada
+     * construcción de `WarehouseViewModel`. Se quitó el `@Singleton`; este
+     * test prueba el efecto observable: dos `WarehouseViewModel` resueltos
+     * desde dos `ViewModelStoreOwner` distintos (= dos visitas de pantalla)
+     * NUNCA comparten la misma instancia de `WarehouseRepository`.
+     */
+    @Test
+    fun `WarehouseRepository no queda congelado como singleton entre visitas de pantalla`() {
+        val activityOne = Robolectric.buildActivity(WarehouseHiltGraphTestActivity::class.java)
+            .create()
+            .get()
+        val activityTwo = Robolectric.buildActivity(WarehouseHiltGraphTestActivity::class.java)
+            .create()
+            .get()
+
+        val viewModelOne = ViewModelProvider(activityOne)[WarehouseViewModel::class.java]
+        val viewModelTwo = ViewModelProvider(activityTwo)[WarehouseViewModel::class.java]
+
+        assertNotSame(
+            "cada ViewModelStoreOwner debe recibir su propio WarehouseViewModel",
+            viewModelOne,
+            viewModelTwo
+        )
+
+        val repositoryField = WarehouseViewModel::class.java
+            .getDeclaredField("repository")
+            .apply { isAccessible = true }
+        val repositoryOne = repositoryField.get(viewModelOne) as WarehouseRepository
+        val repositoryTwo = repositoryField.get(viewModelTwo) as WarehouseRepository
+
+        assertNotSame(
+            "WarehouseRepository NO debe ser @Singleton: congelaría la " +
+                "WarehousesApi y rompería el kill-switch de baseURL",
+            repositoryOne,
+            repositoryTwo
+        )
     }
 }

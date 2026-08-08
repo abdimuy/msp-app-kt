@@ -6,11 +6,21 @@ import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
 import com.example.msp_app.data.api.services.warehouses.WarehouseResponse
 import com.example.msp_app.data.local.datasource.warehouseRemoteDataSource.WarehouseRemoteDataSource
 import javax.inject.Inject
-import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-@Singleton
+/**
+ * Deliberadamente SIN `@Singleton`: es pura delegación sin estado propio, y
+ * envuelve un [WarehouseRemoteDataSource] que a su vez envuelve la
+ * `WarehousesApi` NO-singleton provista por `NetworkModule` (kill-switch de
+ * baseURL por Firestore, ver `NetworkModule.provideWarehousesApi`). Si esta
+ * clase fuera `@Singleton`, Dagger materializaría este objeto UNA sola vez
+ * para todo el proceso — congelando por valor la `WarehousesApi` de esa
+ * primera resolución y volviendo sordo el kill-switch a partir de la primera
+ * visita a cualquier pantalla de almacenes. Sin scope, cada
+ * `WarehouseViewModel` construido (= cada visita de pantalla, igual que antes
+ * de Hilt) vuelve a resolver la cadena completa.
+ */
 class WarehouseRepository @Inject constructor(
     private val remoteDataSource: WarehouseRemoteDataSource
 ) {
