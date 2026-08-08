@@ -1,7 +1,7 @@
 package com.example.msp_app.data.api.services.visits
 
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.VisitEntity
-import com.example.msp_app.core.time.AppTime
 import java.time.temporal.ChronoUnit
 
 /**

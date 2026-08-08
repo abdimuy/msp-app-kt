@@ -1,4 +1,4 @@
-package com.example.msp_app.core.time
+package com.example.msp_app.core.common.time
 
 import java.time.DayOfWeek
 import java.time.Instant
@@ -9,6 +9,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /** Zona fija del negocio. Toda conversión calendario↔instant pasa por aquí. */
@@ -27,7 +28,15 @@ val BUSINESS_LOCALE: Locale = Locale("es", "MX")
  *  - `now()` is obtained via [AppClock]; never call `Instant.now()` / `LocalDate.now()` directly.
  *
  * See `docs/standards/timezones.md`.
+ *
+ * Deliberately one flat facade, not several smaller objects: `docs/standards/timezones.md`
+ * mandates `AppTime` as the SINGLE entry point for date/time operations ("nadie toca
+ * `java.time.*` directo — todo pasa por `AppTime` y `AppClock`"). Splitting it by sub-concern
+ * (wire/business zone/display) would work against that explicit design goal and scatter
+ * call-site imports across several objects for what is, semantically, one small
+ * pure-function API surface — hence the [Suppress] below.
  */
+@Suppress("TooManyFunctions")
 object AppTime {
 
     /**
@@ -102,6 +111,18 @@ object AppTime {
         return runCatching { LocalDate.parse(date) }.getOrNull()
     }
 
+    /**
+     * Add [amount] of [unit] to the instant encoded by [iso] and re-serialize to wire format,
+     * operating on [Instant] end to end — never round-trips through [LocalDateTime], so the
+     * result cannot drift depending on the offset of the input string.
+     *
+     * Replacement for the legacy `DateUtils.addToIsoDate`, which computed the sum via a
+     * `LocalDateTime` round-trip and only produced a correct result when the input happened
+     * to carry a zero UTC offset (see `date-lib-audit.md` bug #3).
+     */
+    fun plusOnWire(iso: String, amount: Long, unit: ChronoUnit): String =
+        toWireFormat(parseWireFormat(iso).plus(amount, unit))
+
     // endregion
 
     // region — Instant ↔ business zone
@@ -124,10 +145,21 @@ object AppTime {
     fun nowInBusinessZone(clock: AppClock = AppClock.System): LocalDateTime =
         toBusinessDateTime(clock.now())
 
-    /** Midnight (00:00:00) of [date] in [BUSINESS_ZONE], as an [Instant]. */
+    /**
+     * Midnight (00:00:00) of [date] in [BUSINESS_ZONE], as an [Instant].
+     *
+     * Together with [startOfNextDay] this is the **official pattern** for a one-day range:
+     * `[startOfDay(date), startOfNextDay(date))` — half-open, matching `msp-api`'s
+     * `[desde, hasta)` range semantics byte-for-byte (`docs/module-standards/DATETIME_HANDLING.md`
+     * in `msp-api`). Prefer this pair over the fragile "+1 day −1 second" pattern, which depends
+     * on truncating to whole seconds and silently drops sub-second precision at the boundary.
+     */
     fun startOfDay(date: LocalDate): Instant = date.atStartOfDay(BUSINESS_ZONE).toInstant()
 
-    /** Start of the next day — useful as exclusive upper bound for a day range. */
+    /**
+     * Start of the next day — the **exclusive** upper bound for a one-day range.
+     * See [startOfDay] for the full range pattern.
+     */
     fun startOfNextDay(date: LocalDate): Instant = startOfDay(date.plusDays(1))
 
     // endregion

@@ -1,4 +1,4 @@
-package com.example.msp_app.core.time
+package com.example.msp_app.core.testing.time
 
 import java.time.Duration
 import java.time.Instant
@@ -37,8 +37,7 @@ class FakeClockTest {
     @Test
     fun `at builds clock from ISO string`() {
         val clock = FakeClock.at("2026-04-15T18:30:00-06:00")
-        // 12:30 CDMX + 6h == 18:30 + 6 == err wait, 12:30 -06:00 == 18:30 UTC
-        // Actually "18:30:00-06:00" wall = 18:30 at -06 offset = 00:30 UTC next day
+        // 18:30 wall at -06:00 offset == 00:30 UTC next day.
         assertEquals(Instant.parse("2026-04-16T00:30:00Z"), clock.now())
     }
 }

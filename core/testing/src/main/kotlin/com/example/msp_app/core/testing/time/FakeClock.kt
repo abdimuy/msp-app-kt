@@ -1,11 +1,18 @@
-package com.example.msp_app.core.time
+package com.example.msp_app.core.testing.time
 
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
 /**
  * Test double for [AppClock]. Construct with a fixed instant; advance as needed.
+ *
+ * Lives in `:core:testing` (not `:core:common`'s own test sourceset) because it is a shared
+ * fixture consumed from multiple modules' test source sets (`:app`, `:core:database`,
+ * `:core:common` itself) — same rationale as `FakePendingWorkSynchronizer` and friends in this
+ * package's siblings.
  *
  * ```kotlin
  * val clock = FakeClock.at("2026-04-15T23:30:00-06:00") // 23:30 CDMX

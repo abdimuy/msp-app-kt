@@ -1,6 +1,6 @@
 package com.example.msp_app.features.dailyReport.domain
 
-import com.example.msp_app.core.time.AppTime
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.features.transfers.data.api.dto.TransferListItemDto
 import java.time.LocalDate
 

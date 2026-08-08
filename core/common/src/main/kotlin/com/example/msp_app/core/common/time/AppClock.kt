@@ -1,4 +1,4 @@
-package com.example.msp_app.core.time
+package com.example.msp_app.core.common.time
 
 import java.time.Instant
 
