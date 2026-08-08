@@ -3,6 +3,8 @@ package com.example.msp_app.features.transfers.presentation.create
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.warehouses.WarehouseListResponse
@@ -17,7 +19,6 @@ import com.example.msp_app.features.transfers.data.repository.TransfersRepositor
 import com.example.msp_app.features.transfers.domain.models.CreateTransferData
 import com.example.msp_app.features.transfers.domain.models.ProductCost
 import com.example.msp_app.features.transfers.domain.models.TransferProductItem
-import java.time.LocalDateTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,9 +32,11 @@ class NewTransferViewModel(
     application: Application
 ) : AndroidViewModel(application) {
 
+    private val clock: AppClock = AppClock.System
+
     private val repository: TransfersRepository by lazy {
         val apiService = ApiProvider.create(TransfersApiService::class.java)
-        TransfersRepository(apiService, application.applicationContext)
+        TransfersRepository(apiService, application.applicationContext, clock)
     }
 
     private val warehouseRepository: WarehouseRepository by lazy {
@@ -409,7 +412,7 @@ class NewTransferViewModel(
                 val transferData = CreateTransferData(
                     almacenOrigenId = _selectedSourceWarehouse.value!!.ALMACEN_ID,
                     almacenDestinoId = _selectedDestinationWarehouse.value!!.ALMACEN_ID,
-                    fecha = LocalDateTime.now(),
+                    fecha = AppTime.nowInBusinessZone(clock),
                     descripcion = _description.value.ifBlank { null },
                     // Will use default SYSDBA from API
                     usuario = null,

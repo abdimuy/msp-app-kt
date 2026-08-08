@@ -1,5 +1,6 @@
 package com.example.msp_app.features.transfers.domain.models
 
+import com.example.msp_app.core.common.time.AppTime
 import java.time.LocalDateTime
 
 /**
@@ -9,7 +10,7 @@ import java.time.LocalDateTime
 data class CreateTransferData(
     val almacenOrigenId: Int,
     val almacenDestinoId: Int,
-    val fecha: LocalDateTime = LocalDateTime.now(),
+    val fecha: LocalDateTime = AppTime.nowInBusinessZone(),
     val descripcion: String? = null,
     val usuario: String? = null,
     val productos: List<TransferProductItem>

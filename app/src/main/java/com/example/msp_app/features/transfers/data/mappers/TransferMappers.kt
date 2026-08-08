@@ -1,5 +1,7 @@
 package com.example.msp_app.features.transfers.data.mappers
 
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.features.transfers.data.api.dto.CreateTransferRequest
 import com.example.msp_app.features.transfers.data.api.dto.MovementDto
 import com.example.msp_app.features.transfers.data.api.dto.ProductCostDto
@@ -90,12 +92,12 @@ fun MovementDto.toDetailEntity(doctoInId: Int): TransferDetailEntity {
 
 // ===== Entity to Domain Mappers =====
 
-fun TransferEntity.toDomain(): Transfer {
+fun TransferEntity.toDomain(clock: AppClock = AppClock.System): Transfer {
     return Transfer(
         doctoInId = doctoInId,
         almacenOrigenId = almacenOrigenId,
         almacenDestinoId = almacenDestinoId,
-        fecha = parseDateTimeSafe(fecha),
+        fecha = parseDateTimeSafe(fecha, clock),
         descripcion = descripcion,
         folio = folio,
         usuario = usuario,
@@ -127,9 +129,11 @@ fun TransferDetailEntity.toDomain(): TransferDetail {
     )
 }
 
-fun TransferWithDetailsEntity.toDomain(): TransferWithDetailsDomain {
+fun TransferWithDetailsEntity.toDomain(
+    clock: AppClock = AppClock.System
+): TransferWithDetailsDomain {
     return TransferWithDetailsDomain(
-        transfer = transfer.toDomain(),
+        transfer = transfer.toDomain(clock),
         details = details.map { it.toDomain() }
     )
 }
@@ -185,7 +189,10 @@ fun ProductCostDto.toDomain(): ProductCost {
 
 // ===== Helper Functions =====
 
-private fun parseDateTimeSafe(dateString: String): LocalDateTime {
+private fun parseDateTimeSafe(
+    dateString: String,
+    clock: AppClock = AppClock.System
+): LocalDateTime {
     return try {
         LocalDateTime.parse(dateString, dateTimeFormatter)
     } catch (e: Exception) {
@@ -194,7 +201,7 @@ private fun parseDateTimeSafe(dateString: String): LocalDateTime {
             val date = java.time.LocalDate.parse(dateString, dateFormatter)
             date.atStartOfDay()
         } catch (e2: Exception) {
-            LocalDateTime.now()
+            AppTime.toBusinessDateTime(clock.now())
         }
     }
 }
@@ -202,9 +209,14 @@ private fun parseDateTimeSafe(dateString: String): LocalDateTime {
 // ===== List Extension Functions =====
 
 fun List<TransferListItemDto>.toEntities(): List<TransferEntity> = map { it.toEntity() }
-fun List<TransferEntity>.toDomainTransfers(): List<Transfer> = map { it.toDomain() }
+fun List<TransferEntity>.toDomainTransfers(clock: AppClock = AppClock.System): List<Transfer> =
+    map {
+        it.toDomain(clock)
+    }
 fun List<TransferDetailEntity>.toDomainDetails(): List<TransferDetail> = map { it.toDomain() }
-fun List<TransferWithDetailsEntity>.toDomainWithDetails(): List<TransferWithDetailsDomain> = map {
-    it.toDomain()
+fun List<TransferWithDetailsEntity>.toDomainWithDetails(
+    clock: AppClock = AppClock.System
+): List<TransferWithDetailsDomain> = map {
+    it.toDomain(clock)
 }
 fun List<ProductCostDto>.toDomainCosts(): List<ProductCost> = map { it.toDomain() }

@@ -1,6 +1,8 @@
 package com.example.msp_app.features.transfers.data.repository
 
 import android.content.Context
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.logging.logTransferError
 import com.example.msp_app.features.transfers.data.api.TransfersApiService
@@ -21,7 +23,8 @@ import kotlinx.coroutines.withContext
  */
 class TransfersRepository(
     private val apiService: TransfersApiService,
-    private val context: Context? = null
+    private val context: Context? = null,
+    private val clock: AppClock = AppClock.System
 ) {
     private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     private val logger by lazy {
@@ -100,6 +103,7 @@ class TransfersRepository(
                 )
 
                 if (response.isSuccessful) {
+                    val fetchedAt = AppTime.toBusinessDateTime(clock.now())
                     val transfers = response.body()?.body?.map { dto ->
                         Transfer(
                             doctoInId = dto.doctoInId,
@@ -115,8 +119,8 @@ class TransfersRepository(
                             costoTotal = dto.costoTotal ?: 0.0,
                             aplicado = dto.aplicado == "S",
                             sincronizado = true,
-                            createdAt = java.time.LocalDateTime.now(),
-                            updatedAt = java.time.LocalDateTime.now()
+                            createdAt = fetchedAt,
+                            updatedAt = fetchedAt
                         )
                     } ?: emptyList()
 
@@ -142,6 +146,7 @@ class TransfersRepository(
                 if (response.isSuccessful) {
                     val dto = response.body()
                     if (dto != null) {
+                        val fetchedAt = AppTime.toBusinessDateTime(clock.now())
                         val transfer = Transfer(
                             doctoInId = dto.doctoInId,
                             almacenOrigenId = dto.almacenId,
@@ -156,8 +161,8 @@ class TransfersRepository(
                             costoTotal = dto.salidas.sumOf { it.costoTotal },
                             aplicado = dto.aplicado == "S",
                             sincronizado = true,
-                            createdAt = java.time.LocalDateTime.now(),
-                            updatedAt = java.time.LocalDateTime.now()
+                            createdAt = fetchedAt,
+                            updatedAt = fetchedAt
                         )
 
                         val details = dto.salidas.map { movement ->
@@ -259,7 +264,7 @@ class TransfersRepository(
                 )
                 date.atStartOfDay()
             } catch (e2: Exception) {
-                java.time.LocalDateTime.now()
+                AppTime.toBusinessDateTime(clock.now())
             }
         }
     }
