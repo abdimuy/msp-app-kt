@@ -27,6 +27,12 @@ ksp {
 }
 
 dependencies {
+    // AppTime/AppClock (zona de negocio, wire format) — acíclico: :core:common
+    // no depende de :core:database (ver ledger Task 3, Ambiguity 1). Reemplaza
+    // la copia interna `PaymentDateGrouping.kt` que este módulo tenía porque
+    // esa dependencia se creía (incorrectamente) cíclica.
+    implementation(project(":core:common"))
+
     implementation(libs.bundles.room) // room-runtime + room-ktx
     ksp(libs.androidx.room.compiler)
 

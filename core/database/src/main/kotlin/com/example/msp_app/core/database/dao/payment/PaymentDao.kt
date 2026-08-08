@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.PaymentLocation
@@ -30,6 +31,30 @@ import kotlinx.coroutines.flow.map
  * recalcularía en cada request.
  */
 private const val PAYMENT_LOOKAHEAD_WINDOW_DAYS = 100L
+
+/**
+ * Day-grouping key for [PaymentDao.getPaymentsGroupedByDaySince] /
+ * [PaymentDao.observePaymentsGroupedByDaySince]: the calendar date (business
+ * zone, `America/Mexico_City`, via [AppTime.toBusinessDate]) that
+ * [fechaHoraPago] falls on, formatted `yyyy-MM-dd`.
+ *
+ * **Money-path fix:** this used to be computed in the device's timezone (a
+ * byte-identical internal copy of the legacy `DateUtils.formatIsoDate`, see
+ * `date-lib-audit.md` bug #1/#7). A cobrador with the phone set to another
+ * zone (travel, roaming, misconfiguration) could see a payment near
+ * midnight grouped under the wrong day. Grouping is now anchored to the
+ * business zone regardless of device settings — see
+ * `PaymentDayGroupingTest` for the characterization of the old vs. new
+ * result on the same instant.
+ *
+ * Preserves the legacy fallback contract: on unparsable input, the raw
+ * string is returned instead of throwing, so a single corrupted
+ * `FECHA_HORA_PAGO` row degrades to its own ungrouped bucket instead of
+ * crashing the whole query.
+ */
+private fun dayKeyOf(fechaHoraPago: String): String = AppTime.parseWireFormatOrNull(fechaHoraPago)
+    ?.let { AppTime.toBusinessDate(it).toString() }
+    ?: fechaHoraPago
 
 @Dao
 interface PaymentDao {
@@ -175,9 +200,7 @@ interface PaymentDao {
             .format(DateTimeFormatter.ISO_DATE)
         val payments = getPaymentsByDate(startDate, endDate)
 
-        val paymentsByDay = payments.groupBy {
-            formatIsoDateForGrouping(it.FECHA_HORA_PAGO, "yyyy-MM-dd")
-        }
+        val paymentsByDay = payments.groupBy { dayKeyOf(it.FECHA_HORA_PAGO) }
         return paymentsByDay.mapValues { (_, paymentList) ->
             paymentList.sortedByDescending { it.FECHA_HORA_PAGO }
         }.toSortedMap(compareByDescending { it })
@@ -238,7 +261,7 @@ interface PaymentDao {
             .format(DateTimeFormatter.ISO_DATE)
         return observePaymentsByDate(startDate, endDate).map { payments ->
             payments
-                .groupBy { formatIsoDateForGrouping(it.FECHA_HORA_PAGO, "yyyy-MM-dd") }
+                .groupBy { dayKeyOf(it.FECHA_HORA_PAGO) }
                 .mapValues { (_, list) -> list.sortedByDescending { it.FECHA_HORA_PAGO } }
                 .toSortedMap(compareByDescending { it })
         }
