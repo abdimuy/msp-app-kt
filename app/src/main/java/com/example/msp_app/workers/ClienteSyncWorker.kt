@@ -4,8 +4,26 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.data.repository.ClienteRepository
+import java.time.LocalDateTime
+
+/** Inicio de la jornada laboral del negocio (zona de negocio), inclusive. */
+private const val WORKING_HOURS_START = 7
+
+/** Fin de la jornada laboral del negocio (zona de negocio), exclusive. */
+private const val WORKING_HOURS_END = 18
+
+/**
+ * Predicado puro: ¿[now] cae dentro del horario laboral del negocio?
+ *
+ * [now] debe obtenerse vía [AppTime.nowInBusinessZone] — nunca de la zona del dispositivo,
+ * para que el gate sea el mismo sin importar dónde esté físicamente el cobrador.
+ */
+fun isWithinWorkingHours(now: LocalDateTime): Boolean =
+    now.hour in WORKING_HOURS_START until WORKING_HOURS_END
 
 class ClienteSyncWorker(
     appContext: Context,
@@ -16,9 +34,9 @@ class ClienteSyncWorker(
     private val logger: RemoteLogger by lazy { RemoteLogger.getInstance(appContext) }
 
     override suspend fun doWork(): Result {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        if (hour < 7 || hour >= 18) {
-            Log.d("ClienteSyncWorker", "Fuera de horario laboral ($hour hrs), omitiendo sync")
+        val now = AppTime.nowInBusinessZone(AppClock.System)
+        if (!isWithinWorkingHours(now)) {
+            Log.d("ClienteSyncWorker", "Fuera de horario laboral (${now.hour} hrs), omitiendo sync")
             return Result.success()
         }
 
