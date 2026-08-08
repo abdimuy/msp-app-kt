@@ -80,32 +80,47 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instance: AppDatabase? = null
 
-        // `fallbackToDestructiveMigrationFrom` enumera versiones históricas de
-        // schema (1..19, previas a que existiera migración incremental) —
-        // son literales de un catálogo cerrado y ya congelado, no "cifras
-        // mágicas" de negocio; nombrarlas una por una (`SCHEMA_VERSION_1`...)
-        // sería puro ruido sin ganar legibilidad.
-        @Suppress("MagicNumber")
+        private const val DATABASE_NAME = "msp_db"
+
         fun getInstance(context: Context): AppDatabase {
             return instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "msp_db"
-
-                )
-                    .addMigrations(
-                        MIGRATION_20_21,
-                        MIGRATION_21_22,
-                        MIGRATION_22_23,
-                        MIGRATION_23_24,
-                        MIGRATION_24_25,
-                        MIGRATION_25_26,
-                        MIGRATION_26_27
-                    )
-                    .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
+                instance ?: buildDatabase(context.applicationContext, DATABASE_NAME)
                     .build().also { instance = it }
             }
+        }
+
+        /**
+         * Única fuente de verdad para la configuración del builder de producción
+         * (las 7 migraciones + el fallback destructivo pre-20). `getInstance`
+         * llama a esta función; los tests de migración de este mismo módulo
+         * (`internal`, visible por friend-path del compilador Kotlin/AGP entre
+         * `main` y su propio `test` source set) también, en vez de duplicar esta
+         * lista a mano. Evita una segunda fuente de verdad: si mañana cambia
+         * (nueva migración, nuevo flag), un test que la hubiera copiado a mano
+         * podría seguir en verde mientras producción se comporta distinto.
+         *
+         * `fallbackToDestructiveMigrationFrom` enumera versiones históricas de
+         * schema (1..19, previas a que existiera migración incremental) — son
+         * literales de un catálogo cerrado y ya congelado, no "cifras mágicas"
+         * de negocio; nombrarlas una por una (`SCHEMA_VERSION_1`...) sería puro
+         * ruido sin ganar legibilidad.
+         */
+        @Suppress("MagicNumber")
+        internal fun buildDatabase(
+            context: Context,
+            name: String
+        ): RoomDatabase.Builder<AppDatabase> {
+            return Room.databaseBuilder(context, AppDatabase::class.java, name)
+                .addMigrations(
+                    MIGRATION_20_21,
+                    MIGRATION_21_22,
+                    MIGRATION_22_23,
+                    MIGRATION_23_24,
+                    MIGRATION_24_25,
+                    MIGRATION_25_26,
+                    MIGRATION_26_27
+                )
+                .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }
 
         @androidx.annotation.VisibleForTesting

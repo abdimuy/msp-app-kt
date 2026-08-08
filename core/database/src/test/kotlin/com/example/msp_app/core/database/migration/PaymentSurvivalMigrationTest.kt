@@ -1,17 +1,9 @@
 package com.example.msp_app.core.database.migration
 
 import android.content.Context
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.PaymentEntity
-import com.example.msp_app.core.database.migrations.MIGRATION_20_21
-import com.example.msp_app.core.database.migrations.MIGRATION_21_22
-import com.example.msp_app.core.database.migrations.MIGRATION_22_23
-import com.example.msp_app.core.database.migrations.MIGRATION_23_24
-import com.example.msp_app.core.database.migrations.MIGRATION_24_25
-import com.example.msp_app.core.database.migrations.MIGRATION_25_26
-import com.example.msp_app.core.database.migrations.MIGRATION_26_27
 import com.example.msp_app.core.testing.RobolectricTestBase
 import java.io.File
 import kotlinx.coroutines.test.runTest
@@ -23,8 +15,6 @@ import org.junit.Before
 import org.junit.Test
 
 private const val DB_FILE_NAME = "payment-survival-test.db"
-private val PRE_INCREMENTAL_VERSIONS =
-    intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
 
 /**
  * LA prueba crux de money-safety de este plan (spec Plan 2 Task 4, master
@@ -32,12 +22,16 @@ private val PRE_INCREMENTAL_VERSIONS =
  * al servidor (`GUARDADO_EN_MICROSIP = false`) NUNCA debe perderse ni
  * mutarse al reabrir la base.
  *
- * Reproduce, con la MISMA configuración de producción (`Room.databaseBuilder`
- * + las 7 migraciones reales + `fallbackToDestructiveMigrationFrom(1..19)`,
- * calcada de [AppDatabase.getInstance]) sobre un archivo persistido en disco
- * (no in-memory: in-memory se borra al cerrar, lo que ocultaría exactamente
- * el bug que este test debe atrapar), el ciclo real de un dispositivo:
- * capturar pagos sin subir → cerrar la app → reabrir la app.
+ * Qué prueba exactamente: PERSISTENCIA a través de cerrar/reabrir la base
+ * REAL de producción (misma config que [AppDatabase.getInstance] — vía
+ * [AppDatabase.buildDatabase], única fuente de verdad compartida por ambos,
+ * ver ese companion object) sobre un archivo en disco (no in-memory: se
+ * borra al cerrar, lo que ocultaría justo el bug que este test debe
+ * atrapar). Simula el ciclo real de un dispositivo: capturar pagos sin
+ * subir → cerrar la app → reabrir la app. Como el archivo se crea desde
+ * cero, Room lo abre directo en v27 — este test NO ejercita la cadena de
+ * migraciones 20→27 (eso lo cubre [MigrationSmokeTest], que sí corre los 7
+ * `Migration` reales en secuencia).
  *
  * Qué rompería si este test fallara: cualquier cambio a `AppDatabase`
  * (incluido el hoist de este plan a `:core:database`), a la configuración
@@ -62,20 +56,16 @@ class PaymentSurvivalMigrationTest : RobolectricTestBase() {
         dbFile.delete()
     }
 
+    /**
+     * Abre la base por la MISMA función de configuración que usa producción
+     * ([AppDatabase.buildDatabase], invocada también desde
+     * [AppDatabase.getInstance]) — cero duplicación de la lista de
+     * migraciones/flags a mano en el test.
+     */
     private fun openProductionDatabase(): AppDatabase {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        return Room.databaseBuilder(context, AppDatabase::class.java, dbFile.path)
+        return AppDatabase.buildDatabase(context, dbFile.path)
             .allowMainThreadQueries()
-            .addMigrations(
-                MIGRATION_20_21,
-                MIGRATION_21_22,
-                MIGRATION_22_23,
-                MIGRATION_23_24,
-                MIGRATION_24_25,
-                MIGRATION_25_26,
-                MIGRATION_26_27
-            )
-            .fallbackToDestructiveMigrationFrom(*PRE_INCREMENTAL_VERSIONS)
             .build()
     }
 
