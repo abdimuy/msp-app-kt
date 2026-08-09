@@ -194,3 +194,38 @@ Room v27 schema byte-idéntico, 5 commits (conventional, español, sin atribuci�
   fallo (cubierto por transitividad de `@Transaction`); `GuaranteeDao.getImagenesByGuaranteesId` de T4 queda
   muerta (0 callers) — limpieza futura.
 - **SIGUIENTE:** Plan 3 `:core:designsystem` (10 tareas), luego Plan 4, luego Plan 5.
+
+### Plan 3 (`:core:designsystem`) ✅ CERRADO CONFORME
+Commit range `cd1d141..4c0b51d` (HEAD `4c0b51d`). Auditoría de conformidad (opus): **CONFORME-CON-OBSERVACIONES,
+11/11 PASS**, sin fails.
+
+10 tareas: módulo esqueleto → tokens de color (`MspColors`, Azul A `#2563EB`/`#3B82F6` + mint-teal `#6FE3C2`,
+kollect 1:1, OLED dark) → tipografía (Manrope, cifras tabulares, escala de 48 tokens) → shapes/spacing/motion +
+reduce-motion → `MspTheme` + `CompositionLocal`s + M3 + primer golden Roborazzi → surface/gradient/progress →
+`MoneyText` + `formatMoneyMxn(BigDecimal, HALF_UP, es-MX)` + `MASKED_MONEY` + `StatusChip` + `InitialsAvatar` →
+4 tarjetas compuestas (Hero/Bento/WeeklyBars/Cartera) → interactivos (toggles, segment chips, banda/píldora de
+sync, CTA, bridge `ThemeRevealController`) → catálogo de gate visual (122 goldens Tier1/2 × {1.0, 1.3, 2.0} ×
+light/dark + contraste AAA + no-truncación@2.0 + `verifyRoborazzi` cableado en `prePushCheck`). La regla
+`NoDoubleForMoney` quedó cableada dentro del módulo.
+
+**⚠️ NECESITA TU OJO (parqueado para decisión del usuario):** 3 pares de color de texto quedan POR DEBAJO de
+WCAG AA-normal (relajados al piso 3.0 de UI), un trade-off de legibilidad del azul de marca kollect-1:1:
+(a) `onBrand` sobre brand DARK = 3.68 — este es el **label del botón CTA primario + el extremo del gradiente
+del hero**; (b) `statusPartial`/`statusTeal` LIGHT = 3.71 / 4.19 — **texto de label de status-chip a 12sp**. La
+codificación "icono+texto" mitiga daltonismo pero NO la legibilidad. El propio brief de diseño parquea las
+decisiones de contraste al piloto (Plan 5), así que esto NO es un bloqueador de DS — pero el USUARIO debe
+decidir en Plan 5 si acepta el trade-off del azul de marca o si oscurece esos tokens.
+
+**Otros parqueados (por diseño, no bloqueadores):** kover usa `minBound(0)` en `:core:designsystem` (filosofía
+de cobertura plan-wide — el gate real de cobertura vive en el dominio `:core:common`; DS igual tiene 169 tests
+reales); `ThemeRevealRoot` (root de circular-reveal full-app) diferido a Plan 5 (DS solo entrega el bridge
+`ThemeRevealController`).
+
+**Nota adicional (incidente a mitad de plan, resuelto):** la Tarea 9 de Plan 3 tuvo un colgado de Roborazzi por
+grabación de animación infinita + una carrera de dos agentes; ambos resueltos — la píldora animada ahora está
+gateada por reduce-motion, y un verificador opus independiente re-corrió el gate sobre el estado commiteado
+(verde y coherente).
+
+- **SIGUIENTE:** Plan 4 `:core:telemetry` + `:core:network` (8 tareas,
+  `docs/superpowers/plans/2026-08-09-plan4-telemetry-network.md`), luego Plan 5 (piloto, 11 tareas, gateado
+  en Planes 3+4).
