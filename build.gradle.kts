@@ -335,10 +335,15 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // igual que el resto de módulos nuevos que todavía no tienen una línea base
 // de cobertura fijada.
 // `:core:telemetry` (Plan 4, Task 1) se suma con ktlint/test/detekt desde el
-// esqueleto, mismo patrón que `:core:database`/`:core:designsystem`: `msp.kover`
-// queda aplicado pero SIN entrar a este gate todavía (piso placeholder, el
-// umbral real llega con el dominio en T2-T3) y sin Roborazzi (Compose recién
-// se ejerce en T4 para `trackClick`/`ScreenScope`).
+// esqueleto, mismo patrón que `:core:database`/`:core:designsystem`. El
+// umbral real de cobertura (90%, dominio + cola durable) entra al gate acá
+// en Task 3: `koverVerify` AGREGADO (no `koverVerifyDebug`) porque este
+// módulo, a diferencia de `:core:designsystem`, no usa Roborazzi/capturas de
+// pantalla — sus tests (incl. los Robolectric+Room de la cola durable) SÍ
+// pasan limpio bajo la variante `release` minificada, verificado corriendo
+// `:core:telemetry:testReleaseUnitTest` y `:core:telemetry:koverVerify`
+// sueltos antes de sumarlo acá. Sin Roborazzi (Compose recién se ejerce en
+// T4 para `trackClick`/`ScreenScope`).
 tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, todos los módulos."
@@ -369,6 +374,7 @@ tasks.register("prePushCheck") {
         // Task 10 ni con el código del catálogo. `:core:common` no pisa este
         // gotcha porque sus tests son JVM plano, sin Robolectric.
         ":core:designsystem:koverVerifyDebug",
+        ":core:telemetry:koverVerify",
         ":core:common:detekt",
         ":core:database:detekt",
         ":core:designsystem:detekt",
