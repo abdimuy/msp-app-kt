@@ -67,4 +67,13 @@ object OnBrandAlpha {
     const val BODY: Float = 0.82f
     const val LABEL: Float = 0.75f
     const val WELL: Float = 0.12f
+
+    /**
+     * Fondo del **delta chip** del hero (`MspHeroTodayCard`, Task 8) — pill
+     * `rgba(255,255,255,.16)` (task-8-brief.md, mockup `.delta`). Un poco más
+     * opaco que [WELL] (0.12) a propósito: el chip lleva texto corto en
+     * `captionStrong` y necesita algo más de contraste de fondo que los wells,
+     * que llevan una etiqueta + un valor más grande.
+     */
+    const val DELTA: Float = 0.16f
 }
