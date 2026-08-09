@@ -209,6 +209,11 @@ dependencies {
     // ConnectivityMonitor + su módulo Hilt (Task 5, Plan 4) — mismo package
     // `com.example.msp_app.core.network`, ningún import de consumidor cambia.
     implementation(project(":core:network"))
+    // Telemetry (puerto) + DurableTelemetry/StubTelemetrySink cableados por
+    // Hilt vía TelemetryModule (Task 4, Plan 4) — Task 8 (cierre) cablea
+    // LocalTelemetry en la raíz Compose de :app (MainActivity) para que
+    // ScreenScope/Modifier.trackClick tengan un Telemetry real en toda la app.
+    implementation(project(":core:telemetry"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

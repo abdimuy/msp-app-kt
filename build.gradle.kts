@@ -356,6 +356,28 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // este gate todavía (piso placeholder 0%) — el umbral real llega cuando T6+
 // construya el cliente Retrofit/interceptores sobre `ConnectivityMonitor`
 // (reubicado desde `:app` en esta misma tarea, comportamiento idéntico).
+//
+// Task 8 (Plan 4, cierre): confirma que AMBOS módulos nuevos del plan quedan
+// cubiertos en este gate — ktlint/test/detekt de `:core:telemetry` y
+// `:core:network` ya viven arriba desde que cada módulo nació (T1/T5); esta
+// tarea no repite esas líneas, solo verifica que sigan presentes y cierra la
+// promesa de cobertura pendiente:
+//   - `:core:telemetry:koverVerifyDebug` (90% del dominio + cola durable, ver
+//     comentario de T4 arriba) es la forma FINAL del ítem "koverVerify" que
+//     pedía el brief de cierre — no `koverVerify` a secas, por el mismo
+//     gotcha Robolectric-bajo-`release` que ya obligó a `:core:designsystem`.
+//   - `:core:network:koverVerify(Debug)` DELIBERADAMENTE no entra a este gate
+//     todavía (infra pragmática — interceptores/factory sobre OkHttp/Retrofit,
+//     mismo criterio que `:core:database`): el módulo SÍ tiene tests reales
+//     (`AppVersionInterceptorTest`/`BearerAuthInterceptorTest`/
+//     `RetrofitClientFactoryTest`/`ConnectivityMonitorTest`, todos corriendo
+//     vía `:core:network:testDebugUnitTest` arriba), pero sin piso de
+//     cobertura estricto — igual que Task 8 brief lo pide explícitamente.
+// El adapter stub de telemetría (`TelemetryModule` → `DurableTelemetry` →
+// `StubTelemetrySink`) se cablea en el composition root de `:app`
+// (`MainActivity`, vía `LocalTelemetry`) en esta misma tarea — sin tarea de
+// build nueva que agregar acá, ya cubierto por `:app:testDevlocalDebugUnitTest`
+// + `:app:assembleDevlocalDebug` de abajo.
 tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, todos los módulos."

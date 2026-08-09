@@ -5,7 +5,7 @@
 
 ## Estado global
 - **Inicio:** 2026-08-07
-- **Plan actual:** Plan 2 — `:core:database` (hoist Room + migración). Plan 1 CERRADO.
+- **Plan actual:** Plan 5 (piloto, 11 tareas) — Planes 0-4 CERRADOS.
 - **Plan 0:** ✅ CERRADO CONFORME (auditoría 7/7) en `c52590c`
 - **Plan 1:** ✅ CERRADO en `8eeb984` (13 commits). Gate de código CONFORME (auditoría 8/8, `prePushCheck` verde).
   Smoke emulador: app bootea limpia (sin crash Hilt/WM, `ClienteSyncWorker` corre). Los 5 fallos de
@@ -229,3 +229,61 @@ gateada por reduce-motion, y un verificador opus independiente re-corrió el gat
 - **SIGUIENTE:** Plan 4 `:core:telemetry` + `:core:network` (8 tareas,
   `docs/superpowers/plans/2026-08-09-plan4-telemetry-network.md`), luego Plan 5 (piloto, 11 tareas, gateado
   en Planes 3+4).
+
+### Plan 4 (`:core:telemetry` + `:core:network`) ✅ CERRADO CONFORME-CON-OBSERVACIONES
+Commit range `8f77135..d5700dc` (Tasks 1-7) + el commit de cierre de Task 8 (ver historial inmediatamente
+posterior a `d5700dc`). Auditoría de conformidad contra el checklist de 11 ítems del brief de Task 8:
+**10/11 PASS limpios, 1 observación (no bloqueante)**.
+
+8 tareas: `:core:telemetry` esqueleto (Room propio `telemetry_db` v1, SIN tocar `msp_db`/v27) → puerto `Telemetry`
+(taxonomía 4 tipos, invariante anti-PII `^[a-z0-9_.]+$`, props inmutables) + `RecordingTelemetry` fake → cola
+durable (durable/FIFO-por-`rowid`/nunca-tira-pero-respeta-cancelación/ack-based con recuperación de `UPLOADING`
+colgado/backoff exponencial/dedup key) → `Modifier.trackClick` + `ScreenScope`/`LocalScreenName` + adapter
+`DurableTelemetry` (screenView/tap/event async, error síncrono) + `StubTelemetrySink` → `:core:network` esqueleto
++ `ConnectivityMonitor` reubicado (`@Singleton` preservado, kill-switch intacto) → `NetworkConfig` inyectado +
+`AuthTokenProvider` port + `BearerAuthInterceptor`/`AppVersionInterceptor`/`RetrofitClientFactory` (kill-switch
+PROBADO: `Provider<NetworkConfig>.get()` por llamada, sin Retrofit cacheado; doble-401 sin loop) → `:app` cableado
+al factory (`BaseApi`/`V2BaseApi`/`FirebaseBearerInterceptor`/`TokenCache` eliminados; `ApiProvider`/`V2ApiProvider`/
+`ApiProviderImages`/`CobranzaSseProvider` repunteados; `X-App-Version` solo v2, verificado contra el backend Go
+real) → cierre: `prePushCheck` confirma ktlint/test/detekt/kover de ambos módulos (ya vivían ahí desde que cada
+módulo nació, T1/T4/T5) + `Telemetry`/`DurableTelemetry` cableado al composition root de `:app` (`MainActivity`
+inyecta `Telemetry` por Hilt, expone `LocalTelemetry` en la raíz Compose junto a `LocalConnectivityState`) + test
+de humo Hilt-graph-completo (`app/src/test/.../di/TelemetryHiltGraphTest.kt`: resuelve `DurableTelemetry`/
+`StubTelemetrySink` y un `event()` real llega a la cola durable) + gate completo verde (`:app` unit tests,
+`:core:telemetry`/`:core:network` unit tests, detekt, ktlint, `assembleDevlocalDebug`, `assembleDevserverRelease`,
+`prePushCheck`).
+
+**PARKEADO RESUELTO (T6):** `X-App-Version` — el backend Go (`msp-api`) NO lee ningún header de versión en
+ningún endpoint (solo `Authorization`/`X-Request-ID`/`Idempotency-Key`/`If-None-Match`/`Content-Type`/
+`X-Internal-Replay`/`Origin`); el Node v1 tampoco (auditado en el fix round de T7). El header es
+best-effort/non-load-bearing, scopeado SOLO al cliente v2 tras el fix round de T7 (v1/imágenes byte-idénticos a
+antes de esta migración, cero regresión).
+
+**⚠️ Observación de auditoría (no bloqueante, deuda de Task 3 sin flaggear en su momento):** el checklist de
+cierre pide `observePendingCount` probado reactivamente "vía Turbine" — el método existe en
+`DurableTelemetryQueue`/`TelemetryEventDao` (usado por el widget de salud futuro) y las suites de T3 lo fake-an
+(`InMemoryTelemetryEventDao`/`FailingTelemetryEventDao`), pero NINGÚN test de `:core:telemetry` lo ejercita
+directamente con Turbine ni de ninguna otra forma — `turbine` está en el catálogo de versiones
+(`libs.versions.toml`) vía el bundle `unit-test` de `msp.test`, pero cero `import app.cash.turbine` en el repo
+hoy. No se corrigió en Task 8 (fuera del alcance literal de sus "Acciones", que no lo mencionan) — deuda
+rastreada para quien retome telemetría (el widget de salud/observabilidad, mismo spec que el sink real).
+
+**Deuda rastreada explícitamente fuera de alcance (Plan 4 → Plan 5 / spec de observabilidad):**
+- Sink real de telemetría (GlitchTip/Sentry/endpoint Go) — hoy `StubTelemetrySink` (no-op con log). Decisión del
+  orquestador: fuera de Plan 4, no reabrir.
+- `screen_view` automático desde el `NavHost` (una llamada a `ScreenScope` por destino/ruta) — hoy `ScreenScope`
+  es un mecanismo reutilizable sin ningún caller en `:app` todavía; `LocalTelemetry` SÍ está provisto en la raíz
+  desde Task 8, así que cablear el auto-disparo es un cambio localizado a `AppNavigation.kt` cuando se retome.
+- `:core:network:koverVerify(Debug)` sin piso de cobertura estricto en `prePushCheck` (mismo criterio pragmático
+  que `:core:database` — infra sobre OkHttp/Retrofit, no dominio puro); el módulo SÍ tiene tests reales
+  corriendo en el gate vía `testDebugUnitTest`.
+- `di/NetworkClientsModule` explícito nunca se creó — `RetrofitClientFactory` es `@Inject`-constructable directo
+  y ningún consumidor lo necesitó vía `@Provides` — YAGNI, no bloqueó ninguna tarea.
+
+**Sin regresión confirmada:** `:app` unit tests verdes, `assembleDevlocalDebug` + `assembleDevserverRelease`
+(release, kill-switch activo) verdes, `prePushCheck` verde cubriendo `:core:telemetry` + `:core:network` +
+`:app` + el resto de módulos existentes. App idéntica al usuario — telemetría escribe silenciosamente a su cola
+local (stub sink, sin red); red sale del factory con mismo comportamiento observable.
+
+- **SIGUIENTE:** Plan 5 (piloto, 11 tareas, gateado en Planes 3+4) — `docs/superpowers/plans/` (buscar el
+  archivo de Plan 5).

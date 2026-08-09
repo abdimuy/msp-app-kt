@@ -18,6 +18,8 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.msp_app.core.context.LocalConnectivityState
 import com.example.msp_app.core.context.rememberConnectivityState
+import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.core.telemetry.compose.LocalTelemetry
 import com.example.msp_app.navigation.AppNavigation
 import com.example.msp_app.ui.theme.MspappTheme
 import com.example.msp_app.ui.theme.ThemeController
@@ -25,6 +27,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.persistentCacheSettings
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -32,6 +35,17 @@ class MainActivity : FragmentActivity() {
     companion object {
         var isAuthenticated by mutableStateOf(false)
     }
+
+    /**
+     * Adapter real (`DurableTelemetry`, drenando al `StubTelemetrySink` —
+     * Plan 4, Task 4/8) provisto por `TelemetryModule` (`:core:telemetry`).
+     * Se expone al árbol Compose vía [LocalTelemetry] en [onCreate] para que
+     * `ScreenScope`/`Modifier.trackClick` dejen de resolver al no-op de
+     * seguridad y encolen de verdad. Field injection (no constructor): Hilt
+     * exige esa forma para una `Activity`/`FragmentActivity`.
+     */
+    @Inject
+    lateinit var telemetry: Telemetry
 
     private var lastActivityTime = System.currentTimeMillis()
     private val inactivityTimeoutMs = 5 * 60 * 1000L // 5 minutos
@@ -73,7 +87,10 @@ class MainActivity : FragmentActivity() {
             val connectivityState by rememberConnectivityState()
 
             MspappTheme(dynamicColor = false) {
-                CompositionLocalProvider(LocalConnectivityState provides connectivityState) {
+                CompositionLocalProvider(
+                    LocalConnectivityState provides connectivityState,
+                    LocalTelemetry provides telemetry
+                ) {
                     if (isAuthenticated) {
                         AppNavigation()
                     } else {
