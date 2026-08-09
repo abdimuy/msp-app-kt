@@ -6,6 +6,7 @@ import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -53,7 +54,7 @@ class ProductsLocalDataSourceTest : RoomTestBase() {
 
         val got = store.getProductById(1)
 
-        assertEquals("Colchon King", got.ARTICULO)
+        assertEquals("Colchon King", got?.ARTICULO)
     }
 
     @Test
@@ -79,26 +80,22 @@ class ProductsLocalDataSourceTest : RoomTestBase() {
         val result = store.getProductsByFolio("F-old")
 
         assertTrue("saveAll borra el contenido anterior antes de insertar", result.isEmpty())
-        assertEquals("F-new", store.getProductById(2).FOLIO)
+        assertEquals("F-new", store.getProductById(2)?.FOLIO)
     }
 
     @Test
-    fun getProductById_absent_returnsPlatformNullDespiteNonNullType() = runTest {
-        // AUDIT (Task 8, no fix): ProductDao.getProductById declara un
-        // retorno NO-nulo (`ProductEntity`, no `ProductEntity?`) pero la
-        // query no tiene guardia para resultado vacio. Verificado en runtime:
-        // Room NO lanza — regresa un null de plataforma que el tipo Kotlin
-        // declara imposible. Cualquier caller que confie en el tipo (sin
-        // `?.`/`!!`) revienta con NPE en el sitio de uso, lejos del origen
-        // real. Documentado aqui, fuera de alcance (el DAO no forma parte de
-        // los 5 archivos de este lote) — ver reporte de auditoria.
+    fun getProductById_absent_returnsNull() = runTest {
+        // FIX (Task 4): ProductDao.getProductById ahora declara `ProductEntity?`
+        // (antes non-null pese a que la query de una sola fila podia no
+        // encontrar nada; Room regresaba un null de plataforma que el tipo
+        // declaraba imposible, y cualquier caller sin `?.`/`!!` reventaba con
+        // NPE lejos del origen real). Con el fix, un id ausente es un `null`
+        // de Kotlin legitimo y verificable sin trucos de reflexion.
         val result = store.getProductById(999)
 
-        @Suppress("SENSELESS_COMPARISON")
-        assertTrue(
-            "ProductDao.getProductById regresa null de plataforma para un id ausente " +
-                "pese a declarar tipo no-nulo (bug latente preexistente en ProductDao)",
-            result == null
+        assertNull(
+            "ProductDao.getProductById debe regresar null para un id ausente",
+            result
         )
     }
 
@@ -111,8 +108,8 @@ class ProductsLocalDataSourceTest : RoomTestBase() {
 
         assertEquals(
             "ambos constructores resuelven a la misma DB",
-            store.getProductById(1).ARTICULO,
-            contextForm.getProductById(1).ARTICULO
+            store.getProductById(1)?.ARTICULO,
+            contextForm.getProductById(1)?.ARTICULO
         )
     }
 }

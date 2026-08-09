@@ -83,9 +83,15 @@ class ProductDetailsViewModel @JvmOverloads constructor(
 
     private suspend fun loadFromLocal(id: Int) {
         try {
-            val local = withContext(ioDispatcher) {
-                localDataSource.getProductInventoryById(id).toDomain()
+            val localEntity = withContext(ioDispatcher) {
+                localDataSource.getProductInventoryById(id)
             }
+            if (localEntity == null) {
+                _product.value = null
+                _productState.value = ResultState.Error("Producto no encontrado")
+                return
+            }
+            val local = localEntity.toDomain()
             _product.value = local
             _productState.value = ResultState.Success(local)
         } catch (e: Exception) {

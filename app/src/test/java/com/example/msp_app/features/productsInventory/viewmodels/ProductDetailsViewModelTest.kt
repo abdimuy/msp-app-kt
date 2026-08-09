@@ -141,6 +141,23 @@ class ProductDetailsViewModelTest : RoomTestBase() {
         assertEquals(42, (state as ResultState.Success).data.EXISTENCIAS)
         assertEquals(42, vm.product.value?.EXISTENCIAS)
         // Room fue sobreescrito (REPLACE) con las existencias frescas.
-        assertEquals(42, db.productInventoryDao().getProductInventoryById(id).EXISTENCIAS)
+        assertEquals(42, db.productInventoryDao().getProductInventoryById(id)?.EXISTENCIAS)
+    }
+
+    // (e) Sin red y sin cache local → estado de error explícito de "no encontrado",
+    // NO un NPE disfrazado de excepción generica (fix Task 4: DAO ahora regresa
+    // `null` real en vez de un platform-null sobre un tipo declarado non-null).
+    @Test
+    fun localMissingId_yieldsNotFoundErrorWithoutCrashing() = runVmTest {
+        val id = 505 // Room vacío para este id, red también falla.
+        val api = FakeProductInventoryApi { throw RuntimeException("network down") }
+        val vm = viewModel(api)
+
+        vm.loadProductById(id)
+        val state = vm.awaitTerminal()
+
+        assertTrue("se espera Error, no un crash", state is ResultState.Error)
+        assertEquals("Producto no encontrado", (state as ResultState.Error).message)
+        assertEquals(null, vm.product.value)
     }
 }

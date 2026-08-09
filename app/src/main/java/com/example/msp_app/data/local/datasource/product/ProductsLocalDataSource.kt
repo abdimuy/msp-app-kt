@@ -19,7 +19,7 @@ class ProductsLocalDataSource @Inject constructor(
      */
     constructor(context: Context) : this(AppDatabase.getInstance(context).productDao())
 
-    suspend fun getProductById(id: Int): ProductEntity {
+    suspend fun getProductById(id: Int): ProductEntity? {
         return productDao.getProductById(id)
     }
 

@@ -56,24 +56,22 @@ class ProductInventoryLocalDataSourceTest : RoomTestBase() {
     fun getProductInventoryById_returnsMatchingRow() = runTest {
         store.insertAll(listOf(inventory(id = 100, articulo = "Colchon King")))
 
-        assertEquals("Colchon King", store.getProductInventoryById(100).ARTICULO)
+        assertEquals("Colchon King", store.getProductInventoryById(100)?.ARTICULO)
     }
 
     @Test
-    fun getProductInventoryById_absent_returnsPlatformNullDespiteNonNullType() = runTest {
-        // AUDIT (Task 8, no fix): mismo patron que ProductDao.getProductById
-        // — retorno no-nulo sin guardia para resultado vacio. Verificado en
-        // runtime: Room NO lanza, regresa un null de plataforma que el tipo
-        // Kotlin declara imposible (NPE diferido al primer acceso a campo en
-        // el caller). Documentado, fuera de alcance (DAO no forma parte de
-        // los 5 archivos del lote).
+    fun getProductInventoryById_absent_returnsNull() = runTest {
+        // FIX (Task 4): ProductInventoryDao.getProductInventoryById ahora
+        // declara `ProductInventoryEntity?` (mismo patron de bug que
+        // ProductDao.getProductById — retorno non-null sin guardia para
+        // resultado vacio; Room regresaba un null de plataforma que el tipo
+        // declaraba imposible). Con el fix, un id ausente es un `null` de
+        // Kotlin legitimo.
         val result = store.getProductInventoryById(999)
 
-        @Suppress("SENSELESS_COMPARISON")
-        assertTrue(
-            "ProductInventoryDao.getProductInventoryById regresa null de plataforma para un id " +
-                "ausente pese a declarar tipo no-nulo (bug latente preexistente)",
-            result == null
+        assertNull(
+            "ProductInventoryDao.getProductInventoryById debe regresar null para un id ausente",
+            result
         )
     }
 
@@ -116,8 +114,8 @@ class ProductInventoryLocalDataSourceTest : RoomTestBase() {
 
         assertEquals(
             "ambos constructores resuelven a la misma DB",
-            store.getProductInventoryById(100).ARTICULO,
-            contextForm.getProductInventoryById(100).ARTICULO
+            store.getProductInventoryById(100)?.ARTICULO,
+            contextForm.getProductInventoryById(100)?.ARTICULO
         )
     }
 }

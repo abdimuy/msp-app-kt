@@ -23,7 +23,7 @@ class ProductInventoryLocalDataSource @Inject constructor(
         return productInventoryDao.getAll()
     }
 
-    suspend fun getProductInventoryById(id: Int): ProductInventoryEntity {
+    suspend fun getProductInventoryById(id: Int): ProductInventoryEntity? {
         return productInventoryDao.getProductInventoryById(id)
     }
 

@@ -65,10 +65,6 @@ class GuaranteesLocalDataSource @Inject constructor(
         guaranteesDao.insertGuaranteesImagen(image)
     }
 
-    suspend fun getImagesByGuaranteeId(guaranteeId: Int): List<GuaranteeImageEntity> {
-        return guaranteesDao.getImagenesByGuaranteesId(guaranteeId)
-    }
-
     suspend fun getImagesByExternalId(externalId: String): List<GuaranteeImageEntity> {
         return guaranteesDao.getImagesByExternalId(externalId)
     }

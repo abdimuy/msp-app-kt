@@ -23,7 +23,7 @@ interface ProductDao {
     FROM products 
     WHERE ARTICULO_ID = :id"""
     )
-    suspend fun getProductById(id: Int): ProductEntity
+    suspend fun getProductById(id: Int): ProductEntity?
 
     @Query(
         """SELECT 
