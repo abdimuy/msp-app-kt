@@ -326,6 +326,115 @@ class PaymentsLocalDataSourceTest : RoomTestBase() {
         assertEquals(0.0, db.saleDao().findByDoctoCcId(6001)!!.SALDO_REST, 1e-9)
     }
 
+    // ─── saveAll: refresh de caché SIN perder dinero pendiente (fix money) ────
+
+    /**
+     * Caracterización old→new del bug money de [PaymentsLocalDataSource.saveAll].
+     *
+     * OLD: el wrapper hacía `paymentDao.deleteAll()` (`DELETE FROM payment`),
+     * que borra TODA la tabla, incluidos los pagos pendientes de subir
+     * (`GUARDADO_EN_MICROSIP = 0`) — dinero capturado localmente que aún no
+     * llega al servidor. Este test reproduce ese comportamiento llamando el
+     * DAO directo para probar que `deleteAll()` SÍ borraba el pendiente.
+     *
+     * NEW: el wrapper usa `deleteUploaded()`, así que el pendiente sobrevive.
+     * Ver [saveAll_preservesPendingRefreshesUploaded].
+     */
+    @Test
+    fun oldBehavior_deleteAllWipesPendingMoney() = runTest {
+        store.savePayment(payment(id = "pend-viejo", guardado = false, importe = 500.0))
+        store.savePayment(payment(id = "subido-viejo", guardado = true, importe = 350.0))
+
+        // Comportamiento OLD reproducido: deleteAll + saveAll del set del servidor.
+        db.paymentDao().deleteAll()
+        db.paymentDao().saveAll(listOf(payment(id = "server-1", guardado = true, importe = 700.0)))
+
+        assertTrue(
+            "OLD: deleteAll borraba el pendiente (dinero no sincronizado perdido)",
+            store.getPendingPayments().isEmpty()
+        )
+        assertNull(
+            "OLD: el pago pendiente desaparecia por completo de la tabla",
+            store.getPaymentById("pend-viejo")
+        )
+    }
+
+    @Test
+    fun saveAll_preservesPendingRefreshesUploaded() = runTest {
+        // Estado local: 1 pago ya subido + 1 pago pendiente de subir.
+        store.savePayment(payment(id = "subido-1", guardado = true, importe = 350.0))
+        store.savePayment(payment(id = "pend-1", guardado = false, importe = 500.0))
+
+        // Llega el set fresco del servidor (todos ya confirmados en Microsip).
+        store.saveAll(
+            listOf(
+                payment(id = "server-1", guardado = true, importe = 700.0),
+                payment(id = "server-2", guardado = true, importe = 900.0)
+            )
+        )
+
+        // NEW: el pendiente SOBREVIVE — deleteUploaded no lo toca.
+        val pending = store.getPendingPayments()
+        assertEquals(
+            "el pago pendiente de subir se conserva tras el refresh de caché",
+            listOf("pend-1"),
+            pending.map { it.ID }
+        )
+        assertEquals("no se pierde el importe pendiente", 500.0, pending.single().IMPORTE, 1e-9)
+
+        // El subido viejo se descarta y entra el set del servidor.
+        assertNull("el subido viejo se refresca (borrado)", store.getPaymentById("subido-1"))
+        assertEquals(
+            "entra el set completo del servidor + sigue el pendiente",
+            listOf("pend-1", "server-1", "server-2").sorted(),
+            store.getAllPayments().map { it.ID }.sorted()
+        )
+    }
+
+    @Test
+    fun saveAll_emptyServerSet_stillPreservesPending() = runTest {
+        store.savePayment(payment(id = "subido-1", guardado = true, importe = 350.0))
+        store.savePayment(payment(id = "pend-1", guardado = false, importe = 500.0))
+
+        // El servidor no devuelve nada (zona vacía, filtro sin resultados).
+        store.saveAll(emptyList())
+
+        assertEquals(
+            "aun con set vacio el pendiente se conserva",
+            listOf("pend-1"),
+            store.getPendingPayments().map { it.ID }
+        )
+        assertNull("el subido se limpia igual", store.getPaymentById("subido-1"))
+        assertEquals(
+            "solo queda el pendiente",
+            listOf("pend-1"),
+            store.getAllPayments().map { it.ID }
+        )
+    }
+
+    @Test
+    fun saveAll_serverRowCollidesWithPendingId_reconcilesNotLoses() = runTest {
+        // Un pago pendiente cuyo ID coincide con una fila que el servidor
+        // reenvia (ya confirmada). REPLACE debe reconciliar, no perder dinero
+        // silenciosamente: la fila queda como subida con el importe del servidor.
+        store.savePayment(payment(id = "colision", guardado = false, importe = 500.0))
+
+        store.saveAll(
+            listOf(payment(id = "colision", guardado = true, importe = 500.0))
+        )
+
+        val got = store.getPaymentById("colision")!!
+        assertTrue(
+            "el pago colisionado queda marcado como subido (reconciliado con el servidor)",
+            got.GUARDADO_EN_MICROSIP
+        )
+        assertEquals("el importe no se altera al reconciliar", 500.0, got.IMPORTE, 1e-9)
+        assertTrue(
+            "ya no cuenta como pendiente: el servidor confirmo ese pago",
+            store.getPendingPayments().isEmpty()
+        )
+    }
+
     // ─── equivalencia inyectado ⇔ puente context ──────────────────────────────
 
     @Test

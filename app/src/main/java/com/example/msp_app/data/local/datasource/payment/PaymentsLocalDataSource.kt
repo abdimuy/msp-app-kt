@@ -87,8 +87,32 @@ class PaymentsLocalDataSource @Inject constructor(
         paymentDao.savePayment(payment)
     }
 
+    /**
+     * Refresca la caché local con el set de pagos del servidor SIN perder
+     * el dinero capturado localmente que aún no se sube.
+     *
+     * **Fix money-path (bug pre-existente, dormido):** antes hacía
+     * `deleteAll()` (`DELETE FROM payment`), que borraba TODA la tabla —
+     * incluidos los pagos pendientes de subir (`GUARDADO_EN_MICROSIP = 0`).
+     * Ningún caller de producción usaba este wrapper (los reales,
+     * `CobranzaReconciler`/`CobranzaSyncManager`, llaman `paymentDao.saveAll`
+     * directo), así que el bug nunca detonó, pero el primer caller que lo
+     * usara habría destruido dinero no sincronizado.
+     *
+     * Ahora usa [PaymentDao.deleteUploaded] (`DELETE ... WHERE
+     * GUARDADO_EN_MICROSIP = 1`): borra solo lo ya confirmado por el
+     * servidor y luego re-inserta el set entrante con REPLACE
+     * (`OnConflictStrategy.REPLACE` en [PaymentDao.saveAll]). Semántica:
+     * - Los pendientes (`= 0`) sobreviven al DELETE, ya que este solo toca
+     *   filas subidas.
+     * - Si el servidor reenvía un pago cuyo ID coincide con uno pendiente,
+     *   el REPLACE lo pisa con la versión del servidor (que ya trae
+     *   `GUARDADO_EN_MICROSIP = 1`): es correcto, ese pago ya está en el
+     *   servidor y deja de estar pendiente — no se pierde dinero, se
+     *   reconcilia.
+     */
     suspend fun saveAll(payments: List<PaymentEntity>) {
-        paymentDao.deleteAll()
+        paymentDao.deleteUploaded()
         paymentDao.saveAll(payments)
     }
 
