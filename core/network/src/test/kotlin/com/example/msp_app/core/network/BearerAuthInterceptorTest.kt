@@ -83,6 +83,26 @@ class BearerAuthInterceptorTest {
     }
 
     @Test
+    fun `en doble 401 reintenta una sola vez y devuelve el segundo 401 sin bucle`() {
+        server.enqueue(MockResponse().setResponseCode(HTTP_UNAUTHORIZED))
+        server.enqueue(MockResponse().setResponseCode(HTTP_UNAUTHORIZED))
+        val provider = FakeAuthTokenProvider(initialToken = "stale", refreshedToken = "fresh")
+
+        val code = clientWith(provider)
+            .newCall(Request.Builder().url(server.url("/")).build())
+            .execute()
+            .use { it.code }
+
+        assertEquals(HTTP_UNAUTHORIZED, code)
+        assertEquals(2, server.requestCount)
+        assertEquals(1, provider.refreshCalls)
+        val first = server.takeRequest()
+        val second = server.takeRequest()
+        assertEquals("Bearer stale", first.getHeader("Authorization"))
+        assertEquals("Bearer fresh", second.getHeader("Authorization"))
+    }
+
+    @Test
     fun `en 401 sin token previo no reintenta en bucle`() {
         server.enqueue(MockResponse().setResponseCode(HTTP_UNAUTHORIZED))
         val provider = FakeAuthTokenProvider(initialToken = null)
