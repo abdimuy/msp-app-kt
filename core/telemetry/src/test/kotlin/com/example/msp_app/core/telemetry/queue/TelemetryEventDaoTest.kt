@@ -56,15 +56,47 @@ class TelemetryEventDaoTest : RobolectricTestBase() {
     )
 
     @Test
-    fun `insert persiste y nextBatch respeta orden FIFO por createdAt`() = runTest {
-        dao.insert(entity("e3", createdAt = 300))
+    fun `insert persiste y nextBatch respeta orden de insercion (rowid)`() = runTest {
         dao.insert(entity("e1", createdAt = 100))
         dao.insert(entity("e2", createdAt = 200))
+        dao.insert(entity("e3", createdAt = 300))
 
         val batch = dao.nextBatch(limit = 10)
 
         assertEquals(listOf("e1", "e2", "e3"), batch.map { it.id })
     }
+
+    // Fix ronda 1 (Important 2): el orden de drenado es por ROWID (insercion),
+    // NO por `createdAt`. Este test lo prueba de forma explicita: e1 se
+    // inserta PRIMERO pero con el `createdAt` MAS GRANDE (mas "tarde" en
+    // timestamp) — si `nextBatch` ordenara por `createdAt`, e1 quedaria de
+    // ULTIMO; como ordena por rowid, e1 sale PRIMERO (fue insertado primero).
+    @Test
+    fun `nextBatch ordena por insercion, no por createdAt, aunque los timestamps esten invertidos`() =
+        runTest {
+            dao.insert(entity("e1", createdAt = 999))
+            dao.insert(entity("e2", createdAt = 500))
+            dao.insert(entity("e3", createdAt = 1))
+
+            val batch = dao.nextBatch(limit = 10)
+
+            assertEquals(listOf("e1", "e2", "e3"), batch.map { it.id })
+        }
+
+    // Fix ronda 1 (Important 2): el caso concreto que reporto el revisor —
+    // 2+ eventos con el MISMO `createdAt` deben drenar en orden de insercion.
+    @Test
+    fun `nextBatch desempata por insercion cuando varios eventos comparten el mismo createdAt`() =
+        runTest {
+            val mismoTimestamp = 12345L
+            dao.insert(entity("primero", createdAt = mismoTimestamp))
+            dao.insert(entity("segundo", createdAt = mismoTimestamp))
+            dao.insert(entity("tercero", createdAt = mismoTimestamp))
+
+            val batch = dao.nextBatch(limit = 10)
+
+            assertEquals(listOf("primero", "segundo", "tercero"), batch.map { it.id })
+        }
 
     @Test
     fun `nextBatch respeta el limit`() = runTest {

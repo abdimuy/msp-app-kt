@@ -20,7 +20,22 @@ interface TelemetryEventDao {
     suspend fun insert(event: TelemetryEventEntity)
 
     /**
-     * Siguiente lote a drenar, en orden FIFO por [TelemetryEventEntity.createdAt].
+     * Siguiente lote a drenar, en orden FIFO por `rowid` — el id de inserción
+     * físico e implícito de SQLite para cualquier tabla ordinaria (la nuestra
+     * no es `WITHOUT ROWID`), monótono por INSERT y nunca ambiguo entre dos
+     * filas. Fix ronda 1 de revisión: ordenar por [TelemetryEventEntity.createdAt]
+     * (millis) rompía FIFO cuando dos eventos se encolaban en el MISMO
+     * milisegundo — `createdAt` sigue siendo el campo de negocio/diagnóstico
+     * (para el TTL de [deleteSent] y el filtro de backoff en
+     * [DurableTelemetryQueue]), pero el ORDEN de drenado usa `rowid`.
+     *
+     * `rowid` no necesita columna ni índice propio en la entidad (es
+     * intrínseco de SQLite, no algo que Room declare) y preserva el orden
+     * relativo de las filas TODAVÍA VIVAS en la tabla incluso si
+     * [deleteSent] borra filas viejas entre medio: una fila nueva siempre
+     * recibe un `rowid` mayor que el de cualquier fila que siga presente al
+     * momento de insertarla, sin importar qué se haya borrado antes.
+     *
      * Estados drenables: `PENDING` (nunca intentado) y `FAILED` (reintento).
      * `UPLOADING` deliberadamente NO se incluye acá — [recoverStuckUploading]
      * se llama SIEMPRE antes de este método en [DurableTelemetryQueue.drain],
@@ -30,7 +45,7 @@ interface TelemetryEventDao {
      */
     @Query(
         "SELECT * FROM telemetry_events WHERE state IN ('PENDING', 'FAILED') " +
-            "ORDER BY createdAt ASC LIMIT :limit"
+            "ORDER BY rowid ASC LIMIT :limit"
     )
     suspend fun nextBatch(limit: Int): List<TelemetryEventEntity>
 

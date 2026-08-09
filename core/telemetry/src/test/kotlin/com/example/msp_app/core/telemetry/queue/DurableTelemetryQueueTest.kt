@@ -7,9 +7,16 @@ import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.core.testing.time.FakeClock
 import java.io.File
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -26,6 +33,9 @@ private const val DB_FILE_NAME = "durable-telemetry-queue-test.db"
  * MENOS una prueba que lo prueba de forma directa, más los casos borde de
  * ack-based recovery y concurrencia que exige el brief.
  */
+@OptIn(
+    ExperimentalCoroutinesApi::class
+) // `advanceUntilIdle()`, tests de cancelacion (fix ronda 1).
 class DurableTelemetryQueueTest : RobolectricTestBase() {
 
     private lateinit var dbFile: File
@@ -98,6 +108,57 @@ class DurableTelemetryQueueTest : RobolectricTestBase() {
 
         assertEquals(3, delivered)
         assertEquals(listOf("e1", "e2", "e3"), sink.sent.map { it.name })
+    }
+
+    // Fix ronda 1 (Important 2): ordenar por `createdAt` (millis) rompia FIFO
+    // cuando dos eventos caian en el MISMO milisegundo — el reloj de este test
+    // NO avanza entre los 3 `enqueue`, asi que los 3 comparten `createdAt`
+    // exacto; solo el orden de insercion (`rowid`) puede desempatar.
+    @Test
+    fun `drain respeta orden de insercion cuando varios eventos comparten el mismo timestamp`() =
+        runTest {
+            val queue = DurableTelemetryQueue(dao, clock)
+            queue.enqueue(someEvent("e1"))
+            queue.enqueue(someEvent("e2"))
+            queue.enqueue(someEvent("e3"))
+            val inserted = dao.nextBatch(10)
+            assertEquals(
+                "precondicion del test: los 3 deben compartir createdAt exacto",
+                1,
+                inserted.map { it.createdAt }.toSet().size
+            )
+            val sink = RecordingSink()
+
+            val delivered = queue.drain(sink)
+
+            assertEquals(3, delivered)
+            assertEquals(listOf("e1", "e2", "e3"), sink.sent.map { it.name })
+        }
+
+    // Fix ronda 1 (Robustness 3): el sink recibe el id ESTABLE de la fila
+    // (dedup key para T4), no solo el TelemetryEvent de dominio.
+    @Test
+    fun `drain propaga al sink el id estable de la fila encolada`() = runTest {
+        val queue = DurableTelemetryQueue(dao, clock)
+        queue.enqueue(someEvent("e1"))
+        val expectedId = dao.nextBatch(10).single().id
+        val sink = RecordingSink()
+
+        queue.drain(sink)
+
+        assertEquals(listOf(expectedId), sink.deliveredIds)
+    }
+
+    @Test
+    fun `los ids entregados al sink son unicos, sirven de dedup key`() = runTest {
+        val queue = DurableTelemetryQueue(dao, clock)
+        queue.enqueue(someEvent("e1"))
+        queue.enqueue(someEvent("e2"))
+        val sink = RecordingSink()
+
+        queue.drain(sink)
+
+        assertEquals(2, sink.deliveredIds.toSet().size)
     }
 
     @Test
@@ -267,6 +328,137 @@ class DurableTelemetryQueueTest : RobolectricTestBase() {
             val ids = dao.nextBatch(total).map { it.id }
             assertEquals(total, ids.toSet().size) // ids UUID unicos, sin colision
         }
+
+    // Fix ronda 1 (Robustness 4): "enqueue mientras se drena" con solapamiento
+    // REAL. `runTest` corre sobre un scheduler virtual de UN solo hilo
+    // cooperativo — dos corrutinas lanzadas ahi NUNCA se ejecutan en paralelo
+    // de verdad, asi que no puede probar una carrera genuina entre escritores.
+    // Este test usa `runBlocking` + `Dispatchers.Default` (hilos reales) y un
+    // `RecordingSink` con `delayMillis` para abrir una ventana de tiempo real
+    // en la que el `enqueue` concurrente puede intercalarse con el `drain` en
+    // curso. Limitacion conocida: sigue siendo no-determinista en el SENTIDO
+    // de la intercalacion exacta (que fila del drain se procesa cuando llega
+    // el enqueue nuevo) — lo que el test AFIRMA de forma determinista es la
+    // invariante que importa: cero perdida, cero duplicado, cero corrupcion,
+    // sin importar como se intercale.
+    @Test
+    fun `enqueue concurrente mientras un drain esta en curso no pierde ni corrompe filas`() {
+        runBlocking(Dispatchers.Default) {
+            val queue = DurableTelemetryQueue(dao, clock)
+            val previo = 5
+            repeat(previo) { i -> queue.enqueue(someEvent("previo_$i")) }
+            val nuevos = 5
+            val sink = RecordingSink(delayMillis = 5)
+
+            val drainJob = launch { queue.drain(sink, batchSize = previo) }
+            val enqueueJob = launch {
+                repeat(nuevos) { i -> queue.enqueue(someEvent("concurrente_$i")) }
+            }
+            drainJob.join()
+            enqueueJob.join()
+
+            val totalEsperado = previo + nuevos
+            val entregados = sink.deliveredIds.toSet()
+            val restantes = dao.nextBatch(totalEsperado).map { it.id }.toSet()
+
+            assertEquals(
+                "nada se pierde: entregados + restantes debe ser exactamente lo encolado",
+                totalEsperado,
+                entregados.size + restantes.size
+            )
+            assertTrue(
+                "nada se corrompe/duplica: un id no puede estar entregado Y restante a la vez",
+                entregados.intersect(restantes).isEmpty()
+            )
+        }
+    }
+
+    // --- Cancelacion estructurada: CancellationException nunca se traga ---
+
+    // Nota: los 2 tests de cancelacion usan `InMemoryTelemetryEventDao` (no la
+    // DB Room real de este archivo) para que TODO lo previo al punto de
+    // suspension real (`HangingSink`/`insert` colgado) sea sincrono/determinista
+    // bajo el scheduler virtual de `runTest` — ver KDoc de ese fake.
+
+    @Test
+    fun `cancelar el scope mientras drain esta en curso propaga CancellationException, no se traga`() =
+        runTest {
+            val inMemoryDao = InMemoryTelemetryEventDao()
+            val queue = DurableTelemetryQueue(inMemoryDao, clock)
+            queue.enqueue(someEvent("e1"))
+            var propagoCancellation = false
+            var continuoTrasCancelar = false
+
+            val job = launch {
+                try {
+                    queue.drain(HangingSink())
+                    continuoTrasCancelar = true // solo se alcanza si drain() TRAGO la cancelacion
+                } catch (e: CancellationException) {
+                    propagoCancellation = true
+                    throw e
+                }
+            }
+            advanceUntilIdle() // deja que el job llegue a awaitCancellation() dentro del sink
+            job.cancel()
+            job.join()
+
+            assertTrue(
+                "CancellationException debe propagarse fuera de drain(), no tragarse",
+                propagoCancellation
+            )
+            assertFalse(
+                "el codigo NO debe continuar ejecutandose tras la cancelacion",
+                continuoTrasCancelar
+            )
+        }
+
+    @Test
+    fun `cancelar el scope mientras enqueue esta en curso propaga CancellationException, no se traga`() =
+        runTest {
+            val hangingDao = object : TelemetryEventDao by InMemoryTelemetryEventDao() {
+                override suspend fun insert(event: TelemetryEventEntity): Nothing =
+                    awaitCancellation()
+            }
+            val queue = DurableTelemetryQueue(hangingDao, clock)
+            var propagoCancellation = false
+            var continuoTrasCancelar = false
+
+            val job = launch {
+                try {
+                    queue.enqueue(someEvent("e1"))
+                    continuoTrasCancelar = true
+                } catch (e: CancellationException) {
+                    propagoCancellation = true
+                    throw e
+                }
+            }
+            advanceUntilIdle()
+            job.cancel()
+            job.join()
+
+            assertTrue(
+                "CancellationException debe propagarse fuera de enqueue(), no tragarse",
+                propagoCancellation
+            )
+            assertFalse(
+                "el codigo NO debe continuar ejecutandose tras la cancelacion",
+                continuoTrasCancelar
+            )
+        }
+
+    @Test
+    fun `un IOException del DAO SI se sigue tragando (no es CancellationException)`() = runTest {
+        // Contraste explicito con los dos tests de arriba: una excepcion NORMAL
+        // (no de cancelacion) sigue absorbida — el fix de ronda 1 es especifico
+        // a CancellationException, no un relajamiento general del invariante
+        // "nunca tira errores".
+        val failingDao = FailingTelemetryEventDao { java.io.IOException("disco lleno") }
+        val queue = DurableTelemetryQueue(failingDao, clock)
+
+        queue.enqueue(someEvent("e1")) // no debe lanzar
+        val delivered = queue.drain(RecordingSink())
+        assertEquals(0, delivered)
+    }
 
     // --- Drenar cola vacia es no-op ---
 

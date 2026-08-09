@@ -6,6 +6,7 @@ import com.example.msp_app.core.telemetry.TelemetryEvent
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 
 private const val TAG = "DurableTelemetryQueue"
@@ -21,15 +22,23 @@ private const val TAG = "DurableTelemetryQueue"
  *     `telemetry_events` (ver `DurableTelemetryQueueTest`, prueba de
  *     cerrar/reabrir la DB real).
  *  2. **FIFO**: [drain] toma el lote de [TelemetryEventDao.nextBatch]
- *     (ordenado por `createdAt`) y lo entrega al [sink] en ESE orden, sin
- *     reordenar ni paralelizar.
- *  3. **Nunca tira errores al caller**: NINGÚN método público de esta clase
- *     puede propagar una excepción — un fallo del DAO (disco lleno, DB
- *     corrupta) o del [sink] (red caída) se loguea y se absorbe. Telemetría
- *     es best-effort por diseño; una falla acá NUNCA debe tumbar el flujo de
- *     negocio que la está emitiendo. Es la política opuesta al outbox de
- *     dinero (`:core:common` `sync/pendingwork`) — ahí tragarse un error
- *     sería el bug; acá es el requisito.
+ *     (ordenado por `rowid`, NO por `createdAt` — fix ronda 1 de revisión:
+ *     dos eventos encolados en el MISMO milisegundo tenían orden indefinido
+ *     ordenando por timestamp; `rowid` es el id de inserción monótono e
+ *     intrínseco de SQLite, nunca ambiguo entre dos inserts) y lo entrega al
+ *     [sink] en ESE orden, sin reordenar ni paralelizar.
+ *  3. **Nunca tira errores al caller, PERO `CancellationException` SIEMPRE se
+ *     repropaga**: un fallo del DAO (disco lleno, DB corrupta) o del [sink]
+ *     (red caída) se loguea y se absorbe — telemetría es best-effort por
+ *     diseño, una falla acá NUNCA debe tumbar el flujo de negocio que la está
+ *     emitiendo. Es la política opuesta al outbox de dinero (`:core:common`
+ *     `sync/pendingwork`) — ahí tragarse un error sería el bug; acá es el
+ *     requisito. PERO "nunca tira errores" NO incluye la cancelación
+ *     estructurada: cada `catch (e: Throwable)` de esta clase repropaga
+ *     `CancellationException` ANTES de absorber cualquier otra cosa (fix
+ *     ronda 1: un `catch(Throwable)` ciego también atrapaba
+ *     `CancellationException`, rompiendo la cancelación cooperativa — un
+ *     scope cancelado no lograba cancelar de verdad este trabajo).
  *
  * @param dao Store Room propio de `telemetry_db` (ver [TelemetryDatabase]).
  * @param clock Fuente de tiempo inyectable — SIEMPRE `AppClock`, nunca
@@ -68,6 +77,8 @@ class DurableTelemetryQueue(
                     createdAt = now
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             Log.e(TAG, "no se pudo encolar el evento de telemetria (descartado, best-effort)", e)
         }
@@ -86,6 +97,8 @@ class DurableTelemetryQueue(
     @Suppress("TooGenericExceptionCaught")
     suspend fun pendingCount(): Int = try {
         dao.pendingCount()
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Throwable) {
         Log.e(TAG, "no se pudo leer el conteo pendiente de telemetria", e)
         0
@@ -96,6 +109,8 @@ class DurableTelemetryQueue(
     suspend fun purgeSentNoise(olderThan: Instant) {
         try {
             dao.deleteSent(olderThan.toEpochMilli())
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             Log.e(TAG, "no se pudo purgar telemetria enviada (no critico)", e)
         }
@@ -138,6 +153,8 @@ class DurableTelemetryQueue(
             dao.markUploading(due.map { it.id }, now.toEpochMilli())
             due.sumOf { entity -> attemptDelivery(entity, sink, maxAttempts) }
         }
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Throwable) {
         Log.e(TAG, "fallo inesperado drenando la cola de telemetria (best-effort, sin propagar)", e)
         0
@@ -158,8 +175,13 @@ class DurableTelemetryQueue(
         maxAttempts: Int
     ): Int {
         val delivered = try {
-            sink.send(entity.toDomainEvent())
+            // `entity.id` (el UUID estable de la fila) viaja como clave de dedup
+            // para el sink (T4, entrega al menos una vez por red) — ver
+            // `TelemetrySink.send`.
+            sink.send(entity.id, entity.toDomainEvent())
             true
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
             Log.w(TAG, "el sink de telemetria fallo para ${entity.id}, se reintentara", e)
             false
