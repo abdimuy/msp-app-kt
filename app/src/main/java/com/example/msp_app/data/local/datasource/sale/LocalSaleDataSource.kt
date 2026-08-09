@@ -2,11 +2,24 @@ package com.example.msp_app.data.local.datasource.sale
 
 import android.content.Context
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
+import javax.inject.Inject
 
-class LocalSaleDataSource(context: Context) {
-    private val localSaleDao = AppDatabase.getInstance(context).localSaleDao()
+class LocalSaleDataSource @Inject constructor(
+    private val localSaleDao: LocalSaleDao
+) {
+    /**
+     * Puente legacy: ViewModels no-Hilt, `PendingLocalSalesWorker` (V1, aún
+     * no `@HiltWorker`) y `PendingWorkSyncFactory` siguen construyendo con
+     * `context` sin cambios. Delega en la MISMA instancia que `@Inject`
+     * recibe vía [com.example.msp_app.core.database.di.DatabaseModule] —
+     * ambos resuelven a [AppDatabase.getInstance], una sola conexión a
+     * `msp_db`. No abre un builder nuevo: eso duplicaría la ruta de
+     * escritura al dinero.
+     */
+    constructor(context: Context) : this(AppDatabase.getInstance(context).localSaleDao())
 
     suspend fun insertSale(sale: LocalSaleEntity) {
         localSaleDao.insertSale(sale)
