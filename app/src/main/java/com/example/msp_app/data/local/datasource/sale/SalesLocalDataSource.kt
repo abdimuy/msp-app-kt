@@ -30,8 +30,11 @@ class SalesLocalDataSource @Inject constructor(
     }
 
     suspend fun saveAll(sales: List<SaleEntity>) {
-        saleDao.deleteAll()
-        saleDao.insertAll(sales)
+        // Delega en el método `@Transaction` del DAO: el DELETE + INSERT del
+        // refresh corre como una unidad atómica, así una interrupción no deja
+        // la tabla vacía (partial-write) ni `observeAll` emite un estado
+        // intermedio vacío.
+        saleDao.replaceAll(sales)
     }
 
     suspend fun getById(id: Int): SaleEntity? {

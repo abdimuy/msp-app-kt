@@ -1,6 +1,7 @@
 package com.example.msp_app.data.local.datasource.sale
 
 import android.content.Context
+import android.database.sqlite.SQLiteException
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
@@ -138,6 +139,81 @@ class LocalSaleDataSourceTest : RoomTestBase() {
         assertEquals(
             listOf("img-1", "img-2").sorted(),
             store.getImagesForSale("sale-1").map { it.LOCAL_SALE_IMAGE_ID }.sorted()
+        )
+    }
+
+    // ─── Task 3 [MONEY]: atomicidad de insertSaleWithImages (no partial-write) ──
+
+    /**
+     * Caracterización del bug PRE-EXISTENTE. La secuencia SIN transacción
+     * (`insertSale` seguido de un loop de `insertSaleImage`) deja una venta a
+     * medias cuando una imagen viola la FK a mitad del loop. Se reproduce con
+     * llamadas crudas al DAO — la venta y la primera imagen SÍ quedan escritas.
+     */
+    @Test
+    fun oldNonTransactionalSequence_leavesPartialWrite() = runTest {
+        val dao = db.localSaleDao()
+        val sale = TestDataFactory.createLocalSaleEntity(saleId = "venta-vieja")
+        val valida = TestDataFactory.createLocalSaleImageEntity(
+            imageId = "img-valida",
+            saleId = "venta-vieja"
+        )
+        // FK apunta a una venta inexistente: el 2do insert revienta a mitad.
+        val huerfana = TestDataFactory.createLocalSaleImageEntity(
+            imageId = "img-huerfana",
+            saleId = "venta-fantasma"
+        )
+
+        try {
+            dao.insertSale(sale)
+            listOf(valida, huerfana).forEach { dao.insertSaleImage(it) }
+        } catch (_: SQLiteException) {
+            // esperado: la imagen huérfana viola la FK
+        }
+
+        // Sin transacción, la venta y la 1ra imagen quedaron escritas: partial-write.
+        assertEquals("venta-vieja", dao.getSaleById("venta-vieja")?.LOCAL_SALE_ID)
+        assertEquals(
+            listOf("img-valida"),
+            dao.getImagesForSale("venta-vieja").map { it.LOCAL_SALE_IMAGE_ID }
+        )
+    }
+
+    /**
+     * Versión NUEVA (transaccional): el mismo fallo a mitad de la secuencia
+     * revierte TODO — ni la venta ni la imagen válida previa quedan
+     * persistidas. Prueba que `insertSaleWithImages` es atómico.
+     */
+    @Test
+    fun insertSaleWithImages_rollsBackEverythingWhenAnImageViolatesFk() = runTest {
+        val sale = TestDataFactory.createLocalSaleEntity(saleId = "venta-atomica")
+        val images = listOf(
+            TestDataFactory.createLocalSaleImageEntity(
+                imageId = "img-valida",
+                saleId = "venta-atomica"
+            ),
+            // FK apunta a una venta inexistente: revienta el 2do insert.
+            TestDataFactory.createLocalSaleImageEntity(
+                imageId = "img-huerfana",
+                saleId = "venta-fantasma"
+            )
+        )
+
+        val threw = try {
+            store.insertSaleWithImages(sale, images)
+            false
+        } catch (_: SQLiteException) {
+            true
+        }
+
+        assertTrue("el insert compuesto debe fallar por la FK inválida", threw)
+        assertNull(
+            "la venta no debe quedar a medias tras el rollback",
+            store.getSaleById("venta-atomica")
+        )
+        assertTrue(
+            "ninguna imagen debe persistir tras el rollback",
+            store.getImagesForSale("venta-atomica").isEmpty()
         )
     }
 

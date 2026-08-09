@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
 
@@ -26,6 +27,21 @@ interface LocalSaleDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSaleImage(saleImage: LocalSaleImageEntity)
+
+    /**
+     * Inserta la venta local y todas sus imágenes en una sola transacción
+     * atómica. Money-path: si cualquier insert falla a mitad de la secuencia
+     * (p.ej. una imagen viola la FK), Room revierte TODO — nunca queda una
+     * venta a medias sin sus imágenes (partial-write). `@Transaction` es
+     * anotación de método, no DDL: no altera el schema (v27) ni el
+     * identityHash. Preserva el orden observable del caso feliz (venta primero,
+     * luego imágenes en orden de la lista).
+     */
+    @Transaction
+    suspend fun insertSaleWithImages(sale: LocalSaleEntity, images: List<LocalSaleImageEntity>) {
+        insertSale(sale)
+        images.forEach { insertSaleImage(it) }
+    }
 
     @Query(
         "SELECT LOCAL_SALE_IMAGE_ID, LOCAL_SALE_ID, IMAGE_URI, FECHA_SUBIDA, SERVER_UUID FROM sale_image WHERE LOCAL_SALE_ID = :saleId ORDER BY FECHA_SUBIDA"

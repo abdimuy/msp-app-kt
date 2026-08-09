@@ -46,10 +46,10 @@ class LocalSaleDataSource @Inject constructor(
     }
 
     suspend fun insertSaleWithImages(sale: LocalSaleEntity, images: List<LocalSaleImageEntity>) {
-        insertSale(sale)
-        images.forEach { image ->
-            insertSaleImage(image)
-        }
+        // Delega en el método `@Transaction` del DAO: la venta y sus imágenes
+        // se escriben como una unidad atómica (todo o nada), evitando ventas a
+        // medias si un insert falla a mitad de la secuencia.
+        localSaleDao.insertSaleWithImages(sale, images)
     }
 
     suspend fun changeSaleStatus(saleId: String, enviado: Boolean) {

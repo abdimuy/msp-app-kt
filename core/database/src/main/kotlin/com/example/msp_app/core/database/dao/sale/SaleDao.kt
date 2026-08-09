@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 import kotlinx.coroutines.flow.Flow
@@ -240,6 +241,20 @@ interface SaleDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(sales: List<SaleEntity>)
+
+    /**
+     * Refresca la tabla `sales` de forma atómica: borra el contenido previo e
+     * inserta el lote nuevo en una sola transacción. Evita que una interrupción
+     * entre el DELETE y el INSERT deje la tabla vacía (partial-write), y que
+     * `observeAll` emita un estado intermedio vacío. `@Transaction` es
+     * anotación de método, no DDL: no altera el schema (v27) ni el
+     * identityHash.
+     */
+    @Transaction
+    suspend fun replaceAll(sales: List<SaleEntity>) {
+        deleteAll()
+        insertAll(sales)
+    }
 
     @Query(
         """
