@@ -57,9 +57,16 @@ class ReportFormattersDateRangeTest {
         return !instant.isBefore(start) && instant.isBefore(end)
     }
 
-    // The removed legacy date util is gone from production; these three helpers are inlined
-    // VERBATIM from its old body (see git history) so this characterization test still exercises
-    // the exact OLD behaviour being compared against, without resurrecting the dead object.
+    // The removed legacy date util is gone from production; these four helpers reproduce its old
+    // bodies (see git history for the original) so this characterization test still exercises the
+    // OLD behaviour being compared against, without resurrecting the dead object.
+    // NOT byte-identical: `oldParseIsoToDateTime`/`oldAddToIsoDate` ARE the original body
+    // verbatim, but `oldGetIsoDateTime`/`oldParseLocalDateToIso` drop the null-handling branches
+    // the original had (`dateTime: LocalDateTime? = null` defaulting via `LocalDateTime.now()`,
+    // and `date: LocalDate?` short-circuiting to `getIsoDateTime()`) — this test never passes
+    // null, so those branches are dead code here. For the non-null path every test below actually
+    // exercises, the behaviour is equivalent to the original; only the unreachable null branches
+    // were dropped.
 
     private fun oldParseIsoToDateTime(iso: String): LocalDateTime = when {
         iso.contains("T") && iso.endsWith("Z") -> OffsetDateTime.parse(iso).toLocalDateTime()
@@ -195,8 +202,11 @@ class ReportFormattersDateRangeTest {
         // fix): el util de fechas legado anclaba en ZoneId.systemDefault() (zona del
         // DISPOSITIVO) para parsear la fecha local, y el fin de rango se calculaba con
         // +1 dia seguido de -1 segundo — inclusive, y sujeto al bug #3 (round-trip por
-        // LocalDateTime que descarta el offset original). Reproducido verbatim arriba
-        // (oldParseLocalDateToIso/oldAddToIsoDate) tras borrar el objeto original.
+        // LocalDateTime que descarta el offset original). Reproducido arriba
+        // (oldParseLocalDateToIso/oldAddToIsoDate) tras borrar el objeto original — mismo
+        // comportamiento para el path no-nulo que este test ejercita (oldAddToIsoDate es el
+        // cuerpo original verbatim; oldParseLocalDateToIso le quita la rama `date == null` que
+        // este test nunca ejercita, ver comentario arriba de los 4 helpers).
         TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana")) // siempre detras de CDMX
         val oldStartIso = oldParseLocalDateToIso(date)
         val oldEndIso = oldAddToIsoDate(

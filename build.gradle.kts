@@ -39,38 +39,102 @@ val legacyDateApiPatterns = listOf(
 
 // File-level allowlist (lines shift too easily for a line-level list): the
 // closed set of pre-existing call sites left OUT of scope by the
-// fechas/AppTime migration plan, each documented as legacy debt for a future
-// cleanup plan (see `task-13-report.md` for the audit trail). A NEW hit in
-// any of these files is still invisible to this guard (file-level, not
-// line-level) — that is a known, accepted trade-off of the grep fallback
-// versus a full detekt baseline; each file below already carries a `now()`/
-// `systemDefault()`/`getDefault()` call so the marginal risk of missing a
-// second one in the SAME file is low relative to the noise a stricter
-// per-line diff-based check would add here.
+// fechas/AppTime migration plan (see `task-13-report.md` for the audit
+// trail). A NEW hit in any of these files is still invisible to this guard
+// (file-level, not line-level) — a known, accepted trade-off of the grep
+// fallback versus a full detekt baseline. Each entry below is labeled
+// HONESTLY as either (a) a genuinely benign non-date use (i18n/number
+// formatting that only happens to match one of the forbidden substrings) or
+// (b) REAL unmigrated business-date logic deferred as legacy debt for a
+// future cleanup plan — fix round 1/5 review caught an earlier version of
+// this list mislabeling some of (b) as if it were (a); do not repeat that.
+// The three highest-priority (b) files — actively-edited money ViewModels —
+// are NOT here; see `legacyDateApiContentAllowlist` below instead, which
+// allowlists only their known offending line, not the whole file.
 val legacyDateApiAllowlist = setOf(
-    // Watermarks intentionally use the true wall-clock instant, not AppClock
-    // (sync bookkeeping, not business/money dates) — Instant.now() x4.
+    // (a) BENIGN — Instant.now() x4 for LAST_SYNCED_AT sync watermarks. The
+    // true wall-clock instant IS the correct semantic for a watermark (sync
+    // bookkeeping, not a business/calendar date) — not the same class of bug
+    // as the others below. Still bypasses AppClock (untestable with
+    // FakeClock), so still worth migrating eventually, just not a date-logic
+    // correctness bug like the rest of this list.
     "app/src/main/java/com/example/msp_app/core/sync/cobranza/CobranzaSyncManager.kt",
-    // ZoneId.systemDefault() to bucket a legacy Microsip DTO field by device
-    // calendar day — pre-existing, not touched by this plan's enumerated scope.
+    // (b) REAL DEBT — ZoneId.systemDefault() converts a legacy Microsip
+    // venta timestamp to a calendar date anchored to the DEVICE zone, not
+    // the business zone: the same device-zone bug class this plan fixed
+    // elsewhere (day-boundary shifts near midnight on a misconfigured or
+    // roaming phone). Out of this plan's enumerated call-site list.
     "app/src/main/java/com/example/msp_app/data/api/services/cobranza/VentaDto.kt",
+    // (b) REAL DEBT — `reportDate = LocalDate.now()` for the daily report:
+    // same device-zone bug class as the `ReportFormatters.todayForReport`
+    // fix (Task 5), just not applied here. `dailyReport` was kept
+    // intentionally intact for a future Plan 5 per DISPATCH-CONVENTIONS.
     "app/src/main/java/com/example/msp_app/features/dailyReport/domain/usecases/GenerateDailyReportUseCase.kt",
-    // Locale.getDefault() for the DEVICE'S LANGUAGE tag (i18n), not a date —
-    // out of scope by definition, but the substring still matches the guard.
+    // (a) BENIGN — Locale.getDefault().displayLanguage reads the DEVICE'S
+    // LANGUAGE tag for a device-protection report field. Not a date at all;
+    // the substring just happens to match one of the forbidden patterns.
     "app/src/main/java/com/example/msp_app/features/deviceProtection/DeviceProtectionManager.kt",
-    // Locale.getDefault() for NUMBER formatting (percentages), not a date.
+    // (a) BENIGN — Locale.getDefault() feeds `String.format(..., "%.2f", ...)`
+    // for a NUMBER (percentage), not a date. Not a date at all.
     "app/src/main/java/com/example/msp_app/features/home/screens/Home.kt",
-    "app/src/main/java/com/example/msp_app/features/payments/viewmodels/PaymentsViewModel.kt",
+    // (b) REAL DEBT — DIA_TEMPORAL_COBRANZA/FECHA_ULT_PAGO are formatted for
+    // display via `ZonedDateTime...withZoneSameInstant(ZoneId.systemDefault())`
+    // (device zone, not business zone). The Locale.getDefault() hit here is
+    // NOT a benign i18n/number case like Home.kt above — it is the locale
+    // argument of that SAME device-zone date DateTimeFormatter.
     "app/src/main/java/com/example/msp_app/features/sales/components/primarysaleitem/PrimarySaleItem.kt",
+    // (b) REAL DEBT — same pattern as PrimarySaleItem.kt above (device-zone
+    // date display via ZoneId.systemDefault() + Locale.getDefault() on the
+    // same DateTimeFormatter).
     "app/src/main/java/com/example/msp_app/features/sales/components/secondarysaleitem/SecondarySaleItem.kt",
+    // (b) REAL DEBT — TODAY/THIS_WEEK sale-list filters compare against the
+    // DEVICE's LocalDate.now()/ZoneId.systemDefault(), not the business
+    // zone: same device-zone bug class as `ReportFormatters.dateRangeFor`.
     "app/src/main/java/com/example/msp_app/features/sales/screens/UnifiedSalesScreen.kt",
-    "app/src/main/java/com/example/msp_app/features/sales/viewmodels/EditLocalSaleViewModel.kt",
-    "app/src/main/java/com/example/msp_app/features/sales/viewmodels/NewSaleFormViewModel.kt",
+    // (b) REAL DEBT — today()/thisWeek()/thisMonth() filter factories anchor
+    // on the DEVICE's LocalDate.now(), not the business zone.
     "app/src/main/java/com/example/msp_app/features/transfers/domain/models/TransferFilters.kt",
-    // NewVisitDialog.kt ~169/186 — WRITE-side device-zone bug, documented and
-    // deliberately NOT fixed by this plan (out of its enumerated scope).
+    // (b) REAL DEBT — WRITE-side device-zone bug at ~169/186 (visit
+    // reschedule note timestamp), documented and deliberately NOT fixed by
+    // this plan (out of its enumerated scope).
     "app/src/main/java/com/example/msp_app/features/visit/components/NewVisitDialog.kt",
+    // (b) REAL DEBT, lower stakes — printed visit-ticket header timestamp
+    // (`LocalDateTime.now()`, device zone): display-only on a physical
+    // receipt, not a persisted/money field, but still device-zone-dependent.
     "app/src/main/java/com/example/msp_app/features/visit/screens/VisitTicketScreen.kt",
+)
+
+// Content-based allowlist (NOT file-level) for the three actively-edited
+// MONEY ViewModels flagged by fix round 1/5 review: file-level allowlisting
+// them would hide a NEW/different forbidden call added later in the SAME
+// file, and these are the files most likely to keep changing (live sale/
+// payment ViewModels). Instead of allowlisting the whole file, this
+// allowlists only the EXACT (comment-stripped, trimmed) text of the one
+// known pre-existing violation in each — any OTHER hit in these files,
+// including a second one, still fails the build. All three are REAL DEBT:
+// a persisted date/timestamp field written from the DEVICE clock
+// (`java.time.Instant.now()`/`LocalDate.now()`) instead of `AppClock`.
+// Trade-off: if this exact line is ever reformatted (e.g. ktlint rewraps
+// it) without a code change, the guard fires a false positive on an
+// unrelated formatting diff. Judged acceptable: a false positive here is
+// loud and immediately obvious at the point of the reformat, unlike a
+// silently-widened file-level hole in a money ViewModel.
+val legacyDateApiContentAllowlist = mapOf(
+    // FECHA_SUBIDA persisted for a sale-edit image (device clock).
+    "app/src/main/java/com/example/msp_app/features/sales/viewmodels/EditLocalSaleViewModel.kt" to setOf(
+        "java.time.Instant.now().toString()"
+    ),
+    // `saleDate` persisted for a NEW sale (device clock) — the most
+    // money-sensitive of the three.
+    "app/src/main/java/com/example/msp_app/features/sales/viewmodels/NewSaleFormViewModel.kt" to setOf(
+        "saleDate = java.time.Instant.now().toString(),"
+    ),
+    // `reportDate` written into a Firebase debug/report snapshot log
+    // (device clock) — not a persisted money field, but still a real
+    // business-date value, unmigrated.
+    "app/src/main/java/com/example/msp_app/features/payments/viewmodels/PaymentsViewModel.kt" to setOf(
+        "reportDate = java.time.LocalDate.now().toString(),"
+    ),
 )
 
 /**
@@ -160,12 +224,14 @@ tasks.register("checkNoLegacyDateApi") {
         fileTree(appMainDir) { include("**/*.kt") }.forEach { file ->
             val relativePath = file.relativeTo(repoRoot).invariantSeparatorsPath
             if (relativePath in legacyDateApiAllowlist) return@forEach
+            val contentAllowlistForFile = legacyDateApiContentAllowlist[relativePath]
             val stripped = stripKotlinCommentsAndStrings(file.readText())
             stripped.lineSequence().forEachIndexed { index, line ->
-                val hit = legacyDateApiPatterns.firstOrNull { line.contains(it) }
-                if (hit != null) {
-                    violations += "$relativePath:${index + 1}: uso directo de `$hit`"
+                val hit = legacyDateApiPatterns.firstOrNull { line.contains(it) } ?: return@forEachIndexed
+                if (contentAllowlistForFile != null && line.trim() in contentAllowlistForFile) {
+                    return@forEachIndexed
                 }
+                violations += "$relativePath:${index + 1}: uso directo de `$hit`"
             }
         }
         if (violations.isNotEmpty()) {
