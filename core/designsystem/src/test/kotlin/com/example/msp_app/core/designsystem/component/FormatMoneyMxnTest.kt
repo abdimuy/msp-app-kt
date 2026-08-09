@@ -57,11 +57,13 @@ class FormatMoneyMxnTest {
     }
 
     @Test
-    fun `menos-de-medio-centavo negativo produce el artefacto menos-cero de DecimalFormat`() {
-        // Wart conocido de DecimalFormat: un negativo que redondea a 0 imprime
-        // "-$0.00", no "$0.00". Se pinea el comportamiento en vez de ocultarlo;
-        // el piloto normaliza montos a >= 0 antes de mostrarlos si le molesta.
-        assertEquals("-$0.00", formatMoneyMxn(BigDecimal("-0.001")))
+    fun `cero negativo se normaliza a cero sin signo`() {
+        // DecimalFormat imprimiría "-$0.00" para un negativo que redondea a 0;
+        // formatMoneyMxn lo normaliza a "$0.00" (un menos delante de cero es
+        // ruido visual, no dinero real).
+        assertEquals("$0.00", formatMoneyMxn(BigDecimal("-0.001")))
+        assertEquals("$0.00", formatMoneyMxn(BigDecimal("-0.00")))
+        assertEquals("$0.00", formatMoneyMxn(BigDecimal("-0.004")))
     }
 
     // --- Agrupación de miles / millones / miles de millones -------------------
@@ -128,6 +130,25 @@ class FormatMoneyMxnTest {
             assertEquals("$1,234,567.89", formatMoneyMxn(BigDecimal("1234567.89")))
             Locale.setDefault(Locale.US)
             assertEquals("$1,234,567.89", formatMoneyMxn(BigDecimal("1234567.89")))
+        } finally {
+            Locale.setDefault(original)
+        }
+    }
+
+    @Test
+    fun `bajo locale arabe o tailandes conserva digitos latinos y formato es-MX`() {
+        // Locales cuyo default nativo usa dígitos no-latinos (arábigo-índicos /
+        // tailandeses): al fijar es-MX explícito en los símbolos, la salida
+        // sigue en dígitos latinos y con formato mexicano — device-independent.
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale("ar", "EG")) // árabe (dígitos arábigo-índicos por default)
+            assertEquals("$1,234.56", formatMoneyMxn(BigDecimal("1234.56")))
+            assertEquals("$0.00", formatMoneyMxn(BigDecimal("-0.001")))
+
+            Locale.setDefault(Locale("th", "TH")) // tailandés (dígitos tailandeses por default)
+            assertEquals("$1,234.56", formatMoneyMxn(BigDecimal("1234.56")))
+            assertEquals("-$850.00", formatMoneyMxn(BigDecimal("-850")))
         } finally {
             Locale.setDefault(original)
         }

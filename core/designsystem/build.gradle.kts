@@ -7,6 +7,16 @@ plugins {
     alias(libs.plugins.roborazzi)
 }
 
+// Agrega la regla custom `money > NoDoubleForMoney` a este módulo — que ahora
+// aloja `formatMoneyMxn` y los futuros componentes de dinero — igual que
+// `:core:common`: `config.from` SUMA este fragmento al `detekt.yml` que ya puso
+// `msp.detekt` (un `setFrom` lo reemplazaría). El ruleset `money` solo aparece
+// en el classpath de análisis porque abajo se declara
+// `detektPlugins(project(":build-tools:detekt-rules"))`.
+detekt {
+    config.from(files("$rootDir/config/detekt/detekt-money.yml"))
+}
+
 android {
     namespace = "com.example.msp_app.core.designsystem"
 
@@ -43,4 +53,10 @@ dependencies {
     // necesita en runtime para hostear el composable en un ComponentActivity
     // real al capturar (`captureRoboImage(filePath) { content }`).
     testImplementation(libs.androidx.activity.compose)
+
+    // Regla custom `NoDoubleForMoney` (Task 9) — registrada vía ServiceLoader,
+    // por eso viaja como `detektPlugins` y no como dependencia normal. Pone el
+    // ruleset `money` en el classpath de análisis de detekt de este módulo, que
+    // ahora contiene código de dinero (`formatMoneyMxn`).
+    detektPlugins(project(":build-tools:detekt-rules"))
 }

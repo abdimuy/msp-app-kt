@@ -54,13 +54,21 @@ private const val MXN_PATTERN = "$#,##0.00"
  * `HALF_EVEN` (banquero: `1.005 -> $1.00`), que NO es la convención de dinero
  * al consumidor.
  *
+ * Normaliza el cero negativo: un monto que redondea a `0` desde el lado
+ * negativo (p. ej. `-0.001`) se muestra `"$0.00"`, nunca `"-$0.00"` — un signo
+ * menos delante de un cero es un artefacto de `DecimalFormat`, no información
+ * de dinero real.
+ *
  * `DecimalFormat` no es thread-safe; se construye uno nuevo por llamada (barato
  * frente a compartir estado mutable).
  */
 fun formatMoneyMxn(amount: BigDecimal): String {
     val formatter = DecimalFormat(MXN_PATTERN, DecimalFormatSymbols(MXN_LOCALE))
     formatter.roundingMode = RoundingMode.HALF_UP
-    return formatter.format(amount)
+    // Colapsa -0 a 0: si el monto redondeado a 2 decimales es cero, se formatea
+    // BigDecimal.ZERO para que nunca aparezca un "-$0.00".
+    val normalized = if (amount.setScale(2, RoundingMode.HALF_UP).signum() == 0) BigDecimal.ZERO else amount
+    return formatter.format(normalized)
 }
 
 /**
