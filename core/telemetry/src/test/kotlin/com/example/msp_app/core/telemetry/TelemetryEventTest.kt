@@ -24,7 +24,7 @@ class TelemetryEventTest {
     @Test
     fun `accepts dots for namespaced names`() {
         val event = TelemetryEvent(
-            type = TelemetryEventType.TAP,
+            type = TelemetryEventType.EVENT,
             name = "cobranza_detalle.boton_confirmar",
             occurredAt = someInstant
         )
@@ -147,10 +147,18 @@ class TelemetryEventTest {
 
     @Test
     fun `two events with equal fields are structurally equal`() {
-        val a =
-            TelemetryEvent(type = TelemetryEventType.TAP, name = "boton", occurredAt = someInstant)
-        val b =
-            TelemetryEvent(type = TelemetryEventType.TAP, name = "boton", occurredAt = someInstant)
+        val a = TelemetryEvent(
+            type = TelemetryEventType.TAP,
+            name = "boton",
+            occurredAt = someInstant,
+            props = mapOf("screen" to "inicio")
+        )
+        val b = TelemetryEvent(
+            type = TelemetryEventType.TAP,
+            name = "boton",
+            occurredAt = someInstant,
+            props = mapOf("screen" to "inicio")
+        )
 
         assertEquals(a, b)
     }
@@ -161,5 +169,96 @@ class TelemetryEventTest {
         val actual = TelemetryEventType.entries.map { it.name }.toSet()
 
         assertEquals(expected, actual)
+    }
+
+    // --- props immutability (defensive copy) ---
+
+    @Test
+    fun `props is unaffected by mutating the source map after construction`() {
+        val source = mutableMapOf("resultado" to "ok")
+        val event = TelemetryEvent(
+            type = TelemetryEventType.EVENT,
+            name = "sync_ok",
+            occurredAt = someInstant,
+            props = source
+        )
+
+        source["resultado"] = "mutado"
+        source["nueva_clave"] = "algo"
+
+        assertEquals(mapOf("resultado" to "ok"), event.props)
+    }
+
+    @Test
+    fun `props rejects mutation attempts even via an unchecked cast to MutableMap`() {
+        val event = TelemetryEvent(
+            type = TelemetryEventType.EVENT,
+            name = "sync_ok",
+            occurredAt = someInstant,
+            props = mapOf("resultado" to "ok")
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        val mutableView = event.props as MutableMap<String, String>
+
+        assertThrows(UnsupportedOperationException::class.java) {
+            mutableView["resultado"] = "hackeado"
+        }
+    }
+
+    // --- screen validation on TAP, same invariant as screenView's name ---
+
+    @Test
+    fun `TAP requires a screen prop`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TelemetryEvent(
+                type = TelemetryEventType.TAP,
+                name = "boton_confirmar",
+                occurredAt = someInstant
+            )
+        }
+    }
+
+    @Test
+    fun `TAP rejects a screen that is not a static identifier, same rule as screenView's name`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TelemetryEvent(
+                type = TelemetryEventType.TAP,
+                name = "boton_confirmar",
+                occurredAt = someInstant,
+                props = mapOf("screen" to "Pantalla De Cobranza")
+            )
+        }
+    }
+
+    @Test
+    fun `TAP accepts a screen that is a valid static identifier`() {
+        val event = TelemetryEvent(
+            type = TelemetryEventType.TAP,
+            name = "boton_confirmar",
+            occurredAt = someInstant,
+            props = mapOf("screen" to "cobranza_detalle")
+        )
+
+        assertEquals("cobranza_detalle", event.props["screen"])
+    }
+
+    @Test
+    fun `EVENT and ERROR do not require a screen prop`() {
+        val event =
+            TelemetryEvent(
+                type = TelemetryEventType.EVENT,
+                name = "sync_ok",
+                occurredAt = someInstant
+            )
+        val error =
+            TelemetryEvent(
+                type = TelemetryEventType.ERROR,
+                name = "red_timeout",
+                occurredAt = someInstant
+            )
+
+        assertTrue(event.props.isEmpty())
+        assertTrue(error.props.isEmpty())
     }
 }
