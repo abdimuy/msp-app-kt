@@ -49,10 +49,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.Coord
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.LocationTracker
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.sortGroupsByClosestCentroid
@@ -77,10 +77,7 @@ import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
-import java.time.LocalDate
-import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -137,7 +134,8 @@ fun HomeScreen(navController: NavController) {
         ?.FECHA_CARGA_INICIAL
 
     val startWeekDate = remember(initialDate) {
-        DateUtils.parseDateToIso(initialDate?.toDate())
+        val startInstant = initialDate?.toDate()?.toInstant() ?: AppClock.System.now()
+        AppTime.toWireFormat(startInstant)
     }
 
     LaunchedEffect(syncSalesState) {
@@ -254,17 +252,12 @@ fun HomeScreen(navController: NavController) {
         else -> 0.0 to 0
     }
 
-    val totalTodayPayments = paymentsGroupedByDayWeekly
-        .takeIf { it is ResultState.Success }
-        ?.let { (it as ResultState.Success<Map<String, List<Payment>>>).data }
-        ?.get(LocalDate.now().toString())
-        ?.sumOf { it.IMPORTE } ?: 0.0
+    val today = AppTime.todayInBusinessZone()
 
-    val numberOfPaymentsToday = paymentsGroupedByDayWeekly
-        .takeIf { it is ResultState.Success }
-        ?.let { (it as ResultState.Success<Map<String, List<Payment>>>).data }
-        ?.get(LocalDate.now().toString())
-        ?.size ?: 0
+    val totalTodayPayments = paymentsGroupedByDay(paymentsGroupedByDayWeekly, today)
+        .sumOf { it.IMPORTE }
+
+    val numberOfPaymentsToday = paymentsGroupedByDay(paymentsGroupedByDayWeekly, today).size
 
     val userData = when (userDataState) {
         is ResultState.Success -> (userDataState as ResultState.Success<User?>).data
@@ -293,11 +286,9 @@ fun HomeScreen(navController: NavController) {
             ?: emptyMap()
     }
 
-    val dateInitWeek = userData?.FECHA_CARGA_INICIAL?.toDate()?.let { date ->
-        val localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-        val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale("es", "MX"))
-        localDate.format(formatter)
-    } ?: ""
+    val dateInitWeek = userData?.FECHA_CARGA_INICIAL?.toDate()?.toInstant()
+        ?.let { AppTime.toBusinessDate(it).toString() }
+        ?: ""
 
     val adjustedTotal =
         (adjustedPaymentPercentageState as? ResultState.Success<Double>)?.data ?: 0.0
