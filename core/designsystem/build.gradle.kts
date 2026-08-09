@@ -25,4 +25,12 @@ dependencies {
     testImplementation(project(":core:testing"))
     // createComposeRule en test JVM (Roborazzi).
     testImplementation(libs.androidx.ui.test.junit4)
+    // ui-test-manifest: Tasks 6-10 lo reutilizan para captures basados en
+    // ComposeTestRule (semantics/testTag) sobre la base sentada aquí.
+    testImplementation(libs.androidx.ui.test.manifest)
+    // roborazzi-compose declara androidx.activity:activity-compose como
+    // compileOnly (no viene transitivo vía el `api` de :core:testing) — lo
+    // necesita en runtime para hostear el composable en un ComponentActivity
+    // real al capturar (`captureRoboImage(filePath) { content }`).
+    testImplementation(libs.androidx.activity.compose)
 }
