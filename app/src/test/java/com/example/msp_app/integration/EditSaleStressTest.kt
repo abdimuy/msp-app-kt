@@ -3,12 +3,12 @@ package com.example.msp_app.integration
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.database.entities.LocalSaleProductEntity
+import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
-import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import com.example.msp_app.utils.PriceParser
 import kotlinx.coroutines.test.runTest

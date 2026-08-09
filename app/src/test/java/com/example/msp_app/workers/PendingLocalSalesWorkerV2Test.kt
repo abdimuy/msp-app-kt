@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentaDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
@@ -12,7 +13,6 @@ import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
 import com.example.msp_app.data.local.datasource.sale.SaleProductLocalDataSource
 import com.example.msp_app.features.sales.upload.data.RoomUploadFailureRepository
 import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
-import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions

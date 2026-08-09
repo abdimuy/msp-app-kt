@@ -1,8 +1,8 @@
 package com.example.msp_app.features.sales.upload.data
 
+import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.features.sales.upload.domain.UploadFailure
 import com.example.msp_app.features.sales.upload.domain.UploadFailureClassification
-import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

@@ -11,6 +11,14 @@ android {
 dependencies {
     api(project(":core:common"))
 
+    // RoomTestBase (Task 5, post-hoist de AppDatabase) construye la DB
+    // in-memory contra el tipo real. Acíclico: `:core:database` main NO
+    // depende de `:core:testing` (solo su source set `test`, que Gradle
+    // trata por separado — no cierra ciclo con este `api` de main).
+    api(project(":core:database"))
+    api(libs.bundles.room) // room-runtime + room-ktx, para Room.inMemoryDatabaseBuilder
+    api(libs.androidx.test.core) // ApplicationProvider, usado por RoomTestBase
+
     // RecordingSyncHealthSource (fake de core.common.sync.health.SyncHealthSource)
     // usa `Flow`/`flow {}` directamente, no solo a través de coroutines-test.
     api(libs.kotlinx.coroutines.core)

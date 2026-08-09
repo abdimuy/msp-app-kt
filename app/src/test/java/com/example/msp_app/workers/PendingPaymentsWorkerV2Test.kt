@@ -8,12 +8,12 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.data.api.services.payment.PagoRecibidoDTO
 import com.example.msp_app.data.api.services.payment.PaymentRequest
 import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.api.services.payment.V2PaymentsApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
-import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.google.gson.JsonParser
 import java.io.IOException
 import kotlinx.coroutines.runBlocking

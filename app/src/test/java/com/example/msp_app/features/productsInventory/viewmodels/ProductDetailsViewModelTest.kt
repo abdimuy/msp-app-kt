@@ -2,13 +2,13 @@ package com.example.msp_app.features.productsInventory.viewmodels
 
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.services.productInventory.ProductInventoryApi
 import com.example.msp_app.data.api.services.productInventory.ProductInventoryResponse
 import com.example.msp_app.data.local.datasource.productInventory.ProductInventoryLocalDataSource
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.data.models.productInventory.toEntity
-import com.example.msp_app.`test-fixtures`.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
