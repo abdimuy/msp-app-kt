@@ -86,12 +86,13 @@ private const val ENTRANCE_DETAIL_LIST = 10
  */
 @Suppress(
     "UnusedParameter"
-) // navController: firma reservada para el cableado de Task 10 (igual que Tier 1).
+) // navController: firma reservada (igual que Tier 1); el drawer entra por [onMenuClick].
 @OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet (ReportSheets).
 @Composable
 fun CollectionReportScreenTier2(
     navController: NavController,
-    viewModel: CollectionReportViewModel = hiltViewModel()
+    viewModel: CollectionReportViewModel = hiltViewModel(),
+    onMenuClick: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -102,7 +103,7 @@ fun CollectionReportScreenTier2(
     Box(modifier = Modifier.fillMaxSize()) {
         CollectionReportContentTier2(
             state = state,
-            onMenuClick = {},
+            onMenuClick = onMenuClick,
             onPrivacyToggle = viewModel::toggleMask,
             onThemeToggle = viewModel::toggleTheme,
             onPeriodSelect = viewModel::setPeriod,

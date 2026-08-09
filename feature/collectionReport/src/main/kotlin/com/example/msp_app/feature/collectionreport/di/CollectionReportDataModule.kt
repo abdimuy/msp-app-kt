@@ -44,4 +44,14 @@ object CollectionReportDataModule {
     @Provides
     fun provideHistoricalTotalsPort(paymentDao: PaymentDao): HistoricalTotalsPort =
         RoomHistoricalTotalsAdapter(paymentDao, AppClock.System)
+
+    /**
+     * Reloj de producción para [com.example.msp_app.feature.collectionreport.ui.CollectionReportViewModel]
+     * (cálculo de rangos día/ciclo). `AppClock.System` es el único reloj real; los tests inyectan un
+     * FakeClock construyendo el ViewModel a mano. Sin `@Singleton`: `AppClock.System` ya es un objeto
+     * único e inmutable, y no sostiene sesión/red. Nadie más en el grafo provee `AppClock` hoy, así
+     * que esta única fuente no colisiona.
+     */
+    @Provides
+    fun provideAppClock(): AppClock = AppClock.System
 }

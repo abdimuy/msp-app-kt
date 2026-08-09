@@ -70,16 +70,18 @@ private const val ENTRANCE_DETAIL_LIST = 8
 /**
  * Punto de entrada del reporte de cobranza (Plan 5, piloto `:feature:collectionReport`).
  * Recolecta el `StateFlow` de [CollectionReportViewModel] y delega el render puro a
- * [CollectionReportContent]. [navController] queda reservado — el cableado real de
- * navegación (drawer, back stack) llega en Task 10; Task 6 solo construye la UI de la
- * mitad superior de la pantalla.
+ * [CollectionReportContent]. [navController] queda reservado (el reporte no navega a otras
+ * pantallas por sí mismo). [onMenuClick] lo cablea el composition root de `:app` (Task 10)
+ * al `openDrawer` del `DrawerContainer` — así el botón de menú del [ReportHeader] abre el
+ * drawer real de la app.
  */
-@Suppress("UnusedParameter") // navController: firma reservada para el cableado de Task 10.
+@Suppress("UnusedParameter") // navController: firma reservada (el reporte no navega saliente).
 @OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet (ReportSheets).
 @Composable
 fun CollectionReportScreen(
     navController: NavController,
-    viewModel: CollectionReportViewModel = hiltViewModel()
+    viewModel: CollectionReportViewModel = hiltViewModel(),
+    onMenuClick: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -92,8 +94,8 @@ fun CollectionReportScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         CollectionReportContent(
             state = state,
-            // El drawer real (y el resto de navegación por `navController`) se cablea en Task 10.
-            onMenuClick = {},
+            // El drawer real lo provee `:app` vía [onMenuClick] (Task 10); por defecto no-op.
+            onMenuClick = onMenuClick,
             onPrivacyToggle = viewModel::toggleMask,
             onThemeToggle = viewModel::toggleTheme,
             onPeriodSelect = viewModel::setPeriod,

@@ -8,10 +8,10 @@ import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.visit.Visit
 import com.example.msp_app.features.payments.models.ForgivenessTextData
 import com.example.msp_app.features.payments.models.PaymentLineData
+import com.example.msp_app.features.payments.models.PaymentMethodBreakdown
 import com.example.msp_app.features.payments.models.PaymentTextData
 import com.example.msp_app.features.payments.models.VisitLineData
 import com.example.msp_app.features.payments.models.VisitTextData
-import com.example.msp_app.features.payments.screens.PaymentMethodBreakdown
 import java.time.LocalDate
 
 /**

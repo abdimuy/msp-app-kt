@@ -214,6 +214,10 @@ dependencies {
     // LocalTelemetry en la raíz Compose de :app (MainActivity) para que
     // ScreenScope/Modifier.trackClick tengan un Telemetry real en toda la app.
     implementation(project(":core:telemetry"))
+    // Piloto del reporte de cobranza unificado (Plan 5). `:app` provee el adapter
+    // real de `UserCyclePort` (Firestore userData) en su composition root y monta
+    // `CollectionReportScreen`/`...Tier2` en la ruta `daily_reports`.
+    implementation(project(":feature:collectionReport"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

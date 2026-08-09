@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.msp_app.MspApplication
+import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.context.LocalAuthViewModel
@@ -30,6 +31,10 @@ import com.example.msp_app.core.sync.cobranza.UserContext
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
+import com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen
+import com.example.msp_app.feature.collectionreport.ui.tier2.CollectionReportScreenTier2
+import com.example.msp_app.feature.collectionreport.ui.tier2.ReportTier
+import com.example.msp_app.feature.collectionreport.ui.tier2.rememberReportTier
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
@@ -43,9 +48,7 @@ import com.example.msp_app.features.guarantees.screens.GuaranteeDetailScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeListScreen
 import com.example.msp_app.features.guarantees.screens.GuaranteeScreen
 import com.example.msp_app.features.home.screens.HomeScreen
-import com.example.msp_app.features.payments.screens.DailyReportScreen
 import com.example.msp_app.features.payments.screens.PaymentTicketScreen
-import com.example.msp_app.features.payments.screens.WeeklyReportScreen
 import com.example.msp_app.features.productsInventory.screens.ProductDetailsScreen
 import com.example.msp_app.features.productsInventory.screens.ProductsCatalogScreen
 import com.example.msp_app.features.routes.screens.RouteMapScreen
@@ -76,8 +79,12 @@ sealed class Screen(val route: String) {
         fun createRoute(saleId: Int) = "sales/sale_details/$saleId"
     }
 
+    // Ruta unificada del reporte de cobranza (Plan 5). El literal "daily_reports" se
+    // CONSERVA a propósito (deep links / drawer / hábito de usuarios): solo cambió el
+    // destino (ahora `:feature:collectionReport`), no el string. El antiguo
+    // `WeeklyReport("weekly_reports")` se eliminó — el semanal es el toggle "Semana" del
+    // reporte unificado.
     object DailyReport : Screen("daily_reports")
-    object WeeklyReport : Screen("weekly_reports")
 
     object SaleMap : Screen("sales/sale_details/map/{saleId}") {
         fun createRoute(saleId: Int) = "sales/sale_details/map/$saleId"
@@ -364,11 +371,24 @@ fun AppNavigation() {
             }
 
             composable(Screen.DailyReport.route) {
-                DailyReportScreen(navController = navController)
-            }
+                // Reporte de cobranza unificado (Día/Semana en un solo tablero). El drawer
+                // real se cablea aquí: `DrawerContainer` provee `openDrawer`, que se pasa como
+                // `onMenuClick` al botón de menú del propio encabezado del reporte. La
+                // selección Tier 1 / Tier 2 sigue el `fontScale` del SO (accesibilidad "Muy
+                // grande") vía [rememberReportTier].
+                DrawerContainer(navController = navController) { openDrawer ->
+                    when (rememberReportTier()) {
+                        ReportTier.TIER_2 -> CollectionReportScreenTier2(
+                            navController = navController,
+                            onMenuClick = openDrawer
+                        )
 
-            composable(Screen.WeeklyReport.route) {
-                WeeklyReportScreen(navController = navController)
+                        ReportTier.TIER_1 -> CollectionReportScreen(
+                            navController = navController,
+                            onMenuClick = openDrawer
+                        )
+                    }
+                }
             }
 
             composable(Screen.SaleMap.route) { backStackEntry ->

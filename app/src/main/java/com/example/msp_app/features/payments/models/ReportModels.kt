@@ -1,7 +1,19 @@
 package com.example.msp_app.features.payments.models
 
 import com.example.msp_app.core.models.PaymentMethod
-import com.example.msp_app.features.payments.screens.PaymentMethodBreakdown
+
+/**
+ * Desglose por forma de cobro de un lote de pagos (conteo + importe). Vive aquí
+ * (modelo del reporte) tras absorber el reporte de cobranza en
+ * `:feature:collectionReport` (Plan 5, Task 10): antes era un `data class`
+ * top-level de `DailyReportScreen.kt` (ya eliminado), pero lo consumen
+ * [PaymentTextData], `ReportFormatters` y `PdfGenerator`, que siguen vivos.
+ */
+data class PaymentMethodBreakdown(
+    val method: PaymentMethod,
+    val count: Int,
+    val amount: Double
+)
 
 data class PaymentLineData(
     val date: String,

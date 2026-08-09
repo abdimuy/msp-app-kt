@@ -151,26 +151,18 @@ fun DrawerContainer(
                                 }
                             )
 
+                            // Reporte de cobranza unificado (Plan 5): un solo ítem que abre el
+                            // tablero con Día/Semana. Antes eran dos ("Reportes Diarios" +
+                            // "Reportes Semanales" → "weekly_reports", ruta eliminada); el
+                            // semanal ahora es el toggle "Semana" dentro del reporte. La ruta
+                            // literal "daily_reports" se conserva.
                             NavigationDrawerItem(
-                                label = { Text("Reportes Diarios") },
+                                label = { Text("Reporte de cobranza") },
                                 selected = false,
                                 onClick = {
                                     scope.launch {
                                         drawerState.close()
                                         navController.navigate("daily_reports") {
-                                            popUpTo("home")
-                                        }
-                                    }
-                                }
-                            )
-
-                            NavigationDrawerItem(
-                                label = { Text("Reportes Semanales") },
-                                selected = false,
-                                onClick = {
-                                    scope.launch {
-                                        drawerState.close()
-                                        navController.navigate("weekly_reports") {
                                             popUpTo("home")
                                         }
                                     }
