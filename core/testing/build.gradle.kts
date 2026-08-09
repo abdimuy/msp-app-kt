@@ -11,6 +11,12 @@ android {
 dependencies {
     api(project(":core:common"))
 
+    // RecordingTelemetry (fake de Telemetry, Plan 4 Task 2) necesita el tipo
+    // TelemetryEvent del puerto. Sin ciclo: `:core:telemetry` main NO
+    // depende de `:core:testing` (solo su source set `test`, que Gradle
+    // resuelve por separado).
+    api(project(":core:telemetry"))
+
     // RoomTestBase (Task 5, post-hoist de AppDatabase) construye la DB
     // in-memory contra el tipo real. Acíclico: `:core:database` main NO
     // depende de `:core:testing` (solo su source set `test`, que Gradle

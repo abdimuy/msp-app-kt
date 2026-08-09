@@ -1,3 +1,6 @@
+import kotlinx.kover.gradle.plugin.dsl.KoverProjectExtension
+import org.gradle.kotlin.dsl.configure
+
 plugins {
     id("msp.android.compose") // aplica msp.android.library + Compose (trackClick/ScreenScope, T4)
     id("msp.hilt") // KSP + hilt-android + ksp(hilt-compiler)
@@ -9,6 +12,36 @@ plugins {
 
 android {
     namespace = "com.example.msp_app.core.telemetry"
+}
+
+// `msp.kover` deja un piso placeholder de 0% (ver KoverConventionPlugin) hasta
+// que cada módulo tenga su propia línea base. Task 2 es dominio puro (puerto
+// `Telemetry` + VO `TelemetryEvent`/`TelemetryEventType`) — se activa el piso
+// real del módulo aquí, igual que `:core:common` (Task 4).
+extensions.configure<KoverProjectExtension> {
+    reports {
+        filters {
+            includes {
+                packages("com.example.msp_app.core.telemetry")
+            }
+            excludes {
+                classes("com.example.msp_app.core.telemetry.BuildConfig")
+                // `Telemetry$DefaultImpls`: sintético que Kotlin genera para los
+                // parámetros con default de una interfaz (`props = emptyMap()`
+                // en `event`/`error`). Llamadas Kotlin→Kotlin (todas las de este
+                // módulo) resuelven el default por inlining en el call site, así
+                // que este método nunca se invoca en runtime — no es lógica
+                // nuestra sin testear, es un artefacto del compilador (mismo
+                // trato que `BuildConfig`).
+                classes("com.example.msp_app.core.telemetry.Telemetry\$DefaultImpls")
+            }
+        }
+        verify {
+            rule("core-telemetry domain coverage (Task 2)") {
+                minBound(90)
+            }
+        }
+    }
 }
 
 // La cola durable de telemetría es un store Room PROPIO (`telemetry_db`),
