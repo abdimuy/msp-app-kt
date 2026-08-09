@@ -120,16 +120,22 @@ class RangeCalculatorTest {
         assertEquals(1, RangeCalculator.cycleInfo(noonAug7Cdmx, null).days)
     }
 
-    // region — DST histórica (México observó DST hasta 2022)
+    // region — offset UTC histórico a través de una transición DST (2021)
 
     @Test
-    fun `cycleRange cruza la transicion DST de otono 2021 sin perder dias`() {
-        // Hoy: 1-nov-2021 12:00 CDMX (ya en horario estándar -06:00).
-        val clock = FakeClock(Instant.parse("2021-11-01T18:00:00Z"))
-        // Carga: 30-oct-2021 (aún en DST -05:00).
+    fun `startOfDay respeta el offset DST vigente a cada lado de la transicion 2021`() {
+        // México observó DST NACIONAL hasta oct-2022; desde entonces no hay
+        // transición que ejercer para ciclos actuales. Este test usa fechas de
+        // 2021 (cuando SÍ había DST) para verificar lo único que un cambio de
+        // offset podría romper: que `startOfDay` serialice cada borde con el
+        // offset UTC vigente ESE día, no uno fijo. El 30-oct-2021 aún estaba en
+        // DST (-05:00 → 05:00Z); tras el cambio del 31-oct, el 2-nov ya estaba
+        // en horario estándar (-06:00 → 06:00Z). El conteo de días (calendario)
+        // se mantiene en 3 pese al offset distinto en cada extremo.
+        val clock = FakeClock(Instant.parse("2021-11-01T18:00:00Z")) // 1-nov 12:00 CDMX
         val range = RangeCalculator.cycleRange(clock, Instant.parse("2021-10-30T15:00:00Z"))
-        assertEquals("2021-10-30T05:00:00Z", range.startIso)
-        assertEquals("2021-11-02T06:00:00Z", range.endExclusiveIso)
+        assertEquals("2021-10-30T05:00:00Z", range.startIso) // borde en DST (-05:00)
+        assertEquals("2021-11-02T06:00:00Z", range.endExclusiveIso) // borde en estándar (-06:00)
         assertEquals(3, range.days)
     }
 }
