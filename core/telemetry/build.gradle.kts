@@ -31,7 +31,10 @@ android {
 // política) bajo el MISMO `packages("com.example.msp_app.core.telemetry")`
 // — el filtro ya cubre el módulo completo (paquete raíz + subpaquetes, igual
 // que `:core:common`), así que no hace falta tocarlo para que el 90% alcance
-// también a `queue/`.
+// también a `queue/`. Task 4 suma `compose/` (`ScreenScope`/`trackClick`) y
+// `adapter/` (`DurableTelemetry`/`StubTelemetrySink`) bajo el mismo filtro —
+// tampoco requiere tocar el `packages(...)`, solo sumar las exclusiones de
+// generado (Dagger) de abajo.
 extensions.configure<KoverProjectExtension> {
     reports {
         filters {
@@ -64,12 +67,21 @@ extensions.configure<KoverProjectExtension> {
                     "com.example.msp_app.core.telemetry.di." +
                         "TelemetryDatabaseModule_ProvideTelemetryDatabaseFactory",
                     "com.example.msp_app.core.telemetry.di." +
-                        "TelemetryDatabaseModule_ProvideTelemetryEventDaoFactory"
+                        "TelemetryDatabaseModule_ProvideTelemetryEventDaoFactory",
+                    // Mismo trato para las fábricas generadas por Dagger de
+                    // `TelemetryModule` (Task 4) — no es código nuestro, es el
+                    // Provider sintético que Dagger emite por cada `@Provides`.
+                    "com.example.msp_app.core.telemetry.di." +
+                        "TelemetryModule_ProvideDurableTelemetryQueueFactory",
+                    "com.example.msp_app.core.telemetry.di." +
+                        "TelemetryModule_ProvideTelemetrySinkFactory",
+                    "com.example.msp_app.core.telemetry.di." +
+                        "TelemetryModule_ProvideTelemetryFactory"
                 )
             }
         }
         verify {
-            rule("core-telemetry domain coverage (Task 2-3)") {
+            rule("core-telemetry domain coverage (Task 2-4)") {
                 minBound(90)
             }
         }
@@ -92,11 +104,22 @@ dependencies {
     // AppClock/AppTime (java.time) para timestamps de eventos de telemetría.
     implementation(project(":core:common"))
 
+    // `Modifier.clickable` (TrackClick.kt) + `Box`/layout de los propios tests
+    // Compose de este módulo (Task 4) — `msp.android.compose` solo trae el
+    // bundle `compose-ui` (ui + material3 + tooling-preview), no foundation.
+    implementation(libs.androidx.compose.foundation)
+
     // room-testing (MigrationTestHelper) para los tests del propio módulo,
     // igual que :core:database — `msp.test` ya la agrega, pero se declara
     // explícita porque es un requisito directo de este módulo.
     testImplementation(libs.androidx.room.testing)
     testImplementation(project(":core:testing"))
+
+    // `createComposeRule` en el test JVM (Robolectric) para TrackClickTest /
+    // ScreenScopeTest (Task 4) — mismo wiring que `:core:designsystem`
+    // (`msp.android.compose` solo agrega `ui-test-junit4` a `androidTest`,
+    // no a `test`).
+    testImplementation(libs.androidx.ui.test.junit4)
 
     // Hilt-en-JVM para el graph test de TelemetryDatabaseModule (Task 3):
     // mismo par de deps que :core:database usa para su propio HiltAndroidTest
