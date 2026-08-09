@@ -5,7 +5,7 @@
 
 ## Estado global
 - **Inicio:** 2026-08-07
-- **Plan actual:** Plan 5 (piloto, 11 tareas) — Planes 0-4 CERRADOS.
+- **Plan actual:** Plan 5 (piloto, 11 tareas) — Planes 0-4 CERRADOS (Plan 4 CERRADO CONFORME, HEAD `013f422`).
 - **Plan 0:** ✅ CERRADO CONFORME (auditoría 7/7) en `c52590c`
 - **Plan 1:** ✅ CERRADO en `8eeb984` (13 commits). Gate de código CONFORME (auditoría 8/8, `prePushCheck` verde).
   Smoke emulador: app bootea limpia (sin crash Hilt/WM, `ClienteSyncWorker` corre). Los 5 fallos de
@@ -263,10 +263,13 @@ antes de esta migración, cero regresión).
 cierre pide `observePendingCount` probado reactivamente "vía Turbine" — el método existe en
 `DurableTelemetryQueue`/`TelemetryEventDao` (usado por el widget de salud futuro) y las suites de T3 lo fake-an
 (`InMemoryTelemetryEventDao`/`FailingTelemetryEventDao`), pero NINGÚN test de `:core:telemetry` lo ejercita
-directamente con Turbine ni de ninguna otra forma — `turbine` está en el catálogo de versiones
-(`libs.versions.toml`) vía el bundle `unit-test` de `msp.test`, pero cero `import app.cash.turbine` en el repo
-hoy. No se corrigió en Task 8 (fuera del alcance literal de sus "Acciones", que no lo mencionan) — deuda
-rastreada para quien retome telemetría (el widget de salud/observabilidad, mismo spec que el sink real).
+directamente con Turbine ni de ninguna otra forma. **CORRECCIÓN:** Turbine SÍ se usa en el repo hoy — 4 archivos
+importan `app.cash.turbine` (`core/network/src/test/.../ConnectivityMonitorTest.kt`,
+`core/common/src/test/.../SyncHealthSourceTest.kt`, `app/src/test/.../WarehouseViewModelTest.kt`,
+`app/src/test/.../SalesLocalDataSourceTest.kt`); la brecha reactiva es específica de `observePendingCount` en
+`:core:telemetry`, no repo-wide. No se corrigió en Task 8 (fuera del alcance literal de sus "Acciones", que no
+lo mencionan) — deuda rastreada para quien retome telemetría (el widget de salud/observabilidad, mismo spec que
+el sink real).
 
 **Deuda rastreada explícitamente fuera de alcance (Plan 4 → Plan 5 / spec de observabilidad):**
 - Sink real de telemetría (GlitchTip/Sentry/endpoint Go) — hoy `StubTelemetrySink` (no-op con log). Decisión del
@@ -287,3 +290,36 @@ local (stub sink, sin red); red sale del factory con mismo comportamiento observ
 
 - **SIGUIENTE:** Plan 5 (piloto, 11 tareas, gateado en Planes 3+4) — `docs/superpowers/plans/` (buscar el
   archivo de Plan 5).
+
+### Plan 4 (`:core:telemetry` + `:core:network`) ✅ CERRADO CONFORME
+Cierre final. Commit range `8f77135..013f422` (HEAD `013f422`). Auditoría de conformidad (opus):
+**CONFORME-CON-OBSERVACIONES, 11/11 PASS**, sin fails.
+
+8 tareas:
+- **`:core:telemetry`:** skeleton (Room propio `telemetry_db`, NUNCA toca v27) → puerto `Telemetry` +
+  VO `TelemetryEvent` (name/screen validados, props inmutables) → cola durable en Room (sobrevive restart,
+  FIFO por rowid, nunca-tira-PERO-relanza `CancellationException`, dedup id estable) → `Modifier.trackClick`
+  (nunca rompe el click) + `ScreenScope` + adapter `DurableTelemetry` + sink stub; cableado en la raíz de
+  composición de `:app` (`MainActivity` inyecta `Telemetry`, `LocalTelemetry` en la raíz Compose).
+- **`:core:network`:** `ConnectivityMonitor` reubicado (`@Singleton`, sin baseURL) → `NetworkConfig` inyectado +
+  interceptores (bearer vía puerto `AuthTokenProvider`; `X-App-Version` best-effort, **solo v2/Go**, ya que solo
+  el backend Go fue verificado ignorando headers desconocidos) + factory de cliente que NO congela el baseURL →
+  `:app` cableado al factory con el **kill-switch de baseURL preservado end-to-end** (API service sigue sin
+  scope, listener de Firestore intacto) y **cero regresión** (v1 300s/sin-auth, v2 60s/bearer, formatos
+  intactos; `BaseApi`/`V2BaseApi`/`FirebaseBearerInterceptor` legacy eliminados y superados por completo —
+  auth/caché de 50 min/refresh-401 replicados idénticos; Cobranza SSE repunteado al mismo puerto de token).
+
+**Contrato verificado:** el backend Go (`/Volumes/M2-1TB/Developer/msp-api`) NO lee ningún header de versión en
+ningún endpoint → `X-App-Version` es best-effort y ahora solo se envía a v2 (el ítem de header parqueado de
+Plan 4 queda RESUELTO).
+
+**Parqueado (aceptado, no son fallas):** kover de `:core:network` en el piso placeholder (filosofía de cobertura
+plan-wide — el gate real vive en el dominio de `:core:common`); `NetworkClientsModule` omitido (YAGNI);
+`observePendingCount` sin test reactivo con Turbine en `:core:telemetry` (deuda pre-existente — ver corrección
+arriba: Turbine SÍ se usa en otras 4 suites del repo, la brecha es puntual a este método); constante 300s
+duplicada entre módulos (DRY, menor).
+
+- **SIGUIENTE:** Plan 5 (`:feature:collectionReport` — EL PILOTO, 11 tareas,
+  `docs/superpowers/plans/2026-08-09-plan5-collection-report.md`). Gate de fidelidad de Plan 5: la pantalla debe
+  verse EXACTAMENTE como `docs/design/reporte-cobranza-mockup.html`, verificado COMO IMAGEN con un revisor de
+  fidelidad visual dedicado + smoke en dispositivo.

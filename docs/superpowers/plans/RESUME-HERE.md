@@ -16,7 +16,9 @@
 ## Orden de ejecución (charter nocturno 2026-08-09)
 `Plan 0 ✅ → Plan 1 ✅ → (detekt estricto ✅) → Plan fechas ✅ CERRADO CONFORME (11/11) → Plan 2 ✅ CERRADO CONFORME (10/10, HEAD 79e3d46) →
 Deuda money-robustez ✅ CERRADO CONFORME (6/6, HEAD e5fbc4b) → Plan 3 (DS) ✅ CERRADO CONFORME (11/11, HEAD 4c0b51d) →
-**Plan 4 (telemetría/network, SIGUIENTE)** → Plan 5 (piloto reporte cobranza)`.
+Plan 4 (telemetría/network) ✅ CERRADO CONFORME (11/11, HEAD 013f422) →
+**Plan 5 (piloto reporte cobranza, SIGUIENTE)**`.
+Planes 3 y 4 CERRADOS ⇒ dependencias de Plan 5 satisfechas (`:core:designsystem` + `:core:network` + `:core:telemetry`).
 Planes 3/4/5 YA PLANEADOS (archivos `2026-08-09-plan3/4/5-*.md`). Deuda money = `2026-08-09-deuda-money-robustez.md` (4 tareas, char-test + 2 revisores).
 
 ## Planes (archivos con `## Task N`)
@@ -28,8 +30,10 @@ Planes 3/4/5 YA PLANEADOS (archivos `2026-08-09-plan3/4/5-*.md`). Deuda money = 
 - `2026-08-08-fechas-appointime-migracion.md` — ✅ CERRADO CONFORME (11/11, HEAD `55f905f`).
 - `2026-08-09-plan3-designsystem.md` — ✅ CERRADO CONFORME (11/11, HEAD `4c0b51d`, commit range `cd1d141..4c0b51d`).
   ⚠️ Contraste de 3 pares de color parqueado para decisión del usuario en Plan 5 (ver `NIGHT-REPORT.md`).
-- `2026-08-09-plan4-telemetry-network.md` — **SIGUIENTE**. 8 tareas (`:core:telemetry` + `:core:network`).
-- `2026-08-09-plan5-collection-report.md` — piloto reporte de cobranza, 11 tareas; gateado en Planes 3+4.
+- `2026-08-09-plan4-telemetry-network.md` — ✅ CERRADO CONFORME (11/11, HEAD `013f422`, commit range `8f77135..013f422`).
+  8 tareas (`:core:telemetry` + `:core:network`).
+- `2026-08-09-plan5-collection-report.md` — **SIGUIENTE**. Piloto reporte de cobranza, 11 tareas; gateado en
+  Planes 3+4 (ambos CERRADOS).
 
 ## Decisiones/políticas VIGENTES (no re-litigar)
 - **Política de migración (usuario): AUDITAR+REESCRIBIR el código viejo con tests de robustez SUPREMA + verificar
@@ -60,22 +64,32 @@ Planes 3/4/5 YA PLANEADOS (archivos `2026-08-09-plan3/4/5-*.md`). Deuda money = 
 `feedback_msp_app_kt_audit_rewrite_supreme_tests`, `reference_msp_app_kt_hilt_baseurl_killswitch`,
 `feedback_reporte_cobranza_fidelidad_mockup`, `feedback_delegate_to_sonnet`, `feedback_no_claude_attribution`.
 
-## PRÓXIMA ACCIÓN (charter nocturno) — Plan 3 CERRADO CONFORME, sigue Plan 4
-**Plan 3 `:core:designsystem` ✅ CERRADO CONFORME** (HEAD `4c0b51d`; commit range `cd1d141..4c0b51d`; auditoría
-opus CONFORME-CON-OBSERVACIONES, 11/11 PASS, sin fails). 10 tareas: skeleton → color tokens → tipografía →
-shapes/spacing/motion → `MspTheme` + primer golden → surface/gradient/progress → `MoneyText`/`StatusChip`/
-`InitialsAvatar` → tarjetas compuestas → interactivos → catálogo de gate visual (122 goldens + `verifyRoborazzi`
-en `prePushCheck`). Detalle completo en `NIGHT-REPORT.md`.
+## PRÓXIMA ACCIÓN (charter nocturno) — Plan 4 CERRADO CONFORME, sigue Plan 5 (EL PILOTO)
+**Plan 4 `:core:telemetry` + `:core:network` ✅ CERRADO CONFORME** (HEAD `013f422`; commit range
+`8f77135..013f422`; auditoría opus CONFORME-CON-OBSERVACIONES, 11/11 PASS, sin fails). 8 tareas:
+`:core:telemetry` (skeleton con Room propio `telemetry_db`, NUNCA toca v27 → puerto `Telemetry`/VO
+`TelemetryEvent` → cola durable FIFO/dedup/never-throws-pero-relanza-cancelación → `Modifier.trackClick` +
+`ScreenScope` + adapter `DurableTelemetry` + sink stub, cableado en la raíz de composición de `:app`) +
+`:core:network` (`ConnectivityMonitor` reubicado → `NetworkConfig`/interceptores (bearer + `X-App-Version`
+best-effort solo v2/Go) → factory que NO congela baseURL → `:app` cableado con el **kill-switch de baseURL
+preservado end-to-end** y **cero regresión**; `BaseApi`/`V2BaseApi`/`FirebaseBearerInterceptor` legacy
+eliminados y superados). Contrato de header verificado contra el backend Go real (no lee ningún header de
+versión) — el ítem parqueado de Plan 4 queda RESUELTO. Parqueado no-bloqueante: kover placeholder en
+`:core:network`, `NetworkClientsModule` omitido (YAGNI), `observePendingCount` sin test reactivo Turbine en
+`:core:telemetry` (Turbine SÍ se usa en otras 4 suites del repo — brecha puntual, no repo-wide). Detalle
+completo en `NIGHT-REPORT.md`.
 
-**⚠️ PARQUEADO PARA DECISIÓN DEL USUARIO (Plan 5):** 3 pares de color de texto quedan bajo WCAG AA-normal
-(relajados al piso 3.0 de UI) — trade-off de legibilidad del azul de marca kollect-1:1: `onBrand` sobre brand
-DARK = 3.68 (label del CTA primario + extremo del gradiente del hero); `statusPartial`/`statusTeal` LIGHT =
-3.71 / 4.19 (texto de status-chip a 12sp). No bloquea DS, pero hay que decidir en Plan 5 si se acepta el
+**⚠️ PARQUEADO PARA DECISIÓN DEL USUARIO (Plan 5, heredado de Plan 3):** 3 pares de color de texto quedan bajo
+WCAG AA-normal (relajados al piso 3.0 de UI) — trade-off de legibilidad del azul de marca kollect-1:1: `onBrand`
+sobre brand DARK = 3.68 (label del CTA primario + extremo del gradiente del hero); `statusPartial`/`statusTeal`
+LIGHT = 3.71 / 4.19 (texto de status-chip a 12sp). No bloqueó DS, pero hay que decidir en Plan 5 si se acepta el
 trade-off o se oscurecen esos tokens.
 
-**SIGUIENTE:** ejecutar `docs/superpowers/plans/2026-08-09-plan4-telemetry-network.md` — Plan 4
-`:core:telemetry` + `:core:network` (8 tareas). Luego Plan 5 (piloto reporte de cobranza, 11 tareas) —
-depende de `:core:designsystem`/`:core:network`/`:core:telemetry`.
+**SIGUIENTE:** ejecutar `docs/superpowers/plans/2026-08-09-plan5-collection-report.md` — Plan 5
+`:feature:collectionReport` (EL PILOTO, 11 tareas). Planes 3 (`:core:designsystem`) y 4
+(`:core:network`/`:core:telemetry`) están AMBOS CERRADOS ⇒ todas las dependencias de Plan 5 satisfechas. Gate
+de fidelidad: la pantalla debe verse EXACTAMENTE como `docs/design/reporte-cobranza-mockup.html`, verificado
+COMO IMAGEN con un revisor de fidelidad visual dedicado + smoke en dispositivo.
 
 ---
 ### (histórico) checkpoint previo
