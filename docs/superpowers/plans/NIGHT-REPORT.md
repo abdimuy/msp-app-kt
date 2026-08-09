@@ -140,3 +140,18 @@ Plan 5 llevará un **revisor de fidelidad visual dedicado** y esa comparación e
 
 ## Qué queda
 - Plan 0 → Plan 5 según secuencia del plan maestro.
+
+## 2026-08-08 — Plan FECHAS/AppTime CERRADO CONFORME (14 tareas)
+Migración completa de fechas a `AppTime`/`AppClock` (zona negocio `America/Mexico_City`, java.time). HEAD `55f905f`.
+Auditoría de conformidad (opus): **11/11 PASS**, `prePushCheck` verde en daemon limpio, Room v27 intacto, 27 commits attrib correcta / no push.
+- **T4** SettlementCalculator zona negocio (char-test + mutation-kill del default). **T5** rangos reporte medio-abiertos `[desde,hasta)`
+  (adversarial cazó un Critical: fecha por defecto en zona del dispositivo). **T5b** (insertada) truncar `FECHA_HORA_PAGO` a segundos
+  + DAOs `>=AND<` (Robolectric SQLite; adversarial cazó regresión de undercount en reporte semanal). **T6** escritura vía AppClock.
+  **T7** gate horario worker en CDMX. **T8/T9** display pagos/ventas/garantías/visitas. **T10** timestamps transfers (formato naive
+  preservado ante backend Node no verificable). **T11** `FECHA_EVENTO`→Z-UTC (verifiqué el contrato Node real: `Date.parse` acepta,
+  guarda raw, sin shift). **T12** SimpleDateFormat/#8 locale (repro Thai calendar). **T12b** (insertada) day-grouping Home zona negocio
+  (cierra deuda T3) + últimas llamadas DateUtils. **T13** borrar `DateUtils` + guardrail `checkNoLegacyDateApi` (content-level para money VMs).
+- **Método**: orquestación SDD, revisores money atraparon 2 bugs reales que el implementador no vio (Critical T5, regresión T5b).
+- **DIFERIDOS**: (a) allowlist forbidden-API residual (~14 archivos legacy) = plan de limpieza futuro; (b) **RELEASE-GATE manual**:
+  garantías `FECHA_EVENTO` ahora viaja Z-UTC al backend Node — smoke test de campo del orden de eventos antes de desplegar garantías.
+- **SIGUIENTE**: Plan 2 (database) T5-9.

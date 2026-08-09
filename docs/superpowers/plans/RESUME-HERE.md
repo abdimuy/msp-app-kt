@@ -14,7 +14,7 @@
 4. Verificá HEAD/rama antes de nada: `git rev-parse --short HEAD`, `git branch --show-current`.
 
 ## Orden de ejecución
-`Plan 0 ✅ → Plan 1 ✅ → (detekt estricto ✅) → Plan 2 (T5-9 pendientes) → Plan fechas (T3 en curso, T4-13 pend) → Plan 3 → Plan 4 → Plan 5`.
+`Plan 0 ✅ → Plan 1 ✅ → (detekt estricto ✅) → Plan fechas ✅ CERRADO CONFORME (11/11) → Plan 2 (T5-9 pendientes, SIGUIENTE) → Plan 3 → Plan 4 → Plan 5`.
 **Ojo de secuencia:** el plan de fechas (`2026-08-08-fechas-appointime-migracion.md`) está intercalado dentro de Plan 2
 (se hizo primero por prioridad del usuario). Terminar fechas antes de retomar Plan 2 T5-9, o en paralelo por área — decidir.
 
@@ -59,10 +59,14 @@
 `feedback_reporte_cobranza_fidelidad_mockup`, `feedback_delegate_to_sonnet`, `feedback_no_claude_attribution`.
 
 ## PRÓXIMA ACCIÓN (al reanudar) — CHECKPOINT LIMPIO
-Último commit de tarea: **date Task 3 completa** (rama en el docs-commit que sigue a `f00231b`). Sin agentes vivos.
-Reanudar en **date Task 4 — [MONEY] `SettlementCalculator`: "ahora" en zona de negocio**:
-1. `task-brief 2026-08-08-fechas-appointime-migracion.md 4` → despachar implementador (sonnet), money-output.
-2. Char-test old→new obligatorio (documenta el cambio de categoría/monto cerca de fin de mes); math de settlement
-   PINNED sin cambios (solo el "now" pasa a zona negocio vía AppClock).
-3. Gate: `:app`/módulos afectados detekt+test verdes; 2 revisores (money).
-Luego seguir T5-13 del plan de fechas, después Plan 2 T5-9, después Planes 3-5. Ledger de fechas tiene el detalle fino.
+**Plan fechas CERRADO CONFORME** (HEAD `55f905f`; auditoría opus 11/11 PASS, `prePushCheck` verde, Room v27 intacto,
+`DateUtils` borrado + guardrail `checkNoLegacyDateApi` en `prePushCheck`). Ledger + `CONFORMANCE-AUDIT.md` en
+`.superpowers/sdd/2026-08-08-fechas-appointime-migracion/`.
+2 DIFERIDOS documentados: (a) allowlist forbidden-API residual (~14 archivos) = plan de limpieza futuro; (b) **RELEASE-GATE
+manual**: garantías `FECHA_EVENTO` cambió a wire Z-UTC hacia el backend Node — smoke test de campo del orden de eventos antes de desplegar garantías.
+
+Reanudar en **Plan 2 (`2026-08-07-plan2-database.md`) Task 5 — mover `RoomTestBase` a `:core:testing`** (behavior-neutral,
+1 revisor adversarial). Luego T6-8 (datasources inyectados por lotes money→ventas→catálogo, AUDIT+REWRITE con tests supremos),
+T9 (cierre; NOTA: `:core:database` ktlint/test YA cableado a `prePushCheck` por fechas T13; queda documentar `getInstance`
+residual + smoke e2e dispositivo). Después Planes 3-5. Ledger de Plan 2 (`.superpowers/sdd/2026-08-07-plan2-database/`) tiene T1-4 ✅.
+FOLLOW-UP Plan 2 pendiente: dedup de Constants payment-form IDs → `:core:common` (el dup de `DateUtils` en `:core:database` YA se borró en fechas T3).
