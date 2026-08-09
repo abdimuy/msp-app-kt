@@ -94,8 +94,19 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
 
     fun loadCombosBySaleId(saleId: String) {
         viewModelScope.launch {
-            val combos = comboDataSource.getCombosForSale(saleId)
-            _saleCombos.value = combos
+            try {
+                val combos = comboDataSource.getCombosForSale(saleId)
+                _saleCombos.value = combos
+            } catch (e: Exception) {
+                // Camino de lectura/UI: los datasources ya no tragan errores del
+                // DAO, así que un fallo aquí se maneja como estado vacío en la UI
+                // (no crashea el ViewModel). El guard money-path vive en el sync.
+                Log.e(
+                    "NewLocalSaleViewModel",
+                    "Error loading combos for sale $saleId: ${e.message}"
+                )
+                _saleCombos.value = emptyList()
+            }
         }
     }
 

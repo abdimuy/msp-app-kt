@@ -167,6 +167,25 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             val products = saleProductStore.getProductsForSale(saleId)
             val combos = comboDataSource.getCombosForSale(saleId)
 
+            // GUARD money-path: el backend v2 (POST /v2/ventas) exige >=1
+            // producto (CrearVentaBody.Productos minItems:1 + dominio
+            // ErrVentaProductosVacios). Una venta sin renglones en Microsip es
+            // pérdida/inconsistencia de inventario. Los datasources ya NO tragan
+            // errores del DAO: un fallo real se propaga y cae en el catch de
+            // abajo (Result.retry). Aquí cazamos el caso de datos genuinamente
+            // sin productos -> fallo permanente, reintentar no lo arreglaría.
+            // Los combos SÍ pueden ir vacíos (una venta puede no llevar combos).
+            if (products.isEmpty()) {
+                Log.e("PendingLocalSalesWorker", "Venta sin productos: $saleId")
+                logger.error(
+                    module = "SALES_WORKER",
+                    action = "NO_PRODUCTS",
+                    message = "La venta no tiene productos; no se sube a Microsip",
+                    data = mapOf("saleId" to saleId, "comboCount" to combos.size)
+                )
+                return Result.failure()
+            }
+
             // Persist stable SERVER_UUIDs before building the body so retries
             // use the same UUIDs (idempotency).
             for (p in products) {

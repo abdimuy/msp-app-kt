@@ -30,6 +30,17 @@ data class LocalSaleSyncData(
 )
 
 /**
+ * Se lanza cuando una venta llega al sync sin ningún producto. El backend
+ * exige `productos` con al menos un elemento (ver `CrearVentaBody.Productos
+ * minItems:1` y el invariante de dominio `ErrVentaProductosVacios` en
+ * msp-api); subirla crearía una venta sin renglones en Microsip. Es una
+ * `IllegalStateException` para que `BaseSyncWorker` la trate como fallo
+ * transitorio y reintente en vez de subir la venta vacía.
+ */
+class EmptySaleProductsException(saleId: String) :
+    IllegalStateException("venta $saleId sin productos: no se sube a Microsip")
+
+/**
  * Handler de sincronización para ventas locales.
  * Soporta CREATE y UPDATE.
  */
@@ -57,6 +68,18 @@ class LocalSaleSyncHandler(
     ): Any {
         val products = productDataSource.getProductsForSale(entity.LOCAL_SALE_ID)
         val combos = comboDataSource.getCombosForSale(entity.LOCAL_SALE_ID)
+
+        // GUARD money-path: nunca subir una venta sin productos. El backend la
+        // rechaza (productos minItems:1 / dominio ErrVentaProductosVacios) y una
+        // venta sin renglones en Microsip es pérdida/inconsistencia. Los
+        // datasources ya NO tragan errores del DAO: un fallo real se propaga
+        // hasta aquí y BaseSyncWorker lo reintenta. Este guard caza además el
+        // caso de datos genuinamente sin productos. Los combos SÍ pueden ir
+        // vacíos (una venta puede no llevar combos).
+        if (products.isEmpty()) {
+            throw EmptySaleProductsException(entity.LOCAL_SALE_ID)
+        }
+
         val allImages = localSaleDataSource.getImagesForSale(entity.LOCAL_SALE_ID)
         val userEmail = syncContext.getString("user_email") ?: ""
         val isUpdate = operation is SyncOperation.Update

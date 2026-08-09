@@ -2,11 +2,14 @@ package com.example.msp_app.data.local.datasource.sale
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
+import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -166,6 +169,43 @@ class ComboLocalDataSourceTest : RoomTestBase() {
         )
 
         assertEquals(listOf("otro-combo"), store.getCombosForSale("sale-2").map { it.COMBO_ID })
+    }
+
+    // ─── char-test money-path: propagación de error del DAO ───────────────────
+
+    /**
+     * Char-test OLD→NEW. ANTES: `getCombosForSale` tragaba la excepción del DAO
+     * y devolvía lista vacía, falseando el conjunto de renglones que se sube a
+     * Microsip. AHORA el fallo se PROPAGA intacto.
+     */
+    @Test
+    fun getCombosForSale_propagatesDaoException_insteadOfSwallowingToEmpty() = runTest {
+        val boom = IllegalStateException("db corrupta")
+        val throwingStore = ComboLocalDataSource(throwingComboDao(boom))
+
+        val thrown = try {
+            throwingStore.getCombosForSale("sale-1")
+            null
+        } catch (e: Exception) {
+            e
+        }
+
+        assertSame(
+            "el fallo del DAO debe propagarse, no colapsar a lista vacía",
+            boom,
+            thrown
+        )
+    }
+
+    private fun throwingComboDao(error: Throwable): LocalSaleComboDao = object : LocalSaleComboDao {
+        override suspend fun insertCombo(combo: LocalSaleComboEntity) = Unit
+        override suspend fun insertAllCombos(combos: List<LocalSaleComboEntity>) = Unit
+        override suspend fun getCombosForSale(saleId: String): List<LocalSaleComboEntity> =
+            throw error
+
+        override suspend fun deleteCombosForSale(saleId: String) = Unit
+        override suspend fun updateServerUuid(comboId: String, saleId: String, serverUuid: String) =
+            Unit
     }
 
     // ─── equivalencia inyectado ⇔ puente context ──────────────────────────────

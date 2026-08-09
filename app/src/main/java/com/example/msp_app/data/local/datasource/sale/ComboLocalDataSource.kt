@@ -28,13 +28,17 @@ class ComboLocalDataSource @Inject constructor(
         comboDao.insertAllCombos(combos)
     }
 
-    suspend fun getCombosForSale(saleId: String): List<LocalSaleComboEntity> {
-        return try {
-            comboDao.getCombosForSale(saleId)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
+    /**
+     * Lee los combos de una venta. Un resultado vacío significa que la venta
+     * NO tiene combos (dato real y legítimo: una venta puede no llevar
+     * combos). Un fallo del DAO se PROPAGA — jamás se colapsa a lista vacía.
+     *
+     * Money-path: tragar la excepción aquí falseaba el conjunto de renglones
+     * que se sube a Microsip. El guard downstream (sync handler y worker)
+     * decide qué es un vacío válido y qué es un error propagado.
+     */
+    suspend fun getCombosForSale(saleId: String): List<LocalSaleComboEntity> =
+        comboDao.getCombosForSale(saleId)
 
     suspend fun deleteCombosForSale(saleId: String) {
         comboDao.deleteCombosForSale(saleId)

@@ -2,11 +2,14 @@ package com.example.msp_app.data.local.datasource.sale
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.database.dao.localsale.LocalSaleProductDao
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.`test-fixtures`.TestDataFactory
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -134,6 +137,50 @@ class SaleProductLocalDataSourceTest : RoomTestBase() {
 
         assertEquals("combo-1", store.getProductsForSale("sale-1").first().COMBO_ID)
     }
+
+    // ─── char-test money-path: propagación de error del DAO ───────────────────
+
+    /**
+     * Char-test OLD→NEW. ANTES: `getProductsForSale` envolvía la llamada al DAO
+     * en `try { ... } catch { emptyList() }`, así que un fallo del DAO se veía
+     * como "venta sin productos" y alimentaba una subida vacía a Microsip.
+     * AHORA la excepción se PROPAGA intacta; el guard downstream decide.
+     */
+    @Test
+    fun getProductsForSale_propagatesDaoException_insteadOfSwallowingToEmpty() = runTest {
+        val boom = IllegalStateException("db corrupta")
+        val throwingStore = SaleProductLocalDataSource(throwingProductDao(boom))
+
+        val thrown = try {
+            throwingStore.getProductsForSale("sale-1")
+            null
+        } catch (e: Exception) {
+            e
+        }
+
+        assertSame(
+            "el fallo del DAO debe propagarse, no colapsar a lista vacía",
+            boom,
+            thrown
+        )
+    }
+
+    private fun throwingProductDao(error: Throwable): LocalSaleProductDao =
+        object : LocalSaleProductDao {
+            override suspend fun insertSaleProduct(saleProduct: LocalSaleProductEntity) = Unit
+            override suspend fun insertAllSaleProducts(saleProducts: List<LocalSaleProductEntity>) =
+                Unit
+
+            override suspend fun getProductsForSale(saleId: String): List<LocalSaleProductEntity> =
+                throw error
+
+            override suspend fun deleteProductsForSale(saleId: String) = Unit
+            override suspend fun updateServerUuid(
+                saleId: String,
+                articuloId: Int,
+                serverUuid: String
+            ) = Unit
+        }
 
     // ─── equivalencia inyectado ⇔ puente context ──────────────────────────────
 

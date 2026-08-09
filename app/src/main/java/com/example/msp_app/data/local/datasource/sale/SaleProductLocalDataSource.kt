@@ -31,13 +31,19 @@ class SaleProductLocalDataSource @Inject constructor(
         saleProductDao.insertAllSaleProducts(products)
     }
 
-    suspend fun getProductsForSale(saleId: String): List<LocalSaleProductEntity> {
-        return try {
-            saleProductDao.getProductsForSale(saleId)
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
+    /**
+     * Lee los productos de una venta. Un resultado vacío significa que la
+     * venta NO tiene productos (dato real). Un fallo del DAO (DB corrupta,
+     * disco lleno, constraint) se PROPAGA — jamás se colapsa a lista vacía.
+     *
+     * Money-path: esta lista alimenta la subida a Microsip. Tragar la
+     * excepción aquí subía una venta con renglones vacíos (venta sin
+     * productos = inconsistencia de inventario / pérdida). El guard contra
+     * "sin productos" vive downstream (sync handler y worker), donde puede
+     * distinguir un vacío real de un error propagado y reintentar.
+     */
+    suspend fun getProductsForSale(saleId: String): List<LocalSaleProductEntity> =
+        saleProductDao.getProductsForSale(saleId)
 
     suspend fun deleteProductsForSale(saleId: String) {
         saleProductDao.deleteProductsForSale(saleId)

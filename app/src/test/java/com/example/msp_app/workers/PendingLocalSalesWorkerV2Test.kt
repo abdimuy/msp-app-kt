@@ -250,6 +250,90 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
     }
 
     @Test
+    fun upload_v2_no_products_returns_failure() = runTest {
+        // Char-test OLD→NEW money-path. ANTES: sin productos el worker armaba el
+        // body con la lista vacía y LLAMABA a crearVenta (venta sin renglones en
+        // Microsip). AHORA el guard corta antes de subir.
+        val saleId = "sale-no-prod"
+        saleDataSource.insertSale(TestDataFactory.createLocalSaleEntity(saleId = saleId))
+        saleDataSource.insertSaleImage(
+            TestDataFactory.createLocalSaleImageEntity(
+                imageId = "img-np",
+                saleId = saleId,
+                imageUri = fakeImageFile.absolutePath
+            )
+        )
+        // No products inserted.
+
+        var apiCalled = false
+        val trackingApi = fakeApi(
+            crear = { _, _, _ ->
+                apiCalled = true
+                fakeVentaDTO
+            }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = trackingApi)
+
+        assertEquals(ListenableWorker.Result.failure(), result)
+        assertFalse("crearVenta must not be called when there are no products", apiCalled)
+
+        val sale = saleDataSource.getSaleById(saleId)
+        assertFalse("ENVIADO must stay false on failure", sale!!.ENVIADO)
+    }
+
+    @Test
+    fun upload_v2_combos_only_no_products_returns_failure() = runTest {
+        // El contrato v2 exige >=1 producto AUNQUE haya combos (el e2e
+        // combo→juego del backend siempre manda productos junto al combo). Una
+        // venta solo-combos NO es un vacío legítimo para la subida: no se sube.
+        val saleId = "sale-combos-only"
+        saleDataSource.insertSale(TestDataFactory.createLocalSaleEntity(saleId = saleId))
+        comboDataSource.insertCombo(
+            TestDataFactory.createLocalSaleComboEntity(comboId = "combo-1", saleId = saleId)
+        )
+        saleDataSource.insertSaleImage(
+            TestDataFactory.createLocalSaleImageEntity(
+                imageId = "img-co",
+                saleId = saleId,
+                imageUri = fakeImageFile.absolutePath
+            )
+        )
+        // No products inserted.
+
+        var apiCalled = false
+        val trackingApi = fakeApi(
+            crear = { _, _, _ ->
+                apiCalled = true
+                fakeVentaDTO
+            }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = trackingApi)
+
+        assertEquals(ListenableWorker.Result.failure(), result)
+        assertFalse("crearVenta must not be called for a combos-only sale", apiCalled)
+    }
+
+    @Test
+    fun upload_v2_one_product_no_combos_uploads_ok() = runTest {
+        // Vacío legítimo de combos: una venta con >=1 producto y CERO combos SÍ
+        // se sube. El guard sólo castiga productos vacíos, no combos vacíos.
+        val saleId = seedHappySale("sale-prod-no-combo")
+
+        var callCount = 0
+        val trackingApi = fakeApi(crear = { _, _, _ ->
+            callCount++
+            fakeVentaDTO
+        })
+
+        val result = buildAndRunWorker(saleId = saleId, api = trackingApi)
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertEquals("una venta con productos y sin combos se sube normal", 1, callCount)
+    }
+
+    @Test
     fun upload_v2_io_exception_returns_retry() = runTest {
         val saleId = seedHappySale("sale-io-err")
 
