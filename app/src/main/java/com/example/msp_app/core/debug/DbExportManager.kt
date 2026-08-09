@@ -2,21 +2,22 @@ package com.example.msp_app.core.debug
 
 import android.content.Context
 import android.util.Log
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.debug.models.CommandStatus
 import com.example.msp_app.core.debug.models.DebugResult
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.storage.FirebaseStorage
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.tasks.await
 
 /**
  * Gestiona la exportación de la base de datos y subida a Firebase Storage
  */
-class DbExportManager(private val context: Context) {
+class DbExportManager(
+    private val context: Context,
+    private val clock: AppClock = AppClock.System
+) {
 
     companion object {
         private const val TAG = "DbExportManager"
@@ -94,7 +95,7 @@ class DbExportManager(private val context: Context) {
      */
     private fun createTempCopy(dbFile: File): File? {
         return try {
-            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val timestamp = dbExportTimestamp(clock)
             val userEmail = auth.currentUser?.email?.replace("@", "_")?.replace(".", "_") ?: "unknown"
             val tempFileName = "msp_db_${userEmail}_$timestamp.db"
 

@@ -4,13 +4,11 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.common.time.AppClock
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +23,7 @@ class RemoteLogger private constructor(private val context: Context) {
     private val firestore: FirebaseFirestore = Firebase.firestore
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
     private val scope = CoroutineScope(Dispatchers.IO)
+    private val clock: AppClock = AppClock.System
 
     companion object {
         private const val TAG = "RemoteLogger"
@@ -76,10 +75,7 @@ class RemoteLogger private constructor(private val context: Context) {
         scope.launch {
             try {
                 val currentUser = auth.currentUser
-                val timestamp = SimpleDateFormat(
-                    "yyyy-MM-dd HH:mm:ss",
-                    Locale.getDefault()
-                ).format(Date())
+                val timestamp = remoteLoggerTimestampString(clock)
 
                 val logEntry = hashMapOf(
                     "id" to UUID.randomUUID().toString(),

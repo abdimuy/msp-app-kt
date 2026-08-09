@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.api.ApiProvider
@@ -22,9 +23,6 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.data.models.sale.toEntity
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +33,11 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class SalesViewModel(application: Application) : AndroidViewModel(application) {
+    // Not a constructor param: the default `viewModel()` factory resolves this class via
+    // reflection on an (Application)-only constructor. Adding `clock` as a constructor
+    // parameter (even with a default) breaks that reflection — same pattern as
+    // NewTransferViewModel / CreateGuaranteeViewModel.
+    private val clock: AppClock = AppClock.System
     private val api: SalesApi get() = ApiProvider.create(SalesApi::class.java)
     private val saleStore = SalesLocalDataSource(application.applicationContext)
     private val productStore = ProductsLocalDataSource(application.applicationContext)
@@ -160,9 +163,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
 
                 _syncSalesState.value = ResultState.Success(emptyList())
 
-                val lastSync = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                    .format(Date())
-                saveLastSyncDate(lastSync)
+                saveLastSyncDate(currentSalesLastSync(clock))
             } catch (e: Exception) {
                 if (_syncSalesState.value !is ResultState.Success) {
                     _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar productos y garantías")

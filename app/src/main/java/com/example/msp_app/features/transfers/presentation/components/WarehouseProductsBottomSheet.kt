@@ -46,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.example.msp_app.components.selectbluetoothdevice.SelectBluetoothDevice
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.PdfGenerator
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.core.utils.ThermalPrinting
@@ -364,13 +366,18 @@ fun WarehouseProductsBottomSheet(
 }
 
 /**
- * Generate thermal printer ticket for warehouse inventory
+ * Generate thermal printer ticket for warehouse inventory.
+ *
+ * `internal` (not `private`) so `WarehouseInventoryTicketTest` can call it directly — Kotlin
+ * top-level `private` is file-scoped, which would otherwise block unit testing this pure
+ * function from `:app`'s test source set.
  */
-private fun generateWarehouseInventoryTicket(
+internal fun generateWarehouseInventoryTicket(
     warehouseName: String,
     totalStock: Int,
     assignedUsers: List<com.example.msp_app.data.models.auth.User>,
-    products: List<ProductInventory>
+    products: List<ProductInventory>,
+    clock: AppClock = AppClock.System
 ): String {
     return buildString {
         val lineBlanck = " "
@@ -410,12 +417,7 @@ private fun generateWarehouseInventoryTicket(
         appendLine("-".repeat(32))
         appendLine(lineBlanck)
         appendLine("TOTAL DE PRODUCTOS: ${products.size}")
-        appendLine(
-            "FECHA: ${java.text.SimpleDateFormat(
-                "dd/MM/yyyy HH:mm",
-                java.util.Locale.getDefault()
-            ).format(java.util.Date())}"
-        )
+        appendLine("FECHA: ${AppTime.formatForDisplay(clock.now(), AppTime.Formats.DATE_TIME_24H)}")
         appendLine(lineBlanck)
         appendLine(lineBlanck)
         appendLine(lineBlanck)

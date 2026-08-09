@@ -5,6 +5,8 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.productInventory.ProductInventory
 import com.example.msp_app.features.dailyReport.domain.models.DailyReportData
@@ -13,12 +15,17 @@ import com.example.msp_app.features.payments.models.PaymentTextData
 import com.example.msp_app.features.payments.models.VisitTextData
 import java.io.File
 import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.time.LocalDateTime
-import java.util.Date
-import java.util.Locale
 
 object PdfGenerator {
+
+    /**
+     * "Creado/Generado el" timestamp stamped on PDF reports and print tickets. Extracted as a
+     * pure function so it is unit-testable without Android's `PdfDocument`/`Canvas`, which the
+     * `generate*Pdf` functions below are not. Business-locale fixed (`BUSINESS_LOCALE`, es-MX)
+     * via [AppTime.formatForDisplay] — never `Locale.getDefault()`.
+     */
+    fun printedAtLabel(clock: AppClock, pattern: String = AppTime.Formats.DATE_TIME_24H): String =
+        AppTime.formatForDisplay(clock.now(), pattern)
 
     fun generatePdfFromLines(
         context: Context,
@@ -28,7 +35,8 @@ object PdfGenerator {
         title: String,
         nameCollector: String,
         fileName: String,
-        snapshotId: String? = null
+        snapshotId: String? = null,
+        clock: AppClock = AppClock.System
     ): File? {
         val pdfDocument = PdfDocument()
         val paint = Paint().apply {
@@ -54,11 +62,7 @@ object PdfGenerator {
         canvas.drawText("Cobrador: $nameCollector", marginLeft, yPos.toFloat(), paint)
         yPos += 20
 
-        val printDate = DateUtils.formatIsoDate(
-            DateUtils.getIsoDateTime(LocalDateTime.now()),
-            "dd/MM/yyyy hh:mm a",
-            Locale("es", "MX")
-        )
+        val printDate = printedAtLabel(clock, AppTime.Formats.DATE_TIME_12H)
         canvas.drawText("Creado el: $printDate", marginLeft, yPos.toFloat(), paint)
         yPos += 15
 
@@ -242,7 +246,8 @@ object PdfGenerator {
         totalStock: Int,
         assignedUsers: List<User>,
         products: List<ProductInventory>,
-        fileName: String
+        fileName: String,
+        clock: AppClock = AppClock.System
     ): File? {
         val pdfDocument = PdfDocument()
         val paint = Paint().apply {
@@ -291,7 +296,7 @@ object PdfGenerator {
         }
 
         yPos += 10
-        val printDate = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+        val printDate = printedAtLabel(clock)
         canvas.drawText("Fecha de generación: $printDate", marginLeft, yPos.toFloat(), paint)
         yPos += 25
 
@@ -362,7 +367,8 @@ object PdfGenerator {
     fun generateDailyReportPdf(
         context: Context,
         data: DailyReportData,
-        fileName: String = "reporte_diario.pdf"
+        fileName: String = "reporte_diario.pdf",
+        clock: AppClock = AppClock.System
     ): File? {
         val pdfDocument = PdfDocument()
         val paint = Paint().apply {
@@ -425,7 +431,7 @@ object PdfGenerator {
         canvas.drawText("Fecha: ${data.reportDate}", marginLeft, yPos.toFloat(), paint)
         yPos += 15
 
-        val printTime = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())
+        val printTime = printedAtLabel(clock)
         canvas.drawText("Generado: $printTime", marginLeft, yPos.toFloat(), paint)
         yPos += 25
 

@@ -22,8 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
-import java.text.SimpleDateFormat
-import java.util.Locale
 
 @Composable
 fun HomeStartWeekSection(startDate: String, isDark: Boolean, modifier: Modifier = Modifier) {
@@ -60,23 +58,7 @@ fun HomeStartWeekSection(startDate: String, isDark: Boolean, modifier: Modifier 
 
     Text(
         modifier = Modifier.padding(horizontal = 16.dp),
-        text = "Última actualización de datos:\n ${
-            if (lastSyncDate.isBlank()) {
-                "No se ha sincronizado aún"
-            } else {
-                val originalFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-                val parsed = originalFormat.parse(lastSyncDate)
-                if (parsed != null) {
-                    val targetFormat = SimpleDateFormat(
-                        "dd/MM/yyyy hh:mm a",
-                        Locale.getDefault()
-                    )
-                    targetFormat.format(parsed)
-                } else {
-                    lastSyncDate
-                }
-            }
-        }",
+        text = "Última actualización de datos:\n ${formatLastSyncForDisplay(lastSyncDate)}",
         fontSize = 14.sp,
         color = if (isDark) Color.LightGray else Color.DarkGray,
         textAlign = TextAlign.Center
