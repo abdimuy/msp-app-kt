@@ -282,9 +282,13 @@ internal fun CollectionReportContent(
  * pinta sobre un tablero en blanco para el periodo pedido (ver KDoc de
  * `CollectionReportViewModel.applyError`); esta capa solo lo hace visible, no inventa un
  * componente nuevo del design system para un solo texto de una línea.
+ *
+ * `internal` (no `private`): [com.example.msp_app.feature.collectionreport.ui.tier2.CollectionReportScreenTier2]
+ * (Task 9) reutiliza el mismo banner — mismo criterio anti-duplicación que el resto de los
+ * componentes de `ui/components` compartidos entre Tier 1 y Tier 2.
  */
 @Composable
-private fun ErrorBanner(message: String, modifier: Modifier = Modifier) {
+internal fun ErrorBanner(message: String, modifier: Modifier = Modifier) {
     Text(
         text = message,
         style = MspTheme.type.body,

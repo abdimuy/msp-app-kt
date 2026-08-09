@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -331,9 +332,52 @@ class CollectionReportContentTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText("14").performScrollTo().assertIsDisplayed()
     }
 
+    @Test
+    fun `con masked verdadero TODOS los montos del tablero muestran MASKED_MONEY, incluido el well del hero`() {
+        setContent(MockupFixtures.stateDia(masked = true))
+
+        // Auditoría de completitud (task-9-brief.md): monto del hero + goal cap + los dos
+        // wells (Efectivo en mano/Ticket prom.) = 4, + duo (Efectivo/Transferencia) = 2,
+        // + chip Condonado = 1, + 4 filas de pago del detalle Día = 4 -> 11 ocurrencias de
+        // `MASKED_MONEY` — ningún monto crudo se cuela sin `masked`. `useUnmergedTree = true`:
+        // el hero/tiles/chip/filas son contenedores clickables que MERGEAN sus descendientes
+        // en un solo nodo de semántica (varias ocurrencias de texto colapsan a UN nodo); el
+        // árbol sin mergear cuenta cada `Text` real, uno por monto.
+        val maskedNodes = composeTestRule.onAllNodesWithText(MASKED_MONEY, useUnmergedTree = true)
+        maskedNodes.assertCountEquals(TOTAL_MASKED_MONEY_NODES)
+    }
+
+    @Test
+    fun `con masked verdadero el insight del hero se oculta con el glifo de puntos, no el texto real`() {
+        setContent(MockupFixtures.stateDia(masked = true))
+
+        composeTestRule.onNodeWithText("32 pagos · vas al 91% de tu meta", substring = true)
+            .assertDoesNotExist()
+        composeTestRule.onNodeWithText(MASKED_INSIGHT_GLYPH).assertIsDisplayed()
+    }
+
+    @Test
+    fun `con masked falso el insight del hero muestra la frase real, no el glifo`() {
+        setContent(MockupFixtures.stateDia(masked = false))
+
+        composeTestRule.onNodeWithText(
+            "32 pagos · vas al 91% de tu meta · a este ritmo cierras en ${formatMoneyMxn(
+                BigDecimal("19800")
+            )}"
+        ).assertIsDisplayed()
+        composeTestRule.onNodeWithText(MASKED_INSIGHT_GLYPH).assertDoesNotExist()
+    }
+
     // endregion
 
     private companion object {
         const val HERO_PROGRESS = 0.91f
+
+        // Glifo de privacidad de la frase-insight del hero — 1:1 `HeroSection.MASKED_INSIGHT`
+        // (`private`, no importable desde el test); mockup `masked?'&bull;&bull;&bull;':d.insight`.
+        const val MASKED_INSIGHT_GLYPH = "•••"
+
+        // Ver el desglose completo en el test que lo consume.
+        const val TOTAL_MASKED_MONEY_NODES = 11
     }
 }

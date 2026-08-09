@@ -6,7 +6,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
@@ -58,9 +61,18 @@ abstract class CollectionReportScreenshotTest : RobolectricTestBase() {
      * Captura [content] envuelto en [MspTheme] sobre un fondo sólido, a
      * `src/test/screenshots/<name>.png`, con la tolerancia [RoborazziConfig.CHANGE_THRESHOLD].
      * `animateColors = false` — render estático determinista del crossfade de tema.
+     *
+     * [fontScale] fija la densidad de fuente vía [LocalDensity] (mismo bring-up que
+     * `MspScreenshotTest` en `:core:designsystem`, Task 5) — la matriz Tier 2 @2.0 de Task 9
+     * lo consume.
      */
     @OptIn(ExperimentalRoborazziApi::class)
-    fun capture(name: String, dark: Boolean = false, content: @Composable () -> Unit) {
+    fun capture(
+        name: String,
+        dark: Boolean = false,
+        fontScale: Float = 1f,
+        content: @Composable () -> Unit
+    ) {
         captureRoboImage(
             filePath = "src/test/screenshots/$name.png",
             roborazziOptions = RoborazziOptions(
@@ -69,13 +81,16 @@ abstract class CollectionReportScreenshotTest : RobolectricTestBase() {
                 )
             )
         ) {
-            MspTheme(darkTheme = dark, animateColors = false) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MspTheme.colors.background)
-                ) {
-                    content()
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
+                MspTheme(darkTheme = dark, animateColors = false) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MspTheme.colors.background)
+                    ) {
+                        content()
+                    }
                 }
             }
         }
