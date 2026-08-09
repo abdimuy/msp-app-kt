@@ -17,10 +17,13 @@ import java.math.BigDecimal
 import org.junit.Test
 
 /**
- * Golden baseline (light+dark @1.0, Tier 1) de la mitad superior del reporte de cobranza —
- * header + selector de periodo + subrow + hero con sparkline — en Día y en Semana, con los
- * datos EXACTOS del mockup (task-6-brief.md, ver [MockupFixtures]). La matriz Tier×escala
- * completa (incluido el resto del tablero) llega en Task 11 (fidelity gate).
+ * Golden baseline (light+dark @1.0, Tier 1) de [CollectionReportContent] completo — header +
+ * selector de periodo + subrow + hero con sparkline (Task 6) + duo/chips/detalle (Task 7) —
+ * en Día y en Semana, con los datos EXACTOS del mockup (task-6-brief.md/task-7-brief.md, ver
+ * [MockupFixtures]). El nombre "top section" es histórico (Task 6, cuando `TopSection` SÍ
+ * capturaba solo header→hero); [CollectionReportDetailScreenshotTest] agrega un golden
+ * ACOTADO solo a duo+chips+detalle. La matriz Tier×escala completa llega en Task 11
+ * (fidelity gate).
  *
  * El tercer par (`hero large amount`) es la evidencia visual de que el monto del hero NO
  * trunca a escala de millones — mismo truco que
@@ -83,7 +86,14 @@ private fun TopSection(state: CollectionReportUiState) {
         onThemeToggle = {},
         onPeriodSelect = {},
         onHeroClick = {},
-        onSparkBarClick = {}
+        onSparkBarClick = {},
+        onEfectivoClick = {},
+        onTransferenciaClick = {},
+        onCondonadoClick = {},
+        onVisitasClick = {},
+        onSortSelect = {},
+        onPaymentRowClick = {},
+        onDayRowClick = {}
     )
 }
 

@@ -1,13 +1,16 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.feature.collectionreport.domain.DeltaChip
 import com.example.msp_app.feature.collectionreport.domain.DeltaDirection
 import com.example.msp_app.feature.collectionreport.domain.Insight
 import com.example.msp_app.feature.collectionreport.domain.Timeline
 import com.example.msp_app.feature.collectionreport.domain.TimelineBucket
 import com.example.msp_app.feature.collectionreport.domain.model.Money
+import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import java.math.BigDecimal
+import java.time.Instant
 
 /**
  * Datos EXACTOS del mockup (`docs/design/reporte-cobranza-mockup.html`, task-6-brief.md
@@ -75,6 +78,51 @@ internal object MockupFixtures {
         )
     )
 
+    /** Filas de pago Día (mockup `PAYS`) — nombres/ventas/montos/método EXACTOS del mockup. */
+    fun paymentsDia(): List<PaymentRowUi> = listOf(
+        paymentRow(
+            "p-ml",
+            "María López Hernández",
+            "Muebles Bahía",
+            "09:12",
+            "1200",
+            PaymentMethod.EFECTIVO
+        ),
+        paymentRow(
+            "p-jp",
+            "Juan Pérez Ramírez",
+            "Recámara Diana",
+            "09:40",
+            "850",
+            PaymentMethod.TRANSFERENCIA
+        ),
+        paymentRow(
+            "p-rm",
+            "Rosa Martínez Cruz",
+            "Sala Toscana",
+            "10:05",
+            "1500",
+            PaymentMethod.EFECTIVO
+        ),
+        paymentRow(
+            "p-ps",
+            "Pedro Sánchez Ortiz",
+            "Comedor Roble",
+            "11:20",
+            "2000",
+            PaymentMethod.EFECTIVO
+        )
+    )
+
+    /** Resumen por día Semana (mockup `DAYS`) — etiquetas/montos/conteos/iniciales EXACTOS. */
+    fun daysSemana(): List<DayRowUi> = listOf(
+        DayRowUi("lun 3 ago", money("21300"), 39, "L3", isToday = false),
+        DayRowUi("mar 4 ago", money("24800"), 46, "M4", isToday = false),
+        DayRowUi("mié 5 ago", money("28600"), 51, "M5", isToday = false),
+        DayRowUi("jue 6 ago", money("25400"), 46, "J6", isToday = false),
+        DayRowUi("vie 7 ago (hoy)", money("18300"), 32, "V7", isToday = true)
+    )
+
     fun stateDia(masked: Boolean = false, error: String? = null): CollectionReportUiState =
         CollectionReportUiState(
             period = ReportPeriod.DIA,
@@ -84,7 +132,12 @@ internal object MockupFixtures {
             rangeLabel = "viernes 7 ago 2026",
             pendingCount = 3,
             masked = masked,
-            hero = heroDia()
+            hero = heroDia(),
+            efectivo = TileUi("Efectivo", money("12100"), 22),
+            transferencia = TileUi("Transferencia", money("6200"), 10),
+            condonado = ChipUi("Condonado", amount = money("1400")),
+            visitas = ChipUi("Visitas", count = 14),
+            detail = DetailUi.Payments(paymentsDia())
         )
 
     fun stateSemana(masked: Boolean = false): CollectionReportUiState = CollectionReportUiState(
@@ -94,8 +147,35 @@ internal object MockupFixtures {
         rangeLabel = "semana · lun 3 – vie 7 ago · 5 días",
         pendingCount = 3,
         masked = masked,
-        hero = heroSemana()
+        hero = heroSemana(),
+        efectivo = TileUi("Efectivo", money("79900"), 146),
+        transferencia = TileUi("Transferencia", money("38500"), 68),
+        condonado = ChipUi("Condonado", amount = money("9200")),
+        visitas = ChipUi("Visitas", count = 71),
+        detail = DetailUi.Days(daysSemana())
     )
+
+    // Siempre `synced = true` — los tests que necesitan una fila "por subir" parten de aquí
+    // con `.copy(synced = false)` (ver [paymentsDia] + los tests de `DetailList`), en vez de
+    // sumar un séptimo parámetro a este helper (LongParameterList).
+    private fun paymentRow(
+        id: String,
+        cliente: String,
+        ventaLabel: String,
+        hora: String,
+        monto: String,
+        method: PaymentMethod
+    ): PaymentRowUi = PaymentRowUi(
+        id = id,
+        cliente = cliente,
+        ventaLabel = ventaLabel,
+        paidAt = paidAt(hora),
+        amount = money(monto),
+        method = method,
+        synced = true
+    )
+
+    private fun paidAt(hora: String): Instant = AppTime.parseWireFormat("2026-08-07T$hora:00")
 
     private fun money(value: String) = Money.of(BigDecimal(value))
 }
