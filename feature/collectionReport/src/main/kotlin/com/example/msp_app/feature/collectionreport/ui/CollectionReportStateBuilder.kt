@@ -1,0 +1,212 @@
+package com.example.msp_app.feature.collectionreport.ui
+
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.feature.collectionreport.domain.Insight
+import com.example.msp_app.feature.collectionreport.domain.RangeCalculator
+import com.example.msp_app.feature.collectionreport.domain.ReportAggregator
+import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
+import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
+import com.example.msp_app.feature.collectionreport.domain.model.CollectionVisit
+import com.example.msp_app.feature.collectionreport.domain.model.DateRange
+import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
+import com.example.msp_app.feature.collectionreport.domain.model.Money
+import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import java.time.Instant
+
+/**
+ * Ensamblador PURO (sin I/O ni corrutinas) del contenido cargado del reporte: toma las
+ * listas de dominio que [CollectionReportViewModel] ya resolvió vía los puertos (Task 4) y
+ * arma las piezas de [CollectionReportUiState] usando [ReportAggregator] / [SuggestedGoal] /
+ * [RangeCalculator]. Vive aparte del ViewModel a propósito:
+ * - Mantiene cada tipo bajo el umbral `TooManyFunctions` de detekt (el ViewModel solo
+ *   orquesta I/O + `StateFlow`; este objeto solo transforma datos ya en memoria).
+ * - Se puede testear sin `viewModelScope`/dispatchers — dado un lote de datos de dominio,
+ *   el resultado es determinista.
+ */
+internal object CollectionReportStateBuilder {
+
+    /** Parámetros que dependen del periodo/reloj/orden pedido — no de los puertos. */
+    data class LoadContext(
+        val period: ReportPeriod,
+        val range: DateRange,
+        val clock: AppClock,
+        val sort: DetailSort
+    )
+
+    /** Resultado crudo de consultar los puertos (Task 4) para [LoadContext.range]. */
+    data class LoadedPorts(
+        val cobrador: String,
+        val payments: List<CollectionPayment>,
+        val forgiveness: List<Forgiveness>,
+        val visits: List<CollectionVisit>,
+        val pending: Int,
+        val priorTotal: Money,
+        val historicalTotals: List<Money>
+    )
+
+    /** Contenido ya listo para copiarse dentro de [CollectionReportUiState]. */
+    data class LoadedContent(
+        val range: DateRange,
+        val cobrador: String,
+        val payments: List<CollectionPayment>,
+        val pending: Int,
+        val hero: HeroUi,
+        val efectivo: TileUi,
+        val transferencia: TileUi,
+        val condonado: ChipUi,
+        val visitas: ChipUi,
+        val detail: DetailUi
+    )
+
+    /** Rango del periodo: día de negocio (Día) o ciclo del cobrador (Semana). Puro dado [fechaCargaInicial]. */
+    fun resolveRange(
+        period: ReportPeriod,
+        clock: AppClock,
+        fechaCargaInicial: Instant?
+    ): DateRange = when (period) {
+        ReportPeriod.DIA -> RangeCalculator.dayRange(clock)
+        ReportPeriod.SEMANA -> RangeCalculator.cycleRange(clock, fechaCargaInicial)
+    }
+
+    /**
+     * Rango previo — mismo tamaño que [range], justo antes de su inicio — oracle de
+     * [ReportAggregator.delta] ("vs ayer" en Día / "vs ciclo" en Semana). Lectura fiel al
+     * parked de Task 3: se resuelve con una segunda consulta de pagos sobre este rango.
+     */
+    fun priorRange(range: DateRange): DateRange {
+        val priorEnd = range.startDate
+        val priorStart = priorEnd.minusDays(range.days.toLong())
+        return DateRange(
+            startIso = AppTime.toWireFormat(AppTime.startOfDay(priorStart)),
+            endExclusiveIso = AppTime.toWireFormat(AppTime.startOfDay(priorEnd))
+        )
+    }
+
+    /** Arma el [LoadedContent] completo a partir de [context] + [ports]. */
+    fun buildContent(context: LoadContext, ports: LoadedPorts): LoadedContent {
+        val efectivo = ReportAggregator.efectivo(ports.payments)
+        val transferencia = ReportAggregator.transferencia(ports.payments)
+        val condonado = ReportAggregator.condonado(ports.forgiveness)
+        return LoadedContent(
+            range = context.range,
+            cobrador = ports.cobrador,
+            payments = ports.payments,
+            pending = ports.pending,
+            hero = buildHero(context, ports),
+            efectivo = TileUi("Efectivo", efectivo.total, efectivo.count),
+            transferencia = TileUi("Transferencia", transferencia.total, transferencia.count),
+            condonado = ChipUi(label = "Condonado", amount = condonado.total),
+            visitas = ChipUi(label = "Visitas", count = ports.visits.size),
+            detail = buildDetailUi(context, ports.payments)
+        )
+    }
+
+    /**
+     * Filas de pago del detalle Día, ordenadas por [sort]. Pública porque
+     * [CollectionReportViewModel.setSort] la reusa para reordenar SIN volver a consultar los
+     * puertos (reordenar es puro, dado el último lote de pagos ya cargado).
+     */
+    fun sortedPaymentRows(payments: List<CollectionPayment>, sort: DetailSort): List<PaymentRowUi> {
+        val rows = payments.map { payment ->
+            PaymentRowUi(
+                id = payment.id,
+                cliente = payment.cliente,
+                ventaLabel = payment.ventaLabel,
+                paidAt = payment.paidAt,
+                amount = payment.amount,
+                method = payment.method,
+                synced = payment.synced
+            )
+        }
+        return when (sort) {
+            DetailSort.HORA -> rows.sortedBy { it.paidAt }
+            DetailSort.NOMBRE -> rows.sortedBy { it.cliente.lowercase() }
+        }
+    }
+
+    private fun buildHero(context: LoadContext, ports: LoadedPorts): HeroUi {
+        val total = ReportAggregator.total(ports.payments)
+        val goal = resolveGoal(context.period, context.range, ports.historicalTotals)
+        val progress = ReportAggregator.progressFraction(total, goal)
+        return HeroUi(
+            overline = heroOverline(context.period, context.range),
+            delta = ReportAggregator.delta(total, ports.priorTotal, context.period),
+            monto = total,
+            insight = resolveInsight(context.period, ports.payments, progress, context.range),
+            progress = progress,
+            goalCap = goal,
+            sparkline = ReportAggregator.timeline(ports.payments, context.period, context.range),
+            wells = listOf(
+                HeroWell("Efectivo en mano", ReportAggregator.efectivoEnMano(ports.payments)),
+                HeroWell("Ticket prom.", ReportAggregator.ticketPromedio(ports.payments))
+            )
+        )
+    }
+
+    /** Meta diaria (mediana del historial) o de ciclo (diaria × días) según [period]. */
+    private fun resolveGoal(
+        period: ReportPeriod,
+        range: DateRange,
+        historicalTotals: List<Money>
+    ): Money {
+        val dailyGoal = SuggestedGoal.suggest(historicalTotals)
+        return when (period) {
+            ReportPeriod.DIA -> dailyGoal
+            ReportPeriod.SEMANA -> SuggestedGoal.forCycle(dailyGoal, range.days)
+        }
+    }
+
+    /**
+     * `projection` (Día, "a este ritmo cierras en $Y") queda PARKED a propósito — ver el
+     * reporte de Task 5: no hay todavía un oracle de proyección de cierre verificado; se
+     * degrada a `null` (que [Insight.Daily] modela explícitamente) en vez de inventar una
+     * fórmula de negocio sin validar, mismo criterio que el delta con `prior <= 0`.
+     *
+     * `cycleDay`/`cycleDays` (Semana) son iguales entre sí a propósito: [RangeCalculator]
+     * siempre cierra el ciclo en "hoy" (no hay una duración de ciclo fija conocida de
+     * antemano), así que el día en curso ES el último día del ciclo — `range.days` sirve
+     * para ambos sin inventar un segundo cálculo.
+     */
+    private fun resolveInsight(
+        period: ReportPeriod,
+        payments: List<CollectionPayment>,
+        progress: Float,
+        range: DateRange
+    ): Insight {
+        val count = ReportAggregator.count(payments)
+        return when (period) {
+            ReportPeriod.DIA -> ReportAggregator.insight(period, count, progress, projection = null)
+            ReportPeriod.SEMANA -> ReportAggregator.insight(
+                period,
+                count,
+                progress,
+                projection = null,
+                cycleDay = range.days,
+                cycleDays = range.days
+            )
+        }
+    }
+
+    /**
+     * Overline corto del hero. Día reusa [DateRange.dayLabel] completo (p. ej.
+     * "Cobrado · viernes 7 ago 2026") en vez de la forma abreviada del mockup
+     * ("Cobrado · vie 7 ago"): desviación consciente — evita inventar un segundo formateador
+     * de fecha corto no provisto por el dominio (Task 2); la UI (Task 6+) puede recortarlo si
+     * se requiere paridad pixel-a-pixel con el mockup.
+     */
+    private fun heroOverline(period: ReportPeriod, range: DateRange): String = when (period) {
+        ReportPeriod.DIA -> "Cobrado · ${range.dayLabel()}"
+        ReportPeriod.SEMANA -> "Cobrado · ciclo actual"
+    }
+
+    private fun buildDetailUi(context: LoadContext, payments: List<CollectionPayment>): DetailUi =
+        when (context.period) {
+            ReportPeriod.DIA -> DetailUi.Payments(sortedPaymentRows(payments, context.sort))
+            ReportPeriod.SEMANA -> DetailUi.Days(
+                ReportAggregator.dailyTrend(payments, context.range, context.clock).map { trend ->
+                    DayRowUi(trend.label, trend.total, trend.count, trend.initials, trend.isToday)
+                }
+            )
+        }
+}
