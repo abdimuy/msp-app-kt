@@ -56,7 +56,9 @@ internal object CollectionReportStateBuilder {
         val transferencia: TileUi,
         val condonado: ChipUi,
         val visitas: ChipUi,
-        val detail: DetailUi
+        val detail: DetailUi,
+        val condonadoRows: List<ForgivenessRowUi>,
+        val visitRows: List<VisitRowUi>
     )
 
     /** Rango del periodo: día de negocio (Día) o ciclo del cobrador (Semana). Puro dado [fechaCargaInicial]. */
@@ -98,7 +100,11 @@ internal object CollectionReportStateBuilder {
             transferencia = TileUi("Transferencia", transferencia.total, transferencia.count),
             condonado = ChipUi(label = "Condonado", amount = condonado.total),
             visitas = ChipUi(label = "Visitas", count = ports.visits.size),
-            detail = buildDetailUi(context, ports.payments)
+            detail = buildDetailUi(context, ports.payments),
+            condonadoRows = ports.forgiveness.map {
+                ForgivenessRowUi(cliente = it.cliente, motivo = it.motivo, amount = it.amount)
+            },
+            visitRows = ports.visits.map { VisitRowUi(cliente = it.cliente, nota = it.nota) }
         )
     }
 

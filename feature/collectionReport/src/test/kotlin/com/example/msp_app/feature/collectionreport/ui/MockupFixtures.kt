@@ -114,6 +114,20 @@ internal object MockupFixtures {
         )
     )
 
+    /** Condonaciones (mockup `SHEETS.condon` filas) — cliente/motivo/monto EXACTOS del mockup. */
+    fun condonadoRows(): List<ForgivenessRowUi> = listOf(
+        ForgivenessRowUi("Ana Ruiz", "saldo mínimo · autorizado", money("600")),
+        ForgivenessRowUi("Luis Gómez", "ajuste de intereses", money("500")),
+        ForgivenessRowUi("María Tovar", "redondeo de cierre", money("300"))
+    )
+
+    /** Visitas (mockup `SHEETS.visitas` filas) — cliente/nota EXACTOS del mockup. */
+    fun visitRows(): List<VisitRowUi> = listOf(
+        VisitRowUi("Carlos Vega", "No estaba — dejé recado"),
+        VisitRowUi("Sofía Luna", "Promesa de pago mañana"),
+        VisitRowUi("Diego Mora", "Cliente inconforme")
+    )
+
     /** Resumen por día Semana (mockup `DAYS`) — etiquetas/montos/conteos/iniciales EXACTOS. */
     fun daysSemana(): List<DayRowUi> = listOf(
         DayRowUi("lun 3 ago", money("21300"), 39, "L3", isToday = false),
@@ -137,7 +151,9 @@ internal object MockupFixtures {
             transferencia = TileUi("Transferencia", money("6200"), 10),
             condonado = ChipUi("Condonado", amount = money("1400")),
             visitas = ChipUi("Visitas", count = 14),
-            detail = DetailUi.Payments(paymentsDia())
+            detail = DetailUi.Payments(paymentsDia()),
+            condonadoRows = condonadoRows(),
+            visitRows = visitRows()
         )
 
     fun stateSemana(masked: Boolean = false): CollectionReportUiState = CollectionReportUiState(
@@ -152,7 +168,9 @@ internal object MockupFixtures {
         transferencia = TileUi("Transferencia", money("38500"), 68),
         condonado = ChipUi("Condonado", amount = money("9200")),
         visitas = ChipUi("Visitas", count = 71),
-        detail = DetailUi.Days(daysSemana())
+        detail = DetailUi.Days(daysSemana()),
+        condonadoRows = condonadoRows(),
+        visitRows = visitRows()
     )
 
     // Siempre `synced = true` — los tests que necesitan una fila "por subir" parten de aquí

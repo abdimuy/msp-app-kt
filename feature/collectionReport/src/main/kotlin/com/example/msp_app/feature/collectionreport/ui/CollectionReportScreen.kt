@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,17 +10,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import com.example.msp_app.feature.collectionreport.ui.actions.ReportActionsController
+import com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar
 import com.example.msp_app.feature.collectionreport.ui.components.DetailHeader
 import com.example.msp_app.feature.collectionreport.ui.components.DetailList
 import com.example.msp_app.feature.collectionreport.ui.components.DuoTiles
@@ -27,9 +35,13 @@ import com.example.msp_app.feature.collectionreport.ui.components.HeroSection
 import com.example.msp_app.feature.collectionreport.ui.components.PeriodSelector
 import com.example.msp_app.feature.collectionreport.ui.components.RangeSubRow
 import com.example.msp_app.feature.collectionreport.ui.components.ReportHeader
+import com.example.msp_app.feature.collectionreport.ui.components.ReportSheets
 import com.example.msp_app.feature.collectionreport.ui.components.SecondaryChips
 import com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance
 import com.example.msp_app.feature.collectionreport.ui.components.TabTransition
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Padding inferior del scroll — deja espacio para que el contenido suba sobre la barra de
@@ -63,34 +75,72 @@ private const val ENTRANCE_DETAIL_LIST = 8
  * mitad superior de la pantalla.
  */
 @Suppress("UnusedParameter") // navController: firma reservada para el cableado de Task 10.
+@OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet (ReportSheets).
 @Composable
 fun CollectionReportScreen(
     navController: NavController,
     viewModel: CollectionReportViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     // Mismo sheet (DIA_CICLO) para la barra de la sparkline (Task 6) y la fila de día del
     // resumen Semana (Task 7) — el mockup los une bajo `openSheet('day', i)`, mismo índice.
     val onDiaCicloClick: (Int) -> Unit = { index ->
         viewModel.openSheet(SheetKind.DIA_CICLO, index.toString())
     }
-    CollectionReportContent(
-        state = state,
-        // El drawer real (y el resto de navegación por `navController`) se cablea en Task 10.
-        onMenuClick = {},
-        onPrivacyToggle = viewModel::toggleMask,
-        onThemeToggle = viewModel::toggleTheme,
-        onPeriodSelect = viewModel::setPeriod,
-        onHeroClick = { viewModel.openSheet(SheetKind.HERO) },
-        onSparkBarClick = onDiaCicloClick,
-        onEfectivoClick = { viewModel.openSheet(SheetKind.EFECTIVO) },
-        onTransferenciaClick = { viewModel.openSheet(SheetKind.TRANSFERENCIA) },
-        onCondonadoClick = { viewModel.openSheet(SheetKind.CONDONADO) },
-        onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
-        onSortSelect = viewModel::setSort,
-        onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
-        onDayRowClick = onDiaCicloClick
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        CollectionReportContent(
+            state = state,
+            // El drawer real (y el resto de navegación por `navController`) se cablea en Task 10.
+            onMenuClick = {},
+            onPrivacyToggle = viewModel::toggleMask,
+            onThemeToggle = viewModel::toggleTheme,
+            onPeriodSelect = viewModel::setPeriod,
+            onHeroClick = { viewModel.openSheet(SheetKind.HERO) },
+            onSparkBarClick = onDiaCicloClick,
+            onEfectivoClick = { viewModel.openSheet(SheetKind.EFECTIVO) },
+            onTransferenciaClick = { viewModel.openSheet(SheetKind.TRANSFERENCIA) },
+            onCondonadoClick = { viewModel.openSheet(SheetKind.CONDONADO) },
+            onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
+            onSortSelect = viewModel::setSort,
+            onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
+            onDayRowClick = onDiaCicloClick
+        )
+        BlurredActionBar(
+            onCompartirClick = {
+                context.startActivity(
+                    Intent.createChooser(ReportActionsController.buildShareIntent(state), null)
+                )
+            },
+            // PARKED FOR USER (ver KDoc de ReportActionsController): sin conexión Bluetooth
+            // real todavía, comparte el mismo ticket dinero-seguro como puente temporal.
+            onImprimirClick = {
+                context.startActivity(
+                    Intent.createChooser(
+                        ReportActionsController.buildTicketShareIntent(state),
+                        null
+                    )
+                )
+            },
+            onPdfClick = {
+                coroutineScope.launch {
+                    val file = withContext(Dispatchers.IO) {
+                        ReportActionsController.generatePdf(
+                            context = context,
+                            state = state,
+                            fileName = ReportActionsController.pdfFileName(state),
+                            clock = AppClock.System
+                        )
+                    }
+                    val intent = ReportActionsController.buildPdfShareIntent(context, state, file)
+                    context.startActivity(Intent.createChooser(intent, null))
+                }
+            },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+        ReportSheets(state = state, onDismiss = viewModel::closeSheet)
+    }
 }
 
 /**
@@ -98,7 +148,12 @@ fun CollectionReportScreen(
  * selector de periodo + subrow + hero con sparkline (Task 6) + duo Efectivo/Transferencia +
  * chips Condonado/Visitas + detalle (lista Día / resumen Semana, Task 7). `Box`/`Column` sin
  * `TopAppBar` M3 — el header es propio ([ReportHeader]). La barra de acciones del pie
- * (Task 8) y el sheet modal (Task 9) llegan como overlays de este mismo `Box`.
+ * ([com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar]) y el sheet
+ * modal ([com.example.msp_app.feature.collectionreport.ui.components.ReportSheets]) son
+ * Task 8 (no Task 9, que es el reveal de tema) — se montan como overlays de
+ * [CollectionReportScreen], NO dentro de este composable puro: así los goldens de Task 6/7
+ * de [CollectionReportContent] no cambian (ver `ReportSheetsScreenshotTest`/
+ * `BlurredActionBarScreenshotTest` para los goldens propios de Task 8).
  *
  * Hero + duo + chips + detalle viven DENTRO del mismo [TabTransition] (mockup `.pc`: todo
  * el bloque desliza junto al cambiar de periodo, no solo el hero) — usan `state.*`

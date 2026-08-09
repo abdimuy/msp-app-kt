@@ -40,7 +40,15 @@ data class CollectionReportUiState(
     val condonado: ChipUi = ChipUi(label = "Condonado"),
     val visitas: ChipUi = ChipUi(label = "Visitas"),
     val detail: DetailUi = DetailUi.Payments(emptyList()),
-    val sheet: SheetUi? = null
+    val sheet: SheetUi? = null,
+    // Listas crudas detrás de los chips agregados (Task 8): `condonado`/`visitas` de arriba
+    // ya traen el total/conteo que necesita el tablero; estas dos SOLO existen para que
+    // `ReportSheets` (Task 8) pueda derivar el cuerpo real de los sheets Condonado/Visitas
+    // (`Forgiveness.motivo`/`CollectionVisit.nota`) sin volver a consultar los puertos — el
+    // mismo criterio que ya usa `detail` para Efectivo/Transferencia/Pago (filas ya cargadas,
+    // el sheet solo filtra/busca en memoria).
+    val condonadoRows: List<ForgivenessRowUi> = emptyList(),
+    val visitRows: List<VisitRowUi> = emptyList()
 )
 
 /** Orden del detalle Día: por hora del pago o por nombre del cliente. Semana lo ignora. */
@@ -111,3 +119,12 @@ sealed interface DetailUi {
     data class Payments(val rows: List<PaymentRowUi>) : DetailUi
     data class Days(val rows: List<DayRowUi>) : DetailUi
 }
+
+/** Fila de una condonación (sheet `SheetKind.CONDONADO`) — 1:1 de `Forgiveness` del dominio. */
+data class ForgivenessRowUi(val cliente: String, val motivo: String, val amount: Money)
+
+/**
+ * Fila de una visita (sheet `SheetKind.VISITAS`) — 1:1 de `CollectionVisit` del dominio. Sin
+ * [Money]: una visita no mueve dinero (mismo criterio que el dominio `CollectionVisit`).
+ */
+data class VisitRowUi(val cliente: String, val nota: String)

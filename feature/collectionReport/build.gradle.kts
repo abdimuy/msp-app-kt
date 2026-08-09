@@ -41,6 +41,13 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:telemetry"))
     implementation(libs.androidx.compose.foundation)
+    // FileProvider (Task 8, ReportActionsController): compartir/abrir el PDF generado en
+    // cache sin exponer una `file://` Uri cruda — reusa la declaración de
+    // `androidx.core.content.FileProvider` que `:app` ya trae en su manifest
+    // (`${applicationId}.fileprovider`, `cache-path path="."`), no se agrega una nueva.
+    implementation(libs.androidx.core.ktx)
+    // ModalBottomSheet (Task 8, ReportSheets) — Compose Material3 ya viene del bundle
+    // `compose-ui` que aplica `msp.android.compose` (androidx-material3), no se repite aquí.
     // Menu/DateRange del header y subrow — 1:1 mockup.
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

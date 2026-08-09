@@ -186,7 +186,9 @@ class CollectionReportViewModel @Inject constructor(
         transferencia = content.transferencia,
         condonado = content.condonado,
         visitas = content.visitas,
-        detail = content.detail
+        detail = content.detail,
+        condonadoRows = content.condonadoRows,
+        visitRows = content.visitRows
     )
 
     /**
@@ -214,7 +216,9 @@ class CollectionReportViewModel @Inject constructor(
         transferencia = TileUi(label = "Transferencia"),
         condonado = ChipUi(label = "Condonado"),
         visitas = ChipUi(label = "Visitas"),
-        detail = DetailUi.Payments(emptyList())
+        detail = DetailUi.Payments(emptyList()),
+        condonadoRows = emptyList(),
+        visitRows = emptyList()
     )
 
     private companion object {
