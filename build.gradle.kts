@@ -324,13 +324,19 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // explícita — el módulo ya aplica ktlint/msp.detekt y tenía tests corriendo
 // solo manualmente hasta ahora.
 // `:core:designsystem` (Plan 3, Task 1) se suma con ktlint/test/detekt desde
-// el día uno del esqueleto. Deliberadamente NO se agrega
-// `:core:designsystem:verifyRoborazziDebug` todavía — el plugin Roborazzi
-// está aplicado pero sin goldens que verificar hasta Task 10; agregarlo antes
-// haría fallar el gate por falta de capturas de referencia.
+// el día uno del esqueleto. `:core:designsystem:verifyRoborazziDebug` +
+// `:core:designsystem:koverVerifyDebug` se suman ahora en Task 10 (cierre de
+// Plan 3): antes de Task 10 el plugin Roborazzi estaba aplicado pero sin
+// goldens de referencia — agregarlo antes habría hecho fallar el gate por
+// falta de capturas; ahora el catálogo Tier×escala×tema completo (goldens
+// `catalog_*` + los `msp_*`/sueltos de Tasks 6-9) está committeado y
+// `verifyRoborazziDebug` puede correr en verde en cada pre-push.
+// `koverVerifyDebug` de este módulo usa el piso placeholder (0%, `msp.kover`)
+// igual que el resto de módulos nuevos que todavía no tienen una línea base
+// de cobertura fijada.
 tasks.register("prePushCheck") {
     group = "verification"
-    description = "Gate agregado pre-push: ktlint + tests + detekt + kover + build, todos los módulos."
+    description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, todos los módulos."
 
     dependsOn(
         gradle.includedBuild("build-logic").task(":ktlintCheck"),
@@ -348,11 +354,20 @@ tasks.register("prePushCheck") {
         ":core:testing:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
+        // `koverVerifyDebug`, no el agregado `koverVerify`: el agregado también
+        // arrastra `testReleaseUnitTest`, y el 100% de los tests de este módulo
+        // son Robolectric (Compose UI + Roborazzi) — Robolectric bajo la
+        // variante `release` (minificada) revienta con
+        // `RoboMonitoringInstrumentation` en CADA test, sin relación alguna con
+        // Task 10 ni con el código del catálogo. `:core:common` no pisa este
+        // gotcha porque sus tests son JVM plano, sin Robolectric.
+        ":core:designsystem:koverVerifyDebug",
         ":core:common:detekt",
         ":core:database:detekt",
         ":core:designsystem:detekt",
         ":core:testing:detekt",
         ":build-tools:detekt-rules:detekt",
+        ":core:designsystem:verifyRoborazziDebug",
         ":app:assembleDevlocalDebug",
     )
 }
