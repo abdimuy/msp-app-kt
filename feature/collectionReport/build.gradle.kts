@@ -25,6 +25,15 @@ android {
     }
 }
 
+// Mismo heap/metaspace que `:core:designsystem` (msp.detekt/msp.test no lo dan por
+// default aquí): Task 6 graba la primera matriz de goldens Roborazzi de este módulo
+// (header+periodo+subrow+hero, Tier 1 light+dark) en la misma JVM de test — sin este
+// bump el render de Robolectric Native Graphics se queda corto de memoria.
+tasks.withType<Test> {
+    maxHeapSize = "2g"
+    jvmArgs("-XX:MaxMetaspaceSize=1g")
+}
+
 dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:common"))
@@ -32,11 +41,20 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:telemetry"))
     implementation(libs.androidx.compose.foundation)
+    // Menu/DateRange del header y subrow — 1:1 mockup.
+    implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose) // collectAsStateWithLifecycle
     implementation(libs.androidx.navigation.compose) // si el screen expone NavController
+    // hiltViewModel() en CollectionReportScreen.
+    implementation(libs.androidx.hilt.navigation.compose)
 
     testImplementation(project(":core:testing")) // fakes + Turbine + Robolectric + roborazzi (api)
     testImplementation(libs.androidx.ui.test.junit4)
+    // roborazzi-compose declara androidx.activity:activity-compose como compileOnly (no
+    // viene transitivo vía el `api` de :core:testing) — lo necesita en runtime para
+    // hostear el composable en un ComponentActivity real al capturar goldens (Task 6+).
+    testImplementation(libs.androidx.activity.compose)
 
     // Regla custom `NoDoubleForMoney` (Task 9) — registrada vía ServiceLoader,
     // por eso viaja como `detektPlugins` y no como dependencia normal. Pone el
