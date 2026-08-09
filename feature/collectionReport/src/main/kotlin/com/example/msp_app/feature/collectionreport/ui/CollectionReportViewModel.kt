@@ -135,7 +135,7 @@ class CollectionReportViewModel @Inject constructor(
                     message = failure.message ?: failure::class.simpleName.orEmpty(),
                     props = mapOf("period" to period.name)
                 )
-                mutableState.update { it.copy(loading = false, error = ERROR_MESSAGE) }
+                mutableState.update { applyError(it, period) }
             }
         }
     }
@@ -187,6 +187,34 @@ class CollectionReportViewModel @Inject constructor(
         condonado = content.condonado,
         visitas = content.visitas,
         detail = content.detail
+    )
+
+    /**
+     * Estado de error MANTENIENDO [period] consistente con el resto del contenido — fix
+     * round 1: el toggle NO "rebota" solo a escondidas del usuario (si tocó Semana y falló,
+     * sigue viendo Semana seleccionada), pero TAMPOCO se queda mezclando el [period] nuevo
+     * con `hero`/`detail`/`rangeLabel` del periodo anterior (eso mostraría "Semana"
+     * seleccionada con las cifras/etiqueta de Día). Se elige blanquear todo el contenido
+     * dependiente del rango (opción "b" del fix, no un rollback de `period`): la UI (Task 6+)
+     * pinta el banner de error sobre un tablero en blanco para el periodo pedido. `cobrador`
+     * NO se blanquea — es identidad del usuario, no depende del rango, y no genera la mezcla
+     * que este fix corrige.
+     */
+    private fun applyError(
+        current: CollectionReportUiState,
+        period: ReportPeriod
+    ): CollectionReportUiState = current.copy(
+        period = period,
+        loading = false,
+        error = ERROR_MESSAGE,
+        rangeLabel = "",
+        pendingCount = 0,
+        hero = HeroUi(),
+        efectivo = TileUi(label = "Efectivo"),
+        transferencia = TileUi(label = "Transferencia"),
+        condonado = ChipUi(label = "Condonado"),
+        visitas = ChipUi(label = "Visitas"),
+        detail = DetailUi.Payments(emptyList())
     )
 
     private companion object {

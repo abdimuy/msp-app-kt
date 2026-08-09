@@ -18,8 +18,10 @@ import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
+import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import java.math.BigDecimal
 import java.time.Instant
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -209,19 +211,79 @@ class CollectionReportViewModelTest {
             assertEquals(expectedRange.days, detail.rows.size)
         }
 
+    /**
+     * Fix round 1 (Important 1): la versión anterior de este test lanzaba
+     * `setPeriod(SEMANA)` + `setPeriod(DIA)` seguidos y solo comprobaba el estado final — con
+     * fakes SIN ningún punto de suspensión real, eso pasaba IGUAL con o sin `loadJob?.cancel()`
+     * (la de SEMANA nunca llegaba a resolver antes de que DIA la pisara por orden de
+     * lanzamiento, no por cancelación real). Mismo patrón que
+     * `CobranzaReconcilerTest.mutexSerializesConcurrentCalls`: se usa un `CompletableDeferred`
+     * para dejar la carga de SEMANA genuinamente EN VUELO (suspendida a mitad de
+     * `paymentsIn`) antes de disparar `setPeriod(DIA)`, y solo se libera la compuerta
+     * DESPUÉS — si `loadJob?.cancel()` se borrara, el resultado de SEMANA (aplazado, no
+     * cancelado) pisaría el de DIA al liberar la compuerta y la aserción final fallaría.
+     */
     @Test
-    fun `setPeriod repetido sin resolver cancela la carga anterior y el estado final es el del ultimo periodo pedido`() =
-        runTest(testDispatcher) {
+    fun `setPeriod cancela genuinamente una carga en vuelo, el resultado viejo no pisa el nuevo`() =
+        runTest(
+            testDispatcher
+        ) {
             userCyclePort.fechaCarga = Instant.parse("2026-08-03T16:00:00Z")
-            val vm = viewModel()
+            val semanaRange = RangeCalculator.cycleRange(clock, userCyclePort.fechaCarga)
+
+            val entered = CompletableDeferred<Unit>()
+            val gate = CompletableDeferred<Unit>()
+            val diaPayments = listOf(payment(id = "dia-1", amount = money("100.00")))
+            val semanaPayments = listOf(payment(id = "semana-1", amount = money("999999.00")))
+
+            // Solo bloquea la consulta que coincide EXACTO con el rango de Semana (el rango previo
+            // del delta y las cargas de Día usan otro rango, así que pasan directo).
+            val gatedPort = object : PaymentsPort {
+                override suspend fun paymentsIn(range: DateRange): List<CollectionPayment> =
+                    if (range == semanaRange) {
+                        entered.complete(Unit)
+                        gate.await()
+                        semanaPayments
+                    } else {
+                        diaPayments
+                    }
+                override suspend fun forgivenessIn(range: DateRange): List<Forgiveness> =
+                    emptyList()
+                override suspend fun paymentsGroupedByDaySince(
+                    startIso: String
+                ): Map<String, List<CollectionPayment>> = emptyMap()
+                override suspend fun pendingCount(): Int = 0
+            }
+
+            val vm = viewModel(payments = gatedPort)
+            testDispatcher.scheduler.advanceUntilIdle() // carga inicial Día, sin bloqueo.
+            assertEquals(money("100.00"), vm.state.value.hero.monto)
+
+            vm.setPeriod(
+                ReportPeriod.SEMANA
+            ) // su paymentsIn(semanaRange) queda EN VUELO en `gate`.
+            testDispatcher.scheduler.runCurrent()
+            assertTrue(
+                "la carga de Semana debe estar genuinamente suspendida en la compuerta",
+                entered.isCompleted
+            )
+
+            vm.setPeriod(
+                ReportPeriod.DIA
+            ) // debe cancelar el job de Semana (aún colgado) y lanzar uno nuevo.
+            testDispatcher.scheduler.advanceUntilIdle() // el nuevo Día no está gateado -> resuelve completo.
+
+            // Soltamos la compuerta recién ahora: si Semana NO fue cancelada, su continuación
+            // resume aquí y pisaría el estado con sus datos — la aserción de abajo lo detecta.
+            gate.complete(Unit)
             testDispatcher.scheduler.advanceUntilIdle()
 
-            vm.setPeriod(ReportPeriod.SEMANA)
-            vm.setPeriod(ReportPeriod.DIA) // llega antes de que la de SEMANA resuelva
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            assertEquals(ReportPeriod.DIA, vm.state.value.period)
-            assertFalse(vm.state.value.loading)
+            val state = vm.state.value
+            assertEquals(ReportPeriod.DIA, state.period)
+            assertEquals(
+                money("100.00"),
+                state.hero.monto
+            ) // NUNCA el 999999.00 de la Semana cancelada.
         }
 
     // ─── eventos puros de UI (máscara / orden / sheet) ─────────────────
@@ -316,5 +378,59 @@ class CollectionReportViewModelTest {
             assertFalse(state.loading)
             assertEquals("no se pudo cargar el reporte de cobranza", state.error)
             assertTrue(telemetry.recorded.any { it.type == TelemetryEventType.ERROR })
+        }
+
+    private class ThrowingUserCyclePort(
+        private val delegate: UserCyclePort,
+        private val message: String
+    ) : UserCyclePort by delegate {
+        override suspend fun fechaCargaInicial(): Instant? = throw IllegalStateException(message)
+    }
+
+    /**
+     * Fix round 1 (Important 2): antes de este fix, un fallo a mitad de `setPeriod(SEMANA)`
+     * dejaba `state.period == SEMANA` pero `hero`/`detail`/`rangeLabel` seguían siendo los de
+     * Día (la UI mostraría "Semana" seleccionada con las cifras/etiqueta de Día). Se elige
+     * conservar el `period` que el usuario pidió (el toggle no "rebota" solo) y blanquear TODO
+     * el contenido dependiente del rango junto con el error, en vez de revertir `period` — ver
+     * el KDoc de `CollectionReportViewModel.applyError`.
+     */
+    @Test
+    fun `fallo al cambiar a Semana deja period, rangeLabel y contenido consistentes, sin mezclar con Dia`() =
+        runTest(testDispatcher) {
+            paymentsPort.payments = listOf(payment(amount = money("100.00")))
+            val vm = CollectionReportViewModel(
+                paymentsPort,
+                visitsPort,
+                ThrowingUserCyclePort(userCyclePort, "firestore down"),
+                historicalTotalsPort,
+                clock,
+                telemetry
+            )
+            testDispatcher.scheduler.advanceUntilIdle()
+            val diaState = vm.state.value
+            assertEquals(
+                ReportPeriod.DIA,
+                diaState.period
+            ) // Día no consulta fechaCargaInicial -> carga bien.
+            assertEquals(money("100.00"), diaState.hero.monto)
+
+            vm.setPeriod(ReportPeriod.SEMANA)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val state = vm.state.value
+            assertEquals("el toggle no debe revertirse solo", ReportPeriod.SEMANA, state.period)
+            assertEquals("no se pudo cargar el reporte de cobranza", state.error)
+            assertFalse(state.loading)
+            // Nada del Día sobrevive mezclado con period=SEMANA: todo el contenido está en blanco.
+            assertEquals("", state.rangeLabel)
+            assertEquals(0, state.pendingCount)
+            assertEquals(Money.ZERO, state.hero.monto)
+            assertEquals(Money.ZERO, state.efectivo.amount)
+            assertEquals(0, state.efectivo.count)
+            assertEquals(Money.ZERO, state.transferencia.amount)
+            assertNull(state.condonado.amount)
+            assertNull(state.visitas.count)
+            assertTrue((state.detail as DetailUi.Payments).rows.isEmpty())
         }
 }
