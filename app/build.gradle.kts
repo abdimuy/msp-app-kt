@@ -206,6 +206,9 @@ dependencies {
 
     implementation(project(":core:common"))
     implementation(project(":core:database"))
+    // ConnectivityMonitor + su módulo Hilt (Task 5, Plan 4) — mismo package
+    // `com.example.msp_app.core.network`, ningún import de consumidor cambia.
+    implementation(project(":core:network"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

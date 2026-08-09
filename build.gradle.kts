@@ -350,6 +350,12 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // plan. Por eso, desde Task 4, el gate pasa a `koverVerifyDebug` (como
 // `:core:designsystem`) — el piso de cobertura 90% sigue vivo, solo deja de
 // arrastrar la variante `release` que el módulo no necesita ejercitar acá.
+// `:core:network` (Plan 4, Task 5) se suma con ktlint/test/detekt desde el
+// esqueleto, mismo patrón que `:core:database`/`:core:designsystem`/
+// `:core:telemetry` al nacer: `msp.kover` queda aplicado pero SIN entrar a
+// este gate todavía (piso placeholder 0%) — el umbral real llega cuando T6+
+// construya el cliente Retrofit/interceptores sobre `ConnectivityMonitor`
+// (reubicado desde `:app` en esta misma tarea, comportamiento idéntico).
 tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, todos los módulos."
@@ -361,6 +367,7 @@ tasks.register("prePushCheck") {
         ":core:common:ktlintCheck",
         ":core:database:ktlintCheck",
         ":core:designsystem:ktlintCheck",
+        ":core:network:ktlintCheck",
         ":core:telemetry:ktlintCheck",
         ":core:testing:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
@@ -368,6 +375,7 @@ tasks.register("prePushCheck") {
         ":core:common:testDebugUnitTest",
         ":core:database:testDebugUnitTest",
         ":core:designsystem:testDebugUnitTest",
+        ":core:network:testDebugUnitTest",
         ":core:telemetry:testDebugUnitTest",
         ":core:testing:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
@@ -384,6 +392,7 @@ tasks.register("prePushCheck") {
         ":core:common:detekt",
         ":core:database:detekt",
         ":core:designsystem:detekt",
+        ":core:network:detekt",
         ":core:telemetry:detekt",
         ":core:testing:detekt",
         ":build-tools:detekt-rules:detekt",

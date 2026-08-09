@@ -17,8 +17,15 @@ import org.robolectric.annotation.Config
 /**
  * Task 7 (Plan 1 — cimiento): prueba que el grafo Hilt real (no una fake
  * inyección manual) resuelve [WarehousesApi] y [ConnectivityMonitor] a través
- * de [NetworkModule] y [ConnectivityModule]. Esto es justo lo que hace que
- * estos tipos sean "inyectables" — el objetivo entero de esta tarea.
+ * de [NetworkModule] y `com.example.msp_app.core.network.di.ConnectivityModule`.
+ * Esto es justo lo que hace que estos tipos sean "inyectables" — el objetivo
+ * entero de esta tarea.
+ *
+ * `ConnectivityModule` se reubicó a `:core:network` (Task 5, Plan 4);
+ * `WarehousesApi`/`NetworkModule` se quedan en `:app` (kill-switch de
+ * baseURL, ver `NetworkModule`). Este test sigue viviendo acá porque prueba
+ * el grafo Hilt COMPLETO de `:app` (ambos módulos combinados), no una pieza
+ * aislada de `:core:network`.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)

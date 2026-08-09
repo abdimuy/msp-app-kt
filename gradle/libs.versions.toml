@@ -157,6 +157,13 @@ detekt-gradle-plugin = { group = "io.gitlab.arturbosch.detekt", name = "detekt-g
 compose-ui = ["androidx-ui", "androidx-ui-graphics", "androidx-ui-tooling-preview", "androidx-material3"]
 compose-test = ["androidx-ui-test-junit4", "androidx-ui-test-manifest"]
 room = ["androidx-room-runtime", "androidx-room-ktx"]
+# Esenciales de unit test JVM/Robolectric para módulos `msp.test` que además
+# necesitan `ApplicationProvider` (`androidx-test-core`) — el resto
+# (junit/coroutines-test/turbine) ya lo agrega `msp.test`, redeclararlos acá
+# es un no-op seguro (misma versión, Gradle deduplica por coordenada) y deja
+# el bundle autocontenido para un módulo que en el futuro NO aplique
+# `msp.test`. Primer consumidor: `:core:network` (Task 5, Plan 4).
+unit-test = ["junit", "kotlinx-coroutines-test", "turbine", "androidx-test-core"]
 android-test-support = ["androidx-test-core", "androidx-test-runner"]
 instrumented-e2e = [
     "androidx-work-testing",
