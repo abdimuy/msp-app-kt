@@ -31,13 +31,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.R
+import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
-import com.example.msp_app.core.utils.DateUtils
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
-import java.time.ZoneOffset
 
 @Composable
 fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: Boolean = false) {
@@ -50,13 +49,11 @@ fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: 
         ?.FECHA_CARGA_INICIAL
         ?.toDate()
         ?.toInstant()
-        ?.atZone(ZoneOffset.UTC)
-        ?.toLocalDateTime()
-        ?.let { DateUtils.getIsoDateTime(it) }
-        ?: DateUtils.getIsoDateTime()
+        ?.let { AppTime.toWireFormat(it) }
+        ?: AppTime.toWireFormat(AppClock.System.now())
 
     val bgRes = if (
-        DateUtils.isAfterIso(
+        isPaymentAfterInitialLoad(
             payment.FECHA_HORA_PAGO,
             dateInitial
         )
