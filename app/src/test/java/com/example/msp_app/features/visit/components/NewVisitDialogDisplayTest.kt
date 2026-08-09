@@ -7,13 +7,13 @@ import org.junit.Test
 
 /**
  * TDD suite for Task 9 of the fechas/AppTime migration — [formatRescheduleDateTime], extracted
- * from `NewVisitDialog.updateNoteWithDateTime` (previously `DateUtils.formatLocalDateTime`).
+ * from `NewVisitDialog.updateNoteWithDateTime` (previously the legacy date util's `formatLocalDateTime`).
  *
  * [dateTime] is a naive `LocalDateTime` built from the date/time pickers, with no zone
  * attached at the call site; [formatRescheduleDateTime] now explicitly anchors it in
  * `BUSINESS_ZONE` before formatting, matching how the rest of the app treats picker-selected
  * wall-clock values — never the device zone. The visible pattern/locale (`dd/MM/yyyy HH:mm`,
- * `es-MX`) are unchanged from the old `DateUtils.formatLocalDateTime`; since the value round-
+ * `es-MX`) are unchanged from the old legacy date util's `formatLocalDateTime`; since the value round-
  * trips through the SAME zone (business zone in, business zone out) and Mexico no longer
  * observes DST, the displayed string is identical to before for any date this app will see.
  */

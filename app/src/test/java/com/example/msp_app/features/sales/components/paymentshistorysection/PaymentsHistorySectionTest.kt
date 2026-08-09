@@ -11,7 +11,7 @@ import org.junit.Test
 /**
  * TDD suite for Task 9 of the fechas/AppTime migration — [isFirstPaymentOfToday], extracted
  * from `PaymentsHistory` to fix a latent zone-consistency bug (see the KDoc on the function
- * under test): `datePayment` used to come from `DateUtils.formatIsoDate` (device zone) and
+ * under test): `datePayment` used to come from the legacy date util's `formatIsoDate` (device zone) and
  * `dateNow` from a bare `LocalDate.now()` (also device zone) — self-consistent only by
  * accident. Migrating `datePayment` alone to business zone without also moving `dateNow`
  * would have broken the "is this the first payment of today" highlight for any cobrador whose

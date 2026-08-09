@@ -23,7 +23,7 @@ private const val LOOKBACK_START_DATE = "2020-01-01"
  * [PaymentDao.observePaymentsGroupedByDaySince]: the day-grouping key now uses the
  * BUSINESS zone (`America/Mexico_City`, via `dayKeyOf`/`AppTime.toBusinessDate` in
  * `PaymentDao.kt`) instead of the device's timezone (the bug the deleted
- * `PaymentDateGrouping.kt` copy shared with the legacy `DateUtils.formatIsoDate`,
+ * `PaymentDateGrouping.kt` copy shared with the legacy date util's `formatIsoDate`,
  * see `date-lib-audit.md` bugs #1/#7).
  *
  * The first test method below is the pinned old-behavior-vs-new-behavior case
@@ -76,7 +76,7 @@ class PaymentDayGroupingTest : RobolectricTestBase() {
      *
      * OLD (buggy) behavior, documented here and NOT reproduced (the buggy code
      * path no longer exists — that is the point of this test): the deleted
-     * `formatIsoDateForGrouping`/`DateUtils.formatIsoDate` converted to
+     * legacy day-grouping helper (mirroring the legacy date util's `formatIsoDate`) converted to
      * `ZoneId.systemDefault()` instead of the business zone. On a device set to
      * a UTC-ish zone (e.g. UTC or UTC+1, plausible for a misconfigured phone or
      * one that roamed abroad), `2026-03-15T05:30:00Z` stays on **2026-03-15**

@@ -103,7 +103,7 @@ class WireContractTest {
         // offset instead of Z. Live-verified against the Go stdlib: time.Parse(time.RFC3339, ..)
         // on this exact string yields 2026-04-23T01:43:56Z (19:43:56 -06:00 == 01:43:56Z next day).
         //
-        // BEFORE this migration, the legacy `DateUtils.parseIsoToDateTime` THROWS
+        // BEFORE this migration, the legacy date util's `parseIsoToDateTime` THROWS
         // DateTimeParseException on this exact string (bug #2 in the audit) — callers like
         // `isAfterIso`/`isBeforeIso` crashed, and `formatIsoDate` silently degraded to the raw
         // string. This test pins the CORRECT behaviour: AppTime.parseWireFormat must accept it

@@ -84,7 +84,7 @@ fun PaymentsHistory(sale: Sale, navController: NavController) {
  * Drives the highlighted background in [PaymentCard].
  *
  * Extracted as a pure, non-`@Composable` function so both sides of the comparison share the
- * same zone: previously `datePayment` came from `DateUtils.formatIsoDate` (device zone,
+ * same zone: previously `datePayment` came from the legacy date util's `formatIsoDate` (device zone,
  * implicitly via `ZoneId.systemDefault()`) while `dateNow` came from a bare `LocalDate.now()`
  * (also device zone) — self-consistent only because both happened to use the device zone.
  * Migrating `datePayment` alone to [AppTime.formatIsoForDisplay] (business zone) without also

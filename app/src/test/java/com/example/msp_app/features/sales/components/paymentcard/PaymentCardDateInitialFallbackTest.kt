@@ -21,13 +21,13 @@ import org.junit.Test
  *     ?.let { AppTime.toWireFormat(it) }
  *     ?: AppTime.toWireFormat(AppClock.System.now())
  * ```
- * — is NOT behavior-neutral versus the removed `DateUtils.getIsoDateTime()` (no-arg) fallback.
- * It is a benign FAVORABLE FIX, pinned here instead of only asserted in prose. See
+ * — is NOT behavior-neutral versus the removed legacy date util's `getIsoDateTime()` (no-arg)
+ * fallback. It is a benign FAVORABLE FIX, pinned here instead of only asserted in prose. See
  * `HomeStartWeekDateFallbackTest` in `features.home.screens` for the identical-shape fallback in
  * `Home.kt` — same underlying bug, same fix, duplicated here because the two call sites are
  * independent production seams the reviewers flagged separately.
  *
- * `DateUtils.getIsoDateTime()`'s body labels the DEVICE's naive wall-clock digits
+ * The legacy date util's `getIsoDateTime()` body labels the DEVICE's naive wall-clock digits
  * (`LocalDateTime.now()`) as UTC (`.atZone(ZoneOffset.UTC)`) instead of converting them — wrong
  * by the device's UTC offset whenever that offset isn't zero. `AppTime.toWireFormat
  * (AppClock.System.now())` uses the TRUE current instant, always correct regardless of device
@@ -69,12 +69,12 @@ class PaymentCardDateInitialFallbackTest {
     }
 
     @Test
-    fun `OLD DateUtils-getIsoDateTime fallback mislabels device wall-clock as UTC and diverges from the true instant`() {
+    fun `OLD legacy-date-util getIsoDateTime fallback mislabels device wall-clock as UTC and diverges from the true instant`() {
         val original = TimeZone.getDefault()
         try {
             TimeZone.setDefault(TimeZone.getTimeZone("America/Mexico_City")) // UTC-6, no DST
 
-            // OLD code, inlined verbatim from the removed `DateUtils.getIsoDateTime()`.
+            // OLD code, inlined verbatim from the removed legacy date util's `getIsoDateTime()`.
             // `LocalDateTime.now()` is simulated deterministically for the SAME real instant
             // via `Clock.fixed(fixedInstant, ZoneId.systemDefault())`.
             val oldDeviceWallClock = LocalDateTime.now(

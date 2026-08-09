@@ -445,7 +445,7 @@ fun NewVisitDialog(
  * for the rescheduled visit, always interpreted in [BUSINESS_ZONE] (Mexico City), matching how
  * the rest of the app treats picker-selected wall-clock values. It is never the device zone.
  *
- * Previously `DateUtils.formatLocalDateTime` formatted this naive `LocalDateTime` directly with
+ * Previously the legacy date util's `formatLocalDateTime` formatted this naive `LocalDateTime` directly with
  * no zone attached at all. Routing it through an explicit [BUSINESS_ZONE] instant keeps the
  * printed pattern identical (`AppTime.Formats.DATE_TIME_24H` == the old hardcoded
  * `"dd/MM/yyyy HH:mm"`, `AppTime.BUSINESS_LOCALE` == the old hardcoded `Locale("es", "MX")`) —

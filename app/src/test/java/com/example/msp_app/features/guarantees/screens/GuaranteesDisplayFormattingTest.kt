@@ -8,8 +8,8 @@ import org.junit.Test
 
 /**
  * TDD suite for Task 9 of the fechas/AppTime migration — display-only call sites migrated off
- * `DateUtils.formatIsoDate` in the guarantees flow. Pins `AppTime.formatIsoForDisplay`
- * behaviour for each exact pattern carried over from `DateUtils`, following the same approach
+ * the legacy date util's `formatIsoDate` in the guarantees flow. Pins `AppTime.formatIsoForDisplay`
+ * behaviour for each exact pattern carried over from the legacy date util, following the same approach
  * as Task 8's `PaymentDisplayFormattingTest`.
  *
  * Patterns under test:

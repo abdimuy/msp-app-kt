@@ -29,8 +29,8 @@ object ReportFormatters {
      * `AppTime.startOfDay`/`AppTime.startOfNextDay` kdoc and
      * `msp-api/docs/module-standards/DATETIME_HANDLING.md`).
      *
-     * Replaces the legacy `DateUtils.parseLocalDateToIso(date)` (start, computed in the
-     * DEVICE zone via `ZoneId.systemDefault()`) + `DateUtils.addToIsoDate(addToIsoDate(iso, 1,
+     * Replaces the legacy date util's `parseLocalDateToIso(date)` (start, computed in the
+     * DEVICE zone via `ZoneId.systemDefault()`) + `addToIsoDate(addToIsoDate(iso, 1,
      * DAYS), -1, SECONDS)` (end, "+1 day -1 second"). That legacy pattern had two independent
      * bugs (`date-lib-audit.md`): (1) the day boundary was anchored to the device's timezone,
      * not the business zone — a cobrador with a misconfigured/roaming phone could see the wrong
@@ -53,7 +53,7 @@ object ReportFormatters {
      * The default report date for an unopened "today" report — business zone, NEVER device
      * zone. Canonical call site for the "today" default used by `DailyReportScreen` (initial
      * `LaunchedEffect`) and `RouteMapScreen` (initial `selectedDate`), replacing the bare
-     * `LocalDate.now()` / `DateUtils.getCurrentDate()` calls that both anchored to
+     * `LocalDate.now()` / the legacy date util's `getCurrentDate()` calls that both anchored to
      * `ZoneId.systemDefault()` (bug #1: a device near midnight in another zone opened the
      * report on the wrong business day).
      */

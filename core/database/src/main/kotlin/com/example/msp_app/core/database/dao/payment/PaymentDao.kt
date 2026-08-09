@@ -39,7 +39,7 @@ private const val PAYMENT_LOOKAHEAD_WINDOW_DAYS = 100L
  * [fechaHoraPago] falls on, formatted `yyyy-MM-dd`.
  *
  * **Money-path fix:** this used to be computed in the device's timezone (a
- * byte-identical internal copy of the legacy `DateUtils.formatIsoDate`, see
+ * byte-identical internal copy of the legacy date util's `formatIsoDate`, see
  * `date-lib-audit.md` bug #1/#7). A cobrador with the phone set to another
  * zone (travel, roaming, misconfiguration) could see a payment near
  * midnight grouped under the wrong day. Grouping is now anchored to the

@@ -10,12 +10,12 @@ import org.junit.Test
 
 /**
  * Task 12b (fechas/AppTime migration) — background-gradient decision in `PaymentCard.kt`,
- * migrated off `DateUtils.isAfterIso` (naive `LocalDateTime` comparison) to
+ * migrated off the legacy date util's `isAfterIso` (naive `LocalDateTime` comparison) to
  * [isPaymentAfterInitialLoad] (direct `Instant` comparison via `AppTime.parseWireFormat`).
  *
  * See [isPaymentAfterInitialLoad]'s KDoc for the full audit: for the only shape production ever
- * writes (`Z`-suffixed UTC strings from `AppTime.toWireFormat` / the old `DateUtils
- * .getIsoDateTime`), the old naive-`LocalDateTime` comparison and the new `Instant` comparison
+ * writes (`Z`-suffixed UTC strings from `AppTime.toWireFormat` / the legacy date util's
+ * `getIsoDateTime`), the old naive-`LocalDateTime` comparison and the new `Instant` comparison
  * are ORDER-EQUIVALENT — neither reads `ZoneId.systemDefault()` / the device's default zone, so
  * there is no "device-zone bug" for that realistic shape (regions 1-2 below characterize this
  * equivalence, including under different JVM default `TimeZone`s). Region 3 documents the one
@@ -102,7 +102,7 @@ class PaymentCardBackgroundTest {
         // true (business-zone) instant of dateInitial.
         val paymentIso = "2026-04-16T00:30:00Z"
 
-        // OLD behaviour, reproduced verbatim from the removed `DateUtils.parseIsoToDateTime`:
+        // OLD behaviour, reproduced verbatim from the removed legacy date util's `parseIsoToDateTime`:
         // both sides compared as naive LocalDateTime, dateInitial's digits taken as-is.
         val oldPaymentNaive = OffsetDateTime.parse(paymentIso).toLocalDateTime()
         val oldDateInitialNaive = LocalDateTime.parse(dateInitialIso)

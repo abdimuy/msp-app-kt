@@ -169,7 +169,7 @@ class AppTimeTest {
 
     // endregion
 
-    // region — plusOnWire (replaces DateUtils.addToIsoDate, bug #3)
+    // region — plusOnWire (replaces the legacy date util's addToIsoDate, bug #3)
 
     @Test
     fun `plusOnWire adds days crossing a month boundary`() {
@@ -197,7 +197,7 @@ class AppTimeTest {
 
     @Test
     fun `plusOnWire does not drift when the input carries a non-zero offset`() {
-        // Legacy shape (-06:00). Old DateUtils.addToIsoDate only worked by accident for offset
+        // Legacy shape (-06:00). The old legacy date util's addToIsoDate only worked by accident for offset
         // zero; plusOnWire operates on the parsed Instant so any offset is safe.
         val result = AppTime.plusOnWire("2026-04-22T19:43:56.000-06:00", 1, ChronoUnit.DAYS)
         assertEquals("2026-04-24T01:43:56Z", result)
@@ -440,7 +440,7 @@ class AppTimeTest {
 
     // endregion
 
-    // region — Device-zone independence (the bug DateUtils has and AppTime does not)
+    // region — Device-zone independence (the bug the legacy date util has and AppTime does not)
 
     @Test
     fun `AppTime results do not change with the JVM default TimeZone`() {

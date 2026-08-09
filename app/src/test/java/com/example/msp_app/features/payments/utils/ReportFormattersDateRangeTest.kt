@@ -2,9 +2,13 @@ package com.example.msp_app.features.payments.utils
 
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.testing.time.FakeClock
-import com.example.msp_app.core.utils.DateUtils
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.TimeZone
 import org.junit.After
@@ -51,6 +55,36 @@ class ReportFormattersDateRangeTest {
         val start = AppTime.parseWireFormat(range.startIso)
         val end = AppTime.parseWireFormat(range.endIso)
         return !instant.isBefore(start) && instant.isBefore(end)
+    }
+
+    // The removed legacy date util is gone from production; these three helpers are inlined
+    // VERBATIM from its old body (see git history) so this characterization test still exercises
+    // the exact OLD behaviour being compared against, without resurrecting the dead object.
+
+    private fun oldParseIsoToDateTime(iso: String): LocalDateTime = when {
+        iso.contains("T") && iso.endsWith("Z") -> OffsetDateTime.parse(iso).toLocalDateTime()
+        iso.contains("T") -> LocalDateTime.parse(iso)
+        else -> LocalDate.parse(iso).atStartOfDay()
+    }
+
+    private fun oldGetIsoDateTime(dateTime: LocalDateTime): String {
+        val formatter = DateTimeFormatter.ISO_INSTANT
+        val zoned = dateTime.atZone(ZoneOffset.UTC)
+        return formatter.format(zoned)
+    }
+
+    private fun oldParseLocalDateToIso(date: LocalDate): String {
+        val systemZone = ZoneId.systemDefault()
+        val instant = date.atStartOfDay(systemZone).toInstant()
+        return DateTimeFormatter.ISO_INSTANT.format(instant)
+    }
+
+    private fun oldAddToIsoDate(iso: String, amount: Long, unit: ChronoUnit): String = try {
+        val dateTime = oldParseIsoToDateTime(iso)
+        val updatedDateTime = dateTime.plus(amount, unit)
+        oldGetIsoDateTime(updatedDateTime)
+    } catch (e: Exception) {
+        iso
     }
 
     // region — Basic contract: wraps AppTime.startOfDay/startOfNextDay, business zone
@@ -158,14 +192,15 @@ class ReportFormattersDateRangeTest {
         val date = LocalDate.of(2026, 4, 15)
 
         // Comportamiento VIEJO (DailyReportScreen.prepareReportDate / RouteMapScreen antes del
-        // fix): DateUtils.parseLocalDateToIso ancla en ZoneId.systemDefault() (zona del
-        // DISPOSITIVO), y el fin de rango se calcula con addToIsoDate(+1 dia) seguido de
-        // addToIsoDate(-1 segundo) — inclusive, y sujeto al bug #3 (round-trip por
-        // LocalDateTime que descarta el offset original).
+        // fix): el util de fechas legado anclaba en ZoneId.systemDefault() (zona del
+        // DISPOSITIVO) para parsear la fecha local, y el fin de rango se calculaba con
+        // +1 dia seguido de -1 segundo — inclusive, y sujeto al bug #3 (round-trip por
+        // LocalDateTime que descarta el offset original). Reproducido verbatim arriba
+        // (oldParseLocalDateToIso/oldAddToIsoDate) tras borrar el objeto original.
         TimeZone.setDefault(TimeZone.getTimeZone("America/Tijuana")) // siempre detras de CDMX
-        val oldStartIso = DateUtils.parseLocalDateToIso(date)
-        val oldEndIso = DateUtils.addToIsoDate(
-            DateUtils.addToIsoDate(oldStartIso, 1, ChronoUnit.DAYS),
+        val oldStartIso = oldParseLocalDateToIso(date)
+        val oldEndIso = oldAddToIsoDate(
+            oldAddToIsoDate(oldStartIso, 1, ChronoUnit.DAYS),
             -1,
             ChronoUnit.SECONDS
         )

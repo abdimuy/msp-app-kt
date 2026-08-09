@@ -10,13 +10,13 @@ import org.junit.Test
 
 /**
  * TDD suite for Task 9 of the fechas/AppTime migration — the payment-date label in
- * `PaymentCard.kt`, migrated off `DateUtils.formatIsoDate` to `AppTime.formatIsoForDisplay`
+ * `PaymentCard.kt`, migrated off the legacy date util's `formatIsoDate` to `AppTime.formatIsoForDisplay`
  * with pattern `"EE dd/MM/yyyy hh:mm a"` (weekday abbreviation + date + 12h time). The
  * composable uppercases the result afterwards — that `.uppercase()` step is UI-only and out
  * of scope here, matching Task 8's approach of testing the `AppTime` call, not the Compose
  * layer.
  *
- * `PaymentCard.kt` lines 48-58 (`DateUtils.getIsoDateTime` / `DateUtils.isAfterIso`, used to
+ * `PaymentCard.kt` lines 48-58 (the legacy date util's `getIsoDateTime` / `isAfterIso`, used to
  * pick the card's background gradient) are OUT OF SCOPE for this task: they are comparison
  * logic, not a `formatIsoDate`/`formatLocalDateTime` display call — left untouched per the
  * Task 9 brief's explicit scope.

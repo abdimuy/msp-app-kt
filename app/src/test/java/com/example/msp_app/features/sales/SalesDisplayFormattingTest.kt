@@ -8,10 +8,10 @@ import org.junit.Test
 
 /**
  * TDD suite for Task 9 of the fechas/AppTime migration — display-only call sites migrated off
- * `DateUtils.formatIsoDate` in the sales flow.
+ * the legacy date util's `formatIsoDate` in the sales flow.
  *
  * As in Task 8's `PaymentDisplayFormattingTest`, this pins `AppTime.formatIsoForDisplay`
- * behaviour for each exact pattern string carried over from `DateUtils`, rather than
+ * behaviour for each exact pattern string carried over from the legacy date util, rather than
  * re-testing `AppTime` generically (already covered by
  * `core/common/.../time/AppTimeTest.kt`).
  *

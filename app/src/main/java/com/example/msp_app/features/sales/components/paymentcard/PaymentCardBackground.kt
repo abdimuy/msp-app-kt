@@ -7,13 +7,13 @@ import com.example.msp_app.core.common.time.AppTime
  * background gradient (success vs. regular) for a pago captured since the cobrador's current
  * workday/session started (`FECHA_CARGA_INICIAL`).
  *
- * Replacement for the legacy `DateUtils.isAfterIso`, which parsed both sides via
+ * Replacement for the legacy date util's `isAfterIso`, which parsed both sides via
  * `parseIsoToDateTime` into a naive `LocalDateTime` and compared those instead of comparing
  * `Instant`s directly.
  *
  * **Audit finding — semantics preserved for the only shape production ever produces:** both
  * `payment.FECHA_HORA_PAGO` and `dateInitial` are always `Z`-suffixed UTC ISO strings written by
- * `AppTime.toWireFormat` (formerly `DateUtils.getIsoDateTime`). For that shape, the naive
+ * `AppTime.toWireFormat` (formerly the legacy date util's `getIsoDateTime`). For that shape, the naive
  * `LocalDateTime` the old code compared IS the UTC wall clock (`OffsetDateTime.parse(iso)
  * .toLocalDateTime()` on a `Z` string just drops the zero offset), so its ordering was already
  * equivalent to comparing the two `Instant`s. This migration makes that equivalence explicit

@@ -22,10 +22,11 @@ import org.junit.Test
  *     AppTime.toWireFormat(startInstant)
  * }
  * ```
- * — is NOT behavior-neutral versus the removed `DateUtils.parseDateToIso(null)` fallback. It is
- * a benign FAVORABLE FIX, and this test pins that claim instead of just asserting it in prose.
+ * — is NOT behavior-neutral versus the removed legacy date util's `parseDateToIso(null)`
+ * fallback. It is a benign FAVORABLE FIX, and this test pins that claim instead of just
+ * asserting it in prose.
  *
- * `DateUtils.parseDateToIso(null)` called `DateUtils.getIsoDateTime()` (no-arg), whose body is:
+ * The legacy date util's `parseDateToIso(null)` called its own `getIsoDateTime()` (no-arg), whose body is:
  * ```kotlin
  * val zoned = (dateTime ?: LocalDateTime.now()).atZone(java.time.ZoneOffset.UTC)
  * DateTimeFormatter.ISO_INSTANT.format(zoned)
@@ -75,12 +76,12 @@ class HomeStartWeekDateFallbackTest {
     }
 
     @Test
-    fun `OLD DateUtils-getIsoDateTime fallback mislabels device wall-clock as UTC and diverges from the true instant`() {
+    fun `OLD legacy-date-util getIsoDateTime fallback mislabels device wall-clock as UTC and diverges from the true instant`() {
         val original = TimeZone.getDefault()
         try {
             TimeZone.setDefault(TimeZone.getTimeZone("America/Mexico_City")) // UTC-6, no DST
 
-            // OLD code, inlined verbatim from the removed `DateUtils.getIsoDateTime()`:
+            // OLD code, inlined verbatim from the removed legacy date util's `getIsoDateTime()`:
             // `(dateTime ?: LocalDateTime.now()).atZone(ZoneOffset.UTC)`. `LocalDateTime.now()`
             // is simulated deterministically for the SAME real instant via
             // `Clock.fixed(fixedInstant, ZoneId.systemDefault())` — this reproduces exactly

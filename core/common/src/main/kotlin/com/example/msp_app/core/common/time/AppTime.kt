@@ -116,7 +116,7 @@ object AppTime {
      * operating on [Instant] end to end — never round-trips through [LocalDateTime], so the
      * result cannot drift depending on the offset of the input string.
      *
-     * Replacement for the legacy `DateUtils.addToIsoDate`, which computed the sum via a
+     * Replacement for the legacy date util's `addToIsoDate`, which computed the sum via a
      * `LocalDateTime` round-trip and only produced a correct result when the input happened
      * to carry a zero UTC offset (see `date-lib-audit.md` bug #3).
      */

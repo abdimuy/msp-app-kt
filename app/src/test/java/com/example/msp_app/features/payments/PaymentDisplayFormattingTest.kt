@@ -10,7 +10,7 @@ import org.junit.Test
 /**
  * TDD suite for Task 8 of the fechas/AppTime migration — display-only call sites of
  * `AppTime.formatIsoForDisplay` in the payments flow (`PaymentItem`, `PaymentTicketScreen`,
- * `Home.kt`), migrated off `DateUtils.formatIsoDate`.
+ * `Home.kt`), migrated off the legacy date util's `formatIsoDate`.
  *
  * These call sites pass the pattern string as their only non-default argument, so this suite
  * pins `formatIsoForDisplay` behaviour for each exact pattern in use rather than re-testing
