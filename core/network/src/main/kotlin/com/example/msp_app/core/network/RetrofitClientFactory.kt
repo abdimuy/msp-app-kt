@@ -10,8 +10,15 @@ import retrofit2.converter.gson.GsonConverterFactory
 /**
  * Fábrica *stateless* de clientes Retrofit. Reemplaza a `BaseApi.createClient`
  * (v1) y `V2BaseApi.createClient` (v2) del legacy, unificando la construcción:
- * `GsonConverterFactory` + [AppVersionInterceptor] siempre, y [BearerAuthInterceptor]
- * solo cuando `auth = true`.
+ * `GsonConverterFactory` siempre, [BearerAuthInterceptor] solo cuando
+ * `auth = true`, y [AppVersionInterceptor] **solo en el cliente v2** (backend Go).
+ *
+ * **Alcance del header `X-App-Version` (no-regresión estricta):** solo el backend
+ * Go v2 fue auditado y confirmado como indiferente a headers desconocidos
+ * (2026-08-09, ver [AppVersionInterceptor]). El backend v1 (Node) y el host de
+ * imágenes NO se verificaron, así que sus requests salen **byte-idénticas** al
+ * comportamiento previo a este plan: SIN `X-App-Version`. Por eso el header es
+ * *opt-in* por perfil (`appVersionHeader`), activado únicamente en [v2].
  *
  * **Kill-switch (crux de esta tarea):** la fábrica NO cachea ningún `Retrofit`
  * ni congela la baseURL. La [NetworkConfig] se resuelve por llamada vía
@@ -35,30 +42,49 @@ class RetrofitClientFactory @Inject constructor(
 ) {
 
     /**
-     * Cliente v1 (Node legacy): sin bearer, timeout de 300 s.
+     * Cliente v1 (Node legacy): sin bearer, sin `X-App-Version` (backend no
+     * verificado — request byte-idéntica al legacy), timeout de 300 s.
      * Lee la baseURL vigente por llamada (kill-switch).
      */
     fun legacy(): Retrofit {
         val config = configProvider.get()
-        return build(config.legacyBaseUrl, config.appVersion, auth = false, LEGACY_TIMEOUT_SECONDS)
+        return build(
+            config.legacyBaseUrl,
+            config.appVersion,
+            auth = false,
+            appVersionHeader = false,
+            LEGACY_TIMEOUT_SECONDS
+        )
     }
 
     /**
-     * Cliente v2 (Go): con bearer, timeout de 60 s.
-     * Lee la baseURL vigente por llamada (kill-switch).
+     * Cliente v2 (Go): con bearer y con `X-App-Version` (único backend auditado),
+     * timeout de 60 s. Lee la baseURL vigente por llamada (kill-switch).
      */
     fun v2(): Retrofit {
         val config = configProvider.get()
-        return build(config.v2BaseUrl, config.appVersion, auth = true, V2_TIMEOUT_SECONDS)
+        return build(
+            config.v2BaseUrl,
+            config.appVersion,
+            auth = true,
+            appVersionHeader = true,
+            V2_TIMEOUT_SECONDS
+        )
     }
 
     /**
-     * Cliente de imágenes: sin bearer, perfil de timeout v2.
-     * Lee la baseURL vigente por llamada (kill-switch).
+     * Cliente de imágenes: sin bearer, sin `X-App-Version` (host no verificado),
+     * perfil de timeout v2. Lee la baseURL vigente por llamada (kill-switch).
      */
     fun images(): Retrofit {
         val config = configProvider.get()
-        return build(config.imagesBaseUrl, config.appVersion, auth = false, V2_TIMEOUT_SECONDS)
+        return build(
+            config.imagesBaseUrl,
+            config.appVersion,
+            auth = false,
+            appVersionHeader = false,
+            V2_TIMEOUT_SECONDS
+        )
     }
 
     /**
@@ -67,24 +93,38 @@ class RetrofitClientFactory @Inject constructor(
      *
      * @param baseUrl base absoluta (debe terminar en `/`).
      * @param auth si `true`, agrega [BearerAuthInterceptor].
+     * @param appVersionHeader si `true`, agrega [AppVersionInterceptor]
+     *   (`X-App-Version`). Por defecto `false`: solo backends auditados (el v2 Go)
+     *   deben optar por él; el v1 Node y el host de imágenes NO se verificaron.
      * @param timeoutSeconds timeout de connect y read.
      */
     fun create(
         baseUrl: String,
         auth: Boolean,
+        appVersionHeader: Boolean = false,
         timeoutSeconds: Long = V2_TIMEOUT_SECONDS
-    ): Retrofit = build(baseUrl, configProvider.get().appVersion, auth, timeoutSeconds)
+    ): Retrofit = build(
+        baseUrl = baseUrl,
+        appVersion = configProvider.get().appVersion,
+        auth = auth,
+        appVersionHeader = appVersionHeader,
+        timeoutSeconds = timeoutSeconds
+    )
 
     private fun build(
         baseUrl: String,
         appVersion: String,
         auth: Boolean,
+        appVersionHeader: Boolean,
         timeoutSeconds: Long
     ): Retrofit {
         val clientBuilder = OkHttpClient.Builder()
-            .addInterceptor(AppVersionInterceptor(appVersion))
             .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
             .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+
+        if (appVersionHeader) {
+            clientBuilder.addInterceptor(AppVersionInterceptor(appVersion))
+        }
 
         if (auth) {
             clientBuilder.addInterceptor(BearerAuthInterceptor(authTokenProvider))

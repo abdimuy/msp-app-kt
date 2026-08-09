@@ -7,11 +7,11 @@ import retrofit2.Retrofit
  * [com.example.msp_app.core.network.RetrofitClientFactory] de `:core:network`
  * (T7): `factory.images()` = baseURL de imágenes del flavor, SIN bearer.
  *
- * Cambio consciente vs legacy (documentado, no regresión): el legacy usaba los
- * defaults de OkHttp (timeout 10 s, sin interceptores). El factory homologa a
- * 60 s (más generoso para descargas de imagen) y adjunta `X-App-Version`
- * (aditivo — el backend ignora headers desconocidos; ver `AppVersionInterceptor`).
- * No cambia ningún formato de request/response.
+ * Único cambio consciente vs legacy (documentado, no regresión): el legacy usaba
+ * el timeout default de OkHttp (10 s); el factory lo homologa a 60 s (más generoso
+ * para descargas de imagen). NO adjunta `X-App-Version` — el host de imágenes no
+ * fue auditado, así que la request sale sin headers extra, byte-idéntica al legacy
+ * salvo el timeout. No cambia ningún formato de request/response.
  */
 object ApiProviderImages {
 

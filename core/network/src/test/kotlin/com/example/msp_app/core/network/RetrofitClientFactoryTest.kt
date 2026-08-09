@@ -60,7 +60,7 @@ class RetrofitClientFactoryTest {
     }
 
     @Test
-    fun `create con auth true incluye bearer y version`() {
+    fun `create con auth true incluye bearer y por defecto SIN version`() {
         server.enqueue(MockResponse().setResponseCode(HTTP_OK).setBody("""{"status":"ok"}"""))
         val factory = factoryFor(Provider { configFor(server.url("/").toString()) })
 
@@ -68,11 +68,12 @@ class RetrofitClientFactoryTest {
 
         val recorded = server.takeRequest()
         assertEquals("Bearer tok", recorded.getHeader("Authorization"))
-        assertEquals("2.12.2", recorded.getHeader(AppVersionInterceptor.HEADER_APP_VERSION))
+        // El header es opt-in por perfil; sin appVersionHeader=true no se envía.
+        assertNull(recorded.getHeader(AppVersionInterceptor.HEADER_APP_VERSION))
     }
 
     @Test
-    fun `create con auth false solo incluye version sin bearer`() {
+    fun `create con auth false por defecto no incluye ni bearer ni version`() {
         server.enqueue(MockResponse().setResponseCode(HTTP_OK).setBody("""{"status":"ok"}"""))
         val factory = factoryFor(Provider { configFor(server.url("/").toString()) })
 
@@ -80,6 +81,18 @@ class RetrofitClientFactoryTest {
 
         val recorded = server.takeRequest()
         assertNull(recorded.getHeader("Authorization"))
+        assertNull(recorded.getHeader(AppVersionInterceptor.HEADER_APP_VERSION))
+    }
+
+    @Test
+    fun `create con appVersionHeader true incluye X-App-Version`() {
+        server.enqueue(MockResponse().setResponseCode(HTTP_OK).setBody("""{"status":"ok"}"""))
+        val url = server.url("/").toString()
+        val factory = factoryFor(Provider { configFor(url) })
+
+        pingWith(factory.create(url, auth = false, appVersionHeader = true))
+
+        val recorded = server.takeRequest()
         assertEquals("2.12.2", recorded.getHeader(AppVersionInterceptor.HEADER_APP_VERSION))
     }
 
@@ -106,6 +119,38 @@ class RetrofitClientFactoryTest {
 
         pingWith(factory.legacy())
         assertNull(server.takeRequest().getHeader("Authorization"))
+    }
+
+    /**
+     * No-regresión del header `X-App-Version`: SOLO el cliente v2 (Go, auditado)
+     * lo adjunta. El v1 (Node) y el host de imágenes NO fueron verificados, así que
+     * sus requests salen sin el header — byte-idénticas al comportamiento previo.
+     */
+    @Test
+    fun `solo v2 adjunta X-App-Version, legacy e imagenes no`() {
+        repeat(3) {
+            server.enqueue(MockResponse().setResponseCode(HTTP_OK).setBody("""{"status":"ok"}"""))
+        }
+        val factory = factoryFor(Provider { configFor(server.url("/").toString()) })
+
+        pingWith(factory.v2())
+        assertEquals(
+            "el v2 (Go auditado) DEBE llevar X-App-Version",
+            "2.12.2",
+            server.takeRequest().getHeader(AppVersionInterceptor.HEADER_APP_VERSION)
+        )
+
+        pingWith(factory.legacy())
+        assertNull(
+            "el v1 Node NO fue verificado: sin X-App-Version",
+            server.takeRequest().getHeader(AppVersionInterceptor.HEADER_APP_VERSION)
+        )
+
+        pingWith(factory.images())
+        assertNull(
+            "el host de imágenes NO fue verificado: sin X-App-Version",
+            server.takeRequest().getHeader(AppVersionInterceptor.HEADER_APP_VERSION)
+        )
     }
 
     /**
