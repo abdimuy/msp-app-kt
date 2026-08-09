@@ -13,10 +13,10 @@
 3. Progreso legible + decisiones: `docs/superpowers/plans/NIGHT-REPORT.md`.
 4. Verificá HEAD/rama antes de nada: `git rev-parse --short HEAD`, `git branch --show-current`.
 
-## Orden de ejecución
-`Plan 0 ✅ → Plan 1 ✅ → (detekt estricto ✅) → Plan fechas ✅ CERRADO CONFORME (11/11) → Plan 2 (T5-9 pendientes, SIGUIENTE) → Plan 3 → Plan 4 → Plan 5`.
-**Ojo de secuencia:** el plan de fechas (`2026-08-08-fechas-appointime-migracion.md`) está intercalado dentro de Plan 2
-(se hizo primero por prioridad del usuario). Terminar fechas antes de retomar Plan 2 T5-9, o en paralelo por área — decidir.
+## Orden de ejecución (charter nocturno 2026-08-09)
+`Plan 0 ✅ → Plan 1 ✅ → (detekt estricto ✅) → Plan fechas ✅ CERRADO CONFORME (11/11) → Plan 2 ✅ CERRADO CONFORME (10/10, HEAD 79e3d46) →
+**Deuda money-robustez (4 tareas, SIGUIENTE)** → Plan 3 (DS) → Plan 4 (telemetría/network) → Plan 5 (piloto reporte cobranza)`.
+Planes 3/4/5 YA PLANEADOS (archivos `2026-08-09-plan3/4/5-*.md`). Deuda money = `2026-08-09-deuda-money-robustez.md` (4 tareas, char-test + 2 revisores).
 
 ## Planes (archivos con `## Task N`)
 - `docs/superpowers/plans/2026-08-07-plan-maestro-multimodulo.md` — maestro (constraints + checklist).
@@ -58,7 +58,15 @@
 `feedback_msp_app_kt_audit_rewrite_supreme_tests`, `reference_msp_app_kt_hilt_baseurl_killswitch`,
 `feedback_reporte_cobranza_fidelidad_mockup`, `feedback_delegate_to_sonnet`, `feedback_no_claude_attribution`.
 
-## PRÓXIMA ACCIÓN (al reanudar) — CHECKPOINT LIMPIO
+## PRÓXIMA ACCIÓN (charter nocturno) — Plan 2 CERRADO, sigue deuda money-robustez
+**Plan 2 CERRADO CONFORME** (HEAD `79e3d46`; auditoría opus 10/10 PASS; `CONFORMANCE-AUDIT.md` en el workspace de Plan 2).
+T9 = cierre honesto (getInstance residual documentado como deuda rastreada; gate completo + `assembleDevserverRelease` + device e2e 10/10).
+**SIGUIENTE:** ejecutar `docs/superpowers/plans/2026-08-09-deuda-money-robustez.md` (4 tareas, ledger en su workspace):
+T1 exception-swallow venta-sin-productos (MONEY, 2 rev + char-test), T2 saveAll deleteUploaded (MONEY), T3 inserts @Transaction (MONEY), T4 DAO null-lie + método muerto (non-money, 1 rev).
+Luego Plan 3 → Plan 4 → Plan 5 (todos ya planeados). Plan 5 arranca solo tras Plan 3+4 (depende de `:core:designsystem`/`:core:network`/`:core:telemetry`).
+
+---
+### (histórico) checkpoint previo
 **Plan fechas CERRADO CONFORME** (HEAD `55f905f`; auditoría opus 11/11 PASS, `prePushCheck` verde, Room v27 intacto,
 `DateUtils` borrado + guardrail `checkNoLegacyDateApi` en `prePushCheck`). Ledger + `CONFORMANCE-AUDIT.md` en
 `.superpowers/sdd/2026-08-08-fechas-appointime-migracion/`.

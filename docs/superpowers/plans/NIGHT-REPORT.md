@@ -155,3 +155,19 @@ Auditoría de conformidad (opus): **11/11 PASS**, `prePushCheck` verde en daemon
 - **DIFERIDOS**: (a) allowlist forbidden-API residual (~14 archivos legacy) = plan de limpieza futuro; (b) **RELEASE-GATE manual**:
   garantías `FECHA_EVENTO` ahora viaja Z-UTC al backend Node — smoke test de campo del orden de eventos antes de desplegar garantías.
 - **SIGUIENTE**: Plan 2 (database) T5-9.
+
+## 2026-08-09 — Charter nocturno (orquestación autónoma)
+### Plan 2 (database) ✅ CERRADO CONFORME — HEAD `79e3d46`
+- **T5** RoomTestBase→`:core:testing` (adversarial cazó commit roto por edit sin stagear). **T6** Payments/VisitsLocalDataSource @Inject DAOs (audit halló bug dormido `saveAll deleteAll`). **T7** 4 datasources ventas (audit: exception-swallow money-adjacent + inserts sin @Transaction). **T8** 5 datasources catálogo/clientes/garantías (audit: 2 DAO null-lie + método muerto). **T9** cierre: getInstance residual documentado (18 callers accounted), gate completo + `assembleDevserverRelease` + **device e2e 10/10 primera corrida**.
+- **Auditoría de conformidad (opus): 10/10 PASS, CONFORME.** Byte-identical hoist, money-path tests genuinos, Hilt graph probado (assertSame + setInstanceForTesting), sin getInstance sin documentar. `CONFORMANCE-AUDIT.md` en `.superpowers/sdd/2026-08-07-plan2-database/`.
+
+### Deuda money-adjacent — plan escrito, EN EJECUCIÓN
+`docs/superpowers/plans/2026-08-09-deuda-money-robustez.md` (4 tareas, contratos reales verificados): T1 exception-swallow venta-sin-productos al sync (MONEY), T2 `saveAll`→`deleteUploaded` (MONEY, dormido), T3 inserts venta `@Transaction` (MONEY), T4 DAO by-id nullable + método muerto (non-money). Cada money → char-test old→new + 2 revisores.
+
+### Planes 3/4/5 — YA PLANEADOS (planners opus, en paralelo mientras corría T9)
+- **Plan 3** `:core:designsystem` — `2026-08-09-plan3-designsystem.md`, **10 tareas**. Roborazzi Tier×escala×tema; BigDecimal para dinero. **NECESITA TU OJO (parkeados):** (a) neutrales spec §2.1 dice kollect 1:1 (verde-gris) vs el mockup usa azul-gris oscuro → plan implementa kollect, tie-break diferido al revisor de fidelidad de Plan 5; (b) Azul A no alcanza AAA 7:1 estricto en el overline translúcido del hero → mapeado a AAA-large 4.5:1; (c) alcance Tier 2 DS-vs-pantalla.
+- **Plan 4** `:core:telemetry` + `:core:network` — `2026-08-09-plan4-telemetry-network.md`, **8 tareas**. Telemetría con Room propio (`telemetry_db` v1, NO toca v27); kill-switch preservado; `AuthTokenProvider` port. **Parkeado:** confirmar nombre/tolerancia del header `X-App-Version` contra backend Go + Node v1 (verificaré el contrato yo mismo al ejecutar).
+- **Plan 5** `:feature:collectionReport` (PILOTO) — planner en curso.
+
+### Método de la noche
+Orquestador despacha todo a subagentes; gate real por tarea; 1 revisor (behavior-neutral) / 2 (money) + char-test; auditoría de conformidad opus al cierre de cada plan. Sin push. Un emulador headless para e2e.
