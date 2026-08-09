@@ -300,13 +300,13 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // Task 10 (Plan 1): gate agregado que corre pre-push, sobre TODOS los
 // módulos existentes a la fecha (se suman más cuando lleguen en planes
 // siguientes). Un solo `./gradlew prePushCheck` cubre:
-//   - ktlint de :app, :core:common, :core:database, :core:testing,
-//     :build-tools:detekt-rules y :build-logic (build compuesto, referenciado
-//     vía `gradle.includedBuild` porque sus tareas no viven en el grafo de
-//     tareas del build principal).
+//   - ktlint de :app, :core:common, :core:database, :core:designsystem,
+//     :core:testing, :build-tools:detekt-rules y :build-logic (build
+//     compuesto, referenciado vía `gradle.includedBuild` porque sus tareas no
+//     viven en el grafo de tareas del build principal).
 //   - unit tests de cada módulo con tests.
 //   - detekt, ruleset COMPLETO vía `msp.detekt` (Plan 2, detekt-strict):
-//     `:core:common`, `:core:database`, `:core:testing`,
+//     `:core:common`, `:core:database`, `:core:designsystem`, `:core:testing`,
 //     `:build-tools:detekt-rules` — todo módulo nuevo que aplique el
 //     convention plugin. `:app` (legacy) NO corre detekt, ni acá ni en
 //     ningún otro lado — sigue solo con ktlint + `checkNoLegacyDateApi`
@@ -323,6 +323,11 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // "Acciones") aprovechando este cierre de Task 13 para saldar esa deuda
 // explícita — el módulo ya aplica ktlint/msp.detekt y tenía tests corriendo
 // solo manualmente hasta ahora.
+// `:core:designsystem` (Plan 3, Task 1) se suma con ktlint/test/detekt desde
+// el día uno del esqueleto. Deliberadamente NO se agrega
+// `:core:designsystem:verifyRoborazziDebug` todavía — el plugin Roborazzi
+// está aplicado pero sin goldens que verificar hasta Task 10; agregarlo antes
+// haría fallar el gate por falta de capturas de referencia.
 tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + build, todos los módulos."
@@ -333,16 +338,19 @@ tasks.register("prePushCheck") {
         "checkNoLegacyDateApi",
         ":core:common:ktlintCheck",
         ":core:database:ktlintCheck",
+        ":core:designsystem:ktlintCheck",
         ":core:testing:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
         ":core:common:testDebugUnitTest",
         ":core:database:testDebugUnitTest",
+        ":core:designsystem:testDebugUnitTest",
         ":core:testing:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
         ":core:common:detekt",
         ":core:database:detekt",
+        ":core:designsystem:detekt",
         ":core:testing:detekt",
         ":build-tools:detekt-rules:detekt",
         ":app:assembleDevlocalDebug",
