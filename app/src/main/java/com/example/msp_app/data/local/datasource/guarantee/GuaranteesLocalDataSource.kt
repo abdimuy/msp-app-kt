@@ -4,16 +4,32 @@ import android.content.Context
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.database.entities.GuaranteeEventEntity
 import com.example.msp_app.core.database.entities.GuaranteeImageEntity
 import java.util.UUID
+import javax.inject.Inject
 
-class GuaranteesLocalDataSource(
-    private val context: Context,
+class GuaranteesLocalDataSource @Inject constructor(
+    private val guaranteesDao: GuaranteeDao,
     private val clock: AppClock = AppClock.System
 ) {
-    private val guaranteesDao = AppDatabase.getInstance(context).guaranteeDao()
+    /**
+     * Puente legacy: `PendingWorkSyncFactory`, `PendingGuaranteeEventsWorker`,
+     * `PendingGuaranteesWorker` (workers aún no `@HiltWorker`) y los
+     * ViewModels de garantías/ventas no-Hilt siguen construyendo con
+     * `context` (y opcionalmente `clock`) sin cambios. Delega en la MISMA
+     * instancia que `@Inject` recibe vía
+     * [com.example.msp_app.core.database.di.DatabaseModule] — ambos resuelven
+     * a [AppDatabase.getInstance], una sola conexión a `msp_db`. No abre un
+     * builder nuevo. Preserva el `AppClock` inyectado desde Task 11
+     * (`FECHA_EVENTO` en wire format RFC3339 UTC).
+     */
+    constructor(context: Context, clock: AppClock = AppClock.System) : this(
+        AppDatabase.getInstance(context).guaranteeDao(),
+        clock
+    )
 
     suspend fun getGuaranteeById(id: Int): GuaranteeEntity? {
         return guaranteesDao.getGuaranteesById(id)
