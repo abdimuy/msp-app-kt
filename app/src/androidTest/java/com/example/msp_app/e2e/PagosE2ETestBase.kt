@@ -38,7 +38,7 @@ import retrofit2.converter.gson.GsonConverterFactory
  *    endpoint.
  *  - A real [V2PaymentsApi], built with a plain Retrofit + Gson against the
  *    MockWebServer (no Firebase bearer interceptor — MockWebServer needs no
- *    auth, and pulling in [com.example.msp_app.data.api.V2BaseApi] would
+ *    auth, and pulling in the v2 client's `BearerAuthInterceptor` would
  *    require a signed-in Firebase user for no benefit here).
  *  - A real, test-mode WorkManager (real scheduler + constraint tracking)
  *    whose [WorkerFactory] hands out [PendingPaymentsWorker] instances wired

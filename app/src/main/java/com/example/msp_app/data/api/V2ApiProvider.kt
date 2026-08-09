@@ -1,35 +1,33 @@
 package com.example.msp_app.data.api
 
-import com.example.msp_app.BuildConfig
 import retrofit2.Retrofit
 
 /**
- * Builds Retrofit interfaces for the v2 Go backend. Mantiene un base URL
- * propio (independiente del v1 de [ApiProvider]) porque hoy el backend Go
- * vive en una direccion distinta — en desarrollo, el host local desde el
- * emulador Android.
+ * Proveedor v2 (backend Go). El cliente lo construye ahora el
+ * [com.example.msp_app.core.network.RetrofitClientFactory] de `:core:network`
+ * (T7): `factory.v2()` = baseURL v2 del flavor + bearer por request (vía
+ * [FirebaseAuthTokenProvider]) + timeout de 60 s — el mismo perfil que el
+ * `V2BaseApi` eliminado.
  *
- * El interceptor que adjunta el Firebase ID token como Bearer vive en
- * [V2BaseApi]; cada servicio construido aqui lo hereda gratis.
+ * La baseURL v2 NO está bajo el kill-switch de Firestore (solo el v1 de
+ * [ApiProvider] lo está), así que es estática por flavor y el `Retrofit` se
+ * cachea una vez — comportamiento idéntico al legacy.
  */
-object V2ApiProvider : V2BaseApi() {
+object V2ApiProvider {
 
     /**
-     * Base URL del backend Go, vía `BuildConfig.V2_BASE_URL`, según el flavor:
-     *   - devlocal  → API local (`local.properties`, def 10.0.2.2:3001)
-     *   - devserver → apidev (server de pruebas)
-     *   - prod      → host del Go de prod
-     *
-     * Visible `internal` para que [CobranzaSseProvider] pueda reutilizar la
-     * misma URL sin duplicarla.
+     * BaseURL del backend Go (`NetworkConfig.v2BaseUrl`, derivada del flavor).
+     * Expuesta `internal` para que [com.example.msp_app.core.sync.cobranza.CobranzaSseProvider]
+     * reutilice la MISMA URL (su OkHttp de SSE es aparte) sin duplicar el literal.
      */
-    internal val BASE_URL = BuildConfig.V2_BASE_URL
+    internal val v2BaseUrl: String get() = appNetworkConfig().v2BaseUrl
 
-    @Volatile private var retrofit: Retrofit? = null
+    @Volatile
+    private var retrofit: Retrofit? = null
 
     fun <T> create(service: Class<T>): T {
         val r = retrofit ?: synchronized(this) {
-            retrofit ?: createClient(BASE_URL).also { retrofit = it }
+            retrofit ?: appRetrofitClientFactory.v2().also { retrofit = it }
         }
         return r.create(service)
     }

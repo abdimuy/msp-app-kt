@@ -17,8 +17,8 @@ import retrofit2.http.POST
  * set to the same id for defence in depth (if present it must equal the body
  * `id`).
  *
- * Auth is transparent: [com.example.msp_app.data.api.V2BaseApi]'s bearer
- * interceptor attaches the Firebase token and refreshes it once on a 401.
+ * Auth is transparent: the v2 client's `BearerAuthInterceptor` (`:core:network`)
+ * attaches the Firebase token and refreshes it once on a 401.
  */
 interface V2VisitsApi {
 

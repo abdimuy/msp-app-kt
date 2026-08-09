@@ -13,7 +13,19 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import retrofit2.Retrofit
 
-object ApiProvider : BaseApi() {
+/**
+ * Proveedor v1 (Node legacy). El cliente Retrofit lo construye ahora el
+ * [com.example.msp_app.core.network.RetrofitClientFactory] de `:core:network`
+ * (T7) en vez del `BaseApi.createClient` eliminado — SIN bearer y con el mismo
+ * timeout de 300 s del legacy (sync masivos lentos).
+ *
+ * **Kill-switch (se PRESERVA):** este `object` mantiene su `_baseURL` StateFlow,
+ * su listener de Firestore y su `retrofitInstance` mutable. En release, un cambio
+ * en `api_settings.baseURL` reconstruye `retrofitInstance` pasándole al factory la
+ * URL vigente — el factory nunca congela la baseURL. En debug gana la URL del
+ * flavor (el `if (!BuildConfig.DEBUG)` se conserva).
+ */
+object ApiProvider {
 
     // Base legacy por flavor (devlocal: local; devserver: apidb; prod: msp2025).
     // En release, Firestore puede sobreescribirla en runtime vía
@@ -43,7 +55,7 @@ object ApiProvider : BaseApi() {
                         if (newUrl.isNotEmpty() && newUrl != _baseURL.value) {
                             _baseURL.value = newUrl
                             CoroutineScope(Dispatchers.IO).launch {
-                                retrofitInstance = createClient(newUrl)
+                                retrofitInstance = buildClient(newUrl)
                             }
                         }
                     }
@@ -51,13 +63,30 @@ object ApiProvider : BaseApi() {
         }
     }
 
+    /**
+     * Construye el cliente v1 para [url] vía el factory de `:core:network`.
+     * `auth = false` (el v1 Node no usa bearer) y `timeoutSeconds = 300` para
+     * conservar exactamente el perfil del `BaseApi` legacy (sin regresión en los
+     * sync masivos lentos). La [url] SIEMPRE es la baseURL vigente del
+     * kill-switch — nunca `NetworkConfig.legacyBaseUrl` directo — para que el
+     * override de Firestore alcance a la request.
+     */
+    private fun buildClient(url: String): Retrofit = appRetrofitClientFactory.create(
+        baseUrl = url,
+        auth = false,
+        timeoutSeconds = LEGACY_TIMEOUT_SECONDS
+    )
+
     private fun getRetrofit(): Retrofit {
         return retrofitInstance ?: synchronized(this) {
-            retrofitInstance ?: createClient(_baseURL.value).also { retrofitInstance = it }
+            retrofitInstance ?: buildClient(_baseURL.value).also { retrofitInstance = it }
         }
     }
 
     fun <T> create(service: Class<T>): T {
         return getRetrofit().create(service)
     }
+
+    /** Perfil de timeout del v1 Node legacy (sync masivos): 300 s. */
+    private const val LEGACY_TIMEOUT_SECONDS = 300L
 }
