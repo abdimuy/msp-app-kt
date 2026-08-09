@@ -1,5 +1,7 @@
 package com.example.msp_app.core.designsystem.screenshot
 
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -8,12 +10,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.core.testing.roborazzi.RoborazziConfig
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
+import org.junit.Before
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -36,6 +40,32 @@ import org.robolectric.annotation.GraphicsMode
     application = android.app.Application::class
 )
 abstract class MspScreenshotTest : RobolectricTestBase() {
+
+    /**
+     * Fuerza reduce-motion (`ANIMATOR_DURATION_SCALE = 0`) para TODA captura de
+     * golden. Doble propósito (spec §5 + robustez del harness):
+     *
+     * 1. **Determinismo:** los componentes con animación propia — hoy
+     *    [com.example.msp_app.core.designsystem.component.MspPaymentSyncPill],
+     *    mañana cualquiera — gatean su animación por
+     *    [com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled];
+     *    con reduce-motion activo pintan su estado estático de reposo, así que
+     *    el golden nunca captura un frame intermedio de un `InfiniteTransition`.
+     * 2. **No colgar el record:** `captureRoboImage` toma el frame sin bombear
+     *    el reloj de animación, pero un `InfiniteTransition` compuesto mantiene
+     *    viva la composición y es una fuente conocida de cuelgues en el harness
+     *    de screenshot; apagarlo de raíz (no se compone esa rama) elimina el
+     *    riesgo para este y para todo componente animado futuro.
+     */
+    @Before
+    fun disableAnimationsForDeterministicGoldens() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        Settings.Global.putFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            0f
+        )
+    }
 
     /**
      * Captura [content] envuelto en [MspTheme] sobre un fondo sólido, a
