@@ -171,3 +171,26 @@ Auditoría de conformidad (opus): **11/11 PASS**, `prePushCheck` verde en daemon
 
 ### Método de la noche
 Orquestador despacha todo a subagentes; gate real por tarea; 1 revisor (behavior-neutral) / 2 (money) + char-test; auditoría de conformidad opus al cierre de cada plan. Sin push. Un emulador headless para e2e.
+
+### Deuda money-robustez ✅ CERRADO CONFORME
+Commit range `13c4c4a..e5fbc4b` (HEAD `e5fbc4b`). Auditoría de conformidad (opus): **6/6 PASS**, `prePushCheck` verde,
+Room v27 schema byte-idéntico, 5 commits (conventional, español, sin atribución, sin push).
+- **T1** `fix(ventas)`: removido el exception-swallow en getProductsForSale/getCombosForSale + guardia downstream
+  para que una venta nunca suba a Microsip con productos vacíos por error; ambos sitios de sync
+  (`LocalSaleSyncHandler`, `PendingLocalSalesWorker`) tratan el vacío genuino como fallo PERMANENTE (sin retry
+  infinito que salte el cap). Contrato verificado contra Go v2 `POST /v2/ventas` (`productos minItems:1`).
+  Char-tests genuinos.
+- **T2** `fix(pagos)`: `PaymentsLocalDataSource.saveAll` ahora hace `deleteUploaded()` (antes `deleteAll()`) →
+  los pagos pendientes sobreviven; char-test sobre Room DB real. (Adversarial probó que una colisión
+  REPLACE-sobre-pendiente es estructuralmente imposible: filas de servidor numéricas+`GUARDADO=1` vs.
+  pendientes UUID+`GUARDADO=0`.)
+- **T3** `fix(ventas)`: inserts de venta atómicos — `@Transaction` en `insertSaleWithImages` + `replaceAll`;
+  char-test de atomicidad (OLD partial-write vía FK, NEW rollback); schema intacto.
+- **T4** `fix(catalogo)`: `ProductDao.getProductById` / `ProductInventoryDao.getProductInventoryById` ahora
+  nullable (antes NPE en fila faltante); `ProductDetailsViewModel` maneja null → error "Producto no encontrado";
+  wrapper muerto `getImagesByGuaranteeId` borrado; schema intacto.
+- **3 diferidos aceptados** (van a la lista de triage de la revisión final de toda la rama): test de colisión
+  de T2 usa importes iguales (camino ya probado inalcanzable); `replaceAll` de T3 sin test de inyección de
+  fallo (cubierto por transitividad de `@Transaction`); `GuaranteeDao.getImagenesByGuaranteesId` de T4 queda
+  muerta (0 callers) — limpieza futura.
+- **SIGUIENTE:** Plan 3 `:core:designsystem` (10 tareas), luego Plan 4, luego Plan 5.

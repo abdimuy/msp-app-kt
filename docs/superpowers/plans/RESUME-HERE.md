@@ -58,12 +58,15 @@ Planes 3/4/5 YA PLANEADOS (archivos `2026-08-09-plan3/4/5-*.md`). Deuda money = 
 `feedback_msp_app_kt_audit_rewrite_supreme_tests`, `reference_msp_app_kt_hilt_baseurl_killswitch`,
 `feedback_reporte_cobranza_fidelidad_mockup`, `feedback_delegate_to_sonnet`, `feedback_no_claude_attribution`.
 
-## PRÓXIMA ACCIÓN (charter nocturno) — Plan 2 CERRADO, sigue deuda money-robustez
-**Plan 2 CERRADO CONFORME** (HEAD `79e3d46`; auditoría opus 10/10 PASS; `CONFORMANCE-AUDIT.md` en el workspace de Plan 2).
-T9 = cierre honesto (getInstance residual documentado como deuda rastreada; gate completo + `assembleDevserverRelease` + device e2e 10/10).
-**SIGUIENTE:** ejecutar `docs/superpowers/plans/2026-08-09-deuda-money-robustez.md` (4 tareas, ledger en su workspace):
-T1 exception-swallow venta-sin-productos (MONEY, 2 rev + char-test), T2 saveAll deleteUploaded (MONEY), T3 inserts @Transaction (MONEY), T4 DAO null-lie + método muerto (non-money, 1 rev).
-Luego Plan 3 → Plan 4 → Plan 5 (todos ya planeados). Plan 5 arranca solo tras Plan 3+4 (depende de `:core:designsystem`/`:core:network`/`:core:telemetry`).
+## PRÓXIMA ACCIÓN (charter nocturno) — deuda money-robustez CERRADA, sigue Plan 3
+**Deuda money-robustez ✅ CERRADO CONFORME** (HEAD `e5fbc4b`; commit range `13c4c4a..e5fbc4b`; auditoría opus 6/6 PASS,
+`prePushCheck` verde, Room v27 schema byte-idéntico, 5 commits conventional/español/sin atribución/sin push).
+T1 exception-swallow venta-sin-productos, T2 `saveAll`→`deleteUploaded`, T3 inserts venta `@Transaction`, T4 DAO
+by-id nullable + método muerto. 3 diferidos menores aceptados (ver `NIGHT-REPORT.md`) → lista de triage de la
+revisión final de toda la rama.
+**SIGUIENTE:** ejecutar `docs/superpowers/plans/2026-08-09-plan3-designsystem.md` — Plan 3 `:core:designsystem`
+(10 tareas). Luego Plan 4 (`:core:telemetry` + `:core:network`, 8 tareas). Luego Plan 5 (piloto reporte de
+cobranza, 11 tareas) — arranca solo tras Plan 3+4 (depende de `:core:designsystem`/`:core:network`/`:core:telemetry`).
 
 ---
 ### (histórico) checkpoint previo
