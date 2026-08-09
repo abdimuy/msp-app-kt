@@ -4,11 +4,26 @@ import android.content.Context
 import androidx.room.Transaction
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import javax.inject.Inject
 
-class VisitsLocalDataSource(private val context: Context) {
-    private val visitDao = AppDatabase.getInstance(context).visitDao()
-    private val saleDao = AppDatabase.getInstance(context).saleDao()
+class VisitsLocalDataSource @Inject constructor(
+    private val visitDao: VisitDao,
+    private val saleDao: SaleDao
+) {
+    /**
+     * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
+     * siguen construyendo con `context` sin cambios. Delega en la MISMA
+     * instancia que `@Inject` recibe vía [com.example.msp_app.core.database.di.DatabaseModule]
+     * — ambos resuelven a [AppDatabase.getInstance], una sola conexión a
+     * `msp_db`. No abre un builder nuevo.
+     */
+    constructor(context: Context) : this(
+        AppDatabase.getInstance(context).visitDao(),
+        AppDatabase.getInstance(context).saleDao()
+    )
 
     suspend fun getVisitById(id: String): VisitEntity {
         return visitDao.getVisitById(id)

@@ -3,15 +3,31 @@ package com.example.msp_app.data.local.datasource.payment
 import android.content.Context
 import androidx.room.Transaction
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
+import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 
-class PaymentsLocalDataSource(private val context: Context) {
-    private val paymentDao = AppDatabase.getInstance(context).paymentDao()
-    private val saleDao = AppDatabase.getInstance(context).saleDao()
+class PaymentsLocalDataSource @Inject constructor(
+    private val paymentDao: PaymentDao,
+    private val saleDao: SaleDao
+) {
+    /**
+     * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
+     * siguen construyendo con `context` sin cambios. Delega en la MISMA
+     * instancia que `@Inject` recibe vía [com.example.msp_app.core.database.di.DatabaseModule]
+     * — ambos resuelven a [AppDatabase.getInstance], una sola conexión a
+     * `msp_db`. No abre un builder nuevo: eso duplicaría la ruta de escritura
+     * al dinero.
+     */
+    constructor(context: Context) : this(
+        AppDatabase.getInstance(context).paymentDao(),
+        AppDatabase.getInstance(context).saleDao()
+    )
 
     suspend fun getPaymentById(id: String): PaymentEntity? {
         return paymentDao.getPaymentById(id)
