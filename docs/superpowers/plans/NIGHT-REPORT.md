@@ -323,3 +323,71 @@ duplicada entre módulos (DRY, menor).
   `docs/superpowers/plans/2026-08-09-plan5-collection-report.md`). Gate de fidelidad de Plan 5: la pantalla debe
   verse EXACTAMENTE como `docs/design/reporte-cobranza-mockup.html`, verificado COMO IMAGEN con un revisor de
   fidelidad visual dedicado + smoke en dispositivo.
+
+## 🌙 CIERRE DE LA NOCHE — 5 planes CONFORME
+
+**Todo el charter nocturno del 2026-08-09 está CERRADO.** 5 planes, 5 auditorías de conformidad opus, todas
+CONFORME. Todo en commits durables sobre `feat/multimodulo-cimiento`. **NADA pusheado.**
+
+### A) Todo lo cerrado esta noche (cada uno con auditoría opus CONFORME)
+
+- **Plan 2 `:core:database`** — CONFORME (10/10). Hoist Room v27 + Hilt `DatabaseModule` + 11 datasources
+  inyectados + `RoomTestBase`→`:core:testing`; device smoke 10/10. HEAD `79e3d46`.
+- **Deuda money-robustez** — CONFORME (6/6). T1 exception-swallow venta-sin-productos (guard + fallo permanente
+  en ambos sitios de sync), T2 `saveAll`→`deleteUploaded` (pagos pendientes sobreviven), T3 inserts de venta
+  `@Transaction`, T4 DAOs by-id nullable + método muerto borrado. Range `13c4c4a..e5fbc4b`.
+- **Plan 3 `:core:designsystem`** — CONFORME (11/11). Tokens Msp (Azul A + mint-teal), Manrope, shapes/motion,
+  `MspTheme`, 13 componentes `Msp*`, `formatMoneyMxn` (BigDecimal, HALF_UP), 122 goldens Roborazzi
+  Tier×escala×tema, AAA. Range `cd1d141..4c0b51d`.
+- **Plan 4 `:core:telemetry` + `:core:network`** — CONFORME (11/11). Telemetría (puerto + cola durable
+  FIFO/never-throws/dedup + `trackClick`/`ScreenScope` + stub sink, `telemetry_db` propio) + network
+  (`NetworkConfig` inyectado, interceptores bearer/`X-App-Version`-v2-only, factory) con **kill-switch de
+  baseURL preservado y PROBADO**; `:app` cableado sin regresión. Range `8f77135..013f422`.
+- **Plan 5 `:feature:collectionReport` (EL PILOTO)** — CONFORME (12/12). Dominio Money/rangos/agregados, data
+  ports + Room adapters, `@HiltViewModel`, UI completa desde `Msp*` (hero/tiles/chips/detalle/sheets/barra
+  difusa/privacy/theme-reveal/Tier2), ruta `"daily_reports"` conservada + `WeeklyReport` absorbido + pantalla
+  vieja borrada, matriz de 56 goldens, **fidelidad visual HIGH** (mockup renderizado vs render, cero elementos
+  faltantes), **device smoke 10/10**, y **un crash de producción real cazado y arreglado** (pantalla nunca
+  envuelta en `MspTheme`/`ThemeRevealRoot`). Range `9bfb24e..ac695185`. **HEAD final `ac695185`.**
+
+**Método:** orquestación SDD, todo despachado a subagentes; dinero = 2 revisores + char-test; auditoría de
+conformidad opus al cierre de cada plan. Sin push. Un solo emulador headless. Los revisores adversariales
+cazaron bugs reales: cancelación de coroutine swallowed, partición no-exhaustiva, acople domain→UI, crash de
+producción, truncación de dinero.
+
+### B) ⚠️ NECESITA TU OJO — decisiones de producto/gusto (parkeadas, no bloquean "terminado")
+
+1. **Dinero: centavos vs. pesos enteros.** El reporte muestra `$18,300.00`; el mockup muestra pesos enteros
+   `$18,300`. Es la única desviación sistemática de fidelidad. Se dejaron los centavos (más preciso para dinero
+   real de cobranza). **Decisión:** ¿ocultar centavos para match exacto del mockup, o conservarlos por precisión?
+2. **Contraste azul de marca (Plan 3).** 3 pares de texto quedan bajo AA-normal: label del CTA primario
+   `onBrand` sobre brand dark = 3.68; texto de status-chip `statusPartial`/`statusTeal` light = 3.71 / 4.19.
+   Trade-off del azul kollect-1:1. **Decisión:** ¿aceptar o oscurecer esos tokens?
+3. **Hero "projection"** ("a este ritmo cierras en $Y") = `null` — no hay fórmula verificada de cierre-de-día.
+   **Decisión:** si la quieres, define la fórmula.
+4. **Pagos con `forma_cobro_id` NULL** (caen a concepto 87327/27969) — excluidos del total, IGUAL que el reporte
+   legacy (no es regresión). **Decisión:** ¿deben contar en el total de cobranza?
+5. Glyph sol/luna del theme toggle — menor, gusto.
+
+### C) 🔧 RELEASE-GATES manuales — probar en campo antes de desplegar
+
+- **Impresión térmica Bluetooth** (Compartir/Imprimir/PDF del piloto) — sin hardware/connected-test posible en
+  el gate; probar con impresora real.
+- **Garantías `FECHA_EVENTO`** (del plan de fechas) — viaja Z-UTC al backend Node; smoke de campo del orden de
+  eventos antes de desplegar garantías.
+- **Condonación `motivo`** — sin fuente en v27 (se muestra en blanco, honesto); enriquecimiento futuro si el
+  negocio lo quiere.
+
+### D) Deuda menor diferida — no bloquea; para limpieza/triage
+
+- Motivo de condonación sin fuente.
+- `observePendingCount` sin test reactivo (`:core:telemetry`).
+- Constante 300s duplicada entre `:core:network`/`:app` (DRY).
+- Método muerto `GuaranteeDao.getImagenesByGuaranteesId`.
+- Test de colisión de pagos "toothless" (camino probado inalcanzable).
+- Allowlist forbidden-API residual (~14 archivos legacy, del plan de fechas).
+
+### E) Estado de la rama
+
+`feat/multimodulo-cimiento` — TODO commiteado, **NADA pusheado** (origin no tiene la rama). Listo para revisión
+humana / merge cuando decidas.

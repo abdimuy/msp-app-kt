@@ -64,32 +64,30 @@ Planes 3/4/5 YA PLANEADOS (archivos `2026-08-09-plan3/4/5-*.md`). Deuda money = 
 `feedback_msp_app_kt_audit_rewrite_supreme_tests`, `reference_msp_app_kt_hilt_baseurl_killswitch`,
 `feedback_reporte_cobranza_fidelidad_mockup`, `feedback_delegate_to_sonnet`, `feedback_no_claude_attribution`.
 
-## PRÓXIMA ACCIÓN (charter nocturno) — Plan 4 CERRADO CONFORME, sigue Plan 5 (EL PILOTO)
-**Plan 4 `:core:telemetry` + `:core:network` ✅ CERRADO CONFORME** (HEAD `013f422`; commit range
-`8f77135..013f422`; auditoría opus CONFORME-CON-OBSERVACIONES, 11/11 PASS, sin fails). 8 tareas:
-`:core:telemetry` (skeleton con Room propio `telemetry_db`, NUNCA toca v27 → puerto `Telemetry`/VO
-`TelemetryEvent` → cola durable FIFO/dedup/never-throws-pero-relanza-cancelación → `Modifier.trackClick` +
-`ScreenScope` + adapter `DurableTelemetry` + sink stub, cableado en la raíz de composición de `:app`) +
-`:core:network` (`ConnectivityMonitor` reubicado → `NetworkConfig`/interceptores (bearer + `X-App-Version`
-best-effort solo v2/Go) → factory que NO congela baseURL → `:app` cableado con el **kill-switch de baseURL
-preservado end-to-end** y **cero regresión**; `BaseApi`/`V2BaseApi`/`FirebaseBearerInterceptor` legacy
-eliminados y superados). Contrato de header verificado contra el backend Go real (no lee ningún header de
-versión) — el ítem parqueado de Plan 4 queda RESUELTO. Parqueado no-bloqueante: kover placeholder en
-`:core:network`, `NetworkClientsModule` omitido (YAGNI), `observePendingCount` sin test reactivo Turbine en
-`:core:telemetry` (Turbine SÍ se usa en otras 4 suites del repo — brecha puntual, no repo-wide). Detalle
-completo en `NIGHT-REPORT.md`.
+## PRÓXIMA ACCIÓN — TODO el charter nocturno CERRADO CONFORME. Sigue revisión humana.
 
-**⚠️ PARQUEADO PARA DECISIÓN DEL USUARIO (Plan 5, heredado de Plan 3):** 3 pares de color de texto quedan bajo
-WCAG AA-normal (relajados al piso 3.0 de UI) — trade-off de legibilidad del azul de marca kollect-1:1: `onBrand`
-sobre brand DARK = 3.68 (label del CTA primario + extremo del gradiente del hero); `statusPartial`/`statusTeal`
-LIGHT = 3.71 / 4.19 (texto de status-chip a 12sp). No bloqueó DS, pero hay que decidir en Plan 5 si se acepta el
-trade-off o se oscurecen esos tokens.
+**TODO el charter nocturno del 2026-08-09 está CERRADO CONFORME:** Plan 2 (`:core:database`, 10/10) + deuda
+money-robustez (6/6) + Plan 3 (`:core:designsystem`, 11/11) + Plan 4 (`:core:telemetry`+`:core:network`, 11/11)
++ **Plan 5 (`:feature:collectionReport`, EL PILOTO, 12/12)**. Cinco auditorías de conformidad opus, las cinco
+CONFORME. **HEAD `ac695185`.** Rama `feat/multimodulo-cimiento`, todo commiteado, **SIN push** (origin no tiene
+la rama).
 
-**SIGUIENTE:** ejecutar `docs/superpowers/plans/2026-08-09-plan5-collection-report.md` — Plan 5
-`:feature:collectionReport` (EL PILOTO, 11 tareas). Planes 3 (`:core:designsystem`) y 4
-(`:core:network`/`:core:telemetry`) están AMBOS CERRADOS ⇒ todas las dependencias de Plan 5 satisfechas. Gate
-de fidelidad: la pantalla debe verse EXACTAMENTE como `docs/design/reporte-cobranza-mockup.html`, verificado
-COMO IMAGEN con un revisor de fidelidad visual dedicado + smoke en dispositivo.
+Plan 5 (el piloto) cerró con: dominio Money/rangos/agregados, `@HiltViewModel`, UI completa desde `Msp*`, ruta
+`"daily_reports"` conservada + `WeeklyReport` absorbido, matriz de 56 goldens, **fidelidad visual HIGH** contra
+el mockup, **device smoke 10/10**, y un **crash de producción real cazado y arreglado** (pantalla sin
+`MspTheme`/`ThemeRevealRoot`). Detalle completo (todos los planes + parqueados + release-gates + deuda menor)
+en `NIGHT-REPORT.md`, sección `## 🌙 CIERRE DE LA NOCHE — 5 planes CONFORME`.
+
+**LO QUE SIGUE no es más ejecución de plan — es TU decisión:**
+1. **Revisión humana** de la rama completa antes de considerar merge.
+2. **Parqueados de producto/gusto** (sección B de `NIGHT-REPORT.md`): centavos vs. pesos enteros en el reporte,
+   contraste del azul de marca (3 pares bajo AA), fórmula de projection del hero (hoy `null`), si pagos con
+   `forma_cobro_id` NULL deben contar en el total, glyph del theme toggle.
+3. **Release-gates manuales** (sección C): impresión térmica Bluetooth con hardware real, smoke de campo del
+   orden de eventos de garantías `FECHA_EVENTO` (Z-UTC a Node) antes de desplegar garantías.
+4. **Decisión de merge** de `feat/multimodulo-cimiento` cuando lo anterior esté resuelto.
+
+No hay siguiente plan encolado — Planes 0 a 5 son el charter completo.
 
 ---
 ### (histórico) checkpoint previo
