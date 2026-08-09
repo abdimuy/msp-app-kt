@@ -657,3 +657,66 @@ git grep -n "AppDatabase.getInstance" app/src/main # solo residuales documentado
    sus planes futuros por feature — ver Tasks 3, 6-8 y 9.
 3. **Las pruebas de migración corren en Robolectric/JVM, no en device**; el dispositivo se reserva
    exclusivamente para el smoke e2e de pagos de cierre — ver Tasks 4 y 9.
+
+## Cierre Task 9 (ejecutado 2026-08-09)
+
+### `getInstance` residual — deuda rastreada, propiedad de planes futuros por feature
+
+`git grep -n "AppDatabase.getInstance" app/src/main` a HEAD (`72fe6eb` + este commit) devuelve **solo** la
+lista siguiente — ningún `getInstance` directo nuevo fuera de ella:
+
+- `features/productsInventoryImages/viewmodels/ProductsInventoryImagesViewModel.kt` — requiere
+  `@HiltViewModel` (migración de su feature).
+- `features/sales/viewmodels/EditLocalSaleViewModel.kt` — requiere `@HiltViewModel` (Bloque 2 VENTAS).
+- `features/dailyReport/data/repository/DailyReportRepository.kt` (x2 usos) — feature `dailyReport` de
+  inventario (NO el `collectionReport` de Plan 5); su plan dueño.
+- `workers/PendingLocalSalesWorker.kt` — requiere `@HiltWorker` (Plan 1 difirió conversión de workers).
+- `core/sync/cobranza/CobranzaSyncProvider.kt`, `CobranzaReconcilerProvider.kt` — bootstrap de sesión
+  cableado en `AppNavigation` (composition root / módulo `:session` futuro).
+- `core/debug/DebugCommandExecutor.kt` — herramienta de debug.
+- Constructores `context` secundarios de los 11 datasources migrados en Tasks 6-8 (`ClienteDataSource`,
+  `GuaranteesLocalDataSource`, `PaymentsLocalDataSource`, `ProductsLocalDataSource`,
+  `ProductsInventoryLocalDataSource`, `ProductInventoryImageLocalDataSource`, `ComboLocalDataSource`,
+  `LocalSaleDataSource`, `SaleProductLocalDataSource`, `SalesLocalDataSource`, `VisitsLocalDataSource`) —
+  puente legacy intencional, documentado en el KDoc de cada uno.
+
+Ninguno se elimina en Plan 2: hacerlo forzaría migración a Hilt de ViewModels/workers/session, fuera de
+alcance (ver decisión resuelta #2 arriba). Cada ítem queda propiedad de su plan por feature futuro.
+
+### Gate agregado — `:core:database` en `prePushCheck`
+
+Ya estaba resuelto: la tarea de cierre de Plan 1/fechas (Task 13) sumó `:core:database:ktlintCheck` y
+`:core:database:testDebugUnitTest` (y `:core:database:detekt`) a `tasks.register("prePushCheck")` en
+`build.gradle.kts` (raíz), con el comentario explícito referenciando este plan. No se duplicó nada; se
+verificó por lectura directa del bloque `dependsOn(...)`.
+
+### Gate completo — resultado real (2026-08-09)
+
+Todos verdes, corridos uno a la vez (build lock), `JAVA_HOME` = Android Studio JBR:
+
+| Comando | Resultado |
+|---|---|
+| `ktlintCheck` | BUILD SUCCESSFUL |
+| `testDevlocalDebugUnitTest` | BUILD SUCCESSFUL |
+| `:core:common:testDebugUnitTest :core:testing:testDebugUnitTest :core:database:testDebugUnitTest` | BUILD SUCCESSFUL |
+| `:core:common:koverVerify` | BUILD SUCCESSFUL |
+| `detekt` | BUILD SUCCESSFUL |
+| `:app:assembleDevlocalDebug` | BUILD SUCCESSFUL |
+| `assembleDevserverRelease` | BUILD SUCCESSFUL |
+
+### Smoke en dispositivo — `connectedDevlocalDebugAndroidTest`
+
+Un solo emulador headless `Pixel_9_Pro` (`emulator -no-window -no-audio -no-boot-anim -gpu
+swiftshader_indirect`), boot confirmado por `sys.boot_completed=1`. Resultado: **10/10 tests, 0
+failures, 0 errors** en el primer intento (sin necesidad de reintento por contención de daemon):
+
+- `CobranzaDurableQueueE2ETest.durableQueueSurvivesZoneChangeThenDrainsToServer`
+- `CobranzaSelfHealTwinE2ETest` (3 tests)
+- `PendingPaymentsWorkerE2ETest` (3 tests: happy path, idempotencia, red caída nunca marca done)
+- `PendingVisitsWorkerE2ETest` (3 tests: happy path, idempotencia, red caída nunca marca done)
+
+Emulador apagado al terminar (`adb emu kill`), confirmado sin `qemu-system` corriendo y `adb devices`
+vacío. `msp_db` de producción no se tocó (el smoke usa `setInstanceForTesting` con Room in-memory /
+`RoomTestBase`, no el archivo real del dispositivo).
+
+Cierre de Plan 2: completo.
