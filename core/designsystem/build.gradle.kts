@@ -16,6 +16,19 @@ android {
     }
 }
 
+// Mismo heap/metaspace que `msp.test` (TestConventionPlugin) sin aplicar el
+// plugin completo: este módulo ya trae a mano el resto de lo que `msp.test`
+// daría (isIncludeAndroidResources arriba + junit/coroutines-test/robolectric/
+// turbine vía `api` de :core:testing, Task 1) y aplicar `msp.test` encima
+// duplicaría esas deps. Roborazzi necesita heap real para renderizar
+// (Robolectric Native Graphics) — con un solo golden (Task 5) pasa sin esto,
+// pero Task 10 graba la matriz Tier×escala×tema completa en una sola JVM y
+// sin este bump se queda corta de memoria.
+tasks.withType<Test> {
+    maxHeapSize = "2g"
+    jvmArgs("-XX:MaxMetaspaceSize=1g")
+}
+
 dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
@@ -25,9 +38,6 @@ dependencies {
     testImplementation(project(":core:testing"))
     // createComposeRule en test JVM (Roborazzi).
     testImplementation(libs.androidx.ui.test.junit4)
-    // ui-test-manifest: Tasks 6-10 lo reutilizan para captures basados en
-    // ComposeTestRule (semantics/testTag) sobre la base sentada aquí.
-    testImplementation(libs.androidx.ui.test.manifest)
     // roborazzi-compose declara androidx.activity:activity-compose como
     // compileOnly (no viene transitivo vía el `api` de :core:testing) — lo
     // necesita en runtime para hostear el composable en un ComponentActivity
