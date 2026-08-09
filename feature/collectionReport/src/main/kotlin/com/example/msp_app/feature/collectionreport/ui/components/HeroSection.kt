@@ -2,6 +2,7 @@ package com.example.msp_app.feature.collectionreport.ui.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import com.example.msp_app.core.designsystem.component.MspHeroTodayCard
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.feature.collectionreport.domain.Insight
@@ -12,6 +13,17 @@ import java.math.BigDecimal
 
 /** Glifo de privacidad de la frase-insight — mockup `masked?'&bull;&bull;&bull;':d.insight`. */
 private const val MASKED_INSIGHT = "•••"
+
+/**
+ * `testTag` del hero — ancla determinista para el smoke e2e de dispositivo (Task 11: "el
+ * reporte renderiza (hero visible ... un sheet abre)"). Vive en el mismo nodo que el
+ * `Modifier.clickable(onClick)` de `MspHeroTodayCard` (el `modifier` de este composable se
+ * pasa tal cual a esa tarjeta), así que un test puede tanto confirmar que el hero está en
+ * pantalla como tocarlo para abrir su sheet con el MISMO tag. No exportado por import
+ * cross-módulo a propósito (mismo criterio que `SEGMENT_CHIP_TAG_PREFIX` en
+ * `:core:designsystem`) — el androidTest de `:app` lo referencia por el literal.
+ */
+const val COLLECTION_REPORT_HERO_TEST_TAG = "collection_report_hero"
 
 /**
  * HERO del tablero (mockup `.hero`): compone [MspHeroTodayCard] del design system con
@@ -59,7 +71,7 @@ fun HeroSection(
             )
         },
         onClick = onClick,
-        modifier = modifier
+        modifier = modifier.testTag(COLLECTION_REPORT_HERO_TEST_TAG)
     )
 }
 

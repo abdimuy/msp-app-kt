@@ -51,6 +51,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.ReportHeader
 import com.example.msp_app.feature.collectionreport.ui.components.ReportSheets
 import com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance
 import com.example.msp_app.feature.collectionreport.ui.components.TabTransition
+import com.example.msp_app.feature.collectionreport.ui.theme.ThemeRevealRoot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -83,6 +84,11 @@ private const val ENTRANCE_DETAIL_LIST = 10
  * curada, "una idea por vista" (nunca dos tarjetas compitiendo lado a lado), targets táctiles
  * ≥[TIER2_MIN_TOUCH_TARGET]. Task 10 decide CUÁNDO montar este composable en vez del Tier 1
  * (vía [rememberReportTier]) — este archivo solo lo deja listo para esa selección.
+ *
+ * **Envuelto en [ThemeRevealRoot] (fix Task 11)** — mismo motivo que
+ * [com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen] (Tier 1): sin esto
+ * `MspTheme.colors` revienta en cuanto `:app` monta este composable de verdad (nunca detectado
+ * antes porque los tests del módulo siempre aportan su propio `MspTheme{}`).
  */
 @Suppress(
     "UnusedParameter"
@@ -100,54 +106,57 @@ fun CollectionReportScreenTier2(
     val onDiaCicloClick: (Int) -> Unit = { index ->
         viewModel.openSheet(SheetKind.DIA_CICLO, index.toString())
     }
-    Box(modifier = Modifier.fillMaxSize()) {
-        CollectionReportContentTier2(
-            state = state,
-            onMenuClick = onMenuClick,
-            onPrivacyToggle = viewModel::toggleMask,
-            onThemeToggle = viewModel::toggleTheme,
-            onPeriodSelect = viewModel::setPeriod,
-            onHeroClick = { viewModel.openSheet(SheetKind.HERO) },
-            onSparkBarClick = onDiaCicloClick,
-            onEfectivoClick = { viewModel.openSheet(SheetKind.EFECTIVO) },
-            onTransferenciaClick = { viewModel.openSheet(SheetKind.TRANSFERENCIA) },
-            onCondonadoClick = { viewModel.openSheet(SheetKind.CONDONADO) },
-            onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
-            onSortSelect = viewModel::setSort,
-            onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
-            onDayRowClick = onDiaCicloClick
-        )
-        BlurredActionBar(
-            onCompartirClick = {
-                context.startActivity(
-                    Intent.createChooser(ReportActionsController.buildShareIntent(state), null)
-                )
-            },
-            onImprimirClick = {
-                context.startActivity(
-                    Intent.createChooser(
-                        ReportActionsController.buildTicketShareIntent(state),
-                        null
+    ThemeRevealRoot(darkTheme = state.darkTheme, onToggleTheme = viewModel::toggleTheme) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            CollectionReportContentTier2(
+                state = state,
+                onMenuClick = onMenuClick,
+                onPrivacyToggle = viewModel::toggleMask,
+                onThemeToggle = viewModel::toggleTheme,
+                onPeriodSelect = viewModel::setPeriod,
+                onHeroClick = { viewModel.openSheet(SheetKind.HERO) },
+                onSparkBarClick = onDiaCicloClick,
+                onEfectivoClick = { viewModel.openSheet(SheetKind.EFECTIVO) },
+                onTransferenciaClick = { viewModel.openSheet(SheetKind.TRANSFERENCIA) },
+                onCondonadoClick = { viewModel.openSheet(SheetKind.CONDONADO) },
+                onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
+                onSortSelect = viewModel::setSort,
+                onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
+                onDayRowClick = onDiaCicloClick
+            )
+            BlurredActionBar(
+                onCompartirClick = {
+                    context.startActivity(
+                        Intent.createChooser(ReportActionsController.buildShareIntent(state), null)
                     )
-                )
-            },
-            onPdfClick = {
-                coroutineScope.launch {
-                    val file = withContext(Dispatchers.IO) {
-                        ReportActionsController.generatePdf(
-                            context = context,
-                            state = state,
-                            fileName = ReportActionsController.pdfFileName(state),
-                            clock = AppClock.System
+                },
+                onImprimirClick = {
+                    context.startActivity(
+                        Intent.createChooser(
+                            ReportActionsController.buildTicketShareIntent(state),
+                            null
                         )
+                    )
+                },
+                onPdfClick = {
+                    coroutineScope.launch {
+                        val file = withContext(Dispatchers.IO) {
+                            ReportActionsController.generatePdf(
+                                context = context,
+                                state = state,
+                                fileName = ReportActionsController.pdfFileName(state),
+                                clock = AppClock.System
+                            )
+                        }
+                        val intent =
+                            ReportActionsController.buildPdfShareIntent(context, state, file)
+                        context.startActivity(Intent.createChooser(intent, null))
                     }
-                    val intent = ReportActionsController.buildPdfShareIntent(context, state, file)
-                    context.startActivity(Intent.createChooser(intent, null))
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-        ReportSheets(state = state, onDismiss = viewModel::closeSheet)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+            ReportSheets(state = state, onDismiss = viewModel::closeSheet)
+        }
     }
 }
 

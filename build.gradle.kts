@@ -424,6 +424,11 @@ tasks.register("prePushCheck") {
         // gotcha porque sus tests son JVM plano, sin Robolectric.
         ":core:designsystem:koverVerifyDebug",
         ":core:telemetry:koverVerifyDebug",
+        // Mismo gotcha Robolectric-bajo-`release` de arriba — Task 11 (Plan 5,
+        // cierre del piloto) suma el piso de cobertura (todavía placeholder
+        // 0%, `msp.kover`, igual que el resto de módulos nuevos sin línea
+        // base fijada) de `:feature:collectionReport` al gate.
+        ":feature:collectionReport:koverVerifyDebug",
         ":core:common:detekt",
         ":core:database:detekt",
         ":core:designsystem:detekt",
@@ -433,6 +438,14 @@ tasks.register("prePushCheck") {
         ":feature:collectionReport:detekt",
         ":build-tools:detekt-rules:detekt",
         ":core:designsystem:verifyRoborazziDebug",
+        // Task 11 (Plan 5, cierre del piloto): el gate de fidelidad visual
+        // completo del reporte de cobranza (matriz Tier 1/2 × {1.0,1.3,2.0} ×
+        // {light,dark} + estados clave, `MoneyNoTruncationTest`/
+        // `ContrastAAATest` ya viven en `testDebugUnitTest` de arriba) entra
+        // al gate agregado — hasta ahora deliberadamente diferido (Task 1:
+        // "agregarlos antes haría fallar el gate por falta de
+        // capturas/umbral"), esos goldens ya están committeados.
+        ":feature:collectionReport:verifyRoborazziDebug",
         ":app:assembleDevlocalDebug",
     )
 }

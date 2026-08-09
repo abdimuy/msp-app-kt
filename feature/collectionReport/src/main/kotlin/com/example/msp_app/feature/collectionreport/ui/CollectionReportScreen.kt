@@ -39,6 +39,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.ReportSheets
 import com.example.msp_app.feature.collectionreport.ui.components.SecondaryChips
 import com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance
 import com.example.msp_app.feature.collectionreport.ui.components.TabTransition
+import com.example.msp_app.feature.collectionreport.ui.theme.ThemeRevealRoot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -74,6 +75,18 @@ private const val ENTRANCE_DETAIL_LIST = 8
  * pantallas por sí mismo). [onMenuClick] lo cablea el composition root de `:app` (Task 10)
  * al `openDrawer` del `DrawerContainer` — así el botón de menú del [ReportHeader] abre el
  * drawer real de la app.
+ *
+ * **Envuelto en [ThemeRevealRoot] (fix Task 11):** `:app` NUNCA provee [MspTheme] — su
+ * `MainActivity`/`AppNavigation` solo montan `MspappTheme` (el tema legado de Material del
+ * resto de la app, un sistema de composición DISTINTO). [ThemeRevealRoot] es, por diseño
+ * (ver su KDoc, "el caller NO debe volver a envolver en MspTheme por su cuenta"), el ÚNICO
+ * punto que provee [MspTheme] a este piloto — pero Task 10 nunca lo cableó aquí: quedó
+ * definido y testeado (`ThemeRevealRootTest`) pero sin un solo consumidor real, así que
+ * `MspTheme.colors` reventaba con `IllegalStateException("MspTheme ausente")` en cuanto
+ * `:app` navegaba de verdad a `"daily_reports"` — invisible en los tests del módulo porque
+ * CADA test envuelve su propio contenido en un `MspTheme{}` de scaffolding (nunca ejercitan
+ * este composable de entrada). Detectado por el smoke e2e de dispositivo (Task 11,
+ * `CollectionReportDeviceSmokeTest`), el único test que monta la `MainActivity` real.
  */
 @Suppress("UnusedParameter") // navController: firma reservada (el reporte no navega saliente).
 @OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet (ReportSheets).
@@ -91,57 +104,60 @@ fun CollectionReportScreen(
     val onDiaCicloClick: (Int) -> Unit = { index ->
         viewModel.openSheet(SheetKind.DIA_CICLO, index.toString())
     }
-    Box(modifier = Modifier.fillMaxSize()) {
-        CollectionReportContent(
-            state = state,
-            // El drawer real lo provee `:app` vía [onMenuClick] (Task 10); por defecto no-op.
-            onMenuClick = onMenuClick,
-            onPrivacyToggle = viewModel::toggleMask,
-            onThemeToggle = viewModel::toggleTheme,
-            onPeriodSelect = viewModel::setPeriod,
-            onHeroClick = { viewModel.openSheet(SheetKind.HERO) },
-            onSparkBarClick = onDiaCicloClick,
-            onEfectivoClick = { viewModel.openSheet(SheetKind.EFECTIVO) },
-            onTransferenciaClick = { viewModel.openSheet(SheetKind.TRANSFERENCIA) },
-            onCondonadoClick = { viewModel.openSheet(SheetKind.CONDONADO) },
-            onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
-            onSortSelect = viewModel::setSort,
-            onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
-            onDayRowClick = onDiaCicloClick
-        )
-        BlurredActionBar(
-            onCompartirClick = {
-                context.startActivity(
-                    Intent.createChooser(ReportActionsController.buildShareIntent(state), null)
-                )
-            },
-            // PARKED FOR USER (ver KDoc de ReportActionsController): sin conexión Bluetooth
-            // real todavía, comparte el mismo ticket dinero-seguro como puente temporal.
-            onImprimirClick = {
-                context.startActivity(
-                    Intent.createChooser(
-                        ReportActionsController.buildTicketShareIntent(state),
-                        null
+    ThemeRevealRoot(darkTheme = state.darkTheme, onToggleTheme = viewModel::toggleTheme) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            CollectionReportContent(
+                state = state,
+                // El drawer real lo provee `:app` vía [onMenuClick] (Task 10); por defecto no-op.
+                onMenuClick = onMenuClick,
+                onPrivacyToggle = viewModel::toggleMask,
+                onThemeToggle = viewModel::toggleTheme,
+                onPeriodSelect = viewModel::setPeriod,
+                onHeroClick = { viewModel.openSheet(SheetKind.HERO) },
+                onSparkBarClick = onDiaCicloClick,
+                onEfectivoClick = { viewModel.openSheet(SheetKind.EFECTIVO) },
+                onTransferenciaClick = { viewModel.openSheet(SheetKind.TRANSFERENCIA) },
+                onCondonadoClick = { viewModel.openSheet(SheetKind.CONDONADO) },
+                onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
+                onSortSelect = viewModel::setSort,
+                onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
+                onDayRowClick = onDiaCicloClick
+            )
+            BlurredActionBar(
+                onCompartirClick = {
+                    context.startActivity(
+                        Intent.createChooser(ReportActionsController.buildShareIntent(state), null)
                     )
-                )
-            },
-            onPdfClick = {
-                coroutineScope.launch {
-                    val file = withContext(Dispatchers.IO) {
-                        ReportActionsController.generatePdf(
-                            context = context,
-                            state = state,
-                            fileName = ReportActionsController.pdfFileName(state),
-                            clock = AppClock.System
+                },
+                // PARKED FOR USER (ver KDoc de ReportActionsController): sin conexión Bluetooth
+                // real todavía, comparte el mismo ticket dinero-seguro como puente temporal.
+                onImprimirClick = {
+                    context.startActivity(
+                        Intent.createChooser(
+                            ReportActionsController.buildTicketShareIntent(state),
+                            null
                         )
+                    )
+                },
+                onPdfClick = {
+                    coroutineScope.launch {
+                        val file = withContext(Dispatchers.IO) {
+                            ReportActionsController.generatePdf(
+                                context = context,
+                                state = state,
+                                fileName = ReportActionsController.pdfFileName(state),
+                                clock = AppClock.System
+                            )
+                        }
+                        val intent =
+                            ReportActionsController.buildPdfShareIntent(context, state, file)
+                        context.startActivity(Intent.createChooser(intent, null))
                     }
-                    val intent = ReportActionsController.buildPdfShareIntent(context, state, file)
-                    context.startActivity(Intent.createChooser(intent, null))
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-        ReportSheets(state = state, onDismiss = viewModel::closeSheet)
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+            ReportSheets(state = state, onDismiss = viewModel::closeSheet)
+        }
     }
 }
 

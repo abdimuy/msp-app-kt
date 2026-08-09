@@ -25,8 +25,10 @@ import org.junit.Test
  * [com.example.msp_app.feature.collectionreport.ui.CollectionReportContentTest] ya cubre para
  * Tier 1; aquí solo se verifica lo que CAMBIA: Efectivo/Transferencia/Condonado/Visitas pasan
  * de grid de 2 a una fila de ancho completo cada uno ("una idea por vista"), y que el
- * enmascarado sigue cubriendo esos montos igual que en Tier 1. El golden visual (light+dark
- * @2.0) vive en `screenshot/CollectionReportTier2ScreenshotTest`.
+ * enmascarado sigue cubriendo esos montos igual que en Tier 1. El golden visual (Tier 2 ×
+ * {1.0,1.3,2.0} × {light,dark}, Día/Semana) vive en `screenshot/CollectionReportMatrixScreenshotTest`
+ * (Task 11 — subsume el `CollectionReportTier2ScreenshotTest` original de Task 9, que solo
+ * cubría Día @2.0).
  */
 class CollectionReportContentTier2Test : RobolectricTestBase() {
 

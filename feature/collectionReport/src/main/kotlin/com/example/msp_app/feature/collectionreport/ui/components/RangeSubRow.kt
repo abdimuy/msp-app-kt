@@ -2,8 +2,9 @@ package com.example.msp_app.feature.collectionreport.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,14 +27,25 @@ private val RANGE_PILL_PADDING_VERTICAL = 8.dp
 /**
  * Fila bajo el selector de periodo (mockup `.subrow`): pill de rango (`.rangepill`, ícono
  * calendario + [rangeLabel] en `colors.brand`/`colors.brandTint`) + [MspPaymentSyncPill]
- * (`.syncpill`) empujada al extremo derecho con un `Spacer` de peso — mismo truco
- * `margin-left:auto` del CSS.
+ * (`.syncpill`) empujada al extremo derecho (mismo truco visual `margin-left:auto` del CSS
+ * cuando ambas caben en una línea).
+ *
+ * **Fix Task 11 (carry-forward de Task 9, DS break Tier2@2.0):** la versión original usaba un
+ * `Row` con un `Spacer(Modifier.weight(1f))` entre ambos pills — a `fontScale = 2.0` el pill de
+ * rango por sí solo ya podía ocupar casi todo el ancho disponible, dejando al `Spacer` sin
+ * espacio que repartir y a [MspPaymentSyncPill] "hambriento" (medido en una franja casi nula, el
+ * texto degradaba a una columna vertical de letras sueltas — ver `task-9-review.md` "Tier2@2.0 DS
+ * break"). Reemplazado por [FlowRow]: ambos pills se miden SIEMPRE a su tamaño natural (nunca se
+ * aprietan a un ancho artificial) y, si no caben juntos en una línea, el sync pill simplemente
+ * baja de línea — nunca se solapan ni se recortan, a NINGUNA escala de fuente.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RangeSubRow(rangeLabel: String, pendingCount: Int, modifier: Modifier = Modifier) {
-    Row(
+    FlowRow(
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
         Row(
             modifier = Modifier
@@ -54,8 +66,6 @@ fun RangeSubRow(rangeLabel: String, pendingCount: Int, modifier: Modifier = Modi
             )
             Text(text = rangeLabel, style = MspTheme.type.chipLabel, color = MspTheme.colors.brand)
         }
-
-        Spacer(modifier = Modifier.weight(1f))
 
         MspPaymentSyncPill(pendingCount = pendingCount)
     }
