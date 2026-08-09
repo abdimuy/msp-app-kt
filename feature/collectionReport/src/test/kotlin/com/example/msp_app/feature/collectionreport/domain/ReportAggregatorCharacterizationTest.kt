@@ -1,6 +1,5 @@
 package com.example.msp_app.feature.collectionreport.domain
 
-import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
 import com.example.msp_app.feature.collectionreport.domain.model.Money
@@ -53,7 +52,6 @@ class ReportAggregatorCharacterizationTest {
 
         assertEquals(6152, oldTotal) // 6152.99 truncado -> 6152 (pierde $0.99)
         assertEquals(Money.of(BigDecimal("6152.99")), newTotal)
-        assertEquals("$6,152.99", formatMoneyMxn(newTotal.amount))
         // El viejo y el nuevo NO coinciden: es la corrección del truncamiento.
         assertNotEquals(oldTotal.toString(), newTotal.amount.toPlainString())
     }

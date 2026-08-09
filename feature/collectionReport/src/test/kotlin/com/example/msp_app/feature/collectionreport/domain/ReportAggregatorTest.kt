@@ -86,6 +86,7 @@ class ReportAggregatorTest {
         val ef = ReportAggregator.efectivo(ps)
         val tr = ReportAggregator.transferencia(ps)
         val ch = ReportAggregator.cheque(ps)
+        val ot = ReportAggregator.otros(ps)
 
         assertEquals(money("300.00"), ef.total)
         assertEquals(2, ef.count)
@@ -93,11 +94,36 @@ class ReportAggregatorTest {
         assertEquals(1, tr.count)
         assertEquals(money("50.00"), ch.total)
         assertEquals(1, ch.count)
+        assertEquals(MethodBreakdown(Money.ZERO, 0), ot) // sin remanente aquí
 
-        // Las tres categorías suman EXACTAMENTE el total, y los conteos también:
-        // cada pago cuenta una sola vez.
-        assertEquals(ReportAggregator.total(ps), ef.total + tr.total + ch.total)
-        assertEquals(ps.size, ef.count + tr.count + ch.count)
+        // Partición EXHAUSTIVA: las cuatro categorías suman EXACTAMENTE el total,
+        // y los conteos también: cada pago cuenta una sola vez.
+        assertEquals(ReportAggregator.total(ps), ef.total + tr.total + ch.total + ot.total)
+        assertEquals(ReportAggregator.count(ps), ef.count + tr.count + ch.count + ot.count)
+    }
+
+    @Test
+    fun `la particion es exhaustiva incluso con un pago de metodo OTRO`() {
+        val ps = listOf(
+            payment(money("100.00"), PaymentMethod.EFECTIVO),
+            payment(money("300.00"), PaymentMethod.TRANSFERENCIA),
+            payment(money("50.00"), PaymentMethod.CHEQUE),
+            // FORMA_COBRO_ID desconocido
+            payment(money("77.00"), PaymentMethod.OTRO)
+        )
+        val ef = ReportAggregator.efectivo(ps)
+        val tr = ReportAggregator.transferencia(ps)
+        val ch = ReportAggregator.cheque(ps)
+        val ot = ReportAggregator.otros(ps)
+
+        // El pago OTRO NO se vuelve invisible: aparece como remanente...
+        assertEquals(money("77.00"), ot.total)
+        assertEquals(1, ot.count)
+        // ...y sigue contando en el total.
+        assertEquals(money("527.00"), ReportAggregator.total(ps))
+        // Exhaustividad dinero + conteo con OTRO presente.
+        assertEquals(ReportAggregator.total(ps), ef.total + tr.total + ch.total + ot.total)
+        assertEquals(ReportAggregator.count(ps), ef.count + tr.count + ch.count + ot.count)
     }
 
     @Test
@@ -112,11 +138,22 @@ class ReportAggregatorTest {
     }
 
     @Test
-    fun `metodo desconocido cae en OTRO y no contamina efectivo ni transferencia`() {
-        val ps = listOf(payment(money("99.00"), PaymentMethod.OTRO))
-        assertEquals(Money.ZERO, ReportAggregator.efectivo(ps).total)
-        assertEquals(Money.ZERO, ReportAggregator.transferencia(ps).total)
-        assertEquals(money("99.00"), ReportAggregator.total(ps)) // pero cuenta en total
+    fun `guarda anti-fuga - un pago con metodo condonacion NUNCA suma al total ni al conteo`() {
+        val ps = listOf(
+            payment(money("100.00"), PaymentMethod.EFECTIVO),
+            // 137026 colado como pago: condonar no es cobrar.
+            payment(money("999.00"), PaymentMethod.CONDONACION)
+        )
+        assertEquals(money("100.00"), ReportAggregator.total(ps)) // NO incluye los 999
+        assertEquals(1, ReportAggregator.count(ps)) // solo el efectivo cuenta
+        assertEquals(MethodBreakdown(Money.ZERO, 0), ReportAggregator.otros(ps)) // ni en remanente
+        // Y la exhaustividad se mantiene sobre lo cobrado.
+        val ef = ReportAggregator.efectivo(ps)
+        val tr = ReportAggregator.transferencia(ps)
+        val ch = ReportAggregator.cheque(ps)
+        val ot = ReportAggregator.otros(ps)
+        assertEquals(ReportAggregator.total(ps), ef.total + tr.total + ch.total + ot.total)
+        assertEquals(ReportAggregator.count(ps), ef.count + tr.count + ch.count + ot.count)
     }
 
     @Test
@@ -224,6 +261,15 @@ class ReportAggregatorTest {
         assertEquals(4, tl.highlightIndex) // "hoy" = vie (último día del ciclo)
     }
 
+    @Test
+    fun `timeline semana vacia son barras del ciclo en cero sin crash`() {
+        val tl = ReportAggregator.timeline(emptyList(), ReportPeriod.SEMANA, cycle)
+        assertEquals(5, tl.buckets.size) // una barra por día del ciclo, aun sin pagos
+        assertEquals(listOf("lun", "mar", "mié", "jue", "vie"), tl.buckets.map { it.label })
+        assertTrue(tl.buckets.all { it.total == Money.ZERO && it.count == 0 })
+        assertEquals(4, tl.highlightIndex) // "hoy" sigue siendo el último día
+    }
+
     // region — mejor momento ---------------------------------------------------
 
     @Test
@@ -256,6 +302,12 @@ class ReportAggregatorTest {
         assertNull(ReportAggregator.mejorMomento(tl, ReportPeriod.DIA))
     }
 
+    @Test
+    fun `mejor momento semana sin pagos en el ciclo es null`() {
+        val tl = ReportAggregator.timeline(emptyList(), ReportPeriod.SEMANA, cycle)
+        assertNull(ReportAggregator.mejorMomento(tl, ReportPeriod.SEMANA))
+    }
+
     // region — resumen por día (dailyTrend) -----------------------------------
 
     @Test
@@ -281,6 +333,16 @@ class ReportAggregatorTest {
         // vie 7 = hoy
         assertEquals("vie 7 ago (hoy)", trend[4].label)
         assertEquals("V7", trend[4].initials)
+        assertTrue(trend[4].isToday)
+    }
+
+    @Test
+    fun `dailyTrend sin pagos produce una fila en cero por dia del ciclo sin crash`() {
+        val trend = ReportAggregator.dailyTrend(emptyList(), cycle, clock)
+        assertEquals(5, trend.size)
+        assertTrue(trend.all { it.total == Money.ZERO && it.count == 0 })
+        assertEquals("lun 3 ago", trend[0].label)
+        assertEquals("vie 7 ago (hoy)", trend[4].label) // "hoy" se marca aun sin pagos
         assertTrue(trend[4].isToday)
     }
 
@@ -323,6 +385,15 @@ class ReportAggregatorTest {
     }
 
     @Test
+    fun `delta contra prior negativo tambien degrada a guion`() {
+        // prior <= 0 no tiene base de comparación válida en ningún periodo.
+        assertEquals(
+            DeltaChip("—", DeltaDirection.NONE),
+            ReportAggregator.delta(money("100.00"), money("-5.00"), ReportPeriod.SEMANA)
+        )
+    }
+
+    @Test
     fun `delta redondea el porcentaje HALF_UP`() {
         // 105.5 / 100 = 5.5% -> 6%
         assertEquals(
@@ -358,30 +429,30 @@ class ReportAggregatorTest {
         assertEquals(0f, ReportAggregator.progressFraction(money("-100"), money("20000")), 0f)
     }
 
-    // region — insight (strings es-MX exactas) --------------------------------
+    // region — insight (datos estructurados, la UI formatea el dinero) --------
 
     @Test
-    fun `insight dia arma la frase con proyeccion a cierre`() {
+    fun `insight dia expone conteo porcentaje y proyeccion en Money sin formatear`() {
         val progress = ReportAggregator.progressFraction(money("18300"), money("20000"))
         assertEquals(
-            "32 pagos · vas al 91% de tu meta · a este ritmo cierras en $19,800.00",
+            Insight.Daily(count = 32, progressPct = 91, projection = money("19800")),
             ReportAggregator.insight(ReportPeriod.DIA, 32, progress, money("19800"))
         )
     }
 
     @Test
-    fun `insight dia sin proyeccion degrada a guion`() {
+    fun `insight dia sin proyeccion deja projection en null`() {
         assertEquals(
-            "0 pagos · vas al 0% de tu meta · a este ritmo cierras en —",
+            Insight.Daily(count = 0, progressPct = 0, projection = null),
             ReportAggregator.insight(ReportPeriod.DIA, 0, 0f, projection = null)
         )
     }
 
     @Test
-    fun `insight semana arma la frase con dia D de T del ciclo`() {
+    fun `insight semana expone dia D de T del ciclo`() {
         val progress = ReportAggregator.progressFraction(money("118400"), money("130000"))
         assertEquals(
-            "214 pagos · vas al 91% de la meta · día 5 de 5 del ciclo",
+            Insight.Weekly(count = 214, progressPct = 91, cycleDay = 5, cycleDays = 5),
             ReportAggregator.insight(
                 ReportPeriod.SEMANA,
                 214,
@@ -396,8 +467,7 @@ class ReportAggregatorTest {
     @Test
     fun `insight trunca el porcentaje al piso consistente con la barra`() {
         // 0.999 -> 99%, no 100%.
-        assertTrue(
-            ReportAggregator.insight(ReportPeriod.DIA, 1, 0.999f, money("1")).contains("vas al 99%")
-        )
+        val i = ReportAggregator.insight(ReportPeriod.DIA, 1, 0.999f, money("1"))
+        assertEquals(99, (i as Insight.Daily).progressPct)
     }
 }

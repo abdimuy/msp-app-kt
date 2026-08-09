@@ -3,7 +3,6 @@ package com.example.msp_app.feature.collectionreport.domain
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
-import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
@@ -53,16 +52,54 @@ data class DeltaChip(val text: String, val direction: DeltaDirection)
 data class BestMoment(val label: String, val total: Money)
 
 /**
+ * Datos numéricos de la frase-insight del hero, SIN formatear — el dominio no
+ * conoce el formato de moneda; la capa UI (Task 6+) arma la cadena es-MX con
+ * `formatMoneyMxn`. Así el dominio no depende de `:core:designsystem`.
+ *
+ * - [Daily]: "[count] pagos · vas al [progressPct]% de tu meta · a este ritmo
+ *   cierras en `${projection}`" (proyección a cierre; null = sin dato).
+ * - [Weekly]: "[count] pagos · vas al [progressPct]% de la meta · día
+ *   [cycleDay] de [cycleDays] del ciclo".
+ */
+sealed interface Insight {
+    val count: Int
+    val progressPct: Int
+
+    data class Daily(
+        override val count: Int,
+        override val progressPct: Int,
+        val projection: Money?
+    ) : Insight
+
+    data class Weekly(
+        override val count: Int,
+        override val progressPct: Int,
+        val cycleDay: Int,
+        val cycleDays: Int
+    ) : Insight
+}
+
+/**
  * Agregador PURO del reporte de cobranza: convierte listas de pagos/condonaciones
  * de dominio en el estado numérico del tablero. Todo dinero es [Money] (suma
  * exacta, escala-2, asociativa), NUNCA `Double`.
  *
- * **Regla de conteo único (no double-count):** cada pago cuenta UNA vez en
- * [total]/[count]; los splits por método son particiones disjuntas por
- * [PaymentMethod]. El cheque (158) — parked del brief — es su propia categoría:
- * NO entra en [efectivo]/[efectivoEnMano] (no es efectivo físico) ni en el duo,
- * pero SÍ cuenta en [total] (dinero realmente cobrado). Las [condonaciones] son
- * una lista aparte: NO son dinero cobrado, así que jamás tocan [total].
+ * **Regla de conteo único + partición EXHAUSTIVA (no double-count, nada
+ * invisible):** cada pago cobrado cuenta UNA vez en [total]/[count], y los
+ * splits por método son una partición COMPLETA y disjunta:
+ * `efectivo + transferencia + cheque + otros == total` SIEMPRE (en dinero Y en
+ * conteo). El [otros] es el remanente (método [PaymentMethod.OTRO], p. ej. un
+ * `FORMA_COBRO_ID` desconocido): entra en [total] pero como remanente VISIBLE,
+ * nunca desaparece de la suma. El cheque (158) — parked del brief — es su propia
+ * categoría: NO entra en [efectivo]/[efectivoEnMano] (no es efectivo físico) ni
+ * en el duo, pero SÍ cuenta en [total].
+ *
+ * **Guarda anti-fuga de condonación (defensiva):** un pago con método
+ * [PaymentMethod.CONDONACION] (137026) que se cuele hasta el agregador NUNCA
+ * suma a [total]/[count] ni a bucket alguno — condonar no es cobrar. La ruta
+ * normal es que Task 4 lo saque de la lista de pagos; esto es defensa en
+ * profundidad para que jamás se contabilice como efectivo. Las [condonaciones]
+ * viajan en su propia lista ([Forgiveness]) y jamás tocan [total].
  *
  * Es UNA sola fachada pura (no varios objetos por sub-concern) a propósito —
  * mismo criterio que `AppTime`: totales, splits, ticket, timeline, delta,
@@ -97,11 +134,19 @@ object ReportAggregator {
 
     // region — totales y splits ------------------------------------------------
 
-    /** Total cobrado (todos los pagos, cheque incluido); vacío -> $0.00. */
-    fun total(payments: List<CollectionPayment>): Money = Money.sum(payments.map { it.amount })
+    /** Pagos que SÍ son cobro: excluye la guarda anti-fuga de condonación (137026). */
+    private fun cobrados(payments: List<CollectionPayment>): List<CollectionPayment> =
+        payments.filter { it.method != PaymentMethod.CONDONACION }
 
-    /** Número de pagos. */
-    fun count(payments: List<CollectionPayment>): Int = payments.size
+    /**
+     * Total cobrado (cheque y remanente [otros] incluidos); excluye pagos con
+     * método condonación (guarda defensiva). Vacío -> $0.00.
+     */
+    fun total(payments: List<CollectionPayment>): Money =
+        Money.sum(cobrados(payments).map { it.amount })
+
+    /** Número de pagos cobrados (excluye condonaciones que se hayan colado). */
+    fun count(payments: List<CollectionPayment>): Int = cobrados(payments).size
 
     /** Total + conteo de los pagos de una forma de cobro dada. */
     fun breakdown(payments: List<CollectionPayment>, method: PaymentMethod): MethodBreakdown {
@@ -120,6 +165,15 @@ object ReportAggregator {
     /** Cheque (158) — su propia categoría (parked); no es efectivo físico. */
     fun cheque(payments: List<CollectionPayment>): MethodBreakdown =
         breakdown(payments, PaymentMethod.CHEQUE)
+
+    /**
+     * Remanente [PaymentMethod.OTRO] — cierra la partición: efectivo +
+     * transferencia + cheque + otros == total. Un `FORMA_COBRO_ID` desconocido
+     * cobrado NO se vuelve invisible; queda aquí. (La condonación no cae aquí:
+     * es su propio método y la guarda la excluye del total.)
+     */
+    fun otros(payments: List<CollectionPayment>): MethodBreakdown =
+        breakdown(payments, PaymentMethod.OTRO)
 
     /** Condonado — total + conteo de la lista de condonaciones (NO es cobro). */
     fun condonado(forgiveness: List<Forgiveness>): MethodBreakdown =
@@ -258,12 +312,16 @@ object ReportAggregator {
     }
 
     /**
-     * Frase-insight del hero. El % se TRUNCA (piso), consistente con el ancho de
-     * la barra del mockup (0.915 -> 91%, no 92%).
+     * Datos del insight del hero (SIN formatear — devuelve [Money] estructurado;
+     * la UI arma la cadena, así el dominio no depende de `:core:designsystem`).
+     * El % se TRUNCA (piso), consistente con el ancho de la barra del mockup
+     * (0.915 -> 91%, no 92%).
      *
-     * - DÍA: "N pagos · vas al X% de tu meta · a este ritmo cierras en $Y"
-     *   ([projection] = proyección a cierre; null -> "—").
-     * - SEMANA: "N pagos · vas al X% de la meta · día D de T del ciclo".
+     * **Desviación consciente vs. brief** (`insight(period, count, progress,
+     * projection)`): se añaden [cycleDay]/[cycleDays] — la variante SEMANA los
+     * necesita ("día D de T del ciclo") y el brief no los preveía; se ignoran en
+     * DÍA (y [projection] se ignora en SEMANA). Mismo criterio que el parámetro
+     * `range` extra de [timeline].
      */
     fun insight(
         period: ReportPeriod,
@@ -272,15 +330,11 @@ object ReportAggregator {
         projection: Money?,
         cycleDay: Int = 0,
         cycleDays: Int = 0
-    ): String {
+    ): Insight {
         val pct = (progress.coerceIn(0f, 1f) * PERCENT).toInt()
         return when (period) {
-            ReportPeriod.DIA -> {
-                val closing = projection?.let { formatMoneyMxn(it.amount) } ?: "—"
-                "$count pagos · vas al $pct% de tu meta · a este ritmo cierras en $closing"
-            }
-            ReportPeriod.SEMANA ->
-                "$count pagos · vas al $pct% de la meta · día $cycleDay de $cycleDays del ciclo"
+            ReportPeriod.DIA -> Insight.Daily(count, pct, projection)
+            ReportPeriod.SEMANA -> Insight.Weekly(count, pct, cycleDay, cycleDays)
         }
     }
 
@@ -288,6 +342,11 @@ object ReportAggregator {
      * Mejor momento para el sheet-hero: la barra pico de la [timeline]. En DÍA la
      * reetiqueta a rango horario ("9–10 h"); en SEMANA a día completo
      * ("miércoles"). Si no hay dinero (todas las barras en 0) -> null.
+     *
+     * **Desviación consciente vs. brief** (`mejorMomento(timeline)`): se añade
+     * [period] — la reetiqueta del pico difiere por periodo (rango horario vs.
+     * día completo) y no se puede inferir solo de la barra. Mismo criterio que
+     * el parámetro `range` extra de [timeline].
      */
     fun mejorMomento(timeline: Timeline, period: ReportPeriod): BestMoment? {
         val peak = timeline.buckets
