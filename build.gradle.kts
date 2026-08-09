@@ -334,6 +334,11 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // `koverVerifyDebug` de este módulo usa el piso placeholder (0%, `msp.kover`)
 // igual que el resto de módulos nuevos que todavía no tienen una línea base
 // de cobertura fijada.
+// `:core:telemetry` (Plan 4, Task 1) se suma con ktlint/test/detekt desde el
+// esqueleto, mismo patrón que `:core:database`/`:core:designsystem`: `msp.kover`
+// queda aplicado pero SIN entrar a este gate todavía (piso placeholder, el
+// umbral real llega con el dominio en T2-T3) y sin Roborazzi (Compose recién
+// se ejerce en T4 para `trackClick`/`ScreenScope`).
 tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, todos los módulos."
@@ -345,12 +350,14 @@ tasks.register("prePushCheck") {
         ":core:common:ktlintCheck",
         ":core:database:ktlintCheck",
         ":core:designsystem:ktlintCheck",
+        ":core:telemetry:ktlintCheck",
         ":core:testing:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
         ":core:common:testDebugUnitTest",
         ":core:database:testDebugUnitTest",
         ":core:designsystem:testDebugUnitTest",
+        ":core:telemetry:testDebugUnitTest",
         ":core:testing:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
@@ -365,6 +372,7 @@ tasks.register("prePushCheck") {
         ":core:common:detekt",
         ":core:database:detekt",
         ":core:designsystem:detekt",
+        ":core:telemetry:detekt",
         ":core:testing:detekt",
         ":build-tools:detekt-rules:detekt",
         ":core:designsystem:verifyRoborazziDebug",
