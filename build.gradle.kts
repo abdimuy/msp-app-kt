@@ -378,6 +378,17 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // (`MainActivity`, vía `LocalTelemetry`) en esta misma tarea — sin tarea de
 // build nueva que agregar acá, ya cubierto por `:app:testDevlocalDebugUnitTest`
 // + `:app:assembleDevlocalDebug` de abajo.
+//
+// `:feature:collectionReport` (Plan 5, Task 1 — EL PILOTO): módulo esqueleto
+// (Compose + Hilt + Roborazzi, sin dominio/UI todavía) que aísla "¿el módulo
+// se levanta?" del contenido del reporte de cobranza (Tasks 2+). Wiring
+// PARCIAL a propósito: solo ktlint/test/detekt entran acá, mismo patrón de
+// nacimiento que `:core:database`/`:core:designsystem`/`:core:telemetry`/
+// `:core:network`. `verifyRoborazziDebug` y `koverVerify(Debug)` se suman en
+// la Task 11 del plan, cuando ya existan goldens/línea base de cobertura —
+// agregarlos antes haría fallar el gate por falta de capturas/umbral. `:app`
+// deliberadamente NO depende todavía de este módulo (esa es harina de otra
+// tarea del plan), así que `:app:assembleDevlocalDebug` no lo ejercita.
 tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, todos los módulos."
@@ -392,6 +403,7 @@ tasks.register("prePushCheck") {
         ":core:network:ktlintCheck",
         ":core:telemetry:ktlintCheck",
         ":core:testing:ktlintCheck",
+        ":feature:collectionReport:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
         ":core:common:testDebugUnitTest",
@@ -400,6 +412,7 @@ tasks.register("prePushCheck") {
         ":core:network:testDebugUnitTest",
         ":core:telemetry:testDebugUnitTest",
         ":core:testing:testDebugUnitTest",
+        ":feature:collectionReport:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
         // `koverVerifyDebug`, no el agregado `koverVerify`: el agregado también
@@ -417,6 +430,7 @@ tasks.register("prePushCheck") {
         ":core:network:detekt",
         ":core:telemetry:detekt",
         ":core:testing:detekt",
+        ":feature:collectionReport:detekt",
         ":build-tools:detekt-rules:detekt",
         ":core:designsystem:verifyRoborazziDebug",
         ":app:assembleDevlocalDebug",
