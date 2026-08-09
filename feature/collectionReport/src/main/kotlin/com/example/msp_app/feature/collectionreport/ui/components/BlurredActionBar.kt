@@ -25,11 +25,23 @@ private val ACTION_BAR_BOTTOM_PADDING = 16.dp
 private const val WIDE_LABEL_WEIGHT = 1.15f
 private const val SHORT_LABEL_WEIGHT = 0.7f
 
+// Fracción de alto donde el degradado llega a opacidad SÓLIDA — mockup
+// `linear-gradient(to bottom, var(--bg0) 0%, var(--bg) 44%)`: de 0% a 44% transparente→sólido,
+// de 44% a 100% se QUEDA sólido (comportamiento implícito de CSS: un gradiente sostiene el
+// último color más allá de su última parada). Fix round 1 (Important 1): un `Brush
+// .verticalGradient` de SOLO 2 paradas (`0f to alpha0`, `1f to background`) interpola alpha
+// en TODA la altura del `Row` — para cuando llega a la zona de los botones, el fondo sigue sin
+// ser opaco del todo y el contenido de atrás (chips Condonado/Visitas) se transparenta a
+// través de Compartir/Imprimir. Una tercera parada en [SOLID_STOP_FRACTION] repitiendo
+// `background` (mismo color, mismo alpha=1) fuerza ese tramo final a opacidad constante.
+private const val SOLID_STOP_FRACTION = 0.44f
+
 /**
  * Barra de acciones anclada abajo, difuminada (mockup `.actions`): un `Row` con degradado
- * vertical `background.copy(alpha=0f) -> background` (transparente arriba, sólido abajo) —
- * NO un fondo sólido — y tres [MspPrimaryFieldButton]: Compartir (`Ghost`), Imprimir
- * (`Ghost`), PDF (`Primary`, brand sólido).
+ * vertical de 3 paradas — transparente (0%) → sólido ([SOLID_STOP_FRACTION]) → se mantiene
+ * sólido (100%) — NO un fondo sólido plano ni un degradado de 2 paradas que nunca termina de
+ * cerrar (ver [SOLID_STOP_FRACTION]) — y tres [MspPrimaryFieldButton]: Compartir (`Ghost`),
+ * Imprimir (`Ghost`), PDF (`Primary`, brand sólido).
  *
  * **"pointer-events: none" del contenedor (gotcha del brief):** en Compose esto no requiere
  * ningún modificador especial — a diferencia de CSS, un `Box`/`Row` decorativo (fondo +
@@ -60,7 +72,13 @@ fun BlurredActionBar(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                Brush.verticalGradient(listOf(background.copy(alpha = 0f), background))
+                Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0f to background.copy(alpha = 0f),
+                        SOLID_STOP_FRACTION to background,
+                        1f to background
+                    )
+                )
             )
             .padding(
                 start = ACTION_BAR_SIDE_PADDING,

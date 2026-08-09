@@ -114,11 +114,19 @@ internal object MockupFixtures {
         )
     )
 
-    /** Condonaciones (mockup `SHEETS.condon` filas) — cliente/motivo/monto EXACTOS del mockup. */
+    /**
+     * Condonaciones (mockup `SHEETS.condon` filas) — cliente/monto EXACTOS del mockup, pero
+     * `motivo = ""` (fix round 1, Important 2): el mockup muestra motivos de ejemplo
+     * ("saldo mínimo · autorizado", etc.) que producción NO puede generar hoy —
+     * `RoomPaymentsAdapter.toForgiveness` siempre emite `motivo = ""` (auditado: sin fuente
+     * real en v27 ni en el backend Go, ver KDoc de `Forgiveness.motivo`). Esta fixture usa la
+     * realidad de producción (vacío), no la muestra bonita del mockup — así el golden del
+     * sheet Condonado no miente sobre lo que un cobrador ve de verdad.
+     */
     fun condonadoRows(): List<ForgivenessRowUi> = listOf(
-        ForgivenessRowUi("Ana Ruiz", "saldo mínimo · autorizado", money("600")),
-        ForgivenessRowUi("Luis Gómez", "ajuste de intereses", money("500")),
-        ForgivenessRowUi("María Tovar", "redondeo de cierre", money("300"))
+        ForgivenessRowUi("Ana Ruiz", "", money("600")),
+        ForgivenessRowUi("Luis Gómez", "", money("500")),
+        ForgivenessRowUi("María Tovar", "", money("300"))
     )
 
     /** Visitas (mockup `SHEETS.visitas` filas) — cliente/nota EXACTOS del mockup. */

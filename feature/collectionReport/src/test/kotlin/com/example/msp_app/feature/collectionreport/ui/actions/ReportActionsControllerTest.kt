@@ -4,10 +4,15 @@ import android.content.Intent
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.feature.collectionreport.domain.model.Money
+import com.example.msp_app.feature.collectionreport.ui.ChipUi
+import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.MockupFixtures
+import com.example.msp_app.feature.collectionreport.ui.TileUi
 import java.math.BigDecimal
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -60,6 +65,79 @@ class ReportActionsControllerTest : RobolectricTestBase() {
 
         assertTrue(ticket.contains("Total cobrado: " + formatMoneyMxn(BigDecimal("118400"))))
     }
+
+    // region — fix round 1 (minor): dinero cero / grande / multi-monto ------------------
+
+    @Test
+    fun `el ticket con todo en cero formatea el total como $0-00, no vacio ni truncado`() {
+        val zeroState = MockupFixtures.stateDia().copy(
+            hero = MockupFixtures.stateDia().hero.copy(monto = Money.ZERO),
+            efectivo = TileUi("Efectivo", Money.ZERO, 0),
+            transferencia = TileUi("Transferencia", Money.ZERO, 0),
+            condonado = ChipUi("Condonado", amount = Money.ZERO),
+            visitas = ChipUi("Visitas", count = 0),
+            detail = DetailUi.Payments(emptyList())
+        )
+
+        val ticket = ReportActionsController.buildTicketText(zeroState, clock)
+
+        assertEquals(formatMoneyMxn(BigDecimal.ZERO), "$0.00")
+        assertTrue(ticket.contains("Total cobrado: \$0.00"))
+        assertTrue(ticket.contains("Efectivo (0): \$0.00"))
+        assertTrue(ticket.contains("Transferencia (0): \$0.00"))
+        assertTrue(ticket.contains("Condonado: \$0.00"))
+        assertTrue(ticket.contains("Visitas: 0"))
+    }
+
+    @Test
+    fun `el ticket con un monto grande de 8 cifras no trunca ni redondea digitos`() {
+        val largeAmount = Money.of(BigDecimal("12345678.90"))
+        val largeState = MockupFixtures.stateDia()
+            .let { it.copy(hero = it.hero.copy(monto = largeAmount)) }
+
+        val ticket = ReportActionsController.buildTicketText(largeState, clock)
+        val expected = formatMoneyMxn(BigDecimal("12345678.90"))
+
+        assertEquals("$12,345,678.90", expected)
+        assertTrue(ticket.contains("Total cobrado: $expected"))
+        // Nunca una versión corta/redondeada del monto (p. ej. "$12,345,679" sin centavos, o
+        // "$12.3M" abreviado) — el string completo, exacto, debe aparecer tal cual.
+        assertFalse(ticket.contains("Total cobrado: \$12,345,679"))
+    }
+
+    @Test
+    fun `el ticket con multiples pagos muestra cada monto exacto y los totales coinciden con el estado`() {
+        val state = MockupFixtures.stateDia()
+
+        val ticket = ReportActionsController.buildTicketText(state, clock)
+
+        // Los 4 pagos EXACTOS de MockupFixtures.paymentsDia() — ninguno se pierde ni se
+        // redondea al desglosar.
+        assertTrue(ticket.contains(formatMoneyMxn(BigDecimal("1200")))) // María López
+        assertTrue(ticket.contains(formatMoneyMxn(BigDecimal("850")))) // Juan Pérez
+        assertTrue(ticket.contains(formatMoneyMxn(BigDecimal("1500")))) // Rosa Martínez
+        assertTrue(ticket.contains(formatMoneyMxn(BigDecimal("2000")))) // Pedro Sánchez
+        // Los totales del ticket son EXACTAMENTE los del estado (mismo `Money`, no una suma
+        // recalculada aparte que pudiera divergir).
+        assertTrue(
+            ticket.contains(
+                "Total cobrado: " + formatMoneyMxn(state.hero.monto.amount)
+            )
+        )
+        assertTrue(
+            ticket.contains(
+                "Efectivo (${state.efectivo.count}): " + formatMoneyMxn(state.efectivo.amount.amount)
+            )
+        )
+        assertTrue(
+            ticket.contains(
+                "Transferencia (${state.transferencia.count}): " +
+                    formatMoneyMxn(state.transferencia.amount.amount)
+            )
+        )
+    }
+
+    // endregion
 
     @Test
     fun `el intent del ticket es ACTION_SEND de texto plano con el ticket completo`() {

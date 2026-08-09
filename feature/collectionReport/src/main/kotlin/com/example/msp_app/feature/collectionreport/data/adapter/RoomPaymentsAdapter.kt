@@ -68,7 +68,11 @@ private fun PaymentEntity.toCollectionPayment(): CollectionPayment = CollectionP
  * Condonación desde una fila de `Payment` (forma 137026). `motivo` queda vacío:
  * el schema v27 no tiene columna de razón de condonación (contrato auditado);
  * es un hueco documentado para enriquecer en una tarea posterior si el sheet lo
- * necesita.
+ * necesita. **Re-auditado en fix round 1 (Plan 5 Task 8):** tampoco existe en el backend Go
+ * (msp-api) — `internal/cobranza/domain/saldo.go`/`venta.go` modelan la condonación como
+ * monto puro, sin texto libre. La UI (`ReportSheetContent.condonadoSheet`) SIEMPRE debe
+ * tratar un `motivo` vacío como "sin línea", nunca fabricar uno — ver KDoc de
+ * [Forgiveness.motivo].
  */
 private fun PaymentEntity.toForgiveness(): Forgiveness = Forgiveness(
     cliente = NOMBRE_CLIENTE,

@@ -146,13 +146,24 @@ private fun methodSheet(
     return SheetContentUi(label, subtitle, rows)
 }
 
+/**
+ * Fix round 1 (Important 2, honestidad): [ForgivenessRowUi.motivo] llega vacío en producción
+ * — `RoomPaymentsAdapter.toForgiveness` lo documenta y lo audita: el schema v27 de `Payment`
+ * (`:core:database`) NO tiene columna de razón de condonación, y el backend Go (msp-api,
+ * `internal/cobranza/domain/saldo.go`/`venta.go`) tampoco modela una — la condonación (forma
+ * 137026) es solo un monto, sin campo de texto libre en ningún punto del pipeline hoy. `.
+ * ifBlank { null }` — si algún día SÍ llega un motivo real (columna nueva, enriquecimiento),
+ * esta fila lo muestra tal cual; mientras tanto, blank -> sin línea de subtítulo, NUNCA un
+ * placeholder inventado. El golden de este sheet usa `motivo = ""` (fixture fiel a
+ * producción, no una muestra bonita) — ver `MockupFixtures.condonadoRows`.
+ */
 private fun condonadoSheet(state: CollectionReportUiState): SheetContentUi {
     val subtitle = moneyText(state.condonado.amount ?: Money.ZERO, state.masked)
     val rows = state.condonadoRows.map { row ->
         SheetRowUi(
             leading = clienteInitials(row.cliente),
             title = row.cliente,
-            subtitle = row.motivo,
+            subtitle = row.motivo.ifBlank { null },
             amount = row.amount
         )
     }

@@ -120,7 +120,12 @@ sealed interface DetailUi {
     data class Days(val rows: List<DayRowUi>) : DetailUi
 }
 
-/** Fila de una condonación (sheet `SheetKind.CONDONADO`) — 1:1 de `Forgiveness` del dominio. */
+/**
+ * Fila de una condonación (sheet `SheetKind.CONDONADO`) — 1:1 de `Forgiveness` del dominio.
+ * [motivo] llega vacío en producción hoy (sin fuente real en v27 ni en el backend Go — ver
+ * KDoc de `Forgiveness.motivo`); el sheet omite la línea de subtítulo cuando está vacío, en
+ * vez de mostrar un motivo fabricado.
+ */
 data class ForgivenessRowUi(val cliente: String, val motivo: String, val amount: Money)
 
 /**

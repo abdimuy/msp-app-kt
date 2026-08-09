@@ -9,6 +9,7 @@ import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.collectionreport.domain.model.Money
+import com.example.msp_app.feature.collectionreport.ui.ForgivenessRowUi
 import com.example.msp_app.feature.collectionreport.ui.MockupFixtures
 import com.example.msp_app.feature.collectionreport.ui.SheetKind
 import com.example.msp_app.feature.collectionreport.ui.SheetUi
@@ -86,14 +87,44 @@ class ReportSheetsTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `el sheet Condonado trae cliente, motivo y monto de cada condonacion`() {
+    fun `el sheet Condonado trae cliente y monto de cada condonacion`() {
         val content = deriveSheetContent(SheetUi(SheetKind.CONDONADO), MockupFixtures.stateDia())
 
         assertEquals("Condonado", content.title)
         assertEquals(3, content.rows.size)
         assertEquals("Ana Ruiz", content.rows[0].title)
-        assertEquals("saldo mínimo · autorizado", content.rows[0].subtitle)
         assertEquals(money("600"), content.rows[0].amount)
+    }
+
+    // Fix round 1 (Important 2, honestidad): `Forgiveness.motivo` llega VACÍO en producción
+    // (auditado: sin fuente real en v27 ni en el backend Go) — el sheet NUNCA debe mostrar un
+    // motivo fabricado. `MockupFixtures.condonadoRows()` ya refleja esa realidad (motivo
+    // vacío); este test lo hace explícito.
+    @Test
+    fun `el sheet Condonado con motivo vacio (produccion real) omite la linea de subtitulo`() {
+        val content = deriveSheetContent(SheetUi(SheetKind.CONDONADO), MockupFixtures.stateDia())
+
+        assertTrue(content.rows.all { it.subtitle == null })
+    }
+
+    // Cobertura hacia adelante: si algún día SÍ hay una fuente real de motivo (columna nueva,
+    // enriquecimiento), `deriveSheetContent` debe mostrarlo tal cual — la omisión de arriba es
+    // condicional al valor vacío, no un `null` hardcodeado.
+    @Test
+    fun `el sheet Condonado con motivo no vacio SI lo muestra`() {
+        val state = MockupFixtures.stateDia().copy(
+            condonadoRows = listOf(
+                ForgivenessRowUi(
+                    cliente = "Ana Ruiz",
+                    motivo = "saldo mínimo · autorizado",
+                    amount = money("600")
+                )
+            )
+        )
+
+        val content = deriveSheetContent(SheetUi(SheetKind.CONDONADO), state)
+
+        assertEquals("saldo mínimo · autorizado", content.rows[0].subtitle)
     }
 
     @Test
