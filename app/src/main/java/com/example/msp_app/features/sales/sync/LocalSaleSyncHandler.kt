@@ -30,15 +30,15 @@ data class LocalSaleSyncData(
 )
 
 /**
- * Se lanza cuando una venta llega al sync sin ningún producto. El backend
- * exige `productos` con al menos un elemento (ver `CrearVentaBody.Productos
- * minItems:1` y el invariante de dominio `ErrVentaProductosVacios` en
- * msp-api); subirla crearía una venta sin renglones en Microsip. Es una
- * `IllegalStateException` para que `BaseSyncWorker` la trate como fallo
- * transitorio y reintente en vez de subir la venta vacía.
+ * Marcador interno que [LocalSaleSyncHandler.prepareRequest] devuelve cuando la
+ * venta no tiene productos. NO es un error transitorio: una venta sin productos
+ * es un problema de datos que reintentar no arregla.
+ * [LocalSaleSyncHandler.executeSync] lo traduce a [SyncResult.PermanentError]
+ * para que el sync falle de forma PERMANENTE e inmediata (consistente con el
+ * `Result.failure()` del guard de `PendingLocalSalesWorker`), en vez de subir
+ * una venta vacía o reintentar sin límite.
  */
-class EmptySaleProductsException(saleId: String) :
-    IllegalStateException("venta $saleId sin productos: no se sube a Microsip")
+private object EmptyProductsRequest
 
 /**
  * Handler de sincronización para ventas locales.
@@ -71,13 +71,21 @@ class LocalSaleSyncHandler(
 
         // GUARD money-path: nunca subir una venta sin productos. El backend la
         // rechaza (productos minItems:1 / dominio ErrVentaProductosVacios) y una
-        // venta sin renglones en Microsip es pérdida/inconsistencia. Los
-        // datasources ya NO tragan errores del DAO: un fallo real se propaga
-        // hasta aquí y BaseSyncWorker lo reintenta. Este guard caza además el
-        // caso de datos genuinamente sin productos. Los combos SÍ pueden ir
-        // vacíos (una venta puede no llevar combos).
+        // venta sin renglones en Microsip es pérdida/inconsistencia.
+        //
+        // Semántica (unificada con el guard de PendingLocalSalesWorker): una
+        // venta genuinamente sin productos es un PROBLEMA DE DATOS que
+        // reintentar NO arregla → devolvemos el marcador [EmptyProductsRequest],
+        // que executeSync traduce a [SyncResult.PermanentError] → fallo
+        // permanente inmediato (igual que el Result.failure() del worker), NO un
+        // reintento sin límite.
+        //
+        // Un fallo REAL del DAO (I/O, corrupción) es transitorio y NO llega
+        // aquí: los datasources ya NO lo tragan, lo propagan como excepción, y
+        // BaseSyncWorker la reintenta. Los combos SÍ pueden ir vacíos (una
+        // venta puede no llevar combos).
         if (products.isEmpty()) {
-            throw EmptySaleProductsException(entity.LOCAL_SALE_ID)
+            return EmptyProductsRequest
         }
 
         val allImages = localSaleDataSource.getImagesForSale(entity.LOCAL_SALE_ID)
@@ -158,6 +166,15 @@ class LocalSaleSyncHandler(
         operation: SyncOperation,
         request: Any
     ): SyncResult<Any> {
+        // Marcador del guard de prepareRequest: venta sin productos → fallo
+        // permanente inmediato (NO reintento). No se llama a la API.
+        if (request === EmptyProductsRequest) {
+            return SyncResult.PermanentError(
+                message = "la venta no tiene productos; no se sube a Microsip",
+                errorCode = "empty_products"
+            )
+        }
+
         val syncData = request as LocalSaleSyncData
         val multipartRequest = syncData.multipartRequest
 
