@@ -401,6 +401,7 @@ tasks.register("prePushCheck") {
         ":core:database:ktlintCheck",
         ":core:designsystem:ktlintCheck",
         ":core:network:ktlintCheck",
+        ":core:printing:ktlintCheck",
         ":core:telemetry:ktlintCheck",
         ":core:testing:ktlintCheck",
         ":feature:collectionReport:ktlintCheck",
@@ -410,6 +411,7 @@ tasks.register("prePushCheck") {
         ":core:database:testDebugUnitTest",
         ":core:designsystem:testDebugUnitTest",
         ":core:network:testDebugUnitTest",
+        ":core:printing:testDebugUnitTest",
         ":core:telemetry:testDebugUnitTest",
         ":core:testing:testDebugUnitTest",
         ":feature:collectionReport:testDebugUnitTest",
@@ -423,6 +425,12 @@ tasks.register("prePushCheck") {
         // Task 10 ni con el código del catálogo. `:core:common` no pisa este
         // gotcha porque sus tests son JVM plano, sin Robolectric.
         ":core:designsystem:koverVerifyDebug",
+        // `:core:printing` (P1, port de kollect-app): usa `koverVerifyDebug` (no
+        // el agregado `koverVerify`) por el mismo gotcha Robolectric-bajo-`release`
+        // — sus tests de adapters (BluetoothPrinterDiscoveryTest /
+        // PreferredPrinterRepositoryTest) corren sobre Robolectric. Piso 0%
+        // (placeholder `msp.kover`), igual que el resto de módulos nuevos.
+        ":core:printing:koverVerifyDebug",
         ":core:telemetry:koverVerifyDebug",
         // Mismo gotcha Robolectric-bajo-`release` de arriba — Task 11 (Plan 5,
         // cierre del piloto) suma el piso de cobertura (todavía placeholder
@@ -433,6 +441,7 @@ tasks.register("prePushCheck") {
         ":core:database:detekt",
         ":core:designsystem:detekt",
         ":core:network:detekt",
+        ":core:printing:detekt",
         ":core:telemetry:detekt",
         ":core:testing:detekt",
         ":feature:collectionReport:detekt",

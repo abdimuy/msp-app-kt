@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Bluetooth permissions for the ESC/POS thermal-printer adapter (T2). The
+      module talks only to already-paired printers, so it never requests
+      location; BLUETOOTH_SCAN is flagged neverForLocation.
+
+      API 31+ (Android 12) uses the runtime BLUETOOTH_CONNECT / BLUETOOTH_SCAN
+      permissions; the legacy BLUETOOTH / BLUETOOTH_ADMIN permissions cover the
+      module's minSdk 24..30 range and are capped with maxSdkVersion 30.
+
+      No <uses-feature android:name="android.hardware.bluetooth" required="true">:
+      printing is a degradable capability — a device without Bluetooth still
+      installs and runs the app (it simply cannot print).
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!--
+      usesPermissionFlags is inert below API 31 (Android ignores it), so lint's
+      UnusedAttribute fires at minSdk 29. The flag is required on 31+ to declare
+      that the app never derives location from Bluetooth scans, so it is kept and
+      the benign lint note is scoped-suppressed here.
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:ignore="UnusedAttribute" />
+
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+
+</manifest>
