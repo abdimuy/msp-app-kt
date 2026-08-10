@@ -92,15 +92,39 @@ constructor(
      * absent printer fails fast instead of hanging the whole print job on the OS's
      * ~12 s RFCOMM timeout (the freeze). A plain `withTimeout` cannot interrupt a
      * blocking JVM `connect()`, so the sync connect runs inside [runInterruptible]:
-     * a timeout (or a cancel) then interrupts the socket thread and unwinds. The
-     * resulting [TimeoutCancellationException] is converted to a typed
-     * [PrintError.ConnectionFailed] here — the same error an absent printer already
-     * maps to — so it surfaces as a real failure, not a swallowed cancellation.
+     * a timeout (or a cancel) then interrupts the socket thread and unwinds.
+     *
+     * The DantSu `BluetoothConnection.connect()` (inside [openConnectedPrinter]) is
+     * the untestable hardware boundary; the timeout/cancellation policy that wraps
+     * it lives in [withConnectTimeout], a pure `suspend`-lambda seam that is unit-
+     * tested with virtual time (see `DantSuPrinterGatewayTimeoutTest`). Here we only
+     * compose the two: run the interruptible blocking connect under that policy.
+     *
+     * **Android caveat (inherited from kollect, covered by the field test):** on
+     * Android, interrupting a thread blocked in `BluetoothSocket.connect()` does not
+     * abort instantly — the socket can keep the thread parked for a few residual
+     * seconds after cancellation before it unwinds. [withConnectTimeout] still
+     * returns the typed [PrintError.ConnectionFailed] deterministically; the exact
+     * wall-clock unwind of the native socket is only observable with real hardware.
      */
-    private suspend fun connectWithin(device: PrinterDevice): BluetoothConnection = try {
-        withTimeout(CONNECT_TIMEOUT_MS) {
-            runInterruptible(ioDispatcher) { openConnectedPrinter(device) }
-        }
+    private suspend fun connectWithin(device: PrinterDevice): BluetoothConnection =
+        withConnectTimeout { runInterruptible(ioDispatcher) { openConnectedPrinter(device) } }
+
+    /**
+     * The testable timeout/cancellation policy: bounds [connect] with
+     * [CONNECT_TIMEOUT_MS] and converts the resulting [TimeoutCancellationException]
+     * into a typed [PrintError.ConnectionFailed] — the same error an absent printer
+     * maps to — so a stalled connect surfaces as a real failure, not a swallowed
+     * cancellation. A genuine cancellation of the calling scope is NOT a timeout, so
+     * it propagates untouched (only [TimeoutCancellationException], the timeout's own
+     * subtype, is caught) and a cancelled job unwinds normally.
+     *
+     * `internal` so `DantSuPrinterGatewayTimeoutTest` can drive it with a fake
+     * `connect` (a forever-suspending lambda) under `kotlinx-coroutines-test`
+     * virtual time — no Bluetooth, no real dispatcher, no hardware.
+     */
+    internal suspend fun <T> withConnectTimeout(connect: suspend () -> T): T = try {
+        withTimeout(CONNECT_TIMEOUT_MS) { connect() }
     } catch (timeout: TimeoutCancellationException) {
         throw PrintError.ConnectionFailed(timeout)
     }
@@ -135,11 +159,12 @@ constructor(
 
     internal companion object {
         /**
-         * Upper bound on the blocking Bluetooth `connect()` (see [connectWithin]).
-         * Below the OS's ~12 s RFCOMM timeout so an absent printer fails fast to
-         * [PrintError.ConnectionFailed] rather than hanging the print job.
+         * Upper bound on the blocking Bluetooth `connect()` (see [connectWithin] /
+         * [withConnectTimeout]). Below the OS's ~12 s RFCOMM timeout so an absent
+         * printer fails fast to [PrintError.ConnectionFailed] rather than hanging the
+         * print job. `internal` so the timeout test asserts against the exact bound.
          */
-        private const val CONNECT_TIMEOUT_MS = 8_000L
+        internal const val CONNECT_TIMEOUT_MS = 8_000L
 
         // The exact msp-app-kt reset sequence, byte-for-byte:
         //   ESC @   (0x1B 0x40) — initialise printer

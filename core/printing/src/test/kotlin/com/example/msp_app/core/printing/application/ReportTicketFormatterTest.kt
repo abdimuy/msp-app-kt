@@ -22,7 +22,7 @@ import org.junit.Test
  * [TicketLine.ColumnRow] layout are pinned exactly. The JVM default time zone
  * is pinned to America/Mexico_City (fixed UTC-6, no DST) for the "Detalle de
  * pagos" tests — [ReportTicketFormatter] renders each payment's date prefix
- * in the device-local zone, mirroring [PaymentReceiptMapperTest]'s discipline.
+ * in the device-local zone, so the default zone must be pinned for determinism.
  */
 class ReportTicketFormatterTest {
     private val formatter = ReportTicketFormatter()

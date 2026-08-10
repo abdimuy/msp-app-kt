@@ -135,8 +135,8 @@ constructor() {
     /**
      * Hora (`HH:mm`) for the diario ticket, fecha+hora (`dd/MM HH:mm`) for the
      * corte/semana ticket — device-local zone (the ticket shows when the
-     * collector's device recorded it, mirrors [PaymentReceiptMapper]'s own
-     * `fechaHora`/history formatting).
+     * collector's device recorded it, the same device-local formatting discipline
+     * the receipt side applies to its own `fechaHora`/history rows).
      */
     private fun formatPaymentPrefix(epochMillis: Long, isWeekly: Boolean): String {
         val zoned = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault())
