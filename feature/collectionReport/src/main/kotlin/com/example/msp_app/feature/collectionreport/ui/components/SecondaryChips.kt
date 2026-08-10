@@ -77,11 +77,16 @@ fun SecondaryChips(
 
 /**
  * Fix Task 11 (fidelity review, finding 1): `label` y `value` compartiendo una sola `Row`
- * NUNCA garantiza espacio suficiente para "Condonado" completo — el monto en centavos
- * (`formatMoneyMxn` SIEMPRE imprime `.00`, regla intocable, ver `docs/…/task-11-report.md`)
- * es ~50% más ancho que el equivalente sin centavos del mockup, y en un chip `weight(1f)` de
- * dos por fila ese ancho extra se lo robaba a `label`, que truncaba a "Condon…" (`maxLines = 1`
- * + `Ellipsis`) — visto en el golden real.
+ * NUNCA garantiza espacio suficiente para "Condonado" completo — en su momento el monto en
+ * centavos (`formatMoneyMxn` imprimía `.00`, ver `docs/…/task-11-report.md`) era ~50% más
+ * ancho que el equivalente sin centavos del mockup, y en un chip `weight(1f)` de dos por fila
+ * ese ancho extra se lo robaba a `label`, que truncaba a "Condon…" (`maxLines = 1` +
+ * `Ellipsis`) — visto en el golden real.
+ *
+ * **Actualización (whole-pesos, 2026-08-09):** `formatMoneyMxn` ahora redondea a peso entero
+ * para DISPLAY — ya no imprime `.00`, así que el monto es más angosto que cuando se escribió
+ * este fix. El layout apilado se conserva de todos modos (sigue siendo la disposición correcta
+ * del mockup, y es una red de seguridad más barata que confiar en que el monto siempre quepa).
  *
  * Fix: `dot` + `label` y `value()` pasan de compartir una fila a apilarse en una [Column] —
  * `label` va en su PROPIA fila arriba, con el ANCHO COMPLETO del chip disponible (nunca

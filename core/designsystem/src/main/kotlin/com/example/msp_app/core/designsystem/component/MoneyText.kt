@@ -29,33 +29,39 @@ private val MXN_LOCALE = Locale("es", "MX")
 /**
  * Patrón de formato de moneda (nombre exacto por contrato del spec). El `$` es
  * un literal en el patrón de `DecimalFormat` (no es un metacarácter), así que
- * se imprime tal cual; los símbolos de agrupación (`,`) y decimal (`.`) los
- * aporta [MXN_LOCALE] — para es-MX son coma de miles y punto decimal, ambos
- * ASCII (verificado contra el JRE: U+002C / U+002E, signo negativo U+002D).
+ * se imprime tal cual; el símbolo de agrupación (`,`) lo aporta [MXN_LOCALE]
+ * — para es-MX es coma de miles, ASCII (verificado contra el JRE: U+002C,
+ * signo negativo U+002D). Sin dígitos de fracción a propósito: el negocio no
+ * usa centavos, el display siempre es peso entero (ver KDoc de
+ * [formatMoneyMxn]).
  */
-private const val MXN_PATTERN = "$#,##0.00"
+private const val MXN_PATTERN = "$#,##0"
 
 /**
- * Formatea un monto en pesos mexicanos: `formatMoneyMxn(BigDecimal("1200")) ==
- * "$1,200.00"`, `("18300.5") == "$18,300.50"`, `("0") == "$0.00"`, negativo
- * `("-850") == "-$850.00"` (prefijo `-` antes del `$`, formato es-MX real de
- * `DecimalFormat`). Miles/millones agrupan con coma; siempre exactamente 2
- * decimales (centavos).
+ * Formatea un monto en pesos mexicanos, en **peso entero, sin centavos**
+ * (decisión de negocio: MSP no opera con centavos; ver mockup del piloto,
+ * `$18,300` no `$18,300.00`): `formatMoneyMxn(BigDecimal("1200")) ==
+ * "$1,200"`, `("18300.5") == "$18,301"` (redondea al peso), `("0") ==
+ * "$0"`, negativo `("-850") == "-$850"` (prefijo `-` antes del `$`, formato
+ * es-MX real de `DecimalFormat`). Miles/millones agrupan con coma; nunca
+ * decimales en el string de display.
  *
  * **Recibe [BigDecimal], NUNCA `Double`** (regla anti-`Double` del money-path:
  * `Double` no puede representar exactamente centavos — p. ej. `2.675` como
- * `Double` redondea mal; como `BigDecimal("2.675")` con [RoundingMode.HALF_UP]
- * da `$2.68` correcto). No hay overload `Double` "por conveniencia" a
+ * `Double` redondea mal). No hay overload `Double` "por conveniencia" a
  * propósito: un llamador que tenga un `Double` debe convertir conscientemente.
+ * El [amount] que entra SIGUE siendo exacto a centavos (el VO `Money`/
+ * `BigDecimal` de escala 2 no cambia) — el redondeo a peso entero ocurre
+ * SOLO aquí, en el borde del display; el modelo nunca pierde precisión.
  *
- * Redondeo [RoundingMode.HALF_UP] (redondeo comercial mexicano: el medio
- * centavo sube siempre, alejándose de cero) — `1.005 -> $1.01`, `0.005 ->
- * $0.01`. Se fija explícito porque el default de `DecimalFormat` es
- * `HALF_EVEN` (banquero: `1.005 -> $1.00`), que NO es la convención de dinero
- * al consumidor.
+ * Redondeo [RoundingMode.HALF_UP] al peso entero (redondeo comercial
+ * mexicano: el medio peso sube siempre, alejándose de cero) — `18300.50 ->
+ * $18,301`, `0.50 -> $1`. Se fija explícito porque el default de
+ * `DecimalFormat` es `HALF_EVEN` (banquero), que NO es la convención de
+ * dinero al consumidor.
  *
  * Normaliza el cero negativo: un monto que redondea a `0` desde el lado
- * negativo (p. ej. `-0.001`) se muestra `"$0.00"`, nunca `"-$0.00"` — un signo
+ * negativo (p. ej. `-0.40`) se muestra `"$0"`, nunca `"-$0"` — un signo
  * menos delante de un cero es un artefacto de `DecimalFormat`, no información
  * de dinero real.
  *
@@ -65,9 +71,9 @@ private const val MXN_PATTERN = "$#,##0.00"
 fun formatMoneyMxn(amount: BigDecimal): String {
     val formatter = DecimalFormat(MXN_PATTERN, DecimalFormatSymbols(MXN_LOCALE))
     formatter.roundingMode = RoundingMode.HALF_UP
-    // Colapsa -0 a 0: si el monto redondeado a 2 decimales es cero, se formatea
-    // BigDecimal.ZERO para que nunca aparezca un "-$0.00".
-    val normalized = if (amount.setScale(2, RoundingMode.HALF_UP).signum() == 0) BigDecimal.ZERO else amount
+    // Colapsa -0 a 0: si el monto redondeado a peso entero es cero, se formatea
+    // BigDecimal.ZERO para que nunca aparezca un "-$0".
+    val normalized = if (amount.setScale(0, RoundingMode.HALF_UP).signum() == 0) BigDecimal.ZERO else amount
     return formatter.format(normalized)
 }
 

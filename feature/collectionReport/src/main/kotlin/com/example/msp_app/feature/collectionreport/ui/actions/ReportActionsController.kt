@@ -22,11 +22,11 @@ import java.io.FileOutputStream
  * (`:app` `core/utils/PdfGenerator.kt` + `ReportActions.kt`).
  *
  * **AUDIT — bug de dinero encontrado y corregido:** el código viejo formatea montos con
- * `Double.toCurrency(noDecimals = true)` (`core/utils/CurrencyUtils.kt`), que trunca
- * centavos (`$1,200.75` -> `$1,201` redondeado sin mostrar los centavos reales cobrados, y
- * parte de un `Double` — el money-path del piloto es `Money`/`BigDecimal` siempre). Este
- * archivo formatea TODO con [formatMoneyMxn] (`BigDecimal`, 2 decimales, HALF_UP) — mismo
- * contrato que el tablero. Es una corrección consciente, no un cambio accidental de output.
+ * `Double.toCurrency(noDecimals = true)` (`core/utils/CurrencyUtils.kt`), que redondea a
+ * partir de un `Double` (no exacto — el money-path del piloto es `Money`/`BigDecimal`
+ * siempre). Este archivo formatea TODO con [formatMoneyMxn] (`BigDecimal`, peso entero
+ * HALF_UP para display — decisión de negocio: MSP no opera con centavos) — mismo contrato
+ * que el tablero. Es una corrección consciente, no un cambio accidental de output.
  *
  * **PARKED FOR USER — impresión térmica Bluetooth:** [buildTicketText] (el contenido del
  * ticket, dinero-seguro y unit-testeable) SÍ se reescribe aquí; la conexión Bluetooth real

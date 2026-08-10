@@ -84,7 +84,7 @@ class CollectionReportContentTier2Test : RobolectricTestBase() {
         // compone PRIMERO — índice 0 es siempre la tarjeta, nunca una fila (mismo criterio
         // que `CollectionReportContentTest`).
         composeTestRule.onAllNodesWithText("Efectivo")[0].performScrollTo().assertIsDisplayed()
-        // "$12,100.00" también es el well "Efectivo en mano" del hero (mismo monto real);
+        // "$12,100" también es el well "Efectivo en mano" del hero (mismo monto real);
         // el well se compone primero (índice 0), el Tier2Tile de Efectivo después.
         composeTestRule.onAllNodesWithText(
             formatMoneyMxn(BigDecimal("12100"))

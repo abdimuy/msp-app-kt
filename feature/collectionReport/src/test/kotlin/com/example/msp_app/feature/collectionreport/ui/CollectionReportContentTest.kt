@@ -148,7 +148,7 @@ class CollectionReportContentTest : RobolectricTestBase() {
     fun `el duo muestra los montos formateados y los conteos de efectivo y transferencia`() {
         setContent(MockupFixtures.stateDia())
 
-        // "$12,100.00" también es el well "Efectivo en mano" del hero (mismo monto real,
+        // "$12,100" también es el well "Efectivo en mano" del hero (mismo monto real,
         // ambos vienen de `ReportAggregator.efectivoEnMano`/`.efectivo`) — dos nodos con el
         // mismo texto; el well se compone primero (índice 0), el tile del duo después.
         composeTestRule.onAllNodesWithText(

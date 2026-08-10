@@ -153,11 +153,14 @@ class MoneyTest {
 
     @Test
     fun `render via formatMoneyMxn es consistente`() {
-        assertEquals("$1,234,567.89", formatMoneyMxn(Money.of(1234567.89).amount))
-        assertEquals("$0.00", formatMoneyMxn(Money.ZERO.amount))
-        assertEquals("-$850.00", formatMoneyMxn(Money.of(-850.0).amount))
+        // formatMoneyMxn redondea a peso entero para DISPLAY (decisión de negocio: sin
+        // centavos); el `Money` que le entra sigue siendo exacto a escala 2 — el
+        // redondeo ocurre SOLO en el string de salida, nunca en el VO.
+        assertEquals("$1,234,568", formatMoneyMxn(Money.of(1234567.89).amount))
+        assertEquals("$0", formatMoneyMxn(Money.ZERO.amount))
+        assertEquals("-$850", formatMoneyMxn(Money.of(-850.0).amount))
         assertEquals(
-            "$350.99",
+            "$351",
             formatMoneyMxn(Money.sum(listOf(Money.of(350.50), Money.of(0.49))).amount)
         )
     }

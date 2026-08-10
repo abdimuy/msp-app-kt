@@ -69,7 +69,7 @@ class ReportActionsControllerTest : RobolectricTestBase() {
     // region — fix round 1 (minor): dinero cero / grande / multi-monto ------------------
 
     @Test
-    fun `el ticket con todo en cero formatea el total como $0-00, no vacio ni truncado`() {
+    fun `el ticket con todo en cero formatea el total como $0, no vacio ni truncado`() {
         val zeroState = MockupFixtures.stateDia().copy(
             hero = MockupFixtures.stateDia().hero.copy(monto = Money.ZERO),
             efectivo = TileUi("Efectivo", Money.ZERO, 0),
@@ -81,16 +81,19 @@ class ReportActionsControllerTest : RobolectricTestBase() {
 
         val ticket = ReportActionsController.buildTicketText(zeroState, clock)
 
-        assertEquals(formatMoneyMxn(BigDecimal.ZERO), "$0.00")
-        assertTrue(ticket.contains("Total cobrado: \$0.00"))
-        assertTrue(ticket.contains("Efectivo (0): \$0.00"))
-        assertTrue(ticket.contains("Transferencia (0): \$0.00"))
-        assertTrue(ticket.contains("Condonado: \$0.00"))
+        assertEquals(formatMoneyMxn(BigDecimal.ZERO), "$0")
+        assertTrue(ticket.contains("Total cobrado: \$0"))
+        assertTrue(ticket.contains("Efectivo (0): \$0"))
+        assertTrue(ticket.contains("Transferencia (0): \$0"))
+        assertTrue(ticket.contains("Condonado: \$0"))
         assertTrue(ticket.contains("Visitas: 0"))
     }
 
     @Test
-    fun `el ticket con un monto grande de 8 cifras no trunca ni redondea digitos`() {
+    fun `el ticket con un monto grande de 8 cifras no trunca digitos ni lo abrevia`() {
+        // El modelo (`Money`) sigue exacto a centavos por dentro (12345678.90); lo que cambió
+        // es SOLO el string de display, que ahora redondea a peso entero (whole-pesos, decisión
+        // de negocio: MSP no opera con centavos) — 12345678.90 -> $12,345,679 (HALF_UP).
         val largeAmount = Money.of(BigDecimal("12345678.90"))
         val largeState = MockupFixtures.stateDia()
             .let { it.copy(hero = it.hero.copy(monto = largeAmount)) }
@@ -98,11 +101,11 @@ class ReportActionsControllerTest : RobolectricTestBase() {
         val ticket = ReportActionsController.buildTicketText(largeState, clock)
         val expected = formatMoneyMxn(BigDecimal("12345678.90"))
 
-        assertEquals("$12,345,678.90", expected)
+        assertEquals("$12,345,679", expected)
         assertTrue(ticket.contains("Total cobrado: $expected"))
-        // Nunca una versión corta/redondeada del monto (p. ej. "$12,345,679" sin centavos, o
-        // "$12.3M" abreviado) — el string completo, exacto, debe aparecer tal cual.
-        assertFalse(ticket.contains("Total cobrado: \$12,345,679"))
+        // Nunca una versión abreviada del monto (p. ej. "$12.3M") — el string completo con
+        // todos los dígitos de miles debe aparecer tal cual, solo sin centavos.
+        assertFalse(ticket.contains("Total cobrado: \$12.3M"))
     }
 
     @Test
