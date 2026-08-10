@@ -32,7 +32,12 @@ internal data class SheetRowUi(
     val title: String,
     val subtitle: String? = null,
     val amount: Money? = null,
-    val text: String? = null
+    val text: String? = null,
+    // Cuando true, [leading] son INICIALES de cliente y se pinta como avatar (mockup `.srow
+    // .sa`: cuadro tintado + iniciales en `brand`), no como el glifo/emoji suelto de las filas
+    // del hero (📊/⚡/🕘/🎯). Así las filas de pago/condonación/día del ciclo lucen como el
+    // `.prow`/`.srow` del mockup y no como una inicial a secas.
+    val avatar: Boolean = false
 )
 
 /** Cuerpo derivado de un [SheetUi]: título + subtítulo (mockup `h3`/`.ssub`) + [rows]. */
@@ -139,7 +144,8 @@ private fun methodSheet(
                     row.paidAt,
                     AppTime.Formats.TIME_24H
                 )} · ${row.ventaLabel}",
-                amount = row.amount
+                amount = row.amount,
+                avatar = true
             )
         }
         .orEmpty()
@@ -164,7 +170,8 @@ private fun condonadoSheet(state: CollectionReportUiState): SheetContentUi {
             leading = clienteInitials(row.cliente),
             title = row.cliente,
             subtitle = row.motivo.ifBlank { null },
-            amount = row.amount
+            amount = row.amount,
+            avatar = true
         )
     }
     return SheetContentUi("Condonado", subtitle, rows)
@@ -179,12 +186,17 @@ private fun visitasSheet(state: CollectionReportUiState): SheetContentUi {
 /**
  * Cuerpo del día del ciclo (Semana): [argument] es el índice de `state.detail.rows`
  * ([DetailUi.Days]) — mismo índice que `CollectionReportScreen.onDiaCicloClick` ya usa para
- * abrir este sheet (barra de la sparkline o fila del resumen). Sin desglose por pago (el
- * estado no lo conserva por día); título/subtítulo caen a un texto neutro si el índice no
- * resuelve (defensivo, no debería ocurrir en uso normal).
+ * abrir este sheet (barra de la sparkline o fila del resumen). Lista TODOS los pagos
+ * individuales de ese día desde `state.dayPayments` (alineado 1:1 por índice con las filas del
+ * resumen — ver `CollectionReportStateBuilder.buildDayPayments` / `ReportAggregator.
+ * paymentsByDay`), en el mismo estilo `.srow` (avatar de iniciales + nombre + "hora · venta" +
+ * monto) que Efectivo/Transferencia. Un día sin pagos -> lista vacía (el `SheetBody` pinta su
+ * estado vacío honesto). Título/subtítulo caen a un texto neutro si el índice no resuelve
+ * (defensivo, no debería ocurrir en uso normal).
  */
 private fun diaCicloSheet(state: CollectionReportUiState, argument: String?): SheetContentUi {
-    val day = (state.detail as? DetailUi.Days)?.rows?.getOrNull(argument?.toIntOrNull() ?: -1)
+    val index = argument?.toIntOrNull() ?: -1
+    val day = (state.detail as? DetailUi.Days)?.rows?.getOrNull(index)
     val title = day?.label ?: "Día"
     val subtitle = day?.let {
         "${moneyText(
@@ -192,7 +204,19 @@ private fun diaCicloSheet(state: CollectionReportUiState, argument: String?): Sh
             state.masked
         )} · ${it.count} pagos"
     }.orEmpty()
-    return SheetContentUi(title, subtitle, emptyList())
+    val rows = state.dayPayments.getOrNull(index).orEmpty().map { row ->
+        SheetRowUi(
+            leading = clienteInitials(row.cliente),
+            title = row.cliente,
+            subtitle = "${AppTime.formatForDisplay(
+                row.paidAt,
+                AppTime.Formats.TIME_24H
+            )} · ${row.ventaLabel}",
+            amount = row.amount,
+            avatar = true
+        )
+    }
+    return SheetContentUi(title, subtitle, rows)
 }
 
 /**

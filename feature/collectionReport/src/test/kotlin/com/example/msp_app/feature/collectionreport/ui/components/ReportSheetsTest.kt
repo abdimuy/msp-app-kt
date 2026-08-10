@@ -139,9 +139,30 @@ class ReportSheetsTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `el sheet de dia del ciclo muestra la fila del indice pedido`() {
+    fun `el sheet de dia del ciclo lista los pagos individuales del dia pedido`() {
         val content =
             deriveSheetContent(SheetUi(SheetKind.DIA_CICLO, "1"), MockupFixtures.stateSemana())
+
+        assertEquals("mar 4 ago", content.title)
+        assertTrue(content.subtitle.contains("46 pagos"))
+        // Índice 1 == "mar 4 ago" en la fixture: 3 pagos individuales, cada uno con avatar de
+        // iniciales + nombre real + monto (nada truncado, todos listados).
+        assertEquals(3, content.rows.size)
+        assertEquals("Verónica Castillo Ramos", content.rows[0].title)
+        assertEquals(money("1500"), content.rows[0].amount)
+        assertTrue(content.rows.all { it.avatar })
+        assertTrue(content.rows.all { it.leading != null && it.amount != null })
+    }
+
+    @Test
+    fun `el sheet de dia del ciclo de un dia sin pagos muestra su total pero lista vacia`() {
+        // Día válido (índice 1, "mar 4 ago") pero sin pagos individuales cargados: el sheet
+        // conserva título/subtítulo del resumen y cae a un estado vacío sano, sin fabricar filas.
+        val state = MockupFixtures.stateSemana().copy(
+            dayPayments = List(MockupFixtures.daysSemana().size) { emptyList() }
+        )
+
+        val content = deriveSheetContent(SheetUi(SheetKind.DIA_CICLO, "1"), state)
 
         assertEquals("mar 4 ago", content.title)
         assertTrue(content.subtitle.contains("46 pagos"))
@@ -155,6 +176,7 @@ class ReportSheetsTest : RobolectricTestBase() {
 
         assertEquals("Día", content.title)
         assertEquals("", content.subtitle)
+        assertTrue(content.rows.isEmpty())
     }
 
     @Test
@@ -221,6 +243,21 @@ class ReportSheetsTest : RobolectricTestBase() {
 
         composeTestRule.onAllNodesWithText(MASKED_MONEY)[0].assertExists()
         composeTestRule.onNodeWithText(formatMoneyMxn(BigDecimal("600"))).assertDoesNotExist()
+    }
+
+    @Test
+    fun `abrir el sheet de dia del ciclo lista los pagos individuales del dia`() {
+        val state = MockupFixtures.stateSemana().copy(sheet = SheetUi(SheetKind.DIA_CICLO, "1"))
+        composeTestRule.setContent {
+            MspTheme(animateColors = false) {
+                ReportSheets(state = state, onDismiss = {})
+            }
+        }
+
+        composeTestRule.onNodeWithText("mar 4 ago").assertExists()
+        composeTestRule.onNodeWithText("Verónica Castillo Ramos").assertExists()
+        composeTestRule.onNodeWithText("Héctor Domínguez León").assertExists()
+        composeTestRule.onNodeWithText(formatMoneyMxn(BigDecimal("1500"))).assertExists()
     }
 
     @Test

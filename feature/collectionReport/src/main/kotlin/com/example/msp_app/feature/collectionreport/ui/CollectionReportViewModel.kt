@@ -9,6 +9,7 @@ import com.example.msp_app.core.printing.domain.PrinterDevice
 import com.example.msp_app.core.printing.domain.PrinterPort
 import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.feature.collectionreport.di.DefaultDispatcher
 import com.example.msp_app.feature.collectionreport.domain.ReportAggregator
 import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
@@ -21,12 +22,14 @@ import com.example.msp_app.feature.collectionreport.printing.CollectionReportFor
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Orquesta dominio + puertos del reporte de cobranza en un único [StateFlow] observable
@@ -59,7 +62,8 @@ class CollectionReportViewModel @Inject constructor(
     private val printerPort: PrinterPort,
     private val preferredPrinterStore: PreferredPrinterStore,
     private val clock: AppClock,
-    private val telemetry: Telemetry
+    private val telemetry: Telemetry,
+    @DefaultDispatcher private val backgroundDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
     private val mutableState = MutableStateFlow(CollectionReportUiState())
@@ -315,12 +319,19 @@ class CollectionReportViewModel @Inject constructor(
         }
     }
 
+    // Toda la carga corre en [Dispatchers.Default]: además de las queries suspend de Room (que
+    // ya despachan a su propio executor), los `.map` entidad->dominio de los adapters y —
+    // sobre todo — `CollectionReportStateBuilder.buildContent` (agregación BigDecimal de
+    // `Money`, timeline/dailyTrend, `sortedBy { lowercase() }`) se hacían en el hilo Main al
+    // reanudar la corrutina, cayendo justo en el frame del slide del toggle. Sacarlos de Main
+    // quita ese trabajo pesado de la animación (ver toggle-jank-diagnosis.md, fix 2).
     private suspend fun fetchContent(
         period: ReportPeriod,
         sort: DetailSort
-    ): CollectionReportStateBuilder.LoadedContent {
+    ): CollectionReportStateBuilder.LoadedContent = withContext(backgroundDispatcher) {
         // fechaCargaInicial solo se pide en Semana (Día no depende del ciclo del cobrador).
-        val fechaCargaInicial = if (period == ReportPeriod.SEMANA) userCyclePort.fechaCargaInicial() else null
+        val fechaCargaInicial =
+            if (period == ReportPeriod.SEMANA) userCyclePort.fechaCargaInicial() else null
         val range = CollectionReportStateBuilder.resolveRange(period, clock, fechaCargaInicial)
         val cobrador = userCyclePort.cobradorNombre()
         val payments = paymentsPort.paymentsIn(range)
@@ -342,7 +353,7 @@ class CollectionReportViewModel @Inject constructor(
             priorTotal = priorTotal,
             historicalTotals = historicalTotals
         )
-        return CollectionReportStateBuilder.buildContent(context, ports)
+        CollectionReportStateBuilder.buildContent(context, ports)
     }
 
     private fun applyContent(
@@ -351,6 +362,10 @@ class CollectionReportViewModel @Inject constructor(
         content: CollectionReportStateBuilder.LoadedContent
     ): CollectionReportUiState = current.copy(
         period = period,
+        // El contenido del nuevo periodo ya está listo: recién ahora se voltea `contentPeriod`
+        // (la llave del `AnimatedContent`), así el slide anima sobre datos asentados y no recibe
+        // un recompose a mitad de animación (ver toggle-jank-diagnosis.md, fix 1).
+        contentPeriod = period,
         loading = false,
         error = null,
         cobrador = content.cobrador,
@@ -362,6 +377,7 @@ class CollectionReportViewModel @Inject constructor(
         condonado = content.condonado,
         visitas = content.visitas,
         detail = content.detail,
+        dayPayments = content.dayPayments,
         condonadoRows = content.condonadoRows,
         visitRows = content.visitRows
     )
@@ -382,6 +398,9 @@ class CollectionReportViewModel @Inject constructor(
         period: ReportPeriod
     ): CollectionReportUiState = current.copy(
         period = period,
+        // El tablero (en blanco) se pinta para el periodo pedido; `contentPeriod` acompaña a
+        // `period` para no dejar el `AnimatedContent` mostrando el periodo anterior bajo el banner.
+        contentPeriod = period,
         loading = false,
         error = ERROR_MESSAGE,
         rangeLabel = "",
@@ -392,6 +411,7 @@ class CollectionReportViewModel @Inject constructor(
         condonado = ChipUi(label = "Condonado"),
         visitas = ChipUi(label = "Visitas"),
         detail = DetailUi.Payments(emptyList()),
+        dayPayments = emptyList(),
         condonadoRows = emptyList(),
         visitRows = emptyList()
     )

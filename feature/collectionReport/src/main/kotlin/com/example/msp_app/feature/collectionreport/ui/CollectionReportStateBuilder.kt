@@ -57,6 +57,7 @@ internal object CollectionReportStateBuilder {
         val condonado: ChipUi,
         val visitas: ChipUi,
         val detail: DetailUi,
+        val dayPayments: List<List<PaymentRowUi>>,
         val condonadoRows: List<ForgivenessRowUi>,
         val visitRows: List<VisitRowUi>
     )
@@ -101,6 +102,17 @@ internal object CollectionReportStateBuilder {
             condonado = ChipUi(label = "Condonado", amount = condonado.total),
             visitas = ChipUi(label = "Visitas", count = ports.visits.size),
             detail = buildDetailUi(context, ports.payments),
+            // Pagos individuales por día del ciclo (Semana) para el sheet [SheetKind.DIA_CICLO],
+            // alineados 1:1 por índice con las filas de [DetailUi.Days] — delega el reparto por
+            // día en [ReportAggregator.paymentsByDay] (misma enumeración `businessDays(range)`
+            // que `dailyTrend`, así el índice del sheet apunta al mismo día que el resumen). Los
+            // pagos ya vienen ordenados cronológicamente del agregador; aquí solo se mapean a
+            // [PaymentRowUi]. Día -> vacío (el detalle Día YA es la lista de pagos).
+            dayPayments = when (context.period) {
+                ReportPeriod.DIA -> emptyList()
+                ReportPeriod.SEMANA -> ReportAggregator.paymentsByDay(ports.payments, context.range)
+                    .map { dayPayments -> dayPayments.map { it.toPaymentRowUi() } }
+            },
             condonadoRows = ports.forgiveness.map {
                 ForgivenessRowUi(cliente = it.cliente, motivo = it.motivo, amount = it.amount)
             },
@@ -114,22 +126,22 @@ internal object CollectionReportStateBuilder {
      * puertos (reordenar es puro, dado el último lote de pagos ya cargado).
      */
     fun sortedPaymentRows(payments: List<CollectionPayment>, sort: DetailSort): List<PaymentRowUi> {
-        val rows = payments.map { payment ->
-            PaymentRowUi(
-                id = payment.id,
-                cliente = payment.cliente,
-                ventaLabel = payment.ventaLabel,
-                paidAt = payment.paidAt,
-                amount = payment.amount,
-                method = payment.method,
-                synced = payment.synced
-            )
-        }
+        val rows = payments.map { it.toPaymentRowUi() }
         return when (sort) {
             DetailSort.HORA -> rows.sortedBy { it.paidAt }
             DetailSort.NOMBRE -> rows.sortedBy { it.cliente.lowercase() }
         }
     }
+
+    private fun CollectionPayment.toPaymentRowUi(): PaymentRowUi = PaymentRowUi(
+        id = id,
+        cliente = cliente,
+        ventaLabel = ventaLabel,
+        paidAt = paidAt,
+        amount = amount,
+        method = method,
+        synced = synced
+    )
 
     private fun buildHero(context: LoadContext, ports: LoadedPorts): HeroUi {
         val total = ReportAggregator.total(ports.payments)

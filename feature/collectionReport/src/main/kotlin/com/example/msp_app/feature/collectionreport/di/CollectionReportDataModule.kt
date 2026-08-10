@@ -13,6 +13,19 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Qualifier
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+
+/**
+ * Marca el `CoroutineDispatcher` de CPU (`Dispatchers.Default`) que el reporte usa para sacar
+ * de Main la agregación pesada de la carga (BigDecimal/timeline/sort en
+ * `CollectionReportStateBuilder.buildContent`). Cualificado para no colisionar con ningún otro
+ * `CoroutineDispatcher` del grafo y para que los tests puedan inyectar un dispatcher de prueba.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DefaultDispatcher
 
 /**
  * Cablea los puertos de datos del reporte a sus adapters Room. Los DAOs
@@ -54,4 +67,12 @@ object CollectionReportDataModule {
      */
     @Provides
     fun provideAppClock(): AppClock = AppClock.System
+
+    /**
+     * `Dispatchers.Default` (CPU) para la carga del reporte. Los tests inyectan un dispatcher de
+     * prueba directo al ViewModel, así que este binding solo alimenta producción.
+     */
+    @Provides
+    @DefaultDispatcher
+    fun provideDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 }

@@ -274,6 +274,31 @@ object ReportAggregator {
         }
     }
 
+    /**
+     * Pagos INDIVIDUALES por día del ciclo (SEMANA), alineados 1:1 por índice con
+     * [dailyTrend]: la lista en el índice `i` corresponde EXACTAMENTE al mismo día que
+     * `dailyTrend(...)[i]` (ambos enumeran `businessDays(range)` en el mismo orden), con los
+     * pagos de ese día ordenados cronológicamente ASCENDENTE (el primer cobro del día arriba,
+     * mismo criterio que el orden `HORA` del detalle Día). Un día sin pagos -> lista vacía en
+     * su índice (nunca se colapsa: el índice sigue apuntando a su día de [dailyTrend]).
+     *
+     * Excluye la guarda anti-fuga de condonación (137026) igual que [total]/[count] — una
+     * condonación jamás aparece como cobro en el desglose por día del sheet DIA_CICLO.
+     *
+     * Alimenta la lista de pagos del bottom sheet "día del ciclo" (Semana): el estado ya trae
+     * TODOS los pagos del ciclo (`paymentsIn(cycleRange)`), esto solo los reparte por día sin
+     * volver a consultar los puertos.
+     */
+    fun paymentsByDay(
+        payments: List<CollectionPayment>,
+        range: DateRange
+    ): List<List<CollectionPayment>> {
+        val byDate = cobrados(payments).groupBy { AppTime.toBusinessDate(it.paidAt) }
+        return businessDays(range).map { day ->
+            byDate[day].orEmpty().sortedBy { it.paidAt }
+        }
+    }
+
     private fun initialsFor(day: LocalDate): String =
         "${day.format(DOW_SHORT).first().uppercaseChar()}${day.dayOfMonth}"
 

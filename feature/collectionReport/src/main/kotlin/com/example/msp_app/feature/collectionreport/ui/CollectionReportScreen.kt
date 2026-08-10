@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -315,21 +316,34 @@ internal fun CollectionReportContent(
                 RangeSubRow(rangeLabel = state.rangeLabel, pendingCount = state.pendingCount)
             }
 
-            TabTransition(period = state.period) { period ->
+            // La entrada escalonada + el crecimiento de la sparkline corren SOLO la primera vez
+            // que se pinta el tablero; en los cambios Día↔Semana cada slot del `AnimatedContent`
+            // es un subárbol nuevo que las re-dispararía, apilándolas sobre el slide de 300ms y
+            // haciéndolo saltar (toggle-jank-diagnosis.md, fix 4). El flag sobrevive a los swaps
+            // por estar hoisteado ARRIBA del `TabTransition`.
+            var hasEntered by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(Unit) { hasEntered = true }
+            val animateEntrance = !hasEntered
+
+            // `TabTransition` se llavea con `contentPeriod` (no `period`): el slide arranca solo
+            // cuando los datos del nuevo periodo ya están asentados (toggle-jank-diagnosis.md,
+            // fix 1), nunca sobre datos viejos que recompondrían a mitad de animación.
+            TabTransition(period = state.contentPeriod) { period ->
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
                 ) {
-                    StaggeredEntrance(index = ENTRANCE_HERO) {
+                    StaggeredEntrance(index = ENTRANCE_HERO, animate = animateEntrance) {
                         HeroSection(
                             hero = state.hero,
                             period = period,
                             masked = state.masked,
                             onClick = onHeroClick,
-                            onSparkBarClick = onSparkBarClick
+                            onSparkBarClick = onSparkBarClick,
+                            animateSparkline = animateEntrance
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_DUO) {
+                    StaggeredEntrance(index = ENTRANCE_DUO, animate = animateEntrance) {
                         DuoTiles(
                             efectivo = state.efectivo,
                             transferencia = state.transferencia,
@@ -338,7 +352,7 @@ internal fun CollectionReportContent(
                             onTransferenciaClick = onTransferenciaClick
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_CHIPS) {
+                    StaggeredEntrance(index = ENTRANCE_CHIPS, animate = animateEntrance) {
                         SecondaryChips(
                             condonado = state.condonado,
                             visitas = state.visitas,
@@ -347,14 +361,14 @@ internal fun CollectionReportContent(
                             onVisitasClick = onVisitasClick
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_HEADER) {
+                    StaggeredEntrance(index = ENTRANCE_DETAIL_HEADER, animate = animateEntrance) {
                         DetailHeader(
                             detail = state.detail,
                             sort = state.sort,
                             onSortSelect = onSortSelect
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_LIST) {
+                    StaggeredEntrance(index = ENTRANCE_DETAIL_LIST, animate = animateEntrance) {
                         DetailList(
                             detail = state.detail,
                             masked = state.masked,

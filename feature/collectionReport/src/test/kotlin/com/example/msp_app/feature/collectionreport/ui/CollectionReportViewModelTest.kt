@@ -100,7 +100,11 @@ class CollectionReportViewModelTest {
         printer,
         preferred,
         clock,
-        telemetry
+        telemetry,
+        // Mismo dispatcher de prueba que Main: `withContext(backgroundDispatcher)` en
+        // `fetchContent` queda atado al scheduler del test, así `advanceUntilIdle()` sí espera la
+        // carga (si fuera `Dispatchers.Default` real escaparía del control determinista del test).
+        testDispatcher
     )
 
     private fun money(v: String) = Money.of(BigDecimal(v))
@@ -224,6 +228,15 @@ class CollectionReportViewModelTest {
 
             val detail = state.detail as DetailUi.Days
             assertEquals(expectedRange.days, detail.rows.size)
+
+            // Los pagos individuales por día quedan disponibles para el sheet DIA_CICLO,
+            // alineados 1:1 por índice con el resumen (un bucket por día del ciclo).
+            assertEquals(expectedRange.days, state.dayPayments.size)
+            // El único pago (vie 7 ago 12:00Z -> mié... en realidad 15:00Z = mismo día negocio)
+            // cae en el último día (hoy); su fila trae el nombre real del cliente.
+            val hoyPagos = state.dayPayments.last()
+            assertEquals(1, hoyPagos.size)
+            assertEquals("María López Hernández", hoyPagos.first().cliente)
         }
 
     /**
@@ -422,7 +435,8 @@ class CollectionReportViewModelTest {
                 printerPort,
                 preferredPrinterStore,
                 clock,
-                telemetry
+                telemetry,
+                testDispatcher
             )
             testDispatcher.scheduler.advanceUntilIdle()
             val diaState = vm.state.value

@@ -45,6 +45,7 @@ fun HeroSection(
     masked: Boolean,
     onClick: () -> Unit,
     onSparkBarClick: ((Int) -> Unit)? = null,
+    animateSparkline: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val efectivoWell = hero.wells.getOrNull(0)
@@ -67,7 +68,8 @@ fun HeroSection(
             Sparkline(
                 timeline = hero.sparkline,
                 period = period,
-                onBarClick = onSparkBarClick
+                onBarClick = onSparkBarClick,
+                animate = animateSparkline
             )
         },
         onClick = onClick,

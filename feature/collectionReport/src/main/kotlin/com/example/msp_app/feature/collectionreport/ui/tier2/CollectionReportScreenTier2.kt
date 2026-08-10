@@ -21,7 +21,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -249,21 +252,30 @@ internal fun CollectionReportContentTier2(
                 RangeSubRow(rangeLabel = state.rangeLabel, pendingCount = state.pendingCount)
             }
 
-            TabTransition(period = state.period) { period ->
+            // Entrada escalonada + crecimiento de sparkline SOLO en la primera pintada; no se
+            // replayan en cada toggle Día↔Semana (mismo criterio que Tier 1, ver
+            // toggle-jank-diagnosis.md, fix 4). `contentPeriod` llavea el slide para que arranque
+            // sobre datos ya asentados (fix 1).
+            var hasEntered by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(Unit) { hasEntered = true }
+            val animateEntrance = !hasEntered
+
+            TabTransition(period = state.contentPeriod) { period ->
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.lg)
                 ) {
-                    StaggeredEntrance(index = ENTRANCE_HERO) {
+                    StaggeredEntrance(index = ENTRANCE_HERO, animate = animateEntrance) {
                         HeroSection(
                             hero = state.hero,
                             period = period,
                             masked = state.masked,
                             onClick = onHeroClick,
-                            onSparkBarClick = onSparkBarClick
+                            onSparkBarClick = onSparkBarClick,
+                            animateSparkline = animateEntrance
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_EFECTIVO) {
+                    StaggeredEntrance(index = ENTRANCE_EFECTIVO, animate = animateEntrance) {
                         Tier2Tile(
                             dotColor = MspTheme.colors.statusPaid,
                             tile = state.efectivo,
@@ -271,7 +283,7 @@ internal fun CollectionReportContentTier2(
                             onClick = onEfectivoClick
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_TRANSFERENCIA) {
+                    StaggeredEntrance(index = ENTRANCE_TRANSFERENCIA, animate = animateEntrance) {
                         Tier2Tile(
                             dotColor = MspTheme.colors.brand,
                             tile = state.transferencia,
@@ -279,7 +291,7 @@ internal fun CollectionReportContentTier2(
                             onClick = onTransferenciaClick
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_CONDONADO) {
+                    StaggeredEntrance(index = ENTRANCE_CONDONADO, animate = animateEntrance) {
                         Tier2Chip(
                             dotColor = MspTheme.colors.statusPartial,
                             chip = state.condonado,
@@ -288,7 +300,7 @@ internal fun CollectionReportContentTier2(
                             onClick = onCondonadoClick
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_VISITAS) {
+                    StaggeredEntrance(index = ENTRANCE_VISITAS, animate = animateEntrance) {
                         Tier2Chip(
                             dotColor = MspTheme.colors.statusPending,
                             chip = state.visitas,
@@ -297,14 +309,14 @@ internal fun CollectionReportContentTier2(
                             onClick = onVisitasClick
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_HEADER) {
+                    StaggeredEntrance(index = ENTRANCE_DETAIL_HEADER, animate = animateEntrance) {
                         DetailHeader(
                             detail = state.detail,
                             sort = state.sort,
                             onSortSelect = onSortSelect
                         )
                     }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_LIST) {
+                    StaggeredEntrance(index = ENTRANCE_DETAIL_LIST, animate = animateEntrance) {
                         DetailList(
                             detail = state.detail,
                             masked = state.masked,

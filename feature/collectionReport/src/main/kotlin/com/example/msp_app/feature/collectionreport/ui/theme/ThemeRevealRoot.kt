@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,12 +17,12 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.unit.IntSize
 import com.example.msp_app.core.designsystem.component.LocalThemeReveal
 import com.example.msp_app.core.designsystem.component.ThemeRevealController
@@ -60,33 +59,34 @@ internal fun revealTargetRadius(origin: Offset, size: IntSize): Float =
  * real de la app, Task 10); solo orquesta la animación alrededor de un flip que el caller ya
  * sabe hacer.
  *
- * **Mecanismo (sin reduce-motion):** instala un [ThemeRevealController] fresco vía
- * [LocalThemeReveal] — cualquier [com.example.msp_app.core.designsystem.component.MspThemeToggle]
- * dentro de [content] (p. ej. el de `ReportHeader`) lo detecta y, en vez de llamar directo a su
- * `onToggle`, reporta su centro en pantalla con `requestRevealFrom`. Este root observa
- * `controller.origin`:
- * 1. Mientras no hay reveal activa (`origin == null`), graba cada frame en un [GraphicsLayer] —
- *    la última grabación es siempre "el frame de ANTES del flip" en el instante en que se pide
- *    una reveal (se congela justo ahí, ver el guard de `record` abajo).
- * 2. Al pedirse una reveal, [LaunchedEffect] llama [onToggleTheme] (el flip real — el mismo que
- *    antes recibía `onToggle` directo) y anima un [Animatable] de radio 0 → [revealTargetRadius]
- *    con `tween(`[REVEAL_DURATION_MS]`, `[REVEAL_EASING]`)`. Mientras la reveal está activa, el
- *    `drawWithContent` DEJA de re-grabar el layer (queda congelado con el frame viejo) y en su
- *    lugar lo dibuja como overlay recortado con `clipPath(..., ClipOp.Difference)`: todo lo que
- *    cae FUERA del círculo creciente pinta el snapshot viejo; el "agujero" que crece revela el
- *    contenido real de abajo, que para entonces ya cambió de tema.
- * 3. Al completar la animación, `controller.consume()` limpia `origin` — se reanuda el grabado
- *    continuo y el overlay desaparece (ya no hace falta: el snapshot viejo quedó 100% recortado).
+ * **Mecanismo (sin reduce-motion) — 1:1 con kollect:** instala un [ThemeRevealController]
+ * fresco vía [LocalThemeReveal]; cualquier
+ * [com.example.msp_app.core.designsystem.component.MspThemeToggle] dentro de [content] (p. ej.
+ * el de `ReportHeader`) reporta su centro en pantalla con `requestRevealFrom` en vez de llamar
+ * directo a su `onToggle`. Este root observa `controller.origin`:
+ * 1. Graba el `content` vivo en un [androidx.compose.ui.graphics.layer.GraphicsLayer] CADA
+ *    frame y lo pinta con `drawLayer` (patrón canónico de captura: un solo `drawContent()` por
+ *    pase de dibujo; lo que hay en pantalla ES el layer). Así el layer siempre está poblado.
+ * 2. Al pedirse una reveal, [LaunchedEffect] — en este orden EXACTO — arranca el radio en 0,
+ *    fija el centro, materializa una copia INMUTABLE del frame viejo con
+ *    `contentLayer.toImageBitmap()` **ANTES** de [onToggleTheme] (el flip real), luego voltea
+ *    el tema y anima el radio 0 → [revealTargetRadius] con `tween(`[REVEAL_DURATION_MS]`,
+ *    `[REVEAL_EASING]`)`. Mientras existe ese snapshot inmutable, [MspTheme] usa
+ *    `animateColors = false` para que la PALETA se voltee de golpe (sin crossfade): el único
+ *    movimiento es el disco.
+ * 3. Un overlay dibuja ese `ImageBitmap` viejo recortado con `clipPath(..., ClipOp.Difference)`:
+ *    todo lo que cae FUERA del círculo creciente muestra el frame viejo; el "agujero" que crece
+ *    revela el `content` real de abajo, que para entonces ya cambió de tema. Al completar la
+ *    animación se limpia el snapshot (`= null`) y `controller.consume()` limpia `origin`.
  *
- * **Fallback reduce-motion (mecanismo A, spec §5):** con
- * [rememberReducedMotionEnabled] activo, este composable ni siquiera instala el controller —
- * `content` cae directo al `onToggle` de `MspThemeToggle` ([LocalThemeReveal] default `null`) y
- * [MspTheme] anima el crossfade de paleta él solo (`animateColors = true`). Cero
- * `Animatable`/`GraphicsLayer`/`LaunchedEffect` de este composable se componen en esa rama — la
- * garantía anti-cuelgue que el brief exige (mismo criterio que
- * [com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance]/
- * [com.example.msp_app.feature.collectionreport.ui.components.TabTransition]): los tests que
- * fuerzan `ANIMATOR_DURATION_SCALE = 0` (Roborazzi y compose-test) SIEMPRE toman esta rama.
+ * **Fallback reduce-motion (mecanismo A, spec §5):** con [rememberReducedMotionEnabled] activo,
+ * este composable ni siquiera instala el controller — `content` cae directo al `onToggle` de
+ * `MspThemeToggle` ([LocalThemeReveal] default `null`) y [MspTheme] anima el crossfade de
+ * paleta él solo (`animateColors = true`). Cero
+ * `Animatable`/`GraphicsLayer`/`toImageBitmap`/`LaunchedEffect` de este composable se componen
+ * en esa rama — la garantía anti-cuelgue que el brief exige (los tests que fuerzan
+ * `ANIMATOR_DURATION_SCALE = 0`, Roborazzi y compose-test, SIEMPRE toman esta rama; el
+ * `GraphicsLayer` respaldado por `RenderNode`/`Picture` no es confiable en Robolectric).
  */
 @Composable
 fun ThemeRevealRoot(
@@ -103,44 +103,48 @@ fun ThemeRevealRoot(
     }
 
     val controller = remember { ThemeRevealController() }
-    val graphicsContext = LocalGraphicsContext.current
-    val graphicsLayer = remember(graphicsContext) { graphicsContext.createGraphicsLayer() }
-    DisposableEffect(graphicsContext, graphicsLayer) {
-        onDispose { graphicsContext.releaseGraphicsLayer(graphicsLayer) }
-    }
+    val contentLayer = rememberGraphicsLayer()
     val revealPath = remember { Path() }
     val radius = remember { Animatable(0f) }
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
+    // Copia INMUTABLE del frame viejo (pre-flip). Mientras no sea null, la paleta se voltea de
+    // golpe (animateColors=false) y este bitmap es lo que se pinta FUERA del disco creciente.
+    var oldSnapshot by remember { mutableStateOf<ImageBitmap?>(null) }
+    var revealCenter by remember { mutableStateOf(Offset.Zero) }
     val origin = controller.origin
 
     LaunchedEffect(origin) {
         val requestedOrigin = origin ?: return@LaunchedEffect
-        onToggleTheme()
         radius.snapTo(0f)
+        revealCenter = requestedOrigin
+        // Materializa el frame viejo ANTES del flip: es lo que el disco "retiene" por fuera.
+        oldSnapshot = contentLayer.toImageBitmap()
+        onToggleTheme()
         radius.animateTo(
             targetValue = revealTargetRadius(requestedOrigin, boxSize),
             animationSpec = tween(durationMillis = REVEAL_DURATION_MS, easing = REVEAL_EASING)
         )
+        oldSnapshot = null
         controller.consume()
     }
 
-    MspTheme(darkTheme = darkTheme, animateColors = false) {
+    MspTheme(darkTheme = darkTheme, animateColors = oldSnapshot == null) {
         CompositionLocalProvider(LocalThemeReveal provides controller) {
             Box(
                 modifier = modifier
                     .fillMaxSize()
                     .onSizeChanged { boxSize = it }
                     .drawWithContent {
-                        val activeOrigin = controller.origin
-                        if (activeOrigin == null) {
-                            graphicsLayer.record { this@drawWithContent.drawContent() }
-                        }
-                        drawContent()
-                        if (activeOrigin != null) {
+                        // Captura canónica: grabar el layer y pintar EL layer (un solo
+                        // drawContent()), así el layer siempre queda poblado para el snapshot.
+                        contentLayer.record { this@drawWithContent.drawContent() }
+                        drawLayer(contentLayer)
+                        val snapshot = oldSnapshot
+                        if (snapshot != null) {
                             revealPath.reset()
-                            revealPath.addOval(Rect(center = activeOrigin, radius = radius.value))
+                            revealPath.addOval(Rect(center = revealCenter, radius = radius.value))
                             clipPath(path = revealPath, clipOp = ClipOp.Difference) {
-                                drawLayer(graphicsLayer)
+                                drawImage(snapshot)
                             }
                         }
                     }

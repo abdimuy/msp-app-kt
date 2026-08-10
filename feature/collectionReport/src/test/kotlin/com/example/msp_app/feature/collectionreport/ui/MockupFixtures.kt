@@ -30,6 +30,11 @@ internal object MockupFixtures {
 
     const val COBRADOR = "Gabriel Roque"
 
+    // Alias cortos de método para que las filas de [dayPaymentsSemana] quepan en una línea
+    // (ktlint max-line-length) sin repetir el enum completo por fila.
+    private val EFEC = PaymentMethod.EFECTIVO
+    private val TRANSF = PaymentMethod.TRANSFERENCIA
+
     fun heroDia(): HeroUi = HeroUi(
         overline = "Cobrado · vie 7 ago",
         delta = DeltaChip("▲ 12% vs ayer", DeltaDirection.UP),
@@ -136,6 +141,36 @@ internal object MockupFixtures {
         VisitRowUi("Diego Mora", "Cliente inconforme")
     )
 
+    /**
+     * Pagos INDIVIDUALES por día del ciclo (Semana), alineados 1:1 por índice con [daysSemana]
+     * — el sheet `DIA_CICLO` lista los pagos del día tocado (índice 1 = "mar 4 ago", el que usa
+     * el golden). Fixture representativa (2-3 pagos por día, no los 39/46/… reales): alcanza
+     * para el golden/comportamiento; en producción `ReportAggregator.paymentsByDay` reparte
+     * TODOS los pagos del ciclo sin tope. Nombres mexicanos, montos en peso entero.
+     */
+    fun dayPaymentsSemana(): List<List<PaymentRowUi>> = listOf(
+        listOf(
+            paymentRow("d0-1", "Lucía Fernández Mora", "Sala Milán", "09:05", "1300", EFEC),
+            paymentRow("d0-2", "Roberto Aguilar Díaz", "Recámara Sol", "10:40", "900", TRANSF)
+        ),
+        listOf(
+            paymentRow("d1-1", "Verónica Castillo Ramos", "Comedor Nogal", "08:50", "1500", EFEC),
+            paymentRow("d1-2", "Héctor Domínguez León", "Colchón King", "11:15", "1100", EFEC),
+            paymentRow("d1-3", "Patricia Núñez Vega", "Sala Verona", "13:30", "950", TRANSF)
+        ),
+        listOf(
+            paymentRow("d2-1", "Alejandro Reyes Ortiz", "Ropero Cedro", "09:20", "1750", EFEC)
+        ),
+        listOf(
+            paymentRow("d3-1", "Gabriela Mendoza Ríos", "Sala Toscana", "10:10", "1200", EFEC),
+            paymentRow("d3-2", "Sergio Vargas Peña", "Comedor Roble", "12:00", "2000", TRANSF)
+        ),
+        listOf(
+            paymentRow("d4-1", "María López Hernández", "Muebles Bahía", "09:12", "1200", EFEC),
+            paymentRow("d4-2", "Juan Pérez Ramírez", "Recámara Diana", "09:40", "850", TRANSF)
+        )
+    )
+
     /** Resumen por día Semana (mockup `DAYS`) — etiquetas/montos/conteos/iniciales EXACTOS. */
     fun daysSemana(): List<DayRowUi> = listOf(
         DayRowUi("lun 3 ago", money("21300"), 39, "L3", isToday = false),
@@ -148,6 +183,7 @@ internal object MockupFixtures {
     fun stateDia(masked: Boolean = false, error: String? = null): CollectionReportUiState =
         CollectionReportUiState(
             period = ReportPeriod.DIA,
+            contentPeriod = ReportPeriod.DIA,
             loading = false,
             error = error,
             cobrador = COBRADOR,
@@ -166,6 +202,7 @@ internal object MockupFixtures {
 
     fun stateSemana(masked: Boolean = false): CollectionReportUiState = CollectionReportUiState(
         period = ReportPeriod.SEMANA,
+        contentPeriod = ReportPeriod.SEMANA,
         loading = false,
         cobrador = COBRADOR,
         rangeLabel = "semana · lun 3 – vie 7 ago · 5 días",
@@ -177,6 +214,7 @@ internal object MockupFixtures {
         condonado = ChipUi("Condonado", amount = money("9200")),
         visitas = ChipUi("Visitas", count = 71),
         detail = DetailUi.Days(daysSemana()),
+        dayPayments = dayPaymentsSemana(),
         condonadoRows = condonadoRows(),
         visitRows = visitRows()
     )

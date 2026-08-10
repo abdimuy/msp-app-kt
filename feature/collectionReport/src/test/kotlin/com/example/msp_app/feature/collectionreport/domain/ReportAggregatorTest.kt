@@ -346,6 +346,70 @@ class ReportAggregatorTest {
         assertTrue(trend[4].isToday)
     }
 
+    // region — pagos por día (paymentsByDay) ----------------------------------
+
+    @Test
+    fun `paymentsByDay reparte los pagos por dia alineado 1 a 1 con dailyTrend`() {
+        val ps = listOf(
+            payment(money("1000.00"), paidAt = Instant.parse("2026-08-03T15:00:00Z"), id = "a"),
+            payment(money("3000.00"), paidAt = Instant.parse("2026-08-05T15:00:00Z"), id = "b"),
+            payment(money("500.00"), paidAt = Instant.parse("2026-08-05T18:00:00Z"), id = "c"),
+            payment(money("700.00"), paidAt = Instant.parse("2026-08-07T15:00:00Z"), id = "d")
+        )
+        val byDay = ReportAggregator.paymentsByDay(ps, cycle)
+        val trend = ReportAggregator.dailyTrend(ps, cycle, clock)
+
+        // Un bucket por día del ciclo, mismo tamaño y orden que dailyTrend (índice == mismo día).
+        assertEquals(5, byDay.size)
+        assertEquals(trend.size, byDay.size)
+        byDay.forEachIndexed { i, dayList ->
+            assertEquals(
+                "índice $i debe coincidir en conteo con dailyTrend",
+                trend[i].count,
+                dayList.size
+            )
+        }
+        // lun 3: 1 pago; mié 5: 2 pagos; vie 7: 1 pago; días sin pagos: lista vacía.
+        assertEquals(listOf("a"), byDay[0].map { it.id })
+        assertTrue(byDay[1].isEmpty())
+        assertEquals(2, byDay[2].size)
+        assertTrue(byDay[3].isEmpty())
+        assertEquals(listOf("d"), byDay[4].map { it.id })
+    }
+
+    @Test
+    fun `paymentsByDay ordena los pagos de cada dia cronologicamente ascendente`() {
+        val ps = listOf(
+            payment(money("500.00"), paidAt = Instant.parse("2026-08-05T18:00:00Z"), id = "tarde"),
+            payment(money("300.00"), paidAt = Instant.parse("2026-08-05T09:00:00Z"), id = "manana"),
+            payment(money("400.00"), paidAt = Instant.parse("2026-08-05T13:00:00Z"), id = "medio")
+        )
+        val miercoles = ReportAggregator.paymentsByDay(ps, cycle)[2]
+        assertEquals(listOf("manana", "medio", "tarde"), miercoles.map { it.id })
+    }
+
+    @Test
+    fun `paymentsByDay excluye condonaciones que se cuelen`() {
+        val ps = listOf(
+            payment(money("1000.00"), paidAt = Instant.parse("2026-08-05T15:00:00Z"), id = "cobro"),
+            payment(
+                money("999.00"),
+                method = PaymentMethod.CONDONACION,
+                paidAt = Instant.parse("2026-08-05T16:00:00Z"),
+                id = "condon"
+            )
+        )
+        val miercoles = ReportAggregator.paymentsByDay(ps, cycle)[2]
+        assertEquals(listOf("cobro"), miercoles.map { it.id })
+    }
+
+    @Test
+    fun `paymentsByDay sin pagos produce una lista vacia por dia del ciclo sin crash`() {
+        val byDay = ReportAggregator.paymentsByDay(emptyList(), cycle)
+        assertEquals(5, byDay.size)
+        assertTrue(byDay.all { it.isEmpty() })
+    }
+
     // region — delta -----------------------------------------------------------
 
     @Test

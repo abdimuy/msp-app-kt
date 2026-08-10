@@ -25,7 +25,13 @@ import java.time.Instant
  * que lo produce — misma frontera de capas que ya defendió `ReportAggregator` (Task 3).
  */
 data class CollectionReportUiState(
+    // [period] = periodo SELECCIONADO (resalta el chip Día/Semana al instante al tocar, para
+    // respuesta inmediata). [contentPeriod] = periodo cuyos datos están realmente en pantalla;
+    // sólo se voltea en `applyContent` cuando la carga del nuevo periodo ya resolvió, y es el
+    // que llavea el `AnimatedContent`/`TabTransition`. Separarlos evita que el slide de 300ms
+    // arranque sobre datos viejos y reciba un recompose a mitad de animación (jank del toggle).
     val period: ReportPeriod = ReportPeriod.DIA,
+    val contentPeriod: ReportPeriod = ReportPeriod.DIA,
     val loading: Boolean = true,
     val error: String? = null,
     val cobrador: String = "",
@@ -41,6 +47,13 @@ data class CollectionReportUiState(
     val condonado: ChipUi = ChipUi(label = "Condonado"),
     val visitas: ChipUi = ChipUi(label = "Visitas"),
     val detail: DetailUi = DetailUi.Payments(emptyList()),
+    // Pagos individuales por día del ciclo (Semana), alineados 1:1 por índice con
+    // `(detail as DetailUi.Days).rows` (ver `ReportAggregator.paymentsByDay`): la lista en el
+    // índice i son los pagos del día i, en orden cronológico. Vacío en Día (el detalle ya ES
+    // la lista de pagos del día). SOLO existe para que el sheet `SheetKind.DIA_CICLO` liste los
+    // pagos individuales del día tocado sin re-consultar los puertos — mismo criterio que
+    // `condonadoRows`/`visitRows` alimentan sus sheets desde datos ya cargados.
+    val dayPayments: List<List<PaymentRowUi>> = emptyList(),
     val sheet: SheetUi? = null,
     // Listas crudas detrás de los chips agregados (Task 8): `condonado`/`visitas` de arriba
     // ya traen el total/conteo que necesita el tablero; estas dos SOLO existen para que

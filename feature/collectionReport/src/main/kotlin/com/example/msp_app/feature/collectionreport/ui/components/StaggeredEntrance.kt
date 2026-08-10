@@ -40,10 +40,20 @@ private val ENTRANCE_RISE = 9.dp
  * **Desactivable** (spec §5): con [rememberReducedMotionEnabled] activo, [content] se
  * pinta directo a opacidad plena sin animar — ninguna rama de `Animatable`/`LaunchedEffect`
  * se compone, mismo patrón que `MspPaymentSyncPill` (`:core:designsystem`).
+ *
+ * [animate] `false` produce el MISMO render directo (sin animar) que reduce-motion — lo usa el
+ * tablero para que la entrada escalonada corra SOLO la primera vez y no se replaye en cada
+ * cambio Día↔Semana (cada slot del `AnimatedContent` es un subárbol nuevo que re-dispararía el
+ * `LaunchedEffect`; ver toggle-jank-diagnosis.md, fix 4).
  */
 @Composable
-fun StaggeredEntrance(index: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    if (rememberReducedMotionEnabled()) {
+fun StaggeredEntrance(
+    index: Int,
+    modifier: Modifier = Modifier,
+    animate: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    if (!animate || rememberReducedMotionEnabled()) {
         Box(modifier = modifier) { content() }
         return
     }

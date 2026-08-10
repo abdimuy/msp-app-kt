@@ -19,12 +19,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.designsystem.component.MspInitialsAvatar
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
 
 private val SHEET_SHAPE = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
 private val SHEET_LEADING_SIZE = 28.dp
+
+// Avatar de iniciales del sheet (mockup `.srow .sa`: 34px) — más chico que el de la lista
+// principal (`.prow .ava`, 38dp), 1:1 con el resumen por día ([DetailList.DAY_AVATAR_SIZE]).
+private val SHEET_AVATAR_SIZE = 34.dp
 private val SHEET_DIVIDER_HEIGHT = 1.dp
 private const val EMPTY_SHEET_MESSAGE = "Sin datos aún"
 
@@ -116,12 +121,22 @@ private fun SheetRow(row: SheetRowUi, masked: Boolean, modifier: Modifier = Modi
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         row.leading?.let { leading ->
-            Box(modifier = Modifier.size(SHEET_LEADING_SIZE), contentAlignment = Alignment.Center) {
-                Text(
-                    text = leading,
-                    style = MspTheme.type.captionStrong,
-                    color = MspTheme.colors.brand
-                )
+            if (row.avatar) {
+                // Fila de cliente (pago/condonación/día del ciclo): avatar tintado (mockup
+                // `.srow .sa`), reusa el mismo componente del design system que la lista `.prow`.
+                MspInitialsAvatar(initials = leading, size = SHEET_AVATAR_SIZE)
+            } else {
+                // Glifo/emoji suelto de las filas del hero (📊/⚡/🕘/🎯) — sin fondo tintado.
+                Box(
+                    modifier = Modifier.size(SHEET_LEADING_SIZE),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = leading,
+                        style = MspTheme.type.captionStrong,
+                        color = MspTheme.colors.brand
+                    )
+                }
             }
         }
         Column(modifier = Modifier.weight(1f)) {

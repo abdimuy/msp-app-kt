@@ -70,7 +70,8 @@ fun Sparkline(
     timeline: Timeline,
     period: ReportPeriod,
     modifier: Modifier = Modifier,
-    onBarClick: ((Int) -> Unit)? = null
+    onBarClick: ((Int) -> Unit)? = null,
+    animate: Boolean = true
 ) {
     val maxAmount = timeline.buckets.maxOfOrNull { it.total.amount } ?: BigDecimal.ZERO
     Row(
@@ -89,6 +90,7 @@ fun Sparkline(
                 targetHeight = targetHeight,
                 highlighted = highlighted,
                 onClick = clickHandler,
+                animate = animate,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -109,13 +111,17 @@ private fun SparkBar(
     targetHeight: Dp,
     highlighted: Boolean,
     onClick: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    animate: Boolean = true
 ) {
     val colors = MspTheme.colors
-    val reduced = rememberReducedMotionEnabled()
-    val heightAnim = remember { Animatable(if (reduced) targetHeight.value else 0f) }
-    LaunchedEffect(targetHeight, reduced) {
-        if (reduced) {
+    // `snap` cuando reduce-motion O cuando el tablero pide no re-animar (segundo+ toggle): la
+    // barra se pinta directo a su alto final en vez de re-crecer 0->objetivo en cada cambio de
+    // periodo (ver toggle-jank-diagnosis.md, fix 4).
+    val snap = rememberReducedMotionEnabled() || !animate
+    val heightAnim = remember { Animatable(if (snap) targetHeight.value else 0f) }
+    LaunchedEffect(targetHeight, snap) {
+        if (snap) {
             heightAnim.snapTo(targetHeight.value)
         } else {
             heightAnim.animateTo(targetHeight.value, tween(SPARK_GROW_DURATION_MS))
