@@ -26,6 +26,12 @@ class ReportActionsControllerTest : RobolectricTestBase() {
 
     private val clock = FakeClock(Instant.parse("2026-08-07T18:00:00Z"))
 
+    // El ticket ahora usa layout de dos columnas (etiqueta a la izquierda, monto a la
+    // derecha) — delega en `CollectionReportFormatter`. Se asevera por línea: etiqueta al
+    // inicio, valor al final, en la MISMA línea.
+    private fun String.hasLine(label: String, value: String): Boolean =
+        lines().any { it.startsWith(label) && it.trimEnd().endsWith(value) }
+
     @Test
     fun `el texto para compartir trae cobrador, rango y los montos formateados sin truncar centavos`() {
         val state = MockupFixtures.stateDia()
@@ -56,14 +62,14 @@ class ReportActionsControllerTest : RobolectricTestBase() {
 
         assertTrue(ticket.contains("María López Hernández"))
         assertTrue(ticket.contains(formatMoneyMxn(BigDecimal("1200"))))
-        assertTrue(ticket.contains("Total cobrado: " + formatMoneyMxn(BigDecimal("18300"))))
+        assertTrue(ticket.hasLine("Total cobrado", formatMoneyMxn(BigDecimal("18300"))))
     }
 
     @Test
     fun `el ticket en Semana no truena sin desglose por pago, solo totales`() {
         val ticket = ReportActionsController.buildTicketText(MockupFixtures.stateSemana(), clock)
 
-        assertTrue(ticket.contains("Total cobrado: " + formatMoneyMxn(BigDecimal("118400"))))
+        assertTrue(ticket.hasLine("Total cobrado", formatMoneyMxn(BigDecimal("118400"))))
     }
 
     // region — fix round 1 (minor): dinero cero / grande / multi-monto ------------------
@@ -82,11 +88,11 @@ class ReportActionsControllerTest : RobolectricTestBase() {
         val ticket = ReportActionsController.buildTicketText(zeroState, clock)
 
         assertEquals(formatMoneyMxn(BigDecimal.ZERO), "$0")
-        assertTrue(ticket.contains("Total cobrado: \$0"))
-        assertTrue(ticket.contains("Efectivo (0): \$0"))
-        assertTrue(ticket.contains("Transferencia (0): \$0"))
-        assertTrue(ticket.contains("Condonado: \$0"))
-        assertTrue(ticket.contains("Visitas: 0"))
+        assertTrue(ticket.hasLine("Total cobrado", "\$0"))
+        assertTrue(ticket.hasLine("Efectivo (0)", "\$0"))
+        assertTrue(ticket.hasLine("Transferencia (0)", "\$0"))
+        assertTrue(ticket.hasLine("Condonado", "\$0"))
+        assertTrue(ticket.hasLine("Visitas", "0"))
     }
 
     @Test
@@ -102,10 +108,10 @@ class ReportActionsControllerTest : RobolectricTestBase() {
         val expected = formatMoneyMxn(BigDecimal("12345678.90"))
 
         assertEquals("$12,345,679", expected)
-        assertTrue(ticket.contains("Total cobrado: $expected"))
+        assertTrue(ticket.hasLine("Total cobrado", expected))
         // Nunca una versión abreviada del monto (p. ej. "$12.3M") — el string completo con
         // todos los dígitos de miles debe aparecer tal cual, solo sin centavos.
-        assertFalse(ticket.contains("Total cobrado: \$12.3M"))
+        assertFalse(ticket.contains("\$12.3M"))
     }
 
     @Test
@@ -122,20 +128,17 @@ class ReportActionsControllerTest : RobolectricTestBase() {
         assertTrue(ticket.contains(formatMoneyMxn(BigDecimal("2000")))) // Pedro Sánchez
         // Los totales del ticket son EXACTAMENTE los del estado (mismo `Money`, no una suma
         // recalculada aparte que pudiera divergir).
+        assertTrue(ticket.hasLine("Total cobrado", formatMoneyMxn(state.hero.monto.amount)))
         assertTrue(
-            ticket.contains(
-                "Total cobrado: " + formatMoneyMxn(state.hero.monto.amount)
+            ticket.hasLine(
+                "Efectivo (${state.efectivo.count})",
+                formatMoneyMxn(state.efectivo.amount.amount)
             )
         )
         assertTrue(
-            ticket.contains(
-                "Efectivo (${state.efectivo.count}): " + formatMoneyMxn(state.efectivo.amount.amount)
-            )
-        )
-        assertTrue(
-            ticket.contains(
-                "Transferencia (${state.transferencia.count}): " +
-                    formatMoneyMxn(state.transferencia.amount.amount)
+            ticket.hasLine(
+                "Transferencia (${state.transferencia.count})",
+                formatMoneyMxn(state.transferencia.amount.amount)
             )
         )
     }

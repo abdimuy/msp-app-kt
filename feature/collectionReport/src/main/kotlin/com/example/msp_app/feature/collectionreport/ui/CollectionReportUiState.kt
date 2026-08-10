@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import com.example.msp_app.core.printing.domain.PrinterDevice
 import com.example.msp_app.feature.collectionreport.domain.DeltaChip
 import com.example.msp_app.feature.collectionreport.domain.DeltaDirection
 import com.example.msp_app.feature.collectionreport.domain.Insight
@@ -48,7 +49,36 @@ data class CollectionReportUiState(
     // mismo criterio que ya usa `detail` para Efectivo/Transferencia/Pago (filas ya cargadas,
     // el sheet solo filtra/busca en memoria).
     val condonadoRows: List<ForgivenessRowUi> = emptyList(),
-    val visitRows: List<VisitRowUi> = emptyList()
+    val visitRows: List<VisitRowUi> = emptyList(),
+    // Flujo de impresión térmica (P2): null cuando el bottom sheet de impresión está cerrado.
+    // Es un sheet APARTE de [sheet] (los sheets de detalle del tablero) — mismo patrón
+    // (`ModalBottomSheet` manejado por estado), otra responsabilidad.
+    val printSheet: PrintSheetUi? = null
+)
+
+/**
+ * Fase del bottom sheet de impresión (P2). El sheet es SIEMPRE la vía para imprimir, así la
+ * opción "Cambiar impresora" está disponible en todo momento (requisito clave del usuario,
+ * ausente en kollect), no solo la primera vez.
+ *
+ * - [PRINTING] preparando/enviando a la impresora (recordada por defecto, auto).
+ * - [SELECTING] eligiendo impresora — el picker Bluetooth (`PrinterPort.listPairedPrinters`);
+ *   se abre solo si no hay recordada, o cuando el usuario toca "Cambiar impresora".
+ * - [SUCCESS] impreso; ofrece "Imprimir de nuevo" y "Cambiar impresora".
+ * - [ERROR] falló con un [PrintError] tipado -> mensaje es-MX + "Reintentar" + "Cambiar impresora".
+ */
+enum class PrintPhase { PRINTING, SELECTING, SUCCESS, ERROR }
+
+/**
+ * Estado del bottom sheet de impresión: la [phase], la impresora [target] resuelta/elegida (o
+ * null mientras se resuelve o si no hay ninguna), la lista de impresoras emparejadas
+ * [printers] para el picker, y un [message] es-MX en [PrintPhase.ERROR].
+ */
+data class PrintSheetUi(
+    val phase: PrintPhase,
+    val target: PrinterDevice? = null,
+    val printers: List<PrinterDevice> = emptyList(),
+    val message: String? = null
 )
 
 /** Orden del detalle Día: por hora del pago o por nombre del cliente. Semana lo ignora. */

@@ -3,6 +3,11 @@ package com.example.msp_app.feature.collectionreport.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.printing.domain.PreferredPrinterStore
+import com.example.msp_app.core.printing.domain.PrintError
+import com.example.msp_app.core.printing.domain.PrinterDevice
+import com.example.msp_app.core.printing.domain.PrinterPort
+import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.collectionreport.domain.ReportAggregator
 import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
@@ -12,6 +17,7 @@ import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotals
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.collectionreport.domain.port.VisitsPort
+import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -35,12 +41,23 @@ import kotlinx.coroutines.launch
  * contexto de usuario ([UserCyclePort], cuya implementación real vive en `:app`, ver
  * `CollectionReportPorts.kt`).
  */
+// `TooManyFunctions`/`LongParameterList` suprimidos con justificación: este ViewModel expone
+// UN estado observable único (`state`) para toda la pantalla, así que agrega dos superficies de
+// eventos cohesivas — las interacciones del tablero (periodo/máscara/tema/orden/sheet) y el
+// flujo de impresión térmica (P2) — y Hilt le inyecta los puertos que ambas necesitan.
+// Partir el flujo de impresión en otro tipo inyectado fragmentaría ese estado único (dos
+// `StateFlow` que la UI tendría que recombinar) y agrupar los puertos en un holder artificial
+// solo escondería el wiring — ninguno mejora la legibilidad real (mismo criterio que los
+// suppress documentados en `ReportActionsController`/`BluetoothPrinterDiscovery`).
+@Suppress("TooManyFunctions", "LongParameterList")
 @HiltViewModel
 class CollectionReportViewModel @Inject constructor(
     private val paymentsPort: PaymentsPort,
     private val visitsPort: VisitsPort,
     private val userCyclePort: UserCyclePort,
     private val historicalTotalsPort: HistoricalTotalsPort,
+    private val printerPort: PrinterPort,
+    private val preferredPrinterStore: PreferredPrinterStore,
     private val clock: AppClock,
     private val telemetry: Telemetry
 ) : ViewModel() {
@@ -111,6 +128,164 @@ class CollectionReportViewModel @Inject constructor(
     fun closeSheet() {
         mutableState.update { it.copy(sheet = null) }
     }
+
+    // region — impresión térmica (P2) ----------------------------------------------------
+
+    /**
+     * Imprime el reporte a la impresora RECORDADA por defecto (auto), abriendo el bottom
+     * sheet de impresión para dar feedback. Resuelve la lista de emparejadas y valida/
+     * self-healea la recordada contra ella ([PreferredPrinterStore.preferredPrinter]); si hay
+     * una recordada válida imprime directo, si no abre el picker ([PrintPhase.SELECTING]).
+     * Un fallo del puerto (Bluetooth apagado, permiso, etc.) degrada a [PrintPhase.ERROR] con
+     * un mensaje es-MX — nunca crashea.
+     */
+    fun printReport() {
+        telemetry.tap(SCREEN, "print")
+        viewModelScope.launch {
+            mutableState.update { it.copy(printSheet = PrintSheetUi(PrintPhase.PRINTING)) }
+            val printers = printerPort.listPairedPrinters().getOrElse { failure ->
+                surfacePrintError(failure, target = null, printers = emptyList())
+                return@launch
+            }
+            val remembered = preferredPrinterStore.preferredPrinter(printers)
+            if (remembered == null) {
+                mutableState.update {
+                    it.copy(printSheet = PrintSheetUi(PrintPhase.SELECTING, printers = printers))
+                }
+            } else {
+                printTo(remembered, printers)
+            }
+        }
+    }
+
+    /**
+     * Abre el picker de impresoras SIEMPRE que el usuario lo pida ("Cambiar impresora") — no
+     * solo la primera vez. Resuelve la lista de emparejadas y muestra [PrintPhase.SELECTING].
+     */
+    fun openPrinterPicker() {
+        telemetry.tap(SCREEN, "print_change_printer")
+        viewModelScope.launch {
+            val current = mutableState.value.printSheet
+            val printers = printerPort.listPairedPrinters().getOrElse { failure ->
+                surfacePrintError(failure, target = current?.target, printers = emptyList())
+                return@launch
+            }
+            mutableState.update {
+                it.copy(
+                    printSheet = PrintSheetUi(
+                        phase = PrintPhase.SELECTING,
+                        target = current?.target,
+                        printers = printers
+                    )
+                )
+            }
+        }
+    }
+
+    /** Elige [device] como impresora (la recuerda) e imprime a ella. */
+    fun selectPrinter(device: PrinterDevice) {
+        telemetry.tap(SCREEN, "print_select_printer")
+        preferredPrinterStore.savePreferredAddress(device.address)
+        val printers = mutableState.value.printSheet?.printers ?: listOf(device)
+        viewModelScope.launch { printTo(device, printers) }
+    }
+
+    /** Reintenta imprimir a la última impresora objetivo; si no hay, reinicia el flujo. */
+    fun retryPrint() {
+        val current = mutableState.value.printSheet
+        val target = current?.target
+        if (target == null) {
+            printReport()
+        } else {
+            viewModelScope.launch { printTo(target, current.printers) }
+        }
+    }
+
+    /** Cierra el bottom sheet de impresión. */
+    fun dismissPrintSheet() {
+        mutableState.update { it.copy(printSheet = null) }
+    }
+
+    /**
+     * El sistema negó el permiso de Bluetooth requerido para imprimir (API 31+). Lo maneja la
+     * UI (el launcher de permisos vive en la pantalla), que llama aquí para reflejarlo como un
+     * error del flujo en vez de un no-op silencioso.
+     */
+    fun onPrintPermissionDenied() {
+        mutableState.update {
+            it.copy(
+                printSheet = PrintSheetUi(
+                    phase = PrintPhase.ERROR,
+                    target = it.printSheet?.target,
+                    printers = it.printSheet?.printers.orEmpty(),
+                    message = printErrorMessage(PrintError.PermissionDenied)
+                )
+            )
+        }
+    }
+
+    private suspend fun printTo(device: PrinterDevice, printers: List<PrinterDevice>) {
+        mutableState.update {
+            it.copy(
+                printSheet = PrintSheetUi(PrintPhase.PRINTING, target = device, printers = printers)
+            )
+        }
+        val ticket = CollectionReportFormatter.toTicketLines(mutableState.value, clock)
+        printerPort.print(device, ticket, PrinterProfile.PROFILE_58MM).fold(
+            onSuccess = {
+                telemetry.tap(SCREEN, "print_success")
+                mutableState.update {
+                    it.copy(
+                        printSheet = PrintSheetUi(
+                            PrintPhase.SUCCESS,
+                            target = device,
+                            printers = printers
+                        )
+                    )
+                }
+            },
+            onFailure = { failure ->
+                surfacePrintError(
+                    failure,
+                    target = device,
+                    printers = printers
+                )
+            }
+        )
+    }
+
+    private fun surfacePrintError(
+        failure: Throwable,
+        target: PrinterDevice?,
+        printers: List<PrinterDevice>
+    ) {
+        telemetry.error(
+            code = "collection_report_print_failed",
+            message = failure.message ?: failure::class.simpleName.orEmpty(),
+            props = mapOf("printer" to (target?.address ?: ""))
+        )
+        mutableState.update {
+            it.copy(
+                printSheet = PrintSheetUi(
+                    phase = PrintPhase.ERROR,
+                    target = target,
+                    printers = printers,
+                    message = printErrorMessage(failure)
+                )
+            )
+        }
+    }
+
+    private fun printErrorMessage(failure: Throwable): String = when (failure) {
+        is PrintError.BluetoothDisabled -> "activa el bluetooth para imprimir"
+        is PrintError.NotPaired -> "la impresora ya no está emparejada"
+        is PrintError.PermissionDenied -> "concede el permiso de bluetooth para imprimir"
+        is PrintError.ConnectionFailed -> "no se pudo conectar con la impresora"
+        is PrintError.WriteFailed -> "no se pudo enviar el ticket a la impresora"
+        else -> "no se pudo imprimir el reporte"
+    }
+
+    // endregion
 
     // Catch genérico deliberado: un puerto puede fallar con cualquier excepción (I/O de Room,
     // parseo de fecha corrupta, Firestore en la implementación real de UserCyclePort) y el

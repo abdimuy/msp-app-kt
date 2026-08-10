@@ -1,6 +1,11 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,12 +19,16 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -33,6 +42,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.DetailList
 import com.example.msp_app.feature.collectionreport.ui.components.DuoTiles
 import com.example.msp_app.feature.collectionreport.ui.components.HeroSection
 import com.example.msp_app.feature.collectionreport.ui.components.PeriodSelector
+import com.example.msp_app.feature.collectionreport.ui.components.PrintSheet
 import com.example.msp_app.feature.collectionreport.ui.components.RangeSubRow
 import com.example.msp_app.feature.collectionreport.ui.components.ReportHeader
 import com.example.msp_app.feature.collectionreport.ui.components.ReportSheets
@@ -99,6 +109,38 @@ fun CollectionReportScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    // Permiso de Bluetooth para imprimir (P2). En API 31+ imprimir necesita CONNECT + SCAN
+    // (SCAN lo exige el `cancelDiscovery()` interno de DantSu al conectar) — mismo conjunto que
+    // `BluetoothPrinterDiscovery.requiredRuntimePermissions()` de `:core:printing`; por debajo
+    // de 31 es manifest-only (arreglo vacío -> se salta el request). El launcher vive aquí (el
+    // request de permisos es territorio de Activity/UI); el ViewModel se mantiene sin Android y
+    // testeable con fakes — solo recibe `onPrintPermissionDenied()` cuando el usuario lo niega.
+    val btPrintPermissions = remember {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
+        } else {
+            emptyArray()
+        }
+    }
+    var pendingPrintAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val printPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val action = pendingPrintAction
+        pendingPrintAction = null
+        if (grants.values.all { it }) action?.invoke() else viewModel.onPrintPermissionDenied()
+    }
+    val withBtPermission: (() -> Unit) -> Unit = { action ->
+        val granted = btPrintPermissions.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (granted) {
+            action()
+        } else {
+            pendingPrintAction = action
+            printPermissionLauncher.launch(btPrintPermissions)
+        }
+    }
     // Mismo sheet (DIA_CICLO) para la barra de la sparkline (Task 6) y la fila de día del
     // resumen Semana (Task 7) — el mockup los une bajo `openSheet('day', i)`, mismo índice.
     val onDiaCicloClick: (Int) -> Unit = { index ->
@@ -129,16 +171,10 @@ fun CollectionReportScreen(
                         Intent.createChooser(ReportActionsController.buildShareIntent(state), null)
                     )
                 },
-                // PARKED FOR USER (ver KDoc de ReportActionsController): sin conexión Bluetooth
-                // real todavía, comparte el mismo ticket dinero-seguro como puente temporal.
-                onImprimirClick = {
-                    context.startActivity(
-                        Intent.createChooser(
-                            ReportActionsController.buildTicketShareIntent(state),
-                            null
-                        )
-                    )
-                },
+                // P2: imprime de verdad a la impresora recordada por defecto (auto), pidiendo
+                // primero el permiso de Bluetooth si hace falta. El flujo/feedback vive en el
+                // `PrintSheet` de abajo (incl. "Cambiar impresora" siempre disponible).
+                onImprimirClick = { withBtPermission { viewModel.printReport() } },
                 onPdfClick = {
                     coroutineScope.launch {
                         val file = withContext(Dispatchers.IO) {
@@ -157,6 +193,13 @@ fun CollectionReportScreen(
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
             ReportSheets(state = state, onDismiss = viewModel::closeSheet)
+            PrintSheet(
+                state = state,
+                onDismiss = viewModel::dismissPrintSheet,
+                onPrint = viewModel::retryPrint,
+                onSelectPrinter = viewModel::selectPrinter,
+                onChangePrinter = { withBtPermission { viewModel.openPrinterPicker() } }
+            )
         }
     }
 }

@@ -1,5 +1,10 @@
 package com.example.msp_app.feature.collectionreport.data.fake
 
+import com.example.msp_app.core.printing.domain.PreferredPrinterStore
+import com.example.msp_app.core.printing.domain.PrintableTicket
+import com.example.msp_app.core.printing.domain.PrinterDevice
+import com.example.msp_app.core.printing.domain.PrinterPort
+import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionVisit
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
@@ -101,5 +106,76 @@ class FakeHistoricalTotalsPort : HistoricalTotalsPort {
     override suspend fun dailyTotals(days: Int): List<Money> {
         requestedDays += days
         return totals
+    }
+}
+
+/**
+ * Fake de [PrinterPort] (`:core:printing`) — estado configurable + spy. Registra el ticket y
+ * la impresora con que se llamó a [print], y devuelve el [Result] que se le configure para
+ * cada método (para ejercer tanto éxito como fallos tipados).
+ */
+class FakePrinterPort : PrinterPort {
+
+    var pairedResult: Result<List<PrinterDevice>> = Result.success(emptyList())
+    var printResult: Result<Unit> = Result.success(Unit)
+    var testConnectionResult: Result<Unit> = Result.success(Unit)
+
+    var lastPrintedTicket: PrintableTicket? = null
+        private set
+    var lastPrintedDevice: PrinterDevice? = null
+        private set
+    var lastPrintedProfile: PrinterProfile? = null
+        private set
+    var printCalls: Int = 0
+        private set
+    var listPairedCalls: Int = 0
+        private set
+
+    override suspend fun listPairedPrinters(): Result<List<PrinterDevice>> {
+        listPairedCalls++
+        return pairedResult
+    }
+
+    override suspend fun testConnection(device: PrinterDevice): Result<Unit> = testConnectionResult
+
+    override suspend fun print(
+        device: PrinterDevice,
+        ticket: PrintableTicket,
+        profile: PrinterProfile
+    ): Result<Unit> {
+        printCalls++
+        lastPrintedDevice = device
+        lastPrintedTicket = ticket
+        lastPrintedProfile = profile
+        return printResult
+    }
+}
+
+/**
+ * Fake en memoria de [PreferredPrinterStore]. Replica el self-heal real
+ * ([preferredPrinter] re-valida la dirección guardada contra las emparejadas y limpia si ya
+ * no existe) sin `SharedPreferences`.
+ */
+class FakePreferredPrinterStore(initial: String? = null) : PreferredPrinterStore {
+
+    private var saved: String? = initial
+    val savedAddresses: MutableList<String> = mutableListOf()
+
+    override fun readPreferredAddress(): String? = saved
+
+    override fun savePreferredAddress(address: String) {
+        saved = address
+        savedAddresses += address
+    }
+
+    override fun clear() {
+        saved = null
+    }
+
+    override fun preferredPrinter(pairedPrinters: List<PrinterDevice>): PrinterDevice? {
+        val current = saved ?: return null
+        val match = pairedPrinters.firstOrNull { it.address == current }
+        if (match == null) clear()
+        return match
     }
 }

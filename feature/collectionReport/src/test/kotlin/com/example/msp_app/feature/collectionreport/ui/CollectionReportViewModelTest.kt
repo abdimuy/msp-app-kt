@@ -1,10 +1,14 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import com.example.msp_app.core.printing.domain.PrintError
+import com.example.msp_app.core.printing.domain.PrinterDevice
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.collectionreport.data.fake.FakeHistoricalTotalsPort
 import com.example.msp_app.feature.collectionreport.data.fake.FakePaymentsPort
+import com.example.msp_app.feature.collectionreport.data.fake.FakePreferredPrinterStore
+import com.example.msp_app.feature.collectionreport.data.fake.FakePrinterPort
 import com.example.msp_app.feature.collectionreport.data.fake.FakeUserCyclePort
 import com.example.msp_app.feature.collectionreport.data.fake.FakeVisitsPort
 import com.example.msp_app.feature.collectionreport.domain.DeltaChip
@@ -19,6 +23,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
+import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
@@ -62,6 +67,8 @@ class CollectionReportViewModelTest {
     private lateinit var visitsPort: FakeVisitsPort
     private lateinit var userCyclePort: FakeUserCyclePort
     private lateinit var historicalTotalsPort: FakeHistoricalTotalsPort
+    private lateinit var printerPort: FakePrinterPort
+    private lateinit var preferredPrinterStore: FakePreferredPrinterStore
     private lateinit var telemetry: RecordingTelemetry
 
     @Before
@@ -71,6 +78,8 @@ class CollectionReportViewModelTest {
         visitsPort = FakeVisitsPort()
         userCyclePort = FakeUserCyclePort()
         historicalTotalsPort = FakeHistoricalTotalsPort()
+        printerPort = FakePrinterPort()
+        preferredPrinterStore = FakePreferredPrinterStore()
         telemetry = RecordingTelemetry(clock)
     }
 
@@ -79,11 +88,17 @@ class CollectionReportViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun viewModel(payments: PaymentsPort = paymentsPort) = CollectionReportViewModel(
+    private fun viewModel(
+        payments: PaymentsPort = paymentsPort,
+        printer: FakePrinterPort = printerPort,
+        preferred: FakePreferredPrinterStore = preferredPrinterStore
+    ) = CollectionReportViewModel(
         payments,
         visitsPort,
         userCyclePort,
         historicalTotalsPort,
+        printer,
+        preferred,
         clock,
         telemetry
     )
@@ -404,6 +419,8 @@ class CollectionReportViewModelTest {
                 visitsPort,
                 ThrowingUserCyclePort(userCyclePort, "firestore down"),
                 historicalTotalsPort,
+                printerPort,
+                preferredPrinterStore,
                 clock,
                 telemetry
             )
@@ -433,4 +450,143 @@ class CollectionReportViewModelTest {
             assertNull(state.visitas.count)
             assertTrue((state.detail as DetailUi.Payments).rows.isEmpty())
         }
+
+    // region — impresión térmica (P2) ----------------------------------------------------
+
+    private val printerA = PrinterDevice(address = "00:11:22:33:44:55", name = "Impresora A")
+    private val printerB = PrinterDevice(address = "AA:BB:CC:DD:EE:FF", name = "Impresora B")
+
+    /** Construye un VM ya cargado (Día) con un pago, listo para imprimir. */
+    private fun loadedViewModel(): CollectionReportViewModel {
+        paymentsPort.payments = listOf(payment(amount = money("1200.00")))
+        val vm = viewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        return vm
+    }
+
+    @Test
+    fun `printReport imprime a la impresora recordada por defecto con el ticket del reporte`() =
+        runTest(testDispatcher) {
+            printerPort.pairedResult = Result.success(listOf(printerA))
+            preferredPrinterStore.savePreferredAddress(printerA.address)
+            val vm = loadedViewModel()
+
+            vm.printReport()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertEquals(1, printerPort.printCalls)
+            assertEquals(printerA, printerPort.lastPrintedDevice)
+            assertEquals(PrintPhase.SUCCESS, vm.state.value.printSheet?.phase)
+            // El ticket que llega al puerto es EXACTAMENTE el de CollectionReportFormatter.
+            assertEquals(
+                CollectionReportFormatter.toTicketLines(vm.state.value, clock),
+                printerPort.lastPrintedTicket
+            )
+        }
+
+    @Test
+    fun `printReport sin impresora recordada abre el picker sin imprimir`() =
+        runTest(testDispatcher) {
+            printerPort.pairedResult = Result.success(listOf(printerA, printerB))
+            val vm = loadedViewModel()
+
+            vm.printReport()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val sheet = vm.state.value.printSheet
+            assertEquals(PrintPhase.SELECTING, sheet?.phase)
+            assertEquals(listOf(printerA, printerB), sheet?.printers)
+            assertEquals(0, printerPort.printCalls)
+        }
+
+    @Test
+    fun `selectPrinter recuerda la impresora elegida y la imprime`() = runTest(testDispatcher) {
+        printerPort.pairedResult = Result.success(listOf(printerA, printerB))
+        val vm = loadedViewModel()
+        vm.printReport() // abre el picker (no hay recordada)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.selectPrinter(printerB)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(preferredPrinterStore.savedAddresses.contains(printerB.address))
+        assertEquals(printerB, printerPort.lastPrintedDevice)
+        assertEquals(PrintPhase.SUCCESS, vm.state.value.printSheet?.phase)
+    }
+
+    @Test
+    fun `openPrinterPicker abre el picker aun con una impresora recordada (cambiar impresora)`() =
+        runTest(testDispatcher) {
+            printerPort.pairedResult = Result.success(listOf(printerA, printerB))
+            preferredPrinterStore.savePreferredAddress(printerA.address)
+            val vm = loadedViewModel()
+            vm.printReport() // imprime a la recordada A
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(PrintPhase.SUCCESS, vm.state.value.printSheet?.phase)
+
+            vm.openPrinterPicker()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val sheet = vm.state.value.printSheet
+            assertEquals(PrintPhase.SELECTING, sheet?.phase)
+            assertEquals(listOf(printerA, printerB), sheet?.printers)
+            assertEquals(printerA, sheet?.target) // conserva la objetivo previa
+        }
+
+    @Test
+    fun `un fallo de conexion del puerto degrada a ERROR con mensaje es-MX, sin crashear`() =
+        runTest(testDispatcher) {
+            printerPort.pairedResult = Result.success(listOf(printerA))
+            preferredPrinterStore.savePreferredAddress(printerA.address)
+            printerPort.printResult = Result.failure(PrintError.ConnectionFailed())
+            val vm = loadedViewModel()
+
+            vm.printReport()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val sheet = vm.state.value.printSheet
+            assertEquals(PrintPhase.ERROR, sheet?.phase)
+            assertEquals("no se pudo conectar con la impresora", sheet?.message)
+        }
+
+    @Test
+    fun `bluetooth apagado al listar impresoras degrada a ERROR`() = runTest(testDispatcher) {
+        printerPort.pairedResult = Result.failure(PrintError.BluetoothDisabled)
+        val vm = loadedViewModel()
+
+        vm.printReport()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val sheet = vm.state.value.printSheet
+        assertEquals(PrintPhase.ERROR, sheet?.phase)
+        assertEquals("activa el bluetooth para imprimir", sheet?.message)
+        assertEquals(0, printerPort.printCalls)
+    }
+
+    @Test
+    fun `onPrintPermissionDenied refleja el permiso negado como ERROR`() = runTest(testDispatcher) {
+        val vm = loadedViewModel()
+
+        vm.onPrintPermissionDenied()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val sheet = vm.state.value.printSheet
+        assertEquals(PrintPhase.ERROR, sheet?.phase)
+        assertEquals("concede el permiso de bluetooth para imprimir", sheet?.message)
+    }
+
+    @Test
+    fun `dismissPrintSheet cierra el bottom sheet de impresion`() = runTest(testDispatcher) {
+        printerPort.pairedResult = Result.success(listOf(printerA))
+        preferredPrinterStore.savePreferredAddress(printerA.address)
+        val vm = loadedViewModel()
+        vm.printReport()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.dismissPrintSheet()
+
+        assertNull(vm.state.value.printSheet)
+    }
+
+    // endregion
 }

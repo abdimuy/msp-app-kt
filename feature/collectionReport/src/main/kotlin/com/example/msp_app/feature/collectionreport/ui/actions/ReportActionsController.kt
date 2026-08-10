@@ -6,13 +6,11 @@ import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
 import com.example.msp_app.core.common.time.AppClock
-import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.feature.collectionreport.domain.model.Money
-import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
-import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import java.io.File
 import java.io.FileOutputStream
 
@@ -28,18 +26,12 @@ import java.io.FileOutputStream
  * HALF_UP para display — decisión de negocio: MSP no opera con centavos) — mismo contrato
  * que el tablero. Es una corrección consciente, no un cambio accidental de output.
  *
- * **PARKED FOR USER — impresión térmica Bluetooth:** [buildTicketText] (el contenido del
- * ticket, dinero-seguro y unit-testeable) SÍ se reescribe aquí; la conexión Bluetooth real
- * (`ThermalPrinting.printText`/`SelectBluetoothDevice`, `:app`) NO se porta a este módulo en
- * esta tarea. Motivo: es código que solo se puede verificar contra hardware real (una
- * impresora térmica emparejada) — no hay `connected*`/instrumented tests permitidos en este
- * gate, y Robolectric no simula un `BluetoothAdapter` real. Enviar código de I/O de hardware
- * sin una sola ejecución real verificada violaría el mismo principio que
- * DISPATCH-CONVENTIONS exige para el money-path ("si no puedes verificar el contrato,
- * reportar BLOCKED") — aplicado aquí al hardware-path. `BlurredActionBar.onImprimirClick`
- * queda cableado como callback simple (Task 10/seguimiento decide la UI de selección de
- * impresora); lo que SÍ queda listo y probado es el texto exacto que esa impresora
- * necesitará imprimir.
+ * **Impresión térmica Bluetooth (P2, ya cableada):** la impresión real ahora vive en
+ * `CollectionReportViewModel.printReport` -> `PrinterPort.print` (`:core:printing`), a partir
+ * del MISMO contenido de ticket que produce [CollectionReportFormatter]. Este controller ya
+ * no arma el ticket a mano: [buildTicketText] delega en [CollectionReportFormatter.toTicketText]
+ * para que el PDF, "Compartir ticket" y la impresora impriman EXACTAMENTE el mismo texto
+ * (una sola fuente de verdad, dinero en peso entero vía [formatMoneyMxn]).
  *
  * Una sola fachada (no varios objetos por acción) a propósito — mismo criterio que
  * `ReportAggregator` (Task 3): Compartir/PDF/ticket son, semánticamente, una superficie
@@ -106,41 +98,13 @@ internal object ReportActionsController {
     }
 
     /**
-     * Ticket completo (mockup `.actions .ghost` printer): encabezado + desglose por
-     * pago (Día, si el estado los conserva) + totales + condonaciones + visitas. Reemplaza
-     * `ThermalPrinting`/`PdfGenerator` del código viejo con dinero SIEMPRE vía [formatMoneyMxn]
-     * (nunca `Double.toCurrency`). `centerText`/línea separadora reescritos aquí en vez de
-     * reusar `ThermalPrinting.centerText` (`:app`, fuera de este módulo).
+     * Ticket completo, delegado a [CollectionReportFormatter.toTicketText]: encabezado +
+     * desglose por pago (Día, si el estado los conserva) + totales + condonaciones + visitas,
+     * con dinero SIEMPRE en peso entero vía [formatMoneyMxn]. Es el MISMO contenido/layout que
+     * imprime la impresora térmica (P2) y que escribe el PDF — una sola fuente de verdad.
      */
     fun buildTicketText(state: CollectionReportUiState, clock: AppClock = AppClock.System): String =
-        buildString {
-            appendLine(center(reportTitle(state.period).uppercase(), TICKET_WIDTH))
-            appendLine(center(state.cobrador, TICKET_WIDTH))
-            appendLine(center(state.rangeLabel, TICKET_WIDTH))
-            appendLine(SEPARATOR)
-            val payments = (state.detail as? DetailUi.Payments)?.rows
-            if (!payments.isNullOrEmpty()) {
-                payments.forEach { row ->
-                    val hora = AppTime.formatForDisplay(row.paidAt, AppTime.Formats.TIME_24H)
-                    appendLine("$hora ${row.cliente.take(MAX_CLIENT_CHARS)}")
-                    appendLine("  ${row.method.ticketLabel()}  ${money(row.amount)}")
-                }
-                appendLine(SEPARATOR)
-            }
-            appendLine("Total cobrado: ${money(state.hero.monto)}")
-            appendLine("Efectivo (${state.efectivo.count}): ${money(state.efectivo.amount)}")
-            appendLine(
-                "Transferencia (${state.transferencia.count}): ${money(state.transferencia.amount)}"
-            )
-            state.condonado.amount?.let { appendLine("Condonado: ${money(it)}") }
-            state.visitas.count?.let { appendLine("Visitas: $it") }
-            appendLine(SEPARATOR)
-            append(center("Generado ${printedAtLabel(clock)}", TICKET_WIDTH))
-        }
-
-    /** "Creado/Generado el" — mismo cálculo que `PdfGenerator.printedAtLabel` (`:app`). */
-    fun printedAtLabel(clock: AppClock, pattern: String = AppTime.Formats.DATE_TIME_24H): String =
-        AppTime.formatForDisplay(clock.now(), pattern)
+        CollectionReportFormatter.toTicketText(state, clock)
 
     // endregion
 
@@ -201,27 +165,9 @@ internal object ReportActionsController {
 
     // endregion
 
-    private fun reportTitle(period: ReportPeriod): String = when (period) {
-        ReportPeriod.DIA -> "Reporte de cobranza del día"
-        ReportPeriod.SEMANA -> "Reporte de cobranza del ciclo"
-    }
+    /** Fuente única del título (la comparte [CollectionReportFormatter] con el ticket/impresión). */
+    private fun reportTitle(period: ReportPeriod): String =
+        CollectionReportFormatter.reportTitle(period)
 
     private fun money(amount: Money): String = formatMoneyMxn(amount.amount)
-
-    private fun center(text: String, width: Int): String {
-        val padding = ((width - text.length) / 2).coerceAtLeast(0)
-        return " ".repeat(padding) + text
-    }
-
-    private fun PaymentMethod.ticketLabel(): String = when (this) {
-        PaymentMethod.EFECTIVO -> "Efectivo"
-        PaymentMethod.TRANSFERENCIA -> "Transfer."
-        PaymentMethod.CHEQUE -> "Cheque"
-        PaymentMethod.CONDONACION -> "Condonado"
-        PaymentMethod.OTRO -> "Otro"
-    }
-
-    private const val TICKET_WIDTH = 32
-    private const val MAX_CLIENT_CHARS = 24
-    private val SEPARATOR = "-".repeat(TICKET_WIDTH)
 }

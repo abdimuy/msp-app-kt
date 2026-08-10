@@ -40,7 +40,13 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:network"))
     implementation(project(":core:telemetry"))
+    // Impresión térmica (P2): puertos/gateway/store del stack hexagonal de :core:printing
+    // (PrinterPort, PreferredPrinterStore, ReportTicketFormatter/TicketRenderer, PrintError).
+    implementation(project(":core:printing"))
     implementation(libs.androidx.compose.foundation)
+    // rememberLauncherForActivityResult + RequestMultiplePermissions (P2): el request del
+    // permiso de Bluetooth para imprimir vive en CollectionReportScreen.
+    implementation(libs.androidx.activity.compose)
     // FileProvider (Task 8, ReportActionsController): compartir/abrir el PDF generado en
     // cache sin exponer una `file://` Uri cruda — reusa la declaración de
     // `androidx.core.content.FileProvider` que `:app` ya trae en su manifest
