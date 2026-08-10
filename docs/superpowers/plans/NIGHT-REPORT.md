@@ -391,3 +391,53 @@ producción, truncación de dinero.
 
 `feat/multimodulo-cimiento` — TODO commiteado, **NADA pusheado** (origin no tiene la rama). Listo para revisión
 humana / merge cuando decidas.
+
+### 2026-08-10 (madrugada) — Impresión + piloto pulido en device
+
+**Impresión adoptada de kollect-app:** nuevo módulo `:core:printing` portado de kollect (`820325d`, fix
+`8f3b091`) — `PrinterPort` hexagonal + DantSu ESC/POS + `BluetoothPrinterDiscovery` (picker) +
+`PreferredPrinterStore` (última impresora usada, MISMA clave `printer_prefs`/`last_printer_address` que `:app`,
+así que la impresora guardada se conserva) + `PrintError` tipado + timeout interrumpible de 8s + accent-fold; 61
+tests. Luego P2 (`9c4210a6`): `CollectionReportFormatter` (ticket en pesos enteros, fuente única para
+imprimir/PDF/Compartir) + "Imprimir" imprime a la última impresora usada y **"Cambiar impresora" siempre
+disponible** en la hoja de impresión. Ambos revisados limpios.
+
+**Dinero → PESOS ENTEROS** en todo el stack nuevo (`0011a75e`): `formatMoneyMxn` oculta centavos (HALF_UP,
+solo display; el modelo `Money`/`BigDecimal` sigue exacto en escala 2) — decisión del usuario (el negocio no
+usa centavos). Revisado limpio.
+
+**Fixes de dispositivo** (encontrados por el usuario probando en un Galaxy A25 físico con el build devserver
+y datos reales — los goldens no los podían cazar): inset superior de status bar (`d813b08b`), inset inferior de
+nav bar en la barra de acciones + iconos de status bar en tema oscuro (`d97735ff`). Ambos arreglados y
+revisados.
+
+**Tres pulidos de UX** (`4f495f03`, revisados limpio): (1) LISTA de pagos individuales (todos los pagos,
+nombres de cliente, filas `.prow` modernas) en Día + la hoja de drill-down del día; (2) reveal circular
+dark/light reescrito para calzar con kollect (snapshot inmutable del frame viejo vía `toImageBitmap()` + clipPath
+de disco, sin recolor por-tarjeta); (3) jank del toggle Día/Semana arreglado (split `selectedPeriod`/
+`contentPeriod`, build pesado fuera de Main vía `Dispatchers.Default`, entrada gateada a la primera vez).
+
+**Cuatro fixes más de dispositivo** (`b664390e`, revisado limpio, `prePushCheck` verde, schema v27 intacto):
+lista de pagos ahora hace SCROLL (`verticalScroll`, todo alcanzable); el disco del reveal de tema ahora dibuja
+ENCIMA de la tarjeta hero (orden-z); filas de pago ENRIQUECIDAS con folio + saldo (join desde `sales` vía
+`SaleDao.getSaleRefsByAcrIds` sobre `DOCTO_CC_ACR_ID`, solo Kotlin, schema byte-idéntico) + chip
+cliente/método/hora/monto/"Por subir"; botones Compartir/Imprimir ahora SÓLIDOS opacos `MspTheme.colors.surface`
+(blanco en claro / oscuro en oscuro, no transparentes, no azules).
+
+**Nota de seguridad:** un subagente copió 3 nombres reales de clientes de la BD del dispositivo a un archivo de
+reporte LOCAL gitignored (nunca commiteado a git; el commit y los goldens usan nombres FALSOS). Nombres
+redactados del archivo local. Lección: los subagentes no deben escribir PII real de dispositivo en archivos del
+repo.
+
+**HEAD actual:** `b664390e`, rama `feat/multimodulo-cimiento`, SIN push. Último build `devserverDebug`
+instalado en el teléfono del usuario.
+
+**⚠️ PENDIENTE DEL USUARIO (necesita su ojo/manos):**
+- Confirmar los cuatro fixes visualmente en el teléfono (el app-lock de huella bloqueó screenshots automatizados).
+- **Prueba de campo con impresora térmica real** (la impresión Bluetooth no se puede probar en emulador/gate).
+- Decisiones parqueadas anteriores siguen abiertas: pares de contraste AA del azul de marca (quieren revisarlos);
+  pagos con `forma_cobro_id` NULL en los totales (se dejan como están = legacy).
+
+**🔧 BACKLOG DE PULIDO (no bloqueante, "seguimos puliendo después"):** test automatizado de scroll Compose para
+la lista de 23 filas; el saldo mostrado es el saldo ACTUAL de la venta, no el histórico-al-momento-del-pago
+(confirmar intención); más pulido de fila/diseño si aplica.

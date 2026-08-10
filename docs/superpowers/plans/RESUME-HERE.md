@@ -64,30 +64,33 @@ Planes 3/4/5 YA PLANEADOS (archivos `2026-08-09-plan3/4/5-*.md`). Deuda money = 
 `feedback_msp_app_kt_audit_rewrite_supreme_tests`, `reference_msp_app_kt_hilt_baseurl_killswitch`,
 `feedback_reporte_cobranza_fidelidad_mockup`, `feedback_delegate_to_sonnet`, `feedback_no_claude_attribution`.
 
-## PRÓXIMA ACCIÓN — TODO el charter nocturno CERRADO CONFORME. Sigue revisión humana.
+## PRÓXIMA ACCIÓN — impresión + piloto pulido en device. Sigue confirmación del usuario + prueba de campo.
 
-**TODO el charter nocturno del 2026-08-09 está CERRADO CONFORME:** Plan 2 (`:core:database`, 10/10) + deuda
-money-robustez (6/6) + Plan 3 (`:core:designsystem`, 11/11) + Plan 4 (`:core:telemetry`+`:core:network`, 11/11)
-+ **Plan 5 (`:feature:collectionReport`, EL PILOTO, 12/12)**. Cinco auditorías de conformidad opus, las cinco
-CONFORME. **HEAD `ac695185`.** Rama `feat/multimodulo-cimiento`, todo commiteado, **SIN push** (origin no tiene
-la rama).
+**2026-08-10 (madrugada):** se adoptó impresión térmica de kollect-app (`:core:printing`, hexagonal +
+DantSu ESC/POS + picker Bluetooth + última-impresora-usada) cableada al piloto de reporte de cobranza
+("Imprimir" imprime directo + "Cambiar impresora" siempre disponible), dinero pasó a PESOS ENTEROS en todo el
+stack nuevo, se corrigieron 6 issues encontrados por el usuario probando en un Galaxy A25 físico (insets de
+status/nav bar, lista de pagos scrollable, orden-z del reveal de tema, filas enriquecidas con folio+saldo,
+botones Compartir/Imprimir opacos). **HEAD `b664390e`**, rama `feat/multimodulo-cimiento`, todo commiteado,
+**SIN push**. Último build `devserverDebug` instalado en el teléfono del usuario. Detalle completo en
+`NIGHT-REPORT.md`, sección `### 2026-08-10 (madrugada) — Impresión + piloto pulido en device`.
 
-Plan 5 (el piloto) cerró con: dominio Money/rangos/agregados, `@HiltViewModel`, UI completa desde `Msp*`, ruta
-`"daily_reports"` conservada + `WeeklyReport` absorbido, matriz de 56 goldens, **fidelidad visual HIGH** contra
-el mockup, **device smoke 10/10**, y un **crash de producción real cazado y arreglado** (pantalla sin
-`MspTheme`/`ThemeRevealRoot`). Detalle completo (todos los planes + parqueados + release-gates + deuda menor)
-en `NIGHT-REPORT.md`, sección `## 🌙 CIERRE DE LA NOCHE — 5 planes CONFORME`.
+**LO QUE SIGUE — es TU decisión / tus manos:**
+1. **Confirmar visualmente en el teléfono** los cuatro fixes de device del último commit (`b664390e`) — el
+   app-lock de huella bloqueó screenshots automatizados, así que no hay evidencia visual automatizada.
+2. **Prueba de campo con impresora térmica real** — Bluetooth no se puede probar en emulador/gate; es el
+   release-gate de impresión.
+3. **Backlog de pulido** (no bloqueante): test automatizado de scroll Compose para la lista de 23 filas; el
+   saldo mostrado es el saldo ACTUAL de la venta, no el histórico-al-momento-del-pago (confirmar intención);
+   más pulido de fila/diseño si aplica.
+4. **Decisiones parqueadas de antes siguen abiertas** (sección B de `NIGHT-REPORT.md`): contraste del azul de
+   marca (3 pares bajo AA), pagos con `forma_cobro_id` NULL en los totales (se dejan = legacy), fórmula de
+   projection del hero (hoy `null`), glyph del theme toggle.
+5. **Revisión humana** de la rama completa + **decisión de merge** de `feat/multimodulo-cimiento` cuando lo
+   anterior esté resuelto.
 
-**LO QUE SIGUE no es más ejecución de plan — es TU decisión:**
-1. **Revisión humana** de la rama completa antes de considerar merge.
-2. **Parqueados de producto/gusto** (sección B de `NIGHT-REPORT.md`): centavos vs. pesos enteros en el reporte,
-   contraste del azul de marca (3 pares bajo AA), fórmula de projection del hero (hoy `null`), si pagos con
-   `forma_cobro_id` NULL deben contar en el total, glyph del theme toggle.
-3. **Release-gates manuales** (sección C): impresión térmica Bluetooth con hardware real, smoke de campo del
-   orden de eventos de garantías `FECHA_EVENTO` (Z-UTC a Node) antes de desplegar garantías.
-4. **Decisión de merge** de `feat/multimodulo-cimiento` cuando lo anterior esté resuelto.
-
-No hay siguiente plan encolado — Planes 0 a 5 son el charter completo.
+No hay siguiente plan de ejecución encolado — impresión + pulido de device fue trabajo adicional sobre el
+charter ya cerrado (Planes 0-5).
 
 ---
 ### (histórico) checkpoint previo
