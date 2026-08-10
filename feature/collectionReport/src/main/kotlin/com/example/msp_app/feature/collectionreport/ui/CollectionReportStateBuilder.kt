@@ -140,7 +140,9 @@ internal object CollectionReportStateBuilder {
         paidAt = paidAt,
         amount = amount,
         method = method,
-        synced = synced
+        synced = synced,
+        folio = folio,
+        saldo = saldo
     )
 
     private fun buildHero(context: LoadContext, ports: LoadedPorts): HeroUi {

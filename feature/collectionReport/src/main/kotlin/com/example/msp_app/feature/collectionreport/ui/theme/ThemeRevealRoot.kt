@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -134,22 +135,43 @@ fun ThemeRevealRoot(
                 modifier = modifier
                     .fillMaxSize()
                     .onSizeChanged { boxSize = it }
-                    .drawWithContent {
-                        // Captura canónica: grabar el layer y pintar EL layer (un solo
-                        // drawContent()), así el layer siempre queda poblado para el snapshot.
-                        contentLayer.record { this@drawWithContent.drawContent() }
-                        drawLayer(contentLayer)
-                        val snapshot = oldSnapshot
-                        if (snapshot != null) {
-                            revealPath.reset()
-                            revealPath.addOval(Rect(center = revealCenter, radius = radius.value))
-                            clipPath(path = revealPath, clipOp = ClipOp.Difference) {
-                                drawImage(snapshot)
-                            }
-                        }
-                    }
             ) {
-                content()
+                // Capa 1 (contenido vivo): captura canónica — grabar el layer y pintar EL layer
+                // (un solo drawContent()), así el layer siempre queda poblado para el snapshot.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithContent {
+                            contentLayer.record { this@drawWithContent.drawContent() }
+                            drawLayer(contentLayer)
+                        }
+                ) {
+                    content()
+                }
+                // Capa 2 (overlay del reveal): el frame VIEJO recortado por el disco creciente,
+                // dibujado como HERMANO declarado DESPUÉS del contenido → es SIEMPRE la última
+                // capa dibujada, por encima del hero y de cualquier otra tarjeta (fix defecto
+                // visual: el hero, al recortarse con `Modifier.clip` a su propio graphics layer,
+                // componía por encima cuando el overlay se dibujaba dentro del MISMO nodo que el
+                // contenido; separarlo a un sibling superior garantiza el z-order). Solo existe
+                // mientras hay snapshot (durante la animación), así que fuera del reveal esta
+                // capa no se compone.
+                val snapshot = oldSnapshot
+                if (snapshot != null) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .drawBehind {
+                                revealPath.reset()
+                                revealPath.addOval(
+                                    Rect(center = revealCenter, radius = radius.value)
+                                )
+                                clipPath(path = revealPath, clipOp = ClipOp.Difference) {
+                                    drawImage(snapshot)
+                                }
+                            }
+                    )
+                }
             }
         }
     }

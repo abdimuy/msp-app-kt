@@ -57,6 +57,18 @@ data class SaleEntity(
     val FREC_PAGO: String?
 )
 
+/**
+ * Proyección ligera de una venta: folio comercial + saldo restante actual, indexada por su
+ * `DOCTO_CC_ACR_ID`. Alimenta el enriquecimiento de las filas de pago del reporte de cobranza
+ * (`SaleDao.getSaleRefsByAcrIds`) sin traer la entidad `sales` completa. Solo lectura — no es
+ * una `@Entity`, no toca el schema.
+ */
+data class SaleRefRow(
+    val saleId: Int,
+    val folio: String,
+    val saldo: Double
+)
+
 data class SaleWithProductsEntity(
     val DOCTO_CC_ACR_ID: Int,
     val DOCTO_CC_ID: Int,

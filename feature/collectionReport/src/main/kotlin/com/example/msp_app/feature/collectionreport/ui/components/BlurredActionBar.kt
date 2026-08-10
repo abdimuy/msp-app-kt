@@ -44,6 +44,14 @@ private const val SOLID_STOP_FRACTION = 0.44f
  * cerrar (ver [SOLID_STOP_FRACTION]) — y tres [MspPrimaryFieldButton]: Compartir (`Ghost`),
  * Imprimir (`Ghost`), PDF (`Primary`, brand sólido).
  *
+ * **Relleno OPACO de los botones Ghost (fix de dispositivo):** `PrimaryFieldButtonVariant.Ghost`
+ * rellena con `Color.Transparent`, así que sin fondo propio el contenido del tablero (chips
+ * Condonado/Visitas) se transparentaba a través de Compartir/Imprimir. Se pinta un fondo
+ * [MspTheme.colors.surface] con el mismo `shapes.button` DEBAJO del botón (en el `modifier` del
+ * caller, que se aplica antes del `clip` interno) — opaco y siguiendo el tema (blanco en claro,
+ * superficie oscura en oscuro), sin tocar el borde ni la etiqueta `brand` del Ghost. PDF sigue
+ * con su relleno primario azul.
+ *
  * **"pointer-events: none" del contenedor (gotcha del brief):** en Compose esto no requiere
  * ningún modificador especial — a diferencia de CSS, un `Box`/`Row` decorativo (fondo +
  * `Text`, sin `clickable`/`pointerInput` propio) nunca intercepta toques; el hit-testing de
@@ -101,13 +109,17 @@ fun BlurredActionBar(
             text = "Compartir",
             variant = PrimaryFieldButtonVariant.Ghost,
             onClick = onCompartirClick,
-            modifier = Modifier.weight(WIDE_LABEL_WEIGHT)
+            modifier = Modifier
+                .weight(WIDE_LABEL_WEIGHT)
+                .background(MspTheme.colors.surface, MspTheme.shapes.button)
         )
         MspPrimaryFieldButton(
             text = "Imprimir",
             variant = PrimaryFieldButtonVariant.Ghost,
             onClick = onImprimirClick,
-            modifier = Modifier.weight(WIDE_LABEL_WEIGHT)
+            modifier = Modifier
+                .weight(WIDE_LABEL_WEIGHT)
+                .background(MspTheme.colors.surface, MspTheme.shapes.button)
         )
         MspPrimaryFieldButton(
             text = "PDF",

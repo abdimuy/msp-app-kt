@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
+import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.MockupFixtures
 import com.example.msp_app.feature.collectionreport.ui.components.DetailHeader
 import com.example.msp_app.feature.collectionreport.ui.components.DetailList
@@ -56,6 +57,43 @@ class CollectionReportDetailScreenshotTest : CollectionReportScreenshotTest() {
         capture(name = "collection_report_detail_semana_dark", dark = true) {
             MiddleSection(MockupFixtures.stateSemana())
         }
+    }
+
+    /**
+     * Golden de la lista LARGA (fix de dispositivo): 23 filas de pago enriquecidas (folio +
+     * saldo + método + "Por subir"). El canvas del test (h800dp) recorta la lista — el golden
+     * es una baseline visual del estilo de fila enriquecido y de que la lista crece sin
+     * comprimirse; el que TODAS sean alcanzables lo garantiza el `verticalScroll` de la
+     * pantalla (probado en el compose-test de orden/scroll).
+     */
+    @Test
+    fun `lista con muchos pagos light`() {
+        capture(name = "collection_report_detail_many_light", dark = false) {
+            LongPaymentList()
+        }
+    }
+
+    @Test
+    fun `lista con muchos pagos dark`() {
+        capture(name = "collection_report_detail_many_dark", dark = true) {
+            LongPaymentList()
+        }
+    }
+}
+
+@Composable
+private fun LongPaymentList() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(MspTheme.spacing.md)
+    ) {
+        DetailList(
+            detail = DetailUi.Payments(MockupFixtures.manyPaymentsDia()),
+            masked = false,
+            onPaymentClick = {},
+            onDayClick = {}
+        )
     }
 }
 

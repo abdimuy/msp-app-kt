@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
@@ -86,6 +88,12 @@ internal fun SheetBody(content: SheetContentUi, masked: Boolean, modifier: Modif
     Column(
         modifier = modifier
             .fillMaxWidth()
+            // Scroll del cuerpo (fix de dispositivo): un día del ciclo con muchos pagos
+            // desbordaba el alto máximo del `ModalBottomSheet` y las últimas filas quedaban
+            // recortadas, inalcanzables. Con `verticalScroll` el contenido se desplaza dentro
+            // del sheet, así TODOS los pagos del día son alcanzables. El padding va DESPUÉS del
+            // scroll para que quede dentro del área desplazable.
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.lg)
             .padding(bottom = MspTheme.spacing.lg)
     ) {

@@ -64,13 +64,15 @@ import kotlinx.coroutines.withContext
  * de este mismo `Box`. No es un token de [MspTheme.spacing] (`xs`/`sm`/`md`/`lg`): es un
  * valor propio de este scaffold, igual que `HERO_PADDING` en `MspHeroTodayCard`.
  *
- * Cubre solo la altura FIJA de [com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar]
- * (padding + botones); el inset real de la barra de navegación del sistema (variable por
- * dispositivo) lo agrega por separado `.navigationBarsPadding()` en el `Column` de abajo —
- * mismo componente, mismo inset, sin duplicar el número a mano (fix defecto visual: contenido
- * no queda tapado por barra de acciones + barra de navegación del sistema).
+ * Cubre la altura FIJA de [com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar]
+ * (top 32 + botón 56 + bottom 16 ≈ 104dp) con holgura, para que la ÚLTIMA fila de pago libre
+ * la barra de acciones (fix de dispositivo: con muchos pagos, el valor previo de 96dp — menor
+ * que la barra — dejaba las últimas filas tapadas, dando la sensación de que "la lista no
+ * baja"). El inset real de la barra de navegación del sistema (variable por dispositivo) lo
+ * agrega por separado `.navigationBarsPadding()` en el `Column` de abajo — mismo componente,
+ * mismo inset, sin duplicar el número a mano.
  */
-private val SCROLL_BOTTOM_CONTENT_PADDING = 96.dp
+private val SCROLL_BOTTOM_CONTENT_PADDING = 132.dp
 
 /**
  * Índices de [StaggeredEntrance] de todo el tablero (header, banner de error opcional,

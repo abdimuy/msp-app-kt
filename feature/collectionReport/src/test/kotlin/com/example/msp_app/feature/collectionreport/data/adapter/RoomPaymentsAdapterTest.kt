@@ -2,6 +2,7 @@ package com.example.msp_app.feature.collectionreport.data.adapter
 
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Money
@@ -11,6 +12,7 @@ import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -30,7 +32,7 @@ private const val SALE_ID = 77021
  */
 class RoomPaymentsAdapterTest : RoomTestBase() {
 
-    private val adapter by lazy { RoomPaymentsAdapter(db.paymentDao()) }
+    private val adapter by lazy { RoomPaymentsAdapter(db.paymentDao(), db.saleDao()) }
 
     // Día D del reporte y sus límites de negocio (America/Mexico_City, UTC-6).
     private val dayD = LocalDate.of(2026, 4, 15)
@@ -64,6 +66,51 @@ class RoomPaymentsAdapterTest : RoomTestBase() {
         NOMBRE_CLIENTE = nombreCliente
     )
 
+    // Venta asociada por `DOCTO_CC_ACR_ID` (mismo cruce que la app: `SaleDao.getById`). Solo
+    // interesan folio + saldo para el enriquecimiento; el resto son valores estructurales
+    // sanos. `restante` (no `saldo`) es el `Double` crudo del schema v27 — nombre neutro para
+    // no disparar NoDoubleForMoney, igual que `raw` en el helper `payment`.
+    private fun sale(acrId: Int = SALE_ID, folio: String = "A-10482", restante: Double = 3200.0) =
+        SaleEntity(
+            DOCTO_CC_ACR_ID = acrId,
+            DOCTO_CC_ID = 91027 + acrId,
+            FOLIO = folio,
+            CLIENTE_ID = 30144,
+            APLICADO = "S",
+            COBRADOR_ID = 7,
+            CLIENTE = "Rosa Elena Martinez Vazquez",
+            ZONA_CLIENTE_ID = 21,
+            LIMITE_CREDITO = 0.0,
+            NOTAS = "",
+            ZONA_NOMBRE = "Centro",
+            IMPORTE_PAGO_PROMEDIO = 500.0,
+            TOTAL_IMPORTE = 12000.0,
+            NUM_IMPORTES = 24,
+            FECHA = "2026-01-10T06:00:00Z",
+            PARCIALIDAD = 500,
+            ENGANCHE = 2000.0,
+            TIEMPO_A_CORTO_PLAZOMESES = 0,
+            MONTO_A_CORTO_PLAZO = 0.0,
+            VENDEDOR_1 = "Efrain Dominguez Reyes",
+            VENDEDOR_2 = "",
+            VENDEDOR_3 = "",
+            PRECIO_TOTAL = 14000.0,
+            IMPTE_REST = restante,
+            SALDO_REST = restante,
+            FECHA_ULT_PAGO = "2026-04-15T18:30:00Z",
+            CALLE = "Av. Reforma 100",
+            CIUDAD = "Puebla",
+            ESTADO = "Puebla",
+            TELEFONO = "2221234567",
+            NOMBRE_COBRADOR = "Efrain Dominguez Reyes",
+            ESTADO_COBRANZA = "AL_CORRIENTE",
+            DIA_COBRANZA = "MIERCOLES",
+            DIA_TEMPORAL_COBRANZA = "",
+            PRECIO_DE_CONTADO = 11000.0,
+            AVAL_O_RESPONSABLE = "",
+            FREC_PAGO = "SEMANAL"
+        )
+
     @Test
     fun `paymentsIn mapea todos los campos a dominio`() = runTest {
         db.paymentDao().savePayment(
@@ -87,6 +134,45 @@ class RoomPaymentsAdapterTest : RoomTestBase() {
         assertEquals(PaymentMethod.EFECTIVO, p.method)
         assertEquals(Instant.parse("2026-04-15T18:30:00Z"), p.paidAt)
         assertTrue("guardado=false debe mapear a synced=false", !p.synced)
+        // Sin venta en local -> folio vacío / saldo nulo (nunca inventado).
+        assertEquals("", p.folio)
+        assertNull(p.saldo)
+    }
+
+    @Test
+    fun `paymentsIn enriquece folio y saldo desde la venta asociada`() = runTest {
+        db.saleDao().insertAll(listOf(sale(acrId = SALE_ID, folio = "A-10482", restante = 5400.0)))
+        db.paymentDao().savePayment(payment(id = "p1", formaCobro = EFECTIVO_ID))
+
+        val p = adapter.paymentsIn(rangeD).single()
+
+        assertEquals("A-10482", p.folio)
+        assertEquals(BigDecimal("5400.00"), p.saldo?.amount)
+    }
+
+    @Test
+    fun `paymentsIn deja folio y saldo vacios cuando la venta no esta en local`() = runTest {
+        // Venta de OTRO acrId -> no cruza con el pago (venta saldada/prunada del dispositivo).
+        db.saleDao().insertAll(listOf(sale(acrId = SALE_ID + 1)))
+        db.paymentDao().savePayment(payment(id = "p1", formaCobro = EFECTIVO_ID))
+
+        val p = adapter.paymentsIn(rangeD).single()
+
+        assertEquals("", p.folio)
+        assertNull(p.saldo)
+    }
+
+    @Test
+    fun `paymentsGroupedByDaySince tambien enriquece folio y saldo`() = runTest {
+        db.saleDao().insertAll(listOf(sale(acrId = SALE_ID, folio = "A-77021", restante = 990.0)))
+        db.paymentDao().savePayment(
+            payment(id = "d15", formaCobro = EFECTIVO_ID, fechaHoraPago = "2026-04-15T18:00:00Z")
+        )
+
+        val p = adapter.paymentsGroupedByDaySince(startD).getValue("2026-04-15").single()
+
+        assertEquals("A-77021", p.folio)
+        assertEquals(BigDecimal("990.00"), p.saldo?.amount)
     }
 
     @Test

@@ -16,24 +16,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspInitialsAvatar
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
+import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.ui.DayRowUi
 import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.PaymentRowUi
 
 private val SYNC_DOT_SIZE = 7.dp
 private val DAY_AVATAR_SIZE = 34.dp
-private val METHOD_PILL_VERTICAL_PADDING = 2.dp
 private val DIVIDER_HEIGHT = 1.dp
+
+// Interlineado dentro de cada columna de la fila de pago (nombre/subline, monto/saldo) — más
+// apretado que los tokens de `spacing` para que las dos líneas lean como un bloque.
+private val ROW_LINE_SPACING = 3.dp
+
+// Separación "Saldo"↔monto y dot↔"Por subir".
+private val SALDO_LABEL_SPACING = 4.dp
 private const val PENDING_UPLOAD_DESCRIPTION = "por subir"
 private const val EMPTY_MESSAGE = "Sin datos aún"
 
@@ -107,11 +113,13 @@ private fun DetailDivider(modifier: Modifier = Modifier) {
 }
 
 /**
- * Fila de un pago (mockup `.prow`): avatar de iniciales del cliente ([clienteInitials] — el
- * cálculo nombre -> iniciales es del piloto, [MspInitialsAvatar] recibe iniciales YA
- * calculadas) + nombre (`type.name`) / subline "HH:mm · venta" (`type.subtitle`) a la
- * izquierda; monto ([MspMoneyText], enmascarable) + method pill + dot ámbar "por subir"
- * (si `!synced`) a la derecha.
+ * Fila de un pago (mockup `.prow`), enriquecida (fix de dispositivo 2026-08): a la izquierda,
+ * avatar de iniciales del cliente + nombre (`type.name`) y una subline con el método (pill) y
+ * el contexto de la venta — "Folio {folio} · HH:mm" cuando la venta está en local, si no solo
+ * "HH:mm" (el folio nunca se inventa, ver [PaymentRowUi]). A la derecha, jerarquía de dinero:
+ * monto del pago ([MspMoneyText], enmascarable) arriba, saldo restante de la venta ("Saldo
+ * $X", tabular, enmascarable) debajo cuando existe, y el chip ámbar "Por subir" (texto + color,
+ * nunca color solo) si el pago aún no sube.
  */
 @Composable
 private fun PaymentRow(
@@ -128,17 +136,30 @@ private fun PaymentRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        val horaPago = AppTime.formatForDisplay(row.paidAt, AppTime.Formats.TIME_24H)
         MspInitialsAvatar(initials = clienteInitials(row.cliente))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = row.cliente, style = MspTheme.type.name, color = MspTheme.colors.onSurface)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(ROW_LINE_SPACING)
+        ) {
             Text(
-                text = "$horaPago · ${row.ventaLabel}",
+                text = row.cliente,
+                style = MspTheme.type.name,
+                color = MspTheme.colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = ventaSubline(row),
                 style = MspTheme.type.subtitle,
-                color = MspTheme.colors.onSurfaceMuted
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
-        Column(horizontalAlignment = Alignment.End) {
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(ROW_LINE_SPACING)
+        ) {
             MspMoneyText(
                 amount = row.amount.amount,
                 masked = masked,
@@ -149,22 +170,70 @@ private fun PaymentRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
             ) {
+                if (!row.synced) PendingUploadChip()
                 MethodPill(method = row.method)
-                // Segundo portador de la "por subir" (no solo color): contentDescription
-                // explícita — no hay texto visible junto al dot en el mockup para este
-                // estado (parked, no está en el mockup estático), así que el canal
-                // auditivo/semántico lo carga íntegro el `semantics`.
-                if (!row.synced) {
-                    Box(
-                        modifier = Modifier
-                            .size(SYNC_DOT_SIZE)
-                            .clip(CircleShape)
-                            .background(MspTheme.colors.statusPartial)
-                            .semantics { contentDescription = PENDING_UPLOAD_DESCRIPTION }
-                    )
-                }
             }
+            row.saldo?.let { SaldoLine(saldo = it, masked = masked) }
         }
+    }
+}
+
+/**
+ * Subline de contexto de la venta: "Folio {folio} · {hora}" cuando la venta está en local
+ * ([PaymentRowUi.folio] no vacío), si no solo la hora del pago. El `DOCTO_CC_ACR_ID` crudo
+ * ([PaymentRowUi.ventaLabel]) NO se muestra: es un id interno sin valor para el cobrador; el
+ * folio comercial sí lo es (fix de dispositivo — la fila mostraba el número en bruto).
+ */
+private fun ventaSubline(row: PaymentRowUi): String {
+    val horaPago = AppTime.formatForDisplay(row.paidAt, AppTime.Formats.TIME_24H)
+    return if (row.folio.isNotBlank()) "Folio ${row.folio} · $horaPago" else horaPago
+}
+
+/** "Saldo $X" — saldo restante actual de la venta, tabular y enmascarable (privacidad). */
+@Composable
+private fun SaldoLine(saldo: Money, masked: Boolean, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SALDO_LABEL_SPACING)
+    ) {
+        Text(
+            text = "Saldo",
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted
+        )
+        MspMoneyText(
+            amount = saldo.amount,
+            masked = masked,
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted
+        )
+    }
+}
+
+/**
+ * Chip "por subir" (mockup: dot ámbar): texto + color, NUNCA color solo (accesibilidad) —
+ * la `contentDescription` sigue siendo el segundo portador redundante del estado. Reemplaza
+ * el dot pelón por un chip legible ahora que la fila tiene más contexto.
+ */
+@Composable
+private fun PendingUploadChip(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.semantics { contentDescription = PENDING_UPLOAD_DESCRIPTION },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(SALDO_LABEL_SPACING)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(SYNC_DOT_SIZE)
+                .clip(CircleShape)
+                .background(MspTheme.colors.statusPartial)
+        )
+        Text(
+            text = "Por subir",
+            style = MspTheme.type.captionStrong,
+            color = MspTheme.colors.statusPartial
+        )
     }
 }
 
@@ -205,59 +274,6 @@ private fun DayRow(
             color = MspTheme.colors.onSurface
         )
     }
-}
-
-/**
- * Pill de método de cobro (mockup `.m`): color + texto, NUNCA solo color — "Efectivo" en
- * verde `statusPaid`/`statusPaidTint`, "Transfer." en `brand`/`brandTint` (los únicos dos
- * que trae el mockup). Cheque/Otro no están en el mockup (parked, `PaymentMethod` los
- * clasifica aparte, ver su KDoc) pero SÍ pueden llegar del dominio, así que tienen un
- * matiz propio en vez de dejar el `when` no exhaustivo; Condonado es puramente defensivo —
- * la guarda anti-fuga de `ReportAggregator` ya excluye ese método de la lista de pagos.
- *
- * `MspStatusChip` (`:core:designsystem`) NO se reutiliza aquí a propósito: su paleta de
- * [com.example.msp_app.core.designsystem.component.ChipStatus] no tiene un matiz "brand"
- * (el que necesita Transferencia) y su ícono obligatorio se apartaría del `.m` del mockup
- * (solo color + texto, sin ícono) — mismo criterio que distingue el dot de [DuoTiles] del
- * `MspStatusChip`.
- */
-@Composable
-private fun MethodPill(method: PaymentMethod, modifier: Modifier = Modifier) {
-    Text(
-        text = method.pillLabel(),
-        style = MspTheme.type.captionStrong,
-        color = method.pillContentColor(),
-        modifier = modifier
-            .clip(MspTheme.shapes.chip)
-            .background(method.pillTintColor())
-            .padding(horizontal = MspTheme.spacing.sm, vertical = METHOD_PILL_VERTICAL_PADDING)
-    )
-}
-
-private fun PaymentMethod.pillLabel(): String = when (this) {
-    PaymentMethod.EFECTIVO -> "Efectivo"
-    PaymentMethod.TRANSFERENCIA -> "Transfer."
-    PaymentMethod.CHEQUE -> "Cheque"
-    PaymentMethod.CONDONACION -> "Condonado"
-    PaymentMethod.OTRO -> "Otro"
-}
-
-@Composable
-private fun PaymentMethod.pillContentColor(): Color = when (this) {
-    PaymentMethod.EFECTIVO -> MspTheme.colors.statusPaid
-    PaymentMethod.TRANSFERENCIA -> MspTheme.colors.brand
-    PaymentMethod.CHEQUE -> MspTheme.colors.statusInfo
-    PaymentMethod.CONDONACION -> MspTheme.colors.promise
-    PaymentMethod.OTRO -> MspTheme.colors.onSurfaceMuted
-}
-
-@Composable
-private fun PaymentMethod.pillTintColor(): Color = when (this) {
-    PaymentMethod.EFECTIVO -> MspTheme.colors.statusPaidTint
-    PaymentMethod.TRANSFERENCIA -> MspTheme.colors.brandTint
-    PaymentMethod.CHEQUE -> MspTheme.colors.statusInfoTint
-    PaymentMethod.CONDONACION -> MspTheme.colors.promiseTint
-    PaymentMethod.OTRO -> MspTheme.colors.progressTrack
 }
 
 /**

@@ -17,6 +17,13 @@ import java.time.Instant
  * @property paidAt instante del pago en UTC; la hora/día de negocio se deriva
  *   siempre en zona negocio vía `AppTime`, nunca la del dispositivo.
  * @property synced si ya subió al servidor (los pendientes se marcan en la UI).
+ * @property folio folio comercial de la venta asociada (p. ej. "A-10482"),
+ *   resuelto por el adapter con un join a `sales` sobre `DOCTO_CC_ACR_ID`
+ *   (mismo cruce que usa la app en `PaymentTicketScreen`). Vacío si la venta
+ *   ya no está en local — nunca se inventa.
+ * @property saldo saldo restante ACTUAL de la venta asociada (`sales.SALDO_REST`),
+ *   el mismo valor que la app muestra como "saldo actual"; `null` si la venta no
+ *   está en local. Es el saldo vivo, no el saldo al momento de este pago.
  */
 data class CollectionPayment(
     val id: String,
@@ -25,5 +32,7 @@ data class CollectionPayment(
     val amount: Money,
     val method: PaymentMethod,
     val paidAt: Instant,
-    val synced: Boolean
+    val synced: Boolean,
+    val folio: String = "",
+    val saldo: Money? = null
 )

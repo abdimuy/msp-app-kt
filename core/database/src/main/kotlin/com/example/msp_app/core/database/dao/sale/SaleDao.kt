@@ -6,11 +6,28 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.example.msp_app.core.database.entities.SaleEntity
+import com.example.msp_app.core.database.entities.SaleRefRow
 import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SaleDao {
+
+    /**
+     * Referencia ligera (folio + saldo restante) de un conjunto de ventas por su
+     * `DOCTO_CC_ACR_ID` — el mismo cruce que la app usa para abrir el ticket de un pago
+     * (`PaymentTicketScreen` -> `SaleDao.getById(payment.DOCTO_CC_ACR_ID)`). Proyección
+     * de solo lectura para enriquecer las filas de un pago con su venta sin traer las ~38
+     * columnas completas; no altera el schema (v27) ni el identityHash.
+     */
+    @Query(
+        """
+        SELECT DOCTO_CC_ACR_ID AS saleId, sales.FOLIO AS folio, SALDO_REST AS saldo
+        FROM sales
+        WHERE DOCTO_CC_ACR_ID IN (:acrIds)
+        """
+    )
+    suspend fun getSaleRefsByAcrIds(acrIds: List<Int>): List<SaleRefRow>
 
     @Query(
         """

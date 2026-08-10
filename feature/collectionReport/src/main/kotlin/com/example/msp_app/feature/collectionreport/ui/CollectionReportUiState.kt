@@ -137,7 +137,14 @@ data class TileUi(val label: String, val amount: Money = Money.ZERO, val count: 
  */
 data class ChipUi(val label: String, val amount: Money? = null, val count: Int? = null)
 
-/** Fila de un pago individual (detalle Día, orden vía [DetailSort]). */
+/**
+ * Fila de un pago individual (detalle Día, orden vía [DetailSort]).
+ *
+ * [folio] y [saldo] enriquecen la fila con la venta asociada (join a `sales` en el borde de
+ * datos, ver `CollectionPayment`): [folio] es el folio comercial ("A-10482", vacío si la venta
+ * ya no está en local) y [saldo] el saldo restante actual de esa venta (`null` si no está en
+ * local). Se muestran como contexto secundario de la fila, nunca inventados.
+ */
 data class PaymentRowUi(
     val id: String,
     val cliente: String,
@@ -145,7 +152,9 @@ data class PaymentRowUi(
     val paidAt: Instant,
     val amount: Money,
     val method: PaymentMethod,
-    val synced: Boolean
+    val synced: Boolean,
+    val folio: String = "",
+    val saldo: Money? = null
 )
 
 /** Fila de un día del ciclo (detalle Semana) — mapeo 1:1 de `ReportAggregator.DayTrend`. */

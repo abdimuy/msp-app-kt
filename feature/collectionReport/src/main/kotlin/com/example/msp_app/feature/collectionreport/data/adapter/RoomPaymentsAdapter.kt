@@ -2,7 +2,9 @@ package com.example.msp_app.feature.collectionreport.data.adapter
 
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.SaleRefRow
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
@@ -28,12 +30,13 @@ import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
  * preferible a subcontar dinero en silencio.
  */
 class RoomPaymentsAdapter(
-    private val paymentDao: PaymentDao
+    private val paymentDao: PaymentDao,
+    private val saleDao: SaleDao
 ) : PaymentsPort {
 
     override suspend fun paymentsIn(range: DateRange): List<CollectionPayment> = paymentDao
         .getPaymentsByDate(range.startIso, range.endExclusiveIso)
-        .map { it.toCollectionPayment() }
+        .enrichWithSale()
 
     override suspend fun forgivenessIn(range: DateRange): List<Forgiveness> = paymentDao
         .getForgivenessByDate(range.startIso, range.endExclusiveIso)
@@ -41,28 +44,53 @@ class RoomPaymentsAdapter(
 
     override suspend fun paymentsGroupedByDaySince(
         startIso: String
-    ): Map<String, List<CollectionPayment>> = paymentDao
-        .getPaymentsGroupedByDaySince(startIso)
-        .mapValues { (_, rows) -> rows.map { it.toCollectionPayment() } }
+    ): Map<String, List<CollectionPayment>> {
+        val grouped = paymentDao.getPaymentsGroupedByDaySince(startIso)
+        val refs = saleRefs(grouped.values.flatten())
+        return grouped.mapValues { (_, rows) -> rows.map { it.toCollectionPayment(refs) } }
+    }
 
     override suspend fun pendingCount(): Int = paymentDao.getPendingPayments().size
+
+    /**
+     * Resuelve la venta (folio + saldo) de cada pago con UN solo query batch a `sales` por
+     * `DOCTO_CC_ACR_ID` (evita el N+1 de un `getById` por pago), y mapea cada [PaymentEntity]
+     * a dominio con su venta ya resuelta. Un pago cuya venta ya no está en local queda con
+     * `folio = ""` / `saldo = null` (nunca inventado).
+     */
+    private suspend fun List<PaymentEntity>.enrichWithSale(): List<CollectionPayment> {
+        val refs = saleRefs(this)
+        return map { it.toCollectionPayment(refs) }
+    }
+
+    private suspend fun saleRefs(payments: List<PaymentEntity>): Map<Int, SaleRefRow> {
+        val acrIds = payments.map { it.DOCTO_CC_ACR_ID }.distinct()
+        if (acrIds.isEmpty()) return emptyMap()
+        return saleDao.getSaleRefsByAcrIds(acrIds).associateBy { it.saleId }
+    }
 }
 
 /**
- * `IMPORTE: Double` -> [Money] en el borde. `ventaLabel` usa
- * `DOCTO_CC_ACR_ID` (referencia de la venta): el schema v27 de `Payment` no
- * guarda el nombre comercial de la venta; enriquecerlo requeriría un join con
- * `sales` (deferido, YAGNI — no lo exige el mockup).
+ * `IMPORTE: Double` -> [Money] en el borde. `ventaLabel` usa `DOCTO_CC_ACR_ID` (referencia
+ * numérica de la venta). El folio comercial y el saldo restante se resuelven con un join a
+ * `sales` sobre `DOCTO_CC_ACR_ID` ([refs], el mismo cruce que la app en `PaymentTicketScreen`);
+ * si la venta ya no está en local (p. ej. saldada y prunada), `folio`/`saldo` quedan vacíos —
+ * la UI omite esas líneas, nunca las inventa.
  */
-private fun PaymentEntity.toCollectionPayment(): CollectionPayment = CollectionPayment(
-    id = ID,
-    cliente = NOMBRE_CLIENTE,
-    ventaLabel = DOCTO_CC_ACR_ID.toString(),
-    amount = Money.of(IMPORTE),
-    method = PaymentMethod.fromId(FORMA_COBRO_ID),
-    paidAt = AppTime.parseWireFormat(FECHA_HORA_PAGO),
-    synced = GUARDADO_EN_MICROSIP
-)
+private fun PaymentEntity.toCollectionPayment(refs: Map<Int, SaleRefRow>): CollectionPayment {
+    val ref = refs[DOCTO_CC_ACR_ID]
+    return CollectionPayment(
+        id = ID,
+        cliente = NOMBRE_CLIENTE,
+        ventaLabel = DOCTO_CC_ACR_ID.toString(),
+        amount = Money.of(IMPORTE),
+        method = PaymentMethod.fromId(FORMA_COBRO_ID),
+        paidAt = AppTime.parseWireFormat(FECHA_HORA_PAGO),
+        synced = GUARDADO_EN_MICROSIP,
+        folio = ref?.folio.orEmpty(),
+        saldo = ref?.let { Money.of(it.saldo) }
+    )
+}
 
 /**
  * Condonación desde una fila de `Payment` (forma 137026). `motivo` queda vacío:

@@ -2,6 +2,7 @@ package com.example.msp_app.feature.collectionreport.di
 
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.feature.collectionreport.data.adapter.RoomHistoricalTotalsAdapter
 import com.example.msp_app.feature.collectionreport.data.adapter.RoomPaymentsAdapter
@@ -49,7 +50,8 @@ annotation class DefaultDispatcher
 object CollectionReportDataModule {
 
     @Provides
-    fun providePaymentsPort(paymentDao: PaymentDao): PaymentsPort = RoomPaymentsAdapter(paymentDao)
+    fun providePaymentsPort(paymentDao: PaymentDao, saleDao: SaleDao): PaymentsPort =
+        RoomPaymentsAdapter(paymentDao, saleDao)
 
     @Provides
     fun provideVisitsPort(visitDao: VisitDao): VisitsPort = RoomVisitsAdapter(visitDao)

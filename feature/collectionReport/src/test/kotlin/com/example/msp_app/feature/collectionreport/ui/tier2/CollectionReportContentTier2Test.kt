@@ -126,8 +126,8 @@ class CollectionReportContentTier2Test : RobolectricTestBase() {
     fun `con masked verdadero todos los montos del duo y del chip Condonado se ocultan`() {
         setContent(MockupFixtures.stateDia(masked = true))
 
-        // hero (monto+goalCap+2 wells) + Efectivo + Transferencia + Condonado + 4 pagos = 11,
-        // mismo total que Tier 1 (mismo estado, misma cobertura de `masked`).
+        // hero (monto+goalCap+2 wells) + Efectivo + Transferencia + Condonado + 4 pagos × 2
+        // (monto + saldo enriquecido) = 15, mismo total que Tier 1 (mismo estado).
         // `useUnmergedTree = true`: ver el comentario equivalente en `CollectionReportContentTest`.
         composeTestRule.onAllNodesWithText(MASKED_MONEY, useUnmergedTree = true)
             .assertCountEquals(TOTAL_MASKED_MONEY_NODES)
@@ -153,6 +153,6 @@ class CollectionReportContentTier2Test : RobolectricTestBase() {
     }
 
     private companion object {
-        const val TOTAL_MASKED_MONEY_NODES = 11
+        const val TOTAL_MASKED_MONEY_NODES = 15
     }
 }

@@ -338,7 +338,8 @@ class CollectionReportContentTest : RobolectricTestBase() {
 
         // Auditoría de completitud (task-9-brief.md): monto del hero + goal cap + los dos
         // wells (Efectivo en mano/Ticket prom.) = 4, + duo (Efectivo/Transferencia) = 2,
-        // + chip Condonado = 1, + 4 filas de pago del detalle Día = 4 -> 11 ocurrencias de
+        // + chip Condonado = 1, + 4 filas de pago del detalle Día × 2 (monto del pago + saldo
+        // de la venta enriquecido) = 8 -> 15 ocurrencias de
         // `MASKED_MONEY` — ningún monto crudo se cuela sin `masked`. `useUnmergedTree = true`:
         // el hero/tiles/chip/filas son contenedores clickables que MERGEAN sus descendientes
         // en un solo nodo de semántica (varias ocurrencias de texto colapsan a UN nodo); el
@@ -378,6 +379,6 @@ class CollectionReportContentTest : RobolectricTestBase() {
         const val MASKED_INSIGHT_GLYPH = "•••"
 
         // Ver el desglose completo en el test que lo consume.
-        const val TOTAL_MASKED_MONEY_NODES = 11
+        const val TOTAL_MASKED_MONEY_NODES = 15
     }
 }

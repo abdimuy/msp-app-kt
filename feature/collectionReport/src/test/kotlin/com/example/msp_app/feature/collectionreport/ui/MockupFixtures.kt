@@ -83,41 +83,51 @@ internal object MockupFixtures {
         )
     )
 
-    /** Filas de pago Día (mockup `PAYS`) — nombres/ventas/montos/método EXACTOS del mockup. */
+    /**
+     * Filas de pago Día (mockup `PAYS`) — nombres/montos/método del mockup, enriquecidas con
+     * folio comercial + saldo restante de la venta (fix de dispositivo: la fila mostraba el
+     * `DOCTO_CC_ACR_ID` crudo y sin saldo). Folios/saldos representativos (mexicanos, peso
+     * entero) para el golden de la fila enriquecida.
+     */
     fun paymentsDia(): List<PaymentRowUi> = listOf(
-        paymentRow(
-            "p-ml",
-            "María López Hernández",
-            "Muebles Bahía",
-            "09:12",
-            "1200",
-            PaymentMethod.EFECTIVO
-        ),
-        paymentRow(
-            "p-jp",
-            "Juan Pérez Ramírez",
-            "Recámara Diana",
-            "09:40",
-            "850",
-            PaymentMethod.TRANSFERENCIA
-        ),
-        paymentRow(
-            "p-rm",
-            "Rosa Martínez Cruz",
-            "Sala Toscana",
-            "10:05",
-            "1500",
-            PaymentMethod.EFECTIVO
-        ),
-        paymentRow(
-            "p-ps",
-            "Pedro Sánchez Ortiz",
-            "Comedor Roble",
-            "11:20",
-            "2000",
-            PaymentMethod.EFECTIVO
-        )
+        paymentRow("p-ml", "María López Hernández", "Muebles Bahía", "09:12", "1200", EFEC)
+            .copy(folio = "A-10482", saldo = money("5400")),
+        paymentRow("p-jp", "Juan Pérez Ramírez", "Recámara Diana", "09:40", "850", TRANSF)
+            .copy(folio = "A-10517", saldo = money("3200")),
+        paymentRow("p-rm", "Rosa Martínez Cruz", "Sala Toscana", "10:05", "1500", EFEC)
+            .copy(folio = "A-10233", saldo = money("8750")),
+        paymentRow("p-ps", "Pedro Sánchez Ortiz", "Comedor Roble", "11:20", "2000", EFEC)
+            .copy(folio = "A-10604", saldo = money("12500"))
     )
+
+    // Nombres mexicanos para la lista larga (fix de dispositivo: verificar que TODOS los pagos
+    // son alcanzables al hacer scroll). Se ciclan por índice; suficiente para el golden.
+    private val MANY_CLIENTES = listOf(
+        "María López Hernández", "Juan Pérez Ramírez", "Rosa Martínez Cruz",
+        "Pedro Sánchez Ortiz", "Lucía Fernández Mora", "Roberto Aguilar Díaz",
+        "Verónica Castillo Ramos", "Héctor Domínguez León", "Patricia Núñez Vega",
+        "Alejandro Reyes Ortiz", "Gabriela Mendoza Ríos", "Sergio Vargas Peña"
+    )
+
+    /**
+     * Lista LARGA de pagos Día ([count] filas, 23 por defecto) — golden de scroll (fix de
+     * dispositivo): con muchos pagos la lista debe poder recorrerse hasta el último. Datos
+     * deterministas (nombre ciclado, folio/hora/monto/saldo por índice), método alternado y
+     * una de cada cinco filas sin sincronizar para ejercer el chip "Por subir".
+     */
+    fun manyPaymentsDia(count: Int = 23): List<PaymentRowUi> = (1..count).map { i ->
+        val hora = "%02d:%02d".format(7 + (i % 12), (i * 7) % 60)
+        val monto = (400 + (i * 173) % 2200).toString()
+        val saldo = (600 + (i * 311) % 9000).toString()
+        paymentRow(
+            id = "many-$i",
+            cliente = MANY_CLIENTES[i % MANY_CLIENTES.size],
+            ventaLabel = (70000 + i).toString(),
+            hora = hora,
+            monto = monto,
+            method = if (i % 3 == 0) TRANSF else EFEC
+        ).copy(folio = "A-${10000 + i}", saldo = money(saldo), synced = i % 5 != 0)
+    }
 
     /**
      * Condonaciones (mockup `SHEETS.condon` filas) — cliente/monto EXACTOS del mockup, pero
