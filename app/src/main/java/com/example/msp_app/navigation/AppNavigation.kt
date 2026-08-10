@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,6 +68,7 @@ import com.example.msp_app.features.transfers.presentation.detail.TransferDetail
 import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
 import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
 import com.example.msp_app.features.visit.screens.VisitTicketScreen
+import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 
 sealed class Screen(val route: String) {
@@ -376,16 +378,33 @@ fun AppNavigation() {
                 // `onMenuClick` al botón de menú del propio encabezado del reporte. La
                 // selección Tier 1 / Tier 2 sigue el `fontScale` del SO (accesibilidad "Muy
                 // grande") vía [rememberReportTier].
+                //
+                // `onThemeChanged` (fix defecto visual, íconos de barra de estado): el reporte
+                // tiene su PROPIO tema local (`state.darkTheme`, desacoplado de
+                // `ThemeController` por diseño — ver KDoc de `CollectionReportScreen`); sin
+                // este cableo la barra de sistema se queda con la apariencia de ANTES de
+                // entrar al reporte y los íconos se vuelven invisibles si el reporte cambia a
+                // oscuro mientras el resto de la app sigue en claro. `DisposableEffect`
+                // restaura la apariencia al tema real de la app (`isDarkMode`) al SALIR de esta
+                // ruta, para que el reporte no deje los íconos "pegados" a su último estado al
+                // navegar a otra pantalla.
+                DisposableEffect(Unit) {
+                    onDispose {
+                        ThemeController.reportStatusBarAppearanceDark(ThemeController.isDarkMode)
+                    }
+                }
                 DrawerContainer(navController = navController) { openDrawer ->
                     when (rememberReportTier()) {
                         ReportTier.TIER_2 -> CollectionReportScreenTier2(
                             navController = navController,
-                            onMenuClick = openDrawer
+                            onMenuClick = openDrawer,
+                            onThemeChanged = ThemeController::reportStatusBarAppearanceDark
                         )
 
                         ReportTier.TIER_1 -> CollectionReportScreen(
                             navController = navController,
-                            onMenuClick = openDrawer
+                            onMenuClick = openDrawer,
+                            onThemeChanged = ThemeController::reportStatusBarAppearanceDark
                         )
                     }
                 }

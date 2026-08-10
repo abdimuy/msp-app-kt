@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -19,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,6 +62,12 @@ import kotlinx.coroutines.withContext
  * acciones difuminada del pie (mockup `.actions`, Task 8), que se monta encima como overlay
  * de este mismo `Box`. No es un token de [MspTheme.spacing] (`xs`/`sm`/`md`/`lg`): es un
  * valor propio de este scaffold, igual que `HERO_PADDING` en `MspHeroTodayCard`.
+ *
+ * Cubre solo la altura FIJA de [com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar]
+ * (padding + botones); el inset real de la barra de navegación del sistema (variable por
+ * dispositivo) lo agrega por separado `.navigationBarsPadding()` en el `Column` de abajo —
+ * mismo componente, mismo inset, sin duplicar el número a mano (fix defecto visual: contenido
+ * no queda tapado por barra de acciones + barra de navegación del sistema).
  */
 private val SCROLL_BOTTOM_CONTENT_PADDING = 96.dp
 
@@ -98,6 +106,17 @@ private const val ENTRANCE_DETAIL_LIST = 8
  * CADA test envuelve su propio contenido en un `MspTheme{}` de scaffolding (nunca ejercitan
  * este composable de entrada). Detectado por el smoke e2e de dispositivo (Task 11,
  * `CollectionReportDeviceSmokeTest`), el único test que monta la `MainActivity` real.
+ *
+ * **[onThemeChanged] (fix defecto visual, íconos de barra de estado):** `state.darkTheme` es un
+ * espejo LOCAL (ver KDoc de `CollectionReportViewModel.toggleTheme`) — nunca toca
+ * `ThemeController`/`MspappTheme` del resto de la app, así que sin este callback la barra de
+ * sistema (`MainActivity`, `enableEdgeToEdge`) se queda con la apariencia de íconos de lo que
+ * sea que mostraba ANTES de entrar al reporte, y se vuelve invisible si el reporte entra en
+ * oscuro mientras el resto de la app sigue en claro (o viceversa). Default no-op: nada cambia
+ * para callers/tests que no lo cablean; `:app` (composition root, `AppNavigation`) lo conecta a
+ * `ThemeController.setStatusBarAppearanceDark` SIN tocar `ThemeController.isDarkMode` — el tema
+ * local del reporte no se filtra al resto de la app, solo corrige el color de los íconos
+ * mientras el reporte está en pantalla.
  */
 @Suppress("UnusedParameter") // navController: firma reservada (el reporte no navega saliente).
 @OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet (ReportSheets).
@@ -105,9 +124,11 @@ private const val ENTRANCE_DETAIL_LIST = 8
 fun CollectionReportScreen(
     navController: NavController,
     viewModel: CollectionReportViewModel = hiltViewModel(),
-    onMenuClick: () -> Unit = {}
+    onMenuClick: () -> Unit = {},
+    onThemeChanged: (Boolean) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(state.darkTheme) { onThemeChanged(state.darkTheme) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     // Permiso de Bluetooth para imprimir (P2). En API 31+ imprimir necesita CONNECT + SCAN
@@ -265,7 +286,8 @@ internal fun CollectionReportContent(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = MspTheme.spacing.md)
-                .padding(top = MspTheme.spacing.sm, bottom = SCROLL_BOTTOM_CONTENT_PADDING),
+                .padding(top = MspTheme.spacing.sm, bottom = SCROLL_BOTTOM_CONTENT_PADDING)
+                .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
         ) {
             StaggeredEntrance(index = ENTRANCE_HEADER) {

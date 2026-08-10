@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -18,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -57,7 +59,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Mismo colchón inferior que Tier 1 (`CollectionReportScreen.SCROLL_BOTTOM_CONTENT_PADDING`). */
+/**
+ * Mismo colchón inferior que Tier 1 (`CollectionReportScreen.SCROLL_BOTTOM_CONTENT_PADDING`) —
+ * cubre solo la altura fija de la barra de acciones; el inset real de la barra de navegación
+ * del sistema lo agrega `.navigationBarsPadding()` en el `Column` de abajo (mismo fix que
+ * Tier 1, ver su KDoc).
+ */
 private val SCROLL_BOTTOM_CONTENT_PADDING = 96.dp
 
 /** Target táctil mínimo curado de Tier 2 (spec §5: "targets mayores") — encima de las 40dp
@@ -90,6 +97,12 @@ private const val ENTRANCE_DETAIL_LIST = 10
  * [com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen] (Tier 1): sin esto
  * `MspTheme.colors` revienta en cuanto `:app` monta este composable de verdad (nunca detectado
  * antes porque los tests del módulo siempre aportan su propio `MspTheme{}`).
+ *
+ * **[onThemeChanged] (fix defecto visual, íconos de barra de estado)** — mismo motivo que
+ * [com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen] (Tier 1, ver su
+ * KDoc): `state.darkTheme` es un espejo local que no toca `ThemeController`; este callback
+ * (default no-op) deja que `:app` mantenga los íconos de la barra de sistema correctos
+ * mientras este composable está en pantalla.
  */
 @Suppress(
     "UnusedParameter"
@@ -99,9 +112,11 @@ private const val ENTRANCE_DETAIL_LIST = 10
 fun CollectionReportScreenTier2(
     navController: NavController,
     viewModel: CollectionReportViewModel = hiltViewModel(),
-    onMenuClick: () -> Unit = {}
+    onMenuClick: () -> Unit = {},
+    onThemeChanged: (Boolean) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(state.darkTheme) { onThemeChanged(state.darkTheme) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val onDiaCicloClick: (Int) -> Unit = { index ->
@@ -205,7 +220,8 @@ internal fun CollectionReportContentTier2(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = MspTheme.spacing.lg)
-                .padding(top = MspTheme.spacing.md, bottom = SCROLL_BOTTOM_CONTENT_PADDING),
+                .padding(top = MspTheme.spacing.md, bottom = SCROLL_BOTTOM_CONTENT_PADDING)
+                .navigationBarsPadding(),
             verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.lg)
         ) {
             StaggeredEntrance(index = ENTRANCE_HEADER) {

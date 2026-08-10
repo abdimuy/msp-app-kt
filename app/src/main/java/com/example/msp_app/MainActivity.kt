@@ -15,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.msp_app.core.context.LocalConnectivityState
 import com.example.msp_app.core.context.rememberConnectivityState
@@ -85,6 +86,24 @@ class MainActivity : FragmentActivity() {
 
         setContent {
             val connectivityState by rememberConnectivityState()
+
+            // `enableEdgeToEdge()` fija el color de los íconos de la barra de sistema según el
+            // tema del SISTEMA, no el toggle de tema DENTRO de la app — si el usuario pone la
+            // app en oscuro con el SO en claro (o viceversa), los íconos (reloj/wifi/batería)
+            // quedan del color del SO y se vuelven invisibles contra el fondo de la app (negro
+            // sobre negro en oscuro). Se corrige leyendo `ThemeController.statusBarAppearanceDark`
+            // (estado de Compose, dispara este efecto en cada cambio — sigue a `isDarkMode` por
+            // defecto pero también refleja el tema LOCAL de pantallas desacopladas como el
+            // reporte de cobranza, ver KDoc de `ThemeController.statusBarAppearanceDark`) y
+            // fijando la apariencia de íconos vía `WindowInsetsControllerCompat`: tema claro ->
+            // íconos oscuros (`isAppearanceLight* = true`), tema oscuro -> íconos claros
+            // (`false`).
+            val isDarkTheme = ThemeController.statusBarAppearanceDark
+            LaunchedEffect(isDarkTheme) {
+                val insetsController = WindowInsetsControllerCompat(window, window.decorView)
+                insetsController.isAppearanceLightStatusBars = !isDarkTheme
+                insetsController.isAppearanceLightNavigationBars = !isDarkTheme
+            }
 
             MspappTheme(dynamicColor = false) {
                 CompositionLocalProvider(

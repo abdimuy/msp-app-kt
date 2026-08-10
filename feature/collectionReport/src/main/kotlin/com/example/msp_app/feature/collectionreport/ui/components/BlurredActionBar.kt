@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -59,6 +60,13 @@ private const val SOLID_STOP_FRACTION = 0.44f
  *
  * No lleva `contentPadding` para el scroll — eso lo define el caller
  * (`CollectionReportScreen`, ya lo hace vía `SCROLL_BOTTOM_CONTENT_PADDING`).
+ *
+ * **Inset de la barra de navegación del sistema (fix defecto visual):** el degradado se pinta
+ * ANTES de `navigationBarsPadding()` en la cadena de modificadores, así que sigue edge-to-edge
+ * (se extiende detrás de la barra de navegación, igual que el fondo del status bar en
+ * [com.example.msp_app.feature.collectionreport.ui.CollectionReportContent]); `.padding()` de
+ * los botones va DESPUÉS del inset, así que son los botones (no el fondo) los que suben para
+ * quedar arriba de la barra de navegación — nunca tapados por los `||| ◯ ‹` del sistema.
  */
 @Composable
 fun BlurredActionBar(
@@ -80,6 +88,7 @@ fun BlurredActionBar(
                     )
                 )
             )
+            .navigationBarsPadding()
             .padding(
                 start = ACTION_BAR_SIDE_PADDING,
                 end = ACTION_BAR_SIDE_PADDING,
