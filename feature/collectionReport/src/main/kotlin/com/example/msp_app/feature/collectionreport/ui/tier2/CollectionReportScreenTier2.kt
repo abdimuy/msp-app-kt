@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -194,6 +195,10 @@ internal fun CollectionReportContentTier2(
         modifier = modifier
             .fillMaxSize()
             .background(MspTheme.colors.background)
+            // Inset del status bar (mismo fix que Tier 1, ver KDoc de
+            // [com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen]): fondo
+            // edge-to-edge, contenido corrido debajo del status bar.
+            .statusBarsPadding()
     ) {
         Column(
             modifier = Modifier

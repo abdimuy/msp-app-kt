@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -251,6 +252,13 @@ internal fun CollectionReportContent(
         modifier = modifier
             .fillMaxSize()
             .background(MspTheme.colors.background)
+            // Inset del status bar (fix defecto visual, ver KDoc de [CollectionReportScreen]):
+            // el fondo sigue edge-to-edge (pintado ANTES de este padding), solo el contenido
+            // (header incl.) se corre debajo del status bar del sistema. Mismo patrón que
+            // `Scaffold(modifier = Modifier.statusBarsPadding())` de `HomeScreen`/`SalesScreen`
+            // — este piloto no usa `Scaffold` (KDoc de [CollectionReportContent]), así que el
+            // inset se aplica directo al contenedor raíz del contenido.
+            .statusBarsPadding()
     ) {
         Column(
             modifier = Modifier
