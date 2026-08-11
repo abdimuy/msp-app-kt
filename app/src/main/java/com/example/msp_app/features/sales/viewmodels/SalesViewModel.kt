@@ -12,13 +12,11 @@ import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.services.sales.SalesApi
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
-import com.example.msp_app.data.local.datasource.product.ProductsLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.SalesLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.guarantee.toEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toEntity
-import com.example.msp_app.data.models.product.toEntity
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toDomain
@@ -40,7 +38,6 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     private val clock: AppClock = AppClock.System
     private val api: SalesApi get() = ApiProvider.create(SalesApi::class.java)
     private val saleStore = SalesLocalDataSource(application.applicationContext)
-    private val productStore = ProductsLocalDataSource(application.applicationContext)
     private val paymentStore = PaymentsLocalDataSource(application.applicationContext)
     private val visitsStore = VisitsLocalDataSource(application.applicationContext)
     private val guaranteeStore = GuaranteesLocalDataSource(application.applicationContext)
@@ -131,12 +128,18 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Sincroniza catálogos auxiliares (productos, garantías y eventos de
-     * garantías) desde el endpoint legacy del backend Node. Las ventas y los
-     * pagos ya no se traen por esta ruta — el
-     * [com.example.msp_app.core.sync.cobranza.CobranzaSyncManager] los
-     * mantiene actualizados cada 30 s contra el backend v2 de forma
-     * incremental y offline-aware.
+     * Sincroniza catálogos auxiliares (garantías y eventos de garantías)
+     * desde el endpoint legacy del backend Node. Las ventas, los pagos y los
+     * productos ya no se traen por esta ruta:
+     *   - Ventas/pagos los mantiene el
+     *     [com.example.msp_app.core.sync.cobranza.CobranzaSyncManager] cada
+     *     30 s contra el backend v2 de forma incremental y offline-aware.
+     *   - Productos ahora viajan embebidos en cada venta del sync v2
+     *     (`VentaDto.productos`) y se persisten por folio en
+     *     [com.example.msp_app.core.sync.cobranza.CobranzaSyncManager.mergeVentas].
+     *     Este endpoint legacy ya NO debe tocar la tabla `products` — hacía
+     *     un `deleteAll()` global que borraría el upsert por folio del
+     *     backend Go en cuanto corriera después.
      */
     fun syncSales(zona: Int, dateInit: String) {
         viewModelScope.launch {
@@ -147,11 +150,9 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                     dateInit = dateInit
                 )
 
-                val products = salesData.body.productos
                 val guarantees = salesData.body.garantias
                 val guaranteesEvent = salesData.body.eventosGarantias
 
-                productStore.saveAll(products.map { it.toEntity() })
                 guaranteeStore.saveAllGurantees(guarantees.map { it.toEntity() })
                 guaranteeStore.saveAllGuaranteeEvents(guaranteesEvent.map { it.toEntity() })
                 // Solo se podan las visitas ya confirmadas por el servidor

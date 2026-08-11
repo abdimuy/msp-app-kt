@@ -21,6 +21,12 @@ internal const val SEGMENT_CHIP_TAG_PREFIX = "msp_segment_chip_"
 
 private val TRACK_PADDING = 4.dp
 private val SEGMENT_VERTICAL_PADDING = 10.dp
+
+// Padding horizontal de cada segmento en modo compacto ([equalWidth] = false):
+// da ancho al chip a partir de su texto (mockup `.seg span{padding:5px 12px}`).
+// En modo full-width ([equalWidth] = true) el `weight(1f)` ya reparte el ancho,
+// así que este padding no aplica.
+private val SEGMENT_HORIZONTAL_PADDING = 12.dp
 private val SEGMENT_SHADOW_ELEVATION = 1.dp
 
 /**
@@ -47,7 +53,8 @@ fun MspSegmentChips(
     options: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    equalWidth: Boolean = true
 ) {
     Row(
         modifier = modifier
@@ -57,9 +64,15 @@ fun MspSegmentChips(
     ) {
         options.forEachIndexed { index, option ->
             val selected = index == selectedIndex
+            // equalWidth=true (mockup `.period`): los segmentos reparten el ancho por
+            // igual (`weight(1f)`) y el track llena el contenedor. equalWidth=false
+            // (mockup `.seg`): cada segmento se dimensiona a su texto + padding
+            // horizontal, y el track queda compacto — para convivir con un label al
+            // lado sin encimarse (ver DetailHeader).
+            val widthModifier = if (equalWidth) Modifier.weight(1f) else Modifier
+            val horizontalPadding = if (equalWidth) 0.dp else SEGMENT_HORIZONTAL_PADDING
             Box(
-                modifier = Modifier
-                    .weight(1f)
+                modifier = widthModifier
                     .then(
                         if (selected) {
                             Modifier.shadow(
@@ -74,7 +87,7 @@ fun MspSegmentChips(
                     .clip(MspTheme.shapes.chip)
                     .background(if (selected) MspTheme.colors.surface else Color.Transparent)
                     .clickable(onClick = { onSelect(index) })
-                    .padding(vertical = SEGMENT_VERTICAL_PADDING)
+                    .padding(horizontal = horizontalPadding, vertical = SEGMENT_VERTICAL_PADDING)
                     .testTag("$SEGMENT_CHIP_TAG_PREFIX$index"),
                 contentAlignment = Alignment.Center
             ) {

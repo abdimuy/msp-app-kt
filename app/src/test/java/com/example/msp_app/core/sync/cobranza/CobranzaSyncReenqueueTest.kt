@@ -45,6 +45,7 @@ class CobranzaSyncReenqueueTest : RoomTestBase() {
             db = db,
             saleDao = db.saleDao(),
             paymentDao = db.paymentDao(),
+            productDao = db.productDao(),
             syncStateDao = db.cobranzaSyncStateDao(),
             connectivity = FakeConnectivity(online = true),
             userContextFlow = MutableStateFlow(

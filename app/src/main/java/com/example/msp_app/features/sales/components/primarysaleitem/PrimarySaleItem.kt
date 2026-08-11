@@ -75,13 +75,6 @@ fun PrimarySaleItem(
         sale.SALDO_REST == sale.PRECIO_TOTAL - sale.ENGANCHE
     }
 
-    val formattedDiaCobranza = runCatching {
-        ZonedDateTime
-            .parse(sale.DIA_TEMPORAL_COBRANZA, DateTimeFormatter.ISO_OFFSET_DATE_TIME)
-            .withZoneSameInstant(ZoneId.systemDefault())
-            .format(DateTimeFormatter.ofPattern("dd MMM HH:mm"))
-    }.getOrDefault(sale.DIA_TEMPORAL_COBRANZA).uppercase()
-
     val latePayments = sale.NUM_PAGOS_ATRASADOS
     val message = when {
         latePayments < 1 -> "No tiene atrasa."
@@ -312,57 +305,24 @@ fun PrimarySaleItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (sale.DIA_TEMPORAL_COBRANZA.isNotEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = Color(0xFFFF9800),
-                                shape = MaterialTheme.shapes.small
+                Text(
+                    buildAnnotatedString {
+                        withStyle(style = SpanStyle(fontSize = 16.sp)) {
+                            append("Abonado: ")
+                        }
+                        withStyle(
+                            style = SpanStyle(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
                             )
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            buildAnnotatedString {
-                                withStyle(
-                                    style = SpanStyle(
-                                        fontSize = 14.sp,
-                                        color = Color.White
-                                    )
-                                ) {
-                                    append("Visitar: ")
-                                }
-                                withStyle(
-                                    style = SpanStyle(
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White
-                                    )
-                                ) {
-                                    append(formattedDiaCobranza)
-                                }
-                            }
-                        )
-                    }
-                } else {
-                    Text(
-                        buildAnnotatedString {
-                            withStyle(style = SpanStyle(fontSize = 16.sp)) {
-                                append("Abonado: ")
-                            }
-                            withStyle(
-                                style = SpanStyle(
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            ) {
-                                append(text = "$${(sale.PRECIO_TOTAL - sale.SALDO_REST).toInt()}")
-                            }
-                        },
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                        ) {
+                            append(text = "$${(sale.PRECIO_TOTAL - sale.SALDO_REST).toInt()}")
+                        }
+                    },
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
                 Text(
                     buildAnnotatedString {
                         withStyle(style = SpanStyle(fontSize = 16.sp)) {

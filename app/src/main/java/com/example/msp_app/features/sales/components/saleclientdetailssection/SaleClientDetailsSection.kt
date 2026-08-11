@@ -111,7 +111,6 @@ fun SaleClientDetailsSection(sale: Sale, modifier: Modifier = Modifier) {
                 label = "Aval o responsable",
                 value = sale.AVAL_O_RESPONSABLE.toString()
             )
-            InfoField(label = "Notas:", value = sale.NOTAS)
             InfoField(
                 label = "Vendedores:",
                 value =

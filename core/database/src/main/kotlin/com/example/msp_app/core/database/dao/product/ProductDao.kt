@@ -46,4 +46,7 @@ interface ProductDao {
 
     @Query("DELETE FROM products")
     suspend fun deleteAll()
+
+    @Query("DELETE FROM products WHERE FOLIO = :folio")
+    suspend fun deleteByFolio(folio: String)
 }

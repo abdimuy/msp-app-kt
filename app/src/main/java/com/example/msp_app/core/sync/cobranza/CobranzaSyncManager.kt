@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
 import com.example.msp_app.core.network.ConnectivityMonitor
@@ -12,6 +13,7 @@ import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.VentaDto
 import com.example.msp_app.data.api.services.cobranza.toEntity
+import com.example.msp_app.data.models.product.toEntity
 import java.time.Instant
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +54,7 @@ class CobranzaSyncManager(
     private val db: AppDatabase,
     private val saleDao: SaleDao,
     private val paymentDao: PaymentDao,
+    private val productDao: ProductDao,
     private val syncStateDao: CobranzaSyncStateDao,
     private val connectivity: ConnectivityMonitor,
     private val userContextFlow: StateFlow<UserContext?>,
@@ -396,12 +399,18 @@ class CobranzaSyncManager(
      *    menos un pago dentro de la ventana del cobrador. Sin pagos en
      *    ventana, la venta se borra (los pagos se conservan por SAT y para
      *    los reportes históricos).
+     *
+     *  - Productos: cada rama que borra o upsertea la venta reemplaza sus
+     *    productos por folio (`productDao.deleteByFolio` + `saveAll`), así
+     *    el backend Go queda como única fuente — ya no se descargan por el
+     *    endpoint Node legacy.
      */
     private suspend fun mergeVentas(items: List<VentaDto>, desdeIso: String?) {
         for (dto in items) {
             if (dto.cargo_cancelado) {
                 saleDao.deleteByDoctoCcId(dto.docto_cc_id)
                 paymentDao.deleteByDoctoCcAcrId(dto.docto_cc_id)
+                productDao.deleteByFolio(dto.folio)
                 continue
             }
             val saldo = dto.saldo.toDoubleOrNull() ?: 0.0
@@ -411,6 +420,7 @@ class CobranzaSyncManager(
                     // Saldada fuera de la ventana del cobrador — la quito
                     // de la lista visible. Los Payment quedan intactos.
                     saleDao.deleteByDoctoCcId(dto.docto_cc_id)
+                    productDao.deleteByFolio(dto.folio)
                     continue
                 }
                 // Saldada con pagos en ventana → cae al upsert normal.
@@ -426,6 +436,8 @@ class CobranzaSyncManager(
                 )
             }
             saleDao.insertAll(listOf(merged))
+            productDao.deleteByFolio(dto.folio)
+            productDao.saveAll(dto.productos.map { it.toEntity() })
         }
     }
 

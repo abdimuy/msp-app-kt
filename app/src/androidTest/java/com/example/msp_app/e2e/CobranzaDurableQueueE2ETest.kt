@@ -174,6 +174,7 @@ class CobranzaDurableQueueE2ETest : PagosE2ETestBase() {
             db = db,
             saleDao = db.saleDao(),
             paymentDao = db.paymentDao(),
+            productDao = db.productDao(),
             syncStateDao = db.cobranzaSyncStateDao(),
             connectivity = FakeConnectivity(context),
             userContextFlow = MutableStateFlow(

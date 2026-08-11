@@ -52,6 +52,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         db = db,
         saleDao = db.saleDao(),
         paymentDao = db.paymentDao(),
+        productDao = db.productDao(),
         syncStateDao = db.cobranzaSyncStateDao(),
         connectivity = newConnectivity(online),
         userContextFlow = MutableStateFlow(
@@ -448,6 +449,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             db = db,
             saleDao = db.saleDao(),
             paymentDao = db.paymentDao(),
+            productDao = db.productDao(),
             syncStateDao = db.cobranzaSyncStateDao(),
             connectivity = newConnectivity(true),
             userContextFlow = MutableStateFlow(

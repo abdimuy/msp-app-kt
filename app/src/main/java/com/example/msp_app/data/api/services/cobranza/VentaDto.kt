@@ -2,6 +2,7 @@ package com.example.msp_app.data.api.services.cobranza
 
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.entities.SaleEntity
+import com.example.msp_app.data.models.product.Product
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -54,7 +55,8 @@ data class VentaDto(
     val vendedor_1: String,
     val vendedor_2: String,
     val vendedor_3: String,
-    val frec_pago: String
+    val frec_pago: String,
+    val productos: List<Product> = emptyList()
 )
 
 /**

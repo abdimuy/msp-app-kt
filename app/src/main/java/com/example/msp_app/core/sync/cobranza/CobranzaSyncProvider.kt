@@ -60,6 +60,7 @@ object CobranzaSyncProvider {
             db = db,
             saleDao = db.saleDao(),
             paymentDao = db.paymentDao(),
+            productDao = db.productDao(),
             syncStateDao = db.cobranzaSyncStateDao(),
             connectivity = ConnectivityMonitor.getInstance(context),
             userContextFlow = currentContext.asStateFlow(),
