@@ -1,13 +1,12 @@
 package com.example.msp_app.feature.collectionreport.ui
 
-import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -106,18 +105,15 @@ class CollectionReportContentTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `el hero muestra el monto formateado y la barra a la fraccion del estado`() {
+    fun `el hero muestra el monto formateado y ya no trae barra de progreso (retirada por Meta de la semana)`() {
         setContent(MockupFixtures.stateDia())
 
         composeTestRule.onNodeWithText(formatMoneyMxn(BigDecimal("18300"))).assertIsDisplayed()
+        // La barra de progreso del hero (meta de mediana) fue retirada — "Meta de la semana"
+        // (MetaCard) reemplaza esa cifra con anillos reales, ver KDoc de HeroUi/MspHeroTodayCard.
         composeTestRule
-            .onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
-            .assert(
-                SemanticsMatcher.expectValue(
-                    SemanticsProperties.ProgressBarRangeInfo,
-                    ProgressBarRangeInfo(HERO_PROGRESS, 0f..1f)
-                )
-            )
+            .onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo))
+            .assertCountEquals(0)
     }
 
     @Test
@@ -148,12 +144,11 @@ class CollectionReportContentTest : RobolectricTestBase() {
     fun `el duo muestra los montos formateados y los conteos de efectivo y transferencia`() {
         setContent(MockupFixtures.stateDia())
 
-        // "$12,100" también es el well "Efectivo en mano" del hero (mismo monto real,
-        // ambos vienen de `ReportAggregator.efectivoEnMano`/`.efectivo`) — dos nodos con el
-        // mismo texto; el well se compone primero (índice 0), el tile del duo después.
-        composeTestRule.onAllNodesWithText(
+        // El well "Efectivo en mano" del hero fue retirado (ver KDoc de HeroUi/HeroSection) —
+        // "$12,100" ahora aparece UNA sola vez, en el tile del duo.
+        composeTestRule.onNodeWithText(
             formatMoneyMxn(BigDecimal("12100"))
-        )[1].performScrollTo().assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("22 pagos").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText(
             formatMoneyMxn(BigDecimal("6200"))
@@ -217,14 +212,30 @@ class CollectionReportContentTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText("Nombre").performScrollTo().assertIsDisplayed()
     }
 
+    // Task 4: antes Semana NO mostraba el segment de orden ("siempre cronológico, nada que
+    // reordenar"); ahora también reordena los pagos individuales dentro de cada día del ciclo
+    // (`CollectionReportViewModel.setSort`), así que el segment aparece con labels
+    // period-aware: "Fecha" en vez de "Hora" (el primer chip sigue siendo cronológico).
     @Test
-    fun `el encabezado de detalle en Semana muestra el resumen sin el segment de orden`() {
+    fun `el encabezado de detalle en Semana muestra el resumen y el segment Fecha Nombre`() {
         setContent(MockupFixtures.stateSemana())
 
         composeTestRule.onNodeWithText(
             "Resumen por día · 5 días"
         ).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Fecha").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Nombre").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("Hora").assertDoesNotExist()
+    }
+
+    @Test
+    fun `tocar Nombre en el segment de orden en Semana informa onSortSelect con NOMBRE`() {
+        val selected = mutableListOf<DetailSort>()
+        setContent(MockupFixtures.stateSemana(), onSortSelect = { selected += it })
+
+        composeTestRule.onNodeWithText("Nombre").performScrollTo().performClick()
+
+        assertEquals(listOf(DetailSort.NOMBRE), selected)
     }
 
     @Test
@@ -264,11 +275,16 @@ class CollectionReportContentTest : RobolectricTestBase() {
         assertTrue(firstTop < lastTop)
     }
 
+    // Fix de dispositivo (Task 1): el avatar de iniciales decorativo se reemplazó por un tile
+    // tintado por método de cobro (`MethodTile`) — su `contentDescription` es el nombre del
+    // método (mismo texto que el pill), no ya las iniciales del cliente.
     @Test
-    fun `la fila de pago muestra las iniciales del cliente y el pill de metodo`() {
+    fun `la fila de pago muestra el tile de metodo y el pill de metodo`() {
         setContent(MockupFixtures.stateDia())
 
-        composeTestRule.onNodeWithText("ML").performScrollTo().assertIsDisplayed()
+        composeTestRule.onAllNodesWithContentDescription("Efectivo")[0]
+            .performScrollTo()
+            .assertIsDisplayed()
         composeTestRule.onNodeWithText("Transfer.").performScrollTo().assertIsDisplayed()
     }
 
@@ -336,11 +352,13 @@ class CollectionReportContentTest : RobolectricTestBase() {
     fun `con masked verdadero TODOS los montos del tablero muestran MASKED_MONEY, incluido el well del hero`() {
         setContent(MockupFixtures.stateDia(masked = true))
 
-        // Auditoría de completitud (task-9-brief.md): monto del hero + goal cap + los dos
-        // wells (Efectivo en mano/Ticket prom.) = 4, + duo (Efectivo/Transferencia) = 2,
-        // + chip Condonado = 1, + 4 filas de pago del detalle Día × 2 (monto del pago + saldo
-        // de la venta enriquecido) = 8 -> 15 ocurrencias de
-        // `MASKED_MONEY` — ningún monto crudo se cuela sin `masked`. `useUnmergedTree = true`:
+        // Auditoría de completitud (task-9-brief.md, actualizado por "Meta de la semana"):
+        // monto del hero = 1 (la barra de progreso/goal cap/wells del hero fueron retirados,
+        // ver KDoc de HeroUi — sus cifras ahora viven en `MetaCard`, SOLO en SEMANA, fuera de
+        // este fixture Día), + duo (Efectivo/Transferencia) = 2, + chip Condonado = 1, + 4
+        // filas de pago del detalle Día × 2 (monto del pago + saldo de la venta enriquecido)
+        // = 8 -> 12 ocurrencias de `MASKED_MONEY` — ningún monto crudo se cuela sin `masked`.
+        // `useUnmergedTree = true`:
         // el hero/tiles/chip/filas son contenedores clickables que MERGEAN sus descendientes
         // en un solo nodo de semántica (varias ocurrencias de texto colapsan a UN nodo); el
         // árbol sin mergear cuenta cada `Text` real, uno por monto.
@@ -352,8 +370,7 @@ class CollectionReportContentTest : RobolectricTestBase() {
     fun `con masked verdadero el insight del hero se oculta con el glifo de puntos, no el texto real`() {
         setContent(MockupFixtures.stateDia(masked = true))
 
-        composeTestRule.onNodeWithText("32 pagos · vas al 91% de tu meta", substring = true)
-            .assertDoesNotExist()
+        composeTestRule.onNodeWithText("32 pagos", substring = true).assertDoesNotExist()
         composeTestRule.onNodeWithText(MASKED_INSIGHT_GLYPH).assertIsDisplayed()
     }
 
@@ -361,10 +378,10 @@ class CollectionReportContentTest : RobolectricTestBase() {
     fun `con masked falso el insight del hero muestra la frase real, no el glifo`() {
         setContent(MockupFixtures.stateDia(masked = false))
 
+        // DÍA ya no reporta "% de tu meta" (retirado junto con la meta de mediana, ver KDoc de
+        // `HeroSection.heroInsightText`) — solo el conteo de pagos + la proyección a cierre.
         composeTestRule.onNodeWithText(
-            "32 pagos · vas al 91% de tu meta · a este ritmo cierras en ${formatMoneyMxn(
-                BigDecimal("19800")
-            )}"
+            "32 pagos · a este ritmo cierras en ${formatMoneyMxn(BigDecimal("19800"))}"
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText(MASKED_INSIGHT_GLYPH).assertDoesNotExist()
     }
@@ -372,13 +389,11 @@ class CollectionReportContentTest : RobolectricTestBase() {
     // endregion
 
     private companion object {
-        const val HERO_PROGRESS = 0.91f
-
         // Glifo de privacidad de la frase-insight del hero — 1:1 `HeroSection.MASKED_INSIGHT`
         // (`private`, no importable desde el test); mockup `masked?'&bull;&bull;&bull;':d.insight`.
         const val MASKED_INSIGHT_GLYPH = "•••"
 
         // Ver el desglose completo en el test que lo consume.
-        const val TOTAL_MASKED_MONEY_NODES = 15
+        const val TOTAL_MASKED_MONEY_NODES = 12
     }
 }

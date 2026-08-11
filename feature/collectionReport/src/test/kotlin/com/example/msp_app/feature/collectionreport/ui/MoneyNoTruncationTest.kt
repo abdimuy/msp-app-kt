@@ -143,8 +143,17 @@ class MoneyNoTruncationTest : RobolectricTestBase() {
 
     private fun assertMoneyNotTruncated() {
         val layoutResults = mutableListOf<TextLayoutResult>()
+        // `useUnmergedTree = true` (fix de dispositivo, Task 1): las filas de pago/día son
+        // `clickable` — eso fusiona TODOS sus Text descendientes (nombre, subtítulo, monto,
+        // pill, saldo...) en un solo nodo de semántica mergeado. Sin desmergear, `onNode`
+        // resuelve ese nodo COMPUESTO y `GetTextLayoutResult` entrega el layout del PRIMER
+        // Text hijo en orden de árbol — que ya NO es necesariamente el monto (p. ej. desde que
+        // el tile de método reemplazó el avatar de iniciales, el primer Text pasó a ser el
+        // NOMBRE del cliente) — un falso positivo/negativo de la aserción, no del layout real.
+        // Con el árbol sin fusionar, la query encuentra el `Text` HOJA que realmente contiene
+        // [LARGE_AMOUNT_TEXT], sin ambigüedad.
         composeTestRule
-            .onNode(hasText(LARGE_AMOUNT_TEXT))
+            .onNode(hasText(LARGE_AMOUNT_TEXT), useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layoutResults) }
         val layout = layoutResults.first()
         for (line in 0 until layout.lineCount) {

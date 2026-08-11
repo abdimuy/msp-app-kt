@@ -12,8 +12,8 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import com.example.msp_app.feature.collectionreport.ui.theme.rememberReportReducedMotion
 
 /** Duración del swap Día↔Semana — `.pc.sw-r/.sw-l{animation:... .3s ...}` del mockup. */
 private const val TAB_TRANSITION_DURATION_MS = 300
@@ -32,9 +32,10 @@ private val TAB_TRANSITION_EASING = CubicBezierEasing(0.2f, 0.7f, 0.2f, 1f)
  * dos estados posibles, "entra desde la derecha" ⟺ el destino es [ReportPeriod.SEMANA] —
  * cierto sin importar desde cuál periodo se venía.
  *
- * **Desactivable** (spec §5): con [rememberReducedMotionEnabled] activo, el swap es
- * instantáneo (`EnterTransition.None`/`ExitTransition.None`, sin slide ni fade) — nunca un
- * crossfade residual que dependa de reloj real.
+ * **Desactivable** (spec §5): con [rememberReportReducedMotion] activo (accesibilidad del SO
+ * O "Deshabilitar animaciones" de Configuración), el swap es instantáneo
+ * (`EnterTransition.None`/`ExitTransition.None`, sin slide ni fade) — nunca un crossfade
+ * residual que dependa de reloj real.
  */
 @Composable
 fun TabTransition(
@@ -42,7 +43,7 @@ fun TabTransition(
     modifier: Modifier = Modifier,
     content: @Composable (ReportPeriod) -> Unit
 ) {
-    val reduced = rememberReducedMotionEnabled()
+    val reduced = rememberReportReducedMotion()
     AnimatedContent(
         targetState = period,
         modifier = modifier,

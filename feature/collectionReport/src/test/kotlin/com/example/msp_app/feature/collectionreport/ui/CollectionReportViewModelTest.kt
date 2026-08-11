@@ -9,8 +9,11 @@ import com.example.msp_app.feature.collectionreport.data.fake.FakeHistoricalTota
 import com.example.msp_app.feature.collectionreport.data.fake.FakePaymentsPort
 import com.example.msp_app.feature.collectionreport.data.fake.FakePreferredPrinterStore
 import com.example.msp_app.feature.collectionreport.data.fake.FakePrinterPort
+import com.example.msp_app.feature.collectionreport.data.fake.FakeReportThemePort
+import com.example.msp_app.feature.collectionreport.data.fake.FakeSalesPort
 import com.example.msp_app.feature.collectionreport.data.fake.FakeUserCyclePort
 import com.example.msp_app.feature.collectionreport.data.fake.FakeVisitsPort
+import com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje
 import com.example.msp_app.feature.collectionreport.domain.DeltaChip
 import com.example.msp_app.feature.collectionreport.domain.DeltaDirection
 import com.example.msp_app.feature.collectionreport.domain.Insight
@@ -21,6 +24,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
 import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
@@ -67,9 +71,11 @@ class CollectionReportViewModelTest {
     private lateinit var visitsPort: FakeVisitsPort
     private lateinit var userCyclePort: FakeUserCyclePort
     private lateinit var historicalTotalsPort: FakeHistoricalTotalsPort
+    private lateinit var salesPort: FakeSalesPort
     private lateinit var printerPort: FakePrinterPort
     private lateinit var preferredPrinterStore: FakePreferredPrinterStore
     private lateinit var telemetry: RecordingTelemetry
+    private lateinit var reportThemePort: FakeReportThemePort
 
     @Before
     fun setUp() {
@@ -78,9 +84,11 @@ class CollectionReportViewModelTest {
         visitsPort = FakeVisitsPort()
         userCyclePort = FakeUserCyclePort()
         historicalTotalsPort = FakeHistoricalTotalsPort()
+        salesPort = FakeSalesPort()
         printerPort = FakePrinterPort()
         preferredPrinterStore = FakePreferredPrinterStore()
         telemetry = RecordingTelemetry(clock)
+        reportThemePort = FakeReportThemePort()
     }
 
     @After
@@ -91,16 +99,19 @@ class CollectionReportViewModelTest {
     private fun viewModel(
         payments: PaymentsPort = paymentsPort,
         printer: FakePrinterPort = printerPort,
-        preferred: FakePreferredPrinterStore = preferredPrinterStore
+        preferred: FakePreferredPrinterStore = preferredPrinterStore,
+        theme: FakeReportThemePort = reportThemePort
     ) = CollectionReportViewModel(
         payments,
         visitsPort,
         userCyclePort,
         historicalTotalsPort,
+        salesPort,
         printer,
         preferred,
         clock,
         telemetry,
+        theme,
         // Mismo dispatcher de prueba que Main: `withContext(backgroundDispatcher)` en
         // `fetchContent` queda atado al scheduler del test, así `advanceUntilIdle()` sí espera la
         // carga (si fuera `Dispatchers.Default` real escaparía del control determinista del test).
@@ -183,7 +194,8 @@ class CollectionReportViewModelTest {
         assertEquals(Money.ZERO, state.efectivo.amount)
         assertEquals(0, state.visitas.count)
         assertEquals(Money.ZERO, state.condonado.amount)
-        assertEquals(0f, state.hero.progress)
+        assertEquals(0f, state.hero.porcentajeCobro)
+        assertEquals(0f, state.hero.porcentajeCuentas)
         assertEquals(DeltaChip("—", DeltaDirection.NONE), state.hero.delta)
         assertTrue((state.detail as DetailUi.Payments).rows.isEmpty())
     }
@@ -238,6 +250,58 @@ class CollectionReportViewModelTest {
             assertEquals(1, hoyPagos.size)
             assertEquals("María López Hernández", hoyPagos.first().cliente)
         }
+
+    /**
+     * "Meta de la semana" (fix — reemplaza la meta de mediana): en SEMANA, [SalesPort] +
+     * [PaymentsPort] ya cargados alimentan [CobranzaPorcentaje] end-to-end. Una sola venta
+     * SEMANAL con una cuota exactamente vencida y pagada -> ponderado 100%; único abono
+     * positivo de una única venta activa -> cobertura 100% (1 de 1).
+     */
+    @Test
+    fun `setPeriod SEMANA calcula porcentaje cobro y cuentas reales desde SalesPort`() = runTest(
+        testDispatcher
+    ) {
+        userCyclePort.fechaCarga = Instant.parse("2026-08-03T16:00:00Z") // lunes
+        salesPort.sales = listOf(
+            SaleForCobranza(
+                doctoCcAcrId = 501,
+                parcialidad = money("500"),
+                totalImporte = money("5000"),
+                saldoHoy = money("4500"),
+                frecuencia = CobranzaPorcentaje.Frecuencia.SEMANAL,
+                // Lunes anterior al fechaCargaInicial -> exactamente una cuota vencida.
+                fechaCargo = Instant.parse("2026-07-27T06:00:00Z")
+            )
+        )
+        paymentsPort.payments = listOf(
+            payment(id = "p1", amount = money("500.00"), paidAt = Instant.parse("2026-08-07T15:00:00Z"))
+                .copy(saleId = 501)
+        )
+
+        val vm = viewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.setPeriod(ReportPeriod.SEMANA)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val state = vm.state.value
+        assertEquals(1, salesPort.nonContadoActiveSalesCalls)
+        assertEquals(100f, state.hero.porcentajeCobro)
+        assertEquals(100f, state.hero.porcentajeCuentas)
+        assertEquals(1, state.hero.clientesPagaron)
+        assertEquals(1, state.hero.clientesTotal)
+    }
+
+    @Test
+    fun `en DIA no se consulta SalesPort y los porcentajes quedan en cero`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(0, salesPort.nonContadoActiveSalesCalls)
+        assertEquals(0f, vm.state.value.hero.porcentajeCobro)
+        assertEquals(0f, vm.state.value.hero.porcentajeCuentas)
+    }
 
     /**
      * Fix round 1 (Important 1): la versión anterior de este test lanzaba
@@ -352,6 +416,37 @@ class CollectionReportViewModelTest {
         assertEquals(listOf("Ana Delgado Soto", "Rosa Martínez Cruz"), byNombre)
     }
 
+    // Task 4: antes Semana ignoraba `setSort` por completo (el detalle era `DetailUi.Days`,
+    // "siempre cronológico"); ahora reordena los pagos individuales DENTRO de cada día del
+    // ciclo (`dayPayments`, consumidos por el sheet `DIA_CICLO`) sin tocar el orden ENTRE
+    // días del resumen (`DetailUi.Days` sigue siendo el mismo).
+    @Test
+    fun `setSort NOMBRE en Semana reordena los pagos individuales de cada dia del ciclo`() =
+        runTest(testDispatcher) {
+            userCyclePort.fechaCarga = Instant.parse("2026-08-03T16:00:00Z") // lunes
+            paymentsPort.payments = listOf(
+                payment(id = "p1", cliente = "Rosa Martínez Cruz", paidAt = Instant.parse("2026-08-07T09:00:00Z")),
+                payment(id = "p2", cliente = "Ana Delgado Soto", paidAt = Instant.parse("2026-08-07T10:00:00Z"))
+            )
+            val vm = viewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            vm.setPeriod(ReportPeriod.SEMANA)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val diasEntreSi = (vm.state.value.detail as DetailUi.Days).rows.map { it.label }
+            val hoyPorHora = vm.state.value.dayPayments.last().map { it.id }
+            assertEquals(listOf("p1", "p2"), hoyPorHora) // 09:00 antes que 10:00.
+
+            vm.setSort(DetailSort.NOMBRE)
+
+            val state = vm.state.value
+            assertEquals(DetailSort.NOMBRE, state.sort)
+            val hoyPorNombre = state.dayPayments.last().map { it.cliente }
+            assertEquals(listOf("Ana Delgado Soto", "Rosa Martínez Cruz"), hoyPorNombre)
+            // El orden ENTRE días del resumen no cambia — solo el orden DENTRO de cada día.
+            assertEquals(diasEntreSi, (state.detail as DetailUi.Days).rows.map { it.label })
+        }
+
     @Test
     fun `openSheet setea el sheet con su kind y argumento, closeSheet lo limpia`() = runTest(
         testDispatcher
@@ -432,10 +527,12 @@ class CollectionReportViewModelTest {
                 visitsPort,
                 ThrowingUserCyclePort(userCyclePort, "firestore down"),
                 historicalTotalsPort,
+                salesPort,
                 printerPort,
                 preferredPrinterStore,
                 clock,
                 telemetry,
+                reportThemePort,
                 testDispatcher
             )
             testDispatcher.scheduler.advanceUntilIdle()
@@ -603,4 +700,61 @@ class CollectionReportViewModelTest {
     }
 
     // endregion
+
+    // region — tema global (ReportThemePort, fix persistencia) ---------------------------
+
+    @Test
+    fun `el estado inicial arranca con el tema GLOBAL vigente, no siempre claro`() {
+        reportThemePort = FakeReportThemePort(initialDark = true)
+
+        val vm = viewModel(theme = reportThemePort)
+
+        assertTrue(
+            "darkTheme debe sembrarse desde ReportThemePort.currentIsDark(), no un default fijo",
+            vm.state.value.darkTheme
+        )
+    }
+
+    @Test
+    fun `toggleTheme llama al puerto global en vez de solo flippear estado local`() {
+        val vm = viewModel()
+
+        vm.toggleTheme()
+
+        assertEquals(listOf(true), reportThemePort.toggleCalls)
+    }
+
+    @Test
+    fun `toggleTheme refleja el nuevo valor del puerto en el estado observable`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        testDispatcher.scheduler.advanceUntilIdle()
+        assertFalse(vm.state.value.darkTheme)
+
+        vm.toggleTheme()
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertTrue(vm.state.value.darkTheme)
+    }
+
+    @Test
+    fun `un cambio de tema externo (otra pantalla) tambien se refleja, sin llamar toggle`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertFalse(vm.state.value.darkTheme)
+
+            // Simula Configuración (u otra pantalla) cambiando el tema GLOBAL mientras el
+            // reporte sigue montado — "navegar y volver" / re-colectar debe preservar esto,
+            // no reiniciar a claro.
+            reportThemePort.setDarkExternally(true)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            assertTrue(vm.state.value.darkTheme)
+            assertTrue(
+                "un cambio externo no debe registrarse como un toggle propio",
+                reportThemePort.toggleCalls.isEmpty()
+            )
+        }
 }

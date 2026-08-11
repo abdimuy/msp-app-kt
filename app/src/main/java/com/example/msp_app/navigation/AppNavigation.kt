@@ -36,6 +36,7 @@ import com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen
 import com.example.msp_app.feature.collectionreport.ui.tier2.CollectionReportScreenTier2
 import com.example.msp_app.feature.collectionreport.ui.tier2.ReportTier
 import com.example.msp_app.feature.collectionreport.ui.tier2.rememberReportTier
+import com.example.msp_app.feature.configuracion.ui.ConfiguracionScreen
 import com.example.msp_app.features.auth.screens.LoginScreen
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.camionetaAssignment.presentation.screens.CamionetaAssignmentScreen
@@ -146,6 +147,10 @@ sealed class Screen(val route: String) {
     object GuaranteeDetail : Screen("guarantee_detail/{guaranteeId}") {
         fun createRoute(guaranteeId: Int) = "guarantee_detail/$guaranteeId"
     }
+
+    // Pantalla de Configuración (spec 2026-08-10-configuracion-tamano-letra-design.md). Ítem
+    // global del drawer, fuera de los grupos por `MODULOS` — ver `DrawerContainer`.
+    object Configuracion : Screen("configuracion")
 }
 
 @RequiresApi(Build.VERSION_CODES.S)
@@ -559,6 +564,16 @@ fun AppNavigation() {
                     navController = navController,
                     viewModel = viewModel
                 )
+            }
+
+            // Pantalla de Configuración (Task 3, spec
+            // 2026-08-10-configuracion-tamano-letra-design.md). Se apila sobre la pantalla
+            // vigente (sin `popUpTo`) — su propio header lleva el affordance de regreso
+            // (`navController.popBackStack()`), no un drawer/hamburguesa, así que no se envuelve
+            // en `DrawerContainer` (mismo criterio que `RouteMapScreen`/`GuaranteeListScreen`,
+            // pantallas simples que no re-abren el drawer).
+            composable(Screen.Configuracion.route) {
+                ConfiguracionScreen(navController = navController)
             }
         }
     }

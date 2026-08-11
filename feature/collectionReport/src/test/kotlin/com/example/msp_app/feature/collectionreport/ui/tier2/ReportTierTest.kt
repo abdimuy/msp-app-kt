@@ -4,10 +4,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Unit test JVM puro (sin Compose/Robolectric) de [resolveTier] — la selección Tier 1/2 por
- * `fontScale` proxy (task-9-brief.md, "Parked for user"). Cubre los tres puntos de la matriz
- * de escalas del Plan 3 ({1.0, 1.3, 2.0}, ver `docs/superpowers/plans/2026-08-09-plan3-designsystem.md`
- * Task 10): 1.0/1.3 son Tier 1 ("Normal"/"Grande"), 2.0 es Tier 2 ("Muy grande").
+ * Unit test JVM puro (sin Compose/Robolectric) de [resolveTier] — la función pura que decide
+ * Tier 1/2 a partir de una escala ya resuelta (llamante real: [rememberReportTier], cubierto
+ * aparte por [com.example.msp_app.feature.collectionreport.ui.tier2.RememberReportTierTest]
+ * porque necesita Compose/`LocalFontSizeLevel`). El umbral coincide con
+ * [com.example.msp_app.core.designsystem.theme.FontSizeLevel.GRANDE.nominalScale] (`1.5f`) —
+ * ver el fix documentado en el KDoc de [rememberReportTier].
  */
 class ReportTierTest {
 
@@ -17,7 +19,7 @@ class ReportTierTest {
     }
 
     @Test
-    fun `fontScale 1_3 grande sigue siendo Tier 1`() {
+    fun `fontScale 1_3 (menor al umbral de Grande) sigue siendo Tier 1`() {
         assertEquals(ReportTier.TIER_1, resolveTier(1.3f))
     }
 

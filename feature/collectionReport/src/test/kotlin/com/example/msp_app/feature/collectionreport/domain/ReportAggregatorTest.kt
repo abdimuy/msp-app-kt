@@ -419,7 +419,7 @@ class ReportAggregatorTest {
             ReportAggregator.delta(money("112.00"), money("100.00"), ReportPeriod.DIA)
         )
         assertEquals(
-            DeltaChip("▲ 6% vs ciclo", DeltaDirection.UP),
+            DeltaChip("▲ 6% vs semana", DeltaDirection.UP),
             ReportAggregator.delta(money("106.00"), money("100.00"), ReportPeriod.SEMANA)
         )
     }

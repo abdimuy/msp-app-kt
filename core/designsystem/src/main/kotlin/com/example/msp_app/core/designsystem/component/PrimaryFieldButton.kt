@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
@@ -53,6 +54,12 @@ private val BUTTON_BORDER_WIDTH = 1.dp
  * Sin `fillMaxWidth()` propio: el ancho lo decide el [modifier] del caller
  * (mismo criterio que [MspCard]/[MspBentoTile] — este componente no asume
  * layout de fila de acciones).
+ *
+ * **[maxLines]** (default sin límite, mismo comportamiento de siempre para
+ * cualquier caller que no lo toque): permite a un caller angosto (p. ej.
+ * [com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar]
+ * a tamaño de letra grande) forzar una sola línea con `TextOverflow.Ellipsis`
+ * en vez de dejar que el texto envuelva y parta una palabra a la mitad.
  */
 @Composable
 fun MspPrimaryFieldButton(
@@ -60,7 +67,8 @@ fun MspPrimaryFieldButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     variant: PrimaryFieldButtonVariant = PrimaryFieldButtonVariant.Primary,
-    enabled: Boolean = true
+    enabled: Boolean = true,
+    maxLines: Int = Int.MAX_VALUE
 ) {
     val colors = MspTheme.colors
     val haptics = LocalHapticFeedback.current
@@ -101,6 +109,12 @@ fun MspPrimaryFieldButton(
             .testTag(PRIMARY_FIELD_BUTTON_TAG),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = text, style = MspTheme.type.buttonLarge, color = content)
+        Text(
+            text = text,
+            style = MspTheme.type.buttonLarge,
+            color = content,
+            maxLines = maxLines,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

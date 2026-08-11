@@ -45,6 +45,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.DetailHeader
 import com.example.msp_app.feature.collectionreport.ui.components.DetailList
 import com.example.msp_app.feature.collectionreport.ui.components.DuoTiles
 import com.example.msp_app.feature.collectionreport.ui.components.HeroSection
+import com.example.msp_app.feature.collectionreport.ui.components.MetaCard
 import com.example.msp_app.feature.collectionreport.ui.components.PeriodSelector
 import com.example.msp_app.feature.collectionreport.ui.components.PrintSheet
 import com.example.msp_app.feature.collectionreport.ui.components.RangeSubRow
@@ -85,10 +86,11 @@ private const val ENTRANCE_ERROR_BANNER = 1
 private const val ENTRANCE_PERIOD = 2
 private const val ENTRANCE_SUBROW = 3
 private const val ENTRANCE_HERO = 4
-private const val ENTRANCE_DUO = 5
-private const val ENTRANCE_CHIPS = 6
-private const val ENTRANCE_DETAIL_HEADER = 7
-private const val ENTRANCE_DETAIL_LIST = 8
+private const val ENTRANCE_META = 5
+private const val ENTRANCE_DUO = 6
+private const val ENTRANCE_CHIPS = 7
+private const val ENTRANCE_DETAIL_HEADER = 8
+private const val ENTRANCE_DETAIL_LIST = 9
 
 /**
  * Punto de entrada del reporte de cobranza (Plan 5, piloto `:feature:collectionReport`).
@@ -110,16 +112,18 @@ private const val ENTRANCE_DETAIL_LIST = 8
  * este composable de entrada). Detectado por el smoke e2e de dispositivo (Task 11,
  * `CollectionReportDeviceSmokeTest`), el único test que monta la `MainActivity` real.
  *
- * **[onThemeChanged] (fix defecto visual, íconos de barra de estado):** `state.darkTheme` es un
- * espejo LOCAL (ver KDoc de `CollectionReportViewModel.toggleTheme`) — nunca toca
- * `ThemeController`/`MspappTheme` del resto de la app, así que sin este callback la barra de
- * sistema (`MainActivity`, `enableEdgeToEdge`) se queda con la apariencia de íconos de lo que
- * sea que mostraba ANTES de entrar al reporte, y se vuelve invisible si el reporte entra en
- * oscuro mientras el resto de la app sigue en claro (o viceversa). Default no-op: nada cambia
- * para callers/tests que no lo cablean; `:app` (composition root, `AppNavigation`) lo conecta a
- * `ThemeController.setStatusBarAppearanceDark` SIN tocar `ThemeController.isDarkMode` — el tema
- * local del reporte no se filtra al resto de la app, solo corrige el color de los íconos
- * mientras el reporte está en pantalla.
+ * **[onThemeChanged] (fix defecto visual, íconos de barra de estado):** `state.darkTheme` ahora
+ * ESPEJA el tema GLOBAL de la app (`ReportThemePort`, ver KDoc de
+ * `CollectionReportViewModel.toggleTheme` — antes era un espejo local desacoplado que se
+ * reiniciaba a claro al volver a entrar a la pantalla, ya corregido). Este callback sigue
+ * existiendo igual: sin él, la barra de sistema (`MainActivity`, `enableEdgeToEdge`) se queda
+ * con la apariencia de íconos de lo que sea que mostraba ANTES de que este composable montara
+ * (hay una ventana entre "la Activity arranca" y "este `LaunchedEffect` corre por primera vez").
+ * Default no-op: nada cambia para callers/tests que no lo cablean; `:app` (composition root,
+ * `AppNavigation`) lo conecta a `ThemeController.reportStatusBarAppearanceDark` — redundante en
+ * valor con `ThemeController.isDarkMode` ahora que ambos coinciden, pero se conserva por
+ * simetría con el resto de pantallas y porque sigue siendo la vía más directa desde este
+ * composable hacia la barra de sistema.
  */
 @Suppress("UnusedParameter") // navController: firma reservada (el reporte no navega saliente).
 @OptIn(ExperimentalMaterial3Api::class) // ModalBottomSheet (ReportSheets).
@@ -191,16 +195,11 @@ fun CollectionReportScreen(
                 onDayRowClick = onDiaCicloClick
             )
             BlurredActionBar(
+                // Compartir SIEMPRE el mismo PDF que abre el botón "PDF" (misma
+                // `generatePdf`/`pdfFileName`, una sola fuente de verdad del archivo) — antes
+                // mandaba un resumen de texto plano (`buildShareText`), ahora manda el ticket
+                // completo como PDF, vía `ACTION_SEND` dentro de un chooser (no lo abre).
                 onCompartirClick = {
-                    context.startActivity(
-                        Intent.createChooser(ReportActionsController.buildShareIntent(state), null)
-                    )
-                },
-                // P2: imprime de verdad a la impresora recordada por defecto (auto), pidiendo
-                // primero el permiso de Bluetooth si hace falta. El flujo/feedback vive en el
-                // `PrintSheet` de abajo (incl. "Cambiar impresora" siempre disponible).
-                onImprimirClick = { withBtPermission { viewModel.printReport() } },
-                onPdfClick = {
                     coroutineScope.launch {
                         val file = withContext(Dispatchers.IO) {
                             ReportActionsController.generatePdf(
@@ -213,6 +212,28 @@ fun CollectionReportScreen(
                         val intent =
                             ReportActionsController.buildPdfShareIntent(context, state, file)
                         context.startActivity(Intent.createChooser(intent, null))
+                    }
+                },
+                // P2: imprime de verdad a la impresora recordada por defecto (auto), pidiendo
+                // primero el permiso de Bluetooth si hace falta. El flujo/feedback vive en el
+                // `PrintSheet` de abajo (incl. "Cambiar impresora" siempre disponible).
+                onImprimirClick = { withBtPermission { viewModel.printReport() } },
+                // PDF ABRE el archivo en un visor (`ACTION_VIEW`), a diferencia de Compartir
+                // (`ACTION_SEND`) — mismo archivo (misma `generatePdf`/`pdfFileName`), acción
+                // distinta. `startActivitySafely` evita el crash si el dispositivo no trae un
+                // visor de PDF instalado.
+                onPdfClick = {
+                    coroutineScope.launch {
+                        val file = withContext(Dispatchers.IO) {
+                            ReportActionsController.generatePdf(
+                                context = context,
+                                state = state,
+                                fileName = ReportActionsController.pdfFileName(state),
+                                clock = AppClock.System
+                            )
+                        }
+                        val intent = ReportActionsController.buildPdfViewIntent(context, file)
+                        ReportActionsController.startActivitySafely(context, intent)
                     }
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -344,6 +365,17 @@ internal fun CollectionReportContent(
                             onSparkBarClick = onSparkBarClick,
                             animateSparkline = animateEntrance
                         )
+                    }
+                    // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi/MetaCard.
+                    if (period == ReportPeriod.SEMANA) {
+                        StaggeredEntrance(index = ENTRANCE_META, animate = animateEntrance) {
+                            MetaCard(
+                                porcentajeCobro = state.hero.porcentajeCobro,
+                                porcentajeCuentas = state.hero.porcentajeCuentas,
+                                clientesPagaron = state.hero.clientesPagaron,
+                                clientesTotal = state.hero.clientesTotal
+                            )
+                        }
                     }
                     StaggeredEntrance(index = ENTRANCE_DUO, animate = animateEntrance) {
                         DuoTiles(

@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import com.example.msp_app.core.database.entities.ClienteEntity
+import com.example.msp_app.core.database.entities.ClienteRefRow
 
 @Dao
 interface ClienteDao {
@@ -29,4 +30,13 @@ interface ClienteDao {
 
     @Query("SELECT COUNT(*) FROM cliente")
     suspend fun getCount(): Int
+
+    /**
+     * Referencia ligera (solo `NOMBRE`) de un conjunto de clientes por su `CLIENTE_ID` — batch
+     * de un solo query, mismo criterio anti-N+1 que `SaleDao.getSaleRefsByAcrIds` (evita un
+     * `getById` por fila cuando se enriquece una lista, p. ej. las visitas del reporte de
+     * cobranza en `:feature:collectionReport`).
+     */
+    @Query("SELECT CLIENTE_ID, NOMBRE FROM cliente WHERE CLIENTE_ID IN (:ids)")
+    suspend fun getNombresByIds(ids: List<Int>): List<ClienteRefRow>
 }

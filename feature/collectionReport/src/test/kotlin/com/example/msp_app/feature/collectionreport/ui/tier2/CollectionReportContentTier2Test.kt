@@ -84,11 +84,11 @@ class CollectionReportContentTier2Test : RobolectricTestBase() {
         // compone PRIMERO — índice 0 es siempre la tarjeta, nunca una fila (mismo criterio
         // que `CollectionReportContentTest`).
         composeTestRule.onAllNodesWithText("Efectivo")[0].performScrollTo().assertIsDisplayed()
-        // "$12,100" también es el well "Efectivo en mano" del hero (mismo monto real);
-        // el well se compone primero (índice 0), el Tier2Tile de Efectivo después.
-        composeTestRule.onAllNodesWithText(
+        // El well "Efectivo en mano" del hero fue retirado (ver KDoc de HeroUi/HeroSection) —
+        // "$12,100" ahora aparece UNA sola vez, en el Tier2Tile de Efectivo.
+        composeTestRule.onNodeWithText(
             formatMoneyMxn(BigDecimal("12100"))
-        )[1].performScrollTo().assertIsDisplayed()
+        ).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("Transferencia").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText(
             formatMoneyMxn(BigDecimal("6200"))
@@ -126,8 +126,9 @@ class CollectionReportContentTier2Test : RobolectricTestBase() {
     fun `con masked verdadero todos los montos del duo y del chip Condonado se ocultan`() {
         setContent(MockupFixtures.stateDia(masked = true))
 
-        // hero (monto+goalCap+2 wells) + Efectivo + Transferencia + Condonado + 4 pagos × 2
-        // (monto + saldo enriquecido) = 15, mismo total que Tier 1 (mismo estado).
+        // hero (solo monto — barra de progreso/goal cap/wells retirados, ver "Meta de la
+        // semana" en HeroUi) + Efectivo + Transferencia + Condonado + 4 pagos × 2 (monto +
+        // saldo enriquecido) = 12, mismo total que Tier 1 (mismo estado).
         // `useUnmergedTree = true`: ver el comentario equivalente en `CollectionReportContentTest`.
         composeTestRule.onAllNodesWithText(MASKED_MONEY, useUnmergedTree = true)
             .assertCountEquals(TOTAL_MASKED_MONEY_NODES)
@@ -153,6 +154,6 @@ class CollectionReportContentTier2Test : RobolectricTestBase() {
     }
 
     private companion object {
-        const val TOTAL_MASKED_MONEY_NODES = 15
+        const val TOTAL_MASKED_MONEY_NODES = 12
     }
 }

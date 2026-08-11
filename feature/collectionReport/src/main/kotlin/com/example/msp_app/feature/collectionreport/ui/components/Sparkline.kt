@@ -22,10 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
 import com.example.msp_app.feature.collectionreport.domain.Timeline
 import com.example.msp_app.feature.collectionreport.domain.TimelineBucket
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import com.example.msp_app.feature.collectionreport.ui.theme.rememberReportReducedMotion
 import java.math.BigDecimal
 import java.math.RoundingMode
 
@@ -62,8 +62,8 @@ private const val FRACTION_SCALE = 4
  * 0→objetivo en [SPARK_GROW_DURATION_MS] vía `Animatable` + `tween` (frame-clock de Compose,
  * nunca `kotlinx.coroutines.delay()` — mismo criterio anti-cuelgue que
  * [com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance]); con
- * [rememberReducedMotionEnabled] activo, la barra se pinta directo a su alto final
- * (`snapTo`), sin animar.
+ * [rememberReportReducedMotion] activo (accesibilidad del SO O "Deshabilitar animaciones" de
+ * Configuración), la barra se pinta directo a su alto final (`snapTo`), sin animar.
  */
 @Composable
 fun Sparkline(
@@ -115,10 +115,10 @@ private fun SparkBar(
     animate: Boolean = true
 ) {
     val colors = MspTheme.colors
-    // `snap` cuando reduce-motion O cuando el tablero pide no re-animar (segundo+ toggle): la
-    // barra se pinta directo a su alto final en vez de re-crecer 0->objetivo en cada cambio de
-    // periodo (ver toggle-jank-diagnosis.md, fix 4).
-    val snap = rememberReducedMotionEnabled() || !animate
+    // `snap` cuando reduce-motion (SO o app) O cuando el tablero pide no re-animar (segundo+
+    // toggle): la barra se pinta directo a su alto final en vez de re-crecer 0->objetivo en
+    // cada cambio de periodo (ver toggle-jank-diagnosis.md, fix 4).
+    val snap = rememberReportReducedMotion() || !animate
     val heightAnim = remember { Animatable(if (snap) targetHeight.value else 0f) }
     LaunchedEffect(targetHeight, snap) {
         if (snap) {

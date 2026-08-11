@@ -10,7 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
+import com.example.msp_app.feature.collectionreport.ui.theme.rememberReportReducedMotion
 
 /** Duración de la entrada escalonada — `.an{animation:rise .5s forwards}` del mockup. */
 private const val ENTRANCE_DURATION_MS = 500
@@ -37,9 +37,10 @@ private val ENTRANCE_RISE = 9.dp
  * [com.example.msp_app.feature.collectionreport.ui.components.Sparkline] y
  * [com.example.msp_app.feature.collectionreport.ui.components.TabTransition].
  *
- * **Desactivable** (spec §5): con [rememberReducedMotionEnabled] activo, [content] se
- * pinta directo a opacidad plena sin animar — ninguna rama de `Animatable`/`LaunchedEffect`
- * se compone, mismo patrón que `MspPaymentSyncPill` (`:core:designsystem`).
+ * **Desactivable** (spec §5): con [rememberReportReducedMotion] activo (accesibilidad del SO
+ * O "Deshabilitar animaciones" de Configuración), [content] se pinta directo a opacidad plena
+ * sin animar — ninguna rama de `Animatable`/`LaunchedEffect` se compone, mismo patrón que
+ * `MspPaymentSyncPill` (`:core:designsystem`).
  *
  * [animate] `false` produce el MISMO render directo (sin animar) que reduce-motion — lo usa el
  * tablero para que la entrada escalonada corra SOLO la primera vez y no se replaye en cada
@@ -53,7 +54,7 @@ fun StaggeredEntrance(
     animate: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    if (!animate || rememberReducedMotionEnabled()) {
+    if (!animate || rememberReportReducedMotion()) {
         Box(modifier = modifier) { content() }
         return
     }

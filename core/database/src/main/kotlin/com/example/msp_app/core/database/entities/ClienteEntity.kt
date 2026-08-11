@@ -14,3 +14,14 @@ class ClienteEntity(
     val ESTATUS: String,
     val CAUSA_SUSP: String?
 )
+
+/**
+ * Proyección ligera de un cliente: solo su nombre, indexada por `CLIENTE_ID`. Alimenta el
+ * enriquecimiento del nombre real de un cliente visitado (`RoomVisitsAdapter`,
+ * `:feature:collectionReport`) sin traer la entidad `cliente` completa. Solo lectura — no es
+ * una `@Entity`, no toca el schema.
+ */
+data class ClienteRefRow(
+    val CLIENTE_ID: Int,
+    val NOMBRE: String
+)

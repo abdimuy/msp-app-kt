@@ -1,9 +1,12 @@
 package com.example.msp_app.feature.collectionreport.ui.actions
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import androidx.core.content.FileProvider
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
@@ -11,6 +14,11 @@ import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
+import com.example.msp_app.feature.collectionreport.ui.actions.pdf.PdfCanvasRenderer
+import com.example.msp_app.feature.collectionreport.ui.actions.pdf.PdfLayout
+import com.example.msp_app.feature.collectionreport.ui.actions.pdf.buildPdfBlocks
+import com.example.msp_app.feature.collectionreport.ui.actions.pdf.buildPdfReportModel
+import com.example.msp_app.feature.collectionreport.ui.actions.pdf.paginatePdfBlocks
 import java.io.File
 import java.io.FileOutputStream
 
@@ -42,11 +50,6 @@ import java.io.FileOutputStream
 @Suppress("TooManyFunctions")
 internal object ReportActionsController {
 
-    private const val PDF_PAGE_WIDTH = 612
-    private const val PDF_PAGE_HEIGHT = 792
-    private const val PDF_MARGIN = 40f
-    private const val PDF_LINE_SPACING = 15
-    private const val PDF_TEXT_SIZE = 10f
     private const val PDF_MIME_TYPE = "application/pdf"
     private const val TEXT_MIME_TYPE = "text/plain"
     private const val FILE_PROVIDER_SUFFIX = ".fileprovider"
@@ -99,9 +102,10 @@ internal object ReportActionsController {
 
     /**
      * Ticket completo, delegado a [CollectionReportFormatter.toTicketText]: encabezado +
-     * desglose por pago (Día, si el estado los conserva) + totales + condonaciones + visitas,
-     * con dinero SIEMPRE en peso entero vía [formatMoneyMxn]. Es el MISMO contenido/layout que
-     * imprime la impresora térmica (P2) y que escribe el PDF — una sola fuente de verdad.
+     * desglose por pago (TODOS los pagos, en ambos periodos) + desglose de visitas + totales +
+     * condonaciones + visitas, con dinero SIEMPRE en peso entero vía [formatMoneyMxn]. Es el
+     * MISMO contenido/layout que imprime la impresora térmica (P2) y que escribe el PDF — una
+     * sola fuente de verdad.
      */
     fun buildTicketText(state: CollectionReportUiState, clock: AppClock = AppClock.System): String =
         CollectionReportFormatter.toTicketText(state, clock)
@@ -113,10 +117,24 @@ internal object ReportActionsController {
     /**
      * Genera el PDF del reporte del rango actual en `context.cacheDir` (mismo directorio que
      * el `<cache-path path="."/>` que `:app` ya declara para su `FileProvider`, ver
-     * `AndroidManifest.xml`) y devuelve el archivo. Contenido = [buildTicketText] línea por
-     * línea (reusa el mismo texto dinero-seguro que el ticket — una sola fuente de verdad
-     * para "qué dice el PDF/impresión", en vez de un layout de tabla independiente como el
-     * `PdfGenerator` viejo, que podía divergir).
+     * `AndroidManifest.xml`) y devuelve el archivo.
+     *
+     * **Rediseño (dispatch "tabla densa multipágina"):** ya NO reusa [buildTicketText] línea
+     * por línea (el ticket térmico de 58mm queda para "Compartir ticket"/impresión); el PDF
+     * ahora es su propio documento tabular, construido en tres pasos puros
+     * (`internal.pdf`, testeables en JVM sin `Canvas`) + un dibujo:
+     * 1. [buildPdfReportModel] mapea [state] (dinero-seguro, mismo `Money`/`formatMoneyMxn`
+     *    que el tablero/ticket) — pagos YA ordenados por `state.sort`.
+     * 2. [buildPdfBlocks] lo convierte en el flujo de bloques de layout (encabezado, banda de
+     *    resumen, tabla de pagos, condonaciones, totales, visitas con nota envuelta).
+     * 3. [paginatePdfBlocks] reparte ESE flujo en páginas de a lo más
+     *    [PdfLayout.MAX_CONTENT_HEIGHT] puntos, repitiendo el encabezado de columnas de la
+     *    tabla de pagos si el corte cae a mitad de la lista — ningún pago ni visita se pierde
+     *    sin importar cuántos haya (~200 pagos / ~100 visitas, el caso de uso del dispatch).
+     * 4. Con la paginación YA resuelta se conoce `totalPages` ANTES de dibujar, así que
+     *    [PdfCanvasRenderer] pinta "Página X de N" correcto desde la primera página (segunda
+     *    pasada: medir con alturas puras, luego dibujar — no hace falta un pase de "stampeo"
+     *    posterior).
      */
     fun generatePdf(
         context: Context,
@@ -125,19 +143,25 @@ internal object ReportActionsController {
         clock: AppClock = AppClock.System
     ): File {
         val document = PdfDocument()
-        val paint = android.graphics.Paint().apply {
-            textSize = PDF_TEXT_SIZE
-            typeface = Typeface.MONOSPACE
+        val notePaint = Paint().apply {
+            typeface = Typeface.DEFAULT
+            textSize = PdfLayout.VISIT_NOTE_TEXT_SIZE
         }
-        val pageInfo = PdfDocument.PageInfo.Builder(PDF_PAGE_WIDTH, PDF_PAGE_HEIGHT, 1).create()
-        val page = document.startPage(pageInfo)
-        var yPos = PDF_MARGIN
-        buildTicketText(state, clock).lineSequence().forEach { line ->
-            if (yPos > PDF_PAGE_HEIGHT - PDF_MARGIN) return@forEach
-            page.canvas.drawText(line, PDF_MARGIN, yPos, paint)
-            yPos += PDF_LINE_SPACING
+        val model = buildPdfReportModel(state, clock)
+        val blocks = buildPdfBlocks(model, notePaint::measureText)
+        val pages = paginatePdfBlocks(
+            blocks,
+            PdfLayout.MAX_CONTENT_HEIGHT
+        ).ifEmpty { listOf(emptyList()) }
+        val totalPages = pages.size
+        pages.forEachIndexed { index, pageBlocks ->
+            val pageInfo = PdfDocument.PageInfo
+                .Builder(PdfLayout.PAGE_WIDTH.toInt(), PdfLayout.PAGE_HEIGHT.toInt(), index + 1)
+                .create()
+            val page = document.startPage(pageInfo)
+            PdfCanvasRenderer.drawPage(page.canvas, pageBlocks, index + 1, totalPages, model.footer)
+            document.finishPage(page)
         }
-        document.finishPage(page)
         val file = File(context.cacheDir, fileName)
         document.writeTo(FileOutputStream(file))
         document.close()
@@ -162,6 +186,48 @@ internal object ReportActionsController {
             putExtra(Intent.EXTRA_SUBJECT, reportTitle(state.period))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
+
+    /**
+     * `Intent.ACTION_VIEW` del PDF ya generado — para el botón "PDF" (abrir en un visor
+     * externo), a diferencia de [buildPdfShareIntent] (botón "Compartir", `ACTION_SEND`). Mismo
+     * [pdfUri]/permiso de lectura que Compartir — el visor recibe el MISMO archivo. Delega la
+     * forma del intent en el overload puro de abajo.
+     */
+    fun buildPdfViewIntent(context: Context, file: File): Intent =
+        buildPdfViewIntent(pdfUri(context, file))
+
+    /**
+     * Núcleo puro de [buildPdfViewIntent]: arma el `Intent.ACTION_VIEW` a partir de una [uri]
+     * YA resuelta. Separado del `Context`/`FileProvider` real (que sí resuelve [uri] arriba)
+     * para poder probar la FORMA del intent (acción/tipo/flag de lectura) sin depender de
+     * `FileProvider.getUriForFile` — este módulo, igual que [generatePdf] (ver su KDoc), no
+     * puede ejercitar un `FileProvider` real en unit test: el manifest de test de Robolectric
+     * (`Config.NONE` en `RobolectricTestBase`) no declara ningún `<provider>`, así que resolver
+     * una Uri real revienta con `IllegalArgumentException` fuera de una Activity/Application
+     * de verdad — no un bug de este código.
+     */
+    internal fun buildPdfViewIntent(uri: Uri): Intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, PDF_MIME_TYPE)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+
+    /**
+     * Lanza [intent] con [context] y, si no hay ninguna app capaz de manejarlo (p. ej.
+     * `ACTION_VIEW` de un PDF en un dispositivo sin visor instalado), cae a un chooser en vez
+     * de tronar con `ActivityNotFoundException`; si tampoco el chooser encuentra destino,
+     * no-op silencioso (mejor que un crash del botón "PDF").
+     */
+    fun startActivitySafely(context: Context, intent: Intent) {
+        try {
+            context.startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            try {
+                context.startActivity(Intent.createChooser(intent, null))
+            } catch (_: ActivityNotFoundException) {
+                // Ningún visor/chooser disponible — no hay nada más que hacer desde aquí.
+            }
+        }
+    }
 
     // endregion
 

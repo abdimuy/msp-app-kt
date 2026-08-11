@@ -24,6 +24,13 @@ import java.time.Instant
  * @property saldo saldo restante ACTUAL de la venta asociada (`sales.SALDO_REST`),
  *   el mismo valor que la app muestra como "saldo actual"; `null` si la venta no
  *   está en local. Es el saldo vivo, no el saldo al momento de este pago.
+ * @property saleId `DOCTO_CC_ACR_ID` de la venta asociada (mismo valor que hoy viaja como texto
+ *   en [ventaLabel]) — id tipado para atribuir este pago a su venta sin re-parsear
+ *   [ventaLabel]. Alimenta el `abonoSemana` por venta que consume
+ *   [com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje] (Meta de la
+ *   semana). `0` cuando el pago no trae una venta resuelta (nunca ocurre en producción — el
+ *   adapter siempre lo puebla desde `PaymentEntity.DOCTO_CC_ACR_ID` — pero es un default seguro
+ *   para no romper los fixtures de test existentes que construyen `CollectionPayment` sin él).
  */
 data class CollectionPayment(
     val id: String,
@@ -34,5 +41,6 @@ data class CollectionPayment(
     val paidAt: Instant,
     val synced: Boolean,
     val folio: String = "",
-    val saldo: Money? = null
+    val saldo: Money? = null,
+    val saleId: Int = 0
 )

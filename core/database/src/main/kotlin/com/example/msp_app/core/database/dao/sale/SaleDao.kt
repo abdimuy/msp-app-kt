@@ -5,6 +5,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import com.example.msp_app.core.database.entities.SaleCobranzaRow
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.SaleRefRow
 import com.example.msp_app.core.database.entities.SaleWithProductsEntity
@@ -12,6 +13,30 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SaleDao {
+
+    /**
+     * Ventas de crédito no-contado ACTIVAS para "Meta de la semana"
+     * (`SaleForCobranza`/`CobranzaPorcentaje`, `:feature:collectionReport`). `sales` ya solo
+     * contiene crédito (el sync del backend excluye CONTADO río arriba — mismo filtro que
+     * `cobranza_repo.go` en `msp-api` — nunca hay `FREC_PAGO = 'CONTADO'` en local), así que
+     * esta query solo filtra "activa".
+     *
+     * **Desviación documentada vs. el Go** (`queryVentasPorZona`): el backend incluye una venta
+     * saldada si tuvo abono en la ventana (`SALDO > 0 OR abonoSemana > 0`); aquí solo se filtra
+     * `SALDO_REST > 0` porque el abono de la ventana se resuelve aparte (agrupando
+     * `CollectionPayment.saleId`, ver `SaleForCobranza`) y `SaleDao.deleteSaldadasFueraDeVentana`
+     * ya conserva localmente las saldadas con un pago reciente — el caso "saldada CON abono en
+     * la ventana" solo se pierde si esa venta salió de local ANTES del ciclo actual, un borde
+     * que no se ha observado en producción; se documenta en vez de replicar el OR completo.
+     */
+    @Query(
+        """
+        SELECT DOCTO_CC_ACR_ID, PARCIALIDAD, PRECIO_TOTAL, SALDO_REST, FREC_PAGO, FECHA
+        FROM sales
+        WHERE SALDO_REST > 0
+        """
+    )
+    suspend fun getCobranzaRows(): List<SaleCobranzaRow>
 
     /**
      * Referencia ligera (folio + saldo restante) de un conjunto de ventas por su

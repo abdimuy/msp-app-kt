@@ -206,6 +206,11 @@ dependencies {
 
     implementation(project(":core:common"))
     implementation(project(":core:database"))
+    // FontSizeLevel/LocalFontSizeLevel/LocalReduceMotion (fundación de Configuración) —
+    // MainActivity los consume directo para el override Opción C de la raíz de composición
+    // (no llegan transitivos: `:core:settings`/`:feature:collectionReport` los declaran
+    // `implementation`, no `api`).
+    implementation(project(":core:designsystem"))
     // ConnectivityMonitor + su módulo Hilt (Task 5, Plan 4) — mismo package
     // `com.example.msp_app.core.network`, ningún import de consumidor cambia.
     implementation(project(":core:network"))
@@ -214,10 +219,20 @@ dependencies {
     // LocalTelemetry en la raíz Compose de :app (MainActivity) para que
     // ScreenScope/Modifier.trackClick tengan un Telemetry real en toda la app.
     implementation(project(":core:telemetry"))
+    // SettingsRepository (fundación de Configuración: tamaño de letra, privacidad,
+    // reduce-motion — spec 2026-08-10-configuracion-tamano-letra-design.md). Consumido
+    // por `MainActivity` (override Opción C de `LocalDensity` + `LocalReduceMotion`
+    // en la raíz de composición).
+    implementation(project(":core:settings"))
     // Piloto del reporte de cobranza unificado (Plan 5). `:app` provee el adapter
     // real de `UserCyclePort` (Firestore userData) en su composition root y monta
     // `CollectionReportScreen`/`...Tier2` en la ruta `daily_reports`.
     implementation(project(":feature:collectionReport"))
+    // Pantalla de Configuración (tamaño de letra, tema, privacidad, reduce-motion —
+    // spec 2026-08-10-configuracion-tamano-letra-design.md). `:app` provee el adapter
+    // real de `AppThemePort` (ThemeController) y monta `ConfiguracionScreen` en la
+    // ruta `configuracion` + el ítem del drawer.
+    implementation(project(":feature:configuracion"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

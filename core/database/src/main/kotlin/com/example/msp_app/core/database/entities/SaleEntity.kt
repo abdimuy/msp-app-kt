@@ -69,6 +69,27 @@ data class SaleRefRow(
     val saldo: Double
 )
 
+/**
+ * Proyección de una venta de crédito para el cálculo de "Meta de la semana"
+ * (`:feature:collectionReport`, `CobranzaPorcentaje` — puerto Kotlin fiel del cálculo
+ * `msp-api` `internal/rutas/domain`). Solo las columnas que ese cálculo necesita — no trae
+ * la entidad `sales` completa (`SaleDao.getCobranzaRows`). Solo lectura, no es una `@Entity`.
+ */
+data class SaleCobranzaRow(
+    @ColumnInfo(name = "DOCTO_CC_ACR_ID")
+    val doctoCcAcrId: Int,
+    @ColumnInfo(name = "PARCIALIDAD")
+    val parcialidad: Int,
+    @ColumnInfo(name = "PRECIO_TOTAL")
+    val precioTotal: Double,
+    @ColumnInfo(name = "SALDO_REST")
+    val saldoRest: Double,
+    @ColumnInfo(name = "FREC_PAGO")
+    val frecPago: String?,
+    @ColumnInfo(name = "FECHA")
+    val fecha: String
+)
+
 data class SaleWithProductsEntity(
     val DOCTO_CC_ACR_ID: Int,
     val DOCTO_CC_ID: Int,

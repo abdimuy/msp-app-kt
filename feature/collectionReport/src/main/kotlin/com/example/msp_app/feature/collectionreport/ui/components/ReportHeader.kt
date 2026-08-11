@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
@@ -22,6 +23,15 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /** Icon-surface del menú — mismo 40dp que `MspPrivacyEyeToggle`/`MspThemeToggle` (kollect §7.2). */
 private val MENU_BUTTON_SIZE = 40.dp
+
+/**
+ * Tope de líneas del subtítulo "Reporte · [cobrador]" (fix bug "Grande/Muy grande rompe el
+ * reporte", Task 4 de header): a Grande/Muy grande (rampa comprimida) un nombre largo de
+ * cobrador envolvía a 3 líneas y empujaba el resto del tablero hacia abajo. 2 líneas (no 1)
+ * porque "Reporte · " + un nombre corto/medio sigue cabiendo completo sin necesitar elipsis en
+ * el caso común — solo nombres largos a escala grande la disparan.
+ */
+private const val SUBTITLE_MAX_LINES = 2
 
 /**
  * Header propio del reporte (mockup `.hdr`, NO un `TopAppBar` M3): ícono de menú (abre el
@@ -71,7 +81,9 @@ fun ReportHeader(
             Text(
                 text = "Reporte · $cobrador",
                 style = MspTheme.type.subtitle,
-                color = MspTheme.colors.onSurfaceMuted
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = SUBTITLE_MAX_LINES,
+                overflow = TextOverflow.Ellipsis
             )
         }
 

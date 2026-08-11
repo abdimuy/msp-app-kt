@@ -2,6 +2,7 @@ package com.example.msp_app.feature.collectionreport.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -13,18 +14,25 @@ import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.collectionreport.ui.tier2.ReportTier
 
 private val ACTION_BAR_TOP_PADDING = 32.dp
 private val ACTION_BAR_SIDE_PADDING = 16.dp
 private val ACTION_BAR_BOTTOM_PADDING = 16.dp
 
-// `MspPrimaryFieldButton` (16sp ExtraBold, sin slot de ícono ni `maxLines`, ver KDoc de
-// [BlurredActionBar]) no cabe en una sola línea a peso igual en tres columnas de ~104dp
-// (pantalla de 360dp) — "Compartir"/"Imprimir" son las etiquetas más largas del mockup.
-// Pesos desiguales (en vez de `weight(1f)` parejo) le dan más ancho de texto a esas dos a
-// costa de PDF (la más corta) — mismo total de fila, sin tocar el componente del DS.
+// `MspPrimaryFieldButton` (16sp ExtraBold) no cabe en una sola línea a peso igual en tres
+// columnas de ~104dp (pantalla de 360dp) — "Compartir"/"Imprimir" son las etiquetas más largas
+// del mockup. Pesos desiguales (en vez de `weight(1f)` parejo) le dan más ancho de texto a esas
+// dos a costa de PDF (la más corta) — mismo total de fila, sin tocar el componente del DS. Solo
+// aplica a la fila de [ReportTier.TIER_1]; en [ReportTier.TIER_2] cada botón es de ancho
+// completo (ver KDoc de [BlurredActionBar]), así que estos pesos no importan ahí.
 private const val WIDE_LABEL_WEIGHT = 1.15f
 private const val SHORT_LABEL_WEIGHT = 0.7f
+
+// Un solo renglón por etiqueta (fix bug "Compar tir"/"PD F" a Grande/Muy grande, spec §5) — ver
+// KDoc de [BlurredActionBar]. Vive aquí (no como default de `MspPrimaryFieldButton`) porque el
+// resto de callers del design system sí pueden envolver a más de una línea si su texto crece.
+private const val BUTTON_MAX_LINES = 1
 
 // Fracción de alto donde el degradado llega a opacidad SÓLIDA — mockup
 // `linear-gradient(to bottom, var(--bg0) 0%, var(--bg) 44%)`: de 0% a 44% transparente→sólido,
@@ -75,57 +83,115 @@ private const val SOLID_STOP_FRACTION = 0.44f
  * [com.example.msp_app.feature.collectionreport.ui.CollectionReportContent]); `.padding()` de
  * los botones va DESPUÉS del inset, así que son los botones (no el fondo) los que suben para
  * quedar arriba de la barra de navegación — nunca tapados por los `||| ◯ ‹` del sistema.
+ *
+ * **[tier] decide fila vs columna (fix bug "Grande/Muy grande rompe el reporte"):** en
+ * [ReportTier.TIER_1] (default) los tres botones siguen en una sola fila de pesos desiguales,
+ * como siempre. En [ReportTier.TIER_2] (Grande/Muy grande — texto más grande vía la rampa
+ * tipográfica comprimida) se apilan en columna, cada uno de ancho completo: con solo ~104dp
+ * por columna, ni "Compartir" ni "Imprimir" caben en una línea a ese tamaño de texto por más
+ * peso desigual que se les dé, y una fila apretada es justo lo que partía las palabras a la
+ * mitad ("Compar tir", "PD F") y tapaba la última tarjeta del tablero. Ancho completo también
+ * da los "targets mayores" que pide Tier 2 (spec §5) sin inflar la altura mínima del botón (el
+ * `heightIn` de 56dp de [MspPrimaryFieldButton] ya la cumple). El caller de cada tier
+ * (`CollectionReportScreen`/`CollectionReportScreenTier2`) pasa su propio [tier] fijo — este
+ * componente no lee
+ * [com.example.msp_app.feature.collectionreport.ui.tier2.rememberReportTier] por su cuenta para
+ * no acoplarse a `AppNavigation`/`LocalFontSizeLevel` cuando el caller ya sabe en qué tier vive.
+ *
+ * **`maxLines` = [BUTTON_MAX_LINES] en las tres etiquetas:** defensa de fondo además de [tier] —
+ * ninguna combinación de ancho/escala puede partir una palabra a la mitad; la etiqueta se
+ * comprime a una sola línea con elipsis (`MspPrimaryFieldButton`, parámetro nuevo, default sin
+ * límite para no tocar otros callers del design system) en vez de envolver.
  */
 @Composable
 fun BlurredActionBar(
     onCompartirClick: () -> Unit,
     onImprimirClick: () -> Unit,
     onPdfClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tier: ReportTier = ReportTier.TIER_1
 ) {
     val background = MspTheme.colors.background
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    colorStops = arrayOf(
-                        0f to background.copy(alpha = 0f),
-                        SOLID_STOP_FRACTION to background,
-                        1f to background
-                    )
+    val containerModifier = modifier
+        .fillMaxWidth()
+        .background(
+            Brush.verticalGradient(
+                colorStops = arrayOf(
+                    0f to background.copy(alpha = 0f),
+                    SOLID_STOP_FRACTION to background,
+                    1f to background
                 )
             )
-            .navigationBarsPadding()
-            .padding(
-                start = ACTION_BAR_SIDE_PADDING,
-                end = ACTION_BAR_SIDE_PADDING,
-                top = ACTION_BAR_TOP_PADDING,
-                bottom = ACTION_BAR_BOTTOM_PADDING
-            ),
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-    ) {
-        MspPrimaryFieldButton(
-            text = "Compartir",
-            variant = PrimaryFieldButtonVariant.Ghost,
-            onClick = onCompartirClick,
-            modifier = Modifier
-                .weight(WIDE_LABEL_WEIGHT)
-                .background(MspTheme.colors.surface, MspTheme.shapes.button)
         )
-        MspPrimaryFieldButton(
-            text = "Imprimir",
-            variant = PrimaryFieldButtonVariant.Ghost,
-            onClick = onImprimirClick,
-            modifier = Modifier
-                .weight(WIDE_LABEL_WEIGHT)
-                .background(MspTheme.colors.surface, MspTheme.shapes.button)
+        .navigationBarsPadding()
+        .padding(
+            start = ACTION_BAR_SIDE_PADDING,
+            end = ACTION_BAR_SIDE_PADDING,
+            top = ACTION_BAR_TOP_PADDING,
+            bottom = ACTION_BAR_BOTTOM_PADDING
         )
-        MspPrimaryFieldButton(
-            text = "PDF",
-            variant = PrimaryFieldButtonVariant.Primary,
-            onClick = onPdfClick,
-            modifier = Modifier.weight(SHORT_LABEL_WEIGHT)
-        )
+
+    if (tier == ReportTier.TIER_2) {
+        Column(
+            modifier = containerModifier,
+            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            MspPrimaryFieldButton(
+                text = "Compartir",
+                variant = PrimaryFieldButtonVariant.Ghost,
+                onClick = onCompartirClick,
+                maxLines = BUTTON_MAX_LINES,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MspTheme.colors.surface, MspTheme.shapes.button)
+            )
+            MspPrimaryFieldButton(
+                text = "Imprimir",
+                variant = PrimaryFieldButtonVariant.Ghost,
+                onClick = onImprimirClick,
+                maxLines = BUTTON_MAX_LINES,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MspTheme.colors.surface, MspTheme.shapes.button)
+            )
+            MspPrimaryFieldButton(
+                text = "PDF",
+                variant = PrimaryFieldButtonVariant.Primary,
+                onClick = onPdfClick,
+                maxLines = BUTTON_MAX_LINES,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    } else {
+        Row(
+            modifier = containerModifier,
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            MspPrimaryFieldButton(
+                text = "Compartir",
+                variant = PrimaryFieldButtonVariant.Ghost,
+                onClick = onCompartirClick,
+                maxLines = BUTTON_MAX_LINES,
+                modifier = Modifier
+                    .weight(WIDE_LABEL_WEIGHT)
+                    .background(MspTheme.colors.surface, MspTheme.shapes.button)
+            )
+            MspPrimaryFieldButton(
+                text = "Imprimir",
+                variant = PrimaryFieldButtonVariant.Ghost,
+                onClick = onImprimirClick,
+                maxLines = BUTTON_MAX_LINES,
+                modifier = Modifier
+                    .weight(WIDE_LABEL_WEIGHT)
+                    .background(MspTheme.colors.surface, MspTheme.shapes.button)
+            )
+            MspPrimaryFieldButton(
+                text = "PDF",
+                variant = PrimaryFieldButtonVariant.Primary,
+                onClick = onPdfClick,
+                maxLines = BUTTON_MAX_LINES,
+                modifier = Modifier.weight(SHORT_LABEL_WEIGHT)
+            )
+        }
     }
 }

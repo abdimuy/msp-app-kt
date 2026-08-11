@@ -10,11 +10,15 @@ import com.example.msp_app.feature.collectionreport.domain.model.CollectionVisit
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
 import com.example.msp_app.feature.collectionreport.domain.model.Money
+import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotalsPort
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
+import com.example.msp_app.feature.collectionreport.domain.port.ReportThemePort
+import com.example.msp_app.feature.collectionreport.domain.port.SalesPort
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.collectionreport.domain.port.VisitsPort
 import java.time.Instant
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Fakes de los puertos del reporte (estado + spy), fakes-only — sin MockK.
@@ -109,6 +113,19 @@ class FakeHistoricalTotalsPort : HistoricalTotalsPort {
     }
 }
 
+/** Fake de [SalesPort]. */
+class FakeSalesPort : SalesPort {
+
+    var sales: List<SaleForCobranza> = emptyList()
+    var nonContadoActiveSalesCalls: Int = 0
+        private set
+
+    override suspend fun nonContadoActiveSales(): List<SaleForCobranza> {
+        nonContadoActiveSalesCalls++
+        return sales
+    }
+}
+
 /**
  * Fake de [PrinterPort] (`:core:printing`) — estado configurable + spy. Registra el ticket y
  * la impresora con que se llamó a [print], y devuelve el [Result] que se le configure para
@@ -148,6 +165,33 @@ class FakePrinterPort : PrinterPort {
         lastPrintedTicket = ticket
         lastPrintedProfile = profile
         return printResult
+    }
+}
+
+/**
+ * Fake de [ReportThemePort] — estado configurable + spy, respaldado por un [MutableStateFlow]
+ * real (no un `List` grabado) para que un test pueda simular "el tema cambia mientras la
+ * pantalla está abierta" (p. ej. desde Configuración) empujando un nuevo valor y observando que
+ * el `StateFlow` del ViewModel lo refleje sin llamar [toggle].
+ */
+class FakeReportThemePort(initialDark: Boolean = false) : ReportThemePort {
+
+    private val darkState = MutableStateFlow(initialDark)
+
+    override val isDark = darkState
+
+    val toggleCalls: MutableList<Boolean> = mutableListOf()
+
+    override fun currentIsDark(): Boolean = darkState.value
+
+    override fun toggle() {
+        darkState.value = !darkState.value
+        toggleCalls += darkState.value
+    }
+
+    /** Simula un cambio de tema originado FUERA del reporte (p. ej. Configuración). */
+    fun setDarkExternally(dark: Boolean) {
+        darkState.value = dark
     }
 }
 

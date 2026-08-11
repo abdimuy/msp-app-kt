@@ -109,23 +109,32 @@ enum class SheetKind { HERO, EFECTIVO, TRANSFERENCIA, CONDONADO, VISITAS, DIA_CI
  */
 data class SheetUi(val kind: SheetKind, val argument: String? = null)
 
-/** Bienestar del hero: etiqueta estática (es-MX) + su [Money] — p. ej. "Efectivo en mano". */
-data class HeroWell(val label: String, val amount: Money)
-
 /**
  * Tarjeta hero del tablero. [insight] es el sealed [Insight] del dominio (Daily/Weekly) —
  * NO una frase pre-formateada; [sparkline] es el [Timeline] del dominio (buckets + índice
  * resaltado). Formatear ambos a texto/gráfico vive en la UI (Task 6+).
+ *
+ * **Meta de la semana (reemplaza la meta de mediana):** [porcentajeCobro] (ponderado) y
+ * [porcentajeCuentas] (cobertura) son las dos métricas REALES de cobranza calculadas offline
+ * desde Room (`CobranzaPorcentaje`, puerto fiel del backend Go
+ * `internal/rutas/domain`/`internal/rutas/app` de `msp-api`) — reemplazan la meta sugerida por
+ * mediana (`SuggestedGoal`, retirada) y los dos wells "Efectivo en mano"/"Ticket prom."
+ * (retirados). Solo se calculan en [com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod.SEMANA]
+ * (ver `CollectionReportStateBuilder`); en DÍA quedan en `0f`/`0` y la tarjeta "Meta de la
+ * semana" (`MetaCard`) no se monta. [clientesPagaron]/[clientesTotal] alimentan el subtítulo
+ * "N de M clientes" de la cobertura (en rigor cuentan VENTAS activas, no clientes únicos —
+ * mismo criterio que `CoberturaNum`/`CoberturaDen` en el Go).
  */
 data class HeroUi(
     val overline: String = "",
     val delta: DeltaChip = DeltaChip("—", DeltaDirection.NONE),
     val monto: Money = Money.ZERO,
     val insight: Insight = Insight.Daily(count = 0, progressPct = 0, projection = null),
-    val progress: Float = 0f,
-    val goalCap: Money = Money.ZERO,
     val sparkline: Timeline = Timeline(buckets = emptyList(), highlightIndex = 0),
-    val wells: List<HeroWell> = emptyList()
+    val porcentajeCobro: Float = 0f,
+    val porcentajeCuentas: Float = 0f,
+    val clientesPagaron: Int = 0,
+    val clientesTotal: Int = 0
 )
 
 /** Tile protagonista (Efectivo / Transferencia): total cobrado + número de pagos. */
@@ -181,7 +190,19 @@ sealed interface DetailUi {
 data class ForgivenessRowUi(val cliente: String, val motivo: String, val amount: Money)
 
 /**
- * Fila de una visita (sheet `SheetKind.VISITAS`) — 1:1 de `CollectionVisit` del dominio. Sin
- * [Money]: una visita no mueve dinero (mismo criterio que el dominio `CollectionVisit`).
+ * Fila de una visita (sheet `SheetKind.VISITAS`, ticket impreso) — 1:1 de `CollectionVisit`
+ * del dominio. Sin [Money]: una visita no mueve dinero (mismo criterio que el dominio
+ * `CollectionVisit`).
+ *
+ * [tipo] es el motivo/resultado elegido al capturar la visita (`CollectionVisit.tipo`, p. ej.
+ * "No se encontraba") — Task 2: antes se perdía al mapear a esta fila, ahora viaja hasta el
+ * sheet y el ticket impreso. [visitedAt] viaja también (antes se descartaba en
+ * `CollectionReportStateBuilder`) porque el ticket impreso necesita el prefijo hora/fecha por
+ * visita, el mismo lenguaje visual que [PaymentRowUi.paidAt] en las filas de pago.
  */
-data class VisitRowUi(val cliente: String, val nota: String)
+data class VisitRowUi(
+    val cliente: String,
+    val nota: String,
+    val tipo: String,
+    val visitedAt: Instant
+)

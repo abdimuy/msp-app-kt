@@ -102,8 +102,7 @@ private fun LargeAmountHero() {
     Box(modifier = Modifier.width(NARROW_WIDTH).padding(MspTheme.spacing.md)) {
         HeroSection(
             hero = MockupFixtures.heroDia().copy(
-                monto = Money.of(BigDecimal("12345678.90")),
-                goalCap = Money.of(BigDecimal("13500000"))
+                monto = Money.of(BigDecimal("12345678.90"))
             ),
             period = ReportPeriod.DIA,
             masked = false,

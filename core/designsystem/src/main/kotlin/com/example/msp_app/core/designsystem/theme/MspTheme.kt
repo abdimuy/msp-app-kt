@@ -54,11 +54,22 @@ internal val LocalMspMotion = staticCompositionLocalOf<MspMotion> {
  * [animateColors] es el escape hatch que la reveal de tema (Task 9) usará
  * para tomar control manual de la transición en vez de dejar que
  * `MspTheme` la anime sola.
+ *
+ * [typography] `null` (default) usa la escala NORMAL ([mspTypography], memoizada UNA vez vía
+ * `remember` — no en cada recomposición). Un caller que quiera la rampa comprimida (spec
+ * §"Compresión de jerarquía") pasa `mspTypography().compressed(nivel)`
+ * (`CompressedTypeRamp.kt`); ver KDoc de [MspTypography.compressed] por qué ese caller también
+ * debe neutralizar `LocalDensity.fontScale` a `1f` en su subárbol. Parámetro ADITIVO (con
+ * default): ningún caller existente necesita cambiar. `null` en vez de `= mspTypography()`
+ * como default a propósito: un default no-`null` se re-evaluaría (reconstruyendo los 45
+ * `TextStyle`/`Font`) en CADA llamada sin argumento explícito, perdiendo el `remember` que este
+ * composable tenía antes de este parámetro.
  */
 @Composable
 fun MspTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     animateColors: Boolean = true,
+    typography: MspTypography? = null,
     content: @Composable () -> Unit
 ) {
     val light = remember { mspLightColors() }
@@ -74,7 +85,8 @@ fun MspTheme(
     } else {
         remember(darkTheme, light, dark) { if (darkTheme) dark else light }
     }
-    val type = remember { mspTypography() }
+    val defaultType = remember { mspTypography() }
+    val type = typography ?: defaultType
     val spacing = remember { MspSpacing() }
     val shapes = remember { MspShapes() }
     val motion = remember { MspMotion() }

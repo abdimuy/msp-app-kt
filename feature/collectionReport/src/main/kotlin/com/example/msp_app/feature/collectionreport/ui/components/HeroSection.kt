@@ -6,10 +6,8 @@ import androidx.compose.ui.platform.testTag
 import com.example.msp_app.core.designsystem.component.MspHeroTodayCard
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.feature.collectionreport.domain.Insight
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.ui.HeroUi
-import java.math.BigDecimal
 
 /** Glifo de privacidad de la frase-insight — mockup `masked?'&bull;&bull;&bull;':d.insight`. */
 private const val MASKED_INSIGHT = "•••"
@@ -37,6 +35,11 @@ const val COLLECTION_REPORT_HERO_TEST_TAG = "collection_report_hero"
  * **Regla anti-colapso (spec §6):** no se aplica `weight`/`fillMaxHeight` propio — el
  * caller ([com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen]) lo
  * monta dentro de una `Column` con scroll sin `weight`, para que el hero nunca se comprima.
+ *
+ * **Meta de la semana (reemplaza meta de mediana + wells):** el hero YA NO pasa
+ * `progress`/`goalAmount`/wells a [MspHeroTodayCard] (ahora opcionales, ver su KDoc) — esas
+ * cifras retiradas viven en `MetaCard`, la tarjeta que el caller monta debajo del hero con
+ * [hero]'s [HeroUi.porcentajeCobro]/[HeroUi.porcentajeCuentas].
  */
 @Composable
 fun HeroSection(
@@ -48,21 +51,11 @@ fun HeroSection(
     animateSparkline: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val efectivoWell = hero.wells.getOrNull(0)
-    val ticketWell = hero.wells.getOrNull(1)
-
     MspHeroTodayCard(
         overline = hero.overline,
         delta = hero.delta.text,
         amount = hero.monto.amount,
         insight = if (masked) MASKED_INSIGHT else heroInsightText(hero.insight),
-        progress = hero.progress,
-        goalLabel = goalLabel(period),
-        goalAmount = hero.goalCap.amount,
-        cashOnHandLabel = efectivoWell?.label.orEmpty(),
-        cashOnHand = efectivoWell?.amount?.amount ?: BigDecimal.ZERO,
-        avgTicketLabel = ticketWell?.label.orEmpty(),
-        avgTicket = ticketWell?.amount?.amount ?: BigDecimal.ZERO,
         masked = masked,
         sparkline = {
             Sparkline(
@@ -77,20 +70,22 @@ fun HeroSection(
     )
 }
 
-private fun goalLabel(period: ReportPeriod): String = when (period) {
-    ReportPeriod.DIA -> "meta del día"
-    ReportPeriod.SEMANA -> "meta de la semana"
-}
-
 /**
  * Arma la frase-insight es-MX a partir del [Insight] sellado del dominio (SIN formatear —
  * ver su KDoc en `ReportAggregator.kt`). `projection` (Día) queda PARKED por diseño en el
  * dominio (Task 5 report: "no hay todavía un oracle de proyección de cierre verificado");
  * cuando es `null` se omite la cláusula "a este ritmo cierras en $Y" en vez de inventarla.
+ *
+ * **Fix "Meta de la semana":** [Insight.Daily.progressPct] ya NO referencia una meta diaria
+ * (`SuggestedGoal` retirado) — DÍA no tiene "meta de la semana" que reportar, así que la
+ * cláusula "vas al X% de tu meta" se omite por completo en DÍA (antes mostraba el progreso
+ * contra la mediana sugerida). [Insight.Weekly.progressPct] SÍ conserva la cláusula: ahora
+ * refleja el "Porcentaje cobro" (ponderado) real capado a `[0,100]` para la frase — el valor
+ * SIN capar (puede exceder 100%) se muestra en el ring de `MetaCard`.
  */
 private fun heroInsightText(insight: Insight): String = when (insight) {
     is Insight.Daily -> buildString {
-        append("${insight.count} pagos · vas al ${insight.progressPct}% de tu meta")
+        append("${insight.count} pagos")
         insight.projection?.let { projection ->
             append(" · a este ritmo cierras en ${formatMoneyMxn(projection.amount)}")
         }
@@ -98,5 +93,5 @@ private fun heroInsightText(insight: Insight): String = when (insight) {
 
     is Insight.Weekly ->
         "${insight.count} pagos · vas al ${insight.progressPct}% de la meta · " +
-            "día ${insight.cycleDay} de ${insight.cycleDays} del ciclo"
+            "día ${insight.cycleDay} de ${insight.cycleDays} de la semana"
 }

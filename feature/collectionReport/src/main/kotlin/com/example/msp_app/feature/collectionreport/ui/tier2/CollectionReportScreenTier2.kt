@@ -51,6 +51,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.BlurredActionB
 import com.example.msp_app.feature.collectionreport.ui.components.DetailHeader
 import com.example.msp_app.feature.collectionreport.ui.components.DetailList
 import com.example.msp_app.feature.collectionreport.ui.components.HeroSection
+import com.example.msp_app.feature.collectionreport.ui.components.MetaCardTier2
 import com.example.msp_app.feature.collectionreport.ui.components.PeriodSelector
 import com.example.msp_app.feature.collectionreport.ui.components.RangeSubRow
 import com.example.msp_app.feature.collectionreport.ui.components.ReportHeader
@@ -63,12 +64,19 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Mismo colchón inferior que Tier 1 (`CollectionReportScreen.SCROLL_BOTTOM_CONTENT_PADDING`) —
- * cubre solo la altura fija de la barra de acciones; el inset real de la barra de navegación
- * del sistema lo agrega `.navigationBarsPadding()` en el `Column` de abajo (mismo fix que
- * Tier 1, ver su KDoc).
+ * Colchón inferior del scroll — cubre la altura de [BlurredActionBar] montada en
+ * [ReportTier.TIER_2] (fix bug "Grande/Muy grande rompe el reporte"): a diferencia de Tier 1
+ * (fila, `CollectionReportScreen.SCROLL_BOTTOM_CONTENT_PADDING` = 132dp), aquí la barra SIEMPRE
+ * se apila en columna (ver KDoc de [BlurredActionBar]) — top 32 + 3 botones de 56dp mín. + 2
+ * huecos de [MspTheme.spacing.sm] (8dp) + bottom 16 ≈ 232dp, bastante más alta que la fila de
+ * Tier 1. Antes de este fix este valor (96dp, "mismo colchón que Tier 1" según su comentario
+ * viejo, que en realidad NUNCA fue el mismo número) ya se quedaba corto incluso contra la fila
+ * — quedó sin detectar porque `rememberReportTier()` nunca montaba este composable de verdad
+ * (ver KDoc de [rememberReportTier]). Se agrega la misma holgura (~28dp) que Tier 1 sobre su
+ * propia estimación de altura de barra. El inset real de la barra de navegación del sistema lo
+ * agrega por separado `.navigationBarsPadding()` en el `Column` de abajo (mismo fix que Tier 1).
  */
-private val SCROLL_BOTTOM_CONTENT_PADDING = 96.dp
+private val SCROLL_BOTTOM_CONTENT_PADDING = 260.dp
 
 /** Target táctil mínimo curado de Tier 2 (spec §5: "targets mayores") — encima de las 40dp
  * de icon-surface / 48dp de `minimumInteractiveComponentSize` que ya trae el DS. */
@@ -81,12 +89,13 @@ private const val ENTRANCE_ERROR_BANNER = 1
 private const val ENTRANCE_PERIOD = 2
 private const val ENTRANCE_SUBROW = 3
 private const val ENTRANCE_HERO = 4
-private const val ENTRANCE_EFECTIVO = 5
-private const val ENTRANCE_TRANSFERENCIA = 6
-private const val ENTRANCE_CONDONADO = 7
-private const val ENTRANCE_VISITAS = 8
-private const val ENTRANCE_DETAIL_HEADER = 9
-private const val ENTRANCE_DETAIL_LIST = 10
+private const val ENTRANCE_META = 5
+private const val ENTRANCE_EFECTIVO = 6
+private const val ENTRANCE_TRANSFERENCIA = 7
+private const val ENTRANCE_CONDONADO = 8
+private const val ENTRANCE_VISITAS = 9
+private const val ENTRANCE_DETAIL_HEADER = 10
+private const val ENTRANCE_DETAIL_LIST = 11
 
 /**
  * Punto de entrada Tier 2 (Muy grande, spec §5) del reporte de cobranza — hermano de
@@ -103,9 +112,8 @@ private const val ENTRANCE_DETAIL_LIST = 10
  *
  * **[onThemeChanged] (fix defecto visual, íconos de barra de estado)** — mismo motivo que
  * [com.example.msp_app.feature.collectionreport.ui.CollectionReportScreen] (Tier 1, ver su
- * KDoc): `state.darkTheme` es un espejo local que no toca `ThemeController`; este callback
- * (default no-op) deja que `:app` mantenga los íconos de la barra de sistema correctos
- * mientras este composable está en pantalla.
+ * KDoc): este callback (default no-op) deja que `:app` mantenga los íconos de la barra de
+ * sistema correctos apenas este composable monta.
  */
 @Suppress(
     "UnusedParameter"
@@ -172,7 +180,8 @@ fun CollectionReportScreenTier2(
                         context.startActivity(Intent.createChooser(intent, null))
                     }
                 },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier.align(Alignment.BottomCenter),
+                tier = ReportTier.TIER_2
             )
             ReportSheets(state = state, onDismiss = viewModel::closeSheet)
         }
@@ -274,6 +283,17 @@ internal fun CollectionReportContentTier2(
                             onSparkBarClick = onSparkBarClick,
                             animateSparkline = animateEntrance
                         )
+                    }
+                    // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi/MetaCard.
+                    if (period == ReportPeriod.SEMANA) {
+                        StaggeredEntrance(index = ENTRANCE_META, animate = animateEntrance) {
+                            MetaCardTier2(
+                                porcentajeCobro = state.hero.porcentajeCobro,
+                                porcentajeCuentas = state.hero.porcentajeCuentas,
+                                clientesPagaron = state.hero.clientesPagaron,
+                                clientesTotal = state.hero.clientesTotal
+                            )
+                        }
                     }
                     StaggeredEntrance(index = ENTRANCE_EFECTIVO, animate = animateEntrance) {
                         Tier2Tile(

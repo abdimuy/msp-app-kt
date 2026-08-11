@@ -315,7 +315,7 @@ object ReportAggregator {
      * negativo) no hay base de comparación -> "—" (parked: degradar sin romper).
      */
     fun delta(current: Money, prior: Money, period: ReportPeriod): DeltaChip {
-        val suffix = if (period == ReportPeriod.DIA) "vs ayer" else "vs ciclo"
+        val suffix = if (period == ReportPeriod.DIA) "vs ayer" else "vs semana"
         if (prior.amount.signum() <= 0) return DeltaChip("—", DeltaDirection.NONE)
         val diff = current.amount.subtract(prior.amount)
         val pct = diff.abs().multiply(HUNDRED)

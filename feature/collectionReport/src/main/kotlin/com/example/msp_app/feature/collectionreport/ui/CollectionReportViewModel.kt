@@ -13,9 +13,12 @@ import com.example.msp_app.feature.collectionreport.di.DefaultDispatcher
 import com.example.msp_app.feature.collectionreport.domain.ReportAggregator
 import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
+import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotalsPort
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
+import com.example.msp_app.feature.collectionreport.domain.port.ReportThemePort
+import com.example.msp_app.feature.collectionreport.domain.port.SalesPort
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.collectionreport.domain.port.VisitsPort
 import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
@@ -59,19 +62,31 @@ class CollectionReportViewModel @Inject constructor(
     private val visitsPort: VisitsPort,
     private val userCyclePort: UserCyclePort,
     private val historicalTotalsPort: HistoricalTotalsPort,
+    private val salesPort: SalesPort,
     private val printerPort: PrinterPort,
     private val preferredPrinterStore: PreferredPrinterStore,
     private val clock: AppClock,
     private val telemetry: Telemetry,
+    private val reportThemePort: ReportThemePort,
     @DefaultDispatcher private val backgroundDispatcher: CoroutineDispatcher
 ) : ViewModel() {
 
-    private val mutableState = MutableStateFlow(CollectionReportUiState())
+    // Sembrado con el tema GLOBAL vigente (no `false` a ciegas): así el primer frame del
+    // reporte ya nace en el tema correcto, sin un parpadeo claro->oscuro cuando la app entera
+    // está en oscuro (mismo criterio que `ConfiguracionViewModel` siembra su `themeMode` desde
+    // `AppThemePort.currentThemeMode()`).
+    private val mutableState = MutableStateFlow(
+        CollectionReportUiState(darkTheme = reportThemePort.currentIsDark())
+    )
     val state: StateFlow<CollectionReportUiState> = mutableState.asStateFlow()
 
     // Último lote de pagos cargado — permite a [setSort] reordenar el detalle SIN volver a
     // consultar los puertos (reordenar es puro, ver CollectionReportStateBuilder).
     private var lastPayments: List<CollectionPayment> = emptyList()
+
+    // Rango del último lote — [setSort] lo necesita en Semana para re-agrupar `dayPayments`
+    // por día ([CollectionReportSort.dayPaymentRows]); en Día no se usa.
+    private var lastRange: DateRange? = null
 
     // Carga en curso: se cancela antes de lanzar la siguiente, para que un `setPeriod` que
     // no alcanzó a resolver no pise el estado de la carga más reciente al llegar tarde.
@@ -79,6 +94,15 @@ class CollectionReportViewModel @Inject constructor(
 
     init {
         telemetry.screenView(SCREEN)
+        // Mantiene `darkTheme` sincronizado con el tema GLOBAL mientras la pantalla vive —
+        // no solo en el toggle propio: si el tema cambia desde OTRO lado (Configuración, o el
+        // sistema operativo en modo Automático) mientras el reporte está en pantalla, se
+        // refleja igual. `viewModelScope` cancela esta colecta sola al destruirse el ViewModel.
+        viewModelScope.launch {
+            reportThemePort.isDark.collect { dark ->
+                mutableState.update { it.copy(darkTheme = dark) }
+            }
+        }
         load(ReportPeriod.DIA)
     }
 
@@ -98,27 +122,51 @@ class CollectionReportViewModel @Inject constructor(
     }
 
     /**
-     * Espejo local del tema oscuro — el ViewModel NO es dueño de la fuente de verdad. El
-     * toggle real (y el reveal circular) vive en el composition root / Task 9, que necesita
-     * el frame de la pantalla para animar; este flag solo deja que la UI refleje el estado.
+     * Alterna el tema GLOBAL de la app vía [ReportThemePort] (persiste, sobrevive a
+     * navegación/muerte de proceso) — fix del bug donde el reporte tenía su propio espejo
+     * local que se reiniciaba a claro cada vez que se volvía a entrar a la pantalla. El
+     * [ReportThemePort.toggle] real es síncrono ([ThemeController.toggle] solo escribe
+     * `SharedPreferences`), así que no hace falta lanzar una corrutina aquí: la escritura del
+     * `StateFlow` (`darkTheme`) la produce la colecta de [ReportThemePort.isDark] instalada en
+     * [init], no esta función — mismo desacople que ya usa `ConfiguracionViewModel.selectThemeMode`
+     * con `AppThemePort`. `ThemeRevealRoot` sigue animando sobre el cambio de `darkTheme` igual
+     * que antes; lo único que cambia es DE DÓNDE viene ese cambio.
      */
     fun toggleTheme() {
         telemetry.tap(SCREEN, "theme_toggle")
-        mutableState.update { it.copy(darkTheme = !it.darkTheme) }
+        reportThemePort.toggle()
     }
 
-    /** Reordena el detalle Día (Hora/Nombre); Semana lo ignora (siempre cronológico). */
+    /**
+     * Reordena el detalle (Hora/Fecha·Nombre) SIN volver a consultar los puertos — el orden es
+     * puro dado el último lote ya cargado ([CollectionReportStateBuilder] / [CollectionReportSort]).
+     * Día reordena `detail` directo; Semana ([current.period] == SEMANA) reordena
+     * `dayPayments` DENTRO de cada día ([CollectionReportSort.dayPaymentRows]) y deja el
+     * resumen `DetailUi.Days` intacto — el orden ENTRE días sigue siendo cronológico, solo
+     * cambia el orden de los pagos individuales de cada día (consumidos por el sheet
+     * `DIA_CICLO`; el ticket impreso aplica su propio orden global sobre TODO el rango, ver
+     * `CollectionReportFormatter.addPaymentsBlock`).
+     */
     fun setSort(sort: DetailSort) {
         telemetry.tap(SCREEN, "sort_${sort.name.lowercase()}")
         mutableState.update { current ->
-            val detail = if (current.period == ReportPeriod.DIA) {
-                DetailUi.Payments(
-                    CollectionReportStateBuilder.sortedPaymentRows(lastPayments, sort)
+            when (current.period) {
+                ReportPeriod.DIA -> current.copy(
+                    sort = sort,
+                    detail = DetailUi.Payments(
+                        CollectionReportStateBuilder.sortedPaymentRows(lastPayments, sort)
+                    )
                 )
-            } else {
-                current.detail
+                ReportPeriod.SEMANA -> {
+                    val range = lastRange
+                    val dayPayments = if (range == null) {
+                        current.dayPayments
+                    } else {
+                        CollectionReportSort.dayPaymentRows(lastPayments, range, sort)
+                    }
+                    current.copy(sort = sort, dayPayments = dayPayments)
+                }
             }
-            current.copy(sort = sort, detail = detail)
         }
     }
 
@@ -305,6 +353,7 @@ class CollectionReportViewModel @Inject constructor(
                 val sort = mutableState.value.sort
                 val content = fetchContent(period, sort)
                 lastPayments = content.payments
+                lastRange = content.range
                 mutableState.update { applyContent(it, period, content) }
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -329,7 +378,9 @@ class CollectionReportViewModel @Inject constructor(
         period: ReportPeriod,
         sort: DetailSort
     ): CollectionReportStateBuilder.LoadedContent = withContext(backgroundDispatcher) {
-        // fechaCargaInicial solo se pide en Semana (Día no depende del ciclo del cobrador).
+        // fechaCargaInicial solo se pide en Semana (Día no depende del ciclo del cobrador) —
+        // también alimenta "Meta de la semana" (CobranzaPorcentaje), que por la misma razón
+        // solo se calcula en Semana.
         val fechaCargaInicial =
             if (period == ReportPeriod.SEMANA) userCyclePort.fechaCargaInicial() else null
         val range = CollectionReportStateBuilder.resolveRange(period, clock, fechaCargaInicial)
@@ -342,6 +393,9 @@ class CollectionReportViewModel @Inject constructor(
             paymentsPort.paymentsIn(CollectionReportStateBuilder.priorRange(range))
         )
         val historicalTotals = historicalTotalsPort.dailyTotals(SuggestedGoal.DEFAULT_WINDOW)
+        // Ventas activas solo en Semana — evita el costo de la query en Día, donde "Meta de la
+        // semana" no se muestra (ver KDoc de HeroUi/CollectionReportStateBuilder.buildHero).
+        val sales = if (period == ReportPeriod.SEMANA) salesPort.nonContadoActiveSales() else emptyList()
 
         val context = CollectionReportStateBuilder.LoadContext(period, range, clock, sort)
         val ports = CollectionReportStateBuilder.LoadedPorts(
@@ -351,7 +405,9 @@ class CollectionReportViewModel @Inject constructor(
             visits = visits,
             pending = pending,
             priorTotal = priorTotal,
-            historicalTotals = historicalTotals
+            historicalTotals = historicalTotals,
+            sales = sales,
+            fechaCargaInicial = fechaCargaInicial
         )
         CollectionReportStateBuilder.buildContent(context, ports)
     }

@@ -84,28 +84,39 @@ private val WELL_PADDING_VERTICAL = 9.dp
  *
  * [onClick] es opcional (abre el sheet de detalle en el piloto, Plan 5); sin
  * él, el hero es un `Box` no clickable.
+ *
+ * **Barra de progreso / meta / wells OPCIONALES** (fix "Meta de la semana",
+ * `:feature:collectionReport`): [progress]/[goalLabel]/[goalAmount] y
+ * [cashOnHandLabel]/[cashOnHand]/[avgTicketLabel]/[avgTicket] son nullable, `null` por
+ * defecto — cuando faltan, la sección correspondiente NO se pinta (en vez de un `0%`/`$0.00`
+ * inventado). El piloto de cobranza dejó de alimentar un goal de mediana y dos wells
+ * ("Efectivo en mano"/"Ticket prom.") — esas cifras viven ahora en la tarjeta "Meta de la
+ * semana" (`MetaCard`), debajo del hero. Todos los callers previos (que siempre pasaban los
+ * siete valores) siguen compilando y renderizando IGUAL: un [BigDecimal]/[Float] no-nulo sigue
+ * siendo válido donde el parámetro ahora acepta null.
  */
 @Composable
+@Suppress("LongParameterList") // Ver el KDoc: parámetros opcionales, no un rediseño del contrato.
 fun MspHeroTodayCard(
     overline: String,
     delta: String,
     amount: BigDecimal,
     insight: String,
-    progress: Float,
-    goalLabel: String,
-    goalAmount: BigDecimal,
-    cashOnHandLabel: String,
-    cashOnHand: BigDecimal,
-    avgTicketLabel: String,
-    avgTicket: BigDecimal,
     modifier: Modifier = Modifier,
+    progress: Float? = null,
+    goalLabel: String? = null,
+    goalAmount: BigDecimal? = null,
+    cashOnHandLabel: String? = null,
+    cashOnHand: BigDecimal? = null,
+    avgTicketLabel: String? = null,
+    avgTicket: BigDecimal? = null,
     masked: Boolean = false,
     sparkline: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null
 ) {
     val colors = MspTheme.colors
     val type = MspTheme.type
-    val fraction = progress.coerceIn(0f, 1f)
+    val fraction = progress?.coerceIn(0f, 1f)
 
     Box(
         modifier = modifier
@@ -148,30 +159,34 @@ fun MspHeroTodayCard(
                 modifier = Modifier.padding(top = MspTheme.spacing.sm)
             )
 
-            MspProgressBar(
-                progress = fraction,
-                height = HERO_BAR_HEIGHT,
-                fillColor = colors.heroProgressFill,
-                trackColor = colors.onBrand.copy(alpha = OnBrandAlpha.WELL),
-                modifier = Modifier
-                    .padding(top = MspTheme.spacing.md)
-                    .semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f) }
-                    .testTag(HERO_PROGRESS_BAR_TAG)
-            )
+            if (fraction != null) {
+                MspProgressBar(
+                    progress = fraction,
+                    height = HERO_BAR_HEIGHT,
+                    fillColor = colors.heroProgressFill,
+                    trackColor = colors.onBrand.copy(alpha = OnBrandAlpha.WELL),
+                    modifier = Modifier
+                        .padding(top = MspTheme.spacing.md)
+                        .semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f) }
+                        .testTag(HERO_PROGRESS_BAR_TAG)
+                )
+            }
 
-            Row(modifier = Modifier.padding(top = MspTheme.spacing.xs)) {
-                Text(
-                    text = goalLabel,
-                    style = type.caption,
-                    color = colors.onBrand.copy(alpha = OnBrandAlpha.LABEL)
-                )
-                Spacer(modifier = Modifier.width(MspTheme.spacing.xs))
-                MspMoneyText(
-                    amount = goalAmount,
-                    masked = masked,
-                    style = type.caption,
-                    color = colors.onBrand.copy(alpha = OnBrandAlpha.LABEL)
-                )
+            if (goalLabel != null && goalAmount != null) {
+                Row(modifier = Modifier.padding(top = MspTheme.spacing.xs)) {
+                    Text(
+                        text = goalLabel,
+                        style = type.caption,
+                        color = colors.onBrand.copy(alpha = OnBrandAlpha.LABEL)
+                    )
+                    Spacer(modifier = Modifier.width(MspTheme.spacing.xs))
+                    MspMoneyText(
+                        amount = goalAmount,
+                        masked = masked,
+                        style = type.caption,
+                        color = colors.onBrand.copy(alpha = OnBrandAlpha.LABEL)
+                    )
+                }
             }
 
             sparkline?.let { slot ->
@@ -180,24 +195,30 @@ fun MspHeroTodayCard(
                 }
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = MspTheme.spacing.md),
-                horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-            ) {
-                HeroWell(
-                    label = cashOnHandLabel,
-                    amount = cashOnHand,
-                    masked = masked,
-                    modifier = Modifier.weight(1f)
-                )
-                HeroWell(
-                    label = avgTicketLabel,
-                    amount = avgTicket,
-                    masked = masked,
-                    modifier = Modifier.weight(1f)
-                )
+            if (cashOnHandLabel != null || avgTicketLabel != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = MspTheme.spacing.md),
+                    horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+                ) {
+                    if (cashOnHandLabel != null) {
+                        HeroWell(
+                            label = cashOnHandLabel,
+                            amount = cashOnHand ?: BigDecimal.ZERO,
+                            masked = masked,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    if (avgTicketLabel != null) {
+                        HeroWell(
+                            label = avgTicketLabel,
+                            amount = avgTicket ?: BigDecimal.ZERO,
+                            masked = masked,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
             }
         }
     }

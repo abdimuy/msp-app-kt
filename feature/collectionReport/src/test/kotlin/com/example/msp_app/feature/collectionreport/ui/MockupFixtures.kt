@@ -39,9 +39,7 @@ internal object MockupFixtures {
         overline = "Cobrado · vie 7 ago",
         delta = DeltaChip("▲ 12% vs ayer", DeltaDirection.UP),
         monto = money("18300"),
-        insight = Insight.Daily(count = 32, progressPct = 91, projection = money("19800")),
-        progress = 0.91f,
-        goalCap = money("20000"),
+        insight = Insight.Daily(count = 32, progressPct = 0, projection = money("19800")),
         sparkline = Timeline(
             buckets = DIA_HOUR_VALUES.mapIndexed { index, value ->
                 val hour = DIA_START_HOUR + index
@@ -53,20 +51,28 @@ internal object MockupFixtures {
                 )
             },
             highlightIndex = DIA_HIGHLIGHT_INDEX
-        ),
-        wells = listOf(
-            HeroWell("Efectivo en mano", money("12100")),
-            HeroWell("Ticket prom.", money("572"))
         )
+        // "Meta de la semana" (porcentajeCobro/porcentajeCuentas) solo se calcula en SEMANA
+        // (ver KDoc de HeroUi) — Día se queda en los defaults 0f/0.
     )
 
+    // "Meta de la semana" del mockup: cobro (ponderado) 91% supera la meta de 60%; cobertura
+    // (cuentas) 78% = 39 de 50 clientes.
+    const val PORCENTAJE_COBRO_SEMANA = 91f
+    const val PORCENTAJE_CUENTAS_SEMANA = 78f
+    const val CLIENTES_PAGARON_SEMANA = 39
+    const val CLIENTES_TOTAL_SEMANA = 50
+
     fun heroSemana(): HeroUi = HeroUi(
-        overline = "Cobrado · ciclo actual",
-        delta = DeltaChip("▲ 6% vs ciclo", DeltaDirection.UP),
+        overline = "Cobrado · semana actual",
+        delta = DeltaChip("▲ 6% vs semana", DeltaDirection.UP),
         monto = money("118400"),
-        insight = Insight.Weekly(count = 214, progressPct = 91, cycleDay = 5, cycleDays = 5),
-        progress = 0.91f,
-        goalCap = money("130000"),
+        insight = Insight.Weekly(
+            count = 214,
+            progressPct = PORCENTAJE_COBRO_SEMANA.toInt(),
+            cycleDay = 5,
+            cycleDays = 5
+        ),
         sparkline = Timeline(
             buckets = SEMANA_DAY_VALUES.mapIndexed { index, value ->
                 TimelineBucket(
@@ -77,10 +83,10 @@ internal object MockupFixtures {
             },
             highlightIndex = SEMANA_DAY_VALUES.lastIndex
         ),
-        wells = listOf(
-            HeroWell("Efectivo en mano", money("79900")),
-            HeroWell("Ticket prom.", money("553"))
-        )
+        porcentajeCobro = PORCENTAJE_COBRO_SEMANA,
+        porcentajeCuentas = PORCENTAJE_CUENTAS_SEMANA,
+        clientesPagaron = CLIENTES_PAGARON_SEMANA,
+        clientesTotal = CLIENTES_TOTAL_SEMANA
     )
 
     /**
@@ -144,11 +150,33 @@ internal object MockupFixtures {
         ForgivenessRowUi("María Tovar", "", money("300"))
     )
 
-    /** Visitas (mockup `SHEETS.visitas` filas) — cliente/nota EXACTOS del mockup. */
+    /**
+     * Visitas (mockup `SHEETS.visitas` filas) — cliente/nota EXACTOS del mockup, `tipo`
+     * enriquecido con valores REALES del catálogo de captura (`Constants` en `:app`, ver KDoc
+     * de `CollectionVisit.tipo`) — texto libre en español, no un código, elegido acorde a cada
+     * nota. `visitedAt` es una hora de tarde representativa (después de la ronda de cobro)
+     * para que el prefijo hora/fecha del ticket (Task 2) tenga un dato realista en ambos
+     * periodos.
+     */
     fun visitRows(): List<VisitRowUi> = listOf(
-        VisitRowUi("Carlos Vega", "No estaba — dejé recado"),
-        VisitRowUi("Sofía Luna", "Promesa de pago mañana"),
-        VisitRowUi("Diego Mora", "Cliente inconforme")
+        VisitRowUi(
+            "Carlos Vega",
+            "No estaba — dejé recado",
+            tipo = "No se encontraba",
+            visitedAt = visitedAt("14:15")
+        ),
+        VisitRowUi(
+            "Sofía Luna",
+            "Promesa de pago mañana",
+            tipo = "Pidió que regrese otro día",
+            visitedAt = visitedAt("16:40")
+        ),
+        VisitRowUi(
+            "Diego Mora",
+            "Cliente inconforme",
+            tipo = "Fue grosero o agresivo",
+            visitedAt = visitedAt("17:05")
+        )
     )
 
     /**
@@ -250,6 +278,8 @@ internal object MockupFixtures {
     )
 
     private fun paidAt(hora: String): Instant = AppTime.parseWireFormat("2026-08-07T$hora:00")
+
+    private fun visitedAt(hora: String): Instant = AppTime.parseWireFormat("2026-08-07T$hora:00")
 
     private fun money(value: String) = Money.of(BigDecimal(value))
 }

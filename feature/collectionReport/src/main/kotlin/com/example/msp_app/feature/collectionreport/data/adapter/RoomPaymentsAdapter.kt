@@ -88,7 +88,8 @@ private fun PaymentEntity.toCollectionPayment(refs: Map<Int, SaleRefRow>): Colle
         paidAt = AppTime.parseWireFormat(FECHA_HORA_PAGO),
         synced = GUARDADO_EN_MICROSIP,
         folio = ref?.folio.orEmpty(),
-        saldo = ref?.let { Money.of(it.saldo) }
+        saldo = ref?.let { Money.of(it.saldo) },
+        saleId = DOCTO_CC_ACR_ID
     )
 }
 

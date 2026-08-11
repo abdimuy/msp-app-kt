@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
@@ -28,11 +29,14 @@ import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
 
 private val SHEET_SHAPE = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
 private val SHEET_LEADING_SIZE = 28.dp
+private val SHEET_LEADING_ICON_SIZE = 22.dp
 
-// Avatar de iniciales del sheet (mockup `.srow .sa`: 34px) — más chico que el de la lista
-// principal (`.prow .ava`, 38dp), 1:1 con el resumen por día ([DetailList.DAY_AVATAR_SIZE]).
+// Avatar de iniciales / tile de método del sheet (mockup `.srow .sa`: 34px) — más chico que el
+// de la lista principal (`.prow .ava`/tile, 40dp), 1:1 con el resumen por día
+// ([DetailList.DAY_AVATAR_SIZE]).
 private val SHEET_AVATAR_SIZE = 34.dp
 private val SHEET_DIVIDER_HEIGHT = 1.dp
+private val SHEET_TRAILING_LINE_SPACING = 3.dp
 private const val EMPTY_SHEET_MESSAGE = "Sin datos aún"
 
 /**
@@ -128,25 +132,7 @@ private fun SheetRow(row: SheetRowUi, masked: Boolean, modifier: Modifier = Modi
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        row.leading?.let { leading ->
-            if (row.avatar) {
-                // Fila de cliente (pago/condonación/día del ciclo): avatar tintado (mockup
-                // `.srow .sa`), reusa el mismo componente del design system que la lista `.prow`.
-                MspInitialsAvatar(initials = leading, size = SHEET_AVATAR_SIZE)
-            } else {
-                // Glifo/emoji suelto de las filas del hero (📊/⚡/🕘/🎯) — sin fondo tintado.
-                Box(
-                    modifier = Modifier.size(SHEET_LEADING_SIZE),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = leading,
-                        style = MspTheme.type.captionStrong,
-                        color = MspTheme.colors.brand
-                    )
-                }
-            }
-        }
+        SheetRowLeading(row)
         Column(modifier = Modifier.weight(1f)) {
             Text(text = row.title, style = MspTheme.type.name, color = MspTheme.colors.onSurface)
             row.subtitle?.let {
@@ -156,19 +142,73 @@ private fun SheetRow(row: SheetRowUi, masked: Boolean, modifier: Modifier = Modi
                     color = MspTheme.colors.onSurfaceMuted
                 )
             }
+            // Tercera línea (Task 1, solo filas de pago): saldo restante de la venta, mismo
+            // componente que `DetailList.PaymentRow` reusa — una sola fuente de verdad visual.
+            row.saldo?.let { SaldoLine(saldo = it, masked = masked) }
         }
-        when {
-            row.amount != null -> MspMoneyText(
-                amount = row.amount.amount,
-                masked = masked,
-                style = MspTheme.type.amountRow,
-                color = MspTheme.colors.onSurface
-            )
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(SHEET_TRAILING_LINE_SPACING)
+        ) {
+            when {
+                row.amount != null -> MspMoneyText(
+                    amount = row.amount.amount,
+                    masked = masked,
+                    style = MspTheme.type.amountRow,
+                    color = MspTheme.colors.onSurface
+                )
 
-            row.text != null -> Text(
-                text = row.text,
+                row.text != null -> Text(
+                    text = row.text,
+                    style = MspTheme.type.captionStrong,
+                    color = MspTheme.colors.onSurfaceMuted
+                )
+            }
+            // Chip "Por subir" (Task 1): solo en filas de pago ([row.method] no nulo) que aún
+            // no sincronizan — mismo chip que `DetailList.PaymentRow`.
+            if (row.method != null && !row.synced) PendingUploadChip()
+        }
+    }
+}
+
+/**
+ * Leading de una fila de sheet — tres formas mutuamente excluyentes (ver KDoc de
+ * [SheetRowUi]): tile de método (pago), avatar de iniciales (condonación) o glifo Lucide
+ * suelto (hero, sin fondo tintado — reemplaza los emojis 📊/⚡/🕘/🎯). Filas sin ninguno
+ * (Visitas, o los renglones textuales de "Detalle de pago") no dibujan nada en esta columna.
+ */
+@Composable
+private fun SheetRowLeading(row: SheetRowUi, modifier: Modifier = Modifier) {
+    when {
+        row.method != null -> MethodTile(
+            method = row.method,
+            modifier = modifier,
+            size = SHEET_AVATAR_SIZE
+        )
+
+        row.avatar && row.leading != null ->
+            MspInitialsAvatar(initials = row.leading, modifier = modifier, size = SHEET_AVATAR_SIZE)
+
+        row.leadingIcon != null -> Box(
+            modifier = modifier.size(SHEET_LEADING_SIZE),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = row.leadingIcon,
+                contentDescription = null,
+                tint = MspTheme.colors.brand,
+                modifier = Modifier.size(SHEET_LEADING_ICON_SIZE)
+            )
+        }
+
+        row.leading != null -> Box(
+            modifier = modifier.size(SHEET_LEADING_SIZE),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = row.leading,
                 style = MspTheme.type.captionStrong,
-                color = MspTheme.colors.onSurfaceMuted
+                color = MspTheme.colors.brand
             )
         }
     }

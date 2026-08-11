@@ -8,11 +8,12 @@ import com.example.msp_app.core.printing.domain.PrintableTicket
 import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.core.printing.domain.TicketLine
 import com.example.msp_app.feature.collectionreport.domain.model.Money
-import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
+import com.example.msp_app.feature.collectionreport.ui.DetailSort
 import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.PaymentRowUi
+import com.example.msp_app.feature.collectionreport.ui.VisitRowUi
 
 /**
  * Mapea el estado del reporte de cobranza ([CollectionReportUiState]) al **contenido del
@@ -41,9 +42,9 @@ import com.example.msp_app.feature.collectionreport.ui.PaymentRowUi
 @Suppress("TooManyFunctions")
 object CollectionReportFormatter {
 
-    private const val MAX_CLIENT_CHARS = 24
     private const val LINE_SEPARATOR = "\n"
     private const val LABEL_DETALLE = "DETALLE DE PAGOS"
+    private const val LABEL_DETALLE_VISITAS = "DETALLE DE VISITAS"
     private const val LABEL_TOTAL = "Total cobrado"
     private const val LABEL_EFECTIVO = "Efectivo"
     private const val LABEL_TRANSFERENCIA = "Transferencia"
@@ -52,11 +53,19 @@ object CollectionReportFormatter {
     private const val LABEL_GENERADO = "Generado"
 
     /**
+     * Prefijo de cada línea de pago/visita en periodo Semana: solo la fecha (el ciclo cruza
+     * varios días, y a diferencia de Día la hora exacta ya no es el dato relevante para
+     * ubicar la fila — Task 4).
+     */
+    private const val PREFIX_DATE = "dd/MM"
+
+    /**
      * El ticket semántico ([TicketLine]) ancho-consciente para [profile] — lo que se
      * imprime (vía `PrinterPort.print`, que le agrega el `<b>` de énfasis y el accent-fold)
      * y la fuente de [toTicketText] (PDF/Compartir). Encabezado + cobrador + rango -> detalle
-     * por pago (solo periodo Día, [DetailUi.Payments]) -> totales (Total/Efectivo/
-     * Transferencia + Condonado/Visitas cuando existen) -> "Generado <fecha y hora>".
+     * por pago (TODOS los pagos, en ambos periodos) -> detalle de visitas (cuando el estado
+     * las trae) -> totales (Total/Efectivo/Transferencia + Condonado/Visitas cuando existen)
+     * -> "Generado <fecha y hora>".
      */
     fun toTicketLines(
         state: CollectionReportUiState,
@@ -73,6 +82,7 @@ object CollectionReportFormatter {
             ).forEach { add(TicketLine.CenteredLine(center(it, width))) }
             add(TicketLine.Separator())
             addPaymentsBlock(state, width)
+            addVisitsBlock(state, width)
             addTotalsBlock(state, width)
             add(TicketLine.Separator())
             add(TicketLine.CenteredLine(center("$LABEL_GENERADO ${printedAtLabel(clock)}", width)))
@@ -95,34 +105,108 @@ object CollectionReportFormatter {
     /** Título del reporte según el periodo — fuente única (lo reusa `ReportActionsController`). */
     fun reportTitle(period: ReportPeriod): String = when (period) {
         ReportPeriod.DIA -> "Reporte de cobranza del día"
-        ReportPeriod.SEMANA -> "Reporte de cobranza del ciclo"
+        ReportPeriod.SEMANA -> "Reporte de cobranza de la semana"
     }
 
     /**
-     * Bloque "DETALLE DE PAGOS": solo cuando el estado conserva los pagos individuales
-     * (periodo Día, [DetailUi.Payments]); en Semana ([DetailUi.Days]) no hay desglose y el
-     * bloque se omite entero (encabezado + separador incluidos), mismo criterio que el sheet.
+     * Bloque "DETALLE DE PAGOS": TODOS los pagos del rango, en AMBOS periodos — Día lee
+     * [DetailUi.Payments] directo; Semana ([DetailUi.Days]) no conserva la lista plana en
+     * `detail`, así que se aplana `state.dayPayments` (pagos individuales por día del ciclo,
+     * ya en orden cronológico). `when` exhaustivo sobre el sealed [DetailUi]: si se agrega un
+     * tercer caso, este bloque deja de compilar en vez de omitirlo en silencio.
+     *
+     * El orden impreso sigue [CollectionReportUiState.sort] (Task 4, [sortedPayments]) — el
+     * toggle Hora/Fecha·Nombre del tablero ([com.example.msp_app.feature.collectionreport.ui.components.DetailHeader])
+     * también gobierna lo que se imprime, en AMBOS periodos.
      */
     private fun MutableList<TicketLine>.addPaymentsBlock(
         state: CollectionReportUiState,
         width: Int
     ) {
-        val payments = (state.detail as? DetailUi.Payments)?.rows.orEmpty()
+        val payments = when (val detail = state.detail) {
+            is DetailUi.Payments -> detail.rows
+            is DetailUi.Days -> state.dayPayments.flatten()
+        }
         if (payments.isEmpty()) return
         add(TicketLine.Bold(center(LABEL_DETALLE, width)))
-        payments.forEach { row -> addPaymentLine(row, width) }
+        sortedPayments(payments, state.sort)
+            .forEach { row -> addPaymentLine(row, state.period, width) }
+        add(TicketLine.Separator())
+    }
+
+    /** Orden del detalle impreso: cronológico ([DetailSort.HORA]) o alfabético por cliente. */
+    private fun sortedPayments(payments: List<PaymentRowUi>, sort: DetailSort): List<PaymentRowUi> =
+        when (sort) {
+            DetailSort.HORA -> payments.sortedBy { it.paidAt }
+            DetailSort.NOMBRE -> payments.sortedBy { it.cliente.lowercase() }
+        }
+
+    /**
+     * Una entrada de pago en UNA sola línea (58mm = 32 chars — Task 1: el ticket viejo de dos
+     * líneas por pago desperdiciaba papel en tickets largos, y la forma de cobro por fila ya
+     * no aporta nada que el bloque de totales no diga): [prefix] (hora en Día; solo fecha
+     * `dd/MM` en Semana, que cruza varios días) + cliente a la izquierda, truncado para que la
+     * línea quepa exacto en [width] junto con el monto — que va alineado a la derecha vía
+     * [twoCol]. La forma de cobro YA NO se repite por fila (sigue viviendo en
+     * [addTotalsBlock]).
+     */
+    private fun MutableList<TicketLine>.addPaymentLine(
+        row: PaymentRowUi,
+        period: ReportPeriod,
+        width: Int
+    ) {
+        val prefix = when (period) {
+            ReportPeriod.DIA -> AppTime.formatForDisplay(row.paidAt, AppTime.Formats.TIME_24H)
+            ReportPeriod.SEMANA -> AppTime.formatForDisplay(row.paidAt, PREFIX_DATE)
+        }
+        val amount = money(row.amount)
+        val maxClient = (width - prefix.length - 1 - amount.length - 1).coerceAtLeast(0)
+        val left = "$prefix ${row.cliente.take(maxClient)}"
+        add(TicketLine.Line(twoCol(left, amount, width)))
+    }
+
+    /**
+     * Bloque "DETALLE DE VISITAS": una línea por visita con hora/fecha + cliente, más el TIPO
+     * y la nota completa del cobrador (ver [addVisitLines]). Se omite entero (encabezado +
+     * separador incluidos) cuando `state.visitRows` viene vacío — nunca se inventa una línea
+     * "Visitas 0" con desglose. Se muestra en AMBOS periodos (Día y Semana): la línea
+     * totalizadora "Visitas N" de [addTotalsBlock] no desaparece, este bloque solo la
+     * complementa con el detalle.
+     */
+    private fun MutableList<TicketLine>.addVisitsBlock(state: CollectionReportUiState, width: Int) {
+        val visits = state.visitRows
+        if (visits.isEmpty()) return
+        add(TicketLine.Bold(center(LABEL_DETALLE_VISITAS, width)))
+        visits.forEach { visit -> addVisitLines(visit, state.period, width) }
         add(TicketLine.Separator())
     }
 
     /**
-     * Una entrada de pago en dos líneas (mismo layout que el ticket de producción viejo):
-     * hora + cliente (truncado a [MAX_CLIENT_CHARS]) arriba, y la forma de cobro a la
-     * izquierda con el monto alineado a la derecha abajo.
+     * Las líneas de UNA visita (Task 2 — antes el ticket solo mostraba cliente + nota, sin el
+     * TIPO elegido al capturarla, p. ej. "No se encontraba" / "Pidió que regrese otro día"):
+     * línea 1 = [prefix] (hora en Día, fecha `dd/MM` en Semana — mismo lenguaje visual que
+     * [addPaymentLine]) + cliente; línea 2 = el TIPO de visita, cuando viene poblado; líneas
+     * siguientes = la nota COMPLETA envuelta e indentada. Las visitas son la EXCEPCIÓN a la
+     * regla de una línea por fila de [addPaymentLine]: no hay un monto que alinear a la
+     * derecha, y la nota (texto libre del cobrador) es el dato accionable que nunca se trunca.
      */
-    private fun MutableList<TicketLine>.addPaymentLine(row: PaymentRowUi, width: Int) {
-        val hora = AppTime.formatForDisplay(row.paidAt, AppTime.Formats.TIME_24H)
-        add(TicketLine.Line("$hora ${row.cliente.take(MAX_CLIENT_CHARS)}"))
-        add(TicketLine.Line(twoCol("  ${row.method.ticketLabel()}", money(row.amount), width)))
+    private fun MutableList<TicketLine>.addVisitLines(
+        visit: VisitRowUi,
+        period: ReportPeriod,
+        width: Int
+    ) {
+        val prefix = when (period) {
+            ReportPeriod.DIA -> AppTime.formatForDisplay(visit.visitedAt, AppTime.Formats.TIME_24H)
+            ReportPeriod.SEMANA -> AppTime.formatForDisplay(visit.visitedAt, PREFIX_DATE)
+        }
+        val maxClient = (width - prefix.length - 1).coerceAtLeast(0)
+        add(TicketLine.Line("$prefix ${visit.cliente.take(maxClient)}"))
+        if (visit.tipo.isNotBlank()) {
+            add(TicketLine.Line("  ${visit.tipo}".take(width)))
+        }
+        if (visit.nota.isNotBlank()) {
+            wrap("  ${visit.nota}", width).forEach { add(TicketLine.Line(it)) }
+        }
     }
 
     /**
@@ -164,14 +248,6 @@ object CollectionReportFormatter {
         AppTime.formatForDisplay(clock.now(), pattern)
 
     private fun money(amount: Money): String = formatMoneyMxn(amount.amount)
-
-    private fun PaymentMethod.ticketLabel(): String = when (this) {
-        PaymentMethod.EFECTIVO -> "Efectivo"
-        PaymentMethod.TRANSFERENCIA -> "Transfer."
-        PaymentMethod.CHEQUE -> "Cheque"
-        PaymentMethod.CONDONACION -> "Condonado"
-        PaymentMethod.OTRO -> "Otro"
-    }
 
     /** Centra [text] con espacios a la izquierda; trunca si excede [width]. */
     private fun center(text: String, width: Int): String {

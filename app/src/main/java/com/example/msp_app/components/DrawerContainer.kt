@@ -311,6 +311,21 @@ fun DrawerContainer(
                     Column {
                         UpdateBanner(compact = true)
 
+                        // Ítem global (spec 2026-08-10-configuracion-tamano-letra-design.md
+                        // §"Decisiones" punto 1: "Entrada desde el drawer") — vive fuera de los
+                        // grupos por módulo (COBRO/VENTAS/ALMACÉN/GARANTÍAS) porque Configuración
+                        // aplica a TODA la app, sin importar los `MODULOS` del usuario.
+                        NavigationDrawerItem(
+                            label = { Text("Configuración") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                    navController.navigate("configuracion")
+                                }
+                            }
+                        )
+
                         NavigationDrawerItem(
                             label = { Text("Cerrar sesión") },
                             selected = false,

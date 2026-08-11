@@ -4,17 +4,24 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
+import com.composables.icons.lucide.Clock
+import com.composables.icons.lucide.Gauge
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Wallet
 import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.collectionreport.domain.model.Money
+import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
+import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.ForgivenessRowUi
 import com.example.msp_app.feature.collectionreport.ui.MockupFixtures
 import com.example.msp_app.feature.collectionreport.ui.SheetKind
 import com.example.msp_app.feature.collectionreport.ui.SheetUi
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -37,25 +44,42 @@ class ReportSheetsTest : RobolectricTestBase() {
     // region — deriveSheetContent (pura) -------------------------------------------------
 
     @Test
-    fun `el sheet hero en Dia trae cobrado, ritmo con proyeccion, mejor momento y falta para meta`() {
+    fun `el sheet hero en Dia trae cobrado, ritmo con proyeccion y mejor momento (sin Meta de la semana)`() {
         val content = deriveSheetContent(SheetUi(SheetKind.HERO), MockupFixtures.stateDia())
 
         assertEquals("Resumen del día", content.title)
-        assertEquals(4, content.rows.size)
+        // "Meta de la semana" (Porcentaje cobro/cuentas) solo aplica en SEMANA — ver KDoc de
+        // `heroSheet`; DÍA se queda con Cobrado + Ritmo + Mejor momento (la vieja fila "Falta
+        // para meta", atada al goalCap retirado, también desaparece).
+        assertEquals(3, content.rows.size)
         assertEquals(money("18300"), content.rows[0].amount)
-        assertEquals("91% de la meta", content.rows[0].subtitle)
+        assertNull(content.rows[0].subtitle)
         assertEquals(money("19800"), content.rows[1].amount)
-        assertEquals(money("1700"), content.rows[3].amount)
+        // Task 2: filas del hero llevan un ícono Lucide SUELTO (glifo, sin tile tintado) — ya
+        // NO un emoji ni el `method`/tile de una fila de pago.
+        assertEquals(Lucide.Wallet, content.rows[0].leadingIcon)
+        assertEquals(Lucide.Gauge, content.rows[1].leadingIcon)
+        assertEquals(Lucide.Clock, content.rows[2].leadingIcon)
+        assertTrue(content.rows.all { it.leading == null && it.method == null })
     }
 
     @Test
-    fun `el sheet hero en Semana no trae proyeccion, muestra guion en Ritmo`() {
+    fun `el sheet hero en Semana no trae proyeccion, muestra guion en Ritmo, y trae Meta de la semana`() {
         val content = deriveSheetContent(SheetUi(SheetKind.HERO), MockupFixtures.stateSemana())
 
-        assertEquals("Resumen del ciclo", content.title)
+        assertEquals("Resumen de la semana", content.title)
         val ritmo = content.rows[1]
         assertNull(ritmo.amount)
         assertEquals("—", ritmo.text)
+
+        // Cobrado, Ritmo, Mejor momento, Porcentaje cobro, Porcentaje cuentas.
+        assertEquals(5, content.rows.size)
+        val porcentajeCobro = content.rows[3]
+        assertEquals("Porcentaje cobro", porcentajeCobro.title)
+        assertEquals("91% · meta 60%", porcentajeCobro.text)
+        val porcentajeCuentas = content.rows[4]
+        assertEquals("Porcentaje cuentas", porcentajeCuentas.title)
+        assertEquals("78% · 39 de 50", porcentajeCuentas.text)
     }
 
     @Test
@@ -66,6 +90,12 @@ class ReportSheetsTest : RobolectricTestBase() {
         assertEquals(3, content.rows.size)
         assertTrue(content.rows.all { it.amount != null })
         assertEquals("María López Hernández", content.rows[0].title)
+        // Task 1: la fila de pago enriquecida carga método (tile), folio+hora en el subtítulo,
+        // saldo restante y si ya sincronizó — no solo nombre + monto.
+        assertEquals(PaymentMethod.EFECTIVO, content.rows[0].method)
+        assertEquals("Folio A-10482 · 09:12", content.rows[0].subtitle)
+        assertEquals(money("5400"), content.rows[0].saldo)
+        assertTrue(content.rows[0].synced)
     }
 
     @Test
@@ -76,14 +106,65 @@ class ReportSheetsTest : RobolectricTestBase() {
         assertEquals(1, content.rows.size)
         assertEquals("Juan Pérez Ramírez", content.rows[0].title)
         assertEquals(money("850"), content.rows[0].amount)
+        assertEquals(PaymentMethod.TRANSFERENCIA, content.rows[0].method)
+        assertEquals("Folio A-10517 · 09:40", content.rows[0].subtitle)
+        assertEquals(money("3200"), content.rows[0].saldo)
+    }
+
+    // Task 1: `synced = false` debe viajar tal cual a la fila del sheet — es lo que dispara el
+    // chip "Por subir" en `SheetRow` (probado a nivel compose más abajo).
+    @Test
+    fun `una fila de pago sin sincronizar conserva synced en false`() {
+        val unsynced = MockupFixtures.paymentsDia()[0].copy(synced = false)
+        val state = MockupFixtures.stateDia().copy(detail = DetailUi.Payments(listOf(unsynced)))
+
+        val content = deriveSheetContent(SheetUi(SheetKind.EFECTIVO), state)
+
+        assertFalse(content.rows[0].synced)
+    }
+
+    // Fix de dispositivo (Task 3): antes esta sheet leía SOLO `state.detail as? DetailUi.
+    // Payments`, que en Semana ES `DetailUi.Days` -> `null` -> lista vacía, así que Efectivo/
+    // Transferencia SIEMPRE salían vacíos en Semana aunque `state.dayPayments` ya trajera los
+    // pagos individuales cargados (misma fuente que `diaCicloSheet` y el ticket impreso ya
+    // usaban). Ahora cae a `state.dayPayments.flatten()` cuando `detail` no es `Payments`.
+    @Test
+    fun `el sheet Efectivo en Semana SI lista los pagos en efectivo, via dayPayments`() {
+        val content = deriveSheetContent(SheetUi(SheetKind.EFECTIVO), MockupFixtures.stateSemana())
+
+        val efectivoEsperados = MockupFixtures.dayPaymentsSemana().flatten()
+            .count { it.method == PaymentMethod.EFECTIVO }
+        assertEquals(efectivoEsperados, content.rows.size)
+        assertTrue(content.rows.isNotEmpty())
+        assertTrue(content.rows.all { it.method == PaymentMethod.EFECTIVO })
+        assertTrue(content.subtitle.contains("146 pagos"))
     }
 
     @Test
-    fun `el sheet Efectivo en Semana no tiene desglose por pago, solo el total`() {
-        val content = deriveSheetContent(SheetUi(SheetKind.EFECTIVO), MockupFixtures.stateSemana())
+    fun `el sheet Transferencia en Semana SI lista los pagos por transferencia, via dayPayments`() {
+        val content =
+            deriveSheetContent(SheetUi(SheetKind.TRANSFERENCIA), MockupFixtures.stateSemana())
 
-        assertTrue(content.rows.isEmpty())
-        assertTrue(content.subtitle.contains("146 pagos"))
+        val transferenciaEsperados = MockupFixtures.dayPaymentsSemana().flatten()
+            .count { it.method == PaymentMethod.TRANSFERENCIA }
+        assertEquals(transferenciaEsperados, content.rows.size)
+        assertTrue(content.rows.isNotEmpty())
+        assertTrue(content.rows.all { it.method == PaymentMethod.TRANSFERENCIA })
+    }
+
+    @Test
+    fun `el sheet de pago en Semana SI resuelve un pago por id, via dayPayments`() {
+        val pagoId = MockupFixtures.dayPaymentsSemana().flatten().first().id
+
+        val content =
+            deriveSheetContent(SheetUi(SheetKind.PAGO, pagoId), MockupFixtures.stateSemana())
+
+        assertEquals("Detalle de pago", content.title)
+        assertTrue(content.rows.isNotEmpty())
+        assertEquals(
+            MockupFixtures.dayPaymentsSemana().flatten().first().cliente,
+            content.rows[0].title
+        )
     }
 
     @Test
@@ -145,13 +226,15 @@ class ReportSheetsTest : RobolectricTestBase() {
 
         assertEquals("mar 4 ago", content.title)
         assertTrue(content.subtitle.contains("46 pagos"))
-        // Índice 1 == "mar 4 ago" en la fixture: 3 pagos individuales, cada uno con avatar de
-        // iniciales + nombre real + monto (nada truncado, todos listados).
+        // Índice 1 == "mar 4 ago" en la fixture: 3 pagos individuales, cada uno como fila de
+        // pago enriquecida (tile de método + nombre real + monto, nada truncado, todos listados).
         assertEquals(3, content.rows.size)
         assertEquals("Verónica Castillo Ramos", content.rows[0].title)
         assertEquals(money("1500"), content.rows[0].amount)
-        assertTrue(content.rows.all { it.avatar })
-        assertTrue(content.rows.all { it.leading != null && it.amount != null })
+        assertEquals(PaymentMethod.EFECTIVO, content.rows[0].method)
+        // `dayPaymentsSemana()` no trae folio -> el subtítulo cae a solo la hora (sin inventar).
+        assertEquals("08:50", content.rows[0].subtitle)
+        assertTrue(content.rows.all { it.method != null && it.amount != null })
     }
 
     @Test
@@ -190,6 +273,13 @@ class ReportSheetsTest : RobolectricTestBase() {
         assertEquals("Efectivo", content.rows[1].text)
         assertEquals("Muebles Bahía", content.rows[2].text)
         assertEquals("Sincronizado", content.rows[3].text)
+        // Task 1: la primera fila es la fila de pago enriquecida completa, no un "Importe" a
+        // secas — carga cliente, método, folio+hora y saldo.
+        assertEquals("María López Hernández", content.rows[0].title)
+        assertEquals(PaymentMethod.EFECTIVO, content.rows[0].method)
+        assertEquals("Folio A-10482 · 09:12", content.rows[0].subtitle)
+        assertEquals(money("5400"), content.rows[0].saldo)
+        assertTrue(content.rows[0].synced)
     }
 
     @Test
@@ -258,6 +348,22 @@ class ReportSheetsTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText("Verónica Castillo Ramos").assertExists()
         composeTestRule.onNodeWithText("Héctor Domínguez León").assertExists()
         composeTestRule.onNodeWithText(formatMoneyMxn(BigDecimal("1500"))).assertExists()
+    }
+
+    @Test
+    fun `un pago sin sincronizar muestra el chip Por subir en el sheet`() {
+        val unsynced = MockupFixtures.paymentsDia()[0].copy(synced = false)
+        val state = MockupFixtures.stateDia().copy(
+            detail = DetailUi.Payments(listOf(unsynced)),
+            sheet = SheetUi(SheetKind.EFECTIVO)
+        )
+        composeTestRule.setContent {
+            MspTheme(animateColors = false) {
+                ReportSheets(state = state, onDismiss = {})
+            }
+        }
+
+        composeTestRule.onNodeWithText("Por subir").assertExists()
     }
 
     @Test

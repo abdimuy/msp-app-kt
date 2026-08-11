@@ -2,16 +2,17 @@ package com.example.msp_app.feature.collectionreport.ui
 
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje
 import com.example.msp_app.feature.collectionreport.domain.Insight
 import com.example.msp_app.feature.collectionreport.domain.RangeCalculator
 import com.example.msp_app.feature.collectionreport.domain.ReportAggregator
-import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionVisit
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
 import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import java.time.Instant
 
 /**
@@ -42,7 +43,14 @@ internal object CollectionReportStateBuilder {
         val visits: List<CollectionVisit>,
         val pending: Int,
         val priorTotal: Money,
-        val historicalTotals: List<Money>
+        val historicalTotals: List<Money>,
+        // "Meta de la semana" (Step B/C): ventas de crédito activas ([SalesPort], solo se
+        // consultan en SEMANA — ver `CollectionReportViewModel.fetchContent`) + el inicio del
+        // ciclo del cobrador (`UserCyclePort.fechaCargaInicial`, mismo valor que ya resuelve
+        // `resolveRange` para el rango de SEMANA). `null` cuando el usuario no tiene ciclo
+        // (Firestore sin `FECHA_CARGA_INICIAL`) o el periodo es DÍA.
+        val sales: List<SaleForCobranza> = emptyList(),
+        val fechaCargaInicial: Instant? = null
     )
 
     /** Contenido ya listo para copiarse dentro de [CollectionReportUiState]. */
@@ -116,22 +124,28 @@ internal object CollectionReportStateBuilder {
             condonadoRows = ports.forgiveness.map {
                 ForgivenessRowUi(cliente = it.cliente, motivo = it.motivo, amount = it.amount)
             },
-            visitRows = ports.visits.map { VisitRowUi(cliente = it.cliente, nota = it.nota) }
+            visitRows = ports.visits.map {
+                VisitRowUi(
+                    cliente = it.cliente,
+                    nota = it.nota,
+                    tipo = it.tipo,
+                    visitedAt = it.visitedAt
+                )
+            }
         )
     }
 
     /**
      * Filas de pago del detalle Día, ordenadas por [sort]. Pública porque
      * [CollectionReportViewModel.setSort] la reusa para reordenar SIN volver a consultar los
-     * puertos (reordenar es puro, dado el último lote de pagos ya cargado).
+     * puertos (reordenar es puro, dado el último lote de pagos ya cargado). Delega en
+     * [CollectionReportSort] (Task 4: separado en su propio archivo para no cruzar el umbral
+     * `TooManyFunctions` de detekt en este objeto) — la firma pública no cambia, solo dónde
+     * vive el cómputo. El reordenado de Semana ([CollectionReportViewModel.setSort]) llama
+     * [CollectionReportSort.dayPaymentRows] directo, sin pasar por aquí.
      */
-    fun sortedPaymentRows(payments: List<CollectionPayment>, sort: DetailSort): List<PaymentRowUi> {
-        val rows = payments.map { it.toPaymentRowUi() }
-        return when (sort) {
-            DetailSort.HORA -> rows.sortedBy { it.paidAt }
-            DetailSort.NOMBRE -> rows.sortedBy { it.cliente.lowercase() }
-        }
-    }
+    fun sortedPaymentRows(payments: List<CollectionPayment>, sort: DetailSort): List<PaymentRowUi> =
+        CollectionReportSort.paymentRows(payments, sort)
 
     private fun CollectionPayment.toPaymentRowUi(): PaymentRowUi = PaymentRowUi(
         id = id,
@@ -147,35 +161,36 @@ internal object CollectionReportStateBuilder {
 
     private fun buildHero(context: LoadContext, ports: LoadedPorts): HeroUi {
         val total = ReportAggregator.total(ports.payments)
-        val goal = resolveGoal(context.period, context.range, ports.historicalTotals)
-        val progress = ReportAggregator.progressFraction(total, goal)
+        // "Meta de la semana" (reemplaza la meta de mediana + wells retirados, ver KDoc de
+        // HeroUi): solo se calcula en SEMANA — DÍA no tiene ventana de ciclo, y recalcular
+        // "cobro"/"cuentas" para una sola jornada requeriría reinterpretar `aplicaEnVentana`
+        // fuera de su semántica de ciclo semanal (decisión documentada, no un hueco).
+        val cobranza = when (context.period) {
+            ReportPeriod.DIA -> CobranzaPorcentaje.CobranzaSemanal(null, null, 0, 0)
+            ReportPeriod.SEMANA -> CollectionReportMetaBuilder.cobranzaSemanal(ports, context.clock)
+        }
+        // El insight ("vas al X% de tu meta") ahora se alimenta del ponderado real (capado a
+        // [0,1] para la frase, aunque el ring de la tarjeta muestre el valor SIN capar — puede
+        // exceder 100%, ver KDoc de CobranzaPorcentaje.resumenPonderado) en vez de la fracción
+        // contra una meta de mediana retirada.
+        val progress = ((cobranza.porcentajeCobro?.toFloat() ?: 0f) / PERCENT_SCALE).coerceIn(
+            0f,
+            1f
+        )
         return HeroUi(
             overline = heroOverline(context.period, context.range),
             delta = ReportAggregator.delta(total, ports.priorTotal, context.period),
             monto = total,
             insight = resolveInsight(context.period, ports.payments, progress, context.range),
-            progress = progress,
-            goalCap = goal,
             sparkline = ReportAggregator.timeline(ports.payments, context.period, context.range),
-            wells = listOf(
-                HeroWell("Efectivo en mano", ReportAggregator.efectivoEnMano(ports.payments)),
-                HeroWell("Ticket prom.", ReportAggregator.ticketPromedio(ports.payments))
-            )
+            porcentajeCobro = cobranza.porcentajeCobro?.toFloat() ?: 0f,
+            porcentajeCuentas = cobranza.porcentajeCuentas?.toFloat() ?: 0f,
+            clientesPagaron = cobranza.clientesPagaron,
+            clientesTotal = cobranza.clientesTotal
         )
     }
 
-    /** Meta diaria (mediana del historial) o de ciclo (diaria × días) según [period]. */
-    private fun resolveGoal(
-        period: ReportPeriod,
-        range: DateRange,
-        historicalTotals: List<Money>
-    ): Money {
-        val dailyGoal = SuggestedGoal.suggest(historicalTotals)
-        return when (period) {
-            ReportPeriod.DIA -> dailyGoal
-            ReportPeriod.SEMANA -> SuggestedGoal.forCycle(dailyGoal, range.days)
-        }
-    }
+    private const val PERCENT_SCALE = 100f
 
     /**
      * `projection` (Día, "a este ritmo cierras en $Y") queda PARKED a propósito — ver el
@@ -217,7 +232,7 @@ internal object CollectionReportStateBuilder {
      */
     private fun heroOverline(period: ReportPeriod, range: DateRange): String = when (period) {
         ReportPeriod.DIA -> "Cobrado · ${range.dayLabel()}"
-        ReportPeriod.SEMANA -> "Cobrado · ciclo actual"
+        ReportPeriod.SEMANA -> "Cobrado · semana actual"
     }
 
     private fun buildDetailUi(context: LoadContext, payments: List<CollectionPayment>): DetailUi =

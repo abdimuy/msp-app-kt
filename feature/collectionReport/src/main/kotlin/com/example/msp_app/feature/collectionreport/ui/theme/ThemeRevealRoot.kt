@@ -24,12 +24,17 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntSize
 import com.example.msp_app.core.designsystem.component.LocalThemeReveal
 import com.example.msp_app.core.designsystem.component.ThemeRevealController
 import com.example.msp_app.core.designsystem.component.maxDistanceToCorner
+import com.example.msp_app.core.designsystem.theme.FontSizeLevel
+import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
+import com.example.msp_app.core.designsystem.theme.compressed
+import com.example.msp_app.core.designsystem.theme.mspTypography
 
 /** Duración de la reveal circular — 1:1 kollect §7.2 / task-9-brief.md. */
 private const val REVEAL_DURATION_MS = 380
@@ -45,6 +50,49 @@ private val REVEAL_EASING = FastOutSlowInEasing
  */
 internal fun revealTargetRadius(origin: Offset, size: IntSize): Float =
     maxDistanceToCorner(origin, size.width.toFloat(), size.height.toFloat())
+
+/**
+ * [MspTheme] con la rampa tipográfica comprimida del nivel de letra vigente (Task "Aplicar la
+ * rampa comprimida al reporte", opción (a) del brief): construye
+ * `mspTypography().compressed(LocalFontSizeLevel.current)` y la pasa como `typography` —
+ * SEGURO porque TODO el texto del reporte lee `MspTheme.type.*` (auditado: cero `.sp`
+ * hardcodeado fuera de `MspType.kt`), así que no hay ningún `Text` suelto que quede sin
+ * comprimir ni que reciba double-scaling por accidente.
+ *
+ * **Neutraliza el double-scaling** (ver KDoc de [com.example.msp_app.core.designsystem.theme.mspCompressedSp]):
+ * la rampa comprimida YA devuelve el tamaño final para el nivel elegido; el `fontScale` lineal
+ * que `MainActivity` aplica globalmente (Opción C, `máx(nivel, fontScale del SO)`) lo
+ * multiplicaría una segunda vez si se dejara pasar. Por eso este composable reinstala
+ * [LocalDensity] con `fontScale = 1f` (conservando `density`, que gobierna `dp`→`px` y es
+ * ajeno a esto) alrededor de [content] — DENTRO de [MspTheme], para que solo el subárbol que
+ * consume la tipografía comprimida quede neutralizado, nunca el resto de la app.
+ *
+ * **Cobertura / lo NO cubierto:** esto compensa el `fontScale` LINEAL de la app
+ * (`FontSizeLevel.nominalScale`, Opción C) — la rampa comprimida está indexada por el enum
+ * discreto [FontSizeLevel] (3 niveles), no por el `fontScale` continuo real del sistema
+ * operativo (mismo criterio ya documentado en el KDoc de [LocalFontSizeLevel]: elegir
+ * `MUY_GRANDE` en la app "basta para forzar Tier 2 aunque el OS esté en 1.0f"). Si el usuario
+ * tiene una accesibilidad del SO MÁS agresiva que el nivel elegido en la app, ese exceso queda
+ * neutralizado también dentro de este subárbol — una limitación heredada del diseño de 3
+ * niveles, no algo que este composable intente resolver.
+ */
+@Composable
+private fun ReportMspTheme(
+    darkTheme: Boolean,
+    animateColors: Boolean,
+    content: @Composable () -> Unit
+) {
+    val fontSizeLevel = LocalFontSizeLevel.current
+    val typography = remember(fontSizeLevel) { mspTypography().compressed(fontSizeLevel) }
+    val baseDensity = LocalDensity.current
+    MspTheme(darkTheme = darkTheme, animateColors = animateColors, typography = typography) {
+        CompositionLocalProvider(
+            LocalDensity provides Density(density = baseDensity.density, fontScale = 1f)
+        ) {
+            content()
+        }
+    }
+}
 
 /**
  * Composition root del reveal circular de tema (Telegram-style, kollect §7.2) — el pedazo que
@@ -80,10 +128,11 @@ internal fun revealTargetRadius(origin: Offset, size: IntSize): Float =
  *    revela el `content` real de abajo, que para entonces ya cambió de tema. Al completar la
  *    animación se limpia el snapshot (`= null`) y `controller.consume()` limpia `origin`.
  *
- * **Fallback reduce-motion (mecanismo A, spec §5):** con [rememberReducedMotionEnabled] activo,
- * este composable ni siquiera instala el controller — `content` cae directo al `onToggle` de
- * `MspThemeToggle` ([LocalThemeReveal] default `null`) y [MspTheme] anima el crossfade de
- * paleta él solo (`animateColors = true`). Cero
+ * **Fallback reduce-motion (mecanismo A, spec §5):** con [rememberReportReducedMotion] activo
+ * (señal de accesibilidad del SO O la preferencia propia de la app, "Deshabilitar animaciones"
+ * en Configuración — ver su KDoc), este composable ni siquiera instala el controller —
+ * `content` cae directo al `onToggle` de `MspThemeToggle` ([LocalThemeReveal] default `null`) y
+ * [MspTheme] anima el crossfade de paleta él solo (`animateColors = true`). Cero
  * `Animatable`/`GraphicsLayer`/`toImageBitmap`/`LaunchedEffect` de este composable se componen
  * en esa rama — la garantía anti-cuelgue que el brief exige (los tests que fuerzan
  * `ANIMATOR_DURATION_SCALE = 0`, Roborazzi y compose-test, SIEMPRE toman esta rama; el
@@ -96,8 +145,8 @@ fun ThemeRevealRoot(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    if (rememberReducedMotionEnabled()) {
-        MspTheme(darkTheme = darkTheme, animateColors = true) {
+    if (rememberReportReducedMotion()) {
+        ReportMspTheme(darkTheme = darkTheme, animateColors = true) {
             content()
         }
         return
@@ -129,7 +178,7 @@ fun ThemeRevealRoot(
         controller.consume()
     }
 
-    MspTheme(darkTheme = darkTheme, animateColors = oldSnapshot == null) {
+    ReportMspTheme(darkTheme = darkTheme, animateColors = oldSnapshot == null) {
         CompositionLocalProvider(LocalThemeReveal provides controller) {
             Box(
                 modifier = modifier

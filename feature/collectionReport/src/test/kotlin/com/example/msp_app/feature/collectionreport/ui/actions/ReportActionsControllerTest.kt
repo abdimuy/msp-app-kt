@@ -1,6 +1,9 @@
 package com.example.msp_app.feature.collectionreport.ui.actions
 
+import android.app.Application
 import android.content.Intent
+import android.net.Uri
+import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.core.testing.time.FakeClock
@@ -15,6 +18,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.robolectric.Shadows
 
 /**
  * Cobertura de [ReportActionsController] — Compartir/PDF/ticket de impresión (Task 8, AUDIT
@@ -60,7 +64,11 @@ class ReportActionsControllerTest : RobolectricTestBase() {
     fun `el ticket de impresion desglosa cada pago del dia con su monto exacto`() {
         val ticket = ReportActionsController.buildTicketText(MockupFixtures.stateDia(), clock)
 
-        assertTrue(ticket.contains("María López Hernández"))
+        // Task 1: cada pago ocupa UNA sola línea de 32 chars (58mm); "María López Hernández"
+        // (21 chars) más "09:12 " y el monto "$1,200" ya no caben completos en la línea, así
+        // que el cliente se trunca — el nombre COMPLETO ya no es un substring literal del
+        // ticket, solo su prefijo ("09:12 María").
+        assertTrue(ticket.contains("09:12 María"))
         assertTrue(ticket.contains(formatMoneyMxn(BigDecimal("1200"))))
         assertTrue(ticket.hasLine("Total cobrado", formatMoneyMxn(BigDecimal("18300"))))
     }
@@ -163,9 +171,13 @@ class ReportActionsControllerTest : RobolectricTestBase() {
     // versión (`IllegalStateException: document is closed!` incluso con
     // `@GraphicsMode(NATIVE)`) — limitación conocida de Robolectric, no un bug de este
     // código. Mismo criterio que el `PdfGenerator` viejo (`:app`), que tampoco tenía
-    // cobertura de su render real — lo que SÍ queda probado (arriba) es
-    // [ReportActionsController.buildTicketText], la única fuente de contenido que
-    // [ReportActionsController.generatePdf] escribe línea por línea al PDF.
+    // cobertura de su render real — lo que SÍ queda probado es [ReportActionsController
+    // .buildTicketText] (arriba, sigue siendo la fuente de "Compartir ticket"/impresión) y,
+    // en `ui/actions/pdf/*Test.kt`, TODO el pipeline puro que arma el PDF rediseñado
+    // (`buildPdfReportModel` -> `buildPdfBlocks` -> `paginatePdfBlocks`): orden por
+    // `state.sort`, ningún pago/visita perdido, wrap de notas, y el encabezado de la tabla de
+    // pagos repetido en cada corte de página — la parte de `generatePdf` que SÍ es testeable
+    // sin un `Canvas` real.
 
     @Test
     fun `pdfFileName es determinista por periodo`() {
@@ -178,4 +190,49 @@ class ReportActionsControllerTest : RobolectricTestBase() {
             ReportActionsController.pdfFileName(MockupFixtures.stateSemana())
         )
     }
+
+    // region — botón PDF: abrir (ACTION_VIEW), no compartir (Task de arriba) ------------
+
+    @Test
+    fun `buildPdfViewIntent es ACTION_VIEW de application-pdf con la uri y el permiso de lectura`() {
+        // Núcleo puro (uri ya resuelta): ver el KDoc de `ReportActionsController
+        // .buildPdfViewIntent(Uri)` sobre por qué este módulo no puede ejercitar un
+        // `FileProvider` real en unit test (mismo motivo documentado en `generatePdf`).
+        val uri = Uri.parse("content://com.example.msp_app.fileprovider/reporte_cobranza_dia.pdf")
+
+        val intent = ReportActionsController.buildPdfViewIntent(uri)
+
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals("application/pdf", intent.type)
+        assertEquals(uri, intent.data)
+        assertTrue(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+    }
+
+    @Test
+    fun `buildPdfViewIntent y buildPdfShareIntent difieren solo en la accion`() {
+        val uri = Uri.parse("content://com.example.msp_app.fileprovider/reporte_cobranza_dia.pdf")
+
+        val viewIntent = ReportActionsController.buildPdfViewIntent(uri)
+
+        assertEquals(Intent.ACTION_VIEW, viewIntent.action)
+        assertFalse(
+            "el botón PDF ya no debe usar ACTION_SEND",
+            viewIntent.action == Intent.ACTION_SEND
+        )
+    }
+
+    @Test
+    fun `startActivitySafely no truena cuando ninguna actividad resuelve el intent`() {
+        val application = ApplicationProvider.getApplicationContext<Application>()
+        Shadows.shadowOf(application).checkActivities(true)
+        val uri = Uri.parse("content://com.example.msp_app.fileprovider/reporte_cobranza_dia.pdf")
+        val intent = ReportActionsController.buildPdfViewIntent(uri)
+
+        // Sin ningún visor de PDF "instalado" en el Robolectric shadow: no debe tronar con
+        // `ActivityNotFoundException`, ni al intentar el intent original ni al chooser de
+        // respaldo.
+        ReportActionsController.startActivitySafely(application, intent)
+    }
+
+    // endregion
 }

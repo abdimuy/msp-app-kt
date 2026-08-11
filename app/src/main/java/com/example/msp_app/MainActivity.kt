@@ -9,16 +9,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.FragmentActivity
 import com.example.msp_app.core.context.LocalConnectivityState
 import com.example.msp_app.core.context.rememberConnectivityState
+import com.example.msp_app.core.designsystem.theme.FontSizeLevel
+import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
+import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
+import com.example.msp_app.core.settings.SettingsRepository
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.telemetry.compose.LocalTelemetry
 import com.example.msp_app.navigation.AppNavigation
@@ -47,6 +55,17 @@ class MainActivity : FragmentActivity() {
      */
     @Inject
     lateinit var telemetry: Telemetry
+
+    /**
+     * Fundación de Configuración (spec
+     * `docs/superpowers/specs/2026-08-10-configuracion-tamano-letra-design.md`
+     * §"`app/` (composición root)"): la raíz de composición lee
+     * `fontSizeLevel`/`reduceMotion` de aquí para el override Opción C de
+     * [androidx.compose.ui.platform.LocalDensity] + [LocalReduceMotion] (ver
+     * `setContent` abajo) — el mismo field-injection que [telemetry] ya usa.
+     */
+    @Inject
+    lateinit var settingsRepository: SettingsRepository
 
     private var lastActivityTime = System.currentTimeMillis()
     private val inactivityTimeoutMs = 5 * 60 * 1000L // 5 minutos
@@ -105,8 +124,32 @@ class MainActivity : FragmentActivity() {
                 insetsController.isAppearanceLightNavigationBars = !isDarkTheme
             }
 
+            // `ThemeMode.SYSTEM` (Configuración, "Automático") necesita el `isSystemInDarkTheme()`
+            // vigente — `ThemeController` es un objeto plano no-Composable, así que no puede leerlo
+            // solo; esta raíz de composición se lo reporta en cada cambio (ver KDoc de
+            // `ThemeController.updateSystemDarkMode`).
+            val systemDark = isSystemInDarkTheme()
+            LaunchedEffect(systemDark) {
+                ThemeController.updateSystemDarkMode(systemDark)
+            }
+
             MspappTheme(dynamicColor = false) {
+                // Fundación de Configuración — Opción C (spec §"Mecánica del tamaño de letra"):
+                // el tamaño EFECTIVO es máx(nivel elegido en la app, `fontScale` del SO); la app
+                // nunca achica por debajo de lo que el teléfono ya pide. `LocalFontSizeLevel`/
+                // `LocalReduceMotion` quedan disponibles para cualquier pantalla migrada
+                // (`:feature:collectionReport` Tier 1/2, trabajo de otro agente) sin que esta
+                // raíz aplique la rampa comprimida — eso es progresivo, pantalla por pantalla.
+                val fontSizeLevel by settingsRepository.fontSizeLevel.collectAsState(
+                    FontSizeLevel.NORMAL
+                )
+                val reduceMotion by settingsRepository.reduceMotion.collectAsState(false)
+                val baseDensity = LocalDensity.current
+                val effectiveFontScale = maxOf(fontSizeLevel.nominalScale, baseDensity.fontScale)
                 CompositionLocalProvider(
+                    LocalDensity provides Density(baseDensity.density, effectiveFontScale),
+                    LocalFontSizeLevel provides fontSizeLevel,
+                    LocalReduceMotion provides reduceMotion,
                     LocalConnectivityState provides connectivityState,
                     LocalTelemetry provides telemetry
                 ) {

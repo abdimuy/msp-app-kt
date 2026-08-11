@@ -5,6 +5,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.CollectionVisit
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
 import com.example.msp_app.feature.collectionreport.domain.model.Money
+import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import java.time.Instant
 
 /**
@@ -57,6 +58,21 @@ interface VisitsPort {
 
     /** Visitas del rango medio-abierto `[start, end)` por `Visit.FECHA`. */
     suspend fun visitsIn(range: DateRange): List<CollectionVisit>
+}
+
+/**
+ * Ventas de crédito no-contado ACTIVAS del cobrador — insumo de
+ * [com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje] para la tarjeta
+ * "Meta de la semana" (porcentaje cobro ponderado + porcentaje cuentas/cobertura). Puerto
+ * OUTBOUND deliberadamente simple (una sola función): a diferencia de [PaymentsPort], no toma
+ * [DateRange] — la ventana del cálculo la fija [CobranzaPorcentaje] (`[fechaInicio, hoy]`), no
+ * la consulta de ventas (una venta "activa" no depende del rango del reporte, solo su
+ * `abonoSemana` — resuelto aparte agrupando [CollectionPayment.saleId]).
+ */
+interface SalesPort {
+
+    /** Ventas de crédito no-contado activas (`sales.SALDO_REST > 0`) — ver el adapter Room. */
+    suspend fun nonContadoActiveSales(): List<SaleForCobranza>
 }
 
 /**

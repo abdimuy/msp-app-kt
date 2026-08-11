@@ -1,14 +1,17 @@
 package com.example.msp_app.feature.collectionreport.di
 
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.database.dao.ClienteDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.feature.collectionreport.data.adapter.RoomHistoricalTotalsAdapter
 import com.example.msp_app.feature.collectionreport.data.adapter.RoomPaymentsAdapter
+import com.example.msp_app.feature.collectionreport.data.adapter.RoomSalesAdapter
 import com.example.msp_app.feature.collectionreport.data.adapter.RoomVisitsAdapter
 import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotalsPort
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
+import com.example.msp_app.feature.collectionreport.domain.port.SalesPort
 import com.example.msp_app.feature.collectionreport.domain.port.VisitsPort
 import dagger.Module
 import dagger.Provides
@@ -54,11 +57,15 @@ object CollectionReportDataModule {
         RoomPaymentsAdapter(paymentDao, saleDao)
 
     @Provides
-    fun provideVisitsPort(visitDao: VisitDao): VisitsPort = RoomVisitsAdapter(visitDao)
+    fun provideVisitsPort(visitDao: VisitDao, clienteDao: ClienteDao): VisitsPort =
+        RoomVisitsAdapter(visitDao, clienteDao)
 
     @Provides
     fun provideHistoricalTotalsPort(paymentDao: PaymentDao): HistoricalTotalsPort =
         RoomHistoricalTotalsAdapter(paymentDao, AppClock.System)
+
+    @Provides
+    fun provideSalesPort(saleDao: SaleDao): SalesPort = RoomSalesAdapter(saleDao)
 
     /**
      * Reloj de producción para [com.example.msp_app.feature.collectionreport.ui.CollectionReportViewModel]

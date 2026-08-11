@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.collectionreport.data.adapter
 
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
@@ -12,12 +13,20 @@ import org.junit.Test
 
 /**
  * [RoomVisitsAdapter] sobre la query real de Room/SQLite. Verifica el mapeo a
- * dominio, `NOTA` nula -> vacío, el rango medio-abierto por `Visit.FECHA` y el
- * caso vacío.
+ * dominio, la resolución del NOMBRE real vía el join a `cliente` (y su
+ * fallback `"Cliente #<id>"`), `NOTA` nula -> vacío, el rango medio-abierto
+ * por `Visit.FECHA` y el caso vacío.
  */
 class RoomVisitsAdapterTest : RoomTestBase() {
 
-    private val adapter by lazy { RoomVisitsAdapter(db.visitDao()) }
+    private val adapter by lazy { RoomVisitsAdapter(db.visitDao(), db.clienteDao()) }
+
+    private fun cliente(id: Int, nombre: String) = ClienteEntity(
+        CLIENTE_ID = id,
+        NOMBRE = nombre,
+        ESTATUS = "A",
+        CAUSA_SUSP = null
+    )
 
     private val dayD = LocalDate.of(2026, 4, 15)
     private val startD = AppTime.toWireFormat(AppTime.startOfDay(dayD))
@@ -47,6 +56,7 @@ class RoomVisitsAdapterTest : RoomTestBase() {
 
     @Test
     fun `visitsIn mapea los campos a dominio`() = runTest {
+        db.clienteDao().insertAll(listOf(cliente(id = 55012, nombre = "Fernanda Reyes Ortiz")))
         db.visitDao().insertVisit(visit(id = "v1", clienteId = 55012))
 
         val result = adapter.visitsIn(rangeD)
@@ -54,9 +64,48 @@ class RoomVisitsAdapterTest : RoomTestBase() {
         assertEquals(1, result.size)
         val v = result.single()
         assertEquals("v1", v.id)
-        assertEquals("55012", v.cliente)
+        assertEquals("Fernanda Reyes Ortiz", v.cliente)
         assertEquals("Promesa de pago manana", v.nota)
         assertEquals(Instant.parse("2026-04-15T18:30:00Z"), v.visitedAt)
+        assertEquals("VISITA", v.tipo)
+    }
+
+    @Test
+    fun `visitsIn mapea el TIPO_VISITA real, sin transformarlo`() = runTest {
+        db.visitDao().insertVisit(
+            visit(id = "v1", clienteId = 30144).copy(TIPO_VISITA = "No se encontraba")
+        )
+
+        val v = adapter.visitsIn(rangeD).single()
+
+        assertEquals("No se encontraba", v.tipo)
+    }
+
+    @Test
+    fun `visitsIn resuelve el nombre real del cliente con un solo join batch`() = runTest {
+        db.clienteDao().insertAll(
+            listOf(
+                cliente(id = 30144, nombre = "Rosa Elena Martinez Vazquez"),
+                cliente(id = 55012, nombre = "Fernanda Reyes Ortiz")
+            )
+        )
+        db.visitDao().insertVisit(visit(id = "v1", clienteId = 30144))
+        db.visitDao().insertVisit(visit(id = "v2", clienteId = 55012))
+
+        val byId = adapter.visitsIn(rangeD).associateBy { it.id }
+
+        assertEquals("Rosa Elena Martinez Vazquez", byId.getValue("v1").cliente)
+        assertEquals("Fernanda Reyes Ortiz", byId.getValue("v2").cliente)
+    }
+
+    @Test
+    fun `visitsIn cae a Cliente numero id cuando el cliente no esta en local`() = runTest {
+        // Sin insertar ningún cliente: el CLIENTE_ID de la visita no cruza con `cliente`.
+        db.visitDao().insertVisit(visit(id = "v1", clienteId = 90210))
+
+        val v = adapter.visitsIn(rangeD).single()
+
+        assertEquals("Cliente #90210", v.cliente)
     }
 
     @Test

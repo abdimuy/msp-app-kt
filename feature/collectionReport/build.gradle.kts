@@ -56,6 +56,9 @@ dependencies {
     // `compose-ui` que aplica `msp.android.compose` (androidx-material3), no se repite aquí.
     // Menu/DateRange del header y subrow — 1:1 mockup.
     implementation(libs.androidx.compose.material.icons.core)
+    // Lucide (Task 1/2, enriquecimiento de filas): tiles de método de pago + íconos del hero
+    // (reemplaza los emojis 📊/⚡/🕘/🎯) — mismo paquete que ya usa `:app`.
+    implementation(libs.icons.lucide)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose) // collectAsStateWithLifecycle
     implementation(libs.androidx.navigation.compose) // si el screen expone NavController

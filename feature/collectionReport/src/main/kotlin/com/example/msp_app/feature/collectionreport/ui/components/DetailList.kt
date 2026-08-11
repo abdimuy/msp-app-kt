@@ -114,12 +114,14 @@ private fun DetailDivider(modifier: Modifier = Modifier) {
 
 /**
  * Fila de un pago (mockup `.prow`), enriquecida (fix de dispositivo 2026-08): a la izquierda,
- * avatar de iniciales del cliente + nombre (`type.name`) y una subline con el método (pill) y
- * el contexto de la venta — "Folio {folio} · HH:mm" cuando la venta está en local, si no solo
- * "HH:mm" (el folio nunca se inventa, ver [PaymentRowUi]). A la derecha, jerarquía de dinero:
- * monto del pago ([MspMoneyText], enmascarable) arriba, saldo restante de la venta ("Saldo
- * $X", tabular, enmascarable) debajo cuando existe, y el chip ámbar "Por subir" (texto + color,
- * nunca color solo) si el pago aún no sube.
+ * tile tintado por método de cobro ([MethodTile], reemplaza el avatar de iniciales decorativo
+ * — Task 1: el nombre ya va en texto al lado, el MÉTODO sí es dato nuevo) + nombre
+ * (`type.name`) y una subline con el contexto de la venta — "Folio {folio} · HH:mm" cuando la
+ * venta está en local, si no solo "HH:mm" (el folio nunca se inventa, ver [PaymentRowUi]). A
+ * la derecha, jerarquía de dinero: monto del pago ([MspMoneyText], enmascarable) arriba, saldo
+ * restante de la venta ("Saldo $X", tabular, enmascarable) debajo cuando existe, y el chip
+ * ámbar "Por subir" (texto + color, nunca color solo) si el pago aún no sube — junto con el
+ * pill de método (texto), que se conserva para quien busca el nombre del método en texto.
  */
 @Composable
 private fun PaymentRow(
@@ -136,7 +138,7 @@ private fun PaymentRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        MspInitialsAvatar(initials = clienteInitials(row.cliente))
+        MethodTile(method = row.method)
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(ROW_LINE_SPACING)
@@ -189,9 +191,13 @@ private fun ventaSubline(row: PaymentRowUi): String {
     return if (row.folio.isNotBlank()) "Folio ${row.folio} · $horaPago" else horaPago
 }
 
-/** "Saldo $X" — saldo restante actual de la venta, tabular y enmascarable (privacidad). */
+/**
+ * "Saldo $X" — saldo restante actual de la venta, tabular y enmascarable (privacidad).
+ * `internal` (no `private`): [ReportSheets] (Task 1) reusa esta MISMA fila para la tercera
+ * línea de sus filas de pago, en vez de duplicar el layout "Saldo" + [MspMoneyText].
+ */
 @Composable
-private fun SaldoLine(saldo: Money, masked: Boolean, modifier: Modifier = Modifier) {
+internal fun SaldoLine(saldo: Money, masked: Boolean, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -215,9 +221,12 @@ private fun SaldoLine(saldo: Money, masked: Boolean, modifier: Modifier = Modifi
  * Chip "por subir" (mockup: dot ámbar): texto + color, NUNCA color solo (accesibilidad) —
  * la `contentDescription` sigue siendo el segundo portador redundante del estado. Reemplaza
  * el dot pelón por un chip legible ahora que la fila tiene más contexto.
+ *
+ * `internal` (no `private`): [ReportSheets] (Task 1) reusa este MISMO chip para sus filas de
+ * pago, en vez de duplicar el par dot+texto ámbar.
  */
 @Composable
-private fun PendingUploadChip(modifier: Modifier = Modifier) {
+internal fun PendingUploadChip(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.semantics { contentDescription = PENDING_UPLOAD_DESCRIPTION },
         verticalAlignment = Alignment.CenterVertically,
@@ -273,19 +282,5 @@ private fun DayRow(
             style = MspTheme.type.amountRow,
             color = MspTheme.colors.onSurface
         )
-    }
-}
-
-/**
- * "María López Hernández" -> "ML" (primera letra de las dos primeras palabras); un nombre
- * de una sola palabra usa su primera letra sola; blanco -> `""`. Cálculo del piloto — el
- * design system ([MspInitialsAvatar]) solo pinta iniciales ya resueltas.
- */
-private fun clienteInitials(nombre: String): String {
-    val palabras = nombre.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
-    return when {
-        palabras.isEmpty() -> ""
-        palabras.size == 1 -> palabras[0].take(1).uppercase()
-        else -> "${palabras[0].first()}${palabras[1].first()}".uppercase()
     }
 }
