@@ -14,7 +14,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,7 +42,6 @@ import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
 import com.example.msp_app.features.sales.components.productinfocard.ProductsInfoCard
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
-import com.example.msp_app.navigation.Screen
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
@@ -85,16 +83,14 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(
-                        onClick = {
-                            navController.navigate(Screen.EditSale.createRoute(localSaleId))
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Editar venta"
-                        )
-                    }
+                    // Edición deshabilitada en Android: la creación de ventas
+                    // locales ya sube al API Go (POST /v2/ventas) pero la
+                    // edición seguía yendo al backend legacy por
+                    // LocalSaleSyncHandler (PUT ventas-locales/{id}), así que
+                    // no aplica sobre la venta creada por el Go. La edición se
+                    // hace desde el escritorio, donde sí funciona.
+                    // EditSaleScreen y la ruta Screen.EditSale se conservan
+                    // sin punto de entrada.
                 }
             }
         ) { innerPadding ->
