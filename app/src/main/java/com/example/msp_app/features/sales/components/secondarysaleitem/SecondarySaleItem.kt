@@ -229,9 +229,13 @@ fun SecondarySaleItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        // `fill = false` para que el guion de "sin ubicación" no
-                        // reserve el tercio completo: pesa como tope, no como piso.
-                        .weight(DISTANCE_WEIGHT, fill = false)
+                        // El slot ocupa su tercio completo y el texto se alinea al
+                        // final: así la distancia queda pegada al borde derecho de
+                        // la tarjeta y todas las filas alinean entre sí. Con
+                        // `fill = false` el slot se encogía al ancho del texto y la
+                        // distancia terminaba flotando a media tarjeta, pegada al
+                        // nombre y con un hueco muerto a la derecha.
+                        .weight(DISTANCE_WEIGHT)
                         .align(Alignment.CenterVertically)
                         // Un guion no se lee solo: TalkBack necesita saber que ese
                         // hueco significa que la venta no tiene ubicación.
