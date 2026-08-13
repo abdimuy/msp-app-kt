@@ -139,26 +139,36 @@ android {
             // Visitas por el API v2 (msp-api Go), mismo host que pagos.
             buildConfigField("boolean", "VISITAS_USE_V2", "true")
         }
+        // RETIRADO como entorno de pruebas remoto: su único túnel de API v2
+        // (apidev.loclx.io) pasó a ser el de producción. Si este flavor
+        // siguiera apuntando ahí con PAGOS_USE_V2=true, cualquier APK de
+        // prueba en campo escribiría pagos en la base de producción.
+        // Para probar contra un servidor usa `devlocal`, que toma host y
+        // puerto de local.properties. No reactivar sin un túnel propio.
         create("devserver") {
             dimension = "environment"
             applicationIdSuffix = ".test"
             versionNameSuffix = "-dev+${gitShortSha()}"
             resValue("string", "app_name", "msp-app DEV")
-            buildConfigField("String", "V2_BASE_URL", "\"https://apidev.loclx.io/\"")
+            buildConfigField("String", "V2_BASE_URL", "\"https://devserver-retirado.invalid/\"")
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://apidb.loclx.io/\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
-            buildConfigField("boolean", "PAGOS_USE_V2", "true")
-            buildConfigField("boolean", "VISITAS_USE_V2", "true")
+            buildConfigField("boolean", "PAGOS_USE_V2", "false")
+            buildConfigField("boolean", "VISITAS_USE_V2", "false")
         }
         create("prod") {
             dimension = "environment"
             resValue("string", "app_name", "msp-app")
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://msp2025.loclx.io/\"")
-            // TODO: confirmar el host real del Go de prod cuando se despliegue.
-            buildConfigField("String", "V2_BASE_URL", "\"https://todo-go-prod-host.invalid/\"")
+            // apidev.loclx.io deja de ser el túnel de pruebas y pasa a ser el
+            // del API Go de PRODUCCIÓN: no se consiguió un túnel adicional.
+            // OJO: hasta que ese túnel apunte a la instancia Go de producción
+            // (base MUEBLERA_SNP.FDB), sigue resolviendo a la de pruebas
+            // (MUEBLERA_TEST.FDB). No distribuir este APK antes de repuntarlo.
+            buildConfigField("String", "V2_BASE_URL", "\"https://apidev.loclx.io/\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
-            // Prod sigue por el backend legacy hasta que exista el Go de prod
-            // (V2_BASE_URL de arriba es un placeholder inválido a propósito).
+            // Pagos y visitas siguen por el backend legacy: tienen interruptor
+            // y sirven de retorno. Ventas locales NO lo tiene y ya sube al Go.
             buildConfigField("boolean", "PAGOS_USE_V2", "false")
             buildConfigField("boolean", "VISITAS_USE_V2", "false")
         }
