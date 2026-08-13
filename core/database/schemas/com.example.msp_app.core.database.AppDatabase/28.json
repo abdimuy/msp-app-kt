@@ -1,0 +1,1649 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 28,
+    "identityHash": "c8c6904b3e777d9784615e121021176c",
+    "entities": [
+      {
+        "tableName": "sales",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`DOCTO_CC_ACR_ID` INTEGER NOT NULL, `DOCTO_CC_ID` INTEGER NOT NULL, `FOLIO` TEXT NOT NULL, `CLIENTE_ID` INTEGER NOT NULL, `APLICADO` TEXT NOT NULL, `COBRADOR_ID` INTEGER NOT NULL, `CLIENTE` TEXT NOT NULL, `ZONA_CLIENTE_ID` INTEGER NOT NULL, `LIMITE_CREDITO` REAL NOT NULL, `NOTAS` TEXT NOT NULL, `ZONA_NOMBRE` TEXT NOT NULL, `IMPORTE_PAGO_PROMEDIO` REAL, `TOTAL_IMPORTE` REAL NOT NULL, `NUM_IMPORTES` INTEGER NOT NULL, `FECHA` TEXT NOT NULL, `PARCIALIDAD` INTEGER NOT NULL, `ENGANCHE` REAL NOT NULL, `TIEMPO_A_CORTO_PLAZOMESES` INTEGER NOT NULL, `MONTO_A_CORTO_PLAZO` REAL NOT NULL, `VENDEDOR_1` TEXT NOT NULL, `VENDEDOR_2` TEXT NOT NULL, `VENDEDOR_3` TEXT NOT NULL, `PRECIO_TOTAL` REAL NOT NULL, `IMPTE_REST` REAL NOT NULL, `SALDO_REST` REAL NOT NULL, `FECHA_ULT_PAGO` TEXT, `CALLE` TEXT NOT NULL, `CIUDAD` TEXT NOT NULL, `ESTADO` TEXT NOT NULL, `TELEFONO` TEXT NOT NULL, `NOMBRE_COBRADOR` TEXT NOT NULL, `ESTADO_COBRANZA` TEXT NOT NULL, `DIA_COBRANZA` TEXT NOT NULL, `DIA_TEMPORAL_COBRANZA` TEXT NOT NULL, `PRECIO_DE_CONTADO` REAL NOT NULL, `AVAL_O_RESPONSABLE` TEXT NOT NULL, `FREC_PAGO` TEXT, PRIMARY KEY(`DOCTO_CC_ACR_ID`))",
+        "fields": [
+          {
+            "fieldPath": "DOCTO_CC_ACR_ID",
+            "columnName": "DOCTO_CC_ACR_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DOCTO_CC_ID",
+            "columnName": "DOCTO_CC_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FOLIO",
+            "columnName": "FOLIO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CLIENTE_ID",
+            "columnName": "CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "APLICADO",
+            "columnName": "APLICADO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "COBRADOR_ID",
+            "columnName": "COBRADOR_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CLIENTE",
+            "columnName": "CLIENTE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ZONA_CLIENTE_ID",
+            "columnName": "ZONA_CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LIMITE_CREDITO",
+            "columnName": "LIMITE_CREDITO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOTAS",
+            "columnName": "NOTAS",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ZONA_NOMBRE",
+            "columnName": "ZONA_NOMBRE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMPORTE_PAGO_PROMEDIO",
+            "columnName": "IMPORTE_PAGO_PROMEDIO",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "TOTAL_IMPORTE",
+            "columnName": "TOTAL_IMPORTE",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NUM_IMPORTES",
+            "columnName": "NUM_IMPORTES",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA",
+            "columnName": "FECHA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PARCIALIDAD",
+            "columnName": "PARCIALIDAD",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ENGANCHE",
+            "columnName": "ENGANCHE",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "TIEMPO_A_CORTO_PLAZOMESES",
+            "columnName": "TIEMPO_A_CORTO_PLAZOMESES",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "MONTO_A_CORTO_PLAZO",
+            "columnName": "MONTO_A_CORTO_PLAZO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "VENDEDOR_1",
+            "columnName": "VENDEDOR_1",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "VENDEDOR_2",
+            "columnName": "VENDEDOR_2",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "VENDEDOR_3",
+            "columnName": "VENDEDOR_3",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_TOTAL",
+            "columnName": "PRECIO_TOTAL",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMPTE_REST",
+            "columnName": "IMPTE_REST",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "SALDO_REST",
+            "columnName": "SALDO_REST",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA_ULT_PAGO",
+            "columnName": "FECHA_ULT_PAGO",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "CALLE",
+            "columnName": "CALLE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CIUDAD",
+            "columnName": "CIUDAD",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ESTADO",
+            "columnName": "ESTADO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "TELEFONO",
+            "columnName": "TELEFONO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOMBRE_COBRADOR",
+            "columnName": "NOMBRE_COBRADOR",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ESTADO_COBRANZA",
+            "columnName": "ESTADO_COBRANZA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DIA_COBRANZA",
+            "columnName": "DIA_COBRANZA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DIA_TEMPORAL_COBRANZA",
+            "columnName": "DIA_TEMPORAL_COBRANZA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_DE_CONTADO",
+            "columnName": "PRECIO_DE_CONTADO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "AVAL_O_RESPONSABLE",
+            "columnName": "AVAL_O_RESPONSABLE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FREC_PAGO",
+            "columnName": "FREC_PAGO",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "DOCTO_CC_ACR_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sales_DOCTO_CC_ACR_ID",
+            "unique": false,
+            "columnNames": [
+              "DOCTO_CC_ACR_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sales_DOCTO_CC_ACR_ID` ON `${TABLE_NAME}` (`DOCTO_CC_ACR_ID`)"
+          },
+          {
+            "name": "index_sales_DOCTO_CC_ID",
+            "unique": true,
+            "columnNames": [
+              "DOCTO_CC_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sales_DOCTO_CC_ID` ON `${TABLE_NAME}` (`DOCTO_CC_ID`)"
+          },
+          {
+            "name": "index_sales_FOLIO",
+            "unique": true,
+            "columnNames": [
+              "FOLIO"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sales_FOLIO` ON `${TABLE_NAME}` (`FOLIO`)"
+          },
+          {
+            "name": "index_sales_CLIENTE_ID",
+            "unique": false,
+            "columnNames": [
+              "CLIENTE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sales_CLIENTE_ID` ON `${TABLE_NAME}` (`CLIENTE_ID`)"
+          },
+          {
+            "name": "index_sales_COBRADOR_ID",
+            "unique": false,
+            "columnNames": [
+              "COBRADOR_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sales_COBRADOR_ID` ON `${TABLE_NAME}` (`COBRADOR_ID`)"
+          },
+          {
+            "name": "index_sales_ZONA_CLIENTE_ID",
+            "unique": false,
+            "columnNames": [
+              "ZONA_CLIENTE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sales_ZONA_CLIENTE_ID` ON `${TABLE_NAME}` (`ZONA_CLIENTE_ID`)"
+          },
+          {
+            "name": "index_sales_FECHA",
+            "unique": false,
+            "columnNames": [
+              "FECHA"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sales_FECHA` ON `${TABLE_NAME}` (`FECHA`)"
+          },
+          {
+            "name": "index_sales_ESTADO_COBRANZA",
+            "unique": false,
+            "columnNames": [
+              "ESTADO_COBRANZA"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sales_ESTADO_COBRANZA` ON `${TABLE_NAME}` (`ESTADO_COBRANZA`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "Payment",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `COBRADOR` TEXT NOT NULL, `DOCTO_CC_ACR_ID` INTEGER NOT NULL, `DOCTO_CC_ID` INTEGER NOT NULL, `FECHA_HORA_PAGO` TEXT NOT NULL, `GUARDADO_EN_MICROSIP` INTEGER NOT NULL, `IMPORTE` REAL NOT NULL, `LAT` REAL, `LNG` REAL, `CLIENTE_ID` INTEGER NOT NULL, `COBRADOR_ID` INTEGER NOT NULL, `FORMA_COBRO_ID` INTEGER NOT NULL, `ZONA_CLIENTE_ID` INTEGER NOT NULL, `NOMBRE_CLIENTE` TEXT NOT NULL, `PAGO_RECIBIDO_ID` TEXT, PRIMARY KEY(`ID`))",
+        "fields": [
+          {
+            "fieldPath": "ID",
+            "columnName": "ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "COBRADOR",
+            "columnName": "COBRADOR",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DOCTO_CC_ACR_ID",
+            "columnName": "DOCTO_CC_ACR_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DOCTO_CC_ID",
+            "columnName": "DOCTO_CC_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA_HORA_PAGO",
+            "columnName": "FECHA_HORA_PAGO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "GUARDADO_EN_MICROSIP",
+            "columnName": "GUARDADO_EN_MICROSIP",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMPORTE",
+            "columnName": "IMPORTE",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LAT",
+            "columnName": "LAT",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "LNG",
+            "columnName": "LNG",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "CLIENTE_ID",
+            "columnName": "CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "COBRADOR_ID",
+            "columnName": "COBRADOR_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FORMA_COBRO_ID",
+            "columnName": "FORMA_COBRO_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ZONA_CLIENTE_ID",
+            "columnName": "ZONA_CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOMBRE_CLIENTE",
+            "columnName": "NOMBRE_CLIENTE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PAGO_RECIBIDO_ID",
+            "columnName": "PAGO_RECIBIDO_ID",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Payment_DOCTO_CC_ACR_ID",
+            "unique": false,
+            "columnNames": [
+              "DOCTO_CC_ACR_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Payment_DOCTO_CC_ACR_ID` ON `${TABLE_NAME}` (`DOCTO_CC_ACR_ID`)"
+          },
+          {
+            "name": "index_Payment_DOCTO_CC_ID",
+            "unique": false,
+            "columnNames": [
+              "DOCTO_CC_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Payment_DOCTO_CC_ID` ON `${TABLE_NAME}` (`DOCTO_CC_ID`)"
+          },
+          {
+            "name": "index_Payment_FECHA_HORA_PAGO",
+            "unique": false,
+            "columnNames": [
+              "FECHA_HORA_PAGO"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Payment_FECHA_HORA_PAGO` ON `${TABLE_NAME}` (`FECHA_HORA_PAGO`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "products",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`DOCTO_PV_DET_ID` INTEGER NOT NULL, `DOCTO_PV_ID` INTEGER NOT NULL, `FOLIO` TEXT NOT NULL, `ARTICULO_ID` INTEGER NOT NULL, `ARTICULO` TEXT NOT NULL, `CANTIDAD` INTEGER NOT NULL, `PRECIO_UNITARIO_IMPTO` REAL NOT NULL, `PRECIO_TOTAL_NETO` REAL NOT NULL, `POSICION` INTEGER NOT NULL, PRIMARY KEY(`DOCTO_PV_DET_ID`))",
+        "fields": [
+          {
+            "fieldPath": "DOCTO_PV_DET_ID",
+            "columnName": "DOCTO_PV_DET_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DOCTO_PV_ID",
+            "columnName": "DOCTO_PV_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FOLIO",
+            "columnName": "FOLIO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ARTICULO_ID",
+            "columnName": "ARTICULO_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ARTICULO",
+            "columnName": "ARTICULO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CANTIDAD",
+            "columnName": "CANTIDAD",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_UNITARIO_IMPTO",
+            "columnName": "PRECIO_UNITARIO_IMPTO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_TOTAL_NETO",
+            "columnName": "PRECIO_TOTAL_NETO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "POSICION",
+            "columnName": "POSICION",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "DOCTO_PV_DET_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_products_DOCTO_PV_ID",
+            "unique": false,
+            "columnNames": [
+              "DOCTO_PV_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_products_DOCTO_PV_ID` ON `${TABLE_NAME}` (`DOCTO_PV_ID`)"
+          },
+          {
+            "name": "index_products_FOLIO",
+            "unique": false,
+            "columnNames": [
+              "FOLIO"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_products_FOLIO` ON `${TABLE_NAME}` (`FOLIO`)"
+          },
+          {
+            "name": "index_products_ARTICULO_ID",
+            "unique": false,
+            "columnNames": [
+              "ARTICULO_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_products_ARTICULO_ID` ON `${TABLE_NAME}` (`ARTICULO_ID`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "Visit",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `CLIENTE_ID` INTEGER NOT NULL, `COBRADOR` TEXT NOT NULL, `COBRADOR_ID` INTEGER NOT NULL, `FECHA` TEXT NOT NULL, `FORMA_COBRO_ID` INTEGER NOT NULL, `LAT` REAL NOT NULL, `LNG` REAL NOT NULL, `NOTA` TEXT, `TIPO_VISITA` TEXT NOT NULL, `ZONA_CLIENTE_ID` INTEGER NOT NULL, `IMPTE_DOCTO_CC_ID` INTEGER NOT NULL, `GUARDADO_EN_MICROSIP` INTEGER NOT NULL, PRIMARY KEY(`ID`))",
+        "fields": [
+          {
+            "fieldPath": "ID",
+            "columnName": "ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CLIENTE_ID",
+            "columnName": "CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "COBRADOR",
+            "columnName": "COBRADOR",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "COBRADOR_ID",
+            "columnName": "COBRADOR_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA",
+            "columnName": "FECHA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FORMA_COBRO_ID",
+            "columnName": "FORMA_COBRO_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LAT",
+            "columnName": "LAT",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LNG",
+            "columnName": "LNG",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOTA",
+            "columnName": "NOTA",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "TIPO_VISITA",
+            "columnName": "TIPO_VISITA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ZONA_CLIENTE_ID",
+            "columnName": "ZONA_CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMPTE_DOCTO_CC_ID",
+            "columnName": "IMPTE_DOCTO_CC_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "GUARDADO_EN_MICROSIP",
+            "columnName": "GUARDADO_EN_MICROSIP",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_Visit_CLIENTE_ID",
+            "unique": false,
+            "columnNames": [
+              "CLIENTE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_CLIENTE_ID` ON `${TABLE_NAME}` (`CLIENTE_ID`)"
+          },
+          {
+            "name": "index_Visit_COBRADOR_ID",
+            "unique": false,
+            "columnNames": [
+              "COBRADOR_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_COBRADOR_ID` ON `${TABLE_NAME}` (`COBRADOR_ID`)"
+          },
+          {
+            "name": "index_Visit_FECHA",
+            "unique": false,
+            "columnNames": [
+              "FECHA"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_FECHA` ON `${TABLE_NAME}` (`FECHA`)"
+          },
+          {
+            "name": "index_Visit_FORMA_COBRO_ID",
+            "unique": false,
+            "columnNames": [
+              "FORMA_COBRO_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_FORMA_COBRO_ID` ON `${TABLE_NAME}` (`FORMA_COBRO_ID`)"
+          },
+          {
+            "name": "index_Visit_ZONA_CLIENTE_ID",
+            "unique": false,
+            "columnNames": [
+              "ZONA_CLIENTE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_ZONA_CLIENTE_ID` ON `${TABLE_NAME}` (`ZONA_CLIENTE_ID`)"
+          },
+          {
+            "name": "index_Visit_IMPTE_DOCTO_CC_ID",
+            "unique": false,
+            "columnNames": [
+              "IMPTE_DOCTO_CC_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_IMPTE_DOCTO_CC_ID` ON `${TABLE_NAME}` (`IMPTE_DOCTO_CC_ID`)"
+          },
+          {
+            "name": "index_Visit_GUARDADO_EN_MICROSIP",
+            "unique": false,
+            "columnNames": [
+              "GUARDADO_EN_MICROSIP"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_GUARDADO_EN_MICROSIP` ON `${TABLE_NAME}` (`GUARDADO_EN_MICROSIP`)"
+          },
+          {
+            "name": "index_Visit_TIPO_VISITA",
+            "unique": false,
+            "columnNames": [
+              "TIPO_VISITA"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_TIPO_VISITA` ON `${TABLE_NAME}` (`TIPO_VISITA`)"
+          },
+          {
+            "name": "index_Visit_LAT",
+            "unique": false,
+            "columnNames": [
+              "LAT"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_LAT` ON `${TABLE_NAME}` (`LAT`)"
+          },
+          {
+            "name": "index_Visit_LNG",
+            "unique": false,
+            "columnNames": [
+              "LNG"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_Visit_LNG` ON `${TABLE_NAME}` (`LNG`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "garantias",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `EXTERNAL_ID` TEXT NOT NULL, `DOCTO_CC_ID` INTEGER, `ESTADO` TEXT NOT NULL, `DESCRIPCION_FALLA` TEXT NOT NULL, `OBSERVACIONES` TEXT, `UPLOADED` INTEGER NOT NULL, `FECHA_SOLICITUD` TEXT NOT NULL, `NOMBRE_CLIENTE` TEXT, `NOMBRE_PRODUCTO` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "ID",
+            "columnName": "ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "EXTERNAL_ID",
+            "columnName": "EXTERNAL_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DOCTO_CC_ID",
+            "columnName": "DOCTO_CC_ID",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "ESTADO",
+            "columnName": "ESTADO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DESCRIPCION_FALLA",
+            "columnName": "DESCRIPCION_FALLA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "OBSERVACIONES",
+            "columnName": "OBSERVACIONES",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "UPLOADED",
+            "columnName": "UPLOADED",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA_SOLICITUD",
+            "columnName": "FECHA_SOLICITUD",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOMBRE_CLIENTE",
+            "columnName": "NOMBRE_CLIENTE",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "NOMBRE_PRODUCTO",
+            "columnName": "NOMBRE_PRODUCTO",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_garantias_EXTERNAL_ID",
+            "unique": true,
+            "columnNames": [
+              "EXTERNAL_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_garantias_EXTERNAL_ID` ON `${TABLE_NAME}` (`EXTERNAL_ID`)"
+          },
+          {
+            "name": "index_garantias_DOCTO_CC_ID",
+            "unique": false,
+            "columnNames": [
+              "DOCTO_CC_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garantias_DOCTO_CC_ID` ON `${TABLE_NAME}` (`DOCTO_CC_ID`)"
+          },
+          {
+            "name": "index_garantias_FECHA_SOLICITUD",
+            "unique": false,
+            "columnNames": [
+              "FECHA_SOLICITUD"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garantias_FECHA_SOLICITUD` ON `${TABLE_NAME}` (`FECHA_SOLICITUD`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "garantia_imagenes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `GARANTIA_ID` TEXT NOT NULL, `IMG_PATH` TEXT NOT NULL, `IMG_MIME` TEXT NOT NULL, `IMG_DESC` TEXT, `FECHA_SUBIDA` TEXT NOT NULL, PRIMARY KEY(`ID`))",
+        "fields": [
+          {
+            "fieldPath": "ID",
+            "columnName": "ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "GARANTIA_ID",
+            "columnName": "GARANTIA_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMG_PATH",
+            "columnName": "IMG_PATH",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMG_MIME",
+            "columnName": "IMG_MIME",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMG_DESC",
+            "columnName": "IMG_DESC",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "FECHA_SUBIDA",
+            "columnName": "FECHA_SUBIDA",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_garantia_imagenes_GARANTIA_ID",
+            "unique": false,
+            "columnNames": [
+              "GARANTIA_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garantia_imagenes_GARANTIA_ID` ON `${TABLE_NAME}` (`GARANTIA_ID`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "garantia_eventos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `GARANTIA_ID` TEXT NOT NULL, `TIPO_EVENTO` TEXT NOT NULL, `FECHA_EVENTO` TEXT NOT NULL, `COMENTARIO` TEXT, `ENVIADO` INTEGER NOT NULL, PRIMARY KEY(`ID`))",
+        "fields": [
+          {
+            "fieldPath": "ID",
+            "columnName": "ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "GARANTIA_ID",
+            "columnName": "GARANTIA_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "TIPO_EVENTO",
+            "columnName": "TIPO_EVENTO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA_EVENTO",
+            "columnName": "FECHA_EVENTO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "COMENTARIO",
+            "columnName": "COMENTARIO",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "ENVIADO",
+            "columnName": "ENVIADO",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_garantia_eventos_GARANTIA_ID",
+            "unique": false,
+            "columnNames": [
+              "GARANTIA_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garantia_eventos_GARANTIA_ID` ON `${TABLE_NAME}` (`GARANTIA_ID`)"
+          },
+          {
+            "name": "index_garantia_eventos_FECHA_EVENTO",
+            "unique": false,
+            "columnNames": [
+              "FECHA_EVENTO"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_garantia_eventos_FECHA_EVENTO` ON `${TABLE_NAME}` (`FECHA_EVENTO`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "product_inventory",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ARTICULO_ID` INTEGER NOT NULL, `ARTICULO` TEXT NOT NULL, `EXISTENCIAS` INTEGER NOT NULL, `LINEA_ARTICULO_ID` INTEGER NOT NULL, `LINEA_ARTICULO` TEXT NOT NULL, `PRECIOS` TEXT, PRIMARY KEY(`ARTICULO_ID`))",
+        "fields": [
+          {
+            "fieldPath": "ARTICULO_ID",
+            "columnName": "ARTICULO_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ARTICULO",
+            "columnName": "ARTICULO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "EXISTENCIAS",
+            "columnName": "EXISTENCIAS",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LINEA_ARTICULO_ID",
+            "columnName": "LINEA_ARTICULO_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LINEA_ARTICULO",
+            "columnName": "LINEA_ARTICULO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIOS",
+            "columnName": "PRECIOS",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "ARTICULO_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_product_inventory_ARTICULO_ID",
+            "unique": false,
+            "columnNames": [
+              "ARTICULO_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_product_inventory_ARTICULO_ID` ON `${TABLE_NAME}` (`ARTICULO_ID`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "products_inventory_images",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`IMAGEN_ID` INTEGER NOT NULL, `ARTICULO_ID` INTEGER NOT NULL, `RUTA_LOCAL` TEXT NOT NULL, PRIMARY KEY(`IMAGEN_ID`), FOREIGN KEY(`ARTICULO_ID`) REFERENCES `product_inventory`(`ARTICULO_ID`) ON UPDATE NO ACTION ON DELETE NO ACTION )",
+        "fields": [
+          {
+            "fieldPath": "IMAGEN_ID",
+            "columnName": "IMAGEN_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ARTICULO_ID",
+            "columnName": "ARTICULO_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "RUTA_LOCAL",
+            "columnName": "RUTA_LOCAL",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "IMAGEN_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_products_inventory_images_ARTICULO_ID",
+            "unique": false,
+            "columnNames": [
+              "ARTICULO_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_products_inventory_images_ARTICULO_ID` ON `${TABLE_NAME}` (`ARTICULO_ID`)"
+          },
+          {
+            "name": "index_products_inventory_images_RUTA_LOCAL",
+            "unique": true,
+            "columnNames": [
+              "RUTA_LOCAL"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_products_inventory_images_RUTA_LOCAL` ON `${TABLE_NAME}` (`RUTA_LOCAL`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "product_inventory",
+            "onDelete": "NO ACTION",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "ARTICULO_ID"
+            ],
+            "referencedColumns": [
+              "ARTICULO_ID"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "local_sale",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`LOCAL_SALE_ID` TEXT NOT NULL, `NOMBRE_CLIENTE` TEXT NOT NULL, `FECHA_VENTA` TEXT NOT NULL, `LATITUD` REAL NOT NULL, `LONGITUD` REAL NOT NULL, `DIRECCION` TEXT NOT NULL, `PARCIALIDAD` REAL NOT NULL, `ENGANCHE` REAL, `TELEFONO` TEXT NOT NULL, `FREC_PAGO` TEXT NOT NULL, `AVAL_O_RESPONSABLE` TEXT, `NOTA` TEXT, `DIA_COBRANZA` TEXT NOT NULL, `PRECIO_TOTAL` REAL NOT NULL, `TIEMPO_A_CORTO_PLAZOMESES` INTEGER NOT NULL, `MONTO_A_CORTO_PLAZO` REAL NOT NULL, `MONTO_DE_CONTADO` REAL NOT NULL, `ENVIADO` INTEGER NOT NULL, `NUMERO` TEXT, `COLONIA` TEXT, `POBLACION` TEXT, `CIUDAD` TEXT, `TIPO_VENTA` TEXT, `ZONA_CLIENTE_ID` INTEGER, `ZONA_CLIENTE` TEXT, `CLIENTE_ID` INTEGER, `LAST_UPLOAD_HTTP_CODE` INTEGER, `LAST_UPLOAD_ERROR_CODE` TEXT, `LAST_UPLOAD_ERROR_MESSAGE` TEXT, `LAST_UPLOAD_AT` INTEGER, `LAST_UPLOAD_PERMANENT` INTEGER, `IDEMPOTENCY_KEY` TEXT, PRIMARY KEY(`LOCAL_SALE_ID`))",
+        "fields": [
+          {
+            "fieldPath": "LOCAL_SALE_ID",
+            "columnName": "LOCAL_SALE_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOMBRE_CLIENTE",
+            "columnName": "NOMBRE_CLIENTE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA_VENTA",
+            "columnName": "FECHA_VENTA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LATITUD",
+            "columnName": "LATITUD",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LONGITUD",
+            "columnName": "LONGITUD",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "DIRECCION",
+            "columnName": "DIRECCION",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PARCIALIDAD",
+            "columnName": "PARCIALIDAD",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ENGANCHE",
+            "columnName": "ENGANCHE",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "TELEFONO",
+            "columnName": "TELEFONO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FREC_PAGO",
+            "columnName": "FREC_PAGO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "AVAL_O_RESPONSABLE",
+            "columnName": "AVAL_O_RESPONSABLE",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "NOTA",
+            "columnName": "NOTA",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "DIA_COBRANZA",
+            "columnName": "DIA_COBRANZA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_TOTAL",
+            "columnName": "PRECIO_TOTAL",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "TIEMPO_A_CORTO_PLAZOMESES",
+            "columnName": "TIEMPO_A_CORTO_PLAZOMESES",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "MONTO_A_CORTO_PLAZO",
+            "columnName": "MONTO_A_CORTO_PLAZO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "MONTO_DE_CONTADO",
+            "columnName": "MONTO_DE_CONTADO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ENVIADO",
+            "columnName": "ENVIADO",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NUMERO",
+            "columnName": "NUMERO",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "COLONIA",
+            "columnName": "COLONIA",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "POBLACION",
+            "columnName": "POBLACION",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "CIUDAD",
+            "columnName": "CIUDAD",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "TIPO_VENTA",
+            "columnName": "TIPO_VENTA",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "ZONA_CLIENTE_ID",
+            "columnName": "ZONA_CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "ZONA_CLIENTE",
+            "columnName": "ZONA_CLIENTE",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "CLIENTE_ID",
+            "columnName": "CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "LAST_UPLOAD_HTTP_CODE",
+            "columnName": "LAST_UPLOAD_HTTP_CODE",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "LAST_UPLOAD_ERROR_CODE",
+            "columnName": "LAST_UPLOAD_ERROR_CODE",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "LAST_UPLOAD_ERROR_MESSAGE",
+            "columnName": "LAST_UPLOAD_ERROR_MESSAGE",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "LAST_UPLOAD_AT",
+            "columnName": "LAST_UPLOAD_AT",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "LAST_UPLOAD_PERMANENT",
+            "columnName": "LAST_UPLOAD_PERMANENT",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "IDEMPOTENCY_KEY",
+            "columnName": "IDEMPOTENCY_KEY",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "LOCAL_SALE_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_local_sale_FECHA_VENTA",
+            "unique": false,
+            "columnNames": [
+              "FECHA_VENTA"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_local_sale_FECHA_VENTA` ON `${TABLE_NAME}` (`FECHA_VENTA`)"
+          },
+          {
+            "name": "index_local_sale_ZONA_CLIENTE_ID",
+            "unique": false,
+            "columnNames": [
+              "ZONA_CLIENTE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_local_sale_ZONA_CLIENTE_ID` ON `${TABLE_NAME}` (`ZONA_CLIENTE_ID`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sale_image",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`LOCAL_SALE_IMAGE_ID` TEXT NOT NULL, `LOCAL_SALE_ID` TEXT NOT NULL, `IMAGE_URI` TEXT NOT NULL, `FECHA_SUBIDA` TEXT NOT NULL, `SERVER_UUID` TEXT, PRIMARY KEY(`LOCAL_SALE_IMAGE_ID`), FOREIGN KEY(`LOCAL_SALE_ID`) REFERENCES `local_sale`(`LOCAL_SALE_ID`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "LOCAL_SALE_IMAGE_ID",
+            "columnName": "LOCAL_SALE_IMAGE_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LOCAL_SALE_ID",
+            "columnName": "LOCAL_SALE_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "IMAGE_URI",
+            "columnName": "IMAGE_URI",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "FECHA_SUBIDA",
+            "columnName": "FECHA_SUBIDA",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "SERVER_UUID",
+            "columnName": "SERVER_UUID",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "LOCAL_SALE_IMAGE_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sale_image_LOCAL_SALE_ID",
+            "unique": false,
+            "columnNames": [
+              "LOCAL_SALE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sale_image_LOCAL_SALE_ID` ON `${TABLE_NAME}` (`LOCAL_SALE_ID`)"
+          },
+          {
+            "name": "index_sale_image_FECHA_SUBIDA",
+            "unique": false,
+            "columnNames": [
+              "FECHA_SUBIDA"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sale_image_FECHA_SUBIDA` ON `${TABLE_NAME}` (`FECHA_SUBIDA`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "local_sale",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "LOCAL_SALE_ID"
+            ],
+            "referencedColumns": [
+              "LOCAL_SALE_ID"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "local_sale_products",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`LOCAL_SALE_ID` TEXT NOT NULL, `ARTICULO_ID` INTEGER NOT NULL, `ARTICULO` TEXT NOT NULL, `CANTIDAD` INTEGER NOT NULL, `PRECIO_LISTA` REAL NOT NULL, `PRECIO_CORTO_PLAZO` REAL NOT NULL, `PRECIO_CONTADO` REAL NOT NULL, `COMBO_ID` TEXT, `SERVER_UUID` TEXT, PRIMARY KEY(`LOCAL_SALE_ID`, `ARTICULO_ID`))",
+        "fields": [
+          {
+            "fieldPath": "LOCAL_SALE_ID",
+            "columnName": "LOCAL_SALE_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ARTICULO_ID",
+            "columnName": "ARTICULO_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ARTICULO",
+            "columnName": "ARTICULO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CANTIDAD",
+            "columnName": "CANTIDAD",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_LISTA",
+            "columnName": "PRECIO_LISTA",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_CORTO_PLAZO",
+            "columnName": "PRECIO_CORTO_PLAZO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_CONTADO",
+            "columnName": "PRECIO_CONTADO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "COMBO_ID",
+            "columnName": "COMBO_ID",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "SERVER_UUID",
+            "columnName": "SERVER_UUID",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "LOCAL_SALE_ID",
+            "ARTICULO_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_local_sale_products_LOCAL_SALE_ID",
+            "unique": false,
+            "columnNames": [
+              "LOCAL_SALE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_local_sale_products_LOCAL_SALE_ID` ON `${TABLE_NAME}` (`LOCAL_SALE_ID`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "local_sale_combos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`COMBO_ID` TEXT NOT NULL, `LOCAL_SALE_ID` TEXT NOT NULL, `NOMBRE_COMBO` TEXT NOT NULL, `PRECIO_LISTA` REAL NOT NULL, `PRECIO_CORTO_PLAZO` REAL NOT NULL, `PRECIO_CONTADO` REAL NOT NULL, `SERVER_UUID` TEXT, PRIMARY KEY(`COMBO_ID`, `LOCAL_SALE_ID`), FOREIGN KEY(`LOCAL_SALE_ID`) REFERENCES `local_sale`(`LOCAL_SALE_ID`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "COMBO_ID",
+            "columnName": "COMBO_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LOCAL_SALE_ID",
+            "columnName": "LOCAL_SALE_ID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOMBRE_COMBO",
+            "columnName": "NOMBRE_COMBO",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_LISTA",
+            "columnName": "PRECIO_LISTA",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_CORTO_PLAZO",
+            "columnName": "PRECIO_CORTO_PLAZO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "PRECIO_CONTADO",
+            "columnName": "PRECIO_CONTADO",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "SERVER_UUID",
+            "columnName": "SERVER_UUID",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "COMBO_ID",
+            "LOCAL_SALE_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_local_sale_combos_LOCAL_SALE_ID",
+            "unique": false,
+            "columnNames": [
+              "LOCAL_SALE_ID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_local_sale_combos_LOCAL_SALE_ID` ON `${TABLE_NAME}` (`LOCAL_SALE_ID`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "local_sale",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "LOCAL_SALE_ID"
+            ],
+            "referencedColumns": [
+              "LOCAL_SALE_ID"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "cliente",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`CLIENTE_ID` INTEGER NOT NULL, `NOMBRE` TEXT NOT NULL, `ESTATUS` TEXT NOT NULL, `CAUSA_SUSP` TEXT, PRIMARY KEY(`CLIENTE_ID`))",
+        "fields": [
+          {
+            "fieldPath": "CLIENTE_ID",
+            "columnName": "CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "NOMBRE",
+            "columnName": "NOMBRE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ESTATUS",
+            "columnName": "ESTATUS",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CAUSA_SUSP",
+            "columnName": "CAUSA_SUSP",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "CLIENTE_ID"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_cliente_NOMBRE",
+            "unique": false,
+            "columnNames": [
+              "NOMBRE"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cliente_NOMBRE` ON `${TABLE_NAME}` (`NOMBRE`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "cobranza_sync_state",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`RESOURCE` TEXT NOT NULL, `ZONA_CLIENTE_ID` INTEGER NOT NULL, `CURSOR` TEXT, `LAST_SYNCED_AT` TEXT NOT NULL, `LAST_ERROR` TEXT, `EPOCH` INTEGER, PRIMARY KEY(`RESOURCE`))",
+        "fields": [
+          {
+            "fieldPath": "RESOURCE",
+            "columnName": "RESOURCE",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ZONA_CLIENTE_ID",
+            "columnName": "ZONA_CLIENTE_ID",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "CURSOR",
+            "columnName": "CURSOR",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "LAST_SYNCED_AT",
+            "columnName": "LAST_SYNCED_AT",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "LAST_ERROR",
+            "columnName": "LAST_ERROR",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "EPOCH",
+            "columnName": "EPOCH",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "RESOURCE"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [
+      {
+        "viewName": "overdue_payments_view",
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT\n        base.DOCTO_CC_ID,\n        base.FECHA_ULT_PAGO,\n        base.NUM_IMPORTES,\n        base.PARCIALIDADES_TRANSCURRIDAS,\n        CASE\n            WHEN ((base.PARCIALIDADES_TRANSCURRIDAS * base.PARCIALIDAD\n                  - (base.PRECIO_TOTAL - base.SALDO_REST)) / base.PARCIALIDAD)\n                > (base.SALDO_REST / base.PARCIALIDAD)\n            THEN (base.SALDO_REST / base.PARCIALIDAD)\n            ELSE ((base.PARCIALIDADES_TRANSCURRIDAS * base.PARCIALIDAD\n                  - (base.PRECIO_TOTAL - base.SALDO_REST - base.ENGANCHE)) / base.PARCIALIDAD)\n        END AS NUM_PAGOS_ATRASADOS\n    FROM (\n        SELECT\n            s.DOCTO_CC_ID,\n            COALESCE(MAX(p.FECHA_HORA_PAGO), s.FECHA) AS FECHA_ULT_PAGO,\n            COALESCE(COUNT(p.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,\n            s.SALDO_REST,\n            s.PRECIO_TOTAL,\n            s.ENGANCHE,\n            s.PARCIALIDAD,\n            s.FREC_PAGO,\n            (\n                JULIANDAY(\n                    CASE\n                        WHEN s.SALDO_REST = 0 THEN MAX(p.FECHA_HORA_PAGO)\n                        ELSE DATE('now')\n                    END\n                ) - JULIANDAY(s.FECHA)\n            ) / CASE\n                WHEN s.FREC_PAGO = 'SEMANAL' THEN 7\n                WHEN s.FREC_PAGO = 'QUINCENAL' THEN 15\n                WHEN s.FREC_PAGO = 'MENSUAL' THEN 30\n                ELSE 1\n            END AS PARCIALIDADES_TRANSCURRIDAS\n        FROM sales AS s\n        LEFT JOIN payment AS p ON s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID\n        GROUP BY s.DOCTO_CC_ID, s.FREC_PAGO\n    ) AS base"
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c8c6904b3e777d9784615e121021176c')"
+    ]
+  }
+}

@@ -157,6 +157,7 @@ class CobranzaSyncManager(
                         hasMore = response.has_more,
                         afterId = response.items.lastOrNull()?.impte_docto_cc_id ?: 0,
                         size = response.items.size,
+                        epoch = response.sync_epoch,
                         apply = { mergePagos(response.items) }
                     )
                 }
@@ -176,6 +177,7 @@ class CobranzaSyncManager(
                         hasMore = response.has_more,
                         afterId = response.items.lastOrNull()?.docto_cc_id ?: 0,
                         size = response.items.size,
+                        epoch = response.sync_epoch,
                         apply = { mergeVentas(response.items, desdeIso) }
                     )
                 }
@@ -393,34 +395,102 @@ class CobranzaSyncManager(
         )
     }
 
+    /**
+     * Pagina un recurso por `(cursor, after_id)` aplicando cada página, con
+     * **resync por generación**: si el `sync_epoch` que trae la respuesta no
+     * coincide con el que este dispositivo tiene aplicado
+     * ([CobranzaSyncStateEntity.EPOCH]), el cursor se descarta y el recurso se
+     * replica completo desde el inicio.
+     *
+     * Por qué existe: el sync es incremental por cursor, así que cuando cambia
+     * lo que el SERVIDOR proyecta (no el dato de origen), las filas ya
+     * guardadas no vuelven a bajar — su `UPDATED_AT` no cambió. Antes cada
+     * incidente de ese tipo se arreglaba con un marcador nuevo hardcodeado y
+     * un APK por incidente; la generación lo resuelve sin tocar la app.
+     *
+     * Reglas del mecanismo, todas deliberadas:
+     *
+     *  - **El epoch se persiste SOLO cuando el replay terminó** (última
+     *    página, `has_more == false`). Si el proceso muere a media descarga,
+     *    la generación guardada sigue siendo la vieja, las generaciones siguen
+     *    difiriendo y el próximo arranque replica otra vez. El costo de
+     *    equivocarse por ese lado es ancho de banda; por el otro sería un
+     *    replay a medias congelado para siempre — que es justo el defecto que
+     *    los marcadores `MIGRATION_*` documentan de sí mismos.
+     *  - **Un solo reinicio por corrida**: el reinicio exige `cursor != null`
+     *    y lo deja en null, así que la primera página del replay ya no puede
+     *    volver a disparar otro. Sin ese cerrojo, un epoch distinto reiniciaría
+     *    la paginación en cada página.
+     *  - **Epoch inválido (ausente, nulo, 0 o negativo) = mecanismo apagado**:
+     *    no limpia el cursor y no sobrescribe el epoch guardado. Un servidor
+     *    viejo que no manda el campo se comporta exactamente como antes, y
+     *    ninguna ruta que produzca un cero por default puede meter al cliente
+     *    en un bucle de replays. Un epoch que RETROCEDE sí es una generación
+     *    distinta: replica una vez y guarda el valor nuevo — la generación es
+     *    identidad, no orden.
+     *  - **Si el epoch cambia a media paginación** (el servidor subió de
+     *    generación mientras descargábamos), no se persiste ninguno: el
+     *    resultado es una mezcla de dos generaciones y el próximo arranque
+     *    vuelve a replicar desde cero.
+     */
     private suspend fun syncResource(
         resource: String,
         zona: Int,
         fetchPage: suspend (cursor: String?, afterId: Int) -> SyncPage
     ): Int {
         var applied = 0
-        var cursor: String? = syncStateDao.get(resource)?.CURSOR
+        val state = syncStateDao.get(resource)
+        // Generación ya replicada por completo. Constante durante toda la
+        // corrida: es lo que se sigue escribiendo en cada página intermedia.
+        val appliedEpoch = state?.EPOCH
+        var cursor: String? = state?.CURSOR
         // afterId no se persiste entre runs: si la app se mata a media
         // corrida, el siguiente arranque retoma desde el cursor con
         // afterId=0 y vuelve a procesar el inicio del cursor — las
         // escrituras son idempotentes (UPSERT por PK), solo gasta red.
         var afterId = 0
+        var firstPageSeen = false
+        var runEpoch: Int? = null
+        var epochStable = true
         while (true) {
             val page = fetchPage(cursor, afterId)
+            val serverEpoch = page.epoch?.takeIf { it > 0 }
+            if (!firstPageSeen) {
+                if (serverEpoch != null && serverEpoch != appliedEpoch && cursor != null) {
+                    Log.i(
+                        TAG,
+                        "$resource: generación $appliedEpoch -> $serverEpoch, replay desde el inicio"
+                    )
+                    cursor = null
+                    afterId = 0
+                    continue
+                }
+                firstPageSeen = true
+                runEpoch = serverEpoch
+            } else if (serverEpoch != runEpoch) {
+                epochStable = false
+            }
             page.apply.invoke()
             applied += page.size
             cursor = page.cursor
             afterId = page.afterId
+            val lastPage = !page.hasMore
+            val epochToPersist = if (lastPage && epochStable) {
+                runEpoch ?: appliedEpoch
+            } else {
+                appliedEpoch
+            }
             syncStateDao.upsert(
                 CobranzaSyncStateEntity(
                     RESOURCE = resource,
                     ZONA_CLIENTE_ID = zona,
                     CURSOR = cursor,
                     LAST_SYNCED_AT = Instant.now().toString(),
-                    LAST_ERROR = null
+                    LAST_ERROR = null,
+                    EPOCH = epochToPersist
                 )
             )
-            if (!page.hasMore) break
+            if (lastPage) break
         }
         return applied
     }
@@ -428,8 +498,11 @@ class CobranzaSyncManager(
     /**
      * Merge contract:
      *
-     *  - `cargo_cancelado` → tombstone real: borra venta y todos sus pagos
-     *    locales (cancelación en Microsip es definitiva).
+     *  - `cargo_cancelado` → tombstone real: borra la venta y los pagos del
+     *    cargo YA confirmados (cancelación en Microsip es definitiva). Las
+     *    capturas del cobrador aún sin subir sobreviven — ver
+     *    [PaymentDao.deleteByDoctoCcAcrId]: fallar al subirlas contra un cargo
+     *    cancelado es recuperable desde el escritorio, perderlas no.
      *
      *  - `saldo > 0` o sin `desdeIso` → upsert normal preservando el estado
      *    local del cobrador (ESTADO_COBRANZA, DIA_TEMPORAL_COBRANZA).
@@ -623,6 +696,16 @@ class CobranzaSyncManager(
         const val RESOURCE_PAGOS = "pagos"
         const val TICK_INTERVAL_MILLIS = 30_000L
 
+        /*
+         * Los tres marcadores de abajo son el mecanismo VIEJO de resync
+         * one-time: un marcador hardcodeado (y por tanto un APK) por
+         * incidente. El resync por generación de [syncResource] los sustituye
+         * para todo lo que venga; se conservan porque siguen sin consumir en
+         * los dispositivos que aún no instalan este build y su costo es una
+         * fila centinela. No agregues marcadores nuevos aquí: sube el
+         * `sync_epoch` del servidor.
+         */
+
         /**
          * RESOURCE marcador (en `cobranza_sync_state`) que registra que ya
          * corrió la migración one-time de [resetPagosCursorForPagoRecibidoIdMigrationIfNeeded].
@@ -664,6 +747,13 @@ private data class SyncPage(
     val hasMore: Boolean,
     val afterId: Int,
     val size: Int,
+    /**
+     * Generación de la proyección del servidor para este recurso, tal como
+     * llegó en la respuesta. Null cuando el servidor no la manda (versión
+     * previa al campo) — ver [CobranzaSyncManager.syncResource] para las
+     * reglas de replay.
+     */
+    val epoch: Int?,
     val apply: suspend () -> Unit
 )
 

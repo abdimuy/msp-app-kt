@@ -410,7 +410,21 @@ interface PaymentDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(payment: List<PaymentEntity>)
 
-    @Query("DELETE FROM Payment WHERE DOCTO_CC_ACR_ID = :doctoCcAcrId")
+    /**
+     * Borra el cache de pagos de un cargo, preservando SIEMPRE las capturas
+     * que el cobrador todavía no logró subir (`GUARDADO_EN_MICROSIP = 0`).
+     *
+     * La llama el merge del sync cuando el backend avisa que el cargo fue
+     * cancelado en Microsip. La cancelación es definitiva para lo que ya está
+     * confirmado, pero NO autoriza a tirar trabajo del cobrador: si capturó un
+     * pago en la calle sobre un cargo que en oficina cancelaron ese mismo día,
+     * borrarlo aquí lo desaparecería sin dejar rastro — nadie podría siquiera
+     * saber que existió. Conservado, el worker lo intentará subir y el
+     * servidor lo rechazará contra un cargo cancelado, quedando registrado en
+     * la captura de intentos fallidos para resolverse desde el escritorio.
+     * Perder dinero en silencio nunca es una opción; fallar ruidosamente sí.
+     */
+    @Query("DELETE FROM Payment WHERE DOCTO_CC_ACR_ID = :doctoCcAcrId AND GUARDADO_EN_MICROSIP = 1")
     suspend fun deleteByDoctoCcAcrId(doctoCcAcrId: Int)
 
     /**

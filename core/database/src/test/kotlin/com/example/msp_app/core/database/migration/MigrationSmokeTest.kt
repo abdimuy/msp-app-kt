@@ -12,6 +12,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_23_24
 import com.example.msp_app.core.database.migrations.MIGRATION_24_25
 import com.example.msp_app.core.database.migrations.MIGRATION_25_26
 import com.example.msp_app.core.database.migrations.MIGRATION_26_27
+import com.example.msp_app.core.database.migrations.MIGRATION_27_28
 import com.example.msp_app.core.testing.RobolectricTestBase
 import java.io.File
 import org.junit.After
@@ -24,9 +25,10 @@ private const val SMOKE_DB_NAME = "migration-smoke-test.db"
 private const val START_VERSION = 20
 private const val SEEDED_PAYMENT_ID = "smoke-pago-001"
 private const val SEEDED_PAYMENT_IMPORTE = "725.50"
+private const val SEEDED_CURSOR = "2026-08-01T10:00:00.000000Z"
 
 /**
- * Smoke de las 7 migraciones reales (20→27) sobre una base sembrada por
+ * Smoke de las 8 migraciones reales (20→28) sobre una base sembrada por
  * `execSQL` crudo (spec Plan 2 Task 4 — decisión del orquestador: sin JSONs
  * históricos v20-v26, ver [SchemaIntegrityTest] para el detalle de esa
  * limitación). No usa `MigrationTestHelper` porque ese helper solo puede
@@ -39,11 +41,11 @@ private const val SEEDED_PAYMENT_IMPORTE = "725.50"
  * secuencia — no una copia de su SQL.
  *
  * Qué rompería si este test fallara: cualquier migración de la cadena
- * 20→27 que hoy pasa silenciosamente porque nadie la ejecuta en secuencia
+ * 20→28 que hoy pasa silenciosamente porque nadie la ejecuta en secuencia
  * contra un esquema de partida real (columna con nombre distinto, tabla
  * prerrequisito faltante, orden de ALTER/DROP incorrecto). También sirve de
  * segunda red para money-safety: se siembra una fila de `Payment` no
- * subida ANTES de migrar y se verifica que sigue intacta después de las 7,
+ * subida ANTES de migrar y se verifica que sigue intacta después de las 8,
  * complementando a [PaymentSurvivalMigrationTest] (que prueba supervivencia
  * vía la ruta de Room/producción, no vía la cadena de migraciones cruda).
  */
@@ -193,8 +195,25 @@ class MigrationSmokeTest : RobolectricTestBase() {
         )
     }
 
+    /**
+     * `cobranza_sync_state` nace en la 23→24, así que solo puede sembrarse a
+     * media cadena — justo lo que hace falta para probar que las migraciones
+     * posteriores (la 27→28 le agrega EPOCH) no tiran los cursores que el
+     * dispositivo ya tenía. Perderlos no borra dinero, pero fuerza un resync
+     * completo silencioso de la zona en cada actualización.
+     */
+    private fun seedSyncStateRow(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            INSERT INTO cobranza_sync_state
+                (RESOURCE, ZONA_CLIENTE_ID, CURSOR, LAST_SYNCED_AT, LAST_ERROR)
+            VALUES ('pagos', 21, '$SEEDED_CURSOR', '2026-08-01T10:00:05Z', NULL)
+            """.trimIndent()
+        )
+    }
+
     @Test
-    fun `las 7 migraciones 20 a 27 corren en secuencia sin error SQL sobre un esquema sembrado`() {
+    fun `las 8 migraciones 20 a 28 corren en secuencia sin error SQL sobre un esquema sembrado`() {
         // Abrir dispara onCreate -> seedStartingSchema, deja el archivo en v20.
         val db = helper.writableDatabase
         seedUnuploadedPayment(db)
@@ -206,8 +225,24 @@ class MigrationSmokeTest : RobolectricTestBase() {
             MIGRATION_23_24,
             MIGRATION_24_25,
             MIGRATION_25_26,
-            MIGRATION_26_27
-        ).forEach { migration -> migration.migrate(db) }
+            MIGRATION_26_27,
+            MIGRATION_27_28
+        ).forEach { migration ->
+            migration.migrate(db)
+            if (migration === MIGRATION_23_24) seedSyncStateRow(db)
+        }
+
+        db.query(
+            "SELECT CURSOR, ZONA_CLIENTE_ID, EPOCH FROM cobranza_sync_state WHERE RESOURCE = 'pagos'"
+        ).use { cursor ->
+            assertTrue("el cursor sembrado a media cadena debe sobrevivir", cursor.moveToFirst())
+            assertEquals(SEEDED_CURSOR, cursor.getString(0))
+            assertEquals(21, cursor.getInt(1))
+            assertTrue(
+                "EPOCH debe quedar NULL para filas pre-existentes: nunca aplicaron generación",
+                cursor.isNull(2)
+            )
+        }
 
         db.query("PRAGMA table_info(Payment)").use { cursor ->
             val columns = mutableListOf<String>()

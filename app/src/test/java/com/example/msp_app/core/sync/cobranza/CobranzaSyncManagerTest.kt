@@ -2,6 +2,7 @@ package com.example.msp_app.core.sync.cobranza
 
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.core.testing.RoomTestBase
@@ -24,6 +25,11 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+
+/** Cursor "ya avanzado" que simula un dispositivo con historial sincronizado. */
+private const val CURSOR_VIEJO = "2020-01-01T00:00:00Z"
+private const val CURSOR_PAGINA_1 = "2026-06-01T10:00:00Z"
+private const val CURSOR_PAGINA_2 = "2026-06-01T11:00:00Z"
 
 class CobranzaSyncManagerTest : RoomTestBase() {
 
@@ -1315,6 +1321,388 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         )
     }
 
+    // ─── Resync por generación (sync_epoch) ────────────────────────────────
+
+    /**
+     * El caso que motiva todo el mecanismo: el servidor cambia lo que proyecta
+     * (p.ej. las coordenadas de los pagos pasan a salir de otra tabla) y sube
+     * su generación. Las filas ya guardadas no volverían a bajar nunca — su
+     * `UPDATED_AT` no cambió y el cursor ya las dejó atrás. Al ver la
+     * generación distinta, el cliente descarta el cursor y replica completo.
+     */
+    @Test
+    fun epochNuevoLimpiaElCursorYReplicaDesdeElInicio() = runTest {
+        seedSyncState(CobranzaSyncManager.RESOURCE_VENTAS, cursor = CURSOR_VIEJO, epoch = 7)
+
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                // Primera respuesta: llega con la generación nueva y dispara el
+                // replay; esta página ni se aplica.
+                VentaPage(items = listOf(ventaDto(3101)), hasMore = false, epoch = 8),
+                VentaPage(items = listOf(ventaDto(3101)), hasMore = false, epoch = 8)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        val outcome = newManager(api).syncNow()
+
+        assertTrue(outcome is SyncOutcome.Ok)
+        assertEquals(
+            "la segunda llamada debe ir sin cursor: replay desde el inicio",
+            listOf(CURSOR_VIEJO, null),
+            api.ventasCursorCalls
+        )
+        val state = db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!
+        assertEquals("terminado el replay, la generación queda aplicada", 8, state.EPOCH)
+        assertEquals("2026-05-30T18:25:13.456789Z", state.CURSOR)
+        assertNotNull(db.saleDao().findByDoctoCcId(3101))
+    }
+
+    /**
+     * Misma generación = nada que rehacer. Si replicara, el fake se quedaría
+     * sin páginas y el sync terminaría en Error — por eso se afirma el Ok.
+     */
+    @Test
+    fun epochIgualNoReplica() = runTest {
+        seedSyncState(CobranzaSyncManager.RESOURCE_VENTAS, cursor = CURSOR_VIEJO, epoch = 8)
+
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(items = listOf(ventaDto(3102)), hasMore = false, epoch = 8)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        val outcome = newManager(api).syncNow()
+
+        assertTrue(outcome is SyncOutcome.Ok)
+        assertEquals(
+            "una sola llamada, con el cursor incremental de siempre",
+            listOf(CURSOR_VIEJO),
+            api.ventasCursorCalls
+        )
+        assertEquals(8, db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.EPOCH)
+    }
+
+    /**
+     * EL invariante del diseño: la generación se persiste solo cuando el
+     * replay TERMINÓ. Si el proceso muere a media descarga (aquí, la red se
+     * cae en la segunda página), la generación guardada sigue siendo la vieja
+     * y el próximo arranque vuelve a replicar desde cero. Equivocarse por este
+     * lado cuesta ancho de banda; por el otro dejaría el replay a la mitad
+     * para siempre — el defecto que los marcadores `MIGRATION_*` documentan de
+     * sí mismos y que este mecanismo viene a cerrar.
+     */
+    @Test
+    fun epochNoSePersisteHastaQueElReplayTermina() = runTest {
+        seedSyncState(CobranzaSyncManager.RESOURCE_VENTAS, cursor = CURSOR_VIEJO, epoch = 7)
+
+        val apiInterrumpido = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(items = emptyList(), hasMore = false, epoch = 8),
+                VentaPage(
+                    items = listOf(ventaDto(3103, updatedAt = CURSOR_PAGINA_1)),
+                    hasMore = true,
+                    epoch = 8
+                ),
+                VentaPage(items = emptyList(), hasMore = false, epoch = 8, fails = true)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        val interrumpido = newManager(apiInterrumpido).syncNow()
+
+        assertTrue(interrumpido is SyncOutcome.Error)
+        val aMedias = db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!
+        assertEquals("la generación nueva NO se persiste a medio replay", 7, aMedias.EPOCH)
+        assertEquals(CURSOR_PAGINA_1, aMedias.CURSOR)
+
+        // Siguiente arranque: las generaciones siguen difiriendo, así que
+        // replica otra vez desde el inicio en lugar de quedarse a medias.
+        val apiReintento = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(items = emptyList(), hasMore = false, epoch = 8),
+                VentaPage(
+                    items = listOf(ventaDto(3104, updatedAt = CURSOR_PAGINA_2)),
+                    hasMore = false,
+                    epoch = 8
+                )
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiReintento).syncNow()
+
+        assertEquals(
+            "el reintento vuelve a arrancar sin cursor",
+            listOf(CURSOR_PAGINA_1, null),
+            apiReintento.ventasCursorCalls
+        )
+        val completo = db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!
+        assertEquals("ahora sí, replay completo → generación aplicada", 8, completo.EPOCH)
+        assertNotNull(db.saleDao().findByDoctoCcId(3104))
+    }
+
+    /**
+     * Servidor viejo (sin el campo `sync_epoch`): la app se comporta
+     * exactamente como antes — no replica, no truena, y sobre todo no pisa la
+     * generación que ya tenía aplicada. Si la borrara, un rollback temporal
+     * del servidor forzaría un replay extra al volver a subirlo.
+     */
+    @Test
+    fun servidorSinEpochNoReplicaNiPierdeLaGeneracionAplicada() = runTest {
+        seedSyncState(CobranzaSyncManager.RESOURCE_VENTAS, cursor = CURSOR_VIEJO, epoch = 8)
+
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                page(
+                    items = listOf(ventaDto(3105, updatedAt = CURSOR_PAGINA_1)),
+                    hasMore = false
+                ),
+                page(
+                    items = listOf(ventaDto(3106, updatedAt = CURSOR_PAGINA_2)),
+                    hasMore = false
+                )
+            ),
+            pagos = listOf(
+                pagoPage(emptyList(), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertEquals(
+            "dos syncs, dos llamadas incrementales: ni un replay en bucle",
+            listOf(CURSOR_VIEJO, CURSOR_PAGINA_1),
+            api.ventasCursorCalls
+        )
+        assertEquals(8, db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.EPOCH)
+    }
+
+    /**
+     * Un 0 no es una generación: es lo que produce cualquier ruta que caiga en
+     * el default de un entero (Gson sobre un `Int` no nulo, un DTO intermedio,
+     * un servidor a medio configurar). Tratarlo como generación válida metería
+     * al cliente en un replay por tick, para siempre. Se ignora igual que un
+     * campo ausente, y la generación aplicada se conserva.
+     */
+    @Test
+    fun epochCeroSeIgnoraYNoEntraEnBucleDeReplays() = runTest {
+        seedSyncState(CobranzaSyncManager.RESOURCE_VENTAS, cursor = CURSOR_VIEJO, epoch = 8)
+
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(
+                    items = listOf(ventaDto(3107, updatedAt = CURSOR_PAGINA_1)),
+                    hasMore = false,
+                    epoch = 0
+                ),
+                VentaPage(
+                    items = listOf(ventaDto(3108, updatedAt = CURSOR_PAGINA_2)),
+                    hasMore = false,
+                    epoch = 0
+                )
+            ),
+            pagos = listOf(
+                pagoPage(emptyList(), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertEquals(
+            "ninguna llamada arranca sin cursor: el 0 nunca dispara replay",
+            listOf(CURSOR_VIEJO, CURSOR_PAGINA_1),
+            api.ventasCursorCalls
+        )
+        assertEquals(8, db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.EPOCH)
+    }
+
+    /**
+     * La generación es identidad, no orden: si el servidor RETROCEDE (restore
+     * de un respaldo, redeploy con el contador reiniciado) sigue siendo una
+     * generación distinta a la aplicada, así que se replica UNA vez y se
+     * guarda el valor nuevo. El segundo sync ya no replica — sin esto, un
+     * epoch menor replicaría en cada tick indefinidamente.
+     */
+    @Test
+    fun epochQueRetrocedeReplicaUnaSolaVez() = runTest {
+        seedSyncState(CobranzaSyncManager.RESOURCE_VENTAS, cursor = CURSOR_VIEJO, epoch = 9)
+
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(items = emptyList(), hasMore = false, epoch = 3),
+                VentaPage(
+                    items = listOf(ventaDto(3109, updatedAt = CURSOR_PAGINA_1)),
+                    hasMore = false,
+                    epoch = 3
+                ),
+                VentaPage(
+                    items = listOf(ventaDto(3110, updatedAt = CURSOR_PAGINA_2)),
+                    hasMore = false,
+                    epoch = 3
+                )
+            ),
+            pagos = listOf(
+                pagoPage(emptyList(), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertEquals(
+            "un solo replay: el segundo sync ya usa el cursor incremental",
+            listOf(CURSOR_VIEJO, null, CURSOR_PAGINA_1),
+            api.ventasCursorCalls
+        )
+        assertEquals(3, db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.EPOCH)
+    }
+
+    /**
+     * El servidor sube de generación MIENTRAS descargamos: lo aplicado es una
+     * mezcla de dos generaciones, así que no se persiste ninguna y el próximo
+     * arranque replica desde cero. Conservador a propósito: el costo es red,
+     * la alternativa es un cache mezclado dado por bueno para siempre.
+     */
+    @Test
+    fun epochQueCambiaAMediaPaginacionNoSePersiste() = runTest {
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(
+                    items = listOf(ventaDto(3111, updatedAt = CURSOR_PAGINA_1)),
+                    hasMore = true,
+                    epoch = 5
+                ),
+                VentaPage(
+                    items = listOf(ventaDto(3112, updatedAt = CURSOR_PAGINA_2)),
+                    hasMore = false,
+                    epoch = 6
+                )
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val state = db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!
+        assertNull("generación inestable durante la corrida: no se aplica ninguna", state.EPOCH)
+        // Los datos sí se guardaron; lo único que queda pendiente es la
+        // confirmación de la generación.
+        assertNotNull(db.saleDao().findByDoctoCcId(3111))
+        assertNotNull(db.saleDao().findByDoctoCcId(3112))
+    }
+
+    /**
+     * El mecanismo es por recurso: pagos tiene su propia generación y su
+     * propio replay. Se siembran los marcadores one-time viejos para que no
+     * sean ellos los que limpien el cursor de pagos y el test mida solo el
+     * efecto de la generación.
+     */
+    @Test
+    fun epochNuevoTambienReplicaElRecursoDePagos() = runTest {
+        seedMigrationMarkers()
+        seedSyncState(CobranzaSyncManager.RESOURCE_PAGOS, cursor = CURSOR_VIEJO, epoch = 7)
+
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(
+                PagoPage(items = emptyList(), hasMore = false, epoch = 8),
+                PagoPage(items = listOf(pagoDto(9301, 9300)), hasMore = false, epoch = 8)
+            )
+        )
+        newManager(api).syncNow()
+
+        assertEquals(listOf(CURSOR_VIEJO, null), api.pagosCursorCalls)
+        assertEquals(8, db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_PAGOS)!!.EPOCH)
+        assertEquals(1, db.paymentDao().getPaymentsBySaleId(9300).size)
+    }
+
+    /**
+     * Un dispositivo que venía de la versión anterior tiene EPOCH en NULL (la
+     * migración 27→28 no inventa valores). NULL es "nunca aplicó una
+     * generación", distinto de cualquier generación real, así que hace UN
+     * replay al actualizar y queda alineado — no uno por tick.
+     */
+    @Test
+    fun dispositivoConEpochNuloReplicaUnaVezAlActualizar() = runTest {
+        seedSyncState(CobranzaSyncManager.RESOURCE_VENTAS, cursor = CURSOR_VIEJO, epoch = null)
+
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(items = emptyList(), hasMore = false, epoch = 4),
+                VentaPage(
+                    items = listOf(ventaDto(3113, updatedAt = CURSOR_PAGINA_1)),
+                    hasMore = false,
+                    epoch = 4
+                ),
+                VentaPage(
+                    items = listOf(ventaDto(3114, updatedAt = CURSOR_PAGINA_2)),
+                    hasMore = false,
+                    epoch = 4
+                )
+            ),
+            pagos = listOf(
+                pagoPage(emptyList(), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertEquals(
+            listOf(CURSOR_VIEJO, null, CURSOR_PAGINA_1),
+            api.ventasCursorCalls
+        )
+        assertEquals(4, db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.EPOCH)
+    }
+
+    // ─── Cargo cancelado: el pago del cobrador nunca se pierde ─────────────
+
+    /**
+     * LA prueba que impide perder dinero en la cancelación de un cargo: el
+     * cobrador captura un pago en la calle y ese mismo día en oficina cancelan
+     * el cargo. El merge borra la venta y el cache de pagos ya confirmados,
+     * pero la captura pendiente se queda. Después fallará al subirse contra un
+     * cargo cancelado y quedará en la captura de intentos fallidos del
+     * servidor, que se resuelve desde el escritorio. Borrarla aquí la
+     * desaparecería sin que nadie pudiera saber que existió.
+     */
+    @Test
+    fun tombstoneDeCargoCanceladoPreservaLaCapturaPendiente() = runTest {
+        db.saleDao().insertAll(listOf(ventaDto(3201).toEntity()))
+        val pendiente = samplePayment(3201).copy(
+            ID = "5c9a4e18-2b7d-4f36-9a10-8e4c2d71b053",
+            GUARDADO_EN_MICROSIP = false,
+            IMPORTE = 480.50,
+            COBRADOR = "Ricardo Flores Mendoza",
+            COBRADOR_ID = 7
+        )
+        val confirmado = samplePayment(3201).copy(ID = "77201", GUARDADO_EN_MICROSIP = true)
+        db.paymentDao().saveAll(listOf(pendiente, confirmado))
+
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = listOf(ventaDto(3201, cancelado = true)), hasMore = false)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        assertNull("la venta cancelada sí se va", db.saleDao().findByDoctoCcId(3201))
+        val restantes = db.paymentDao().getPaymentsBySaleId(3201)
+        assertEquals("solo sobrevive la captura pendiente", 1, restantes.size)
+        val superviviente = restantes.single()
+        assertEquals(pendiente.ID, superviviente.ID)
+        assertEquals(480.50, superviviente.IMPORTE, 0.0)
+        assertEquals("Ricardo Flores Mendoza", superviviente.COBRADOR)
+        assertTrue(
+            "y sigue en la cola de pendientes por subir",
+            db.paymentDao().getPendingPayments().any { it.ID == pendiente.ID }
+        )
+    }
+
     // ─── applyByIds ─────────────────────────────────────────────────────────
 
     /**
@@ -1429,8 +1817,55 @@ class CobranzaSyncManagerTest : RoomTestBase() {
 
     // ─── fixtures ───────────────────────────────────────────────────────────
 
-    private data class VentaPage(val items: List<VentaDto>, val hasMore: Boolean)
-    private data class PagoPage(val items: List<PagoDto>, val hasMore: Boolean)
+    /**
+     * `epoch` es el `sync_epoch` que el servidor manda en esa página (null =
+     * servidor viejo). `fails` simula que la descarga muere en esa página —
+     * la única forma de probar que el epoch NO se persiste a medio replay.
+     */
+    private data class VentaPage(
+        val items: List<VentaDto>,
+        val hasMore: Boolean,
+        val epoch: Int? = null,
+        val fails: Boolean = false
+    )
+
+    private data class PagoPage(
+        val items: List<PagoDto>,
+        val hasMore: Boolean,
+        val epoch: Int? = null,
+        val fails: Boolean = false
+    )
+
+    /**
+     * Deja una fila de `cobranza_sync_state` como la tendría un dispositivo en
+     * campo: cursor ya avanzado y una generación aplicada (o NULL, que es lo
+     * que hereda de la migración 27→28).
+     */
+    private suspend fun seedSyncState(resource: String, cursor: String?, epoch: Int?) {
+        db.cobranzaSyncStateDao().upsert(
+            CobranzaSyncStateEntity(
+                RESOURCE = resource,
+                ZONA_CLIENTE_ID = 21,
+                CURSOR = cursor,
+                LAST_SYNCED_AT = "2026-08-01T00:00:00Z",
+                LAST_ERROR = null,
+                EPOCH = epoch
+            )
+        )
+    }
+
+    /**
+     * Marca como ya consumidas las tres migraciones one-time del mecanismo
+     * viejo, para que no sean ellas las que limpien el cursor de pagos cuando
+     * lo que se está midiendo es el resync por generación.
+     */
+    private suspend fun seedMigrationMarkers() {
+        listOf(
+            CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID,
+            CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID_PERSIST,
+            CobranzaSyncManager.MIGRATION_PURGE_LEGACY_PAGO_IDS
+        ).forEach { marker -> seedSyncState(marker, cursor = null, epoch = null) }
+    }
 
     private fun page(items: List<VentaDto>, hasMore: Boolean) = VentaPage(items, hasMore)
     private fun pagoPage(items: List<PagoDto>, hasMore: Boolean) = PagoPage(items, hasMore)
@@ -1457,6 +1892,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         val ventasDesdeCalls = mutableListOf<String?>()
         val pagosDesdeCalls = mutableListOf<String?>()
         val pagosCursorCalls = mutableListOf<String?>()
+        val ventasCursorCalls = mutableListOf<String?>()
 
         override suspend fun syncVentas(
             zonaId: Int,
@@ -1466,13 +1902,16 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             desde: String?
         ): SyncVentasResponse {
             ventasDesdeCalls.add(desde)
+            ventasCursorCalls.add(cursor)
             val p = ventas.getOrNull(ventasIdx) ?: error("syncVentas called too many times")
             ventasIdx++
+            if (p.fails) throw RuntimeException("network down a media paginación")
             return SyncVentasResponse(
                 items = p.items,
                 max_updated_at = p.items.lastOrNull()?.updated_at ?: cursor.orEmpty(),
                 server_now = "2026-05-30T18:25:23Z",
-                has_more = p.hasMore
+                has_more = p.hasMore,
+                sync_epoch = p.epoch
             )
         }
 
@@ -1487,11 +1926,13 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             pagosCursorCalls.add(cursor)
             val p = pagos.getOrNull(pagosIdx) ?: error("syncPagos called too many times")
             pagosIdx++
+            if (p.fails) throw RuntimeException("network down a media paginación")
             return SyncPagosResponse(
                 items = p.items,
                 max_updated_at = p.items.lastOrNull()?.updated_at ?: cursor.orEmpty(),
                 server_now = "2026-05-30T18:25:23Z",
-                has_more = p.hasMore
+                has_more = p.hasMore,
+                sync_epoch = p.epoch
             )
         }
 

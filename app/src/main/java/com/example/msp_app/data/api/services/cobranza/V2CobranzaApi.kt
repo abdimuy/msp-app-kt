@@ -93,18 +93,38 @@ data class DigestResponse(
     val max_updated_at: String?
 )
 
+/**
+ * Generación de la proyección del servidor para un recurso de sync.
+ *
+ * El servidor la sube cuando cambia lo que proyecta (p.ej. las coordenadas de
+ * un pago pasan a salir de otra tabla). Las filas ya guardadas en Room no
+ * vuelven a bajar por el cursor incremental porque su `UPDATED_AT` no cambió,
+ * así que el cliente detecta la generación distinta y replica desde cero.
+ *
+ * Declarado `Int?` con default a propósito, y NO por elegancia: Gson ignora
+ * los valores por defecto de Kotlin (construye por `Unsafe`, sin llamar al
+ * constructor), así que el default solo describe la intención — quien decide
+ * es el tipo. Con `Int?` un servidor viejo que no manda el campo deja `null`,
+ * que el manager lee como "este servidor no tiene generaciones" y desactiva el
+ * mecanismo. Con un `Int` no nulo el campo ausente llegaría como 0 y sería
+ * indistinguible de un 0 real del servidor. Un tipo complejo no nulo llegaría
+ * como null y reventaría con NPE al primer uso — el incidente que ya se pagó
+ * una vez en producción.
+ */
 data class SyncVentasResponse(
     val items: List<VentaDto>,
     val max_updated_at: String,
     val server_now: String,
-    val has_more: Boolean
+    val has_more: Boolean,
+    val sync_epoch: Int? = null
 )
 
 data class SyncPagosResponse(
     val items: List<PagoDto>,
     val max_updated_at: String,
     val server_now: String,
-    val has_more: Boolean
+    val has_more: Boolean,
+    val sync_epoch: Int? = null
 )
 
 data class IdsResponse(
