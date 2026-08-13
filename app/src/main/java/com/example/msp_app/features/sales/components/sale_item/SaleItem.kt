@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.navigation.NavController
+import com.example.msp_app.core.common.location.SaleDistance
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.data.models.sale.toSale
 import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
@@ -23,7 +24,7 @@ fun SaleItem(
     sale: SaleWithProducts,
     onClick: () -> Unit = {},
     variant: SaleItemVariant = SaleItemVariant.DEFAULT,
-    distanceToCurrentLocation: Double = 0.0,
+    distanceToCurrentLocation: SaleDistance = SaleDistance.Unknown,
     navController: NavController
 ) {
     val progress = ((sale.PRECIO_TOTAL - sale.SALDO_REST) / sale.PRECIO_TOTAL).toFloat()

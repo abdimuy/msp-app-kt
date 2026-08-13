@@ -35,6 +35,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +48,8 @@ import androidx.compose.ui.unit.sp
 import com.example.msp_app.R
 import com.example.msp_app.components.badges.AlertBadge
 import com.example.msp_app.components.badges.BadgesType
+import com.example.msp_app.core.common.location.SaleDistance
+import com.example.msp_app.core.common.location.label
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.data.models.sale.SaleWithProducts
@@ -54,6 +58,15 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+// Reparto de la fila superior: cliente/saldo contra distancia. Dos tercios
+// contra uno alcanzan para "20000 km" —el texto de distancia más largo posible—
+// sin que "SALDO:" pierda su renglón.
+private const val SALE_INFO_WEIGHT = 2f
+private const val DISTANCE_WEIGHT = 1f
+
+/** Lectura para accesibilidad del guion que ocupa el lugar de la distancia. */
+private const val NO_LOCATION_READING = "Sin ubicación"
 
 @Composable
 fun SecondarySaleItem(
@@ -68,7 +81,7 @@ fun SecondarySaleItem(
     showPaymentDialog: Boolean = false,
     onAddVisit: () -> Unit = {},
     progress: Float = 0f,
-    distanceToCurrentLocation: Double = 0.0,
+    distanceToCurrentLocation: SaleDistance = SaleDistance.Unknown,
     openVisitDialog: () -> Unit = {},
     closeVisitDialog: () -> Unit = {}
 ) {
@@ -135,8 +148,11 @@ fun SecondarySaleItem(
             Row(
                 verticalAlignment = Alignment.Top
             ) {
+                // Cliente y saldo se quedan con dos tercios del ancho: la distancia
+                // también pesa (abajo), así que ningún texto puede acaparar la fila
+                // y empujar al otro a partirse letra por letra en vertical.
                 Column(
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(SALE_INFO_WEIGHT)
                 ) {
                     Row {
                         if (isNew) {
@@ -193,18 +209,39 @@ fun SecondarySaleItem(
                             ) {
                                 append(sale.SALDO_REST.toCurrency(noDecimals = true))
                             }
-                        }
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
+                val hasLocation = distanceToCurrentLocation is SaleDistance.Known
                 Text(
-                    text = "$distanceToCurrentLocation m",
+                    text = distanceToCurrentLocation.label(),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary,
+                    color = when {
+                        !hasLocation -> MaterialTheme.colorScheme.onSurfaceVariant
+                        isDark -> Color.White
+                        else -> MaterialTheme.colorScheme.primary
+                    },
                     textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
+                        // `fill = false` para que el guion de "sin ubicación" no
+                        // reserve el tercio completo: pesa como tope, no como piso.
+                        .weight(DISTANCE_WEIGHT, fill = false)
                         .align(Alignment.CenterVertically)
+                        // Un guion no se lee solo: TalkBack necesita saber que ese
+                        // hueco significa que la venta no tiene ubicación.
+                        .then(
+                            if (hasLocation) {
+                                Modifier
+                            } else {
+                                Modifier.semantics { contentDescription = NO_LOCATION_READING }
+                            }
+                        )
                 )
             }
             Row {

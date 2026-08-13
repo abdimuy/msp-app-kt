@@ -1,5 +1,6 @@
 package com.example.msp_app.core.utils
 
+import com.example.msp_app.core.common.location.SaleDistance
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -10,6 +11,19 @@ import org.apache.commons.math3.ml.clustering.DBSCANClusterer
 import org.apache.commons.math3.ml.clustering.DoublePoint
 
 data class Coord(val lat: Double, val lng: Double)
+
+/**
+ * Qué tan cerca está una venta de la posición actual del cobrador.
+ *
+ * [distance] es [SaleDistance.Unknown] cuando la venta no tiene centroide: con
+ * `minPts = 3`, DBSCAN no produce ninguno hasta que la venta acumula tres pagos
+ * georreferenciados y agrupados, así que toda venta nueva —o con pagos
+ * dispersos— pasa por acá aunque el servidor mande coordenadas perfectas.
+ */
+data class SaleProximity(
+    val saleId: Int,
+    val distance: SaleDistance
+)
 
 fun computeCentroids(
     rawCoords: List<Pair<Double, Double>>,
@@ -28,21 +42,23 @@ fun computeCentroids(
     }
 }
 
+/**
+ * Ordena las ventas de la más cercana a la más lejana. Las que no tienen
+ * centroide quedan al final: es [SaleDistance] quien lo garantiza al ordenar
+ * [SaleDistance.Unknown] después de cualquier distancia real, sin necesidad de
+ * un número centinela que después alguien pueda imprimir.
+ */
 fun sortGroupsByClosestCentroid(
     groups: List<PaymentLocationsGroup>,
     currentPosition: Coord
-): List<Triple<Int, Coord, Long>> {
+): List<SaleProximity> {
     return groups.map { group ->
-        val (closestCoord, minDist) = group.locations
-            .map { loc ->
-                val coord = Coord(loc.LAT, loc.LNG)
-                coord to haversineDistance(coord, currentPosition)
-            }
-            .minByOrNull { it.second }
-            ?: return@map Triple(group.saleId, Coord(0.0, 0.0), Long.MAX_VALUE)
+        val minDist = group.locations
+            .minOfOrNull { loc -> haversineDistance(Coord(loc.LAT, loc.LNG), currentPosition) }
+            ?: return@map SaleProximity(group.saleId, SaleDistance.Unknown)
 
-        Triple(group.saleId, closestCoord, minDist.toLong())
-    }.sortedBy { it.third }
+        SaleProximity(group.saleId, SaleDistance.of(minDist))
+    }.sortedBy { it.distance }
 }
 
 private fun haversineDistance(a: Coord, b: Coord): Double {

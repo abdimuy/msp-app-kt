@@ -55,6 +55,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.Coord
 import com.example.msp_app.core.utils.LocationTracker
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.core.utils.SaleProximity
 import com.example.msp_app.core.utils.sortGroupsByClosestCentroid
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
@@ -113,7 +114,7 @@ fun HomeScreen(navController: NavController) {
     val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
 
     var closestCentroidsSorted by remember {
-        mutableStateOf<List<Triple<Int, Coord, Long>>>(emptyList())
+        mutableStateOf<List<SaleProximity>>(emptyList())
     }
 
     val updateStartOfWeekDateState by authViewModel.updateStartOfWeekDateState.collectAsState()
@@ -369,8 +370,8 @@ fun HomeScreen(navController: NavController) {
 
                     items(
                         items = closestCentroidsSorted,
-                        key = { it.first }
-                    ) { (saleId, _, distanceToCurrentLocation) ->
+                        key = { it.saleId }
+                    ) { (saleId, distanceToCurrentLocation) ->
                         salesMap[saleId]?.let { sale ->
                             Box(
                                 modifier = Modifier
@@ -384,7 +385,7 @@ fun HomeScreen(navController: NavController) {
                                         navController.navigate("sales/sale_details/$saleId")
                                     },
                                     variant = SaleItemVariant.SECONDARY,
-                                    distanceToCurrentLocation = distanceToCurrentLocation.toDouble(),
+                                    distanceToCurrentLocation = distanceToCurrentLocation,
                                     navController
                                 )
                             }
