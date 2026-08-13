@@ -167,10 +167,12 @@ android {
             // (MUEBLERA_TEST.FDB). No distribuir este APK antes de repuntarlo.
             buildConfigField("String", "V2_BASE_URL", "\"https://apidev.loclx.io/\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
-            // Pagos y visitas siguen por el backend legacy: tienen interruptor
-            // y sirven de retorno. Ventas locales NO lo tiene y ya sube al Go.
-            buildConfigField("boolean", "PAGOS_USE_V2", "false")
-            buildConfigField("boolean", "VISITAS_USE_V2", "false")
+            // La condición que mantenía estos dos en false era "hasta que
+            // exista un host Go de producción" (ver PendingPaymentsWorker).
+            // Ya existe: es apidev.loclx.io, arriba. Captura de pagos y de
+            // visitas pasan al Go, sin envío dual: el worker elige uno u otro.
+            buildConfigField("boolean", "PAGOS_USE_V2", "true")
+            buildConfigField("boolean", "VISITAS_USE_V2", "true")
         }
     }
 
