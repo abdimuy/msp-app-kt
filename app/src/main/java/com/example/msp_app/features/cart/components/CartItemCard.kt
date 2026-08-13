@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -199,8 +200,7 @@ fun CartItemCard(
                                 )
                                 .combinedClickable(
                                     onClick = {
-                                        showQuantityDialog = true
-                                        isIncreaseMode = true
+                                        showRestrictionDialog = true
                                     },
                                     onLongClick = {
                                         showRestrictionDialog = true
@@ -222,7 +222,7 @@ fun CartItemCard(
                             contentAlignment = Alignment.Center
                         ) {
                             IconButton(
-                                onClick = onIncreaseQuantity,
+                                onClick = { showRestrictionDialog = true },
                                 enabled = !isIncreaseLoading,
                                 modifier = Modifier.size(36.dp)
                             ) {
@@ -359,13 +359,14 @@ fun CartItemCard(
         }
     }
 
-    // Dialog de restricción
+    // Dialog de restricción. Cubre alta y baja: el inventario de la camioneta
+    // solo se modifica desde oficina.
     if (showRestrictionDialog) {
         AlertDialog(
             onDismissRequest = { showRestrictionDialog = false },
             icon = {
                 Icon(
-                    imageVector = Icons.Default.Delete,
+                    imageVector = Icons.Default.Lock,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(32.dp)
@@ -380,7 +381,7 @@ fun CartItemCard(
             },
             text = {
                 Text(
-                    text = "No está permitido eliminar o reducir productos de la camioneta directamente. Para realizar cambios en el inventario, por favor contacte con la oficina central.",
+                    text = "No está permitido agregar, eliminar ni reducir productos de la camioneta directamente. Para realizar cambios en el inventario, por favor contacte con la oficina central.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

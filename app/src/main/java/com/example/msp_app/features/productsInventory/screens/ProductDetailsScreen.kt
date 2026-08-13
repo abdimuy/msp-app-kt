@@ -848,25 +848,9 @@ fun ProductDetailsScreen(productId: String, navController: NavController) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = {
-                            if (camionetaAsignada != null) {
-                                showTransferDialog = true
-                            } else {
-                                scope.launch {
-                                    snackbarHostState.showSnackbar(
-                                        "No tienes una camioneta asignada. Contacta al administrador."
-                                    )
-                                }
-                            }
-                        }
-                    ) {
-                        Text(
-                            text = "Añadir a la Camioneta"
-                        )
-                    }
+                    // El alta de productos a la camioneta se hace solo desde
+                    // oficina. Se retiró el botón "Añadir a la Camioneta"; el
+                    // diálogo de traspaso de abajo queda sin punto de entrada.
                 }
             } ?: run {
                 Box(
