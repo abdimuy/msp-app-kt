@@ -78,8 +78,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 51
-        versionName = "2.13.0"
+        versionCode = 52
+        versionName = "2.14.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -160,11 +160,11 @@ android {
             dimension = "environment"
             resValue("string", "app_name", "msp-app")
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://msp2025.loclx.io/\"")
-            // apidev.loclx.io deja de ser el túnel de pruebas y pasa a ser el
-            // del API Go de PRODUCCIÓN: no se consiguió un túnel adicional.
-            // OJO: hasta que ese túnel apunte a la instancia Go de producción
-            // (base MUEBLERA_SNP.FDB), sigue resolviendo a la de pruebas
-            // (MUEBLERA_TEST.FDB). No distribuir este APK antes de repuntarlo.
+            // apidev.loclx.io dejó de ser el túnel de pruebas y ES el del API
+            // Go de PRODUCCIÓN (no se consiguió un túnel adicional). Ya apunta
+            // a la instancia que corre contra MUEBLERA_SNP.FDB en el puerto
+            // 3011, con Firebase msp-db-1c2ce. El entorno de pruebas remoto
+            // quedó retirado a cambio; ver el comentario del flavor devserver.
             buildConfigField("String", "V2_BASE_URL", "\"https://apidev.loclx.io/\"")
             buildConfigField("String", "IMAGES_BASE_URL", "\"https://mspimagenes.loclx.io/\"")
             // La condición que mantenía estos dos en false era "hasta que
