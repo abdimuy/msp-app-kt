@@ -78,8 +78,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 52
-        versionName = "2.14.0"
+        versionCode = 53
+        versionName = "2.15.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -211,6 +211,21 @@ androidComponents {
         if (variant.name == "prodDebug" || variant.name == "devlocalRelease") {
             variant.enable = false
         }
+        // Los unit tests corren sobre Robolectric y buena parte son de Compose
+        // (`createComposeRule`), que necesita `androidx.compose.ui:ui-test-manifest`
+        // para resolver `androidx.activity.ComponentActivity`. Ese artefacto es
+        // debug-only POR DISEÑO — declara una Activity que no debe viajar en el
+        // APK de producción — así que en un variant release el manifiesto no
+        // existe y los tests truenan con "Unable to resolve activity ...
+        // ComponentActivity" (robolectric/robolectric#4736).
+        //
+        // El source set de tests es UNO SOLO (`src/test`): el build type no
+        // cambia qué se prueba, solo si la tarea puede levantar el host. Así
+        // que la tarea de test del release se apaga y el gate es la debug
+        // (`testDevlocalDebugUnitTest`), que sí corre la suite completa. Nada
+        // de meter `ui-test-manifest` en `releaseImplementation`: eso mete
+        // andamiaje de prueba en el APK que instalan los cobradores.
+        variant.enableUnitTest = variant.buildType != "release"
     }
 }
 

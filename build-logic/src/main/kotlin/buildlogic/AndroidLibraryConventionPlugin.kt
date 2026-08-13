@@ -1,6 +1,7 @@
 package buildlogic
 
 import com.android.build.api.dsl.LibraryExtension
+import com.android.build.api.variant.LibraryAndroidComponentsExtension
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -39,6 +40,23 @@ class AndroidLibraryConventionPlugin : Plugin<Project> {
 
                 buildFeatures {
                     buildConfig = true
+                }
+            }
+
+            // Los unit tests de estos módulos corren sobre Robolectric y los de
+            // UI usan `createComposeRule`, que necesita
+            // `androidx.compose.ui:ui-test-manifest` para resolver
+            // `androidx.activity.ComponentActivity`. Ese artefacto entra solo por
+            // `debugImplementation` (ver AndroidComposeConventionPlugin) porque
+            // declara una Activity que no debe viajar en producción. En un variant
+            // release el manifiesto no existe y los tests truenan con "Unable to
+            // resolve activity" (robolectric/robolectric#4736).
+            //
+            // `src/test` es un source set único, así que la tarea release no
+            // aporta cobertura extra — solo ruido. El gate es `testDebugUnitTest`.
+            extensions.configure<LibraryAndroidComponentsExtension> {
+                beforeVariants { variant ->
+                    variant.enableUnitTest = variant.buildType != "release"
                 }
             }
 

@@ -449,6 +449,69 @@ interface PaymentDao {
     suspend fun findCollapsibleUuidTwins(): List<String>
 
     /**
+     * Borra las filas que dejó el sync legacy (Node) para los documentos de
+     * pago [doctoCcIds] que el canal v2 acaba de entregar.
+     *
+     * Los dos canales guardan el mismo pago con llaves distintas:
+     *
+     *   - legacy: `MSP_PAGOS_RECIBIDOS.ID` (UUID de la captura) cuando el
+     *     pago se capturó desde la app, o `"<DOCTO_CC_ID>-<IMPTE_DOCTO_CC_ID>"`
+     *     cuando se capturó en oficina — ver el `COALESCE` de
+     *     `getAllVentasByZona` en el API Node.
+     *   - v2 (Go): `IMPTE_DOCTO_CC_ID` a secas, siempre numérico puro.
+     *
+     * Como `Payment.ID` es la PK, sin este borrado el mismo pago queda dos
+     * veces en Room y todos los totales del cobrador salen al doble.
+     *
+     * El match es por `DOCTO_CC_ID` (el documento de pago en Microsip), que
+     * es exacto: identifica el mismo abono en ambos canales sin depender de
+     * `pago_recibido_id` — que es NULL para todo el histórico anterior al
+     * cutover, porque el Node nunca escribió
+     * `MSP_PAGOS_RECIBIDOS.IMPTE_DOCTO_CC_ID`.
+     *
+     * Tres cerrojos hacen segura la operación:
+     *  - `GUARDADO_EN_MICROSIP = 1`: una captura pendiente de subir jamás se
+     *    toca (además de que su `DOCTO_CC_ID` es 0 hasta que se aplica).
+     *  - `ID LIKE '%-%'`: solo formatos legacy (UUID o compuesto). La fila
+     *    canónica del canal v2 es numérica pura y nunca se borra a sí misma.
+     *  - `DOCTO_CC_ID > 0`: el 0 es el centinela de "aún sin documento".
+     */
+    @Query(
+        """
+        DELETE FROM Payment
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND ID LIKE '%-%'
+          AND DOCTO_CC_ID > 0
+          AND DOCTO_CC_ID IN (:doctoCcIds)
+        """
+    )
+    suspend fun deleteLegacyTwinsByDoctoCcIds(doctoCcIds: List<Int>): Int
+
+    /**
+     * Variante global de [deleteLegacyTwinsByDoctoCcIds] para el histórico
+     * que ya está en Room y que el sync incremental nunca volverá a mandar
+     * (su `UPDATED_AT` no cambió, o cayó fuera de `FECHA_CARGA_INICIAL`).
+     *
+     * Borra la fila legacy **solo si su gemelo numérico ya existe en local**:
+     * la subconsulta es la que evita perder los pagos viejos que el canal v2
+     * no alcanza a reponer — sin ella, los totales históricos del cobrador se
+     * desplomarían en vez de duplicarse. Los mismos tres cerrojos de la
+     * variante por lote aplican aquí.
+     */
+    @Query(
+        """
+        DELETE FROM Payment
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND ID LIKE '%-%'
+          AND DOCTO_CC_ID > 0
+          AND DOCTO_CC_ID IN (
+              SELECT DOCTO_CC_ID FROM Payment WHERE ID NOT LIKE '%-%'
+          )
+        """
+    )
+    suspend fun deleteLegacyTwins(): Int
+
+    /**
      * Returns the full set of locally-cached pago IDs for the given zone.
      * Used by CobranzaReconciler to compute the local digest fingerprint
      * and to enumerate orphans (phantoms). Excludes nothing — there is no

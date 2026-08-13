@@ -1,17 +1,35 @@
 # Despliegue a Producción
 
+## 0. Correr la suite
+
+```bash
+./gradlew test detekt
+```
+
+`test` corre los unit tests de **todos** los módulos sobre sus variants debug.
+Los variants release no tienen tarea de test a propósito: la suite es
+Robolectric y los tests de Compose necesitan
+`androidx.compose.ui:ui-test-manifest`, que es debug-only por diseño (declara
+`ComponentActivity` y no debe viajar en el APK que instalan los cobradores).
+El source set `src/test` es uno solo, así que la debug corre exactamente los
+mismos tests. No busques `testProdReleaseUnitTest`: no existe.
+
 ## 1. Compilar release
 
 ```bash
-./gradlew assembleRelease
+./gradlew :app:assembleProdRelease
 ```
 
-El APK queda en: `app/build/outputs/apk/release/app-release.apk`
+El APK queda en: `app/build/outputs/apk/prod/release/app-prod-release.apk`
+
+`prod` es el flavor de producción (Firebase `msp-db-1c2ce`, API Go en
+`apidev.loclx.io`). `assembleRelease` a secas construye también los flavors de
+desarrollo — no subas ésos.
 
 ## 2. Subir a GitHub Releases
 
 ```bash
-gh release create v{VERSION} app/build/outputs/apk/release/app-release.apk --title "v{VERSION}" --notes "Descripción de cambios"
+gh release create v{VERSION} app/build/outputs/apk/prod/release/app-prod-release.apk --title "v{VERSION}" --notes "Descripción de cambios"
 ```
 
 ## 3. Actualizar Firestore
@@ -21,7 +39,10 @@ En `config/api_settings` actualizar:
 | Campo | Valor |
 |---|---|
 | `LATEST_VERSION` | La nueva versión (ej. `2.9.5`) |
-| `APK_URL` | `https://github.com/abdimuy/msp-app-kt/releases/download/v{VERSION}/app-release.apk` |
+| `APK_URL` | `https://github.com/abdimuy/msp-app-kt/releases/download/v{VERSION}/app-prod-release.apk` |
+
+No toques `baseURL` en ese mismo documento: es el kill-switch en vivo del API
+que consumen los teléfonos ya instalados.
 
 Los usuarios verán el banner de actualización automáticamente.
 

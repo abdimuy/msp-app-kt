@@ -879,15 +879,23 @@ class CobranzaSyncManagerTest : RoomTestBase() {
     }
 
     /**
-     * Legacy: pagos aplicados antes del v2 server no traen `pago_recibido_id`
-     * (null). El merge NO debe tocar ninguna fila UUID preexistente — solo
-     * hace el upsert normal de la fila numérica.
+     * Bug del 2026-08-13: tras la migración al API Go el cobrador vio todos
+     * sus números exactamente al doble.
+     *
+     * El histórico NO trae `pago_recibido_id` — el Node nunca escribió
+     * `MSP_PAGOS_RECIBIDOS.IMPTE_DOCTO_CC_ID`, que es por donde el backend Go
+     * resuelve ese campo. Así que el colapso por UUID no alcanza al histórico
+     * y el gemelo hay que ubicarlo por `docto_cc_id`, el documento de pago,
+     * que sí es el mismo en ambos canales.
+     *
+     * Esta prueba cubre el caso mayoritario: el pago se capturó desde la app
+     * y el sync legacy lo guardó con el UUID de la captura.
      */
     @Test
-    fun mergePagosLegacySinPagoRecibidoIdNoBorraFilaUuid() = runTest {
-        val uuidLocal = "a1a1a1a1-2222-3333-4444-555555555555"
+    fun mergePagosColapsaGemeloLegacyUuidSinPagoRecibidoId() = runTest {
+        val uuidLegacy = "a1a1a1a1-2222-3333-4444-555555555555"
         val seedUuid = samplePayment(1402).copy(
-            ID = uuidLocal,
+            ID = uuidLegacy,
             GUARDADO_EN_MICROSIP = true
         )
         db.paymentDao().saveAll(listOf(seedUuid))
@@ -900,14 +908,59 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         newManager(api).syncNow()
 
         val pagos = db.paymentDao().getPaymentsBySaleId(1402)
-        assertEquals(
-            "sin pago_recibido_id el merge preserva la fila UUID Y agrega la numérica",
-            2,
-            pagos.size
+        assertEquals("solo debe quedar la fila numérica", 1, pagos.size)
+        assertEquals("88002", pagos.first().ID)
+    }
+
+    /**
+     * El otro formato legacy: los pagos capturados en oficina no tienen fila
+     * en `MSP_PAGOS_RECIBIDOS`, así que el Node los devolvía con el ID
+     * compuesto `"<DOCTO_CC_ID>-<IMPTE_DOCTO_CC_ID>"`. Mismo colapso.
+     */
+    @Test
+    fun mergePagosColapsaGemeloLegacyCompuesto() = runTest {
+        // samplePayment(1405) y el DTO de abajo comparten docto_cc_id = 1406.
+        val seedCompuesto = samplePayment(1405).copy(
+            ID = "1406-88005",
+            GUARDADO_EN_MICROSIP = true
         )
-        val ids = pagos.map { it.ID }.toSet()
-        assertTrue(ids.contains(uuidLocal))
-        assertTrue(ids.contains("88002"))
+        db.paymentDao().saveAll(listOf(seedCompuesto))
+
+        val numericoDto = pagoDto(impteId = 88005, doctoCcId = 1405, pagoRecibidoId = null)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(numericoDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val pagos = db.paymentDao().getPaymentsBySaleId(1405)
+        assertEquals("solo debe quedar la fila numérica", 1, pagos.size)
+        assertEquals("88005", pagos.first().ID)
+    }
+
+    /**
+     * El colapso es por documento de pago exacto, no por parecido: una fila
+     * legacy de OTRO `docto_cc_id` no se toca aunque baje en el mismo lote.
+     */
+    @Test
+    fun mergePagosNoBorraFilaLegacyDeOtroDocumento() = runTest {
+        val uuidAjeno = "e5e5e5e5-6666-7777-8888-999999999999"
+        val seedAjeno = samplePayment(1407).copy(
+            ID = uuidAjeno,
+            GUARDADO_EN_MICROSIP = true
+        )
+        db.paymentDao().saveAll(listOf(seedAjeno))
+
+        val numericoDto = pagoDto(impteId = 88006, doctoCcId = 1408, pagoRecibidoId = null)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(numericoDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val pagos = db.paymentDao().getPaymentsBySaleId(1407)
+        assertEquals("la fila legacy de otro documento sobrevive", 1, pagos.size)
+        assertEquals(uuidAjeno, pagos.first().ID)
     }
 
     /**
@@ -1149,6 +1202,117 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             db.cobranzaSyncStateDao().get(CobranzaSyncManager.MIGRATION_PAGO_RECIBIDO_ID_PERSIST)
         )
         assertEquals(listOf(null), api.pagosCursorCalls)
+    }
+
+    // ─── Purga one-time del histórico duplicado por el cutover ─────────────
+
+    /**
+     * El histórico que ya está en Room nunca vuelve a bajar por el sync
+     * incremental (su `UPDATED_AT` no cambió), así que el colapso de
+     * [mergePagos] no lo alcanza. La purga one-time lo limpia — pero solo
+     * donde el gemelo numérico ya existe en local: un pago legacy sin gemelo
+     * es un pago viejo real que el canal v2 no va a reponer, y borrarlo
+     * desplomaría los totales históricos del cobrador.
+     */
+    @Test
+    fun purgaBorraSoloElHistoricoLegacyQueYaTieneGemeloNumerico() = runTest {
+        val duplicado = samplePayment(2001).copy(
+            ID = "f6f6f6f6-1111-2222-3333-444444444444",
+            GUARDADO_EN_MICROSIP = true
+        )
+        val gemeloNumerico = samplePayment(2001).copy(
+            ID = "77001",
+            GUARDADO_EN_MICROSIP = true
+        )
+        // Mismo formato legacy, pero sin gemelo: histórico fuera de ventana.
+        val sinGemelo = samplePayment(2002).copy(
+            ID = "2003-77002",
+            GUARDADO_EN_MICROSIP = true
+        )
+        db.paymentDao().saveAll(listOf(duplicado, gemeloNumerico, sinGemelo))
+
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        val conGemelo = db.paymentDao().getPaymentsBySaleId(2001)
+        assertEquals("el duplicado se purga", 1, conGemelo.size)
+        assertEquals("77001", conGemelo.first().ID)
+
+        assertEquals(
+            "el histórico sin gemelo sobrevive — no hay quién lo reponga",
+            1,
+            db.paymentDao().getPaymentsBySaleId(2002).size
+        )
+    }
+
+    /**
+     * La prueba que impide perder dinero del cobrador: una captura local aún
+     * sin subir (`GUARDADO_EN_MICROSIP = 0`) jamás se toca, ni siquiera si
+     * comparte documento de pago con una fila numérica.
+     */
+    @Test
+    fun purgaNuncaBorraUnaCapturaPendienteDeSubir() = runTest {
+        val pendiente = samplePayment(2010).copy(
+            ID = "aa11bb22-3333-4444-5555-666677778888",
+            GUARDADO_EN_MICROSIP = false
+        )
+        val numerico = samplePayment(2010).copy(
+            ID = "77010",
+            GUARDADO_EN_MICROSIP = true
+        )
+        db.paymentDao().saveAll(listOf(pendiente, numerico))
+
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        assertTrue(
+            "la captura pendiente sobrevive a la purga",
+            db.paymentDao().getPendingPayments().any { it.ID == pendiente.ID }
+        )
+    }
+
+    /**
+     * Corre una sola vez: al segundo arranque el marcador ya existe y una
+     * fila legacy nueva (por ejemplo, restaurada de un respaldo) no se
+     * vuelve a borrar sin pasar por el merge.
+     */
+    @Test
+    fun purgaCorreUnaSolaVez() = runTest {
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty(), pagoPageEmpty()),
+            pagos = listOf(
+                pagoPage(emptyList(), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+
+        assertNotNull(
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.MIGRATION_PURGE_LEGACY_PAGO_IDS)
+        )
+
+        // Llega tarde, después de que la purga ya corrió.
+        val tardio = samplePayment(2020).copy(
+            ID = "bb22cc33-4444-5555-6666-777788889999",
+            GUARDADO_EN_MICROSIP = true
+        )
+        val numerico = samplePayment(2020).copy(ID = "77020", GUARDADO_EN_MICROSIP = true)
+        db.paymentDao().saveAll(listOf(tardio, numerico))
+
+        mgr.syncNow()
+
+        assertEquals(
+            "la purga no se repite en arranques posteriores",
+            2,
+            db.paymentDao().getPaymentsBySaleId(2020).size
+        )
     }
 
     // ─── applyByIds ─────────────────────────────────────────────────────────

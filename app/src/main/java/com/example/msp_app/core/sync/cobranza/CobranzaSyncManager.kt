@@ -103,6 +103,10 @@ class CobranzaSyncManager(
             }
             val zona = ctx.zona
             val desdeIso = ctx.fechaCargaInicial?.toString()
+            // Antes del check de conectividad a propósito: es una limpieza
+            // puramente local, y un cobrador sin señal también merece ver sus
+            // totales bien.
+            purgeLegacyTwinsOnce()
             if (!connectivity.isNetworkAvailable()) {
                 Log.i(TAG, "skip: offline (zona=$zona)")
                 return SyncOutcome.SkippedOffline
@@ -324,6 +328,41 @@ class CobranzaSyncManager(
     }
 
     /**
+     * Purga one-time del histórico que dejó el sync legacy (Node) y que el
+     * canal v2 duplicó al bajar el mismo pago con otra llave — la causa de
+     * que el cobrador viera todos sus números exactamente al doble tras la
+     * migración del 2026-08-13.
+     *
+     * [mergePagos] colapsa el gemelo de cada pago que baja, pero el sync
+     * incremental jamás vuelve a mandar el histórico (su `UPDATED_AT` no
+     * cambió), así que esas filas nunca pasarían por ahí. Se limpian una vez
+     * por dispositivo con [PaymentDao.deleteLegacyTwins], que solo borra la
+     * fila legacy cuando su gemelo numérico ya está en local.
+     *
+     * A diferencia de [resetPagosCursorOnce], el marcador se persiste
+     * DESPUÉS del borrado: es una sola sentencia atómica, así que si el
+     * proceso muere antes, la purga simplemente se reintenta en el próximo
+     * arranque. Es idempotente de todas formas.
+     */
+    private suspend fun purgeLegacyTwinsOnce() {
+        if (syncStateDao.get(MIGRATION_PURGE_LEGACY_PAGO_IDS) != null) return
+        val borrados = paymentDao.deleteLegacyTwins()
+        Log.i(
+            TAG,
+            "migración $MIGRATION_PURGE_LEGACY_PAGO_IDS: $borrados gemelo(s) legacy purgados"
+        )
+        syncStateDao.upsert(
+            CobranzaSyncStateEntity(
+                RESOURCE = MIGRATION_PURGE_LEGACY_PAGO_IDS,
+                ZONA_CLIENTE_ID = 0,
+                CURSOR = null,
+                LAST_SYNCED_AT = Instant.now().toString(),
+                LAST_ERROR = null
+            )
+        )
+    }
+
+    /**
      * Helper compartido por las migraciones one-time de resync de pagos
      * ([MIGRATION_PAGO_RECIBIDO_ID] y [MIGRATION_PAGO_RECIBIDO_ID_PERSIST]):
      * limpia el cursor de [RESOURCE_PAGOS] para forzar un replay completo en
@@ -454,6 +493,18 @@ class CobranzaSyncManager(
      *
      *  - `cancelado=false` → upsert normal por PK (idempotente).
      *
+     *  - Gemelo legacy → colapso por `docto_cc_id`: el sync Node guardaba el
+     *    mismo abono con otra llave (`MSP_PAGOS_RECIBIDOS.ID` si venía de la
+     *    app, `"<DOCTO_CC_ID>-<IMPTE_DOCTO_CC_ID>"` si se capturó en
+     *    oficina), y como `Payment.ID` es la PK, Room lo trata como un pago
+     *    distinto del que baja por v2 con `IMPTE_DOCTO_CC_ID`. Se borra la
+     *    fila legacy del mismo documento de pago
+     *    ([PaymentDao.deleteLegacyTwinsByDoctoCcIds]). No se apoya en
+     *    `pago_recibido_id` porque es NULL para todo el histórico anterior al
+     *    cutover: el Node nunca escribió
+     *    `MSP_PAGOS_RECIBIDOS.IMPTE_DOCTO_CC_ID`, que es por donde el backend
+     *    Go lo resuelve.
+     *
      *  - `pago_recibido_id` non-null → colapso de gemelo UUID: el pago
      *    entrante es la versión numérica (IMPTE_DOCTO_CC_ID) de un pago que
      *    el app capturó offline con un UUID local. Se borra la fila UUID
@@ -479,7 +530,23 @@ class CobranzaSyncManager(
         if (items.isEmpty()) return
         val (tombstones, alive) = items.partition { it.cancelado }
         val pagoRecibidoIds = items.mapNotNull { it.pago_recibido_id }.distinct()
+        // Documentos de pago que trae esta página: la llave con la que se
+        // localiza la fila que dejó el sync legacy para el mismo abono.
+        val doctoCcIds = items.map { it.docto_cc_id }.filter { it > 0 }.distinct()
         db.withTransaction {
+            // Gemelo legacy (UUID de captura o "<docto>-<impte>" de oficina):
+            // el canal Node guardaba el pago con una llave distinta a la del
+            // canal v2 (IMPTE_DOCTO_CC_ID puro), así que sin este borrado el
+            // mismo pago queda dos veces en Room y el cobrador ve todos sus
+            // totales al doble. Aplica a `items` completo — vivos y
+            // tombstones: si el cargo se canceló, el gemelo viejo también se
+            // va. Un solo DELETE por página, no uno por fila.
+            if (doctoCcIds.isNotEmpty()) {
+                val legacyTwins = paymentDao.deleteLegacyTwinsByDoctoCcIds(doctoCcIds)
+                if (legacyTwins > 0) {
+                    Log.i(TAG, "mergePagos: colapsando $legacyTwins gemelo(s) legacy")
+                }
+            }
             if (pagoRecibidoIds.isNotEmpty()) {
                 val uuidTwins = paymentDao.filterUploadedIDs(pagoRecibidoIds)
                 if (uuidTwins.isNotEmpty()) {
@@ -575,6 +642,14 @@ class CobranzaSyncManager(
          * original — ver [resetPagosCursorOnce].
          */
         const val MIGRATION_PAGO_RECIBIDO_ID_PERSIST = "migration_pago_recibido_id_v1_persist"
+
+        /**
+         * Marcador one-time de [purgeLegacyTwinsOnce]: la purga del histórico
+         * que el sync legacy guardó con llave propia (UUID de captura o
+         * `"<DOCTO_CC_ID>-<IMPTE_DOCTO_CC_ID>"`) y que el canal v2 duplicó al
+         * re-bajarlo como `IMPTE_DOCTO_CC_ID` numérico.
+         */
+        const val MIGRATION_PURGE_LEGACY_PAGO_IDS = "migration_purge_legacy_pago_ids_v1"
         private const val TAG = "CobranzaSyncManager"
     }
 }
