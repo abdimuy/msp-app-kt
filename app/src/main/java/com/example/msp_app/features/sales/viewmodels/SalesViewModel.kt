@@ -167,7 +167,7 @@ class SalesViewModel(application: Application) : AndroidViewModel(application) {
                 saveLastSyncDate(currentSalesLastSync(clock))
             } catch (e: Exception) {
                 if (_syncSalesState.value !is ResultState.Success) {
-                    _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar productos y garantías")
+                    _syncSalesState.value = ResultState.Error(e.message ?: "Error al cargar garantías")
                 }
             }
         }

@@ -147,13 +147,13 @@ fun HomeFooterSection(
             onClick = { onSyncSales(zonaClienteId, dateInitWeek) },
             modifier = Modifier.fillMaxWidth(0.92f)
         ) {
-            Text("SINCRONIZAR PRODUCTOS Y GARANTÍAS", color = Color.White)
+            Text("SINCRONIZAR GARANTÍAS", color = Color.White)
         }
 
         ModernLoadingOverlay(
             isLoading = syncSalesState is ResultState.Loading,
             message = "Sincronizando catálogos",
-            subMessage = "Productos y garantías. Ventas y pagos se actualizan solos en segundo plano."
+            subMessage = "Garantías. Ventas, pagos y productos se actualizan solos en segundo plano."
         )
 
         Button(
