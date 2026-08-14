@@ -238,7 +238,7 @@ class DayStripTest : RobolectricTestBase() {
         )
 
         composeTestRule.onNodeWithText("Sin cobros").assertIsDisplayed()
-        composeTestRule.onNode(hasText("inicio del ciclo", substring = true)).assertIsDisplayed()
+        composeTestRule.onNode(hasText("inicio de semana", substring = true)).assertIsDisplayed()
         composeTestRule.onNode(hasText("7:33", substring = true)).assertIsDisplayed()
     }
 
@@ -248,7 +248,7 @@ class DayStripTest : RobolectricTestBase() {
 
         composeTestRule.onAllNodesWithText("Sin cobros").assertCountEquals(0)
         composeTestRule
-            .onAllNodesWithText("inicio del ciclo", substring = true)
+            .onAllNodesWithText("inicio de semana", substring = true)
             .assertCountEquals(0)
     }
 
@@ -288,7 +288,7 @@ class DayStripTest : RobolectricTestBase() {
         )
 
         assertNoEllipsis("Sin cobros")
-        composeTestRule.onNode(hasText("inicio del ciclo", substring = true)).assertExists()
+        composeTestRule.onNode(hasText("inicio de semana", substring = true)).assertExists()
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────────────

@@ -73,7 +73,7 @@ data class CollectionReportUiState(
     // fecha del sistema: es el día que eligió el cobrador, y es el que manda sobre el total, la
     // lista de pagos y las tres acciones de salida (Compartir/Imprimir/PDF leen este estado).
     val selectedDay: LocalDate? = null,
-    // "desde las 7:33 p.m. · inicio del ciclo" cuando el día mostrado es el de la carga de ruta;
+    // "desde las 7:33 p.m. · inicio de semana" cuando el día mostrado es el de la carga de ruta;
     // vacía el resto de los días. Ver `CollectionReportDayStripBuilder.startNote`.
     val selectedDayNote: String = "",
     // Flujo de impresión térmica (P2): null cuando el bottom sheet de impresión está cerrado.

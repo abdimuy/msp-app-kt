@@ -252,7 +252,7 @@ class CollectionReportDaySelectionTest {
             "la nota debe llevar la hora de arranque",
             state.selectedDayNote.contains("7:33")
         )
-        assertTrue(state.selectedDayNote.contains("inicio del ciclo"))
+        assertTrue(state.selectedDayNote.contains("inicio de semana"))
     }
 
     /**
@@ -338,6 +338,65 @@ class CollectionReportDaySelectionTest {
         val state = vm.state.value
         assertTrue(state.cycleDays.isEmpty())
         assertEquals(MockupFixtures.HOY_RUTA_34, state.selectedDay)
+    }
+
+    /**
+     * Regresión (visto en un teléfono real el 2026-08-14): con el proceso vivo al cruzar la
+     * medianoche, la tira seguía marcando el día de AYER como seleccionado.
+     *
+     * La causa era guardar el día auto-resuelto como si el cobrador lo hubiera pedido: la primera
+     * carga resolvía "hoy = jue 13" y lo congelaba, y al pasar a viernes ese día seguía dentro del
+     * ciclo, así que se quedaba elegido. Sin haberlo tocado nadie.
+     *
+     * Falla con el código viejo: `selectedDay` se queda en el 13.
+     */
+    @Test
+    fun `sin eleccion del usuario, el dia seleccionado sigue a hoy al cruzar la medianoche`() =
+        runTest(testDispatcher) {
+            val clock = FakeClock(MockupFixtures.AHORA_RUTA_34)
+            val vm = viewModel(payments = RangeAwarePaymentsPort(pagosRuta34()), clock = clock)
+            testDispatcher.scheduler.advanceUntilIdle()
+            assertEquals(MockupFixtures.HOY_RUTA_34, vm.state.value.selectedDay)
+
+            // Pasa la medianoche con el proceso vivo. Nadie tocó la tira.
+            clock.setNow(AppTime.parseWireFormat("2026-08-14T16:00:00Z"))
+            vm.setPeriod(ReportPeriod.SEMANA)
+            testDispatcher.scheduler.advanceUntilIdle()
+            vm.setPeriod(ReportPeriod.DIA)
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val manana = MockupFixtures.HOY_RUTA_34.plusDays(1)
+            assertEquals(
+                "el día por defecto se quedó congelado en ayer",
+                manana,
+                vm.state.value.selectedDay
+            )
+            assertTrue(
+                "el nuevo hoy no entró al ciclo",
+                vm.state.value.cycleDays.any { it.isToday }
+            )
+        }
+
+    /**
+     * El complemento del anterior: una elección EXPLÍCITA sí se respeta mientras el día siga
+     * dentro del ciclo. Si no, "seguir a hoy" se comería la selección del cobrador en cada
+     * recarga y la tira sería inútil.
+     */
+    @Test
+    fun `una eleccion explicita sobrevive a la recarga`() = runTest(testDispatcher) {
+        val vm = viewModel(payments = RangeAwarePaymentsPort(pagosRuta34()))
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        val domingo = LocalDate.of(2026, 8, 9)
+        vm.selectDay(domingo)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        vm.setPeriod(ReportPeriod.SEMANA)
+        testDispatcher.scheduler.advanceUntilIdle()
+        vm.setPeriod(ReportPeriod.DIA)
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        assertEquals(domingo, vm.state.value.selectedDay)
     }
 
     // ─── helpers ────────────────────────────────────────────────────────────────────────

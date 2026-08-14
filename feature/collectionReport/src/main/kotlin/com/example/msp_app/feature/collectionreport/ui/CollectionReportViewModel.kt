@@ -388,7 +388,15 @@ class CollectionReportViewModel @Inject constructor(
                 lastRange = content.range
                 // El día que de verdad se cargó (puede NO ser el pedido: ciclo nuevo -> hoy).
                 // Guardarlo evita que la petición fantasma sobreviva a la siguiente recarga.
-                if (period == ReportPeriod.DIA) requestedDay = content.selectedDay
+                //
+                // SOLO cuando ya había una petición del usuario. Si `requestedDay` es null, el día
+                // mostrado lo eligió `resolveSelectedDay` (= hoy) y escribirlo aquí lo CONGELARÍA:
+                // un proceso vivo al cruzar la medianoche seguiría marcando el día de ayer como
+                // seleccionado, aunque el cobrador nunca lo tocó. Dejándolo en null, el default
+                // sigue a "hoy" cada vez que se recarga.
+                if (period == ReportPeriod.DIA && requestedDay != null) {
+                    requestedDay = content.selectedDay
+                }
                 mutableState.update { applyContent(it, period, content) }
             } catch (cancellation: CancellationException) {
                 throw cancellation

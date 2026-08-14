@@ -184,7 +184,7 @@ class CollectionReportDayStripBuilderTest {
         // La hora se afirma por sus dígitos: el sufijo AM/PM lo formatea el CLDR de la JVM
         // ("p.m." / "p. m." según versión) y no es lo que este test cuida.
         assertTrue("nota sin la hora de carga: '$nota'", nota.contains("7:33"))
-        assertTrue("nota sin el motivo: '$nota'", nota.contains("inicio del ciclo"))
+        assertTrue("nota sin el motivo: '$nota'", nota.contains("inicio de semana"))
     }
 
     @Test

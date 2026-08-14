@@ -73,7 +73,7 @@ private val DAY_CHIP_BORDER = 1.5.dp
  * tablero. Se separan: el contenedor externo recibe el toque con el piso de 56dp, el interno
  * pinta compacto. El usuario toca lo mismo de siempre y ve una tira discreta.
  */
-private val DAY_CHIP_PADDING_VERTICAL = 6.dp
+private val DAY_CHIP_PADDING_VERTICAL = 12.dp
 
 /** `EEE` es-MX -> "lun".."dom" (el mismo formato corto que usa la sparkline de Semana). */
 private const val WEEKDAY_SHORT_FORMAT = "EEE"
@@ -91,7 +91,8 @@ private const val EMPTY_DAY_LABEL = "Sin cobros"
 internal data class DayChipPalette(
     val background: Color,
     val content: Color,
-    val border: Color = Color.Transparent
+    val border: Color = Color.Transparent,
+    val label: Color = content
 )
 
 /**
@@ -134,7 +135,7 @@ internal fun dayChipPalette(colors: MspColors, chip: DayChipUi): DayChipPalette 
     !chip.hasCollections ->
         DayChipPalette(colors.surface, colors.onSurfaceMuted)
     else ->
-        DayChipPalette(colors.surface, colors.onSurface)
+        DayChipPalette(colors.surface, colors.onSurface, label = colors.onSurfaceMuted)
 }
 
 /**
@@ -245,6 +246,7 @@ private fun DayChip(chip: DayChipUi, onClick: () -> Unit, modifier: Modifier = M
     val palette = dayChipPalette(MspTheme.colors, chip)
     val background = animatedChipColor(palette.background)
     val content = animatedChipColor(palette.content)
+    val labelColor = animatedChipColor(palette.label)
     val borderColor = animatedChipColor(palette.border)
     val label = dayChipDescription(chip)
     val interactionSource = remember { MutableInteractionSource() }
@@ -287,7 +289,7 @@ private fun DayChip(chip: DayChipUi, onClick: () -> Unit, modifier: Modifier = M
                     .formatDate(chip.date, WEEKDAY_SHORT_FORMAT)
                     .uppercase(BUSINESS_LOCALE),
                 style = MspTheme.type.caption,
-                color = content,
+                color = labelColor,
                 textAlign = TextAlign.Center
             )
             Text(

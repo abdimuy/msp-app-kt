@@ -292,7 +292,7 @@ internal object MockupFixtures {
     val NOTA_CARGA_RUTA_34: String = "desde las ${AppTime.formatForDisplay(
         CARGA_RUTA_34,
         "h:mm a"
-    )} · inicio del ciclo"
+    )} · inicio de semana"
 
     fun stateDia(masked: Boolean = false, error: String? = null): CollectionReportUiState =
         CollectionReportUiState(

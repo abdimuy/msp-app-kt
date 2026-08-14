@@ -99,7 +99,7 @@ internal object CollectionReportDayStripBuilder {
         val carga = fechaCargaInicial ?: return ""
         if (selectedDay == null || AppTime.toBusinessDate(carga) != selectedDay) return ""
         val hora = AppTime.formatForDisplay(carga, CYCLE_START_TIME_FORMAT)
-        return "desde las $hora · inicio del ciclo"
+        return "desde las $hora · inicio de semana"
     }
 
     /** `h:mm a` -> "7:33 p.m." — sin cero a la izquierda, como lo diría el cobrador. */
