@@ -12,17 +12,101 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], manifest = Config.NONE, application = android.app.Application::class)
 class NewSaleFormValidatorTest {
 
+    // --- Casos EXACTOS del incidente del 2026-08-13 ---
+    //
+    // Nueve ventas se quedaron atoradas todo el día en la cola de pendientes.
+    // Siete traían campos que el servidor rechaza y esta pantalla dejó capturar.
+    // Cada `@Test` de este bloque reproduce uno de esos datos reales.
+
+    @Test
+    fun `incidente - ciudad vacia bloquea la venta`() {
+        // 6 de las 9 ventas atoradas iban con ciudad vacía (`ciudad_required`).
+        assertFalse(NewSaleFormValidator.validateCiudad(""))
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(ciudad = ""),
+            hasProducts = true
+        )
+        assertTrue(errors.ciudad)
+        assertTrue(errors.hasAny)
+    }
+
+    @Test
+    fun `incidente - colonia vacia bloquea la venta`() {
+        // 4 de las 9 ventas atoradas iban con colonia vacía (`colonia_required`).
+        assertFalse(NewSaleFormValidator.validateColonia(""))
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(colonia = ""),
+            hasProducts = true
+        )
+        assertTrue(errors.colonia)
+        assertTrue(errors.hasAny)
+    }
+
+    @Test
+    fun `incidente - telefono 000000 bloquea la venta en CONTADO`() {
+        // El dato real: el vendedor tecleó "000000" en una venta de contado, la
+        // app lo aceptó y el mapper emitió "+52000000". Antes de este fix la
+        // función abría con `if (tipoVenta == "CONTADO") return true`.
+        assertFalse(NewSaleFormValidator.validatePhone("000000", "CONTADO"))
+        assertFalse(NewSaleFormValidator.validatePhone("000000", "CREDITO"))
+    }
+
+    @Test
+    fun `incidente - telefono 000000 bloquea via validateAll en CONTADO`() {
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(tipoVenta = "CONTADO", phone = "000000"),
+            hasProducts = true
+        )
+        assertTrue(errors.phone)
+        assertTrue(errors.hasAny)
+    }
+
+    @Test
+    fun `incidente - una venta con los tres campos y telefono bueno si pasa`() {
+        // Contraprueba: la misma venta bien capturada NO debe quedar bloqueada.
+        val errors = NewSaleFormValidator.validateAll(ventaCompleta(), hasProducts = true)
+        assertFalse(errors.hasAny)
+    }
+
     // --- Phone validation ---
 
     @Test
-    fun `validatePhone CONTADO always valid`() {
+    fun `validatePhone CONTADO acepta vacio`() {
+        // Divergencia deliberada del servidor solo en CRÉDITO; en CONTADO el
+        // teléfono es opcional igual que en el API.
         assertTrue(NewSaleFormValidator.validatePhone("", "CONTADO"))
-        assertTrue(NewSaleFormValidator.validatePhone("123", "CONTADO"))
+        assertTrue(NewSaleFormValidator.validatePhone("   ", "CONTADO"))
+    }
+
+    @Test
+    fun `validatePhone CONTADO rechaza basura`() {
+        // Reemplaza al test histórico `validatePhone CONTADO always valid`, que
+        // codificaba el defecto que produjo el incidente: en contado se aceptaba
+        // cualquier cadena.
+        assertFalse(NewSaleFormValidator.validatePhone("123", "CONTADO"))
+        assertFalse(NewSaleFormValidator.validatePhone("000000", "CONTADO"))
+        assertFalse(NewSaleFormValidator.validatePhone("no tiene", "CONTADO"))
     }
 
     @Test
     fun `validatePhone valid 10 digit`() {
         assertTrue(NewSaleFormValidator.validatePhone("5512345678", "CREDITO"))
+    }
+
+    @Test
+    fun `validatePhone acepta los dos formatos en ambos tipos de venta`() {
+        listOf("CONTADO", "CREDITO").forEach { tipo ->
+            assertTrue(NewSaleFormValidator.validatePhone("2381202772", tipo))
+            assertTrue(NewSaleFormValidator.validatePhone("+522381202772", tipo))
+        }
+    }
+
+    @Test
+    fun `validatePhone 9 y 11 digitos bloquean en ambos tipos de venta`() {
+        listOf("CONTADO", "CREDITO").forEach { tipo ->
+            assertFalse(NewSaleFormValidator.validatePhone("238120277", tipo))
+            assertFalse(NewSaleFormValidator.validatePhone("23812027722", tipo))
+        }
     }
 
     @Test
@@ -143,6 +227,80 @@ class NewSaleFormValidatorTest {
         assertFalse(NewSaleFormValidator.validateClientName(""))
     }
 
+    // --- Colonia / Población / Ciudad (obligatorias, semántica del servidor) ---
+
+    @Test
+    fun `validateColonia no vacia es valida`() {
+        assertTrue(NewSaleFormValidator.validateColonia("Centro"))
+    }
+
+    @Test
+    fun `validateColonia vacia es invalida`() {
+        assertFalse(NewSaleFormValidator.validateColonia(""))
+    }
+
+    @Test
+    fun `validateColonia solo blancos cuenta como vacia`() {
+        // El servidor valida DESPUÉS de `strings.TrimSpace`, así que "   " es
+        // cadena vacía para él. Si aquí pasara, la venta reventaría en la cola.
+        assertFalse(NewSaleFormValidator.validateColonia("   "))
+        assertFalse(NewSaleFormValidator.validateColonia("\t\n "))
+    }
+
+    @Test
+    fun `validateColonia admite nombres cortos`() {
+        // A propósito NO se impone un mínimo de longitud: hay colonias legítimas
+        // de nombre muy corto y el servidor solo exige "no vacía".
+        assertTrue(NewSaleFormValidator.validateColonia("2"))
+    }
+
+    @Test
+    fun `validatePoblacion no vacia es valida`() {
+        assertTrue(NewSaleFormValidator.validatePoblacion("Tehuacán"))
+    }
+
+    @Test
+    fun `validatePoblacion vacia y blancos son invalidos`() {
+        assertFalse(NewSaleFormValidator.validatePoblacion(""))
+        assertFalse(NewSaleFormValidator.validatePoblacion("   "))
+    }
+
+    @Test
+    fun `validateCiudad no vacia es valida`() {
+        assertTrue(NewSaleFormValidator.validateCiudad("Puebla"))
+    }
+
+    @Test
+    fun `validateCiudad vacia y blancos son invalidos`() {
+        assertFalse(NewSaleFormValidator.validateCiudad(""))
+        assertFalse(NewSaleFormValidator.validateCiudad("   "))
+    }
+
+    @Test
+    fun `validateAll marca los tres campos de direccion por separado`() {
+        // Cada error va a SU campo: el vendedor debe ver cuál le falta, no un
+        // mensaje genérico al pie del formulario.
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(colonia = "  ", poblacion = "", ciudad = "   "),
+            hasProducts = true
+        )
+        assertTrue(errors.colonia)
+        assertTrue(errors.poblacion)
+        assertTrue(errors.ciudad)
+        assertFalse(errors.clientName)
+        assertFalse(errors.location)
+    }
+
+    @Test
+    fun `validateAll exige direccion completa tambien en CONTADO`() {
+        // El API no distingue tipo de venta para la dirección.
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(tipoVenta = "CONTADO", ciudad = ""),
+            hasProducts = true
+        )
+        assertTrue(errors.ciudad)
+    }
+
     // --- Street validation ---
 
     @Test
@@ -240,6 +398,9 @@ class NewSaleFormValidatorTest {
         assertTrue(errors.clientName)
         assertTrue(errors.phone)
         assertTrue(errors.location)
+        assertTrue(errors.colonia)
+        assertTrue(errors.poblacion)
+        assertTrue(errors.ciudad)
         assertTrue(errors.installment)
         assertTrue(errors.paymentFrequency)
         assertTrue(errors.collectionDay)
@@ -255,6 +416,9 @@ class NewSaleFormValidatorTest {
             clientName = "Juan Perez",
             phone = "5512345678",
             street = "Calle Principal 123",
+            colonia = "Centro",
+            poblacion = "Tehuacán",
+            ciudad = "Puebla",
             latitude = 19.432608,
             longitude = -99.133209,
             locationPermissionGranted = true,
@@ -271,6 +435,9 @@ class NewSaleFormValidatorTest {
         assertFalse(errors.clientName)
         assertFalse(errors.phone)
         assertFalse(errors.location)
+        assertFalse(errors.colonia)
+        assertFalse(errors.poblacion)
+        assertFalse(errors.ciudad)
         assertFalse(errors.installment)
         assertFalse(errors.paymentFrequency)
         assertFalse(errors.collectionDay)
@@ -278,6 +445,7 @@ class NewSaleFormValidatorTest {
         assertFalse(errors.products)
         assertFalse(errors.downpayment)
         assertFalse(errors.zone)
+        assertFalse(errors.hasAny)
     }
 
     @Test
@@ -286,6 +454,9 @@ class NewSaleFormValidatorTest {
             clientName = "Juan Perez",
             phone = "",
             street = "Calle Principal 123",
+            colonia = "Centro",
+            poblacion = "Tehuacán",
+            ciudad = "Puebla",
             latitude = 19.432608,
             longitude = -99.133209,
             locationPermissionGranted = true,
@@ -297,6 +468,9 @@ class NewSaleFormValidatorTest {
         assertFalse(errors.clientName)
         assertFalse(errors.phone)
         assertFalse(errors.location)
+        assertFalse(errors.colonia)
+        assertFalse(errors.poblacion)
+        assertFalse(errors.ciudad)
         assertFalse(errors.installment)
         assertFalse(errors.paymentFrequency)
         assertFalse(errors.collectionDay)
@@ -304,6 +478,7 @@ class NewSaleFormValidatorTest {
         assertFalse(errors.products)
         assertFalse(errors.downpayment)
         assertFalse(errors.zone)
+        assertFalse(errors.hasAny)
     }
 
     // --- isAllValid ---
@@ -319,6 +494,9 @@ class NewSaleFormValidatorTest {
             clientName = "Juan Perez",
             phone = "5512345678",
             street = "Calle Principal 123",
+            colonia = "Centro",
+            poblacion = "Tehuacán",
+            ciudad = "Puebla",
             latitude = 19.432608,
             longitude = -99.133209,
             locationPermissionGranted = true,
@@ -331,5 +509,132 @@ class NewSaleFormValidatorTest {
             imageUris = listOf(Uri.parse("content://test/image.jpg"))
         )
         assertTrue(NewSaleFormValidator.isAllValid(state, hasProducts = true))
+    }
+
+    @Test
+    fun `isAllValid bloquea si falta ciudad aunque todo lo demas este`() {
+        val state = ventaCompleta(ciudad = "").copy(
+            latitude = 19.432608,
+            longitude = -99.133209,
+            locationPermissionGranted = true
+        )
+        assertFalse(NewSaleFormValidator.isAllValid(state, hasProducts = true))
+    }
+
+    // --- Camino de EDICIÓN ---
+    //
+    // `EditSaleScreen` ya no trae reglas propias: empaqueta sus `remember` en un
+    // `NewSaleFormState` y llama a `validateAll` con `hasImages` explícito
+    // (en edición las imágenes válidas son las del servidor menos las borradas
+    // más las nuevas, y eso no cabe en `state.imageUris`). Estos tests ejercen
+    // ese contrato exacto.
+
+    @Test
+    fun `edicion - ciudad vacia bloquea el guardado`() {
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(ciudad = ""),
+            hasProducts = true,
+            hasImages = true
+        )
+        assertTrue(errors.ciudad)
+        assertTrue(errors.hasAny)
+    }
+
+    @Test
+    fun `edicion - colonia en blanco bloquea el guardado`() {
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(colonia = "   "),
+            hasProducts = true,
+            hasImages = true
+        )
+        assertTrue(errors.colonia)
+        assertTrue(errors.hasAny)
+    }
+
+    @Test
+    fun `edicion - telefono 000000 bloquea el guardado en CONTADO`() {
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(tipoVenta = "CONTADO", phone = "000000"),
+            hasProducts = true,
+            hasImages = true
+        )
+        assertTrue(errors.phone)
+    }
+
+    @Test
+    fun `edicion - venta bien capturada pasa aunque state imageUris este vacio`() {
+        // Las imágenes ya existentes viven en el servidor, no en `imageUris`;
+        // sin el parámetro `hasImages` toda edición quedaría bloqueada.
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(),
+            hasProducts = true,
+            hasImages = true
+        )
+        assertFalse(errors.image)
+        assertFalse(errors.hasAny)
+    }
+
+    @Test
+    fun `edicion - sin imagenes ni productos marca ambos errores`() {
+        val errors = NewSaleFormValidator.validateAll(
+            ventaCompleta(),
+            hasProducts = false,
+            hasImages = false
+        )
+        assertTrue(errors.image)
+        assertTrue(errors.products)
+    }
+
+    @Test
+    fun `edicion - parcialidad decimal precargada de Room sigue siendo valida`() {
+        // `EditSaleScreen` precarga el campo con `sale.PARCIALIDAD.toString()`,
+        // o sea "500.0". Aplicarle la regla entera del alta marcaría en rojo la
+        // parcialidad de TODA venta existente y bloquearía el guardado sin que
+        // el vendedor tocara nada — de ahí `validateInstallmentEdit`.
+        assertTrue(NewSaleFormValidator.validateInstallmentEdit("500.0", "CREDITO"))
+        assertFalse(NewSaleFormValidator.validateInstallment("500.0", "CREDITO"))
+    }
+
+    @Test
+    fun `edicion - parcialidad cero o no numerica sigue bloqueando`() {
+        assertFalse(NewSaleFormValidator.validateInstallmentEdit("0", "CREDITO"))
+        assertFalse(NewSaleFormValidator.validateInstallmentEdit("-1", "CREDITO"))
+        assertFalse(NewSaleFormValidator.validateInstallmentEdit("abc", "CREDITO"))
+        assertTrue(NewSaleFormValidator.validateInstallmentEdit("", "CONTADO"))
+    }
+
+    // --- Helper ---
+
+    /**
+     * Venta de CRÉDITO completa y correcta, con datos realistas de la zona.
+     * Cada test sobreescribe SOLO el campo que quiere romper, así una aserción
+     * en rojo señala inequívocamente qué regla falló.
+     */
+    private fun ventaCompleta(
+        clientName: String = "Juan Hernández Cruz",
+        phone: String = "2381202772",
+        street: String = "Avenida Independencia 45",
+        colonia: String = "Centro",
+        poblacion: String = "Tehuacán",
+        ciudad: String = "Puebla",
+        tipoVenta: String = "CREDITO"
+    ): NewSaleFormState {
+        val esCredito = tipoVenta != "CONTADO"
+        return NewSaleFormState(
+            clientName = clientName,
+            phone = phone,
+            street = street,
+            numero = "45",
+            colonia = colonia,
+            poblacion = poblacion,
+            ciudad = ciudad,
+            tipoVenta = tipoVenta,
+            installment = if (esCredito) "500" else "",
+            paymentFrequency = if (esCredito) "SEMANAL" else "",
+            collectionDay = if (esCredito) "LUNES" else "",
+            selectedZoneId = if (esCredito) 1 else null,
+            selectedZoneName = if (esCredito) "Zona Norte" else "",
+            imageUris = listOf(Uri.parse("content://test/image.jpg"))
+        )
     }
 }

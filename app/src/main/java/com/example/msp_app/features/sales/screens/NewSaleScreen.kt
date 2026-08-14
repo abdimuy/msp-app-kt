@@ -806,7 +806,7 @@ fun NewSaleScreen(navController: NavController) {
                         supportingText = if (formState.errors.phone) {
                             {
                                 Text(
-                                    "El teléfono debe tener al menos 10 dígitos",
+                                    "El teléfono debe tener 10 dígitos",
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
@@ -872,10 +872,27 @@ fun NewSaleScreen(navController: NavController) {
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
+                        // Colonia / Población / Ciudad llevan `*` y error propio
+                        // desde el incidente del 2026-08-13: el API las exige no
+                        // vacías y antes se capturaban en blanco sin aviso, así
+                        // que la venta reventaba horas después en la cola de
+                        // pendientes en vez de aquí. El error se cablea a SU
+                        // campo para que el vendedor vea cuál le falta.
                         OutlinedTextField(
                             value = formState.colonia,
                             onValueChange = { formViewModel.updateColonia(it) },
-                            label = { Text("Colonia") },
+                            label = { Text("Colonia *") },
+                            isError = formState.errors.colonia,
+                            supportingText = if (formState.errors.colonia) {
+                                {
+                                    Text(
+                                        "Colonia obligatoria",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
@@ -890,14 +907,36 @@ fun NewSaleScreen(navController: NavController) {
                         OutlinedTextField(
                             value = formState.poblacion,
                             onValueChange = { formViewModel.updatePoblacion(it) },
-                            label = { Text("Población") },
+                            label = { Text("Población *") },
+                            isError = formState.errors.poblacion,
+                            supportingText = if (formState.errors.poblacion) {
+                                {
+                                    Text(
+                                        "Población obligatoria",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
                             value = formState.ciudad,
                             onValueChange = { formViewModel.updateCiudad(it) },
-                            label = { Text("Ciudad") },
+                            label = { Text("Ciudad *") },
+                            isError = formState.errors.ciudad,
+                            supportingText = if (formState.errors.ciudad) {
+                                {
+                                    Text(
+                                        "Ciudad obligatoria",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )

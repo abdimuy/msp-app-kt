@@ -5,6 +5,7 @@ import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
 import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.core.utils.MexicanPhone
 import com.example.msp_app.data.api.services.localSales.LocalSaleComboRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleProductRequest
 import com.example.msp_app.data.api.services.localSales.LocalSaleRequest
@@ -22,6 +23,32 @@ import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.UUID
+
+/**
+ * Normaliza un teléfono a E.164 (`+52##########`) para el body de `POST /v2/ventas`,
+ * o devuelve `null` cuando el número no es un mexicano válido de 10 dígitos.
+ *
+ * **Última línea de defensa del incidente 2026-08-13.** La versión anterior
+ * anteponía `+52` a lo que fuera con tal de que hubiera al menos un dígito y
+ * dejaba pasar intacta cualquier cadena que empezara con `+`, sin contar nunca
+ * los dígitos. Con el teclado numérico de la pantalla eso convirtió un `000000`
+ * mal tecleado en `+52000000`, que el API rechaza con `telefono_invalid`; la
+ * venta se quedó rebotando en la cola de pendientes un día entero.
+ *
+ * Devolver `null` en vez de emitir basura es deliberado y asimétrico a favor de
+ * que la venta ENTRE: para el servidor el teléfono es opcional en todos los
+ * tipos de venta (`optionalTelefono` en `internal/ventas/app/crear_venta.go`),
+ * así que "sin teléfono" siempre pasa mientras que "teléfono inválido" siempre
+ * rechaza. Esto además desatasca solo las filas viejas que ya viven en Room con
+ * teléfonos malos —al reintentarse salen sin teléfono y entran— que es
+ * exactamente la corrección que se aplicó a mano para desatorar la venta de
+ * Juan Hernández Cruz.
+ *
+ * La regla de formato vive en [MexicanPhone], compartida con
+ * `NewSaleFormValidator`, para que la pantalla de captura y el cable no puedan
+ * volver a opinar distinto sobre qué teléfono es válido.
+ */
+internal fun normalizeTelefonoE164(raw: String): String? = MexicanPhone.toE164OrNull(raw)
 
 // Formatea un monto a exactamente 2 decimales para el API (columna NUMERIC(14,2)).
 // Double.toString() puede emitir basura de punto flotante (p. ej. una suma de
@@ -293,20 +320,6 @@ class LocalSaleMappers {
             productos = productosDtos,
             vendedores = vendedores
         )
-    }
-
-    /**
-     * Normalizes a phone number to E.164. Returns null if blank.
-     * If the input lacks a `+` prefix, assumes Mexico (+52) and strips
-     * non-digit characters before prepending the country code.
-     */
-    private fun normalizeTelefonoE164(raw: String): String? {
-        val trimmed = raw.trim()
-        if (trimmed.isBlank()) return null
-        if (trimmed.startsWith("+")) return trimmed
-        val digits = trimmed.filter { it.isDigit() }
-        if (digits.isEmpty()) return null
-        return "+52$digits"
     }
 
     private fun normalizeFrecPago(raw: String): String = raw.uppercase()

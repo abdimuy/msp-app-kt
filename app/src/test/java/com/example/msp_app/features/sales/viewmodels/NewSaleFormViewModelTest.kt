@@ -58,10 +58,86 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `updatePhone skips validation for CONTADO`() {
+    fun `updatePhone acepta vacio en CONTADO`() {
         viewModel.updateTipoVenta("CONTADO")
-        viewModel.updatePhone("123")
+        viewModel.updatePhone("")
         assertFalse(viewModel.formState.value.errors.phone)
+    }
+
+    @Test
+    fun `incidente - updatePhone marca error para 000000 en CONTADO`() {
+        // Sustituye al test histórico `updatePhone skips validation for CONTADO`,
+        // que fijaba el defecto del incidente del 2026-08-13: en contado se
+        // aceptaba cualquier cadena y "000000" viajaba como "+52000000".
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.updatePhone("000000")
+        assertTrue(viewModel.formState.value.errors.phone)
+    }
+
+    @Test
+    fun `updatePhone acepta telefono valido en CONTADO`() {
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.updatePhone("2381202772")
+        assertFalse(viewModel.formState.value.errors.phone)
+    }
+
+    @Test
+    fun `updateTipoVenta a CONTADO apaga el error de telefono vacio`() {
+        viewModel.updatePhone("") // en CRÉDITO el vacío es error…
+        viewModel.updatePhone("123")
+        assertTrue(viewModel.formState.value.errors.phone)
+        viewModel.updatePhone("")
+        viewModel.updateTipoVenta("CONTADO") // …y en CONTADO deja de serlo
+        assertFalse(viewModel.formState.value.errors.phone)
+    }
+
+    @Test
+    fun `updateTipoVenta no enciende errores en un campo intacto`() {
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.updateTipoVenta("CREDITO")
+        assertFalse(viewModel.formState.value.errors.phone)
+    }
+
+    // --- Colonia / Población / Ciudad (incidente 2026-08-13) ---
+
+    @Test
+    fun `incidente - updateCiudad en blanco marca error`() {
+        viewModel.updateCiudad("   ")
+        assertTrue(viewModel.formState.value.errors.ciudad)
+    }
+
+    @Test
+    fun `incidente - updateColonia en blanco marca error`() {
+        viewModel.updateColonia("   ")
+        assertTrue(viewModel.formState.value.errors.colonia)
+    }
+
+    @Test
+    fun `updatePoblacion en blanco marca error`() {
+        viewModel.updatePoblacion("   ")
+        assertTrue(viewModel.formState.value.errors.poblacion)
+    }
+
+    @Test
+    fun `updateColonia con valor limpia el error`() {
+        viewModel.updateColonia("   ")
+        viewModel.updateColonia("Centro")
+        assertFalse(viewModel.formState.value.errors.colonia)
+    }
+
+    @Test
+    fun `updateCiudad con valor limpia el error`() {
+        viewModel.updateCiudad("   ")
+        viewModel.updateCiudad("Puebla")
+        assertFalse(viewModel.formState.value.errors.ciudad)
+    }
+
+    @Test
+    fun `un formulario intacto no pinta en rojo colonia poblacion ni ciudad`() {
+        val errors = viewModel.formState.value.errors
+        assertFalse(errors.colonia)
+        assertFalse(errors.poblacion)
+        assertFalse(errors.ciudad)
     }
 
     @Test
@@ -199,14 +275,73 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
     }
 
     @Test
+    fun `validateFields empty CREDITO form marca colonia poblacion y ciudad`() {
+        viewModel.validateFields(hasProducts = false)
+        val errors = viewModel.formState.value.errors
+        assertTrue(errors.colonia)
+        assertTrue(errors.poblacion)
+        assertTrue(errors.ciudad)
+    }
+
+    @Test
     fun `validateFields valid CONTADO returns true`() {
         viewModel.updateClientName("Juan Perez")
         viewModel.updateStreet("Calle Principal 123")
+        viewModel.updateColonia("Centro")
+        viewModel.updatePoblacion("Tehuacán")
+        viewModel.updateCiudad("Puebla")
         viewModel.updateLocation(19.432608, -99.133209)
         viewModel.updateTipoVenta("CONTADO")
         viewModel.addImageUri(Uri.parse("content://test/image.jpg"))
         val result = viewModel.validateFields(hasProducts = true)
         assertTrue(result)
+    }
+
+    @Test
+    fun `incidente - validateFields bloquea una venta de CONTADO con ciudad vacia`() {
+        // Reproduce las 6 ventas del 2026-08-13 que se fueron sin ciudad.
+        viewModel.updateClientName("Juan Hernández Cruz")
+        viewModel.updateStreet("Avenida Independencia 45")
+        viewModel.updateColonia("Centro")
+        viewModel.updatePoblacion("Tehuacán")
+        viewModel.updateLocation(19.432608, -99.133209)
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.addImageUri(Uri.parse("content://test/image.jpg"))
+
+        assertFalse(viewModel.validateFields(hasProducts = true))
+        assertTrue(viewModel.formState.value.errors.ciudad)
+    }
+
+    @Test
+    fun `incidente - validateFields bloquea una venta de CONTADO con telefono 000000`() {
+        viewModel.updateClientName("Juan Hernández Cruz")
+        viewModel.updateStreet("Avenida Independencia 45")
+        viewModel.updateColonia("Centro")
+        viewModel.updatePoblacion("Tehuacán")
+        viewModel.updateCiudad("Puebla")
+        viewModel.updateLocation(19.432608, -99.133209)
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.updatePhone("000000")
+        viewModel.addImageUri(Uri.parse("content://test/image.jpg"))
+
+        assertFalse(viewModel.validateFields(hasProducts = true))
+        assertTrue(viewModel.formState.value.errors.phone)
+    }
+
+    @Test
+    fun `telefono vacio pasa en CONTADO de punta a punta`() {
+        viewModel.updateClientName("Juan Hernández Cruz")
+        viewModel.updateStreet("Avenida Independencia 45")
+        viewModel.updateColonia("Centro")
+        viewModel.updatePoblacion("Tehuacán")
+        viewModel.updateCiudad("Puebla")
+        viewModel.updateLocation(19.432608, -99.133209)
+        viewModel.updateTipoVenta("CONTADO")
+        viewModel.updatePhone("")
+        viewModel.addImageUri(Uri.parse("content://test/image.jpg"))
+
+        assertTrue(viewModel.validateFields(hasProducts = true))
+        assertEquals("", viewModel.buildSaleData().phone)
     }
 
     @Test
@@ -303,6 +438,32 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
         assertNull(data.numero)
         assertNull(data.colonia)
         assertNull(data.poblacion)
+        assertNull(data.ciudad)
+    }
+
+    @Test
+    fun `buildSaleData recorta espacios de la direccion`() {
+        // El servidor valida DESPUÉS de trim: si persistiéramos "  Centro  ",
+        // "   " pasaría el `ifBlank` de la app y llegaría vacío al API.
+        viewModel.updateNumero("  45  ")
+        viewModel.updateColonia("  Centro  ")
+        viewModel.updatePoblacion("  Tehuacán  ")
+        viewModel.updateCiudad("  Puebla  ")
+        viewModel.updateStreet("  Avenida Independencia 45  ")
+        val data = viewModel.buildSaleData()
+        assertEquals("45", data.numero)
+        assertEquals("Centro", data.colonia)
+        assertEquals("Tehuacán", data.poblacion)
+        assertEquals("Puebla", data.ciudad)
+        assertEquals("Avenida Independencia 45", data.address)
+    }
+
+    @Test
+    fun `buildSaleData blancos en la direccion terminan en null`() {
+        viewModel.updateColonia("   ")
+        viewModel.updateCiudad("\t ")
+        val data = viewModel.buildSaleData()
+        assertNull(data.colonia)
         assertNull(data.ciudad)
     }
 

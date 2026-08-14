@@ -79,6 +79,8 @@ import com.example.msp_app.features.sales.components.productselector.ProductSele
 import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
 import com.example.msp_app.features.sales.viewmodels.EditLocalSaleViewModel
+import com.example.msp_app.features.sales.viewmodels.NewSaleFormState
+import com.example.msp_app.features.sales.viewmodels.NewSaleFormValidator
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
 import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
@@ -140,6 +142,11 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     var defectNameError by remember { mutableStateOf(false) }
     var phoneError by remember { mutableStateOf(false) }
     var locationError by remember { mutableStateOf(false) }
+    // Colonia/Población/Ciudad: obligatorias en el API desde siempre, sin error
+    // propio en esta pantalla hasta el incidente del 2026-08-13.
+    var coloniaError by remember { mutableStateOf(false) }
+    var poblacionError by remember { mutableStateOf(false) }
+    var ciudadError by remember { mutableStateOf(false) }
     var installmentError by remember { mutableStateOf(false) }
     var paymentFrequencyError by remember { mutableStateOf(false) }
     var collectionDayError by remember { mutableStateOf(false) }
@@ -308,105 +315,126 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         }
     }
 
-    // Validation functions
+    // --- Validación ---
+    //
+    // Esta pantalla tenía su propia COPIA de las reglas en funciones locales del
+    // composable. Copiar reglas es como el incidente del 2026-08-13 se hizo
+    // permanente: la copia del alta y la de la edición podían (y de hecho lo
+    // hacían) discrepar entre sí y con el servidor sin que nada lo notara — el
+    // teléfono de aquí solo medía `length == 10` sobre el texto crudo, y ni esta
+    // pantalla ni la de alta validaban colonia/población/ciudad. Ahora ambas
+    // llaman a `NewSaleFormValidator`, la única fuente de verdad, empaquetando el
+    // estado local en un `NewSaleFormState`. Un vendedor no debe poder editar una
+    // venta pendiente y dejarla en un estado que el servidor rechace: sería
+    // reponer el atasco que estaba tratando de resolver.
+
+    // Las funciones `validateX` de abajo ya NO contienen reglas: solo adaptan el
+    // veredicto del validador compartido a los `remember` de error de esta
+    // pantalla, para poder revalidar campo por campo mientras el vendedor teclea.
+
     fun validateClientName(name: String): Boolean {
-        val isValid = name.isNotBlank() && name.length >= 3
+        val isValid = NewSaleFormValidator.validateClientName(name)
         defectNameError = !isValid
         return isValid
     }
 
     fun validatePhone(phoneNumber: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            phoneError = false
-            return true
-        }
-        val isValid = phoneNumber.isNotBlank() && phoneNumber.length == 10
+        val isValid = NewSaleFormValidator.validatePhone(phoneNumber, tipoVenta)
         phoneError = !isValid
         return isValid
     }
 
     fun validateLocation(loc: String): Boolean {
-        val isValid = loc.isNotBlank() && loc.length >= 5
+        val isValid = NewSaleFormValidator.validateStreet(loc)
         locationError = !isValid
         return isValid
     }
 
+    fun validateColonia(value: String) {
+        coloniaError = !NewSaleFormValidator.validateColonia(value)
+    }
+
+    fun validatePoblacion(value: String) {
+        poblacionError = !NewSaleFormValidator.validatePoblacion(value)
+    }
+
+    fun validateCiudad(value: String) {
+        ciudadError = !NewSaleFormValidator.validateCiudad(value)
+    }
+
     fun validateInstallment(amount: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            installmentError = false
-            return true
-        }
-        val amountDouble = amount.toDoubleOrNull()
-        val isValid = amountDouble != null && amountDouble > 0
+        val isValid = NewSaleFormValidator.validateInstallmentEdit(amount, tipoVenta)
         installmentError = !isValid
         return isValid
     }
 
     fun validatePaymentFrequency(frequency: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            paymentFrequencyError = false
-            return true
-        }
-        val isValid = frequency.isNotBlank()
+        val isValid = NewSaleFormValidator.validatePaymentFrequency(frequency, tipoVenta)
         paymentFrequencyError = !isValid
         return isValid
     }
 
     fun validateCollectionDay(day: String): Boolean {
-        if (tipoVenta == "CONTADO") {
-            collectionDayError = false
-            return true
-        }
-        val isValid = day.isNotBlank()
+        val isValid = NewSaleFormValidator.validateCollectionDay(day, tipoVenta)
         collectionDayError = !isValid
         return isValid
     }
 
     fun validateDownpayment(amount: String): Boolean {
-        val amountDouble = amount.toDoubleOrNull()
-        val isValid = amount.isBlank() || (amountDouble != null && amountDouble >= 0)
+        val isValid = NewSaleFormValidator.validateDownpayment(amount)
         downpaymentError = !isValid
         return isValid
     }
 
-    fun validateZone(): Boolean {
-        if (tipoVenta == "CONTADO") {
-            zoneError = false
-            return true
-        }
-        val isValid = selectedZoneId != null && selectedZoneName.isNotBlank()
-        zoneError = !isValid
-        return isValid
-    }
-
-    fun validateImages(): Boolean {
-        val remainingExistingImages = existingImages.count { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
-        val isValid = remainingExistingImages + newImageUris.size > 0
-        imageError = !isValid
-        return isValid
-    }
-
-    fun validateProducts(): Boolean {
-        val isValid = saleProductsViewModel.hasItems()
-        productsError = !isValid
-        return isValid
-    }
+    /** Empaqueta los `remember` de esta pantalla en el estado que consume el validador compartido. */
+    fun currentFormState(): NewSaleFormState = NewSaleFormState(
+        clientName = defectName.text,
+        phone = phone.text,
+        street = location,
+        numero = numero.text,
+        colonia = colonia.text,
+        poblacion = poblacion.text,
+        ciudad = ciudad.text,
+        tipoVenta = tipoVenta,
+        selectedZoneId = selectedZoneId,
+        selectedZoneName = selectedZoneName,
+        downpayment = downpayment.text,
+        installment = installment.text,
+        collectionDay = collectionday,
+        paymentFrequency = paymentfrequency
+    )
 
     fun validateFields(): Boolean {
-        val clientNameValid = validateClientName(defectName.text)
-        val phoneValid = validatePhone(phone.text)
-        val locationValid = validateLocation(location)
-        val downpaymentValid = validateDownpayment(downpayment.text)
-        val installmentValid = validateInstallment(installment.text)
-        val paymentFrequencyValid = validatePaymentFrequency(paymentfrequency)
-        val collectionDayValid = validateCollectionDay(collectionday)
-        val imagesValid = validateImages()
-        val productsValid = validateProducts()
-        val zoneValid = validateZone()
+        // En edición las imágenes válidas son las que siguen en el servidor
+        // (menos las marcadas para borrar) más las nuevas del carrete — un
+        // conteo que no cabe en `NewSaleFormState.imageUris`, por eso viaja
+        // aparte a `validateAll`.
+        val remainingExistingImages = existingImages.count { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
+        val errors = NewSaleFormValidator.validateAll(
+            state = currentFormState(),
+            hasProducts = saleProductsViewModel.hasItems(),
+            hasImages = remainingExistingImages + newImageUris.size > 0
+        ).copy(
+            // Única bandera que esta pantalla NO toma tal cual del alta; el porqué
+            // está documentado en `NewSaleFormValidator.validateInstallmentEdit`.
+            installment = !NewSaleFormValidator.validateInstallmentEdit(installment.text, tipoVenta)
+        )
 
-        return clientNameValid && phoneValid && locationValid &&
-            installmentValid && paymentFrequencyValid && downpaymentValid && collectionDayValid &&
-            imagesValid && productsValid && zoneValid
+        defectNameError = errors.clientName
+        phoneError = errors.phone
+        locationError = errors.location
+        coloniaError = errors.colonia
+        poblacionError = errors.poblacion
+        ciudadError = errors.ciudad
+        installmentError = errors.installment
+        paymentFrequencyError = errors.paymentFrequency
+        collectionDayError = errors.collectionDay
+        downpaymentError = errors.downpayment
+        zoneError = errors.zone
+        imageError = errors.image
+        productsError = errors.products
+
+        return !errors.hasAny
     }
 
     fun updateSale() {
@@ -433,15 +461,18 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             newImageUris = newImageUris,
             latitude = latitude,
             longitude = longitude,
-            address = location,
-            numero = numero.text.ifBlank { null },
-            colonia = colonia.text.ifBlank { null },
-            poblacion = poblacion.text.ifBlank { null },
-            ciudad = ciudad.text.ifBlank { null },
+            address = location.trim(),
+            // Mismo `trim` que el alta: el servidor valida contra el valor ya
+            // recortado, así que persistir "   " tal cual llegaría al API como
+            // cadena vacía y reventaría en la cola, no en la pantalla.
+            numero = numero.text.trim().ifBlank { null },
+            colonia = colonia.text.trim().ifBlank { null },
+            poblacion = poblacion.text.trim().ifBlank { null },
+            ciudad = ciudad.text.trim().ifBlank { null },
             tipoVenta = tipoVenta,
             installment = if (tipoVenta == "CONTADO") 0.0 else installment.text.toDoubleOrNull() ?: 0.0,
             downpayment = if (tipoVenta == "CONTADO") 0.0 else downpayment.text.toDoubleOrNull() ?: 0.0,
-            phone = phone.text.ifBlank { "" },
+            phone = phone.text.trim(),
             paymentfrequency = if (tipoVenta == "CONTADO") "" else paymentfrequency,
             avaloresponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
             note = note.text,
@@ -743,7 +774,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                         supportingText = if (phoneError) {
                             {
                                 Text(
-                                    "El teléfono debe tener al menos 10 dígitos",
+                                    "El teléfono debe tener 10 dígitos",
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
@@ -797,10 +828,30 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
+                        // Mismo cableado que el alta: error propio por campo, no un
+                        // mensaje genérico. Editar una venta pendiente no debe
+                        // poder dejarla en un estado que el servidor rechace —
+                        // sería reponer justo el atasco que se está resolviendo.
                         OutlinedTextField(
                             value = colonia,
-                            onValueChange = { colonia = it },
-                            label = { Text("Colonia") },
+                            onValueChange = { newValue ->
+                                colonia = newValue
+                                if (newValue.text.isNotEmpty() || coloniaError) {
+                                    validateColonia(newValue.text)
+                                }
+                            },
+                            label = { Text("Colonia *") },
+                            isError = coloniaError,
+                            supportingText = if (coloniaError) {
+                                {
+                                    Text(
+                                        "Colonia obligatoria",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
@@ -814,15 +865,47 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                     ) {
                         OutlinedTextField(
                             value = poblacion,
-                            onValueChange = { poblacion = it },
-                            label = { Text("Población") },
+                            onValueChange = { newValue ->
+                                poblacion = newValue
+                                if (newValue.text.isNotEmpty() || poblacionError) {
+                                    validatePoblacion(newValue.text)
+                                }
+                            },
+                            label = { Text("Población *") },
+                            isError = poblacionError,
+                            supportingText = if (poblacionError) {
+                                {
+                                    Text(
+                                        "Población obligatoria",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )
                         OutlinedTextField(
                             value = ciudad,
-                            onValueChange = { ciudad = it },
-                            label = { Text("Ciudad") },
+                            onValueChange = { newValue ->
+                                ciudad = newValue
+                                if (newValue.text.isNotEmpty() || ciudadError) {
+                                    validateCiudad(newValue.text)
+                                }
+                            },
+                            label = { Text("Ciudad *") },
+                            isError = ciudadError,
+                            supportingText = if (ciudadError) {
+                                {
+                                    Text(
+                                        "Ciudad obligatoria",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else {
+                                null
+                            },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(15.dp)
                         )

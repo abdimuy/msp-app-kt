@@ -62,16 +62,44 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
         _formState.update { it.copy(numero = value) }
     }
 
+    /**
+     * Colonia, población y ciudad son OBLIGATORIAS (el API las rechaza vacías,
+     * ver [NewSaleFormValidator]). Se revalidan al teclear con el mismo criterio
+     * que el resto de campos: solo se recalcula el error si el campo ya tiene
+     * algo escrito o si el error ya estaba visible, para no marcar en rojo un
+     * formulario que el vendedor todavía no ha tocado.
+     */
     fun updateColonia(value: String) {
-        _formState.update { it.copy(colonia = value) }
+        _formState.update { state ->
+            val newErrors = if (value.isNotEmpty() || state.errors.colonia) {
+                state.errors.copy(colonia = !NewSaleFormValidator.validateColonia(value))
+            } else {
+                state.errors
+            }
+            state.copy(colonia = value, errors = newErrors)
+        }
     }
 
     fun updatePoblacion(value: String) {
-        _formState.update { it.copy(poblacion = value) }
+        _formState.update { state ->
+            val newErrors = if (value.isNotEmpty() || state.errors.poblacion) {
+                state.errors.copy(poblacion = !NewSaleFormValidator.validatePoblacion(value))
+            } else {
+                state.errors
+            }
+            state.copy(poblacion = value, errors = newErrors)
+        }
     }
 
     fun updateCiudad(value: String) {
-        _formState.update { it.copy(ciudad = value) }
+        _formState.update { state ->
+            val newErrors = if (value.isNotEmpty() || state.errors.ciudad) {
+                state.errors.copy(ciudad = !NewSaleFormValidator.validateCiudad(value))
+            } else {
+                state.errors
+            }
+            state.copy(ciudad = value, errors = newErrors)
+        }
     }
 
     fun updateLocation(latitude: Double, longitude: Double) {
@@ -87,15 +115,21 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
 
     fun updateTipoVenta(value: String) {
         _formState.update { state ->
+            // El teléfono cambia de reglas al cambiar el tipo de venta (vacío es
+            // válido en CONTADO, no en CRÉDITO). Solo se REEVALÚA un error que ya
+            // estaba visible, para poder apagarlo; nunca se enciende uno nuevo al
+            // vuelo, o cambiar a crédito pintaría en rojo un campo intacto.
+            val phoneError = state.errors.phone &&
+                !NewSaleFormValidator.validatePhone(state.phone, value)
             if (value == "CONTADO") {
                 state.copy(
                     tipoVenta = value,
                     selectedZoneId = null,
                     selectedZoneName = "",
-                    errors = state.errors.copy(zone = false)
+                    errors = state.errors.copy(zone = false, phone = phoneError)
                 )
             } else {
-                state.copy(tipoVenta = value)
+                state.copy(tipoVenta = value, errors = state.errors.copy(phone = phoneError))
             }
         }
     }
@@ -408,15 +442,19 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
             imageUris = state.imageUris,
             latitude = state.latitude,
             longitude = state.longitude,
-            address = state.street,
-            numero = state.numero.ifBlank { null },
-            colonia = state.colonia.ifBlank { null },
-            poblacion = state.poblacion.ifBlank { null },
-            ciudad = state.ciudad.ifBlank { null },
+            address = state.street.trim(),
+            // Se recortan espacios ANTES de persistir: el servidor valida contra
+            // el valor ya trimeado, así que un "   " guardado tal cual llegaría
+            // al API como cadena vacía y dispararía `colonia_required` y
+            // compañía en la cola de pendientes, no en la pantalla.
+            numero = state.numero.trim().ifBlank { null },
+            colonia = state.colonia.trim().ifBlank { null },
+            poblacion = state.poblacion.trim().ifBlank { null },
+            ciudad = state.ciudad.trim().ifBlank { null },
             tipoVenta = tipoVenta,
             installment = if (tipoVenta == "CONTADO") 0.0 else state.installment.toDoubleOrNull() ?: 0.0,
             downpayment = if (tipoVenta == "CONTADO") 0.0 else state.downpayment.toDoubleOrNull() ?: 0.0,
-            phone = state.phone.ifBlank { "" },
+            phone = state.phone.trim(),
             paymentFrequency = if (tipoVenta == "CONTADO") "" else state.paymentFrequency,
             guarantor = if (tipoVenta == "CONTADO") "" else state.guarantor,
             note = state.note,
