@@ -14,6 +14,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * Ensamblador PURO (sin I/O ni corrutinas) del contenido cargado del reporte: toma las
@@ -32,7 +33,11 @@ internal object CollectionReportStateBuilder {
         val period: ReportPeriod,
         val range: DateRange,
         val clock: AppClock,
-        val sort: DetailSort
+        val sort: DetailSort,
+        // Día del ciclo que se está mostrando en DÍA (`null` en SEMANA, y en DÍA cuando el
+        // cobrador no tiene ciclo). Ya viene VALIDADO contra el ciclo vigente por
+        // [CollectionReportDayStripBuilder.resolveSelectedDay] — aquí solo se propaga.
+        val selectedDay: LocalDate? = null
     )
 
     /** Resultado crudo de consultar los puertos (Task 4) para [LoadContext.range]. */
@@ -50,7 +55,12 @@ internal object CollectionReportStateBuilder {
         // `resolveRange` para el rango de SEMANA). `null` cuando el usuario no tiene ciclo
         // (Firestore sin `FECHA_CARGA_INICIAL`) o el periodo es DÍA.
         val sales: List<SaleForCobranza> = emptyList(),
-        val fechaCargaInicial: Instant? = null
+        val fechaCargaInicial: Instant? = null,
+        // Días elegibles del ciclo (carga -> hoy) y cobros por día `yyyy-MM-dd` — insumos de la
+        // tira de días del periodo Día. Vacíos en Semana y cuando no hay tira que pintar (ver
+        // [CollectionReportDayStripBuilder]); en ese caso ninguna consulta extra se paga.
+        val cycleDays: List<LocalDate> = emptyList(),
+        val dayGroups: Map<String, List<CollectionPayment>> = emptyMap()
     )
 
     /** Contenido ya listo para copiarse dentro de [CollectionReportUiState]. */
@@ -67,16 +77,34 @@ internal object CollectionReportStateBuilder {
         val detail: DetailUi,
         val dayPayments: List<List<PaymentRowUi>>,
         val condonadoRows: List<ForgivenessRowUi>,
-        val visitRows: List<VisitRowUi>
+        val visitRows: List<VisitRowUi>,
+        val cycleDays: List<DayChipUi>,
+        val selectedDay: LocalDate?,
+        val selectedDayNote: String
     )
 
-    /** Rango del periodo: día de negocio (Día) o ciclo del cobrador (Semana). Puro dado [fechaCargaInicial]. */
+    /**
+     * Rango del periodo: un día de negocio (Día) o el ciclo del cobrador (Semana). Puro dado
+     * [fechaCargaInicial] y [selectedDay].
+     *
+     * [selectedDay] es el día del ciclo que el cobrador eligió ver; `null` = hoy. En AMBOS casos
+     * el rango se recorta contra el inicio del ciclo ([RangeCalculator.dayRange] recibe siempre
+     * [fechaCargaInicial]): el día de la carga arranca a la hora de la carga, no a medianoche.
+     * Pasar `null` como [fechaCargaInicial] dejaría ese recorte INERTE — el defecto de la
+     * TAREA 1, que vivía en el caller y no aquí.
+     */
     fun resolveRange(
         period: ReportPeriod,
         clock: AppClock,
-        fechaCargaInicial: Instant?
+        fechaCargaInicial: Instant?,
+        selectedDay: LocalDate? = null
     ): DateRange = when (period) {
-        ReportPeriod.DIA -> RangeCalculator.dayRange(clock)
+        ReportPeriod.DIA -> if (selectedDay == null) {
+            RangeCalculator.dayRange(clock, fechaCargaInicial)
+        } else {
+            RangeCalculator.dayRange(clock, selectedDay, fechaCargaInicial)
+        }
+
         ReportPeriod.SEMANA -> RangeCalculator.cycleRange(clock, fechaCargaInicial)
     }
 
@@ -131,7 +159,24 @@ internal object CollectionReportStateBuilder {
                     tipo = it.tipo,
                     visitedAt = it.visitedAt
                 )
-            }
+            },
+            // Tira de días SOLO en Día: Semana ya muestra el ciclo entero en su detalle
+            // (`DetailUi.Days`), así que una tira ahí sería el mismo dato dos veces.
+            cycleDays = when (context.period) {
+                ReportPeriod.DIA -> CollectionReportDayStripBuilder.chips(
+                    cycleDays = ports.cycleDays,
+                    selectedDay = context.selectedDay,
+                    today = AppTime.todayInBusinessZone(context.clock),
+                    dayGroups = ports.dayGroups
+                )
+
+                ReportPeriod.SEMANA -> emptyList()
+            },
+            selectedDay = context.selectedDay,
+            selectedDayNote = CollectionReportDayStripBuilder.startNote(
+                context.selectedDay,
+                ports.fechaCargaInicial
+            )
         )
     }
 

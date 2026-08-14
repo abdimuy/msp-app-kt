@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.collectionreport.ui
 
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.feature.collectionreport.domain.DeltaChip
 import com.example.msp_app.feature.collectionreport.domain.DeltaDirection
 import com.example.msp_app.feature.collectionreport.domain.Insight
@@ -11,6 +12,8 @@ import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /**
  * Datos EXACTOS del mockup (`docs/design/reporte-cobranza-mockup.html`, task-6-brief.md
@@ -217,6 +220,79 @@ internal object MockupFixtures {
         DayRowUi("jue 6 ago", money("25400"), 46, "J6", isToday = false),
         DayRowUi("vie 7 ago (hoy)", money("18300"), 32, "V7", isToday = true)
     )
+
+    // ─── ciclo REAL de la ruta 34 (medido en producción el 13-ago-2026) ─────────────────
+    //
+    // El cobrador cargó ruta el jueves 6 de agosto a las 19:33 hora de negocio (CDMX, -06:00) y
+    // hoy es jueves 13: 8 días de ciclo, $43,850 en total. Los dos primeros van en CERO — el 6
+    // porque cargó de noche y ya no cobró, el 7 porque no cobró — y así deben verse: presentes y
+    // atenuados, nunca escondidos (decisión de transparencia del dueño). Es la fixture de
+    // referencia de la tira de días: si alguien "arregla" el ciclo escondiendo los ceros o
+    // recorriendo el inicio al día siguiente, esta fixture y sus tests truenan a propósito.
+
+    /** `2026-08-07T01:33:00Z` == jueves 6 de agosto, 19:33 en `America/Mexico_City`. */
+    val CARGA_RUTA_34: Instant = AppTime.parseWireFormat("2026-08-07T01:33:00Z")
+
+    /** Hoy en el escenario: jueves 13 de agosto de 2026, media mañana. */
+    val AHORA_RUTA_34: Instant = AppTime.parseWireFormat("2026-08-13T16:00:00Z")
+
+    val HOY_RUTA_34: LocalDate = LocalDate.of(2026, 8, 13)
+
+    /** jue 6 … jue 13 inclusive — los 8 días elegibles del ciclo. */
+    val CICLO_RUTA_34: List<LocalDate> = (6..13).map { LocalDate.of(2026, 8, it) }
+
+    /** Cobrado por día del ciclo. Suma exacta: $43,850. */
+    val TOTALES_RUTA_34: Map<LocalDate, Money> = mapOf(
+        LocalDate.of(2026, 8, 6) to money("0"),
+        LocalDate.of(2026, 8, 7) to money("0"),
+        LocalDate.of(2026, 8, 8) to money("5100"),
+        LocalDate.of(2026, 8, 9) to money("15350"),
+        LocalDate.of(2026, 8, 10) to money("8800"),
+        LocalDate.of(2026, 8, 11) to money("5350"),
+        LocalDate.of(2026, 8, 12) to money("3450"),
+        LocalDate.of(2026, 8, 13) to money("5800")
+    )
+
+    /** Chips de la tira para [CICLO_RUTA_34], con [seleccionado] marcado y hoy = [HOY_RUTA_34]. */
+    fun cicloRuta34(seleccionado: LocalDate = HOY_RUTA_34): List<DayChipUi> =
+        CICLO_RUTA_34.map { day ->
+            DayChipUi(
+                date = day,
+                isToday = day == HOY_RUTA_34,
+                isSelected = day == seleccionado,
+                hasCollections = (TOTALES_RUTA_34[day] ?: Money.ZERO) > Money.ZERO
+            )
+        }
+
+    /**
+     * Tablero de Día CON tira de días (ruta 34). [seleccionado] manda sobre el rótulo del rango,
+     * el monto del hero y la lista de pagos — igual que en producción. El día de la carga
+     * (jue 6) sale en cero, con su nota de arranque.
+     */
+    fun stateDiaConCiclo(
+        seleccionado: LocalDate = HOY_RUTA_34,
+        masked: Boolean = false
+    ): CollectionReportUiState {
+        val esDiaDeCarga = seleccionado == CICLO_RUTA_34.first()
+        val total = TOTALES_RUTA_34[seleccionado] ?: Money.ZERO
+        val pagos = if (total > Money.ZERO) paymentsDia() else emptyList()
+        return stateDia(masked = masked).copy(
+            rangeLabel = seleccionado.format(
+                DateTimeFormatter.ofPattern("EEEE d MMM yyyy", BUSINESS_LOCALE)
+            ),
+            hero = heroDia().copy(monto = total),
+            detail = DetailUi.Payments(pagos),
+            cycleDays = cicloRuta34(seleccionado),
+            selectedDay = seleccionado,
+            selectedDayNote = if (esDiaDeCarga) NOTA_CARGA_RUTA_34 else ""
+        )
+    }
+
+    /** La misma línea que produce `CollectionReportDayStripBuilder.startNote` para la ruta 34. */
+    val NOTA_CARGA_RUTA_34: String = "desde las ${AppTime.formatForDisplay(
+        CARGA_RUTA_34,
+        "h:mm a"
+    )} · inicio del ciclo"
 
     fun stateDia(masked: Boolean = false, error: String? = null): CollectionReportUiState =
         CollectionReportUiState(

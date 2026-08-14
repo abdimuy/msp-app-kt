@@ -212,14 +212,18 @@ class CollectionReportViewModelTest {
 
             val vm = viewModel()
             testDispatcher.scheduler.advanceUntilIdle()
-            assertEquals(0, userCyclePort.fechaCargaInicialCalls) // Día no consulta el ciclo
+            // Día TAMBIÉN consulta el ciclo desde el fix: el recorte a la hora de la carga
+            // aplica al día igual que al ciclo (ver el KDoc de `RangeCalculator`), y sin la
+            // fecha de carga no hay tira de días que recorrer. Antes del fix esto era 0 y el
+            // recorte del día quedaba inerte.
+            assertEquals(1, userCyclePort.fechaCargaInicialCalls)
 
             vm.setPeriod(ReportPeriod.SEMANA)
             testDispatcher.scheduler.advanceUntilIdle()
 
             val state = vm.state.value
             assertEquals(ReportPeriod.SEMANA, state.period)
-            assertEquals(1, userCyclePort.fechaCargaInicialCalls)
+            assertEquals(2, userCyclePort.fechaCargaInicialCalls)
 
             val expectedRange = RangeCalculator.cycleRange(clock, userCyclePort.fechaCarga)
             assertEquals(
@@ -503,11 +507,26 @@ class CollectionReportViewModelTest {
             assertTrue(telemetry.recorded.any { it.type == TelemetryEventType.ERROR })
         }
 
-    private class ThrowingUserCyclePort(
+    /**
+     * Puerto de ciclo que falla SOLO cuando se le enciende el interruptor.
+     *
+     * Antes del fix de la TAREA 1 bastaba con que fallara siempre: Día no consultaba
+     * `fechaCargaInicial`, así que la carga inicial pasaba y solo tronaba al ir a Semana. Ahora
+     * ambos periodos lo consultan, y un puerto que falla desde el primer instante haría fallar
+     * también la carga de Día — el test perdería su premisa ("una carga de Día buena seguida de
+     * un fallo al cambiar a Semana") y ya no probaría lo que dice probar.
+     */
+    private class SwitchableFailingUserCyclePort(
         private val delegate: UserCyclePort,
         private val message: String
     ) : UserCyclePort by delegate {
-        override suspend fun fechaCargaInicial(): Instant? = throw IllegalStateException(message)
+        var failing: Boolean = false
+
+        override suspend fun fechaCargaInicial(): Instant? = if (failing) {
+            throw IllegalStateException(message)
+        } else {
+            delegate.fechaCargaInicial()
+        }
     }
 
     /**
@@ -522,10 +541,11 @@ class CollectionReportViewModelTest {
     fun `fallo al cambiar a Semana deja period, rangeLabel y contenido consistentes, sin mezclar con Dia`() =
         runTest(testDispatcher) {
             paymentsPort.payments = listOf(payment(amount = money("100.00")))
+            val failingCyclePort = SwitchableFailingUserCyclePort(userCyclePort, "firestore down")
             val vm = CollectionReportViewModel(
                 paymentsPort,
                 visitsPort,
-                ThrowingUserCyclePort(userCyclePort, "firestore down"),
+                failingCyclePort,
                 historicalTotalsPort,
                 salesPort,
                 printerPort,
@@ -537,12 +557,11 @@ class CollectionReportViewModelTest {
             )
             testDispatcher.scheduler.advanceUntilIdle()
             val diaState = vm.state.value
-            assertEquals(
-                ReportPeriod.DIA,
-                diaState.period
-            ) // Día no consulta fechaCargaInicial -> carga bien.
+            assertEquals(ReportPeriod.DIA, diaState.period) // Día carga bien.
             assertEquals(money("100.00"), diaState.hero.monto)
 
+            // Firestore se cae DESPUÉS de la carga de Día — ver el KDoc del puerto.
+            failingCyclePort.failing = true
             vm.setPeriod(ReportPeriod.SEMANA)
             testDispatcher.scheduler.advanceUntilIdle()
 

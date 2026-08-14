@@ -92,6 +92,59 @@ class ContrastAAATest {
         assertContrastAtLeast(dark.brand, dark.surface, THRESHOLD_UI_COMPONENT)
     }
 
+    // --- 5. Tira de días del ciclo (`DayStrip`, `dayChipPalette`) -------------------------
+
+    /**
+     * Chip "hoy" sin seleccionar: `statusPaid` sobre `statusPaidTint` — el par tintado ESTÁNDAR
+     * del design system (el mismo que `MspStatusChip` usa para el estado Pagado; la tira lo
+     * reutiliza en vez de inventar un verde propio).
+     *
+     * Umbral honesto: AAA-large / piso AA-normal, no AAA-normal. Medido, el par da 5.12:1 en
+     * claro — por encima de AA-normal (4.5) y por debajo de AAA-normal (7.0). Sube a 4.5 y no a
+     * 7.0 a propósito: exigirle AAA-normal obligaría a re-teñir un token del design system que
+     * ya está en uso en toda la app, y el chip nunca es el único portador del estado (la
+     * `contentDescription` dice "hoy" en texto).
+     */
+    @Test
+    fun `chip de hoy (statusPaid sobre statusPaidTint) cumple AA-normal en ambos temas`() {
+        assertContrastAtLeast(light.statusPaid, light.statusPaidTint, THRESHOLD_LARGE_TEXT)
+        assertContrastAtLeast(dark.statusPaid, dark.statusPaidTint, THRESHOLD_LARGE_TEXT)
+    }
+
+    /**
+     * Chip "hoy Y seleccionado": verde LLENO. El contenido es `colors.surface` y no `onBrand`
+     * justamente por esto — `onBrand` (blanco en ambos temas) sobre el `statusPaid` claro del
+     * tema oscuro daría ~2:1. `surface` invierte con el tema y por eso contrasta con los DOS
+     * extremos de `statusPaid`. Esta es la aserción que sostiene esa decisión de diseño.
+     */
+    @Test
+    fun `chip de hoy seleccionado (surface sobre statusPaid) cumple AAA-large en ambos temas`() {
+        assertContrastAtLeast(light.surface, light.statusPaid, THRESHOLD_LARGE_TEXT)
+        assertContrastAtLeast(dark.surface, dark.statusPaid, THRESHOLD_LARGE_TEXT)
+    }
+
+    /**
+     * Chip seleccionado (no hoy): azul de marca LLENO con `onBrand`. Mismo par ya parkeado del
+     * hero (ver #1) — sostiene el piso UI-component, no AAA. Se declara explícito para que la
+     * tira no aparente una garantía que el design system no da en este par.
+     */
+    @Test
+    fun `chip seleccionado (onBrand sobre brand) sostiene el piso UI-component en ambos temas`() {
+        assertContrastAtLeast(light.onBrand, light.brand, THRESHOLD_UI_COMPONENT)
+        assertContrastAtLeast(dark.onBrand, dark.brand, THRESHOLD_UI_COMPONENT)
+    }
+
+    /**
+     * Chip de un día SIN cobros: atenuado con `onSurfaceMuted` sobre `surface`. Atenuado no es
+     * invisible — sigue sosteniendo el piso UI-component (mismo par y mismo criterio que las
+     * etiquetas de chips/tiles, #4).
+     */
+    @Test
+    fun `chip de un dia sin cobros sigue legible sobre surface en ambos temas`() {
+        assertContrastAtLeast(light.onSurfaceMuted, light.surface, THRESHOLD_UI_COMPONENT)
+        assertContrastAtLeast(dark.onSurfaceMuted, dark.surface, THRESHOLD_UI_COMPONENT)
+    }
+
     // --- helpers -----------------------------------------------------------------------------
 
     private fun gradientAverage(colors: MspColors): Color = lerp(colors.brand, colors.brand2, HALF)

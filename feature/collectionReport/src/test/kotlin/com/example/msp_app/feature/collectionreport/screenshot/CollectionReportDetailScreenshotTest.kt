@@ -61,38 +61,92 @@ class CollectionReportDetailScreenshotTest : CollectionReportScreenshotTest() {
 
     /**
      * Golden de la lista LARGA (fix de dispositivo): 23 filas de pago enriquecidas (folio +
-     * saldo + método + "Por subir"). El canvas del test (h800dp) recorta la lista — el golden
-     * es una baseline visual del estilo de fila enriquecido y de que la lista crece sin
-     * comprimirse; el que TODAS sean alcanzables lo garantiza el `verticalScroll` de la
+     * saldo + método + "Por subir"), EXPANDIDA. El canvas del test (h800dp) recorta la lista —
+     * el golden es una baseline visual del estilo de fila enriquecido y de que la lista crece
+     * sin comprimirse; el que TODAS sean alcanzables lo garantiza el `verticalScroll` de la
      * pantalla (probado en el compose-test de orden/scroll).
      */
     @Test
     fun `lista con muchos pagos light`() {
         capture(name = "collection_report_detail_many_light", dark = false) {
-            LongPaymentList()
+            LongPaymentList(rows = MANY_ROWS, expanded = true)
         }
     }
 
     @Test
     fun `lista con muchos pagos dark`() {
         capture(name = "collection_report_detail_many_dark", dark = true) {
-            LongPaymentList()
+            LongPaymentList(rows = MANY_ROWS, expanded = true)
         }
+    }
+
+    /**
+     * Golden del colapsable con el volumen REAL de producción: 57 pagos de un solo día (domingo
+     * 9 ago 2026). COLAPSADO se ven las primeras 5 filas + el control "Ver los 57 pagos" — el
+     * estado por default y el que resuelve el encargo (la lista dejó de empujar el tablero).
+     */
+    @Test
+    fun `lista de pagos colapsada light`() {
+        capture(name = "collection_report_detail_collapsed_light", dark = false) {
+            LongPaymentList(rows = PRODUCTION_DAY_ROWS, expanded = false)
+        }
+    }
+
+    @Test
+    fun `lista de pagos colapsada dark`() {
+        capture(name = "collection_report_detail_collapsed_dark", dark = true) {
+            LongPaymentList(rows = PRODUCTION_DAY_ROWS, expanded = false)
+        }
+    }
+
+    /**
+     * El otro estado del control: EXPANDIDO, con "Ver menos" y el chevron hacia arriba.
+     *
+     * Lista de [SHORT_OVERFLOW_ROWS] pagos, no de 57: con el volumen de producción expandido el
+     * control cae fuera del canvas de 800dp y el golden sería indistinguible del colapsado —
+     * fijaría cero. Con 8 filas caben lista completa Y control, que es justo lo que este golden
+     * tiene que congelar. El volumen real expandido ya lo cubren `lista con muchos pagos *` (el
+     * estilo de fila con la lista larga) y el compose-test de 57 filas.
+     */
+    @Test
+    fun `lista de pagos expandida light`() {
+        capture(name = "collection_report_detail_expanded_light", dark = false) {
+            LongPaymentList(rows = SHORT_OVERFLOW_ROWS, expanded = true)
+        }
+    }
+
+    @Test
+    fun `lista de pagos expandida dark`() {
+        capture(name = "collection_report_detail_expanded_dark", dark = true) {
+            LongPaymentList(rows = SHORT_OVERFLOW_ROWS, expanded = true)
+        }
+    }
+
+    private companion object {
+        const val MANY_ROWS = 23
+
+        /** Volumen real: 57 pagos en un día (domingo 9 ago 2026), el caso que originó el fix. */
+        const val PRODUCTION_DAY_ROWS = 57
+
+        /** Con overflow pero corta: expandida cabe entera, control incluido, en 800dp. */
+        const val SHORT_OVERFLOW_ROWS = 8
     }
 }
 
 @Composable
-private fun LongPaymentList() {
+private fun LongPaymentList(rows: Int, expanded: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(MspTheme.spacing.md)
     ) {
         DetailList(
-            detail = DetailUi.Payments(MockupFixtures.manyPaymentsDia()),
+            detail = DetailUi.Payments(MockupFixtures.manyPaymentsDia(rows)),
             masked = false,
             onPaymentClick = {},
-            onDayClick = {}
+            onDayClick = {},
+            expanded = expanded,
+            onToggleExpand = {}
         )
     }
 }
@@ -120,11 +174,15 @@ private fun MiddleSection(state: CollectionReportUiState) {
             onVisitasClick = {}
         )
         DetailHeader(detail = state.detail, sort = state.sort, onSortSelect = {})
+        // `expanded = false`: las fixtures del mockup (4 pagos Día / 5 días Semana) no llegan al
+        // umbral del colapsable, así que el golden es idéntico al de antes — sin control.
         DetailList(
             detail = state.detail,
             masked = state.masked,
             onPaymentClick = {},
-            onDayClick = {}
+            onDayClick = {},
+            expanded = false,
+            onToggleExpand = {}
         )
     }
 }

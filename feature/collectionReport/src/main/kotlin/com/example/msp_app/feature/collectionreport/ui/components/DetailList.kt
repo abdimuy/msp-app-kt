@@ -1,5 +1,13 @@
 package com.example.msp_app.feature.collectionreport.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,10 +37,43 @@ import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.ui.DayRowUi
 import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.PaymentRowUi
+import com.example.msp_app.feature.collectionreport.ui.theme.REPORT_STANDARD_DURATION_MS
+import com.example.msp_app.feature.collectionreport.ui.theme.ReportStandardEasing
+import com.example.msp_app.feature.collectionreport.ui.theme.rememberReportReducedMotion
 
 private val SYNC_DOT_SIZE = 7.dp
 private val DAY_AVATAR_SIZE = 34.dp
 private val DIVIDER_HEIGHT = 1.dp
+
+/**
+ * Cuántos pagos se ven con la lista de pagos COLAPSADA.
+ *
+ * 5, no un número redondo al azar:
+ * - Un día real de cobranza trae decenas de pagos (57 el domingo 9 ago 2026 en producción).
+ *   Pintados de corrido empujan hacia abajo TODO lo que va después y el tablero deja de leerse
+ *   de un vistazo — que es exactamente para lo que existe esta pantalla.
+ * - 5 filas enriquecidas (nombre + folio/hora + monto + saldo + pills) ocupan aproximadamente la
+ *   altura que le queda a la tarjeta de detalle en un 360×800 sin comerse el resto del scroll:
+ *   se ve que HAY una lista y de qué pinta son sus filas, sin que la lista sea la pantalla.
+ * - Empata con el detalle de Semana ([DetailUi.Days]), que son 5 días de ciclo: los dos periodos
+ *   presentan un bloque de detalle de altura comparable, y el toggle Día↔Semana no da un salto.
+ *
+ * El conteo total NUNCA se esconde: [DetailHeader] ya rotula "Pagos del día · N" arriba de la
+ * tarjeta, y el control de expansión lleva el número real en su etiqueta.
+ */
+private const val COLLAPSED_PAYMENT_ROWS = 5
+
+/**
+ * Tope del índice que recibe [StaggeredEntrance] al expandir.
+ *
+ * Sin tope, el escalonado (`30ms + index * 60ms`) haría que el pago #52 entrara tres segundos
+ * después del primero: con 57 filas la expansión se sentiría lenta y rota, no "hermosa". Con el
+ * tope, los primeros 6 renglones revelados entran escalonados (máximo `30 + 5*60 = 330ms`, dentro
+ * de la ventana del propio expand de [REPORT_STANDARD_DURATION_MS]) y el resto comparte ese
+ * último paso. No se pierde nada: en un 360×800 solo esos primeros renglones caen dentro del
+ * viewport al momento de expandir; los demás ya llegan asentados cuando el usuario baja a ellos.
+ */
+private const val EXPAND_STAGGER_MAX_INDEX = 5
 
 // Interlineado dentro de cada columna de la fila de pago (nombre/subline, monto/saldo) — más
 // apretado que los tokens de `spacing` para que las dos líneas lean como un bloque.
@@ -52,6 +93,21 @@ private const val EMPTY_MESSAGE = "Sin datos aún"
  *
  * `shapes.sectionCard` (18dp) — el radio real de `.rows` en el mockup, no el `shapes.tile`
  * default de [MspCard].
+ *
+ * **Colapsable, y SOLO en la lista de pagos (Día).** Con más de [COLLAPSED_PAYMENT_ROWS] pagos
+ * la tarjeta muestra los primeros y añade un control que revela TODOS — no un rótulo muerto tipo
+ * "13 pagos más": el dueño rechazó explícitamente informar sin revelar. Con
+ * `rows.size <= COLLAPSED_PAYMENT_ROWS` no se pinta control alguno (no hay nada que revelar).
+ * [DetailUi.Days] (Semana) se comporta como siempre: todos los días del ciclo, sin control —
+ * son 5 filas por definición del ciclo, nunca hay overflow que esconder. El DISEÑO de cada
+ * renglón no cambia en ningún caso; lo único nuevo es cuántos se pintan.
+ *
+ * [expanded]/[onToggleExpand] son estado IZADO (arranca colapsado en ambos call sites, vía
+ * `rememberSaveable`): así sobrevive a los swaps Día↔Semana y a los cambios de configuración, y
+ * el estado es dirigible desde un test sin depender de un `remember` escondido aquí adentro.
+ * Ambos parámetros son OBLIGATORIOS a propósito — un default `{}` en [onToggleExpand] dejaría
+ * pintar un control que no hace nada, que es justo el defecto que se está corrigiendo.
+ * [DetailUi.Days] los ignora.
  */
 @Composable
 fun DetailList(
@@ -59,6 +115,8 @@ fun DetailList(
     masked: Boolean,
     onPaymentClick: (String) -> Unit,
     onDayClick: (Int) -> Unit,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isEmpty = when (detail) {
@@ -72,10 +130,13 @@ fun DetailList(
         }
         Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
             when (detail) {
-                is DetailUi.Payments -> detail.rows.forEachIndexed { index, row ->
-                    PaymentRow(row = row, masked = masked, onClick = { onPaymentClick(row.id) })
-                    if (index != detail.rows.lastIndex) DetailDivider()
-                }
+                is DetailUi.Payments -> PaymentRows(
+                    rows = detail.rows,
+                    masked = masked,
+                    expanded = expanded,
+                    onToggleExpand = onToggleExpand,
+                    onPaymentClick = onPaymentClick
+                )
 
                 is DetailUi.Days -> detail.rows.forEachIndexed { index, row ->
                     DayRow(row = row, masked = masked, onClick = { onDayClick(index) })
@@ -84,6 +145,69 @@ fun DetailList(
             }
         }
     }
+}
+
+/**
+ * Cuerpo de la lista de pagos: cabeza siempre visible ([COLLAPSED_PAYMENT_ROWS] filas) + cola
+ * revelable + control. Las filas se pintan con la MISMA [PaymentRow] de siempre, sin envolverla
+ * en nada que altere su layout — el colapsable decide CUÁNTAS se pintan, no CÓMO se ven.
+ *
+ * La cola vive dentro de un `AnimatedVisibility`, no detrás de un `if`: eso da alto + opacidad
+ * animados en un solo lugar y, sobre todo, hace que reduce-motion sea un cambio ESTRUCTURAL
+ * (`EnterTransition.None`/`ExitTransition.None` monta y desmonta la cola en el acto) en vez de
+ * una animación de 0ms que igual dependería del reloj — mismo criterio anti-cuelgue que
+ * [TabTransition]. Los renglones revelados entran con [StaggeredEntrance], acotado por
+ * [EXPAND_STAGGER_MAX_INDEX] para que 57 pagos no conviertan la expansión en una espera.
+ *
+ * Divisores: entre filas de la cabeza, antes de cada fila de la cola, y uno más antes del
+ * control — así el separador queda igual de parejo esté colapsada o expandida.
+ */
+@Composable
+private fun PaymentRows(
+    rows: List<PaymentRowUi>,
+    masked: Boolean,
+    expanded: Boolean,
+    onToggleExpand: () -> Unit,
+    onPaymentClick: (String) -> Unit
+) {
+    val hasOverflow = rows.size > COLLAPSED_PAYMENT_ROWS
+    val head = if (hasOverflow) rows.take(COLLAPSED_PAYMENT_ROWS) else rows
+    val reduced = rememberReportReducedMotion()
+
+    head.forEachIndexed { index, row ->
+        PaymentRow(row = row, masked = masked, onClick = { onPaymentClick(row.id) })
+        if (index != head.lastIndex) DetailDivider()
+    }
+    if (!hasOverflow) return
+
+    AnimatedVisibility(
+        visible = expanded,
+        enter = if (reduced) {
+            EnterTransition.None
+        } else {
+            expandVertically(
+                animationSpec = tween(REPORT_STANDARD_DURATION_MS, easing = ReportStandardEasing)
+            ) + fadeIn(animationSpec = tween(REPORT_STANDARD_DURATION_MS))
+        },
+        exit = if (reduced) {
+            ExitTransition.None
+        } else {
+            shrinkVertically(
+                animationSpec = tween(REPORT_STANDARD_DURATION_MS, easing = ReportStandardEasing)
+            ) + fadeOut(animationSpec = tween(REPORT_STANDARD_DURATION_MS))
+        }
+    ) {
+        Column {
+            rows.drop(COLLAPSED_PAYMENT_ROWS).forEachIndexed { index, row ->
+                DetailDivider()
+                StaggeredEntrance(index = index.coerceAtMost(EXPAND_STAGGER_MAX_INDEX)) {
+                    PaymentRow(row = row, masked = masked, onClick = { onPaymentClick(row.id) })
+                }
+            }
+        }
+    }
+    DetailDivider()
+    DetailListToggle(expanded = expanded, total = rows.size, onToggle = onToggleExpand)
 }
 
 @Composable

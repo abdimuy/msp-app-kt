@@ -41,6 +41,8 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.ui.actions.ReportActionsController
 import com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar
+import com.example.msp_app.feature.collectionreport.ui.components.DayStrip
+import com.example.msp_app.feature.collectionreport.ui.components.DaySwap
 import com.example.msp_app.feature.collectionreport.ui.components.DetailHeader
 import com.example.msp_app.feature.collectionreport.ui.components.DetailList
 import com.example.msp_app.feature.collectionreport.ui.components.DuoTiles
@@ -55,6 +57,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.SecondaryChips
 import com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance
 import com.example.msp_app.feature.collectionreport.ui.components.TabTransition
 import com.example.msp_app.feature.collectionreport.ui.theme.ThemeRevealRoot
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,12 +88,13 @@ private const val ENTRANCE_HEADER = 0
 private const val ENTRANCE_ERROR_BANNER = 1
 private const val ENTRANCE_PERIOD = 2
 private const val ENTRANCE_SUBROW = 3
-private const val ENTRANCE_HERO = 4
-private const val ENTRANCE_META = 5
-private const val ENTRANCE_DUO = 6
-private const val ENTRANCE_CHIPS = 7
-private const val ENTRANCE_DETAIL_HEADER = 8
-private const val ENTRANCE_DETAIL_LIST = 9
+private const val ENTRANCE_DAY_STRIP = 4
+private const val ENTRANCE_HERO = 5
+private const val ENTRANCE_META = 6
+private const val ENTRANCE_DUO = 7
+private const val ENTRANCE_CHIPS = 8
+private const val ENTRANCE_DETAIL_HEADER = 9
+private const val ENTRANCE_DETAIL_LIST = 10
 
 /**
  * Punto de entrada del reporte de cobranza (Plan 5, piloto `:feature:collectionReport`).
@@ -192,7 +196,8 @@ fun CollectionReportScreen(
                 onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
                 onSortSelect = viewModel::setSort,
                 onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
-                onDayRowClick = onDiaCicloClick
+                onDayRowClick = onDiaCicloClick,
+                onDaySelect = viewModel::selectDay
             )
             BlurredActionBar(
                 // Compartir SIEMPRE el mismo PDF que abre el botón "PDF" (misma
@@ -291,7 +296,13 @@ internal fun CollectionReportContent(
     onSortSelect: (DetailSort) -> Unit,
     onPaymentRowClick: (String) -> Unit,
     onDayRowClick: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // Día elegido en la tira del ciclo. Default no-op para no romper a los tests/goldens que
+    // montan el tablero sin ciclo — con `state.cycleDays` vacía la tira ni siquiera se pinta,
+    // así que un default aquí no deja ningún control muerto en pantalla (a diferencia del
+    // `onToggleExpand` de `DetailList`, que sí es obligatorio porque su control SIEMPRE se ve
+    // cuando hay overflow).
+    onDaySelect: (LocalDate) -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -348,6 +359,13 @@ internal fun CollectionReportContent(
             LaunchedEffect(Unit) { hasEntered = true }
             val animateEntrance = !hasEntered
 
+            // Colapsable de la lista de pagos (Día) — estado izado ARRIBA del `TabTransition`
+            // por el mismo motivo que `hasEntered`: cada slot del `AnimatedContent` es un
+            // subárbol nuevo, así que un `rememberSaveable` de adentro se reiniciaría en cada
+            // swap Día↔Semana y la lista se volvería a colapsar sola. Arranca colapsado; el
+            // umbral y el porqué viven en `DetailList`.
+            var paymentsExpanded by rememberSaveable { mutableStateOf(false) }
+
             // `TabTransition` se llavea con `contentPeriod` (no `period`): el slide arranca solo
             // cuando los datos del nuevo periodo ya están asentados (toggle-jank-diagnosis.md,
             // fix 1), nunca sobre datos viejos que recompondrían a mitad de animación.
@@ -356,59 +374,94 @@ internal fun CollectionReportContent(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
                 ) {
-                    StaggeredEntrance(index = ENTRANCE_HERO, animate = animateEntrance) {
-                        HeroSection(
-                            hero = state.hero,
-                            period = period,
-                            masked = state.masked,
-                            onClick = onHeroClick,
-                            onSparkBarClick = onSparkBarClick,
-                            animateSparkline = animateEntrance
-                        )
-                    }
-                    // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi/MetaCard.
-                    if (period == ReportPeriod.SEMANA) {
-                        StaggeredEntrance(index = ENTRANCE_META, animate = animateEntrance) {
-                            MetaCard(
-                                porcentajeCobro = state.hero.porcentajeCobro,
-                                porcentajeCuentas = state.hero.porcentajeCuentas,
-                                clientesPagaron = state.hero.clientesPagaron,
-                                clientesTotal = state.hero.clientesTotal
+                    // Tira de días del ciclo — solo en Día y solo cuando hay más de un día que
+                    // elegir (ver `CollectionReportDayStripBuilder`). Va FUERA del `DaySwap` de
+                    // abajo a propósito: el control que se toca no debe parpadear con el
+                    // contenido que él mismo acaba de cambiar.
+                    if (period == ReportPeriod.DIA && state.cycleDays.isNotEmpty()) {
+                        StaggeredEntrance(index = ENTRANCE_DAY_STRIP, animate = animateEntrance) {
+                            DayStrip(
+                                days = state.cycleDays,
+                                onSelect = onDaySelect,
+                                emptyDay = state.selectedDayEmpty,
+                                note = state.selectedDayNote
                             )
                         }
                     }
-                    StaggeredEntrance(index = ENTRANCE_DUO, animate = animateEntrance) {
-                        DuoTiles(
-                            efectivo = state.efectivo,
-                            transferencia = state.transferencia,
-                            masked = state.masked,
-                            onEfectivoClick = onEfectivoClick,
-                            onTransferenciaClick = onTransferenciaClick
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_CHIPS, animate = animateEntrance) {
-                        SecondaryChips(
-                            condonado = state.condonado,
-                            visitas = state.visitas,
-                            masked = state.masked,
-                            onCondonadoClick = onCondonadoClick,
-                            onVisitasClick = onVisitasClick
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_HEADER, animate = animateEntrance) {
-                        DetailHeader(
-                            detail = state.detail,
-                            sort = state.sort,
-                            onSortSelect = onSortSelect
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_LIST, animate = animateEntrance) {
-                        DetailList(
-                            detail = state.detail,
-                            masked = state.masked,
-                            onPaymentClick = onPaymentRowClick,
-                            onDayClick = onDayRowClick
-                        )
+                    // Al cambiar de día, SOLO este bloque transiciona: la tira de arriba (y todo
+                    // lo que está fuera del `TabTransition`) se queda quieto. `null` en Semana ->
+                    // no monta nada, el árbol queda idéntico al de siempre.
+                    DaySwap(day = state.selectedDay.takeIf { period == ReportPeriod.DIA }) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+                        ) {
+                            StaggeredEntrance(index = ENTRANCE_HERO, animate = animateEntrance) {
+                                HeroSection(
+                                    hero = state.hero,
+                                    period = period,
+                                    masked = state.masked,
+                                    onClick = onHeroClick,
+                                    onSparkBarClick = onSparkBarClick,
+                                    animateSparkline = animateEntrance
+                                )
+                            }
+                            // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi/MetaCard.
+                            if (period == ReportPeriod.SEMANA) {
+                                StaggeredEntrance(
+                                    index = ENTRANCE_META,
+                                    animate = animateEntrance
+                                ) {
+                                    MetaCard(
+                                        porcentajeCobro = state.hero.porcentajeCobro,
+                                        porcentajeCuentas = state.hero.porcentajeCuentas,
+                                        clientesPagaron = state.hero.clientesPagaron,
+                                        clientesTotal = state.hero.clientesTotal
+                                    )
+                                }
+                            }
+                            StaggeredEntrance(index = ENTRANCE_DUO, animate = animateEntrance) {
+                                DuoTiles(
+                                    efectivo = state.efectivo,
+                                    transferencia = state.transferencia,
+                                    masked = state.masked,
+                                    onEfectivoClick = onEfectivoClick,
+                                    onTransferenciaClick = onTransferenciaClick
+                                )
+                            }
+                            StaggeredEntrance(index = ENTRANCE_CHIPS, animate = animateEntrance) {
+                                SecondaryChips(
+                                    condonado = state.condonado,
+                                    visitas = state.visitas,
+                                    masked = state.masked,
+                                    onCondonadoClick = onCondonadoClick,
+                                    onVisitasClick = onVisitasClick
+                                )
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_DETAIL_HEADER,
+                                animate = animateEntrance
+                            ) {
+                                DetailHeader(
+                                    detail = state.detail,
+                                    sort = state.sort,
+                                    onSortSelect = onSortSelect
+                                )
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_DETAIL_LIST,
+                                animate = animateEntrance
+                            ) {
+                                DetailList(
+                                    detail = state.detail,
+                                    masked = state.masked,
+                                    onPaymentClick = onPaymentRowClick,
+                                    onDayClick = onDayRowClick,
+                                    expanded = paymentsExpanded,
+                                    onToggleExpand = { paymentsExpanded = !paymentsExpanded }
+                                )
+                            }
+                        }
                     }
                 }
             }

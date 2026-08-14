@@ -48,6 +48,8 @@ import com.example.msp_app.feature.collectionreport.ui.SheetKind
 import com.example.msp_app.feature.collectionreport.ui.TileUi
 import com.example.msp_app.feature.collectionreport.ui.actions.ReportActionsController
 import com.example.msp_app.feature.collectionreport.ui.components.BlurredActionBar
+import com.example.msp_app.feature.collectionreport.ui.components.DayStrip
+import com.example.msp_app.feature.collectionreport.ui.components.DaySwap
 import com.example.msp_app.feature.collectionreport.ui.components.DetailHeader
 import com.example.msp_app.feature.collectionreport.ui.components.DetailList
 import com.example.msp_app.feature.collectionreport.ui.components.HeroSection
@@ -59,6 +61,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.ReportSheets
 import com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance
 import com.example.msp_app.feature.collectionreport.ui.components.TabTransition
 import com.example.msp_app.feature.collectionreport.ui.theme.ThemeRevealRoot
+import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -88,14 +91,15 @@ private const val ENTRANCE_HEADER = 0
 private const val ENTRANCE_ERROR_BANNER = 1
 private const val ENTRANCE_PERIOD = 2
 private const val ENTRANCE_SUBROW = 3
-private const val ENTRANCE_HERO = 4
-private const val ENTRANCE_META = 5
-private const val ENTRANCE_EFECTIVO = 6
-private const val ENTRANCE_TRANSFERENCIA = 7
-private const val ENTRANCE_CONDONADO = 8
-private const val ENTRANCE_VISITAS = 9
-private const val ENTRANCE_DETAIL_HEADER = 10
-private const val ENTRANCE_DETAIL_LIST = 11
+private const val ENTRANCE_DAY_STRIP = 4
+private const val ENTRANCE_HERO = 5
+private const val ENTRANCE_META = 6
+private const val ENTRANCE_EFECTIVO = 7
+private const val ENTRANCE_TRANSFERENCIA = 8
+private const val ENTRANCE_CONDONADO = 9
+private const val ENTRANCE_VISITAS = 10
+private const val ENTRANCE_DETAIL_HEADER = 11
+private const val ENTRANCE_DETAIL_LIST = 12
 
 /**
  * Punto de entrada Tier 2 (Muy grande, spec §5) del reporte de cobranza — hermano de
@@ -149,7 +153,8 @@ fun CollectionReportScreenTier2(
                 onVisitasClick = { viewModel.openSheet(SheetKind.VISITAS) },
                 onSortSelect = viewModel::setSort,
                 onPaymentRowClick = { id -> viewModel.openSheet(SheetKind.PAGO, id) },
-                onDayRowClick = onDiaCicloClick
+                onDayRowClick = onDiaCicloClick,
+                onDaySelect = viewModel::selectDay
             )
             BlurredActionBar(
                 onCompartirClick = {
@@ -216,7 +221,9 @@ internal fun CollectionReportContentTier2(
     onSortSelect: (DetailSort) -> Unit,
     onPaymentRowClick: (String) -> Unit,
     onDayRowClick: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Día elegido en la tira del ciclo — mismo contrato/criterio que Tier 1. */
+    onDaySelect: (LocalDate) -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -269,80 +276,132 @@ internal fun CollectionReportContentTier2(
             LaunchedEffect(Unit) { hasEntered = true }
             val animateEntrance = !hasEntered
 
+            // Colapsable de la lista de pagos (Día) — izado arriba del `TabTransition`, mismo
+            // motivo que `hasEntered` (ver Tier 1). Sin esto Tier 2 se quedaría con la lista
+            // colapsada y SIN forma de abrirla, que sería peor que el defecto original.
+            var paymentsExpanded by rememberSaveable { mutableStateOf(false) }
+
             TabTransition(period = state.contentPeriod) { period ->
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.lg)
                 ) {
-                    StaggeredEntrance(index = ENTRANCE_HERO, animate = animateEntrance) {
-                        HeroSection(
-                            hero = state.hero,
-                            period = period,
-                            masked = state.masked,
-                            onClick = onHeroClick,
-                            onSparkBarClick = onSparkBarClick,
-                            animateSparkline = animateEntrance
-                        )
-                    }
-                    // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi/MetaCard.
-                    if (period == ReportPeriod.SEMANA) {
-                        StaggeredEntrance(index = ENTRANCE_META, animate = animateEntrance) {
-                            MetaCardTier2(
-                                porcentajeCobro = state.hero.porcentajeCobro,
-                                porcentajeCuentas = state.hero.porcentajeCuentas,
-                                clientesPagaron = state.hero.clientesPagaron,
-                                clientesTotal = state.hero.clientesTotal
+                    // Tira de días — MISMO componente que Tier 1, sin variante propia: sus chips
+                    // ya nacen con el alto mínimo curado de Tier 2 ([MspTheme.spacing.touchTarget],
+                    // 56dp) y la tira crece a lo LARGO desplazándose, así que a `fontScale = 2.0`
+                    // no compite por ancho con nada. Dejar Tier 2 sin ella habría dejado a los
+                    // usuarios de letra muy grande sin ninguna forma de ver un día pasado — la
+                    // misma clase de defecto que el colapsable de pagos sin control (ver
+                    // `paymentsExpanded` arriba).
+                    if (period == ReportPeriod.DIA && state.cycleDays.isNotEmpty()) {
+                        StaggeredEntrance(index = ENTRANCE_DAY_STRIP, animate = animateEntrance) {
+                            DayStrip(
+                                days = state.cycleDays,
+                                onSelect = onDaySelect,
+                                emptyDay = state.selectedDayEmpty,
+                                note = state.selectedDayNote
                             )
                         }
                     }
-                    StaggeredEntrance(index = ENTRANCE_EFECTIVO, animate = animateEntrance) {
-                        Tier2Tile(
-                            dotColor = MspTheme.colors.statusPaid,
-                            tile = state.efectivo,
-                            masked = state.masked,
-                            onClick = onEfectivoClick
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_TRANSFERENCIA, animate = animateEntrance) {
-                        Tier2Tile(
-                            dotColor = MspTheme.colors.brand,
-                            tile = state.transferencia,
-                            masked = state.masked,
-                            onClick = onTransferenciaClick
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_CONDONADO, animate = animateEntrance) {
-                        Tier2Chip(
-                            dotColor = MspTheme.colors.statusPartial,
-                            chip = state.condonado,
-                            masked = state.masked,
-                            valueColor = MspTheme.colors.statusPartial,
-                            onClick = onCondonadoClick
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_VISITAS, animate = animateEntrance) {
-                        Tier2Chip(
-                            dotColor = MspTheme.colors.statusPending,
-                            chip = state.visitas,
-                            masked = state.masked,
-                            valueColor = MspTheme.colors.onSurface,
-                            onClick = onVisitasClick
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_HEADER, animate = animateEntrance) {
-                        DetailHeader(
-                            detail = state.detail,
-                            sort = state.sort,
-                            onSortSelect = onSortSelect
-                        )
-                    }
-                    StaggeredEntrance(index = ENTRANCE_DETAIL_LIST, animate = animateEntrance) {
-                        DetailList(
-                            detail = state.detail,
-                            masked = state.masked,
-                            onPaymentClick = onPaymentRowClick,
-                            onDayClick = onDayRowClick
-                        )
+                    DaySwap(day = state.selectedDay.takeIf { period == ReportPeriod.DIA }) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.lg)
+                        ) {
+                            StaggeredEntrance(index = ENTRANCE_HERO, animate = animateEntrance) {
+                                HeroSection(
+                                    hero = state.hero,
+                                    period = period,
+                                    masked = state.masked,
+                                    onClick = onHeroClick,
+                                    onSparkBarClick = onSparkBarClick,
+                                    animateSparkline = animateEntrance
+                                )
+                            }
+                            // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi/MetaCard.
+                            if (period == ReportPeriod.SEMANA) {
+                                StaggeredEntrance(
+                                    index = ENTRANCE_META,
+                                    animate = animateEntrance
+                                ) {
+                                    MetaCardTier2(
+                                        porcentajeCobro = state.hero.porcentajeCobro,
+                                        porcentajeCuentas = state.hero.porcentajeCuentas,
+                                        clientesPagaron = state.hero.clientesPagaron,
+                                        clientesTotal = state.hero.clientesTotal
+                                    )
+                                }
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_EFECTIVO,
+                                animate = animateEntrance
+                            ) {
+                                Tier2Tile(
+                                    dotColor = MspTheme.colors.statusPaid,
+                                    tile = state.efectivo,
+                                    masked = state.masked,
+                                    onClick = onEfectivoClick
+                                )
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_TRANSFERENCIA,
+                                animate = animateEntrance
+                            ) {
+                                Tier2Tile(
+                                    dotColor = MspTheme.colors.brand,
+                                    tile = state.transferencia,
+                                    masked = state.masked,
+                                    onClick = onTransferenciaClick
+                                )
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_CONDONADO,
+                                animate = animateEntrance
+                            ) {
+                                Tier2Chip(
+                                    dotColor = MspTheme.colors.statusPartial,
+                                    chip = state.condonado,
+                                    masked = state.masked,
+                                    valueColor = MspTheme.colors.statusPartial,
+                                    onClick = onCondonadoClick
+                                )
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_VISITAS,
+                                animate = animateEntrance
+                            ) {
+                                Tier2Chip(
+                                    dotColor = MspTheme.colors.statusPending,
+                                    chip = state.visitas,
+                                    masked = state.masked,
+                                    valueColor = MspTheme.colors.onSurface,
+                                    onClick = onVisitasClick
+                                )
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_DETAIL_HEADER,
+                                animate = animateEntrance
+                            ) {
+                                DetailHeader(
+                                    detail = state.detail,
+                                    sort = state.sort,
+                                    onSortSelect = onSortSelect
+                                )
+                            }
+                            StaggeredEntrance(
+                                index = ENTRANCE_DETAIL_LIST,
+                                animate = animateEntrance
+                            ) {
+                                DetailList(
+                                    detail = state.detail,
+                                    masked = state.masked,
+                                    onPaymentClick = onPaymentRowClick,
+                                    onDayClick = onDayRowClick,
+                                    expanded = paymentsExpanded,
+                                    onToggleExpand = { paymentsExpanded = !paymentsExpanded }
+                                )
+                            }
+                        }
                     }
                 }
             }

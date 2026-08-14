@@ -9,6 +9,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * Estado observable único del reporte de cobranza (`StateFlow`), consumido por la UI
@@ -63,10 +64,58 @@ data class CollectionReportUiState(
     // el sheet solo filtra/busca en memoria).
     val condonadoRows: List<ForgivenessRowUi> = emptyList(),
     val visitRows: List<VisitRowUi> = emptyList(),
+    // Tira de días del ciclo (SOLO en Día): de la carga de ruta a hoy, inclusive. Vacía en
+    // Semana y también en Día cuando no hay nada que elegir (ciclo de un solo día / cobrador sin
+    // `FECHA_CARGA_INICIAL`) — ver `CollectionReportDayStripBuilder.chips`. Que arranque vacía es
+    // lo que mantiene idéntica la pantalla de siempre para quien no tiene ciclo.
+    val cycleDays: List<DayChipUi> = emptyList(),
+    // Día realmente cargado en Día (`null` en Semana, y en Día hasta la primera carga). NO es la
+    // fecha del sistema: es el día que eligió el cobrador, y es el que manda sobre el total, la
+    // lista de pagos y las tres acciones de salida (Compartir/Imprimir/PDF leen este estado).
+    val selectedDay: LocalDate? = null,
+    // "desde las 7:33 p.m. · inicio del ciclo" cuando el día mostrado es el de la carga de ruta;
+    // vacía el resto de los días. Ver `CollectionReportDayStripBuilder.startNote`.
+    val selectedDayNote: String = "",
     // Flujo de impresión térmica (P2): null cuando el bottom sheet de impresión está cerrado.
     // Es un sheet APARTE de [sheet] (los sheets de detalle del tablero) — mismo patrón
     // (`ModalBottomSheet` manejado por estado), otra responsabilidad.
     val printSheet: PrintSheetUi? = null
+) {
+
+    /**
+     * ¿El día mostrado (Día) cerró sin un solo cobro? Derivado de [detail], no un campo aparte:
+     * un booleano duplicado podría desincronizarse de la lista que la pantalla realmente pinta,
+     * y entonces el tablero diría "Sin cobros" con filas debajo (o al revés). En Semana es
+     * siempre `false` — el detalle es el resumen por día, no una lista de pagos.
+     *
+     * Con [error] presente es `false` aunque el detalle esté vacío: ahí la lista está en blanco
+     * porque la carga FALLÓ (ver `CollectionReportViewModel.applyError`), no porque el cobrador
+     * no haya cobrado. Decir "Sin cobros" sobre un banner de error sería exactamente la mentira
+     * que el estado vacío honesto viene a evitar.
+     */
+    val selectedDayEmpty: Boolean
+        get() = error == null && detail is DetailUi.Payments && detail.rows.isEmpty()
+}
+
+/**
+ * Un chip de la tira de días del ciclo (periodo Día). Semántico, no pre-formateado: el nombre
+ * corto del día y el número los arma la propia tira
+ * ([com.example.msp_app.feature.collectionreport.ui.components.DayStrip]) desde [date] en
+ * es-MX — misma frontera que ya defiende [HeroUi] con `Money`/`Insight` (formatear es de la UI).
+ *
+ * [isToday] e [isSelected] son estados DISTINTOS y pueden darse por separado: al poder ver días
+ * pasados aparece el caso "estoy viendo el miércoles y hoy sigue siendo jueves", donde el chip de
+ * hoy debe seguir marcado aunque no sea el que se está mirando. Por eso no se colapsan en un
+ * solo enum ni comparten color — ver `dayChipPalette` en `DayStrip.kt`.
+ *
+ * [hasCollections] `false` = día sin un solo cobro: se pinta ATENUADO, nunca ausente (decisión
+ * de transparencia del dueño, ver [CollectionReportDayStripBuilder.chips]).
+ */
+data class DayChipUi(
+    val date: LocalDate,
+    val isToday: Boolean,
+    val isSelected: Boolean,
+    val hasCollections: Boolean
 )
 
 /**

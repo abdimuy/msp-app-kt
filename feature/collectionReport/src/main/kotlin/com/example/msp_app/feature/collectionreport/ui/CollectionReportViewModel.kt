@@ -10,6 +10,7 @@ import com.example.msp_app.core.printing.domain.PrinterPort
 import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.collectionreport.di.DefaultDispatcher
+import com.example.msp_app.feature.collectionreport.domain.RangeCalculator
 import com.example.msp_app.feature.collectionreport.domain.ReportAggregator
 import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
@@ -23,6 +24,7 @@ import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.collectionreport.domain.port.VisitsPort
 import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -92,6 +94,18 @@ class CollectionReportViewModel @Inject constructor(
     // no alcanzó a resolver no pise el estado de la carga más reciente al llegar tarde.
     private var loadJob: Job? = null
 
+    // Día del ciclo que el usuario PIDIÓ ver en el periodo Día (`null` = hoy, el default). Vive
+    // aquí y no en un `rememberSaveable` de la UI a propósito: el día elegido no es adorno de
+    // pantalla — decide el rango con que se consultan los puertos y, por lo tanto, el total, la
+    // lista de pagos y lo que se llevan Compartir/Imprimir/PDF (que leen `state`, no la UI). Un
+    // segundo dueño del dato en el árbol de composición sería justo el defecto de la TAREA 1
+    // otra vez: un control que se ve conectado y no mueve los datos. Al vivir en el ViewModel
+    // queda por ENCIMA del `AnimatedContent` del toggle Día↔Semana (cada slot es un subárbol
+    // nuevo) y sobrevive a rotación/cambio de tamaño de letra igual que el resto del estado.
+    // Es la PETICIÓN, no la verdad: cada carga la valida contra el ciclo vigente
+    // ([CollectionReportDayStripBuilder.resolveSelectedDay]) y guarda de vuelta el día resuelto.
+    private var requestedDay: LocalDate? = null
+
     init {
         telemetry.screenView(SCREEN)
         // Mantiene `darkTheme` sincronizado con el tema GLOBAL mientras la pantalla vive —
@@ -110,6 +124,24 @@ class CollectionReportViewModel @Inject constructor(
     fun setPeriod(period: ReportPeriod) {
         telemetry.tap(SCREEN, "period_${period.name.lowercase()}")
         load(period)
+    }
+
+    /**
+     * Elige qué día del ciclo mostrar en el periodo Día y recarga con el rango de ESE día.
+     *
+     * Cambia el total, la lista de pagos y — porque las tres acciones de salida
+     * (Compartir/Imprimir/PDF) se arman desde `state`, no desde la fecha del sistema — también
+     * lo que se comparte, se imprime y se exporta. Es literalmente lo que pidió el dueño: poder
+     * ver e imprimir cualquier día desde la carga de ruta hasta hoy.
+     *
+     * [day] se guarda como PETICIÓN: si no pertenece al ciclo vigente (p. ej. el cobrador
+     * cargó ruta de nuevo y la tira ya es otra), la carga lo devuelve a hoy — ver
+     * [CollectionReportDayStripBuilder.resolveSelectedDay].
+     */
+    fun selectDay(day: LocalDate) {
+        telemetry.tap(SCREEN, "day_select")
+        requestedDay = day
+        load(ReportPeriod.DIA)
     }
 
     /**
@@ -354,6 +386,9 @@ class CollectionReportViewModel @Inject constructor(
                 val content = fetchContent(period, sort)
                 lastPayments = content.payments
                 lastRange = content.range
+                // El día que de verdad se cargó (puede NO ser el pedido: ciclo nuevo -> hoy).
+                // Guardarlo evita que la petición fantasma sobreviva a la siguiente recarga.
+                if (period == ReportPeriod.DIA) requestedDay = content.selectedDay
                 mutableState.update { applyContent(it, period, content) }
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -378,12 +413,37 @@ class CollectionReportViewModel @Inject constructor(
         period: ReportPeriod,
         sort: DetailSort
     ): CollectionReportStateBuilder.LoadedContent = withContext(backgroundDispatcher) {
-        // fechaCargaInicial solo se pide en Semana (Día no depende del ciclo del cobrador) —
-        // también alimenta "Meta de la semana" (CobranzaPorcentaje), que por la misma razón
-        // solo se calcula en Semana.
-        val fechaCargaInicial =
-            if (period == ReportPeriod.SEMANA) userCyclePort.fechaCargaInicial() else null
-        val range = CollectionReportStateBuilder.resolveRange(period, clock, fechaCargaInicial)
+        // fechaCargaInicial se pide en AMBOS periodos: el ciclo del cobrador abre en el INSTANTE
+        // de la carga y ESE recorte aplica también al día (`inicioEfectivo(día) =
+        // max(startOfDay(día), fechaCargaInicial)`, ver el KDoc de `RangeCalculator`) — sin este
+        // valor, `RangeCalculator.dayRange` no tiene contra qué recortar y el día de la carga
+        // arranca a medianoche, volviendo a contar los pagos del ciclo ANTERIOR (el defecto
+        // medido en la ruta 34: $48,200 contra los $43,850 reales). Además es lo que le da a Día
+        // la lista de días elegibles del ciclo (el selector de día) — sin fecha de carga no hay
+        // ciclo que recorrer. La versión anterior de este comentario afirmaba lo contrario
+        // ("Día no depende del ciclo") y el `null` que la acompañaba dejaba el recorte INERTE.
+        //
+        // Lo que NO cambia: "Meta de la semana" (`CobranzaPorcentaje`) sigue calculándose SOLO en
+        // Semana. El gate de la meta es el `period`, no la presencia de este valor — vive en
+        // `CollectionReportStateBuilder.buildHero` (DÍA -> `CobranzaSemanal(null, null, 0, 0)`) y
+        // en el `salesPort` de abajo, que tampoco se consulta en Día. Pedir la fecha aquí no lo
+        // enciende por accidente.
+        val fechaCargaInicial = userCyclePort.fechaCargaInicial()
+        // Días elegibles del ciclo (de la carga a hoy) y día realmente mostrado en Día: si el
+        // usuario tenía elegido un día que el ciclo NUEVO ya no contiene, `resolveSelectedDay`
+        // lo devuelve a hoy en vez de dejar la pantalla apuntando a un día fantasma.
+        val cycleDays = RangeCalculator.cycleDays(clock, fechaCargaInicial)
+        val selectedDay = when (period) {
+            ReportPeriod.DIA ->
+                CollectionReportDayStripBuilder.resolveSelectedDay(cycleDays, requestedDay)
+            ReportPeriod.SEMANA -> null
+        }
+        val range = CollectionReportStateBuilder.resolveRange(
+            period,
+            clock,
+            fechaCargaInicial,
+            selectedDay
+        )
         val cobrador = userCyclePort.cobradorNombre()
         val payments = paymentsPort.paymentsIn(range)
         val forgiveness = paymentsPort.forgivenessIn(range)
@@ -396,8 +456,27 @@ class CollectionReportViewModel @Inject constructor(
         // Ventas activas solo en Semana — evita el costo de la query en Día, donde "Meta de la
         // semana" no se muestra (ver KDoc de HeroUi/CollectionReportStateBuilder.buildHero).
         val sales = if (period == ReportPeriod.SEMANA) salesPort.nonContadoActiveSales() else emptyList()
+        // Qué días del ciclo tuvieron cobro — SOLO para atenuar (que no esconder) los chips en
+        // cero de la tira. Se resuelve con `paymentsGroupedByDaySince`, el puerto que ya existe
+        // para justo este resumen por día, y desde el inicio REAL del ciclo (la hora de la
+        // carga), así los pagos del ciclo anterior no reviven el día de la carga. Solo en Día y
+        // solo cuando hay tira que pintar: Semana no la muestra y un ciclo de un día no tiene
+        // nada que elegir, así que ninguno paga esta consulta.
+        val dayGroups = if (period == ReportPeriod.DIA && cycleDays.size > 1) {
+            paymentsPort.paymentsGroupedByDaySince(
+                RangeCalculator.cycleRange(clock, fechaCargaInicial).startIso
+            )
+        } else {
+            emptyMap()
+        }
 
-        val context = CollectionReportStateBuilder.LoadContext(period, range, clock, sort)
+        val context = CollectionReportStateBuilder.LoadContext(
+            period,
+            range,
+            clock,
+            sort,
+            selectedDay
+        )
         val ports = CollectionReportStateBuilder.LoadedPorts(
             cobrador = cobrador,
             payments = payments,
@@ -407,7 +486,9 @@ class CollectionReportViewModel @Inject constructor(
             priorTotal = priorTotal,
             historicalTotals = historicalTotals,
             sales = sales,
-            fechaCargaInicial = fechaCargaInicial
+            fechaCargaInicial = fechaCargaInicial,
+            cycleDays = cycleDays,
+            dayGroups = dayGroups
         )
         CollectionReportStateBuilder.buildContent(context, ports)
     }
@@ -435,7 +516,10 @@ class CollectionReportViewModel @Inject constructor(
         detail = content.detail,
         dayPayments = content.dayPayments,
         condonadoRows = content.condonadoRows,
-        visitRows = content.visitRows
+        visitRows = content.visitRows,
+        cycleDays = content.cycleDays,
+        selectedDay = content.selectedDay,
+        selectedDayNote = content.selectedDayNote
     )
 
     /**
@@ -448,6 +532,11 @@ class CollectionReportViewModel @Inject constructor(
      * pinta el banner de error sobre un tablero en blanco para el periodo pedido. `cobrador`
      * NO se blanquea — es identidad del usuario, no depende del rango, y no genera la mezcla
      * que este fix corrige.
+     *
+     * `cycleDays`/`selectedDay`/`selectedDayNote` TAMPOCO se blanquean, por el mismo criterio:
+     * la tira de días es NAVEGACIÓN, no contenido del rango. Borrarla dejaría al cobrador
+     * mirando un tablero en blanco sin ningún control para volver a hoy ni reintentar otro día
+     * — el mismo error de "control muerto" que ya se pagó una vez en Tier 2.
      */
     private fun applyError(
         current: CollectionReportUiState,
