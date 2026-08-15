@@ -11,11 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,13 +19,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.appgate.download.DownloadProgress
+import com.example.msp_app.core.appgate.download.formatMegabytes
 import com.example.msp_app.core.appgate.download.megabytesLabel
 import com.example.msp_app.core.designsystem.component.MspProgressBar
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -48,6 +43,7 @@ private val MARK_SIZE = 56.dp
 private val ICON_SIZE = 28.dp
 private val PROGRESS_HEIGHT = 7.dp
 private val SCREEN_PADDING = 24.dp
+private val TOP_SPACE = 32.dp
 
 /**
  * Pantalla de bloqueo por versión mínima.
@@ -77,6 +73,10 @@ fun VersionBlockedScreen(viewModel: VersionGateViewModel = hiltViewModel()) {
  * Cuerpo sin estado de [VersionBlockedScreen] — el punto de entrada de los
  * compose-tests (mismo criterio "stateless, spy vía lambda" que
  * `ConfiguracionContent`).
+ *
+ * Contenido **arriba**, no centrado: con la banda puesta y a `fontScale = 2`
+ * el centrado dejaba dos franjas negras enormes y empujaba el botón fuera de
+ * la primera pantalla.
  */
 @Composable
 fun VersionBlockedContent(
@@ -92,17 +92,21 @@ fun VersionBlockedContent(
             .verticalScroll(rememberScrollState())
             .padding(SCREEN_PADDING),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
-        if (state.deadlineLabel.isNotBlank()) {
+        // La banda depende de que HAYA una actualización de la que hablar, no
+        // de que alguien haya escrito la fecha límite: sin `MIN_VERSION_DEADLINE`
+        // seguía siendo cierto que hay un archivo que instalar, y la banda
+        // simplemente no se montaba (el defecto que se veía en campo).
+        if (state.stage.showsCountdownBand()) {
             UpdateCountdownBand(
                 deadlineLabel = state.deadlineLabel,
                 ready = state.stage is UpdateStage.ReadyToInstall,
                 onAction = if (state.stage is UpdateStage.ReadyToInstall) onInstall else onDownload
             )
-            Spacer(modifier = Modifier.height(MspTheme.spacing.lg))
         }
 
+        Spacer(modifier = Modifier.height(TOP_SPACE))
         StageMark(stage = state.stage)
         Spacer(modifier = Modifier.height(MspTheme.spacing.md))
 
@@ -159,30 +163,37 @@ private fun StageMark(stage: UpdateStage) {
 /**
  * Progreso en **megas**, no una rueda. Una rueda indeterminada es la que
  * termina en una llamada por teléfono preguntando si se quedó trabada.
+ *
+ * Sin tamaño total conocido no se pinta barra ni porcentaje: "0 de 0 MB · 0%"
+ * es peor que no decir nada.
  */
 @Composable
 private fun StageProgress(stage: UpdateStage) {
     val progress = stage.progress() ?: return
     val colors = MspTheme.colors
-    val paused = stage is UpdateStage.Failed
     Spacer(modifier = Modifier.height(MspTheme.spacing.md))
-    MspProgressBar(
-        progress = progress.fraction,
-        height = PROGRESS_HEIGHT,
-        fillColor = if (paused) colors.onSurfaceMuted else colors.brand,
-        trackColor = colors.progressTrack,
-        modifier = Modifier.testTag(VERSION_BLOCKED_PROGRESS_TAG)
-    )
-    Spacer(modifier = Modifier.height(MspTheme.spacing.xs))
+    if (progress.totalBytes > 0L) {
+        MspProgressBar(
+            progress = progress.fraction,
+            height = PROGRESS_HEIGHT,
+            fillColor = if (stage.paused()) colors.onSurfaceMuted else colors.brand,
+            trackColor = colors.progressTrack,
+            modifier = Modifier.testTag(VERSION_BLOCKED_PROGRESS_TAG)
+        )
+        Spacer(modifier = Modifier.height(MspTheme.spacing.xs))
+    }
     Text(
-        text = if (paused) {
-            "${progress.megabytesLabel()} · en pausa"
-        } else {
-            "${progress.megabytesLabel()} · ${progress.percent}%"
-        },
+        text = progress.label(stage),
         style = MspTheme.type.caption,
         color = colors.onSurfaceMuted
     )
+}
+
+private fun DownloadProgress.label(stage: UpdateStage): String = when {
+    totalBytes <= 0L -> "${formatMegabytes(downloadedBytes)} MB"
+    stage is UpdateStage.Failed -> "${megabytesLabel()} · en pausa"
+    stage is UpdateStage.Stalled -> "${megabytesLabel()} · sin avance"
+    else -> "${megabytesLabel()} · $percent%"
 }
 
 @Composable
@@ -197,12 +208,10 @@ private fun StageActions(stage: UpdateStage, onInstall: () -> Unit, onDownload: 
             tag = VERSION_BLOCKED_ACTION_TAG
         )
 
-        is UpdateStage.Downloading -> GateActionButton(
-            text = "Instalar",
-            onClick = {},
-            fillColor = colors.outline,
-            contentColor = colors.onSurfaceMuted,
-            enabled = false,
+        // Deshabilitado, pero el texto dice POR QUÉ. Un "Instalar" gris sin
+        // explicación se lee como app rota.
+        is UpdateStage.Downloading -> DisabledGateActionButton(
+            text = "Instalar al terminar",
             tag = VERSION_BLOCKED_ACTION_TAG
         )
 
@@ -215,12 +224,8 @@ private fun StageActions(stage: UpdateStage, onInstall: () -> Unit, onDownload: 
         )
 
         UpdateStage.Offline -> {
-            GateActionButton(
-                text = "Descargar",
-                onClick = {},
-                fillColor = colors.outline,
-                contentColor = colors.onSurfaceMuted,
-                enabled = false,
+            DisabledGateActionButton(
+                text = "Descargar al reconectar",
                 tag = VERSION_BLOCKED_ACTION_TAG
             )
             Spacer(modifier = Modifier.height(MspTheme.spacing.sm))
@@ -233,51 +238,54 @@ private fun StageActions(stage: UpdateStage, onInstall: () -> Unit, onDownload: 
             )
         }
 
-        is UpdateStage.Failed -> GateActionButton(
+        is UpdateStage.Failed, is UpdateStage.Stalled -> GateActionButton(
             text = "Reintentar",
             onClick = onDownload,
             fillColor = colors.brand,
             contentColor = colors.onBrand,
             tag = VERSION_BLOCKED_ACTION_TAG
         )
+
+        // Sin botón a propósito: no hay nada que el cobrador pueda tocar para
+        // arreglar una configuración que no es suya. Ofrecerle uno que no
+        // sirve sería peor que no ofrecer ninguno.
+        UpdateStage.Unavailable, is UpdateStage.Unusable -> Unit
     }
 }
 
-private fun UpdateStage.title(): String = when (this) {
-    UpdateStage.ReadyToInstall -> "Actualiza para continuar"
-    is UpdateStage.Downloading -> "Descargando la actualización"
-    is UpdateStage.MeteredOnly -> "Actualiza para continuar"
-    UpdateStage.Offline -> "Sin conexión"
-    is UpdateStage.Failed -> "No se completó la descarga"
+/**
+ * Variante deshabilitada, con relleno propio: `outline` sobre el fondo negro
+ * dejaba un gris casi invisible (lo que se veía en el teléfono real).
+ * `surface2` + `onSurfaceMuted` pasa el contraste 4.5:1 en los dos temas.
+ */
+@Composable
+private fun DisabledGateActionButton(text: String, tag: String) {
+    GateActionButton(
+        text = text,
+        onClick = {},
+        fillColor = MspTheme.colors.surface2,
+        contentColor = MspTheme.colors.onSurfaceMuted,
+        enabled = false,
+        tag = tag
+    )
 }
 
-private fun UpdateStage.explanation(): String = when (this) {
-    UpdateStage.ReadyToInstall ->
-        "La actualización ya está descargada en tu teléfono. No usa datos."
-
-    is UpdateStage.Downloading ->
-        "Conectado a wifi. Puedes dejar el teléfono, sigue sola."
-
-    is UpdateStage.MeteredOnly ->
-        "La descarga automática espera al wifi. Si no puedes esperar, descárgala con tus datos."
-
-    UpdateStage.Offline ->
-        "Conéctate a wifi o datos para descargar la actualización."
-
-    is UpdateStage.Failed ->
-        "Se interrumpió en ${progress.megabytesLabel()}. Al reintentar continúa desde ahí."
-}
-
-private fun UpdateStage.icon(): ImageVector = when (this) {
-    UpdateStage.ReadyToInstall -> Icons.Filled.Check
-    is UpdateStage.Downloading, is UpdateStage.MeteredOnly -> Icons.Filled.KeyboardArrowDown
-    UpdateStage.Offline -> Icons.Filled.Warning
-    is UpdateStage.Failed -> Icons.Filled.Refresh
-}
-
-/** Solo dos estados llevan barra: los que tienen bytes que enseñar. */
+/** Solo llevan barra los estados que tienen bytes que enseñar. */
 private fun UpdateStage.progress(): DownloadProgress? = when (this) {
     is UpdateStage.Downloading -> progress
     is UpdateStage.Failed -> progress
+    is UpdateStage.Stalled -> progress
     else -> null
 }
+
+/** La barra se pinta apagada cuando nada se está moviendo. */
+private fun UpdateStage.paused(): Boolean =
+    this is UpdateStage.Failed || this is UpdateStage.Stalled
+
+/**
+ * La banda solo aparece si existe un archivo del que hablar: sin APK
+ * publicado, o con uno que no sirve, su acción ("Descargar"/"Instalar") no
+ * llevaría a ninguna parte.
+ */
+private fun UpdateStage.showsCountdownBand(): Boolean =
+    this != UpdateStage.Unavailable && this !is UpdateStage.Unusable

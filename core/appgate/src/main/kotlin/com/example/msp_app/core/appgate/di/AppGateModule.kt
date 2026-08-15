@@ -15,7 +15,9 @@ import com.example.msp_app.core.appgate.VersionGateCache
 import com.example.msp_app.core.appgate.download.AndroidNetworkStatusProvider
 import com.example.msp_app.core.appgate.download.ApkDownloader
 import com.example.msp_app.core.appgate.download.ApkInstaller
+import com.example.msp_app.core.appgate.download.ApkVersionReader
 import com.example.msp_app.core.appgate.download.NetworkStatusProvider
+import com.example.msp_app.core.appgate.download.PackageManagerApkVersionReader
 import com.example.msp_app.core.appgate.download.UpdateDownloadScheduler
 import com.example.msp_app.core.appgate.download.UpdateFileLocator
 import dagger.Module
@@ -95,13 +97,25 @@ object AppGateModule {
 
     @Provides
     @Singleton
-    fun provideUpdateFileLocator(@ApplicationContext context: Context): UpdateFileLocator =
-        UpdateFileLocator(context)
+    fun provideUpdateFileLocator(
+        @ApplicationContext context: Context,
+        versionReader: ApkVersionReader
+    ): UpdateFileLocator = UpdateFileLocator(context, versionReader)
 
     @Provides
     @Singleton
     fun provideApkInstaller(@ApplicationContext context: Context): ApkInstaller =
         ApkInstaller(context)
+
+    /**
+     * Lee la versión del APK descargado. Sirve para dos cosas que no se pueden
+     * deducir de la configuración remota: saber que el archivo publicado no
+     * alcanza el mínimo, y saber que uno ya instalado se puede borrar.
+     */
+    @Provides
+    @Singleton
+    fun provideApkVersionReader(@ApplicationContext context: Context): ApkVersionReader =
+        PackageManagerApkVersionReader(context)
 
     /**
      * Cliente propio de la descarga: nada de reusar el de la API. Bajar 11 MB

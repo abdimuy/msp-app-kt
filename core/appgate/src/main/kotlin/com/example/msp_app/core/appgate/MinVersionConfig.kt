@@ -3,9 +3,14 @@ package com.example.msp_app.core.appgate
 /**
  * El APK que hay que instalar, tal como lo publica la oficina.
  *
- * [sha256] no es opcional en la práctica: sin él la descarga no se puede dar
- * por buena (ver `ApkDownloader`). Un paquete sin checksum se trata como
- * "todavía no hay APK publicado".
+ * Los tres campos son obligatorios: un paquete al que le falte cualquiera de
+ * ellos se trata como "todavía no hay APK publicado" y la pantalla lo dice con
+ * esas palabras (`UpdateStage.Unavailable`), en vez de fingir una descarga.
+ * - [sha256]: sin él la descarga no se puede dar por buena (`ApkDownloader`).
+ * - [sizeBytes]: sin él `UpdateFileLocator.isComplete` nunca puede afirmar que
+ *   el archivo ya está entero; la descarga se reencolaría en cada arranque
+ *   para pedir un `Range` que el servidor contesta `416`. Un tamaño ausente no
+ *   es un detalle cosmético — rompe la reanudación.
  */
 data class UpdatePackage(
     val url: String,

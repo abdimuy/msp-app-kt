@@ -76,14 +76,14 @@ internal fun DocumentSnapshot.toMinVersionConfig(): MinVersionConfig = MinVersio
 private fun DocumentSnapshot.readUpdatePackage(): UpdatePackage? {
     val url = readString(MinVersionFields.MIN_VERSION_APK_URL)
     val sha256 = readString(MinVersionFields.MIN_VERSION_APK_SHA256)
-    // Sin checksum no hay forma de dar la descarga por buena, y sin URL no hay
-    // qué descargar: en cualquiera de los dos casos es "todavía no hay APK".
-    if (url.isNullOrBlank() || sha256.isNullOrBlank()) return null
-    return UpdatePackage(
-        url = url,
-        sizeBytes = readLong(MinVersionFields.MIN_VERSION_APK_SIZE) ?: 0L,
-        sha256 = sha256
-    )
+    val sizeBytes = readLong(MinVersionFields.MIN_VERSION_APK_SIZE) ?: 0L
+    // Los tres campos o ninguno (ver KDoc de `UpdatePackage`): sin URL no hay
+    // qué bajar, sin checksum no se puede dar por buena la bajada, y sin
+    // tamaño no se puede saber que terminó. Media configuración es "todavía no
+    // hay APK" — y la pantalla lo dice con esas palabras en vez de fingir una
+    // descarga que nunca va a avanzar.
+    if (url.isNullOrBlank() || sha256.isNullOrBlank() || sizeBytes <= 0L) return null
+    return UpdatePackage(url = url, sizeBytes = sizeBytes, sha256 = sha256)
 }
 
 private fun DocumentSnapshot.readLong(field: String): Long? = get(field) as? Long

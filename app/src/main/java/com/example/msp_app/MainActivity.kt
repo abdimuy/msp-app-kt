@@ -9,18 +9,32 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.msp_app.core.appgate.AppEntryStep
+import com.example.msp_app.core.appgate.GATE_WAIT_TIMEOUT_MS
+import com.example.msp_app.core.appgate.resolveAppEntryStep
+import com.example.msp_app.core.appgate.ui.VersionBlockedScreen
+import com.example.msp_app.core.appgate.ui.VersionGateViewModel
 import com.example.msp_app.core.context.LocalConnectivityState
 import com.example.msp_app.core.context.rememberConnectivityState
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
@@ -37,6 +51,7 @@ import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.persistentCacheSettings
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.delay
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -69,6 +84,9 @@ class MainActivity : FragmentActivity() {
 
     private var lastActivityTime = System.currentTimeMillis()
     private val inactivityTimeoutMs = 5 * 60 * 1000L // 5 minutos
+
+    /** El prompt vivo, para poder cerrarlo si la compuerta de versión gana. */
+    private var biometricPrompt: BiometricPrompt? = null
 
     @RequiresApi(Build.VERSION_CODES.S)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -153,16 +171,56 @@ class MainActivity : FragmentActivity() {
                     LocalConnectivityState provides connectivityState,
                     LocalTelemetry provides telemetry
                 ) {
-                    if (isAuthenticated) {
-                        AppNavigation()
-                    } else {
-                        LaunchedEffect(Unit) {
-                            authenticateUser()
-                        }
-                    }
+                    AppEntry()
                 }
             }
         }
+    }
+
+    /**
+     * Quién manda en el arranque: **la compuerta de versión, antes que la
+     * huella** (ver `resolveAppEntryStep`). Autenticarse en una app que no se
+     * puede usar no le sirve a nadie, y el orden dejó de depender de si el
+     * proceso venía vivo o no.
+     *
+     * El `VersionGateViewModel` se resuelve acá, en el `ViewModelStore` de la
+     * `Activity` — la misma instancia que después toma `AppNavigation`, así
+     * que no hay dos compuertas encolando descargas por su cuenta.
+     */
+    @Composable
+    private fun AppEntry() {
+        val gateViewModel: VersionGateViewModel = hiltViewModel()
+        val verdict by gateViewModel.verdict.collectAsStateWithLifecycle()
+        var gateWaitElapsed by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            delay(GATE_WAIT_TIMEOUT_MS)
+            gateWaitElapsed = true
+        }
+
+        when (resolveAppEntryStep(verdict, isAuthenticated, gateWaitElapsed)) {
+            AppEntryStep.VERSION_BLOCKED -> {
+                // Si el prompt alcanzó a abrirse antes de que llegara el
+                // veredicto, se cierra: dejarlo encima de la pantalla de
+                // bloqueo pediría una huella para nada.
+                LaunchedEffect(Unit) { dismissBiometricPrompt() }
+                VersionBlockedScreen(viewModel = gateViewModel)
+            }
+
+            AppEntryStep.WAITING_FOR_GATE -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            )
+
+            AppEntryStep.AUTHENTICATE -> LaunchedEffect(Unit) { authenticateUser() }
+
+            AppEntryStep.RUN -> AppNavigation()
+        }
+    }
+
+    private fun dismissBiometricPrompt() {
+        biometricPrompt?.cancelAuthentication()
+        biometricPrompt = null
     }
 
     private fun authenticateUser() {
@@ -197,7 +255,7 @@ class MainActivity : FragmentActivity() {
 
     private fun showBiometricPrompt() {
         val executor = ContextCompat.getMainExecutor(this)
-        val biometricPrompt =
+        val prompt =
             BiometricPrompt(
                 this,
                 executor,
@@ -234,7 +292,10 @@ class MainActivity : FragmentActivity() {
             )
             .build()
 
-        biometricPrompt.authenticate(promptInfo)
+        // Se guarda para poder cancelarlo si la compuerta de versión bloquea
+        // mientras el prompt está arriba.
+        biometricPrompt = prompt
+        prompt.authenticate(promptInfo)
     }
 
     override fun onUserInteraction() {

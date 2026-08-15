@@ -73,16 +73,12 @@ fun UpdateCountdownBand(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = if (ready) "Listo para instalar" else "Actualiza antes del $deadlineLabel",
+                text = if (ready) "Listo para instalar" else bandHeadline(deadlineLabel),
                 style = MspTheme.type.captionStrong,
                 color = content
             )
             Text(
-                text = if (ready) {
-                    "Actualiza antes del $deadlineLabel"
-                } else {
-                    "Se descarga sola al conectarte a wifi"
-                },
+                text = if (ready) bandHeadline(deadlineLabel) else "Se descarga sola con wifi",
                 style = MspTheme.type.caption,
                 color = content
             )
@@ -97,6 +93,14 @@ fun UpdateCountdownBand(
         )
     }
 }
+
+/**
+ * La fecha límite es opcional: la escribe a mano quien avisa por WhatsApp y a
+ * veces no la escribe. Sin ella la banda sigue siendo cierta —hay una
+ * actualización pendiente— y lo dice sin inventar un "antes del ".
+ */
+private fun bandHeadline(deadlineLabel: String): String =
+    if (deadlineLabel.isBlank()) "Actualización pendiente" else "Actualiza antes del $deadlineLabel"
 
 /**
  * Color de fondo vigente de la banda.

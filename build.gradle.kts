@@ -404,6 +404,13 @@ tasks.register("prePushCheck") {
         ":core:printing:ktlintCheck",
         ":core:telemetry:ktlintCheck",
         ":core:testing:ktlintCheck",
+        // `:core:upload` (política de entrega garantizada) y `:core:appgate`
+        // (bloqueo por versión) entran al gate desde su creación: son
+        // exactamente los dos módulos donde un error cuesta dinero — uno decide
+        // si se suelta una captura, el otro puede dejar a la flota sin app.
+        ":core:upload:ktlintCheck",
+        ":core:appgate:ktlintCheck",
+        ":core:settings:ktlintCheck",
         ":feature:collectionReport:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
@@ -414,6 +421,9 @@ tasks.register("prePushCheck") {
         ":core:printing:testDebugUnitTest",
         ":core:telemetry:testDebugUnitTest",
         ":core:testing:testDebugUnitTest",
+        ":core:upload:testDebugUnitTest",
+        ":core:appgate:testDebugUnitTest",
+        ":core:settings:testDebugUnitTest",
         ":feature:collectionReport:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
@@ -432,6 +442,13 @@ tasks.register("prePushCheck") {
         // (placeholder `msp.kover`), igual que el resto de módulos nuevos.
         ":core:printing:koverVerifyDebug",
         ":core:telemetry:koverVerifyDebug",
+        // `:core:upload` es JVM plano (funcion pura + puerto), asi que aguanta
+        // el agregado `koverVerify` sin el gotcha Robolectric-bajo-`release`.
+        ":core:upload:koverVerify",
+        // `:core:appgate` y `:core:settings` si traen Robolectric (Compose):
+        // `koverVerifyDebug` por el mismo gotcha explicado arriba.
+        ":core:appgate:koverVerifyDebug",
+        ":core:settings:koverVerifyDebug",
         // Mismo gotcha Robolectric-bajo-`release` de arriba — Task 11 (Plan 5,
         // cierre del piloto) suma el piso de cobertura (todavía placeholder
         // 0%, `msp.kover`, igual que el resto de módulos nuevos sin línea
@@ -444,6 +461,9 @@ tasks.register("prePushCheck") {
         ":core:printing:detekt",
         ":core:telemetry:detekt",
         ":core:testing:detekt",
+        ":core:upload:detekt",
+        ":core:appgate:detekt",
+        ":core:settings:detekt",
         ":feature:collectionReport:detekt",
         ":build-tools:detekt-rules:detekt",
         ":core:designsystem:verifyRoborazziDebug",

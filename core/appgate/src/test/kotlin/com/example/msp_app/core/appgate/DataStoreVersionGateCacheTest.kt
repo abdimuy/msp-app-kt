@@ -101,4 +101,28 @@ class DataStoreVersionGateCacheTest {
 
         assertNull(cache.config.first().updatePackage)
     }
+
+    /**
+     * Sin tamaño, `UpdateFileLocator.isComplete` no puede afirmar nunca que el
+     * archivo esté entero, y la pantalla se quedaba en «0 de 0 MB · 0%» para
+     * siempre. Media configuración no es una actualización: mejor decir que no
+     * hay APK publicado.
+     */
+    @Test
+    fun `un APK sin tamaño no se considera un APK`() = runTest {
+        val cache = newCache()
+
+        cache.save(MinVersionConfig(updatePackage = paquete.copy(sizeBytes = 0L)))
+
+        assertNull(cache.config.first().updatePackage)
+    }
+
+    @Test
+    fun `un APK sin URL no se considera un APK`() = runTest {
+        val cache = newCache()
+
+        cache.save(MinVersionConfig(updatePackage = paquete.copy(url = "")))
+
+        assertNull(cache.config.first().updatePackage)
+    }
 }

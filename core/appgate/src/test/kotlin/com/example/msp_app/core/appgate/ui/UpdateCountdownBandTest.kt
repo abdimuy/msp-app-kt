@@ -139,6 +139,27 @@ class UpdateCountdownBandTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText("Instalar").assertIsDisplayed()
     }
 
+    /**
+     * `MIN_VERSION_DEADLINE` es opcional y en producción nadie lo había
+     * escrito. La banda no puede quedar diciendo "Actualiza antes del " a
+     * medias: sigue habiendo una actualización pendiente, y eso es lo que dice.
+     */
+    @Test
+    fun `sin fecha limite la banda lo dice sin dejar la frase colgando`() {
+        setContent(ready = false, deadlineLabel = "")
+
+        composeTestRule.onNodeWithText("Actualización pendiente").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Actualiza antes del ").assertDoesNotExist()
+    }
+
+    @Test
+    fun `sin fecha limite y con el archivo listo tampoco queda una frase a medias`() {
+        setContent(ready = true, deadlineLabel = "")
+
+        composeTestRule.onNodeWithText("Listo para instalar").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Actualización pendiente").assertIsDisplayed()
+    }
+
     @Test
     fun `la accion informa al caller`() {
         var toques = 0
@@ -183,10 +204,19 @@ class UpdateCountdownBandTest : RobolectricTestBase() {
 
     // ─── helpers ──────────────────────────────────────────────────────────────
 
-    private fun setContent(ready: Boolean, fontScale: Float = 1f, onAction: () -> Unit = {}) {
+    private fun setContent(
+        ready: Boolean,
+        fontScale: Float = 1f,
+        deadlineLabel: String = DEADLINE,
+        onAction: () -> Unit = {}
+    ) {
         composeTestRule.setContent {
             Harness(fontScale = fontScale, reduceMotion = false) {
-                UpdateCountdownBand(deadlineLabel = DEADLINE, ready = ready, onAction = onAction)
+                UpdateCountdownBand(
+                    deadlineLabel = deadlineLabel,
+                    ready = ready,
+                    onAction = onAction
+                )
             }
         }
     }

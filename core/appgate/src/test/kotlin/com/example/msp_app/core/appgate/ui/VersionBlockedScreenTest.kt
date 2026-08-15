@@ -48,7 +48,13 @@ class VersionBlockedScreenTest : RobolectricTestBase() {
         setContent(BASE_STATE.copy(stage = UpdateStage.ReadyToInstall))
 
         composeTestRule.onNodeWithText("Actualiza para continuar").assertIsDisplayed()
-        composeTestRule.onNodeWithText("Instalar").assertIsDisplayed()
+        // Por tag y no por texto: con la banda montada (que también ofrece
+        // "Instalar") hay dos nodos con esa palabra, y el que importa es el
+        // botón principal.
+        composeTestRule.onNodeWithTag(VERSION_BLOCKED_ACTION_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText(
+            "La actualización ya está descargada en tu teléfono. No usa datos."
+        ).assertIsDisplayed()
     }
 
     @Test
@@ -142,11 +148,72 @@ class VersionBlockedScreenTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(UPDATE_COUNTDOWN_BAND_TAG).assertIsDisplayed()
     }
 
+    /**
+     * Defecto 3: la banda colgaba de `deadlineLabel`, que en producción nadie
+     * había escrito — y en el teléfono no aparecía nunca. Lo que la justifica
+     * es que HAYA una actualización de la que hablar.
+     */
     @Test
-    fun `sin fecha limite no monta la banda`() {
+    fun `sin fecha limite la banda sigue montada - lo que la justifica es el archivo`() {
         setContent(BASE_STATE.copy(deadlineLabel = "", stage = UpdateStage.ReadyToInstall))
 
+        composeTestRule.onNodeWithTag(UPDATE_COUNTDOWN_BAND_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Listo para instalar").assertIsDisplayed()
+    }
+
+    @Test
+    fun `sin archivo publicado no hay banda - su accion no llevaria a ningun lado`() {
+        setContent(BASE_STATE.copy(deadlineLabel = "vie 22", stage = UpdateStage.Unavailable))
+
         composeTestRule.onNodeWithTag(UPDATE_COUNTDOWN_BAND_TAG).assertDoesNotExist()
+    }
+
+    // ─── defecto 1: configuración a medias no se disfraza de descarga ─────────
+
+    @Test
+    fun `sin APK publicado lo dice y no finge una descarga`() {
+        setContent(BASE_STATE.copy(stage = UpdateStage.Unavailable))
+
+        composeTestRule.onNodeWithText("Actualización no disponible").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(VERSION_BLOCKED_PROGRESS_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithTag(VERSION_BLOCKED_ACTION_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun `una descarga estancada ofrece reintentar en vez de seguir prometiendo`() {
+        var descargar = 0
+        setContent(
+            BASE_STATE.copy(stage = UpdateStage.Stalled(DownloadProgress(0L, SIZE))),
+            onDownload = { descargar++ }
+        )
+
+        composeTestRule.onNodeWithText("La descarga no avanza").assertIsDisplayed()
+        composeTestRule.onNodeWithText("0 de 11 MB · sin avance").assertIsDisplayed()
+        composeTestRule.onNodeWithTag(VERSION_BLOCKED_ACTION_TAG).performClick()
+
+        assertEquals(1, descargar)
+    }
+
+    // ─── defecto 2: un APK que no alcanza el mínimo ───────────────────────────
+
+    @Test
+    fun `un APK que no alcanza el minimo se dice, y no se ofrece instalar`() {
+        setContent(BASE_STATE.copy(stage = UpdateStage.Unusable("2.16.0")))
+
+        composeTestRule.onNodeWithText("El archivo no actualiza").assertIsDisplayed()
+        composeTestRule.onNodeWithText(
+            "El archivo publicado es la 2.16.0 y no alcanza. Avisa a la oficina."
+        ).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(VERSION_BLOCKED_ACTION_TAG).assertDoesNotExist()
+    }
+
+    // ─── menores: el botón deshabilitado explica por qué ──────────────────────
+
+    @Test
+    fun `mientras baja, el boton dice por que no se puede instalar todavia`() {
+        setContent(BASE_STATE.copy(stage = UpdateStage.Downloading(DownloadProgress(0L, SIZE))))
+
+        composeTestRule.onNodeWithText("Instalar al terminar").assertIsDisplayed()
     }
 
     // ─── accesibilidad ────────────────────────────────────────────────────────
@@ -176,6 +243,62 @@ class VersionBlockedScreenTest : RobolectricTestBase() {
         )
 
         composeTestRule.onNodeWithText("4.2 de 11 MB · 38%").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `a fontScale 2 el estado sin APK publicado sigue legible`() {
+        setContent(BASE_STATE.copy(stage = UpdateStage.Unavailable), fontScale = LARGE_FONT_SCALE)
+
+        composeTestRule.onNodeWithText(
+            "Actualización no disponible"
+        ).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText(
+            "La oficina todavía no publica el archivo. Avísales para que lo suban."
+        ).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `a fontScale 2 el estancamiento conserva su boton tocable`() {
+        var descargar = 0
+        setContent(
+            BASE_STATE.copy(stage = UpdateStage.Stalled(DownloadProgress(1_000_000L, SIZE))),
+            fontScale = LARGE_FONT_SCALE,
+            onDownload = { descargar++ }
+        )
+
+        composeTestRule.onNodeWithText(
+            "La descarga no avanza"
+        ).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithTag(VERSION_BLOCKED_ACTION_TAG).performScrollTo().performClick()
+
+        assertEquals(1, descargar)
+    }
+
+    @Test
+    fun `a fontScale 2 el APK que no alcanza sigue explicandose`() {
+        setContent(
+            BASE_STATE.copy(deadlineLabel = "vie 22", stage = UpdateStage.Unusable("2.16.0")),
+            fontScale = LARGE_FONT_SCALE
+        )
+
+        composeTestRule.onNodeWithText(
+            "El archivo no actualiza"
+        ).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText(
+            "Tienes 2.15.0 · necesitas 2.17.0"
+        ).performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun `a fontScale 2 la banda sin fecha limite sigue montada`() {
+        setContent(
+            BASE_STATE.copy(deadlineLabel = "", stage = UpdateStage.ReadyToInstall),
+            fontScale = LARGE_FONT_SCALE
+        )
+
+        composeTestRule.onNodeWithTag(
+            UPDATE_COUNTDOWN_BAND_TAG
+        ).performScrollTo().assertIsDisplayed()
     }
 
     @Test

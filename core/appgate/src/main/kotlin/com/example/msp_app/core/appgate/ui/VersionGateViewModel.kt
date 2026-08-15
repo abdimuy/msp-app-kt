@@ -1,5 +1,6 @@
 package com.example.msp_app.core.appgate.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.appgate.AppVersionGate
@@ -13,6 +14,7 @@ import com.example.msp_app.core.appgate.download.UpdateDownloadScheduler
 import com.example.msp_app.core.appgate.download.UpdateDownloadState
 import com.example.msp_app.core.appgate.download.UpdateDownloadStateHolder
 import com.example.msp_app.core.appgate.download.UpdateFileLocator
+import com.example.msp_app.core.appgate.download.stalledAfter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -23,15 +25,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+private const val TAG = "VersionGate"
+
 /**
  * Punto de entrada de la compuerta para la capa de navegación.
  *
- * Hace tres cosas y nada más: expone el veredicto ([verdict]) para que
+ * Hace cuatro cosas y nada más: expone el veredicto ([verdict]) para que
  * `AppNavigation` mande a la pantalla sin salida, arma el estado de esa
- * pantalla ([blockedState]) y **encola la descarga automática por wifi** en
- * cuanto la configuración remota anuncia un APK que todavía no está en disco.
+ * pantalla ([blockedState]), **encola la descarga automática por wifi** en
+ * cuanto la configuración remota anuncia un APK que todavía no está en disco,
+ * y **borra el APK ya instalado** cuando la compuerta vuelve a permitir.
  *
- * Esa última parte es el corazón del trato: el archivo se baja **antes**, por
+ * La tercera parte es el corazón del trato: el archivo se baja **antes**, por
  * wifi y sin que nadie lo pida, para que cuando el bloqueo llegue ya esté en
  * el teléfono. Bloquear más fuerte no cambia el incentivo; abaratar la
  * actualización sí.
@@ -40,7 +45,7 @@ import kotlinx.coroutines.launch
 class VersionGateViewModel @Inject constructor(
     private val gate: AppVersionGate,
     private val downloadState: UpdateDownloadStateHolder,
-    private val networkStatus: NetworkStatusProvider,
+    networkStatus: NetworkStatusProvider,
     private val locator: UpdateFileLocator,
     private val scheduler: UpdateDownloadScheduler,
     private val installer: ApkInstaller
@@ -69,9 +74,12 @@ class VersionGateViewModel @Inject constructor(
     val blockedState: StateFlow<VersionBlockedUiState> = combine(
         status,
         downloadState.state,
-        networkStatus.observe()
-    ) { gateStatus, download, network ->
-        toUiState(gateStatus, download, network)
+        networkStatus.observe(),
+        // Reloj de "esto no avanza": sin él, un trabajo encolado que nunca
+        // arranca se ve igual que una descarga sana.
+        downloadState.state.stalledAfter()
+    ) { gateStatus, download, network, stalled ->
+        toUiState(gateStatus, download, network, stalled)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -84,7 +92,12 @@ class VersionGateViewModel @Inject constructor(
         viewModelScope.launch { gate.syncRemote() }
         viewModelScope.launch {
             status.collect { gateStatus ->
-                val update = gateStatus?.updatePackage ?: return@collect
+                if (gateStatus == null) return@collect
+                cleanUpInstalledApk(gateStatus)
+                val update = gateStatus.updatePackage ?: return@collect
+                // `Ready` es descarga terminada y verificada: reencolar ahí
+                // volvería a bajar 11 MB por nada.
+                if (downloadState.state.value is UpdateDownloadState.Ready) return@collect
                 if (!locator.isComplete(update)) scheduler.enqueueAutomatic(update)
             }
         }
@@ -107,12 +120,37 @@ class VersionGateViewModel @Inject constructor(
         installer.install(file)
     }
 
+    /**
+     * Barrido de después de instalar.
+     *
+     * Solo con la compuerta **abierta**: mientras el bloqueo sigue puesto, un
+     * APK "viejo" en disco es la evidencia de que lo publicado no alcanza —
+     * borrarlo ahí dispararía una descarga nueva del mismo archivo inservible,
+     * en bucle. Con la compuerta abierta ya no hay nada que probar y el
+     * archivo solo ocupa 11 MB del teléfono para siempre (`filesDir` no lo
+     * recupera Android nunca).
+     */
+    private suspend fun cleanUpInstalledApk(gateStatus: VersionGateStatus) {
+        if (gateStatus.blocked) return
+        val removed = locator.clearObsolete(gateStatus.installedVersionCode)
+        if (removed > 0) Log.i(TAG, "se borraron $removed APK ya instalados")
+    }
+
     private fun toUiState(
         gateStatus: VersionGateStatus?,
         download: UpdateDownloadState,
-        network: NetworkStatus
+        network: NetworkStatus,
+        stalled: Boolean
     ): VersionBlockedUiState {
         val update: UpdatePackage? = gateStatus?.updatePackage
+        val apkComplete = update != null && locator.isComplete(update)
+        // El APK solo se lee cuando está entero: un parcial no se puede
+        // parsear, y hacerlo en cada bloque de 64 KB sería E/S por nada.
+        val offered = if (update != null && (apkComplete || download is UpdateDownloadState.Ready)) {
+            locator.versionOf(update)
+        } else {
+            null
+        }
         return VersionBlockedUiState(
             installedVersionName = gateStatus?.installedVersionName.orEmpty(),
             requiredVersionName = gateStatus?.requiredVersionName.orEmpty(),
@@ -120,8 +158,10 @@ class VersionGateViewModel @Inject constructor(
             stage = resolveStage(
                 download = download,
                 network = network,
-                apkComplete = update != null && locator.isComplete(update),
-                sizeBytes = update?.sizeBytes ?: 0L
+                apkComplete = apkComplete,
+                update = update,
+                belowMinimum = belowMinimum(offered, gateStatus?.requiredVersionCode ?: 0),
+                stalled = stalled
             )
         )
     }

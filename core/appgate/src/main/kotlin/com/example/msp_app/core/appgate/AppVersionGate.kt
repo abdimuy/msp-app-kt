@@ -7,10 +7,18 @@ import kotlinx.coroutines.flow.map
 
 /**
  * El veredicto ya resuelto, más lo que la pantalla necesita para explicarlo.
+ *
+ * Los `*VersionCode` viajan además de los `*VersionName` porque hay dos
+ * decisiones que NO se pueden tomar con nombres: comprobar que el APK ofrecido
+ * de verdad alcanza el mínimo (`ui.resolveStage`) y saber que un APK
+ * descargado ya se instaló y se puede borrar
+ * (`UpdateFileLocator.clearObsolete`). Como cadenas, `"2.9.5" > "2.10.0"`.
  */
 data class VersionGateStatus(
     val verdict: VersionVerdict,
+    val installedVersionCode: Int,
     val installedVersionName: String,
+    val requiredVersionCode: Int,
     val requiredVersionName: String,
     val deadlineLabel: String,
     val updatePackage: UpdatePackage?
@@ -62,7 +70,9 @@ class AppVersionGate @Inject constructor(
                 minVersionCode = minVersionCode,
                 exempt = exempt
             ),
+            installedVersionCode = buildInfo.versionCode,
             installedVersionName = buildInfo.versionName,
+            requiredVersionCode = minVersionCode,
             requiredVersionName = minVersionName,
             deadlineLabel = deadlineLabel,
             updatePackage = updatePackage

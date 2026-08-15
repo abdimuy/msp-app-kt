@@ -103,10 +103,8 @@ class DataStoreVersionGateCache(
 private fun Preferences.readUpdatePackage(): UpdatePackage? {
     val url = this[VersionGateKeys.APK_URL]
     val sha256 = this[VersionGateKeys.APK_SHA256]
-    if (url.isNullOrBlank() || sha256.isNullOrBlank()) return null
-    return UpdatePackage(
-        url = url,
-        sizeBytes = this[VersionGateKeys.APK_SIZE] ?: 0L,
-        sha256 = sha256
-    )
+    val sizeBytes = this[VersionGateKeys.APK_SIZE] ?: 0L
+    // Mismo criterio que en la fuente remota: los tres campos o ninguno.
+    if (url.isNullOrBlank() || sha256.isNullOrBlank() || sizeBytes <= 0L) return null
+    return UpdatePackage(url = url, sizeBytes = sizeBytes, sha256 = sha256)
 }

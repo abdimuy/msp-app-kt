@@ -17,6 +17,14 @@ android {
 // probar en JVM.
 kover {
     reports {
+        filters {
+            excludes {
+                // `BuildConfig` es generado por AGP: 2 de sus lineas nunca las
+                // toca una prueba y arrastran el porcentaje a 83%, escondiendo
+                // que el codigo propio de este modulo si esta al 100%.
+                classes("*.BuildConfig")
+            }
+        }
         verify {
             rule {
                 minBound(95)
