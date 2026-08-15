@@ -59,6 +59,12 @@ dependencies {
     testImplementation(libs.androidx.ui.test.junit4)
     testImplementation(libs.okhttp.mockwebserver) // servidor real para probar `Range`/reanudación
 
+    // WorkManager de verdad bajo Robolectric (`SynchronousExecutor`) para
+    // probar la política de encolado de `UpdateDownloadScheduler`: KEEP vs.
+    // REPLACE sólo existe frente a la cola real, y la fuente de verdad de
+    // "qué paquete está encolado" es WorkManager, no un campo en memoria.
+    testImplementation(libs.androidx.work.testing)
+
     // Hilt-en-JVM para el graph test de AppGateModule, mismo par de deps que
     // `:core:settings` usa para `SettingsModuleHiltGraphTest`.
     testImplementation(libs.hilt.android.testing)
