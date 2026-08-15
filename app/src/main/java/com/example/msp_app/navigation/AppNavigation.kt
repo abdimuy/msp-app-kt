@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -24,6 +25,9 @@ import androidx.navigation.compose.rememberNavController
 import com.example.msp_app.MspApplication
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.ModernSpinner
+import com.example.msp_app.core.appgate.VersionVerdict
+import com.example.msp_app.core.appgate.ui.VersionBlockedScreen
+import com.example.msp_app.core.appgate.ui.VersionGateViewModel
 import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncContext
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncObserver
@@ -141,6 +145,11 @@ sealed class Screen(val route: String) {
     // Device Protection
     object DeviceBlocked : Screen("device_blocked")
 
+    // Compuerta de versión mínima (Bloque C). Mismo molde que [DeviceBlocked]:
+    // pantalla sin salida a la que se llega con `popUpTo(0) { inclusive = true }`,
+    // fuera de cualquier `DrawerContainer`.
+    object VersionBlocked : Screen("version_blocked")
+
     // Guarantee routes
     object GuaranteeList : Screen("guarantee_list")
     object CreateGuarantee : Screen("create_guarantee")
@@ -179,6 +188,32 @@ fun AppNavigation() {
             navController.navigate(Screen.DeviceBlocked.route) {
                 popUpTo(0) { inclusive = true }
             }
+        }
+    }
+
+    // Compuerta de versión mínima (Bloque C) — hermana del watcher de arriba y
+    // con la misma forma: vigila mientras el usuario ya está dentro y manda a
+    // una pantalla sin salida.
+    //
+    // Tres diferencias deliberadas con el bloqueo por dispositivo:
+    //   - se evalúa aunque NO haya sesión: una app demasiado vieja no debe
+    //     poder ni intentar hablarle al servidor, y por eso el watcher vive
+    //     fuera del `LaunchedEffect(userDataState)`;
+    //   - `null` (todavía no se leyó la caché) NO bloquea — no saber no es lo
+    //     mismo que saber que hay que bloquear;
+    //   - se excluye únicamente la propia ruta de bloqueo. `Loading`/`Login`
+    //     SÍ se interrumpen: si la versión ya no sirve, dejar entrar a la
+    //     pantalla de login solo produce un error de red confuso.
+    val versionGateViewModel: VersionGateViewModel = hiltViewModel()
+    val versionVerdict by versionGateViewModel.verdict.collectAsState()
+
+    LaunchedEffect(versionVerdict) {
+        if (versionVerdict != VersionVerdict.BLOCKED) return@LaunchedEffect
+        if (navController.currentDestination?.route == Screen.VersionBlocked.route) {
+            return@LaunchedEffect
+        }
+        navController.navigate(Screen.VersionBlocked.route) {
+            popUpTo(0) { inclusive = true }
         }
     }
 
@@ -339,6 +374,25 @@ fun AppNavigation() {
                         }
                         navController.navigate(destination) {
                             popUpTo(Screen.DeviceBlocked.route) { inclusive = true }
+                        }
+                    }
+                }
+            }
+
+            composable(Screen.VersionBlocked.route) {
+                // Se pasa la MISMA instancia que usa el watcher de arriba (la de
+                // la Activity): un `hiltViewModel()` aquí adentro se acotaría al
+                // `NavBackStackEntry` y crearía un segundo ViewModel que
+                // reencolaría la descarga por su cuenta.
+                VersionBlockedScreen(viewModel = versionGateViewModel)
+
+                // Salida legítima sin cerrar sesión: la oficina agregó este
+                // teléfono a la lista de exentos, o retiró el mínimo. Mismo
+                // patrón que el listener de autorización de [DeviceBlocked].
+                LaunchedEffect(versionVerdict) {
+                    if (versionVerdict != null && versionVerdict != VersionVerdict.BLOCKED) {
+                        navController.navigate(Screen.Loading.route) {
+                            popUpTo(0) { inclusive = true }
                         }
                     }
                 }

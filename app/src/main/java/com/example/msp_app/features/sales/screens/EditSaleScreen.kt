@@ -73,6 +73,7 @@ import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.features.sales.components.cityselector.CitySelector
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
 import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
@@ -121,7 +122,16 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     var numero by remember { mutableStateOf(TextFieldValue("")) }
     var colonia by remember { mutableStateOf(TextFieldValue("")) }
     var poblacion by remember { mutableStateOf(TextFieldValue("")) }
-    var ciudad by remember { mutableStateOf(TextFieldValue("")) }
+    // Ciudad es `String` (no `TextFieldValue` como sus vecinos) porque la captura
+    // pasa por `CitySelector`, cuyo campo libre es de texto plano: el cursor lo
+    // administra el propio `TextField` interno.
+    var ciudad by remember { mutableStateOf("") }
+    // Estado de la fila del catálogo de la que salió la ciudad. La venta editada
+    // no lo trae de Room (`LocalSaleEntity` no tiene columna ESTADO): arranca
+    // vacío y se llena en cuanto el selector reconcilia el texto contra el
+    // catálogo, o cuando el vendedor elige otra ciudad.
+    var estado by remember { mutableStateOf("") }
+    var ciudadEnCatalogo by remember { mutableStateOf(false) }
     var tipoVenta by remember { mutableStateOf("CREDITO") }
     var downpayment by remember { mutableStateOf(TextFieldValue("")) }
     var installment by remember { mutableStateOf(TextFieldValue("")) }
@@ -205,7 +215,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             numero = TextFieldValue(sale.NUMERO ?: "")
             colonia = TextFieldValue(sale.COLONIA ?: "")
             poblacion = TextFieldValue(sale.POBLACION ?: "")
-            ciudad = TextFieldValue(sale.CIUDAD ?: "")
+            ciudad = sale.CIUDAD ?: ""
             tipoVenta = sale.TIPO_VENTA ?: "CREDITO"
             saleProductsViewModel.setTipoVenta(tipoVenta)
             downpayment = TextFieldValue(sale.ENGANCHE?.toString() ?: "")
@@ -394,7 +404,9 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         numero = numero.text,
         colonia = colonia.text,
         poblacion = poblacion.text,
-        ciudad = ciudad.text,
+        ciudad = ciudad,
+        estado = estado,
+        ciudadEnCatalogo = ciudadEnCatalogo,
         tipoVenta = tipoVenta,
         selectedZoneId = selectedZoneId,
         selectedZoneName = selectedZoneName,
@@ -468,7 +480,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             numero = numero.text.trim().ifBlank { null },
             colonia = colonia.text.trim().ifBlank { null },
             poblacion = poblacion.text.trim().ifBlank { null },
-            ciudad = ciudad.text.trim().ifBlank { null },
+            ciudad = ciudad.trim().ifBlank { null },
             tipoVenta = tipoVenta,
             installment = if (tipoVenta == "CONTADO") 0.0 else installment.text.toDoubleOrNull() ?: 0.0,
             downpayment = if (tipoVenta == "CONTADO") 0.0 else downpayment.text.toDoubleOrNull() ?: 0.0,
@@ -859,57 +871,58 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
                     Spacer(Modifier.height(12.dp))
 
-                    Row(
+                    OutlinedTextField(
+                        value = poblacion,
+                        onValueChange = { newValue ->
+                            poblacion = newValue
+                            if (newValue.text.isNotEmpty() || poblacionError) {
+                                validatePoblacion(newValue.text)
+                            }
+                        },
+                        label = { Text("Población *") },
+                        isError = poblacionError,
+                        supportingText = if (poblacionError) {
+                            {
+                                Text(
+                                    "Población obligatoria",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = poblacion,
-                            onValueChange = { newValue ->
-                                poblacion = newValue
-                                if (newValue.text.isNotEmpty() || poblacionError) {
-                                    validatePoblacion(newValue.text)
-                                }
-                            },
-                            label = { Text("Población *") },
-                            isError = poblacionError,
-                            supportingText = if (poblacionError) {
-                                {
-                                    Text(
-                                        "Población obligatoria",
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        OutlinedTextField(
-                            value = ciudad,
-                            onValueChange = { newValue ->
-                                ciudad = newValue
-                                if (newValue.text.isNotEmpty() || ciudadError) {
-                                    validateCiudad(newValue.text)
-                                }
-                            },
-                            label = { Text("Ciudad *") },
-                            isError = ciudadError,
-                            supportingText = if (ciudadError) {
-                                {
-                                    Text(
-                                        "Ciudad obligatoria",
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                    }
+                        shape = RoundedCornerShape(15.dp)
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Mismo selector que el alta, por coherencia: una venta que se
+                    // editó a mano no debe poder quedar con una ciudad que el alta
+                    // ya no permite capturar. El texto libre sigue permitido — no
+                    // bloquea capturar, bloquea aplicar.
+                    CitySelector(
+                        ciudad = ciudad,
+                        estado = estado,
+                        enCatalogo = ciudadEnCatalogo,
+                        onCitySelected = { city ->
+                            // Ciudad y estado se fijan juntos, desde la misma fila.
+                            ciudad = city.ciudad.trim()
+                            estado = city.estado.trim()
+                            ciudadEnCatalogo = true
+                            validateCiudad(ciudad)
+                        },
+                        onFreeTextChanged = { newValue ->
+                            ciudad = newValue
+                            estado = ""
+                            ciudadEnCatalogo = false
+                            if (newValue.isNotEmpty() || ciudadError) {
+                                validateCiudad(newValue)
+                            }
+                        },
+                        error = if (ciudadError) "Ciudad obligatoria" else null,
+                        isRequired = true
+                    )
 
                     Spacer(Modifier.height(12.dp))
 

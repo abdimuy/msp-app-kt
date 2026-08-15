@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.draft.DraftCombo
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.draft.SaleDraftManager
+import com.example.msp_app.data.models.city.City
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,6 +92,13 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    /**
+     * Captura libre de ciudad: el vendedor eligió «mi ciudad no está».
+     *
+     * Limpia el estado y baja `ciudadEnCatalogo` en el MISMO `copy` que fija la
+     * ciudad. Dejar el estado de la selección anterior es lo que produciría un
+     * cliente con la ciudad de un estado y el estado de otro.
+     */
     fun updateCiudad(value: String) {
         _formState.update { state ->
             val newErrors = if (value.isNotEmpty() || state.errors.ciudad) {
@@ -98,7 +106,31 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
             } else {
                 state.errors
             }
-            state.copy(ciudad = value, errors = newErrors)
+            state.copy(
+                ciudad = value,
+                estado = "",
+                ciudadEnCatalogo = false,
+                errors = newErrors
+            )
+        }
+    }
+
+    /**
+     * Selección desde el catálogo. Fija ciudad y estado **en la misma
+     * actualización**, desde la misma fila: no hay ningún camino en el que uno se
+     * pueda mover sin el otro.
+     */
+    fun selectCiudad(city: City) {
+        val nombre = city.ciudad.trim()
+        _formState.update { state ->
+            state.copy(
+                ciudad = nombre,
+                estado = city.estado.trim(),
+                ciudadEnCatalogo = true,
+                errors = state.errors.copy(
+                    ciudad = !NewSaleFormValidator.validateCiudad(nombre)
+                )
+            )
         }
     }
 
@@ -299,6 +331,13 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
                 colonia = draft.colonia,
                 poblacion = draft.poblacion,
                 ciudad = draft.ciudad,
+                estado = draft.estado,
+                // El borrador NO guarda «venía del catálogo»: al restaurar se
+                // deja en `false` y el selector reconcilia el texto contra el
+                // catálogo ya cargado, volviendo a ligarlo a su fila (y a su
+                // estado). Así un borrador viejo, guardado antes de que la
+                // oficina diera de alta la ciudad, se resuelve solo.
+                ciudadEnCatalogo = false,
                 tipoVenta = draft.tipoVenta,
                 downpayment = draft.downpayment,
                 installment = draft.installment,
@@ -367,6 +406,7 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
                 colonia = state.colonia,
                 poblacion = state.poblacion,
                 ciudad = state.ciudad,
+                estado = state.estado,
                 tipoVenta = state.tipoVenta,
                 downpayment = state.downpayment,
                 installment = state.installment,

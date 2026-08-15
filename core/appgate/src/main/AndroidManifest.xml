@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      Necesario para abrir el instalador del sistema con el APK descargado
+      (Android 8+). Sin este permiso el Intent se ignora en silencio, que es
+      exactamente el modo de falla que esta pantalla existe para evitar.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <application>
+        <!--
+          El APK vive en el almacenamiento privado de la app; desde Android 7
+          un `file://` hacia otra app se rechaza. Se declara con una SUBCLASE
+          propia (`AppGateFileProvider`) porque el merger identifica cada
+          provider por su `android:name` y `:app` ya declara uno con
+          `androidx.core.content.FileProvider`; la autoridad lleva además el
+          sufijo `.appgate.updates`.
+        -->
+        <provider
+            android:name="com.example.msp_app.core.appgate.download.AppGateFileProvider"
+            android:authorities="${applicationId}.appgate.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/msp_appgate_paths" />
+        </provider>
+    </application>
+
+</manifest>

@@ -71,6 +71,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.draft.SaleDraft
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.features.sales.components.cityselector.CitySelector
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationData
 import com.example.msp_app.features.sales.components.confirmation.SaleConfirmationDialog
@@ -900,47 +901,46 @@ fun NewSaleScreen(navController: NavController) {
 
                     Spacer(Modifier.height(12.dp))
 
-                    Row(
+                    OutlinedTextField(
+                        value = formState.poblacion,
+                        onValueChange = { formViewModel.updatePoblacion(it) },
+                        label = { Text("Población *") },
+                        isError = formState.errors.poblacion,
+                        supportingText = if (formState.errors.poblacion) {
+                            {
+                                Text(
+                                    "Población obligatoria",
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        } else {
+                            null
+                        },
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = formState.poblacion,
-                            onValueChange = { formViewModel.updatePoblacion(it) },
-                            label = { Text("Población *") },
-                            isError = formState.errors.poblacion,
-                            supportingText = if (formState.errors.poblacion) {
-                                {
-                                    Text(
-                                        "Población obligatoria",
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                        OutlinedTextField(
-                            value = formState.ciudad,
-                            onValueChange = { formViewModel.updateCiudad(it) },
-                            label = { Text("Ciudad *") },
-                            isError = formState.errors.ciudad,
-                            supportingText = if (formState.errors.ciudad) {
-                                {
-                                    Text(
-                                        "Ciudad obligatoria",
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            } else {
-                                null
-                            },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(15.dp)
-                        )
-                    }
+                        shape = RoundedCornerShape(15.dp)
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // Ciudad sale de la fila compartida con Población y ocupa el
+                    // ancho completo: el selector trae encabezado, buscador,
+                    // conteo y el escape a texto libre, y a media fila eso se
+                    // amontona (peor con la letra al 200%).
+                    //
+                    // El texto libre no bloquea capturar — bloquea aplicar. El
+                    // servidor resuelve la ciudad contra el catálogo de Microsip
+                    // y rechaza con `ciudad_no_en_catalogo`; la venta se queda en
+                    // borrador hasta que la oficina dé de alta la fila. La app
+                    // NUNCA inserta en `CIUDADES`: es tabla compartida.
+                    CitySelector(
+                        ciudad = formState.ciudad,
+                        estado = formState.estado,
+                        enCatalogo = formState.ciudadEnCatalogo,
+                        onCitySelected = { formViewModel.selectCiudad(it) },
+                        onFreeTextChanged = { formViewModel.updateCiudad(it) },
+                        error = if (formState.errors.ciudad) "Ciudad obligatoria" else null,
+                        isRequired = true
+                    )
 
                     Spacer(Modifier.height(12.dp))
 

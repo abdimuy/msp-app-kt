@@ -48,6 +48,12 @@ data class SaleDraft(
     val colonia: String = "",
     val poblacion: String = "",
     val ciudad: String = "",
+    /**
+     * Estado de la fila del catálogo de la que salió [ciudad]. Se guarda para que
+     * al restaurar el borrador la ciudad no reaparezca huérfana de su estado — el
+     * catálogo abarca varios estados y separarlos es justo el defecto a evitar.
+     */
+    val estado: String = "",
     val note: String = "",
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
@@ -189,6 +195,7 @@ class SaleDraftManager(private val context: Context) {
         private val COLONIA = stringPreferencesKey("draft_colonia")
         private val POBLACION = stringPreferencesKey("draft_poblacion")
         private val CIUDAD = stringPreferencesKey("draft_ciudad")
+        private val ESTADO = stringPreferencesKey("draft_estado")
         private val NOTE = stringPreferencesKey("draft_note")
         private val LATITUDE = doublePreferencesKey("draft_latitude")
         private val LONGITUDE = doublePreferencesKey("draft_longitude")
@@ -237,6 +244,7 @@ class SaleDraftManager(private val context: Context) {
             preferences[COLONIA] = draft.colonia
             preferences[POBLACION] = draft.poblacion
             preferences[CIUDAD] = draft.ciudad
+            preferences[ESTADO] = draft.estado
             preferences[NOTE] = draft.note
             preferences[LATITUDE] = draft.latitude
             preferences[LONGITUDE] = draft.longitude
@@ -301,6 +309,7 @@ class SaleDraftManager(private val context: Context) {
             colonia = preferences[COLONIA] ?: "",
             poblacion = preferences[POBLACION] ?: "",
             ciudad = preferences[CIUDAD] ?: "",
+            estado = preferences[ESTADO] ?: "",
             note = preferences[NOTE] ?: "",
             latitude = preferences[LATITUDE] ?: 0.0,
             longitude = preferences[LONGITUDE] ?: 0.0,

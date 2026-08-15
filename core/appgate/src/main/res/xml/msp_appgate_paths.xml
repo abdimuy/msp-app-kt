@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Único directorio compartido: `filesDir/updates`, donde `UpdateFileLocator`
+  deja el APK. Nada más del almacenamiento privado se expone.
+-->
+<paths>
+    <files-path
+        name="msp_appgate_updates"
+        path="updates/" />
+</paths>

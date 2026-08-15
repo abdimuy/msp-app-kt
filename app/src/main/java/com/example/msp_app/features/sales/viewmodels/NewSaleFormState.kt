@@ -55,6 +55,21 @@ data class NewSaleFormState(
     val colonia: String = "",
     val poblacion: String = "",
     val ciudad: String = "",
+    /**
+     * Estado de la fila del catálogo de la que salió [ciudad]. NO es un campo que
+     * el vendedor capture: llega siempre pegado a la ciudad porque el catálogo
+     * `CIUDADES` abarca Puebla, Oaxaca y Veracruz, y elegirlos por separado
+     * produce clientes con la ciudad de un estado y el estado de otro. Vacío
+     * cuando la ciudad se capturó como texto libre.
+     */
+    val estado: String = "",
+    /**
+     * `true` si [ciudad] salió del catálogo de Microsip. En `false` la venta se
+     * captura igual pero no puede aplicarse: el servidor la rechaza con
+     * `ciudad_no_en_catalogo` y se queda en borrador hasta que la oficina dé de
+     * alta la fila. La app NUNCA inserta en `CIUDADES` — es tabla compartida.
+     */
+    val ciudadEnCatalogo: Boolean = false,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
     val hasValidLocation: Boolean = false,

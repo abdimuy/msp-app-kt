@@ -24,6 +24,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "msp-app"
 include(":app")
+include(":core:appgate")
 include(":core:common")
 include(":core:database")
 include(":core:designsystem")

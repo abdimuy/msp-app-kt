@@ -167,9 +167,15 @@ fun <T> OfflineSelector(
                             strokeWidth = 2.dp
                         )
                     } else {
+                        // Esta flecha es el disparador real del desplegable: el
+                        // `clickable` del campo no llega a dispararse porque el
+                        // `OutlinedTextField` consume el toque. Sin
+                        // `contentDescription` quedaba fuera del alcance de un
+                        // lector de pantalla, es decir, sin ninguna forma
+                        // accesible de abrir la lista.
                         Icon(
                             imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = null,
+                            contentDescription = "Abrir lista",
                             modifier = Modifier.clickable {
                                 if (enabled && state !is ResultState.Loading) {
                                     expanded = true

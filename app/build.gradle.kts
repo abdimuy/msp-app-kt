@@ -232,6 +232,12 @@ androidComponents {
 dependencies {
 
     implementation(project(":core:common"))
+    // Compuerta de versión mínima (pantalla de bloqueo sin salida + descarga
+    // del APK por wifi). `:app` provee el único binding que ese módulo deja
+    // abierto —`AppBuildInfo`, que sale de SU `BuildConfig`— en
+    // `di/AppGateBuildInfoModule.kt`, mismo criterio con el que provee
+    // `AppThemePort`/`UserCyclePort` a los módulos feature.
+    implementation(project(":core:appgate"))
     implementation(project(":core:database"))
     // Política única de entrega garantizada (tabla de decisión + puerto de
     // verificación). Ver docs/module-standards/ENTREGA_GARANTIZADA.md.
