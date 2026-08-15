@@ -8,6 +8,9 @@ import androidx.work.WorkerParameters
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.logging.RemoteLogger
 import com.example.msp_app.core.sync.ventas.VendedorResolver
+import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
+import com.example.msp_app.core.upload.UploadDecision
+import com.example.msp_app.core.upload.classifyUpload
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
@@ -19,7 +22,6 @@ import com.example.msp_app.features.camionetaAssignment.data.repository.Camionet
 import com.example.msp_app.features.sales.upload.data.RoomUploadFailureRepository
 import com.example.msp_app.features.sales.upload.domain.UploadFailure
 import com.example.msp_app.features.sales.upload.domain.UploadFailureClassification
-import com.example.msp_app.features.sales.upload.domain.UploadFailureClassifier
 import com.example.msp_app.features.sales.upload.domain.UploadFailureRepository
 import com.google.gson.Gson
 import com.google.gson.JsonParser
@@ -341,7 +343,20 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 )
                 Result.success()
             } else {
-                val classification = UploadFailureClassifier.classify(e.code())
+                // Política única de entrega garantizada (`:core:upload`). La
+                // custodia la prueba la cabecera `X-Intent-Captured`, no el
+                // código HTTP: sin ella nadie tiene la venta y se reintenta.
+                // Ver docs/module-standards/ENTREGA_GARANTIZADA.md.
+                val captureConfirmed =
+                    !e.response()?.headers()?.get(HEADER_INTENT_CAPTURED).isNullOrBlank()
+                val classification = when (
+                    classifyUpload(e.code(), captureConfirmed = captureConfirmed)
+                ) {
+                    // Resguardado server-side: la oficina lo corrige, el
+                    // teléfono deja de reintentar.
+                    UploadDecision.RELEASE -> UploadFailureClassification.PERMANENT
+                    UploadDecision.RETRY -> UploadFailureClassification.TRANSIENT
+                }
                 uploadFailureRepository.recordFailure(
                     saleId = saleId,
                     failure = UploadFailure(

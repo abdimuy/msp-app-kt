@@ -87,13 +87,17 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
 
     // ─── fakes ─────────────────────────────────────────────────────────────────
 
+    // `crear` va AL FINAL para que la lambda de cola siga ligándose a ella.
     private fun fakeV2Api(
+        obtener: suspend (id: String) -> PagoRecibidoDTO = { throw httpError(404) },
         crear: suspend (idempotencyKey: String, datos: RequestBody) -> PagoRecibidoDTO
     ): V2PaymentsApi = object : V2PaymentsApi {
         override suspend fun crearPago(
             idempotencyKey: String,
             datos: RequestBody
         ): PagoRecibidoDTO = crear(idempotencyKey, datos)
+
+        override suspend fun obtenerPago(id: String): PagoRecibidoDTO = obtener(id)
     }
 
     private fun happyApi(): V2PaymentsApi = fakeV2Api { _, _ -> PagoRecibidoDTO(id = "pago-001") }
@@ -115,7 +119,8 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
     private fun httpError(
         code: Int,
         body: String = "{}",
-        contentType: String? = "application/problem+json"
+        contentType: String? = "application/problem+json",
+        intentCaptured: String? = null
     ): HttpException {
         val responseBody = body.toResponseBody(contentType?.toMediaTypeOrNull())
         val rawResponseBuilder = okhttp3.Response.Builder()
@@ -125,6 +130,11 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
             .request(Request.Builder().url("http://localhost/").build())
         if (contentType != null) {
             rawResponseBuilder.header("Content-Type", contentType)
+        }
+        // Única prueba de custodia: el servidor la emite sólo cuando su
+        // Store.Save tuvo éxito.
+        if (intentCaptured != null) {
+            rawResponseBuilder.header("X-Intent-Captured", intentCaptured)
         }
         return HttpException(
             Response.error<PagoRecibidoDTO>(responseBody, rawResponseBuilder.build())
@@ -217,36 +227,123 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
     }
 
     @Test
-    fun v2_422_validation_marks_done_because_captured_server_side() = runTest {
+    fun v2_422_con_custodia_confirmada_suelta_la_captura() = runTest {
         seed(pendingPayment())
 
         val api = fakeV2Api { _, _ ->
             throw httpError(
                 422,
-                """{"code":"pago_cargo_no_encontrado","detail":"el cargo no existe"}"""
+                """{"code":"pago_cargo_no_encontrado","detail":"el cargo no existe"}""",
+                intentCaptured = "3f2a1c7e-0000-4000-8000-000000000001"
             )
         }
 
         val result = buildAndRunWorker(api = api)
 
         assertEquals(
-            "A 422 is captured as a failed-intent server-side; the phone is done",
+            "un 422 resguardado (X-Intent-Captured) lo corrige la oficina",
             ListenableWorker.Result.success(),
             result
         )
         assertTrue(
-            "GUARDADO must flip to true — resolution lives desk-side",
+            "GUARDADO debe pasar a true: el servidor lo tiene resguardado",
             guardadoFlag("pago-001")
         )
     }
 
     @Test
-    fun v2_403_marks_done() = runTest {
+    fun v2_422_sin_custodia_confirmada_se_reintenta() = runTest {
+        // El caso del pool trabado: la petición falla Y la captura falla. La
+        // respuesta sigue siendo problem+json, pero nadie tiene el pago.
         seed(pendingPayment())
-        val api = fakeV2Api { _, _ -> throw httpError(403) }
+
+        val api = fakeV2Api { _, _ ->
+            throw httpError(422, intentCaptured = null)
+        }
+
+        assertEquals(ListenableWorker.Result.retry(), buildAndRunWorker(api = api))
+        assertFalse(
+            "sin custodia confirmada el pago NO puede soltarse",
+            guardadoFlag("pago-001")
+        )
+    }
+
+    @Test
+    fun v2_403_con_custodia_suelta_y_sin_custodia_reintenta() = runTest {
+        seed(pendingPayment())
+        val conCustodia = fakeV2Api { _, _ -> throw httpError(403, intentCaptured = "abc") }
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = conCustodia))
+        assertTrue(guardadoFlag("pago-001"))
+
+        seed(pendingPayment(id = "pago-002"))
+        val sinCustodia = fakeV2Api { _, _ -> throw httpError(403) }
+        assertEquals(
+            ListenableWorker.Result.retry(),
+            buildAndRunWorker(paymentId = "pago-002", api = sinCustodia)
+        )
+        assertFalse(guardadoFlag("pago-002"))
+    }
+
+    @Test
+    fun v2_404_del_tunel_se_reintenta_y_nunca_suelta() = runTest {
+        // Antes un 404 se leía como rechazo definitivo del API y soltaba el
+        // pago. Un 404 puede venir de un túnel/proxy que nunca lo entregó.
+        seed(pendingPayment())
+        val api = fakeV2Api { _, _ -> throw httpError(404, contentType = null) }
+
+        assertEquals(ListenableWorker.Result.retry(), buildAndRunWorker(api = api))
+        assertFalse(guardadoFlag("pago-001"))
+    }
+
+    @Test
+    fun v2_get_200_tras_error_reconcilia_sin_reintentar() = runTest {
+        // Prueba de EXISTENCIA: el servidor ya lo tiene (una corrida anterior
+        // cuyo 2xx no llegó, o un replay desde la oficina).
+        seed(pendingPayment())
+        var getCalls = 0
+        val api = fakeV2Api(
+            crear = { _, _ -> throw httpError(500, intentCaptured = null) },
+            obtener = { id ->
+                getCalls++
+                PagoRecibidoDTO(id = id, sincronizacion = "aplicada")
+            }
+        )
 
         assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
-        assertTrue(guardadoFlag("pago-001"))
+        assertTrue(
+            "el GET lo encontró: la captura se suelta aunque no hubiera custodia",
+            guardadoFlag("pago-001")
+        )
+        assertEquals("el GET se consulta una vez por intento", 1, getCalls)
+    }
+
+    @Test
+    fun v2_get_indeterminado_no_se_lee_como_inexistente() = runTest {
+        // Un GET que falla con 500 NO es "no existe": se sigue a la tabla, y
+        // sin custodia confirmada eso es reintentar.
+        seed(pendingPayment())
+        val api = fakeV2Api(
+            crear = { _, _ -> throw httpError(500) },
+            obtener = { throw httpError(500) }
+        )
+
+        assertEquals(ListenableWorker.Result.retry(), buildAndRunWorker(api = api))
+        assertFalse(guardadoFlag("pago-001"))
+    }
+
+    @Test
+    fun v2_persiste_docto_cc_id_del_servidor() = runTest {
+        seed(pendingPayment())
+        val api = fakeV2Api { _, _ ->
+            PagoRecibidoDTO(id = "pago-001", docto_cc_id = 987654)
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertEquals(
+            "sin DOCTO_CC_ID el pago local y el del servidor no se reconocen y los totales se inflan",
+            987654,
+            paymentsStore.getPaymentById("pago-001")!!.DOCTO_CC_ID
+        )
     }
 
     @Test
@@ -278,7 +375,7 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
      * the desk resolves it from there.
      */
     @Test
-    fun v2_5xx_from_msp_api_marks_done() = runTest {
+    fun v2_5xx_from_msp_api_sin_custodia_se_reintenta() = runTest {
         seed(pendingPayment())
         val api =
             fakeV2Api { _, _ -> throw httpError(500, contentType = "application/problem+json") }
@@ -286,11 +383,15 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         val result = buildAndRunWorker(api = api)
 
         assertEquals(
-            "a 5xx that reached msp-api (problem+json) was captured once; the phone is done",
-            ListenableWorker.Result.success(),
+            "problem+json prueba que llegó al API, NO que se haya resguardado: " +
+                "cuando el pool se traba fallan la petición y la captura a la vez",
+            ListenableWorker.Result.retry(),
             result
         )
-        assertTrue(guardadoFlag("pago-001"))
+        assertFalse(
+            "este es exactamente el caso que perdió dos pagos el 2026-08-13",
+            guardadoFlag("pago-001")
+        )
     }
 
     /**

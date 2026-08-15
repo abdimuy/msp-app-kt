@@ -188,13 +188,16 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `updateTipoVenta to CONTADO clears zone`() {
+    fun `updateTipoVenta a CONTADO conserva la zona`() {
+        // Antes se borraba: la zona era exclusiva de CRÉDITO. Ahora es
+        // obligatoria en todo tipo de venta, así que borrarla convertía en
+        // inválido un formulario válido a espaldas del vendedor.
         viewModel.updateZone(1, "Zona Norte")
         viewModel.updateTipoVenta("CONTADO")
         val state = viewModel.formState.value
         assertEquals("CONTADO", state.tipoVenta)
-        assertNull(state.selectedZoneId)
-        assertEquals("", state.selectedZoneName)
+        assertEquals(1, state.selectedZoneId)
+        assertEquals("Zona Norte", state.selectedZoneName)
         assertFalse(state.errors.zone)
     }
 
@@ -292,6 +295,7 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
         viewModel.updateCiudad("Puebla")
         viewModel.updateLocation(19.432608, -99.133209)
         viewModel.updateTipoVenta("CONTADO")
+        viewModel.updateZone(21563, "RUTA 1") // obligatoria en todo tipo de venta
         viewModel.addImageUri(Uri.parse("content://test/image.jpg"))
         val result = viewModel.validateFields(hasProducts = true)
         assertTrue(result)
@@ -337,6 +341,7 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
         viewModel.updateCiudad("Puebla")
         viewModel.updateLocation(19.432608, -99.133209)
         viewModel.updateTipoVenta("CONTADO")
+        viewModel.updateZone(21563, "RUTA 1") // obligatoria en todo tipo de venta
         viewModel.updatePhone("")
         viewModel.addImageUri(Uri.parse("content://test/image.jpg"))
 
@@ -558,11 +563,15 @@ class NewSaleFormViewModelTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `buildSaleData CONTADO preserves zonaClienteId as null after switching`() {
+    fun `buildSaleData conserva la zona al cambiar a CONTADO`() {
         viewModel.updateZone(1, "Zona Norte")
-        viewModel.updateTipoVenta("CONTADO") // clears zone
+        viewModel.updateTipoVenta("CONTADO")
         val data = viewModel.buildSaleData()
-        assertNull(data.zonaClienteId)
+        assertEquals(
+            "cambiar de tipo de venta no puede tirar una zona ya elegida",
+            1,
+            data.zonaClienteId
+        )
     }
 
     @Test

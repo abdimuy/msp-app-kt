@@ -1,10 +1,12 @@
 package com.example.msp_app.data.api.services.payment
 
 import okhttp3.RequestBody
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.Part
+import retrofit2.http.Path
 
 /**
  * Retrofit service for the msp-api v2 cobranza pago endpoint.
@@ -30,6 +32,19 @@ interface V2PaymentsApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Part("datos") datos: RequestBody
     ): PagoRecibidoDTO
+
+    /**
+     * Verificación de existencia: ¿el servidor ya tiene este pago?
+     *
+     * El worker lo consulta ante CUALQUIER error HTTP, antes de clasificar. Un
+     * 200 significa que el pago está aplicado y la captura se suelta; un 404
+     * que no, y se sigue a la tabla de decisión. Es la garantía de no perder.
+     *
+     * Alcanzable por el cobrador: la ruta vive bajo `/v2/cobranza` y exige
+     * `cobranza:ver_pagos`, no un permiso de administración.
+     */
+    @GET("v2/cobranza/pagos/{id}")
+    suspend fun obtenerPago(@Path("id") id: String): PagoRecibidoDTO
 }
 
 /**
@@ -64,5 +79,13 @@ data class CrearPagoBody(
  */
 data class PagoRecibidoDTO(
     val id: String? = null,
-    val estado: String? = null
+    val estado: String? = null,
+    /**
+     * Id del documento de cobranza que Microsip asignó al aplicar el pago.
+     * Se persiste en la fila local: sin él la app no puede casar el pago
+     * local con el que baja del servidor, y el mismo pago se cuenta dos veces
+     * en los totales de pantalla.
+     */
+    val docto_cc_id: Int? = null,
+    val sincronizacion: String? = null
 )

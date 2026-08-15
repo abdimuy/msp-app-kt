@@ -7,6 +7,10 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.upload.ExistenceVerifier
+import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
+import com.example.msp_app.core.upload.UploadDecision
+import com.example.msp_app.core.upload.classifyUpload
 import com.example.msp_app.data.api.ApiProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.payment.PaymentRequest
@@ -15,8 +19,6 @@ import com.example.msp_app.data.api.services.payment.V2PaymentsApi
 import com.example.msp_app.data.api.services.payment.toCrearPagoBody
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.toDomain
-import com.example.msp_app.features.payments.upload.domain.PaymentUploadClassifier
-import com.example.msp_app.features.payments.upload.domain.PaymentUploadDecision
 import com.google.gson.Gson
 import java.io.IOException
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -24,30 +26,28 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 
 /**
- * Uploads one durably-stored pending pago to the backend and, on confirmation
- * that the server holds it, flips `GUARDADO_EN_MICROSIP` so the retry cohort
- * stops re-enqueuing it.
+ * Sube un pago pendiente y, sólo cuando el servidor confirma que lo tiene,
+ * marca `GUARDADO_EN_MICROSIP` para que la cohorte de reintentos deje de
+ * reencolarlo.
  *
- * The v2 path targets msp-api's `POST /v2/cobranza/pagos` (atomic + idempotent
- * by `datos.id`). Its robustness rule: a pago is marked "done" ONLY when the
- * server is known to hold it — a 2xx, a 4xx, or a 5xx that msp-api ITSELF
- * produced (the cobranza failed-intent capture middleware guarantees any of
- * those is persisted server-side for desk correction). "msp-api itself
- * produced it" is confirmed by `Content-Type: application/problem+json`
- * (msp-api's uniform error envelope) — a 5xx from a gateway/proxy in front of
- * msp-api never carries that header, because the request never reached the
- * capture middleware. That case is NEVER marked done — retried forever, with
- * no attempt cap — so a pago a gateway silently swallowed is never lost. A
- * network failure is likewise never marked done. See
- * [com.example.msp_app.features.payments.upload.domain.PaymentUploadClassifier].
- * Idempotency by `datos.id` makes a resend safe (no double-collection).
+ * La regla, común a todos los módulos que suben capturas
+ * (`docs/module-standards/ENTREGA_GARANTIZADA.md`):
  *
- * The legacy path is preserved unchanged for prod until a prod Go host exists;
- * [useV2] (from `BuildConfig.PAGOS_USE_V2`) selects between them. There is no
- * dual send — two backends would risk a double charge.
+ * > El teléfono suelta una captura sólo cuando el servidor confirma una de dos
+ * > cosas: «la apliqué» o «la tengo guardada para corregir».
  *
- * The injected seams (defaulted to production) let unit tests drive the worker
- * without WorkManager, Firebase, or a real network.
+ * Ante cualquier error HTTP primero se consulta `GET /v2/cobranza/pagos/{id}`
+ * (prueba de EXISTENCIA); si el servidor lo tiene, se suelta. Si no, decide
+ * [classifyUpload] con la cabecera `X-Intent-Captured` como prueba de CUSTODIA.
+ *
+ * Lo que cambió y por qué: antes se infería la custodia del `Content-Type`
+ * (`problem+json` = «llegó al API» = capturado). Es incorrecto — cuando el pool
+ * de Firebird se traba, la petición falla Y la captura falla a la vez, pero la
+ * respuesta sigue siendo `problem+json`. El 2026-08-13 eso soltó dos pagos
+ * ($800) que nadie tenía. `reachedMspApi` sobrevive sólo como dato de log.
+ *
+ * El camino legacy queda intacto; [useV2] (de `BuildConfig.PAGOS_USE_V2`)
+ * elige. No hay envío doble: dos backends arriesgarían un cobro duplicado.
  */
 class PendingPaymentsWorker @JvmOverloads constructor(
     appContext: Context,
@@ -77,43 +77,39 @@ class PendingPaymentsWorker @JvmOverloads constructor(
     }
 
     /**
-     * v2 upload. Classifies the outcome so we only mark GUARDADO_EN_MICROSIP
-     * when the server is known to hold the pago. See [PaymentUploadClassifier].
+     * Verificador de existencia contra `GET /v2/cobranza/pagos/{id}`.
+     *
+     * `true` = 200 (existe), `false` = 404 (no existe), `null` = indeterminado
+     * (cualquier otro código o excepción). Un `null` NUNCA se lee como «no
+     * existe»: el llamador sigue a la tabla de decisión.
+     */
+    @VisibleForTesting
+    internal val existenceVerifier: ExistenceVerifier = ExistenceVerifier { id ->
+        try {
+            v2Api.obtenerPago(id)
+            true
+        } catch (verifyErr: HttpException) {
+            if (verifyErr.code() == 404) false else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Subida v2. Sólo marca GUARDADO_EN_MICROSIP cuando el servidor confirma
+     * que tiene el pago — por existencia (GET) o por custodia (cabecera).
      */
     private suspend fun uploadV2(payment: PaymentEntity): Result {
         return try {
             val json = Gson().toJson(payment.toCrearPagoBody())
             val datos = json.toRequestBody("application/json".toMediaTypeOrNull())
             val response = v2Api.crearPago(idempotencyKey = payment.ID, datos = datos)
+            persistDoctoCcId(payment, response.docto_cc_id)
             markDone(payment.ID)
             Log.i(TAG, "Pago aplicado en v2: ${payment.ID} (server=${response.id})")
             Result.success()
         } catch (e: HttpException) {
-            // msp-api SIEMPRE responde sus errores con problem+json (ver
-            // response.go); un 5xx de gateway/proxy en frente de msp-api
-            // devuelve HTML/texto plano — esa respuesta nunca llegó a la
-            // captura de fallidos. No se consume errorBody() a propósito:
-            // solo se lee el header, para no arriesgar romper nada leyendo
-            // el cuerpo de una respuesta que Retrofit ya cerró/streameó.
-            val contentType = e.response()?.headers()?.get("Content-Type").orEmpty()
-            val reachedMspApi = contentType.contains("problem+json", ignoreCase = true)
-            when (PaymentUploadClassifier.classify(e.code(), reachedMspApi)) {
-                PaymentUploadDecision.DONE -> {
-                    // Capturado server-side (4xx siempre, o 5xx que sí llegó a
-                    // msp-api) → el desk lo corrige; el teléfono terminó.
-                    markDone(payment.ID)
-                    Log.w(
-                        TAG,
-                        "Pago ${payment.ID} rechazado (${e.code()}); capturado server-side, marcado listo"
-                    )
-                    Result.success()
-                }
-
-                PaymentUploadDecision.RETRY -> {
-                    Log.w(TAG, "Pago ${payment.ID}: HTTP ${e.code()} transitorio, reintentando")
-                    Result.retry()
-                }
-            }
+            handleHttpError(payment, e)
         } catch (e: IOException) {
             // El server no lo vio: jamás marcar listo. El teléfono lo conserva.
             Log.w(TAG, "Pago ${payment.ID}: error de red, reintentando", e)
@@ -121,6 +117,66 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Pago ${payment.ID}: error inesperado, reintentando", e)
             Result.retry()
+        }
+    }
+
+    /**
+     * Decide qué hacer con un error HTTP: primero pregunta si el servidor ya
+     * tiene el pago, y sólo si no lo resuelve consulta la tabla de decisión.
+     */
+    private suspend fun handleHttpError(payment: PaymentEntity, e: HttpException): Result {
+        // Prueba de EXISTENCIA. El pago pudo haberse creado por una corrida
+        // anterior cuyo 2xx no nos llegó, o por un replay desde la oficina.
+        if (existenceVerifier.exists(payment.ID) == true) {
+            markDone(payment.ID)
+            Log.i(
+                TAG,
+                "RECONCILED_VIA_GET: pago ${payment.ID} ya existía server-side " +
+                    "(HTTP original ${e.code()}); reconciliado sin reintentar"
+            )
+            return Result.success()
+        }
+
+        // Prueba de CUSTODIA. Sólo la cabecera cuenta: el servidor la emite
+        // únicamente cuando su Store.Save tuvo éxito.
+        val headers = e.response()?.headers()
+        val captureConfirmed = !headers?.get(HEADER_INTENT_CAPTURED).isNullOrBlank()
+        // Sólo para el log: ya no decide nada.
+        val reachedMspApi = headers?.get("Content-Type").orEmpty()
+            .contains("problem+json", ignoreCase = true)
+
+        return when (classifyUpload(e.code(), reachedMspApi, captureConfirmed)) {
+            UploadDecision.RELEASE -> {
+                markDone(payment.ID)
+                Log.w(
+                    TAG,
+                    "Pago ${payment.ID} rechazado (${e.code()}); resguardado server-side " +
+                        "(X-Intent-Captured), lo corrige la oficina"
+                )
+                Result.success()
+            }
+
+            UploadDecision.RETRY -> {
+                Log.w(
+                    TAG,
+                    "Pago ${payment.ID}: HTTP ${e.code()} sin custodia confirmada " +
+                        "(reachedMspApi=$reachedMspApi), reintentando"
+                )
+                Result.retry()
+            }
+        }
+    }
+
+    /**
+     * Guarda el DOCTO_CC_ID que Microsip asignó. Es best-effort: un fallo aquí
+     * no puede tumbar una entrega que ya tuvo éxito.
+     */
+    private suspend fun persistDoctoCcId(payment: PaymentEntity, doctoCcId: Int?) {
+        if (doctoCcId == null || doctoCcId == payment.DOCTO_CC_ID) return
+        try {
+            paymentsStore.updatePaymentDoctoCcId(payment.ID, doctoCcId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Pago ${payment.ID}: no se pudo guardar docto_cc_id", e)
         }
     }
 

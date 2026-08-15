@@ -353,8 +353,20 @@ class NewSaleFormValidatorTest {
     // --- Zone validation ---
 
     @Test
-    fun `validateZone CONTADO always valid`() {
-        assertTrue(NewSaleFormValidator.validateZone("CONTADO", null, ""))
+    fun `validateZone exige zona tambien en CONTADO`() {
+        // Antes CONTADO quedaba exento porque el servidor le asignaba la caja
+        // fija de mostrador. Esa excepción es la que produce ventas sin zona,
+        // que el servidor rechaza con venta_sin_zona.
+        assertFalse(NewSaleFormValidator.validateZone("CONTADO", null, ""))
+        assertFalse(NewSaleFormValidator.validateZone("CONTADO", 21563, ""))
+        assertFalse(NewSaleFormValidator.validateZone("CONTADO", null, "RUTA 1"))
+        assertTrue(NewSaleFormValidator.validateZone("CONTADO", 21563, "RUTA 1"))
+    }
+
+    @Test
+    fun `validateZone sigue exigiendo zona en CREDITO`() {
+        assertFalse(NewSaleFormValidator.validateZone("CREDITO", null, ""))
+        assertTrue(NewSaleFormValidator.validateZone("CREDITO", 21563, "RUTA 1"))
     }
 
     @Test
@@ -462,6 +474,9 @@ class NewSaleFormValidatorTest {
             locationPermissionGranted = true,
             hasValidLocation = true,
             tipoVenta = "CONTADO",
+            // La zona es obligatoria en todo tipo de venta.
+            selectedZoneId = 21563,
+            selectedZoneName = "RUTA 1",
             imageUris = listOf(Uri.parse("content://test/image.jpg"))
         )
         val errors = NewSaleFormValidator.validateAll(state, hasProducts = true)

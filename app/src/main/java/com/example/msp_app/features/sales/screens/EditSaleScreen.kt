@@ -709,22 +709,22 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Zone Selector - Solo mostrar para ventas a CREDITO
-                    if (tipoVenta == "CREDITO") {
-                        ZoneSelectorSimple(
-                            selectedZoneId = selectedZoneId,
-                            selectedZoneName = selectedZoneName,
-                            onZoneSelected = { zoneId, zoneName ->
-                                selectedZoneId = zoneId
-                                selectedZoneName = zoneName
-                                zoneError = false
-                            },
-                            error = if (zoneError) "Selecciona una zona" else null,
-                            isRequired = true
-                        )
+                    // La zona es obligatoria en todo tipo de venta: el
+                    // servidor resuelve la caja desde ella y rechaza las
+                    // ventas sin zona.
+                    ZoneSelectorSimple(
+                        selectedZoneId = selectedZoneId,
+                        selectedZoneName = selectedZoneName,
+                        onZoneSelected = { zoneId, zoneName ->
+                            selectedZoneId = zoneId
+                            selectedZoneName = zoneName
+                            zoneError = false
+                        },
+                        error = if (zoneError) "Selecciona una zona" else null,
+                        isRequired = true
+                    )
 
-                        Spacer(Modifier.height(16.dp))
-                    }
+                    Spacer(Modifier.height(16.dp))
 
                     Text(
                         "Información del Cliente",

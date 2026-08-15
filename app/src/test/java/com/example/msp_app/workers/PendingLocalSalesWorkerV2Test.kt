@@ -406,7 +406,10 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
     }
 
     @Test
-    fun upload_v2_422_validation_with_404_on_verify_returns_failure_permanent() = runTest {
+    fun upload_v2_422_sin_custodia_confirmada_se_reintenta() = runTest {
+        // Cambio deliberado: un 4xx SIN `X-Intent-Captured` ya no es
+        // permanente. Puede venir de un túnel/proxy que nunca entregó la
+        // venta, y rendirse ahí la dejaría sin dueño.
         val saleId = seedHappySale("sale-422-404")
 
         val problemBody =
@@ -420,33 +423,95 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
                     )
                 )
             },
-            obtener = {
-                throw HttpException(
-                    retrofit2.Response.error<VentaDTO>(
-                        404,
-                        "{}".toResponseBody("application/json".toMediaTypeOrNull())
-                    )
-                )
-            }
+            obtener = { throw notFound() }
         )
 
         val result = buildAndRunWorker(saleId = saleId, api = api)
 
         assertEquals(
-            "422 validation + GET 404 means a permanent client error — worker must surrender",
-            ListenableWorker.Result.failure(),
+            "sin confirmación de custodia nadie tiene la venta: reintentar",
+            ListenableWorker.Result.retry(),
             result
         )
 
         val sale = saleDataSource.getSaleById(saleId)!!
-        assertFalse("ENVIADO must stay false when venta is rejected permanently", sale.ENVIADO)
-        assertEquals("LAST_UPLOAD_HTTP_CODE must be persisted", 422, sale.LAST_UPLOAD_HTTP_CODE)
+        assertFalse("ENVIADO debe seguir en false", sale.ENVIADO)
+        assertEquals("LAST_UPLOAD_HTTP_CODE debe persistirse", 422, sale.LAST_UPLOAD_HTTP_CODE)
         assertEquals("plazo_invalido", sale.LAST_UPLOAD_ERROR_CODE)
         assertEquals(
             "el plazo en meses debe ser mayor a cero",
             sale.LAST_UPLOAD_ERROR_MESSAGE
         )
+        assertEquals(
+            "sin custodia el fallo es transitorio, no permanente",
+            false,
+            sale.LAST_UPLOAD_PERMANENT
+        )
+    }
+
+    @Test
+    fun upload_v2_422_con_custodia_confirmada_es_permanente() = runTest {
+        // Con `X-Intent-Captured` el servidor sí lo tiene resguardado: la
+        // oficina lo corrige y el teléfono deja de reintentar.
+        val saleId = seedHappySale("sale-422-captured")
+
+        val problemBody =
+            """{"code":"plazo_invalido","detail":"el plazo en meses debe ser mayor a cero","title":"Unprocessable Entity"}"""
+        val api = fakeApi(
+            crear = { _, _, _ ->
+                throw httpErrorConCabeceras(
+                    code = 422,
+                    body = problemBody,
+                    intentCaptured = "3f2a1c7e-0000-4000-8000-000000000001"
+                )
+            },
+            obtener = { throw notFound() }
+        )
+
+        val result = buildAndRunWorker(saleId = saleId, api = api)
+
+        assertEquals(
+            "resguardado server-side: el teléfono terminó",
+            ListenableWorker.Result.failure(),
+            result
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertFalse("la rama de fallo NUNCA marca la venta como enviada", sale.ENVIADO)
         assertEquals(true, sale.LAST_UPLOAD_PERMANENT)
+    }
+
+    /** 404 limpio para el verificador de existencia. */
+    private fun notFound(): HttpException = HttpException(
+        retrofit2.Response.error<VentaDTO>(
+            404,
+            "{}".toResponseBody("application/json".toMediaTypeOrNull())
+        )
+    )
+
+    /**
+     * `retrofit2.Response.error(code, body)` NO copia cabeceras, así que probar
+     * `X-Intent-Captured` exige construir la respuesta cruda a mano.
+     */
+    private fun httpErrorConCabeceras(
+        code: Int,
+        body: String,
+        intentCaptured: String? = null
+    ): HttpException {
+        val raw = okhttp3.Response.Builder()
+            .code(code)
+            .message("test")
+            .protocol(okhttp3.Protocol.HTTP_1_1)
+            .request(okhttp3.Request.Builder().url("http://localhost/").build())
+            .header("Content-Type", "application/problem+json")
+            .apply { if (intentCaptured != null) header("X-Intent-Captured", intentCaptured) }
+            .build()
+        return HttpException(
+            retrofit2.Response.error<VentaDTO>(
+                body.toResponseBody("application/problem+json".toMediaTypeOrNull()),
+                raw
+            )
+        )
     }
 
     @Test

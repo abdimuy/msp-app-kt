@@ -404,6 +404,14 @@ interface PaymentDao {
     @Query("UPDATE Payment SET GUARDADO_EN_MICROSIP = :newEstado WHERE id = :id")
     suspend fun updateEstado(id: String, newEstado: Int)
 
+    /**
+     * Guarda el DOCTO_CC_ID que Microsip asignó al aplicar el pago. Sin él la
+     * app no puede casar el pago local con el que baja del servidor y el mismo
+     * pago aparece dos veces en los totales.
+     */
+    @Query("UPDATE Payment SET DOCTO_CC_ID = :doctoCcId WHERE id = :id")
+    suspend fun updateDoctoCcId(id: String, doctoCcId: Int)
+
     @Query("UPDATE Payment SET LAT = :lat, LNG = :lng WHERE id = :id")
     suspend fun updateLocation(id: String, lat: Double, lng: Double)
 

@@ -121,16 +121,10 @@ class NewSaleFormViewModel(application: Application) : AndroidViewModel(applicat
             // vuelo, o cambiar a crédito pintaría en rojo un campo intacto.
             val phoneError = state.errors.phone &&
                 !NewSaleFormValidator.validatePhone(state.phone, value)
-            if (value == "CONTADO") {
-                state.copy(
-                    tipoVenta = value,
-                    selectedZoneId = null,
-                    selectedZoneName = "",
-                    errors = state.errors.copy(zone = false, phone = phoneError)
-                )
-            } else {
-                state.copy(tipoVenta = value, errors = state.errors.copy(phone = phoneError))
-            }
+            // La zona ya NO se borra al pasar a CONTADO: es obligatoria en
+            // todo tipo de venta, así que limpiarla convertía un formulario
+            // válido en inválido a espaldas del vendedor.
+            state.copy(tipoVenta = value, errors = state.errors.copy(phone = phoneError))
         }
     }
 

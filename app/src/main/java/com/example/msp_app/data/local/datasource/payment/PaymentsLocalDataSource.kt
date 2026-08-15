@@ -131,6 +131,15 @@ class PaymentsLocalDataSource @Inject constructor(
         )
     }
 
+    /**
+     * Guarda el DOCTO_CC_ID que devolvió el servidor al aplicar el pago.
+     * Sin él el pago local y el que baja del servidor no se reconocen como el
+     * mismo y los totales de pantalla salen inflados.
+     */
+    suspend fun updatePaymentDoctoCcId(id: String, doctoCcId: Int) {
+        paymentDao.updateDoctoCcId(id, doctoCcId)
+    }
+
     suspend fun updatePaymentLocation(id: String, lat: Double, lng: Double) {
         paymentDao.updateLocation(id, lat, lng)
     }

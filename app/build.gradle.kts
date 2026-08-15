@@ -233,6 +233,9 @@ dependencies {
 
     implementation(project(":core:common"))
     implementation(project(":core:database"))
+    // Política única de entrega garantizada (tabla de decisión + puerto de
+    // verificación). Ver docs/module-standards/ENTREGA_GARANTIZADA.md.
+    implementation(project(":core:upload"))
     // FontSizeLevel/LocalFontSizeLevel/LocalReduceMotion (fundación de Configuración) —
     // MainActivity los consume directo para el override Opción C de la raíz de composición
     // (no llegan transitivos: `:core:settings`/`:feature:collectionReport` los declaran

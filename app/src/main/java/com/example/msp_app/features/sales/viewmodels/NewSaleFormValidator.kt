@@ -130,8 +130,20 @@ object NewSaleFormValidator {
         return downpayment.isBlank() || (downpayment.toDoubleOrNull()?.let { it >= 0 } ?: false)
     }
 
+    /**
+     * La zona es obligatoria en TODO tipo de venta.
+     *
+     * Antes CONTADO quedaba exento porque el servidor le asignaba la caja fija
+     * de mostrador. Esa excepción es la que deja ventas sin zona, y el servidor
+     * las rechaza con `venta_sin_zona` en cuanto se enciende
+     * `VENTAS_ZONA_OBLIGATORIA`. Se valida aquí para que el vendedor lo
+     * descubra al capturar y no al aplicar.
+     *
+     * [tipoVenta] se conserva en la firma: la usan las demás validaciones del
+     * formulario y quitarla obligaría a tocar todas las llamadas.
+     */
+    @Suppress("UNUSED_PARAMETER")
     fun validateZone(tipoVenta: String, zoneId: Int?, zoneName: String): Boolean {
-        if (tipoVenta == TIPO_VENTA_CONTADO) return true
         return zoneId != null && zoneName.isNotBlank()
     }
 

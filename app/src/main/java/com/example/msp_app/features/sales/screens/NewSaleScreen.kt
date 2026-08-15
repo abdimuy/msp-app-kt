@@ -735,20 +735,20 @@ fun NewSaleScreen(navController: NavController) {
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Zone Selector - Solo mostrar para ventas a CREDITO
-                    if (formState.tipoVenta == "CREDITO") {
-                        ZoneSelectorSimple(
-                            selectedZoneId = formState.selectedZoneId,
-                            selectedZoneName = formState.selectedZoneName,
-                            onZoneSelected = { zoneId, zoneName ->
-                                formViewModel.updateZone(zoneId, zoneName)
-                            },
-                            error = if (formState.errors.zone) "Selecciona una zona" else null,
-                            isRequired = true
-                        )
+                    // La zona es obligatoria en todo tipo de venta: el
+                    // servidor resuelve la caja desde ella y rechaza las
+                    // ventas sin zona.
+                    ZoneSelectorSimple(
+                        selectedZoneId = formState.selectedZoneId,
+                        selectedZoneName = formState.selectedZoneName,
+                        onZoneSelected = { zoneId, zoneName ->
+                            formViewModel.updateZone(zoneId, zoneName)
+                        },
+                        error = if (formState.errors.zone) "Selecciona una zona" else null,
+                        isRequired = true
+                    )
 
-                        Spacer(Modifier.height(16.dp))
-                    }
+                    Spacer(Modifier.height(16.dp))
 
                     Text(
                         "Información del Cliente",
