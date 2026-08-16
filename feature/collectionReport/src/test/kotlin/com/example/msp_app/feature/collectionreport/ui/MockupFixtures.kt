@@ -212,13 +212,34 @@ internal object MockupFixtures {
         )
     )
 
-    /** Resumen por día Semana (mockup `DAYS`) — etiquetas/montos/conteos/iniciales EXACTOS. */
+    /**
+     * Resumen por día Semana (mockup `DAYS`) — etiquetas/montos/conteos/iniciales EXACTOS.
+     * Las fechas son las del propio mockup (lun 3 – vie 7 ago 2026): sirven de LLAVE de la lista
+     * perezosa del detalle, no se pintan.
+     */
     fun daysSemana(): List<DayRowUi> = listOf(
-        DayRowUi("lun 3 ago", money("21300"), 39, "L3", isToday = false),
-        DayRowUi("mar 4 ago", money("24800"), 46, "M4", isToday = false),
-        DayRowUi("mié 5 ago", money("28600"), 51, "M5", isToday = false),
-        DayRowUi("jue 6 ago", money("25400"), 46, "J6", isToday = false),
-        DayRowUi("vie 7 ago (hoy)", money("18300"), 32, "V7", isToday = true)
+        dayRow("2026-08-03", "lun 3 ago", "21300", 39, "L3", isToday = false),
+        dayRow("2026-08-04", "mar 4 ago", "24800", 46, "M4", isToday = false),
+        dayRow("2026-08-05", "mié 5 ago", "28600", 51, "M5", isToday = false),
+        dayRow("2026-08-06", "jue 6 ago", "25400", 46, "J6", isToday = false),
+        dayRow("2026-08-07", "vie 7 ago (hoy)", "18300", 32, "V7", isToday = true)
+    )
+
+    @Suppress("LongParameterList") // 1:1 con los campos de `DayRowUi`; no hay nada que agrupar.
+    private fun dayRow(
+        date: String,
+        label: String,
+        amount: String,
+        count: Int,
+        initials: String,
+        isToday: Boolean
+    ): DayRowUi = DayRowUi(
+        date = LocalDate.parse(date),
+        label = label,
+        amount = money(amount),
+        count = count,
+        initials = initials,
+        isToday = isToday
     )
 
     // ─── ciclo REAL de la ruta 34 (medido en producción el 13-ago-2026) ─────────────────

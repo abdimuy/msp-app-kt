@@ -1,9 +1,10 @@
 package com.example.msp_app.feature.collectionreport.screenshot
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -14,6 +15,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.DetailHeader
 import com.example.msp_app.feature.collectionreport.ui.components.DetailList
 import com.example.msp_app.feature.collectionreport.ui.components.DuoTiles
 import com.example.msp_app.feature.collectionreport.ui.components.SecondaryChips
+import com.example.msp_app.feature.collectionreport.ui.components.dayDetailItems
 import org.junit.Test
 
 /**
@@ -144,45 +146,76 @@ private fun LongPaymentList(rows: Int, expanded: Boolean) {
             detail = DetailUi.Payments(MockupFixtures.manyPaymentsDia(rows)),
             masked = false,
             onPaymentClick = {},
-            onDayClick = {},
             expanded = expanded,
             onToggleExpand = {}
         )
     }
 }
 
+/**
+ * `LazyColumn`, no `Column`: la pantalla real emite el resumen por día de Semana como ÍTEMS
+ * (ver `dayDetailItems`), así que el golden tiene que capturar ESE camino — un `Column` aquí
+ * congelaría un render que producción ya no hace.
+ *
+ * El `contentPadding` + un `padding(top)` por ítem reproducen exactamente lo que antes daban
+ * `Modifier.padding(spacing.md)` + `Arrangement.spacedBy(spacing.md)`: los goldens de Día y de
+ * Semana deben salir píxel por píxel iguales a los committeados, y eso es justo lo que prueba
+ * que ni el cambio de contenedor ni el troceado de la tarjeta movieron nada.
+ */
 @Composable
 private fun MiddleSection(state: CollectionReportUiState) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(MspTheme.spacing.md),
-        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+    val gap = MspTheme.spacing.md
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(gap)
     ) {
-        DuoTiles(
-            efectivo = state.efectivo,
-            transferencia = state.transferencia,
-            masked = state.masked,
-            onEfectivoClick = {},
-            onTransferenciaClick = {}
-        )
-        SecondaryChips(
-            condonado = state.condonado,
-            visitas = state.visitas,
-            masked = state.masked,
-            onCondonadoClick = {},
-            onVisitasClick = {}
-        )
-        DetailHeader(detail = state.detail, sort = state.sort, onSortSelect = {})
-        // `expanded = false`: las fixtures del mockup (4 pagos Día / 5 días Semana) no llegan al
-        // umbral del colapsable, así que el golden es idéntico al de antes — sin control.
-        DetailList(
-            detail = state.detail,
-            masked = state.masked,
-            onPaymentClick = {},
-            onDayClick = {},
-            expanded = false,
-            onToggleExpand = {}
-        )
+        item {
+            DuoTiles(
+                efectivo = state.efectivo,
+                transferencia = state.transferencia,
+                masked = state.masked,
+                onEfectivoClick = {},
+                onTransferenciaClick = {}
+            )
+        }
+        item {
+            SecondaryChips(
+                condonado = state.condonado,
+                visitas = state.visitas,
+                masked = state.masked,
+                onCondonadoClick = {},
+                onVisitasClick = {},
+                modifier = Modifier.padding(top = gap)
+            )
+        }
+        item {
+            DetailHeader(
+                detail = state.detail,
+                sort = state.sort,
+                onSortSelect = {},
+                modifier = Modifier.padding(top = gap)
+            )
+        }
+        when (val detail = state.detail) {
+            // `expanded = false`: la fixture del mockup (4 pagos) no llega al umbral del
+            // colapsable, así que el golden es idéntico al de antes — sin control.
+            is DetailUi.Payments -> item {
+                DetailList(
+                    detail = detail,
+                    masked = state.masked,
+                    onPaymentClick = {},
+                    expanded = false,
+                    onToggleExpand = {},
+                    modifier = Modifier.padding(top = gap)
+                )
+            }
+
+            is DetailUi.Days -> dayDetailItems(
+                rows = detail.rows,
+                masked = state.masked,
+                onDayClick = {},
+                topGap = gap
+            )
+        }
     }
 }

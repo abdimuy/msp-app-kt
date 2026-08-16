@@ -30,11 +30,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.MspCard
-import com.example.msp_app.core.designsystem.component.MspInitialsAvatar
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.collectionreport.domain.model.Money
-import com.example.msp_app.feature.collectionreport.ui.DayRowUi
 import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.PaymentRowUi
 import com.example.msp_app.feature.collectionreport.ui.theme.REPORT_STANDARD_DURATION_MS
@@ -42,7 +40,6 @@ import com.example.msp_app.feature.collectionreport.ui.theme.ReportStandardEasin
 import com.example.msp_app.feature.collectionreport.ui.theme.rememberReportReducedMotion
 
 private val SYNC_DOT_SIZE = 7.dp
-private val DAY_AVATAR_SIZE = 34.dp
 private val DIVIDER_HEIGHT = 1.dp
 
 /**
@@ -55,8 +52,10 @@ private val DIVIDER_HEIGHT = 1.dp
  * - 5 filas enriquecidas (nombre + folio/hora + monto + saldo + pills) ocupan aproximadamente la
  *   altura que le queda a la tarjeta de detalle en un 360×800 sin comerse el resto del scroll:
  *   se ve que HAY una lista y de qué pinta son sus filas, sin que la lista sea la pantalla.
- * - Empata con el detalle de Semana ([DetailUi.Days]), que son 5 días de ciclo: los dos periodos
- *   presentan un bloque de detalle de altura comparable, y el toggle Día↔Semana no da un salto.
+ * - Empata con lo que un ciclo NORMAL enseña en Semana ([DetailUi.Days], ~5 días): los dos
+ *   periodos presentan un bloque de detalle de altura comparable y el toggle no da un salto.
+ *   Ojo: "~5 días" es lo típico, NO una garantía — el ciclo no tiene tope (ver el KDoc de
+ *   `dayDetailItems`), y por eso Semana se pinta perezosa en vez de acotarse con este umbral.
  *
  * El conteo total NUNCA se esconde: [DetailHeader] ya rotula "Pagos del día · N" arriba de la
  * tarjeta, y el control de expansión lleva el número real en su etiqueta.
@@ -85,64 +84,53 @@ private const val PENDING_UPLOAD_DESCRIPTION = "por subir"
 private const val EMPTY_MESSAGE = "Sin datos aún"
 
 /**
- * Bloque de detalle (mockup `.rows`): lista de pagos en Día ([DetailUi.Payments], una
- * [PaymentRow] por pago) o resumen por día en Semana ([DetailUi.Days], una [DayRow] por día
- * del ciclo) — nunca ambos a la vez, mismo contrato exhaustivo que [DetailUi]. Vacío ->
- * mensaje corto centrado en vez de una [MspCard] en blanco (carga inicial, error, o un
- * rango sin movimientos).
+ * Bloque de detalle de DÍA (mockup `.rows`): la lista de pagos ([DetailUi.Payments], una
+ * [PaymentRow] por pago). Vacío -> mensaje corto centrado en vez de una [MspCard] en blanco
+ * (carga inicial, error, o un rango sin movimientos).
  *
  * `shapes.sectionCard` (18dp) — el radio real de `.rows` en el mockup, no el `shapes.tile`
  * default de [MspCard].
  *
- * **Colapsable, y SOLO en la lista de pagos (Día).** Con más de [COLLAPSED_PAYMENT_ROWS] pagos
- * la tarjeta muestra los primeros y añade un control que revela TODOS — no un rótulo muerto tipo
- * "13 pagos más": el dueño rechazó explícitamente informar sin revelar. Con
- * `rows.size <= COLLAPSED_PAYMENT_ROWS` no se pinta control alguno (no hay nada que revelar).
- * [DetailUi.Days] (Semana) se comporta como siempre: todos los días del ciclo, sin control —
- * son 5 filas por definición del ciclo, nunca hay overflow que esconder. El DISEÑO de cada
- * renglón no cambia en ningún caso; lo único nuevo es cuántos se pintan.
+ * **El detalle de SEMANA ([DetailUi.Days]) NO pasa por aquí** — lo emite
+ * [dayDetailItems] como ítems de la lista perezosa del tablero. Motivo en su KDoc: el
+ * "resumen por día" tiene un renglón por día del ciclo y el ciclo NO tiene tope, así que
+ * pintarlos todos de golpe es exactamente el defecto que se corrigió. Este composable se
+ * queda con Día porque su lista ya está acotada por el colapsable de abajo.
+ *
+ * **Colapsable.** Con más de [COLLAPSED_PAYMENT_ROWS] pagos la tarjeta muestra los primeros y
+ * añade un control que revela TODOS — no un rótulo muerto tipo "13 pagos más": el dueño
+ * rechazó explícitamente informar sin revelar. Con `rows.size <= COLLAPSED_PAYMENT_ROWS` no se
+ * pinta control alguno (no hay nada que revelar). El DISEÑO de cada renglón no cambia en ningún
+ * caso; lo único nuevo es cuántos se pintan.
  *
  * [expanded]/[onToggleExpand] son estado IZADO (arranca colapsado en ambos call sites, vía
  * `rememberSaveable`): así sobrevive a los swaps Día↔Semana y a los cambios de configuración, y
  * el estado es dirigible desde un test sin depender de un `remember` escondido aquí adentro.
  * Ambos parámetros son OBLIGATORIOS a propósito — un default `{}` en [onToggleExpand] dejaría
  * pintar un control que no hace nada, que es justo el defecto que se está corrigiendo.
- * [DetailUi.Days] los ignora.
  */
 @Composable
 fun DetailList(
-    detail: DetailUi,
+    detail: DetailUi.Payments,
     masked: Boolean,
     onPaymentClick: (String) -> Unit,
-    onDayClick: (Int) -> Unit,
     expanded: Boolean,
     onToggleExpand: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isEmpty = when (detail) {
-        is DetailUi.Payments -> detail.rows.isEmpty()
-        is DetailUi.Days -> detail.rows.isEmpty()
-    }
     MspCard(modifier = modifier.fillMaxWidth(), shape = MspTheme.shapes.sectionCard) {
-        if (isEmpty) {
+        if (detail.rows.isEmpty()) {
             EmptyDetail()
             return@MspCard
         }
         Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
-            when (detail) {
-                is DetailUi.Payments -> PaymentRows(
-                    rows = detail.rows,
-                    masked = masked,
-                    expanded = expanded,
-                    onToggleExpand = onToggleExpand,
-                    onPaymentClick = onPaymentClick
-                )
-
-                is DetailUi.Days -> detail.rows.forEachIndexed { index, row ->
-                    DayRow(row = row, masked = masked, onClick = { onDayClick(index) })
-                    if (index != detail.rows.lastIndex) DetailDivider()
-                }
-            }
+            PaymentRows(
+                rows = detail.rows,
+                masked = masked,
+                expanded = expanded,
+                onToggleExpand = onToggleExpand,
+                onPaymentClick = onPaymentClick
+            )
         }
     }
 }
@@ -210,8 +198,15 @@ private fun PaymentRows(
     DetailListToggle(expanded = expanded, total = rows.size, onToggle = onToggleExpand)
 }
 
+/**
+ * Mensaje de "sin datos" dentro de la tarjeta de detalle.
+ *
+ * `internal` (no `private`): el resumen por día (`dayDetailItems`) sirve exactamente el MISMO
+ * vacío, y duplicarlo sería la vía más corta a que los dos periodos digan cosas distintas
+ * cuando no hay nada que mostrar.
+ */
 @Composable
-private fun EmptyDetail(modifier: Modifier = Modifier) {
+internal fun EmptyDetail(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -226,8 +221,12 @@ private fun EmptyDetail(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Hairline separador entre renglones de la tarjeta de detalle. `internal` por el mismo motivo
+ * que [EmptyDetail]: el resumen por día lo pinta entre sus ítems y debe ser EL MISMO trazo.
+ */
 @Composable
-private fun DetailDivider(modifier: Modifier = Modifier) {
+internal fun DetailDivider(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -366,45 +365,6 @@ internal fun PendingUploadChip(modifier: Modifier = Modifier) {
             text = "Por subir",
             style = MspTheme.type.captionStrong,
             color = MspTheme.colors.statusPartial
-        )
-    }
-}
-
-/**
- * Fila de un día del ciclo (mockup `.srow`): avatar de iniciales del día (ya calculadas por
- * `ReportAggregator.dailyTrend`, p. ej. "L3") + nombre del día + subline "N pagos" a la
- * izquierda; monto a la derecha. Avatar más chico ([DAY_AVATAR_SIZE], 34dp) que el de
- * [PaymentRow] (38dp default) — 1:1 `.srow .sa` vs `.prow .ava` del mockup.
- */
-@Composable
-private fun DayRow(
-    row: DayRowUi,
-    masked: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = MspTheme.spacing.sm),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-    ) {
-        MspInitialsAvatar(initials = row.initials, size = DAY_AVATAR_SIZE)
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = row.label, style = MspTheme.type.name, color = MspTheme.colors.onSurface)
-            Text(
-                text = "${row.count} pagos",
-                style = MspTheme.type.subtitle,
-                color = MspTheme.colors.onSurfaceMuted
-            )
-        }
-        MspMoneyText(
-            amount = row.amount.amount,
-            masked = masked,
-            style = MspTheme.type.amountRow,
-            color = MspTheme.colors.onSurface
         )
     }
 }

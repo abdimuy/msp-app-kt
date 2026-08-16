@@ -10,13 +10,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.add
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +58,7 @@ import com.example.msp_app.feature.collectionreport.ui.components.ReportSheets
 import com.example.msp_app.feature.collectionreport.ui.components.SecondaryChips
 import com.example.msp_app.feature.collectionreport.ui.components.StaggeredEntrance
 import com.example.msp_app.feature.collectionreport.ui.components.TabTransition
+import com.example.msp_app.feature.collectionreport.ui.components.dayDetailItems
 import com.example.msp_app.feature.collectionreport.ui.theme.ThemeRevealRoot
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
@@ -72,9 +75,10 @@ import kotlinx.coroutines.withContext
  * (top 32 + botón 56 + bottom 16 ≈ 104dp) con holgura, para que la ÚLTIMA fila de pago libre
  * la barra de acciones (fix de dispositivo: con muchos pagos, el valor previo de 96dp — menor
  * que la barra — dejaba las últimas filas tapadas, dando la sensación de que "la lista no
- * baja"). El inset real de la barra de navegación del sistema (variable por dispositivo) lo
- * agrega por separado `.navigationBarsPadding()` en el `Column` de abajo — mismo componente,
- * mismo inset, sin duplicar el número a mano.
+ * baja"). El inset real de la barra de navegación del sistema (variable por dispositivo) se
+ * suma aparte, dentro del `contentPadding` de la lista — antes lo agregaba
+ * `.navigationBarsPadding()` sobre la `Column` con scroll; mismo inset, sin duplicar el número
+ * a mano.
  */
 private val SCROLL_BOTTOM_CONTENT_PADDING = 132.dp
 
@@ -95,6 +99,19 @@ private const val ENTRANCE_DUO = 7
 private const val ENTRANCE_CHIPS = 8
 private const val ENTRANCE_DETAIL_HEADER = 9
 private const val ENTRANCE_DETAIL_LIST = 10
+
+/**
+ * Llaves de los ítems fijos de la lista perezosa del tablero. Son constantes y no índices: el
+ * banner de error y el aviso de ciclo aparecen y desaparecen, así que la posición de todo lo
+ * que va debajo cambia — con llave propia, cada sección conserva su estado interno cuando eso
+ * pasa. Las filas de día llevan la suya (ver `dayDetailItems`).
+ */
+private const val ITEM_HEADER = "header"
+private const val ITEM_ERROR = "error_banner"
+private const val ITEM_CYCLE_NOTICE = "cycle_notice"
+private const val ITEM_PERIOD = "period_selector"
+private const val ITEM_SUBROW = "range_subrow"
+private const val ITEM_PERIOD_BLOCK = "period_block"
 
 /**
  * Punto de entrada del reporte de cobranza (Plan 5, piloto `:feature:collectionReport`).
@@ -273,9 +290,26 @@ fun CollectionReportScreen(
  * resueltos para el periodo actual desde `CollectionReportViewModel`; el `period` del lambda
  * solo lo necesita [HeroSection] para su copy dependiente de periodo.
  *
- * **Regla anti-colapso (spec §6):** ningún hijo de la `Column` con scroll recibe `weight` —
- * cada tarjeta se dimensiona por contenido (`wrapContentHeight` implícito); el
- * `verticalScroll` maneja el overflow, nunca comprime.
+ * **Regla anti-colapso (spec §6):** ningún ítem de la lista con scroll recibe `weight` —
+ * cada tarjeta se dimensiona por contenido (`wrapContentHeight` implícito); la lista maneja el
+ * overflow, nunca comprime.
+ *
+ * **Lista PEREZOSA, no `Column` + `verticalScroll` (fix de dispositivo, salto Día↔Semana).** El
+ * resumen por día de Semana trae un renglón por día del ciclo y el ciclo no tiene tope (ver el
+ * KDoc de `dayDetailItems`): con una `Column` con scroll se componían y DIBUJABAN los 182
+ * renglones de una carga de hace seis meses en el mismo frame — 212 frames perdidos, frames de
+ * 1.7 s medidos en dispositivo. Con `LazyColumn` sólo se compone lo visible. Consecuencias de
+ * forma que hay que respetar al editar este archivo:
+ *  - La DSL de `LazyListScope` NO es composable: los `rememberSaveable` izados (`hasEntered`,
+ *    `paymentsExpanded`) viven ARRIBA de la lista, no adentro. Siguen cumpliendo su función
+ *    original (sobrevivir a los swaps del `AnimatedContent`), ahora con más margen.
+ *  - Los huecos entre secciones son `padding(top = spacing.md)` por ítem en vez de un
+ *    `Arrangement.spacedBy` del contenedor: las filas de día van pegadas entre sí (son una
+ *    sola tarjeta) y un arrangement global las separaría.
+ *  - El detalle de Semana ya NO viaja dentro del [TabTransition] — no puede: un
+ *    `AnimatedContent` es un subárbol y sus hijos no pueden ser ítems de la lista de afuera.
+ *    El bloque de cifras (hero/meta/duo/chips/encabezado) sigue deslizando igual; las filas de
+ *    día, que en Semana quedan bastante abajo del pliegue, aparecen sin deslizar.
  *
  * `internal`: punto de entrada testeable desde este módulo sin pasar por Hilt/NavController
  * — [CollectionReportScreen] es el único wrapper público.
@@ -316,160 +350,233 @@ internal fun CollectionReportContent(
             // inset se aplica directo al contenedor raíz del contenido.
             .statusBarsPadding()
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = MspTheme.spacing.md)
-                .padding(top = MspTheme.spacing.sm, bottom = SCROLL_BOTTOM_CONTENT_PADDING)
-                .navigationBarsPadding(),
-            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
-        ) {
-            StaggeredEntrance(index = ENTRANCE_HEADER) {
-                ReportHeader(
-                    cobrador = state.cobrador,
-                    masked = state.masked,
-                    darkTheme = state.darkTheme,
-                    onMenuClick = onMenuClick,
-                    onPrivacyToggle = onPrivacyToggle,
-                    onThemeToggle = onThemeToggle
+        // La entrada escalonada + el crecimiento de la sparkline corren SOLO la primera vez
+        // que se pinta el tablero; en los cambios Día↔Semana cada slot del `AnimatedContent`
+        // es un subárbol nuevo que las re-dispararía, apilándolas sobre el slide de 300ms y
+        // haciéndolo saltar (toggle-jank-diagnosis.md, fix 4). El flag sobrevive a los swaps
+        // por estar hoisteado ARRIBA del `TabTransition` — ahora arriba de la lista entera,
+        // porque la DSL de `LazyListScope` no es composable y no admite `rememberSaveable`.
+        var hasEntered by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(Unit) { hasEntered = true }
+        val animateEntrance = !hasEntered
+
+        // Colapsable de la lista de pagos (Día) — estado izado ARRIBA del `TabTransition`
+        // por el mismo motivo que `hasEntered`: cada slot del `AnimatedContent` es un
+        // subárbol nuevo, así que un `rememberSaveable` de adentro se reiniciaría en cada
+        // swap Día↔Semana y la lista se volvería a colapsar sola. Arranca colapsado; el
+        // umbral y el porqué viven en `DetailList`.
+        var paymentsExpanded by rememberSaveable { mutableStateOf(false) }
+
+        // Hueco entre secciones — el mismo `spacing.md` que antes daba el `Arrangement.spacedBy`
+        // de la `Column`, ahora por ítem (ver el KDoc de este composable).
+        val sectionGap = MspTheme.spacing.md
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            // Los mismos paddings que llevaba la `Column` DENTRO del `verticalScroll` (es decir:
+            // desplazables con el contenido, no un recorte del viewport) más el inset real de la
+            // barra de navegación, que antes agregaba `.navigationBarsPadding()`.
+            contentPadding = WindowInsets.navigationBars
+                .add(
+                    WindowInsets(
+                        left = MspTheme.spacing.md,
+                        top = MspTheme.spacing.sm,
+                        right = MspTheme.spacing.md,
+                        bottom = SCROLL_BOTTOM_CONTENT_PADDING
+                    )
                 )
+                .asPaddingValues()
+        ) {
+            item(key = ITEM_HEADER, contentType = ITEM_HEADER) {
+                StaggeredEntrance(index = ENTRANCE_HEADER) {
+                    ReportHeader(
+                        cobrador = state.cobrador,
+                        masked = state.masked,
+                        darkTheme = state.darkTheme,
+                        onMenuClick = onMenuClick,
+                        onPrivacyToggle = onPrivacyToggle,
+                        onThemeToggle = onThemeToggle
+                    )
+                }
             }
 
             state.error?.let { message ->
-                StaggeredEntrance(index = ENTRANCE_ERROR_BANNER) {
-                    ErrorBanner(message = message)
+                item(key = ITEM_ERROR, contentType = ITEM_ERROR) {
+                    StaggeredEntrance(
+                        index = ENTRANCE_ERROR_BANNER,
+                        modifier = Modifier.padding(top = sectionGap)
+                    ) {
+                        ErrorBanner(message = message)
+                    }
                 }
             }
 
             if (state.cycleNotice.isNotEmpty()) {
-                StaggeredEntrance(index = ENTRANCE_ERROR_BANNER) {
-                    CycleNoticeBanner(message = state.cycleNotice)
+                item(key = ITEM_CYCLE_NOTICE, contentType = ITEM_CYCLE_NOTICE) {
+                    StaggeredEntrance(
+                        index = ENTRANCE_ERROR_BANNER,
+                        modifier = Modifier.padding(top = sectionGap)
+                    ) {
+                        CycleNoticeBanner(message = state.cycleNotice)
+                    }
                 }
             }
 
-            StaggeredEntrance(index = ENTRANCE_PERIOD) {
-                PeriodSelector(period = state.period, onSelect = onPeriodSelect)
-            }
-
-            StaggeredEntrance(index = ENTRANCE_SUBROW) {
-                RangeSubRow(rangeLabel = state.rangeLabel, pendingCount = state.pendingCount)
-            }
-
-            // La entrada escalonada + el crecimiento de la sparkline corren SOLO la primera vez
-            // que se pinta el tablero; en los cambios Día↔Semana cada slot del `AnimatedContent`
-            // es un subárbol nuevo que las re-dispararía, apilándolas sobre el slide de 300ms y
-            // haciéndolo saltar (toggle-jank-diagnosis.md, fix 4). El flag sobrevive a los swaps
-            // por estar hoisteado ARRIBA del `TabTransition`.
-            var hasEntered by rememberSaveable { mutableStateOf(false) }
-            LaunchedEffect(Unit) { hasEntered = true }
-            val animateEntrance = !hasEntered
-
-            // Colapsable de la lista de pagos (Día) — estado izado ARRIBA del `TabTransition`
-            // por el mismo motivo que `hasEntered`: cada slot del `AnimatedContent` es un
-            // subárbol nuevo, así que un `rememberSaveable` de adentro se reiniciaría en cada
-            // swap Día↔Semana y la lista se volvería a colapsar sola. Arranca colapsado; el
-            // umbral y el porqué viven en `DetailList`.
-            var paymentsExpanded by rememberSaveable { mutableStateOf(false) }
-
-            // `TabTransition` se llavea con `contentPeriod` (no `period`): el slide arranca solo
-            // cuando los datos del nuevo periodo ya están asentados (toggle-jank-diagnosis.md,
-            // fix 1), nunca sobre datos viejos que recompondrían a mitad de animación.
-            TabTransition(period = state.contentPeriod) { period ->
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+            item(key = ITEM_PERIOD, contentType = ITEM_PERIOD) {
+                StaggeredEntrance(
+                    index = ENTRANCE_PERIOD,
+                    modifier = Modifier.padding(top = sectionGap)
                 ) {
-                    // Tira de días del ciclo — solo en Día y solo cuando hay más de un día que
-                    // elegir (ver `CollectionReportDayStripBuilder`). Va FUERA del `DaySwap` de
-                    // abajo a propósito: el control que se toca no debe parpadear con el
-                    // contenido que él mismo acaba de cambiar.
-                    if (period == ReportPeriod.DIA && state.cycleDays.isNotEmpty()) {
-                        StaggeredEntrance(index = ENTRANCE_DAY_STRIP, animate = animateEntrance) {
-                            DayStrip(
-                                days = state.cycleDays,
-                                onSelect = onDaySelect,
-                                emptyDay = state.selectedDayEmpty,
-                                note = state.selectedDayNote
-                            )
-                        }
-                    }
-                    // Al cambiar de día, SOLO este bloque transiciona: la tira de arriba (y todo
-                    // lo que está fuera del `TabTransition`) se queda quieto. `null` en Semana ->
-                    // no monta nada, el árbol queda idéntico al de siempre.
-                    DaySwap(day = state.selectedDay.takeIf { period == ReportPeriod.DIA }) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
-                        ) {
-                            StaggeredEntrance(index = ENTRANCE_HERO, animate = animateEntrance) {
-                                HeroSection(
-                                    hero = state.hero,
-                                    period = period,
-                                    masked = state.masked,
-                                    onClick = onHeroClick,
-                                    onSparkBarClick = onSparkBarClick,
-                                    animateSparkline = animateEntrance
+                    PeriodSelector(period = state.period, onSelect = onPeriodSelect)
+                }
+            }
+
+            item(key = ITEM_SUBROW, contentType = ITEM_SUBROW) {
+                StaggeredEntrance(
+                    index = ENTRANCE_SUBROW,
+                    modifier = Modifier.padding(top = sectionGap)
+                ) {
+                    RangeSubRow(rangeLabel = state.rangeLabel, pendingCount = state.pendingCount)
+                }
+            }
+
+            item(key = ITEM_PERIOD_BLOCK, contentType = ITEM_PERIOD_BLOCK) {
+                // `TabTransition` se llavea con `contentPeriod` (no `period`): el slide arranca
+                // solo cuando los datos del nuevo periodo ya están asentados
+                // (toggle-jank-diagnosis.md, fix 1), nunca sobre datos viejos que recompondrían
+                // a mitad de animación.
+                TabTransition(
+                    period = state.contentPeriod,
+                    modifier = Modifier.padding(top = sectionGap)
+                ) { period ->
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+                    ) {
+                        // Tira de días del ciclo — solo en Día y solo cuando hay más de un día
+                        // que elegir (ver `CollectionReportDayStripBuilder`). Va FUERA del
+                        // `DaySwap` de abajo a propósito: el control que se toca no debe
+                        // parpadear con el contenido que él mismo acaba de cambiar.
+                        if (period == ReportPeriod.DIA && state.cycleDays.isNotEmpty()) {
+                            StaggeredEntrance(
+                                index = ENTRANCE_DAY_STRIP,
+                                animate = animateEntrance
+                            ) {
+                                DayStrip(
+                                    days = state.cycleDays,
+                                    onSelect = onDaySelect,
+                                    emptyDay = state.selectedDayEmpty,
+                                    note = state.selectedDayNote
                                 )
                             }
-                            // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi/MetaCard.
-                            if (period == ReportPeriod.SEMANA) {
+                        }
+                        // Al cambiar de día, SOLO este bloque transiciona: la tira de arriba (y
+                        // todo lo que está fuera del `TabTransition`) se queda quieto. `null` en
+                        // Semana -> no monta nada, el árbol queda idéntico al de siempre.
+                        DaySwap(day = state.selectedDay.takeIf { period == ReportPeriod.DIA }) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
+                            ) {
                                 StaggeredEntrance(
-                                    index = ENTRANCE_META,
+                                    index = ENTRANCE_HERO,
                                     animate = animateEntrance
                                 ) {
-                                    MetaCard(
-                                        porcentajeCobro = state.hero.porcentajeCobro,
-                                        porcentajeCuentas = state.hero.porcentajeCuentas,
-                                        clientesPagaron = state.hero.clientesPagaron,
-                                        clientesTotal = state.hero.clientesTotal
+                                    HeroSection(
+                                        hero = state.hero,
+                                        period = period,
+                                        masked = state.masked,
+                                        onClick = onHeroClick,
+                                        onSparkBarClick = onSparkBarClick,
+                                        animateSparkline = animateEntrance
                                     )
                                 }
-                            }
-                            StaggeredEntrance(index = ENTRANCE_DUO, animate = animateEntrance) {
-                                DuoTiles(
-                                    efectivo = state.efectivo,
-                                    transferencia = state.transferencia,
-                                    masked = state.masked,
-                                    onEfectivoClick = onEfectivoClick,
-                                    onTransferenciaClick = onTransferenciaClick
-                                )
-                            }
-                            StaggeredEntrance(index = ENTRANCE_CHIPS, animate = animateEntrance) {
-                                SecondaryChips(
-                                    condonado = state.condonado,
-                                    visitas = state.visitas,
-                                    masked = state.masked,
-                                    onCondonadoClick = onCondonadoClick,
-                                    onVisitasClick = onVisitasClick
-                                )
-                            }
-                            StaggeredEntrance(
-                                index = ENTRANCE_DETAIL_HEADER,
-                                animate = animateEntrance
-                            ) {
-                                DetailHeader(
-                                    detail = state.detail,
-                                    sort = state.sort,
-                                    onSortSelect = onSortSelect
-                                )
-                            }
-                            StaggeredEntrance(
-                                index = ENTRANCE_DETAIL_LIST,
-                                animate = animateEntrance
-                            ) {
-                                DetailList(
-                                    detail = state.detail,
-                                    masked = state.masked,
-                                    onPaymentClick = onPaymentRowClick,
-                                    onDayClick = onDayRowClick,
-                                    expanded = paymentsExpanded,
-                                    onToggleExpand = { paymentsExpanded = !paymentsExpanded }
-                                )
+                                // "Meta de la semana": solo en SEMANA — ver KDoc de HeroUi.
+                                if (period == ReportPeriod.SEMANA) {
+                                    StaggeredEntrance(
+                                        index = ENTRANCE_META,
+                                        animate = animateEntrance
+                                    ) {
+                                        MetaCard(
+                                            porcentajeCobro = state.hero.porcentajeCobro,
+                                            porcentajeCuentas = state.hero.porcentajeCuentas,
+                                            clientesPagaron = state.hero.clientesPagaron,
+                                            clientesTotal = state.hero.clientesTotal
+                                        )
+                                    }
+                                }
+                                StaggeredEntrance(
+                                    index = ENTRANCE_DUO,
+                                    animate = animateEntrance
+                                ) {
+                                    DuoTiles(
+                                        efectivo = state.efectivo,
+                                        transferencia = state.transferencia,
+                                        masked = state.masked,
+                                        onEfectivoClick = onEfectivoClick,
+                                        onTransferenciaClick = onTransferenciaClick
+                                    )
+                                }
+                                StaggeredEntrance(
+                                    index = ENTRANCE_CHIPS,
+                                    animate = animateEntrance
+                                ) {
+                                    SecondaryChips(
+                                        condonado = state.condonado,
+                                        visitas = state.visitas,
+                                        masked = state.masked,
+                                        onCondonadoClick = onCondonadoClick,
+                                        onVisitasClick = onVisitasClick
+                                    )
+                                }
+                                StaggeredEntrance(
+                                    index = ENTRANCE_DETAIL_HEADER,
+                                    animate = animateEntrance
+                                ) {
+                                    DetailHeader(
+                                        detail = state.detail,
+                                        sort = state.sort,
+                                        onSortSelect = onSortSelect
+                                    )
+                                }
+                                // Solo la lista de pagos (Día) vive dentro del `TabTransition`:
+                                // ya viene acotada por su colapsable. El resumen por día (Semana)
+                                // se emite abajo como ítems de la lista perezosa — ver el KDoc de
+                                // este composable y el de `dayDetailItems`. La guarda por TIPO
+                                // (no por `period`) también evita que el slot SALIENTE del
+                                // `AnimatedContent` repinte el detalle del periodo entrante, que
+                                // es lo que hacía al leer `state.detail` a secas.
+                                val payments = state.detail as? DetailUi.Payments
+                                if (payments != null) {
+                                    StaggeredEntrance(
+                                        index = ENTRANCE_DETAIL_LIST,
+                                        animate = animateEntrance
+                                    ) {
+                                        DetailList(
+                                            detail = payments,
+                                            masked = state.masked,
+                                            onPaymentClick = onPaymentRowClick,
+                                            expanded = paymentsExpanded,
+                                            onToggleExpand = {
+                                                paymentsExpanded = !paymentsExpanded
+                                            }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            val days = state.detail as? DetailUi.Days
+            if (days != null) {
+                dayDetailItems(
+                    rows = days.rows,
+                    masked = state.masked,
+                    onDayClick = onDayRowClick,
+                    topGap = sectionGap
+                )
             }
         }
     }

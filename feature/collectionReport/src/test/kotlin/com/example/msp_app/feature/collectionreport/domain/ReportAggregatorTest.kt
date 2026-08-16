@@ -9,6 +9,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -335,6 +336,26 @@ class ReportAggregatorTest {
         assertEquals("vie 7 ago (hoy)", trend[4].label)
         assertEquals("V7", trend[4].initials)
         assertTrue(trend[4].isToday)
+    }
+
+    @Test
+    fun `dailyTrend fecha cada fila con el dia de negocio que resume, no con la etiqueta`() {
+        // La fecha es lo que identifica al renglón río abajo (llave de la lista perezosa del
+        // detalle de Semana, ver `dayDetailItems`): tiene que ser el día exacto del ciclo, en
+        // orden ascendente y sin huecos, no algo derivado de la etiqueta "EEE d MMM" — que se
+        // repite en cuanto el ciclo abarca más de un año.
+        val trend = ReportAggregator.dailyTrend(emptyList(), cycle, clock)
+
+        assertEquals(
+            listOf(
+                LocalDate.parse("2026-08-03"),
+                LocalDate.parse("2026-08-04"),
+                LocalDate.parse("2026-08-05"),
+                LocalDate.parse("2026-08-06"),
+                LocalDate.parse("2026-08-07")
+            ),
+            trend.map { it.date }
+        )
     }
 
     @Test

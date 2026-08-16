@@ -5,6 +5,8 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -12,6 +14,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -312,12 +315,14 @@ class CollectionReportContentTest : RobolectricTestBase() {
     fun `en Semana el detalle muestra una fila por dia con nombre, conteo y monto`() {
         setContent(MockupFixtures.stateSemana())
 
-        composeTestRule.onNodeWithText("lun 3 ago").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("39 pagos").performScrollTo().assertIsDisplayed()
+        scrollToDetail(hasText("lun 3 ago"))
+        composeTestRule.onNodeWithText("lun 3 ago").assertIsDisplayed()
+        composeTestRule.onNodeWithText("39 pagos").assertIsDisplayed()
         composeTestRule.onNodeWithText(
             formatMoneyMxn(BigDecimal("21300"))
-        ).performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("vie 7 ago (hoy)").performScrollTo().assertIsDisplayed()
+        ).assertIsDisplayed()
+        scrollToDetail(hasText("vie 7 ago (hoy)"))
+        composeTestRule.onNodeWithText("vie 7 ago (hoy)").assertIsDisplayed()
     }
 
     @Test
@@ -325,9 +330,23 @@ class CollectionReportContentTest : RobolectricTestBase() {
         val clicked = mutableListOf<Int>()
         setContent(MockupFixtures.stateSemana(), onDayRowClick = { clicked += it })
 
-        composeTestRule.onNodeWithText("mar 4 ago").performScrollTo().performClick()
+        scrollToDetail(hasText("mar 4 ago"))
+        composeTestRule.onNodeWithText("mar 4 ago").performClick()
 
         assertEquals(listOf(1), clicked)
+    }
+
+    /**
+     * Trae a pantalla un renglón del resumen por día antes de buscarlo.
+     *
+     * El tablero es una `LazyColumn` ([CollectionReportContent]) y cada día del ciclo es su
+     * propio ítem: los que quedan debajo del pliegue NI SIQUIERA están compuestos, así que
+     * `onNodeWithText(...).performScrollTo()` — que exige un nodo ya existente — no sirve.
+     * `hasScrollToIndexAction()` identifica a la lista perezosa sin ambigüedad: la tira de días
+     * (`horizontalScroll`) no expone esa acción.
+     */
+    private fun scrollToDetail(matcher: SemanticsMatcher) {
+        composeTestRule.onNode(hasScrollToIndexAction()).performScrollToNode(matcher)
     }
 
     @Test

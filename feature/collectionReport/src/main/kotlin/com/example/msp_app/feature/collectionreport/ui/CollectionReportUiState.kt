@@ -224,8 +224,15 @@ data class PaymentRowUi(
     val saldo: Money? = null
 )
 
-/** Fila de un día del ciclo (detalle Semana) — mapeo 1:1 de `ReportAggregator.DayTrend`. */
+/**
+ * Fila de un día del ciclo (detalle Semana) — mapeo 1:1 de `ReportAggregator.DayTrend`.
+ *
+ * [date] viaja hasta aquí para servir de LLAVE estable de la lista perezosa del detalle (ver
+ * el KDoc de `DayTrend.date`): [label] se repite en ciclos de más de un año y una llave
+ * duplicada revienta el `LazyColumn`. No se pinta.
+ */
 data class DayRowUi(
+    val date: LocalDate,
     val label: String,
     val amount: Money,
     val count: Int,

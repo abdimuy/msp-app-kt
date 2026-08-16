@@ -33,8 +33,18 @@ data class TimelineBucket(
 /** Sparkline completa + índice resaltado (pico en DÍA, "hoy" en SEMANA). */
 data class Timeline(val buckets: List<TimelineBucket>, val highlightIndex: Int)
 
-/** Fila del resumen semanal por día: nombre, dinero, conteo, iniciales, si es hoy. */
+/**
+ * Fila del resumen semanal por día: fecha, nombre, dinero, conteo, iniciales, si es hoy.
+ *
+ * [date] es la fecha de negocio del día que la fila resume — el ÚNICO campo que la identifica
+ * sin ambigüedad. [label] no sirve para eso: "EEE d MMM" ("lun 3 ago") se repite en cuanto el
+ * ciclo abarca más de un año (mismo día de la semana, mismo día del mes, mismo mes), y el
+ * ciclo NO tiene tope (`RangeCalculator.cycleDays` enumera de `FECHA_CARGA_INICIAL` a hoy).
+ * La UI lo usa como llave estable de la lista perezosa; duplicar una llave en un `LazyColumn`
+ * es una excepción en tiempo de ejecución, no un defecto visual.
+ */
 data class DayTrend(
+    val date: LocalDate,
     val label: String,
     val total: Money,
     val count: Int,
@@ -265,6 +275,7 @@ object ReportAggregator {
             val isToday = day == today
             val base = day.format(DAY_TREND_LABEL)
             DayTrend(
+                date = day,
                 label = if (isToday) "$base (hoy)" else base,
                 total = Money.sum(ps.map { it.amount }),
                 count = ps.size,

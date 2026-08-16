@@ -2,11 +2,14 @@ package com.example.msp_app.feature.collectionreport.ui.tier2
 
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollToIndexAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -149,8 +152,14 @@ class CollectionReportContentTier2Test : RobolectricTestBase() {
     fun `en Semana el resumen por dia se rinde igual que Tier 1`() {
         setContent(MockupFixtures.stateSemana())
 
-        composeTestRule.onNodeWithText("lun 3 ago").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("39 pagos").performScrollTo().assertIsDisplayed()
+        // Tier 2 también es `LazyColumn` y el resumen por día es un ítem por día: hay que traer
+        // el renglón a pantalla antes de buscarlo (ver el mismo helper en el test de Tier 1).
+        composeTestRule
+            .onNode(hasScrollToIndexAction())
+            .performScrollToNode(hasText("lun 3 ago"))
+
+        composeTestRule.onNodeWithText("lun 3 ago").assertIsDisplayed()
+        composeTestRule.onNodeWithText("39 pagos").assertIsDisplayed()
     }
 
     private companion object {

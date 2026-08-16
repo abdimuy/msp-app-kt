@@ -289,7 +289,14 @@ internal object CollectionReportStateBuilder {
             ReportPeriod.DIA -> DetailUi.Payments(sortedPaymentRows(payments, context.sort))
             ReportPeriod.SEMANA -> DetailUi.Days(
                 ReportAggregator.dailyTrend(payments, context.range, context.clock).map { trend ->
-                    DayRowUi(trend.label, trend.total, trend.count, trend.initials, trend.isToday)
+                    DayRowUi(
+                        date = trend.date,
+                        label = trend.label,
+                        amount = trend.total,
+                        count = trend.count,
+                        initials = trend.initials,
+                        isToday = trend.isToday
+                    )
                 }
             )
         }

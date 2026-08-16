@@ -21,11 +21,8 @@ import androidx.compose.ui.unit.Density
 import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
-import com.example.msp_app.feature.collectionreport.domain.model.Money
-import com.example.msp_app.feature.collectionreport.ui.DayRowUi
 import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.MockupFixtures
-import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -65,9 +62,12 @@ private const val FRAMES_TO_SETTLE_STRUCTURE = 3
  *
  * Cubre las promesas del contrato: (1) colapsada se ven [EXPECTED_COLLAPSED_ROWS] filas y
  * expandida se ven TODAS; (2) el control solo aparece cuando hay algo que revelar (frontera del
- * umbral) y siempre lleva el conteo real; (3) [DetailUi.Days] (Semana) NO cambia de
- * comportamiento; (4) el estado es izado — si el padre no lo mueve, la lista no se mueve sola;
- * (5) con reduce-motion la expansión/colapso es estructuralmente instantánea.
+ * umbral) y siempre lleva el conteo real; (3) el estado es izado — si el padre no lo mueve, la
+ * lista no se mueve sola; (4) con reduce-motion la expansión/colapso es estructuralmente
+ * instantánea.
+ *
+ * El detalle de SEMANA ya no pasa por [DetailList] (ver su KDoc): vive en
+ * `DayDetailItemsTest`, que es donde se fija que sea perezoso.
  *
  * Las filas se cuentan por la etiqueta "Saldo", que la fila de pago pinta una vez por pago con
  * saldo (todos los de [MockupFixtures.manyPaymentsDia] lo traen). Sobre el árbol de semántica
@@ -190,36 +190,6 @@ class DetailListTest : RobolectricTestBase() {
         setContent(DetailUi.Payments(emptyList()), expanded = true)
 
         composeTestRule.onNodeWithText("Sin datos aún").assertIsDisplayed()
-        assertNoToggle()
-    }
-
-    // --------------------------------------------------------------- Semana no cambia de piel
-
-    @Test
-    fun `DetailUi Days pinta TODOS los dias y nunca un control, aunque pase el umbral`() {
-        val dias = (1..DIAS_FUERA_DE_RANGO).map { i ->
-            DayRowUi(
-                label = "día $i",
-                amount = Money.of(BigDecimal("1000")),
-                count = i,
-                initials = "D$i",
-                isToday = false
-            )
-        }
-
-        setContent(DetailUi.Days(dias), expanded = false)
-
-        dias.forEach { dia -> composeTestRule.onNodeWithText(dia.label).assertIsDisplayed() }
-        assertNoToggle()
-    }
-
-    @Test
-    fun `DetailUi Days del ciclo real se sigue pintando completo`() {
-        val dias = MockupFixtures.daysSemana()
-
-        setContent(DetailUi.Days(dias), expanded = false)
-
-        dias.forEach { dia -> composeTestRule.onNodeWithText(dia.label).assertIsDisplayed() }
         assertNoToggle()
     }
 
@@ -396,7 +366,7 @@ class DetailListTest : RobolectricTestBase() {
 
     /** Render de una sola pasada: [expanded] fijo, el toggle solo informa. */
     private fun setContent(
-        detail: DetailUi,
+        detail: DetailUi.Payments,
         expanded: Boolean,
         fontScale: Float = 1f,
         onToggleExpand: () -> Unit = {}
@@ -407,7 +377,6 @@ class DetailListTest : RobolectricTestBase() {
                     detail = detail,
                     masked = false,
                     onPaymentClick = {},
-                    onDayClick = {},
                     expanded = expanded,
                     onToggleExpand = onToggleExpand
                 )
@@ -417,7 +386,7 @@ class DetailListTest : RobolectricTestBase() {
 
     /** Render con el estado izado REALMENTE cableado, como lo hace la pantalla. */
     private fun setHoistedContent(
-        detail: DetailUi,
+        detail: DetailUi.Payments,
         state: MutableState<Boolean> = mutableStateOf(false),
         reduceMotion: Boolean = false
     ) {
@@ -427,7 +396,6 @@ class DetailListTest : RobolectricTestBase() {
                     detail = detail,
                     masked = false,
                     onPaymentClick = {},
-                    onDayClick = {},
                     expanded = state.value,
                     onToggleExpand = { state.value = !state.value }
                 )
@@ -488,9 +456,6 @@ class DetailListTest : RobolectricTestBase() {
     }
 
     private companion object {
-        /** Más días que [EXPECTED_COLLAPSED_ROWS] — prueba que el umbral NO aplica a Semana. */
-        const val DIAS_FUERA_DE_RANGO = 12
-
         /**
          * Lista con overflow pero corta: expandida cabe entera en el canvas de 800dp del test,
          * así que el control sigue siendo tocable/visible sin necesitar scroll del harness.

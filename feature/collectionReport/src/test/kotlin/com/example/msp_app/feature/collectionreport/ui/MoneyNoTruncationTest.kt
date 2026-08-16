@@ -3,8 +3,10 @@ package com.example.msp_app.feature.collectionreport.ui
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.hasScrollToIndexAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
@@ -108,6 +110,15 @@ class MoneyNoTruncationTest : RobolectricTestBase() {
         val state = base.copy(detail = DetailUi.Days(withLargeFirstRow))
 
         renderTablero(state)
+
+        // El tablero es una `LazyColumn` (ver el KDoc de [CollectionReportContent]): el resumen
+        // por día vive muy por debajo del pliegue — a `fontScale = 2.0`, más todavía — así que
+        // el renglón NI SIQUIERA está compuesto hasta que la lista lo trae. Sin este scroll la
+        // búsqueda por texto no encontraría nada. `hasScrollToIndexAction()` identifica a la
+        // lista perezosa sin ambigüedad (la tira de días, `horizontalScroll`, no la expone).
+        composeTestRule
+            .onNode(hasScrollToIndexAction())
+            .performScrollToNode(hasText(LARGE_AMOUNT_TEXT))
 
         assertMoneyNotTruncated()
     }
