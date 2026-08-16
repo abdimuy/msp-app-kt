@@ -32,6 +32,7 @@ object CobranzaReconcilerProvider {
         val db = AppDatabase.getInstance(context)
         return CobranzaReconciler(
             api = V2ApiProvider.create(V2CobranzaApi::class.java),
+            db = db,
             saleDao = db.saleDao(),
             paymentDao = db.paymentDao(),
             connectivity = ConnectivityMonitor.getInstance(context),

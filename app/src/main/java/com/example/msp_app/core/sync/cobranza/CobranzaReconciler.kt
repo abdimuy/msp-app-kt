@@ -1,12 +1,15 @@
 package com.example.msp_app.core.sync.cobranza
 
 import android.util.Log
+import androidx.room.withTransaction
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.logging.Logger
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.data.api.services.cobranza.DigestResponse
 import com.example.msp_app.data.api.services.cobranza.IdsResponse
+import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.toEntity
 import kotlinx.coroutines.flow.StateFlow
@@ -55,6 +58,13 @@ import kotlinx.coroutines.sync.withLock
  */
 class CobranzaReconciler(
     private val api: V2CobranzaApi,
+    /**
+     * Se inyecta solo para abrir transacciones. El camino by-ids inserta la
+     * fila numérica y colapsa su gemelo UUID en el mismo `withTransaction`,
+     * de modo que ningún lector alcance a ver las dos filas juntas — el
+     * mismo criterio (y la misma razón) que [CobranzaSyncManager.mergePagos].
+     */
+    private val db: AppDatabase,
     private val saleDao: SaleDao,
     private val paymentDao: PaymentDao,
     private val connectivity: ConnectivityMonitor,
@@ -90,19 +100,7 @@ class CobranzaReconciler(
                 // fila numérica ya llegó (PAGO_RECIBIDO_ID persistido). Corre
                 // SIEMPRE porque mergePagos solo colapsa de un tiro; si esa
                 // falló (carrera / histórico), aquí converge. Idempotente.
-                val collapsed = paymentDao.findCollapsibleUuidTwins()
-                if (collapsed.isNotEmpty()) {
-                    paymentDao.deleteByIDs(collapsed)
-                    Log.i(TAG, "reconcile: colapsados ${collapsed.size} gemelo(s) UUID")
-                    runCatching {
-                        Logger.get().info(
-                            module = "COBRANZA",
-                            action = "COLLAPSE_TWIN",
-                            message = "Colapsados ${collapsed.size} gemelos UUID de pago",
-                            data = mapOf("count" to collapsed.size, "ids" to collapsed)
-                        )
-                    }
-                }
+                collapseUuidTwins(FASE_INICIO)
 
                 // Pre-check: compare server vs local digest. Saves the /ids round-trip
                 // when there's no drift, which should be the common case.
@@ -163,6 +161,130 @@ class CobranzaReconciler(
         }
     }
 
+    /**
+     * Colapsa (borra) las filas UUID de captura local cuyo gemelo numérico ya
+     * está en Room — el criterio canónico vive en
+     * [PaymentDao.findCollapsibleUuidTwins]: existe OTRA fila que las nombra
+     * por `PAGO_RECIBIDO_ID`, lo que prueba que el servidor recibió esa
+     * captura y le asignó su id de Microsip.
+     *
+     * Extraído a función porque `reconcileNow` lo necesita en DOS momentos y
+     * duplicar el bloque invitaba a que los dos criterios divergieran:
+     *
+     *  - [FASE_INICIO]: converge lo histórico y las carreras de ticks previos.
+     *  - [FASE_POST_BY_IDS]: la fila numérica que ACABA de insertar el camino
+     *    by-ids trae `PAGO_RECIBIDO_ID` y por definición es colapsable; sin
+     *    esta segunda pasada el gemelo sobrevivía hasta el siguiente
+     *    `mergePagos` o el siguiente tick (5 min), que es el defecto medido en
+     *    campo: dos filas del mismo pago conviviendo más de tres minutos.
+     *
+     * Idempotente y silenciosa: si no hay nada colapsable no escribe ni
+     * loguea. Cada llamada consulta el estado fresco de Room, así que la
+     * segunda sólo puede encontrar gemelos que la primera no podía ver
+     * todavía — los conteos que reporta nunca se solapan ni cuentan doble.
+     * Por eso se loguea una línea por fase en vez de un total agregado: un
+     * único número no podría distinguir "colapsé 1 al inicio" de "colapsé 1
+     * después de insertar", que son eventos distintos.
+     *
+     * Devuelve cuántas filas colapsó.
+     */
+    private suspend fun collapseUuidTwins(fase: String): Int {
+        val collapsed = paymentDao.findCollapsibleUuidTwins()
+        if (collapsed.isEmpty()) return 0
+        paymentDao.deleteByIDs(collapsed)
+        Log.i(TAG, "reconcile[$fase]: colapsados ${collapsed.size} gemelo(s) UUID")
+        runCatching {
+            Logger.get().info(
+                module = "COBRANZA",
+                action = "COLLAPSE_TWIN",
+                message = "Colapsados ${collapsed.size} gemelos UUID de pago",
+                data = mapOf(
+                    "count" to collapsed.size,
+                    "ids" to collapsed,
+                    "fase" to fase
+                )
+            )
+        }
+        return collapsed.size
+    }
+
+    /**
+     * Colapsa el **gemelo legacy**: la fila que dejó el sync Node para el mismo
+     * abono que [alive] trae por el canal v2. Los dos canales guardan el pago
+     * con llaves distintas (`MSP_PAGOS_RECIBIDOS.ID` — UUID de captura o
+     * `"<DOCTO_CC_ID>-<IMPTE_DOCTO_CC_ID>"` de oficina — contra
+     * `IMPTE_DOCTO_CC_ID` puro), y como `Payment.ID` es la PK, Room los trata
+     * como dos pagos distintos: los totales del cobrador salen al doble. Es el
+     * mismo incidente del cutover Node→Go, no un escenario teórico.
+     *
+     * Es un mecanismo DISTINTO del gemelo UUID de [collapseUuidTwins] y no se
+     * puede sustituir por él: aquí no hay `PAGO_RECIBIDO_ID` con el cual el
+     * servidor nombre a la fila (es NULL en todo el histórico pre-cutover,
+     * porque el Node nunca escribió `MSP_PAGOS_RECIBIDOS.IMPTE_DOCTO_CC_ID`).
+     * El match es por `DOCTO_CC_ID`, que identifica el mismo abono en ambos
+     * canales.
+     *
+     * **Los tres cerrojos viven en la consulta y se portan intactos** — ver
+     * [PaymentDao.deleteLegacyTwinsByDoctoCcIds]:
+     *  1. `GUARDADO_EN_MICROSIP = 1` — una captura pendiente de subir jamás se
+     *     toca. Este es el equivalente exacto, para este camino, de la regla
+     *     "nunca borrar lo que el servidor no nombró": la bandera solo la
+     *     escriben `PendingPaymentsWorker.markDone` (tras una subida exitosa)
+     *     y `PagoDto.toEntity()` (filas que vienen del servidor), así que
+     *     `= 1` prueba que el servidor recibió el pago. NO se relaja aquí,
+     *     aunque el gemelo UUID sí lo hizo: allá existe evidencia más fuerte
+     *     (`PAGO_RECIBIDO_ID`) que la reemplaza; acá no hay ninguna, y el
+     *     `DOCTO_CC_ID` solo no distingue "mismo pago, markDone perdido" de
+     *     "captura pendiente con docto_cc_id ya anotado" — el worker persiste
+     *     `DOCTO_CC_ID` ANTES de marcar la bandera, así que esa ventana
+     *     existe de verdad. Borrar ahí sería destruir dinero.
+     *  2. `ID LIKE '%-%'` — solo formatos legacy; la fila canónica v2 es
+     *     numérica pura y nunca se borra a sí misma.
+     *  3. `DOCTO_CC_ID > 0` — el 0 es el centinela de "aún sin documento",
+     *     reforzado aquí con el `filter { it > 0 }` sobre los candidatos.
+     *
+     * Se calcula sobre [alive] y no sobre todo lo traído por by-ids: es
+     * exactamente el conjunto que se va a insertar, o sea el único que puede
+     * crear un duplicado. `mergePagos` sí incluye sus tombstones, pero ahí el
+     * borrado acompaña a un pago cancelado; acá un tombstone no inserta nada,
+     * así que barrer por él sería borrar una fila sin reponer ninguna. En la
+     * práctica el conjunto es el mismo: el servidor no publica cancelados en
+     * `/ids`, y el `filter { !it.cancelado }` de este camino es pura defensa.
+     *
+     * Devuelve cuántas filas legacy borró.
+     */
+    private suspend fun collapseLegacyTwins(alive: List<PagoDto>, fase: String): Int {
+        val doctoCcIds = alive.map { it.docto_cc_id }.filter { it > 0 }.distinct()
+        if (doctoCcIds.isEmpty()) return 0
+        // Chunking obligatorio, NO cosmético: `mergePagos` corre sobre una
+        // página acotada (`limit=1000`), pero acá `alive` es el set completo
+        // de pagos faltantes — ByIdsChunker acota las llamadas HTTP, no el
+        // resultado acumulado. Con minSdk 24 y Room sobre el SQLite del
+        // framework, todo dispositivo por debajo de API 31 tiene
+        // SQLITE_MAX_VARIABLE_NUMBER = 999, así que un `IN (:ids)` sin trocear
+        // reventaría con "too many SQL variables" justo en el caso que más
+        // importa: el teléfono muy desfasado, que es el que más gemelos tiene.
+        var borrados = 0
+        doctoCcIds.chunked(SQLITE_MAX_IN_PARAMS).forEach { chunk ->
+            borrados += paymentDao.deleteLegacyTwinsByDoctoCcIds(chunk)
+        }
+        if (borrados == 0) return 0
+        Log.i(TAG, "reconcile[$fase]: colapsados $borrados gemelo(s) legacy")
+        runCatching {
+            Logger.get().info(
+                module = "COBRANZA",
+                action = "COLLAPSE_LEGACY_TWIN",
+                message = "Colapsados $borrados gemelos legacy de pago",
+                data = mapOf(
+                    "count" to borrados,
+                    "doctos_evaluados" to doctoCcIds.size,
+                    "fase" to fase
+                )
+            )
+        }
+        return borrados
+    }
+
     private suspend fun reconcilePagosViaIds(zona: Int, desdeIso: String?): Pair<Int, Int> {
         val serverPagoIds = fetchAllServerIds { after ->
             api.listPagoIds(zona, after = after, limit = PAGE_LIMIT, desde = desdeIso)
@@ -197,7 +319,28 @@ class CobranzaReconciler(
                 // defensividad respetamos el flag.
                 val alive = fetched.filter { !it.cancelado }
                 if (alive.isNotEmpty()) {
-                    paymentDao.saveAll(alive.map { it.toEntity() })
+                    // Insertar y colapsar en la MISMA transacción. La fila que
+                    // entra aquí trae `PAGO_RECIBIDO_ID`, así que en el instante
+                    // en que se escribe su gemelo UUID pasa a ser un duplicado
+                    // visible para el cobrador. El colapso del inicio de
+                    // `reconcileNow` ya pasó y no la alcanza; sin esta pasada el
+                    // duplicado vive hasta el próximo `mergePagos` o el próximo
+                    // tick. Y sin la transacción quedaría una ventana —corta,
+                    // pero real— en la que un lector ve las dos filas.
+                    db.withTransaction {
+                        // El legacy va ANTES del insert, igual que en
+                        // mergePagos: así ningún cerrojo tiene que sostener el
+                        // caso "la fila que acabo de escribir se borra a sí
+                        // misma". El UUID va DESPUÉS porque su gemelo solo
+                        // nace colapsable cuando la fila numérica ya está
+                        // escrita — ese es justamente el defecto que se
+                        // arregla. Los dos son idempotentes y no se pisan: si
+                        // ambos apuntan a la misma fila, el primero la borra y
+                        // el segundo no la encuentra.
+                        collapseLegacyTwins(alive, FASE_POST_BY_IDS)
+                        paymentDao.saveAll(alive.map { it.toEntity() })
+                        collapseUuidTwins(FASE_POST_BY_IDS)
+                    }
                 }
             } else {
                 Log.i(
@@ -304,6 +447,19 @@ class CobranzaReconciler(
         const val PAGE_LIMIT = 5000
         const val RECONCILE_INTERVAL_MS = 5 * 60_000L
         private const val TAG = "CobranzaReconciler"
+
+        /** Barrido auto-sanable al entrar a `reconcileNow` (histórico / carreras previas). */
+        private const val FASE_INICIO = "inicio"
+
+        /** Barrido tras insertar filas numéricas traídas por by-ids en este mismo tick. */
+        private const val FASE_POST_BY_IDS = "post-by-ids"
+
+        /**
+         * Tope de parámetros por `IN (...)`. SQLITE_MAX_VARIABLE_NUMBER es 999
+         * en el SQLite del framework para todo Android por debajo de API 31, y
+         * este módulo declara `minSdk = 24`. Se deja margen por debajo de 999.
+         */
+        private const val SQLITE_MAX_IN_PARAMS = 900
     }
 }
 

@@ -134,6 +134,7 @@ class CobranzaSelfHealTwinE2ETest : PagosE2ETestBase() {
     private fun newReconciler(api: V2CobranzaApi, zona: Int = 21): CobranzaReconciler =
         CobranzaReconciler(
             api = api,
+            db = db,
             saleDao = db.saleDao(),
             paymentDao = db.paymentDao(),
             connectivity = FakeConnectivity(context),

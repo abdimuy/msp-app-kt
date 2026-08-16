@@ -164,6 +164,7 @@ class CobranzaReconcilerTest : RoomTestBase() {
         fechaCargaInicial: Instant? = null
     ): CobranzaReconciler = CobranzaReconciler(
         api = api,
+        db = db,
         saleDao = db.saleDao(),
         paymentDao = db.paymentDao(),
         connectivity = FakeConnectivity(online),
@@ -1187,5 +1188,363 @@ class CobranzaReconcilerTest : RoomTestBase() {
             db.paymentDao().getPaymentById("uuid-nunca-subido")
         )
         assertNotNull(db.paymentDao().getPaymentById("41"))
+    }
+
+    /**
+     * El defecto medido en un teléfono real: tras capturar un pago, el gemelo
+     * UUID y su fila numérica convivieron más de tres minutos en la pantalla
+     * del cobrador.
+     *
+     * La causa es de ORDEN dentro de un mismo `reconcileNow`: el barrido
+     * auto-sanable corre al entrar, cuando la fila numérica todavía no existe
+     * en Room (`findCollapsibleUuidTwins` no tiene a quién colapsar); el
+     * camino by-ids la inserta DESPUÉS, ya trayendo `PAGO_RECIBIDO_ID`. Esa
+     * fila nace colapsable y nadie la barre en ese tick — el gemelo sobrevive
+     * hasta el próximo `mergePagos` o el próximo tick, 5 minutos más tarde.
+     *
+     * El criterio de esta prueba es deliberadamente "al terminar ESTA
+     * llamada", no "eventualmente": ejecuta un único `reconcileNow()` y exige
+     * que el gemelo ya no exista. Revertir el colapso post-by-ids la pone en
+     * rojo, porque el barrido de inicio por construcción no puede cubrir el
+     * caso.
+     */
+    @Test
+    fun byIdsColapsaElGemeloUuidDentroDelMismoReconcileNow() = runTest {
+        ByIdsChunker.byIdsAvailable.set(true)
+
+        val uuidGemelo = "a5b32a31-0000-4000-8000-000000000001"
+        val idNumerico = 14986441
+        val doctoCcAcr = 700
+
+        // Estado inicial del teléfono: SOLO la captura local. La fila numérica
+        // aún no llegó, así que el barrido de inicio no tiene nada colapsable.
+        db.paymentDao().saveAll(
+            listOf(uuidPayment(uuidGemelo, doctoCcAcr, guardado = false))
+        )
+
+        val api = FakeV2CobranzaApi(
+            // Mismatch en pagos → cae al camino /ids.
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 1,
+                    ids_xor = xorOf(idNumerico).toString(),
+                    ids_sum = sumOf(idNumerico).toString(),
+                    max_updated_at = null
+                )
+            ),
+            // Saldos sin drift → no toca ese camino.
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            pagoIdPages = listOf(IdsResponse(listOf(idNumerico), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false)),
+            // La fila numérica que el servidor aplicó, nombrando a su gemelo.
+            pagosByIdsResult = listOf(
+                PagoDto(
+                    impte_docto_cc_id = idNumerico,
+                    docto_cc_id = 900,
+                    docto_cc_acr_id = doctoCcAcr,
+                    cliente_id = 99,
+                    zona_cliente_id = 21,
+                    folio = "abono",
+                    concepto_cc_id = 87327,
+                    fecha = "2026-05-01T00:00:00Z",
+                    importe = "150.00",
+                    impuesto = "0.00",
+                    lat = null,
+                    lon = null,
+                    cancelado = false,
+                    aplicado = true,
+                    updated_at = "2026-05-01T00:00:05Z",
+                    cobrador = "",
+                    cobrador_id = null,
+                    nombre_cliente = "",
+                    forma_cobro_id = null,
+                    pago_recibido_id = uuidGemelo
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        assertEquals("la fila numérica se trajo por by-ids", 1, api.pagosByIdsCalled)
+
+        assertNotNull(
+            "la fila numérica es la canónica y debe quedar",
+            db.paymentDao().getPaymentById(idNumerico.toString())
+        )
+        assertNull(
+            "el gemelo UUID debe estar colapsado AL TERMINAR este reconcileNow, " +
+                "no en el siguiente tick",
+            db.paymentDao().getPaymentById(uuidGemelo)
+        )
+        assertEquals(
+            "el cobrador ve el pago una sola vez",
+            1,
+            db.paymentDao().getPaymentsBySaleId(doctoCcAcr).size
+        )
+    }
+
+    /**
+     * El colapso post-by-ids no puede volverse una guillotina: una captura que
+     * el servidor NUNCA vio no está nombrada por ninguna fila y debe sobrevivir
+     * al mismo `reconcileNow` que colapsa a su vecina.
+     */
+    @Test
+    fun byIdsNoBorraLaCapturaQueElServidorNuncaNombro() = runTest {
+        ByIdsChunker.byIdsAvailable.set(true)
+
+        db.paymentDao().saveAll(
+            listOf(uuidPayment("uuid-jamas-subido", 800, guardado = false))
+        )
+
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 1,
+                    ids_xor = xorOf(55).toString(),
+                    ids_sum = sumOf(55).toString(),
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            pagoIdPages = listOf(IdsResponse(listOf(55), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false)),
+            // Fila numérica de OTRO pago: no nombra a nadie.
+            pagosByIdsResult = listOf(
+                PagoDto(
+                    impte_docto_cc_id = 55,
+                    docto_cc_id = 901,
+                    docto_cc_acr_id = 801,
+                    cliente_id = 99,
+                    zona_cliente_id = 21,
+                    folio = "abono",
+                    concepto_cc_id = 87327,
+                    fecha = "2026-05-01T00:00:00Z",
+                    importe = "150.00",
+                    impuesto = "0.00",
+                    lat = null,
+                    lon = null,
+                    cancelado = false,
+                    aplicado = true,
+                    updated_at = "2026-05-01T00:00:05Z",
+                    cobrador = "",
+                    cobrador_id = null,
+                    nombre_cliente = "",
+                    forma_cobro_id = null,
+                    pago_recibido_id = null
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        assertNotNull(
+            "la captura sin subir jamás se borra",
+            db.paymentDao().getPaymentById("uuid-jamas-subido")
+        )
+        assertNotNull(db.paymentDao().getPaymentById("55"))
+    }
+
+    // ─── Gemelo legacy (canal Node) en el camino by-ids ─────────────────────
+
+    /** PagoDto del canal v2 que NO nombra a nadie por `pago_recibido_id`. */
+    private fun legacyTwinPagoDto(impteDoctoCcId: Int, doctoCcId: Int, doctoCcAcrId: Int) = PagoDto(
+        impte_docto_cc_id = impteDoctoCcId,
+        docto_cc_id = doctoCcId,
+        docto_cc_acr_id = doctoCcAcrId,
+        cliente_id = 99,
+        zona_cliente_id = 21,
+        folio = "abono",
+        concepto_cc_id = 87327,
+        fecha = "2026-05-01T00:00:00Z",
+        importe = "150.00",
+        impuesto = "0.00",
+        lat = null,
+        lon = null,
+        cancelado = false,
+        aplicado = true,
+        updated_at = "2026-05-01T00:00:05Z",
+        cobrador = "",
+        cobrador_id = null,
+        nombre_cliente = "",
+        forma_cobro_id = null,
+        pago_recibido_id = null
+    )
+
+    /**
+     * El otro gemelo, el que ya costó dinero: durante el cutover Node→Go los
+     * totales del cobrador salieron exactamente al doble porque los dos
+     * canales guardan el mismo abono con llaves distintas
+     * (`"<DOCTO_CC_ID>-<IMPTE_DOCTO_CC_ID>"` de oficina contra
+     * `IMPTE_DOCTO_CC_ID` puro), y `Payment.ID` es la PK.
+     *
+     * `mergePagos` colapsa ese gemelo en cada página que baja, pero el camino
+     * by-ids del reconciliador insertaba la fila numérica sin barrerlo. Y no
+     * se auto-sana: la purga global `PaymentDao.deleteLegacyTwins` corre UNA
+     * sola vez por dispositivo (`purgeLegacyTwinsOnce`, guardada por marcador
+     * persistido), así que jamás alcanza a las filas que el reconciliador crea
+     * después.
+     *
+     * El barrido de UUID tampoco puede cubrirlo: `pago_recibido_id` es NULL en
+     * todo el histórico pre-cutover, que es precisamente este caso.
+     *
+     * Criterio: al terminar ESTE `reconcileNow`, no en el siguiente tick.
+     */
+    @Test
+    fun byIdsColapsaElGemeloLegacyDentroDelMismoReconcileNow() = runTest {
+        ByIdsChunker.byIdsAvailable.set(true)
+
+        val idNumerico = 14986441
+        val doctoCcId = 900
+        val doctoCcAcr = 700
+        val idLegacy = "$doctoCcId-$idNumerico"
+
+        // Fila que dejó el sync Node para este abono: llave compuesta de
+        // oficina, ya confirmada, y SIN nadie que la nombre por PAGO_RECIBIDO_ID.
+        db.paymentDao().saveAll(
+            listOf(
+                uuidPayment(idLegacy, doctoCcAcr, guardado = true)
+                    .copy(DOCTO_CC_ID = doctoCcId)
+            )
+        )
+
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 1,
+                    ids_xor = xorOf(idNumerico).toString(),
+                    ids_sum = sumOf(idNumerico).toString(),
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            pagoIdPages = listOf(IdsResponse(listOf(idNumerico), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false)),
+            pagosByIdsResult = listOf(
+                legacyTwinPagoDto(
+                    impteDoctoCcId = idNumerico,
+                    doctoCcId = doctoCcId,
+                    doctoCcAcrId = doctoCcAcr
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        assertNotNull(
+            "la fila numérica del canal v2 es la canónica y debe quedar",
+            db.paymentDao().getPaymentById(idNumerico.toString())
+        )
+        assertNull(
+            "el gemelo legacy debe estar colapsado AL TERMINAR este " +
+                "reconcileNow, no en el siguiente tick",
+            db.paymentDao().getPaymentById(idLegacy)
+        )
+        assertEquals(
+            "el cobrador ve el abono una sola vez — sus totales no salen al doble",
+            1,
+            db.paymentDao().getPaymentsBySaleId(doctoCcAcr).size
+        )
+    }
+
+    /**
+     * El equivalente legacy de "nunca borrar una captura que el servidor no
+     * nombró". Acá no hay `PAGO_RECIBIDO_ID` que sirva de evidencia, así que
+     * quien sostiene la regla es el cerrojo `GUARDADO_EN_MICROSIP = 1`.
+     *
+     * El estado montado es real, no hipotético:
+     * `PendingPaymentsWorker.persistDoctoCcId` guarda el `DOCTO_CC_ID` que
+     * devolvió el servidor ANTES de que `markDone` levante la bandera, así que
+     * existe una ventana —y si la respuesta HTTP se pierde, es permanente— en
+     * la que una captura local tiene `DOCTO_CC_ID > 0` y
+     * `GUARDADO_EN_MICROSIP = 0`. Su ID es un UUID, o sea que cumple
+     * `ID LIKE '%-%'`: los otros dos cerrojos NO la protegen. Solo la bandera.
+     *
+     * Relajar ese cerrojo "por simetría" con el barrido de UUID destruiría
+     * dinero: el `DOCTO_CC_ID` por sí solo no distingue "mismo pago, markDone
+     * perdido" de "captura pendiente con docto_cc_id ya anotado". Ese caso lo
+     * cubre el barrido de UUID, que sí tiene evidencia del servidor.
+     */
+    @Test
+    fun byIdsNoBorraLaCapturaPendienteAunqueCompartaDoctoCcId() = runTest {
+        ByIdsChunker.byIdsAvailable.set(true)
+
+        val idNumerico = 15000001
+        val doctoCcId = 950
+        val doctoCcAcr = 750
+
+        // Captura local en la ventana persistDoctoCcId→markDone: DOCTO_CC_ID
+        // ya anotado, bandera todavía en 0.
+        db.paymentDao().saveAll(
+            listOf(
+                uuidPayment("uuid-pendiente-con-docto", doctoCcAcr, guardado = false)
+                    .copy(DOCTO_CC_ID = doctoCcId)
+            )
+        )
+
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 1,
+                    ids_xor = xorOf(idNumerico).toString(),
+                    ids_sum = sumOf(idNumerico).toString(),
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            ),
+            pagoIdPages = listOf(IdsResponse(listOf(idNumerico), false)),
+            saldoIdPages = listOf(IdsResponse(emptyList(), false)),
+            // Mismo DOCTO_CC_ID que la captura pendiente, y sin nombrarla.
+            pagosByIdsResult = listOf(
+                legacyTwinPagoDto(
+                    impteDoctoCcId = idNumerico,
+                    doctoCcId = doctoCcId,
+                    doctoCcAcrId = doctoCcAcr
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        assertNotNull(
+            "el camino by-ids sí corrió",
+            db.paymentDao().getPaymentById(idNumerico.toString())
+        )
+        assertNotNull(
+            "la captura pendiente jamás se borra: el servidor no la nombró y " +
+                "GUARDADO_EN_MICROSIP = 0",
+            db.paymentDao().getPaymentById("uuid-pendiente-con-docto")
+        )
     }
 }
