@@ -25,6 +25,29 @@ android {
     }
 }
 
+// Piso de cobertura REAL (reemplaza el placeholder 0% de `msp.kover`, que
+// hacía pasar `koverVerifyDebug` sin medir nada).
+//
+// MEDIDO 2026-08-16 con `:feature:collectionReport:koverXmlReportDebug`:
+//   LINE 2890/3559 = 81.20%   (INSTRUCTION 81.60%, BRANCH 63.24%)
+// Los huecos conocidos: `PdfCanvasRenderer` (234 líneas, 0% — dibuja sobre un
+// `Canvas` de Android real y no tiene prueba de render todavía),
+// `CollectionReportScreenKt` (51.2%) y `ReportActionsController` (50.0%).
+//
+// Piso = 78, ~3 puntos por debajo de lo medido: trinquete, no meta. Este es el
+// módulo de las cifras que el cobrador lee en pantalla; el piso evita el
+// retroceso silencioso y la fidelidad visual la sigue cuidando
+// `verifyRoborazziDebug`, que ya vive en `prePushCheck`.
+kover {
+    reports {
+        verify {
+            rule("feature-collectionReport: piso trinquete (medido 81.20% LINE, 2026-08-16)") {
+                minBound(78)
+            }
+        }
+    }
+}
+
 // Mismo heap/metaspace que `:core:designsystem` (msp.detekt/msp.test no lo dan por
 // default aquí): Task 6 graba la primera matriz de goldens Roborazzi de este módulo
 // (header+periodo+subrow+hero, Tier 1 light+dark) en la misma JVM de test — sin este

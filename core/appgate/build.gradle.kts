@@ -20,10 +20,33 @@ android {
     }
 }
 
-// `msp.kover` deja el piso placeholder (0%, ver `KoverConventionPlugin`) —
-// mismo criterio que `:core:settings`/`:feature:configuracion` al nacer: el
-// umbral real se fija cuando la compuerta lleve una versión en campo y se
-// conozca qué ramas se ejercitan de verdad, no sobre el esqueleto.
+// Piso de cobertura REAL (reemplaza el placeholder 0% de `msp.kover`, que
+// hacía pasar `koverVerifyDebug` sin decir absolutamente nada).
+//
+// MEDIDO 2026-08-16 con `:core:appgate:koverXmlReportDebug`:
+//   LINE 518/822 = 63.02%   (INSTRUCTION 65.66%, BRANCH 58.87%)
+// Desglose honesto de lo que NO está cubierto: `VersionGateViewModel`
+// (54 líneas, 0%), `ApkDownloadWorker` (23, 0%),
+// `FirestoreMinVersionConfigSourceKt` (19, 0%), `UpdateFileLocator` (13, 0%)
+// — es decir, todo lo que toca Firestore/WorkManager/instalador real. Si se
+// descuenta lo generado (Dagger/Hilt/BuildConfig: 102 líneas al 3.9%), el
+// código propio va en 71.39%; deliberadamente NO se agrega ese filtro aquí:
+// subir el número con un `excludes` sin subir la cobertura es el mismo
+// maquillaje que este cambio viene a quitar.
+//
+// Piso = 60, tres puntos por debajo de lo medido. Es un TRINQUETE (impedir
+// que se retroceda), no una meta: un piso clavado en 63 se rompería con
+// cualquier oscilación del render de Robolectric y el equipo aprendería a
+// ignorarlo o a bajarlo, que es peor que no tenerlo.
+kover {
+    reports {
+        verify {
+            rule("core-appgate: piso trinquete (medido 63.02% LINE, 2026-08-16)") {
+                minBound(60)
+            }
+        }
+    }
+}
 
 dependencies {
     // Tokens de color/tipografía/espaciado + LocalReduceMotion (la banda de

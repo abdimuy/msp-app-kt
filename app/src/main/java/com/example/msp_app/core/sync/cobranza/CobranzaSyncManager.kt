@@ -9,6 +9,7 @@ import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
 import com.example.msp_app.core.network.ConnectivityMonitor
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.VentaDto
@@ -71,8 +72,27 @@ class CobranzaSyncManager(
      * producción (no bloquea Main). Los tests inyectan el dispatcher del
      * scheduler virtual de `runTest` para coordinar con `advanceUntilIdle`.
      */
-    private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /**
+     * Puerto de telemetría (`:core:telemetry`). Default [NoOpTelemetry] para
+     * que cualquier call site que no la quiera siga construyendo el manager
+     * sin cambios; producción lo cablea en [CobranzaSyncProvider].
+     *
+     * Ver [CobranzaSyncTelemetry] para QUÉ se emite, por qué esos campos, y
+     * las dos garantías duras (cero PII / no degradar el sync).
+     */
+    telemetry: Telemetry = NoOpTelemetry,
+    /**
+     * Reloj MONÓTONO en nanosegundos para medir cuánto dura una corrida
+     * (`duration_ms` del evento `cobranza_sync.run`). Inyectable sólo para que
+     * las pruebas puedan afirmar una duración exacta; producción usa
+     * `System.nanoTime()`. No es un reloj de pared — no sirve ni pretende
+     * servir para fechar nada, sólo para restar.
+     */
+    private val nanoTime: () -> Long = System::nanoTime
 ) {
+
+    private val syncTelemetry = CobranzaSyncTelemetry(telemetry)
 
     private val mutex get() = cobranzaWriteMutex.mutex
     private var tickJob: Job? = null
@@ -96,9 +116,18 @@ class CobranzaSyncManager(
     }
 
     suspend fun syncNow(): SyncOutcome {
+        val startedAtNanos = nanoTime()
         return mutex.withLock {
             val ctx = userContextFlow.value ?: run {
                 Log.i(TAG, "skip: usuario sin contexto (zona/FECHA_CARGA_INICIAL no disponibles)")
+                syncTelemetry.runFinished(
+                    zona = null,
+                    outcome = SyncRunOutcome.SKIPPED_NO_ZONE,
+                    pages = 0,
+                    rows = 0,
+                    durationMillis = elapsedMillisSince(startedAtNanos),
+                    advanced = null
+                )
                 return SyncOutcome.SkippedNoZone
             }
             val zona = ctx.zona
@@ -109,6 +138,14 @@ class CobranzaSyncManager(
             purgeLegacyTwinsOnce()
             if (!connectivity.isNetworkAvailable()) {
                 Log.i(TAG, "skip: offline (zona=$zona)")
+                syncTelemetry.runFinished(
+                    zona = zona,
+                    outcome = SyncRunOutcome.SKIPPED_OFFLINE,
+                    pages = 0,
+                    rows = 0,
+                    durationMillis = elapsedMillisSince(startedAtNanos),
+                    advanced = null
+                )
                 return SyncOutcome.SkippedOffline
             }
             // Detección de cambio de zona: el cache local sigue al cobrador
@@ -131,6 +168,12 @@ class CobranzaSyncManager(
             // también lo corren, sin costo extra real más que red).
             resetPagosCursorOnce(MIGRATION_PAGO_RECIBIDO_ID_PERSIST)
             Log.i(TAG, "syncNow start zona=$zona desde=$desdeIso")
+            // Acumuladores de la corrida para el evento `cobranza_sync.run`.
+            // Se declaran FUERA del try para que el camino de error también
+            // pueda reportar lo que alcanzó a bajar antes de reventar.
+            var runPages = 0
+            var runRows = 0
+            var runAdvanced: Boolean? = null
             try {
                 // ORDEN INTENCIONAL: pagos antes que ventas.
                 // mergeVentas consulta paymentDao.countPagosDesde() para decidir
@@ -141,7 +184,7 @@ class CobranzaSyncManager(
                 // (UPDATED_AT < cursor) y quedan perdidas hasta el próximo
                 // cleanup full. Sincronizar pagos primero garantiza que
                 // mergeVentas vea el set completo de pagos al evaluar.
-                val pagos = syncResource(RESOURCE_PAGOS, zona) { cursor, afterId ->
+                val pagosRun = syncResource(RESOURCE_PAGOS, zona) { cursor, afterId ->
                     Log.i(
                         TAG,
                         "GET /sync/pagos zona=$zona cursor=$cursor after_id=$afterId desde=$desdeIso"
@@ -163,7 +206,19 @@ class CobranzaSyncManager(
                         apply = { mergePagos(response.items) }
                     )
                 }
-                val ventas = syncResource(RESOURCE_VENTAS, zona) { cursor, afterId ->
+                val pagos = pagosRun.applied
+                runPages += pagosRun.pages
+                runRows += pagosRun.applied
+                runAdvanced = syncTelemetry.resourceSynced(
+                    zona = zona,
+                    resource = RESOURCE_PAGOS,
+                    pages = pagosRun.pages,
+                    rows = pagosRun.applied,
+                    before = pagosRun.before,
+                    after = pagosRun.after,
+                    epochReplayed = pagosRun.epochReplayed
+                )
+                val ventasRun = syncResource(RESOURCE_VENTAS, zona) { cursor, afterId ->
                     Log.i(
                         TAG,
                         "GET /sync/ventas zona=$zona cursor=$cursor after_id=$afterId desde=$desdeIso"
@@ -185,6 +240,24 @@ class CobranzaSyncManager(
                         apply = { mergeVentas(response.items, desdeIso) }
                     )
                 }
+                val ventas = ventasRun.applied
+                runPages += ventasRun.pages
+                runRows += ventasRun.applied
+                val ventasAdvanced = syncTelemetry.resourceSynced(
+                    zona = zona,
+                    resource = RESOURCE_VENTAS,
+                    pages = ventasRun.pages,
+                    rows = ventasRun.applied,
+                    before = ventasRun.before,
+                    after = ventasRun.after,
+                    epochReplayed = ventasRun.epochReplayed
+                )
+                // La corrida "avanzó" si CUALQUIERA de los dos recursos movió su
+                // posición: un solo recurso atorado ya no queda tapado por el
+                // otro, porque el evento por recurso lo reporta aparte. `null`
+                // (la emisión falló) se trata como "no aportó avance", nunca
+                // como avance — un dato ausente no puede parecer salud.
+                runAdvanced = (runAdvanced ?: false) || (ventasAdvanced ?: false)
                 // Defensa: si la ventana del cobrador avanzó entre runs, las
                 // saldadas cuyos pagos quedaron fuera deben evictarse aunque
                 // el backend ya no las mande (sync incremental no propaga
@@ -197,6 +270,14 @@ class CobranzaSyncManager(
                     }
                 }
                 Log.i(TAG, "syncNow ok ventas=$ventas pagos=$pagos")
+                syncTelemetry.runFinished(
+                    zona = zona,
+                    outcome = SyncRunOutcome.OK,
+                    pages = runPages,
+                    rows = runRows,
+                    durationMillis = elapsedMillisSince(startedAtNanos),
+                    advanced = runAdvanced
+                )
                 SyncOutcome.Ok(ventasApplied = ventas, pagosApplied = pagos)
             } catch (e: Exception) {
                 Log.w(TAG, "sync failed: ${e.message}", e)
@@ -212,10 +293,22 @@ class CobranzaSyncManager(
                         Instant.now().toString()
                     )
                 }
+                syncTelemetry.runFinished(
+                    zona = zona,
+                    outcome = SyncRunOutcome.ERROR,
+                    pages = runPages,
+                    rows = runRows,
+                    durationMillis = elapsedMillisSince(startedAtNanos),
+                    advanced = runAdvanced
+                )
                 SyncOutcome.Error(e)
             }
         }
     }
+
+    /** Milisegundos transcurridos desde [startNanos] según el reloj monótono. */
+    private fun elapsedMillisSince(startNanos: Long): Long =
+        (nanoTime() - startNanos) / NANOS_PER_MILLI
 
     /**
      * Path optimista SSE: en lugar de re-sincronizar todo el cursor, trae
@@ -441,8 +534,10 @@ class CobranzaSyncManager(
         resource: String,
         zona: Int,
         fetchPage: suspend (cursor: String?, afterId: Int) -> SyncPage
-    ): Int {
+    ): ResourceSyncRun {
         var applied = 0
+        var pagesFetched = 0
+        var epochReplayed = false
         val state = syncStateDao.get(resource)
         // Generación ya replicada por completo. Constante durante toda la
         // corrida: es lo que se sigue escribiendo en cada página intermedia.
@@ -470,11 +565,18 @@ class CobranzaSyncManager(
         // (`syncStateDao.clear`) borran la fila entera, que lo cumple por
         // construcción.
         var afterId = state?.AFTER_ID ?: 0
+        // Fotografía de la posición con la que ARRANCA la corrida. Es el otro
+        // extremo de la comparación que hace visible el defecto D1: si al
+        // terminar la corrida la posición es la misma y aun así se aplicaron
+        // filas, el recurso está re-bajando el mismo lote (ver
+        // [CobranzaSyncTelemetry]).
+        val positionBefore = SyncCursorPosition(cursor, afterId)
         var firstPageSeen = false
         var runEpoch: Int? = null
         var epochStable = true
         while (true) {
             val page = fetchPage(cursor, afterId)
+            pagesFetched++
             val serverEpoch = page.epoch?.takeIf { it > 0 }
             if (!firstPageSeen) {
                 if (serverEpoch != null && serverEpoch != appliedEpoch && cursor != null) {
@@ -487,6 +589,7 @@ class CobranzaSyncManager(
                     // saltaría el principio del grupo empatado.
                     cursor = null
                     afterId = 0
+                    epochReplayed = true
                     continue
                 }
                 firstPageSeen = true
@@ -538,7 +641,13 @@ class CobranzaSyncManager(
             )
             if (lastPage) break
         }
-        return applied
+        return ResourceSyncRun(
+            applied = applied,
+            pages = pagesFetched,
+            before = positionBefore,
+            after = SyncCursorPosition(cursor, afterId),
+            epochReplayed = epochReplayed
+        )
     }
 
     /**
@@ -798,8 +907,31 @@ class CobranzaSyncManager(
          */
         const val MIGRATION_PURGE_LEGACY_PAGO_IDS = "migration_purge_legacy_pago_ids_v1"
         private const val TAG = "CobranzaSyncManager"
+        private const val NANOS_PER_MILLI = 1_000_000L
     }
 }
+
+/**
+ * Lo que dejó una corrida de [CobranzaSyncManager.syncResource] sobre UN
+ * recurso. Antes esta función devolvía sólo `Int` (filas aplicadas); ahora
+ * devuelve además lo que hace falta para responder "¿avanzó?" sin inferirlo:
+ * las posiciones de arranque y de cierre, cuántas páginas costó y si hubo
+ * replay por generación.
+ *
+ * OJO: "¿avanzó?" NO se decide comparando [before] con [after] — eso sería
+ * ciego al defecto D1, donde cada corrida arrancaba en `afterId = 0` y cerraba
+ * en el final del lote, así que la posición "cambiaba" dentro de la corrida
+ * mientras el dispositivo re-bajaba lo mismo eternamente. Lo decide
+ * [CobranzaSyncTelemetry] comparando cierre contra cierre; acá sólo se
+ * transportan los dos extremos.
+ */
+private data class ResourceSyncRun(
+    val applied: Int,
+    val pages: Int,
+    val before: SyncCursorPosition,
+    val after: SyncCursorPosition,
+    val epochReplayed: Boolean
+)
 
 /**
  * Per-resource page descriptor. `apply` is invoked once `cursor` is the

@@ -1,10 +1,16 @@
 package com.example.msp_app.core.sync.cobranza
 
 import android.content.Context
+import android.util.Log
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.network.ConnectivityMonitor
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.api.V2ApiProvider
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -64,7 +70,38 @@ object CobranzaSyncProvider {
             syncStateDao = db.cobranzaSyncStateDao(),
             connectivity = ConnectivityMonitor.getInstance(context),
             userContextFlow = currentContext.asStateFlow(),
-            cobranzaWriteMutex = CobranzaWriteMutexProvider.get()
+            cobranzaWriteMutex = CobranzaWriteMutexProvider.get(),
+            telemetry = telemetryOf(context)
         )
+    }
+
+    /**
+     * Puente al grafo de Hilt desde este `object` (que no es inyectable):
+     * `EntryPointAccessors` es la vía oficial para leer un binding de
+     * `SingletonComponent` fuera de un componente inyectado.
+     *
+     * El `runCatching` no es decorativo: si el grafo de Hilt no está listo
+     * (p. ej. un `Context` que no viene de la Application, o un arranque en
+     * pruebas sin `@HiltAndroidApp`), la alternativa es que la construcción del
+     * manager reviente y el cobrador se quede SIN SYNC por culpa de la
+     * telemetría. Se degrada a [NoOpTelemetry] y el sync sigue — es la misma
+     * regla que gobierna cada emisión (ver [CobranzaSyncTelemetry]).
+     */
+    private fun telemetryOf(context: Context): Telemetry = runCatching {
+        EntryPointAccessors
+            .fromApplication(context.applicationContext, TelemetryEntryPoint::class.java)
+            .telemetry()
+    }.getOrElse { e ->
+        Log.w(TAG, "telemetria no disponible, el sync corre sin ella: ${e.message}")
+        NoOpTelemetry
+    }
+
+    private const val TAG = "CobranzaSyncProvider"
+
+    /** Acceso al binding de [Telemetry] que publica `TelemetryModule`. */
+    @EntryPoint
+    @InstallIn(SingletonComponent::class)
+    interface TelemetryEntryPoint {
+        fun telemetry(): Telemetry
     }
 }

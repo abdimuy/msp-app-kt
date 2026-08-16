@@ -412,6 +412,13 @@ tasks.register("prePushCheck") {
         ":core:appgate:ktlintCheck",
         ":core:settings:ktlintCheck",
         ":feature:collectionReport:ktlintCheck",
+        // HUECO CERRADO (2026-08-16): `:feature:configuracion` estaba en
+        // `settings.gradle.kts` desde que nació pero NUNCA entró a esta lista —
+        // ni ktlint, ni sus pruebas, ni detekt, ni kover corrían en la compuerta
+        // local, así que el módulo podía romperse sin que el pre-push se
+        // enterara. Sus cuatro tareas pasan hoy tal cual (cobertura medida:
+        // 87.78% LINE), así que sumarlas no arrastra deuda nueva.
+        ":feature:configuracion:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
         ":core:common:testDebugUnitTest",
@@ -425,6 +432,7 @@ tasks.register("prePushCheck") {
         ":core:appgate:testDebugUnitTest",
         ":core:settings:testDebugUnitTest",
         ":feature:collectionReport:testDebugUnitTest",
+        ":feature:configuracion:testDebugUnitTest", // ver "HUECO CERRADO" arriba
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
         // `koverVerifyDebug`, no el agregado `koverVerify`: el agregado también
@@ -442,6 +450,20 @@ tasks.register("prePushCheck") {
         // (placeholder `msp.kover`), igual que el resto de módulos nuevos.
         ":core:printing:koverVerifyDebug",
         ":core:telemetry:koverVerifyDebug",
+        // `:core:database` (2026-08-16): sus PRUEBAS ya estaban en el gate desde
+        // el cierre de Plan 2, pero `koverVerify*` NO — o sea que sus migraciones
+        // y su DAO de pagos no tenían piso alguno. Entra ahora con las tres
+        // reglas reales de `core/database/build.gradle.kts` (migraciones 100%,
+        // DAO de pagos 38%, módulo 13%). `koverVerifyDebug` por el mismo gotcha
+        // Robolectric-bajo-`release` explicado arriba. Las otras dos tareas son
+        // las variantes de reporte acotadas por paquete (Kover 0.8 prohíbe
+        // filtrar dentro de una regla; ver el gotcha documentado en el
+        // `build.gradle.kts` del módulo): migraciones al 100% y DAO de pagos
+        // al 38%. Sin ellas el módulo quedaría sólo con el trinquete de 13%,
+        // que no dice nada sobre lo que de verdad importa acá.
+        ":core:database:koverVerifyDebug",
+        ":core:database:koverVerifyMigrations",
+        ":core:database:koverVerifyPagosDao",
         // `:core:upload` es JVM plano (funcion pura + puerto), asi que aguanta
         // el agregado `koverVerify` sin el gotcha Robolectric-bajo-`release`.
         ":core:upload:koverVerify",
@@ -450,10 +472,12 @@ tasks.register("prePushCheck") {
         ":core:appgate:koverVerifyDebug",
         ":core:settings:koverVerifyDebug",
         // Mismo gotcha Robolectric-bajo-`release` de arriba — Task 11 (Plan 5,
-        // cierre del piloto) suma el piso de cobertura (todavía placeholder
-        // 0%, `msp.kover`, igual que el resto de módulos nuevos sin línea
-        // base fijada) de `:feature:collectionReport` al gate.
+        // cierre del piloto) sumó el piso de cobertura de
+        // `:feature:collectionReport` al gate. Desde 2026-08-16 ese piso ya NO
+        // es el placeholder 0%: es 78, medido en 81.20% LINE (ver el bloque
+        // `kover` de su `build.gradle.kts`).
         ":feature:collectionReport:koverVerifyDebug",
+        ":feature:configuracion:koverVerifyDebug", // ver "HUECO CERRADO" arriba
         ":core:common:detekt",
         ":core:database:detekt",
         ":core:designsystem:detekt",
@@ -465,6 +489,7 @@ tasks.register("prePushCheck") {
         ":core:appgate:detekt",
         ":core:settings:detekt",
         ":feature:collectionReport:detekt",
+        ":feature:configuracion:detekt", // ver "HUECO CERRADO" arriba
         ":build-tools:detekt-rules:detekt",
         ":core:designsystem:verifyRoborazziDebug",
         // Task 11 (Plan 5, cierre del piloto): el gate de fidelidad visual

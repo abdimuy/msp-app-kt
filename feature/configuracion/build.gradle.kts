@@ -14,10 +14,29 @@ android {
     }
 }
 
-// `msp.kover` deja el piso placeholder (0%) — módulo nuevo (Configuración,
-// spec `docs/superpowers/specs/2026-08-10-configuracion-tamano-letra-design.md`),
-// mismo criterio que `:core:settings`: el gate real entra cuando el ViewModel +
-// la pantalla queden con la cobertura de Tasks 1-2 completa, no antes.
+// Piso de cobertura REAL (reemplaza el placeholder 0% de `msp.kover`).
+//
+// MEDIDO 2026-08-16 con `:feature:configuracion:koverXmlReportDebug`:
+//   LINE 273/311 = 87.78%   (INSTRUCTION 87.34%, BRANCH 50.00%)
+// Es el módulo mejor cubierto de los cinco que se tocaron en este cambio.
+// Lo que falta es casi todo lambda de navegación de `ConfiguracionScreenKt`
+// (82.8%) y las fábricas de Hilt (15 líneas generadas, 0%).
+//
+// Piso = 85, ~3 puntos por debajo de lo medido: trinquete, no meta.
+//
+// OJO — este módulo estaba en `settings.gradle.kts` pero NO en la tarea
+// `prePushCheck` de la raíz: ni ktlint, ni detekt, ni sus pruebas, ni kover
+// corrían en la compuerta local. Se cierra ese hueco en el mismo cambio que
+// pone este piso; un piso que nadie ejecuta no es un piso.
+kover {
+    reports {
+        verify {
+            rule("feature-configuracion: piso trinquete (medido 87.78% LINE, 2026-08-16)") {
+                minBound(85)
+            }
+        }
+    }
+}
 
 dependencies {
     implementation(project(":core:designsystem"))
