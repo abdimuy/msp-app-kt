@@ -92,13 +92,17 @@ internal object CollectionReportStateBuilder {
      * [fechaCargaInicial]): el día de la carga arranca a la hora de la carga, no a medianoche.
      * Pasar `null` como [fechaCargaInicial] dejaría ese recorte INERTE — el defecto de la
      * TAREA 1, que vivía en el caller y no aquí.
+     *
+     * `null` SOLO en Semana y SOLO cuando no hay semana utilizable (ver
+     * [RangeCalculator.cycleRange]): sin fecha de carga, o con una carga en el futuro. Día
+     * nunca es `null` — "hoy" es un día natural bien definido con o sin semana.
      */
     fun resolveRange(
         period: ReportPeriod,
         clock: AppClock,
         fechaCargaInicial: Instant?,
         selectedDay: LocalDate? = null
-    ): DateRange = when (period) {
+    ): DateRange? = when (period) {
         ReportPeriod.DIA -> if (selectedDay == null) {
             RangeCalculator.dayRange(clock, fechaCargaInicial)
         } else {

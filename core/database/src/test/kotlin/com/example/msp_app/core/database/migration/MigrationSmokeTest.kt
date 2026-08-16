@@ -13,6 +13,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_24_25
 import com.example.msp_app.core.database.migrations.MIGRATION_25_26
 import com.example.msp_app.core.database.migrations.MIGRATION_26_27
 import com.example.msp_app.core.database.migrations.MIGRATION_27_28
+import com.example.msp_app.core.database.migrations.MIGRATION_28_29
 import com.example.msp_app.core.testing.RobolectricTestBase
 import java.io.File
 import org.junit.After
@@ -28,7 +29,7 @@ private const val SEEDED_PAYMENT_IMPORTE = "725.50"
 private const val SEEDED_CURSOR = "2026-08-01T10:00:00.000000Z"
 
 /**
- * Smoke de las 8 migraciones reales (20→28) sobre una base sembrada por
+ * Smoke de las 9 migraciones reales (20→29) sobre una base sembrada por
  * `execSQL` crudo (spec Plan 2 Task 4 — decisión del orquestador: sin JSONs
  * históricos v20-v26, ver [SchemaIntegrityTest] para el detalle de esa
  * limitación). No usa `MigrationTestHelper` porque ese helper solo puede
@@ -41,11 +42,11 @@ private const val SEEDED_CURSOR = "2026-08-01T10:00:00.000000Z"
  * secuencia — no una copia de su SQL.
  *
  * Qué rompería si este test fallara: cualquier migración de la cadena
- * 20→28 que hoy pasa silenciosamente porque nadie la ejecuta en secuencia
+ * 20→29 que hoy pasa silenciosamente porque nadie la ejecuta en secuencia
  * contra un esquema de partida real (columna con nombre distinto, tabla
  * prerrequisito faltante, orden de ALTER/DROP incorrecto). También sirve de
  * segunda red para money-safety: se siembra una fila de `Payment` no
- * subida ANTES de migrar y se verifica que sigue intacta después de las 8,
+ * subida ANTES de migrar y se verifica que sigue intacta después de las 9,
  * complementando a [PaymentSurvivalMigrationTest] (que prueba supervivencia
  * vía la ruta de Room/producción, no vía la cadena de migraciones cruda).
  */
@@ -212,8 +213,63 @@ class MigrationSmokeTest : RobolectricTestBase() {
         )
     }
 
+    /**
+     * El cursor sembrado a media cadena sobrevive entero — incluidas las dos
+     * columnas que le agregaron las últimas migraciones: `EPOCH` (27→28) queda
+     * NULL y `AFTER_ID` (28→29) queda en 0, que es "desde el inicio del grupo",
+     * el mismo punto donde el código anterior arrancaba cada corrida.
+     */
+    private fun assertSyncStateSurvived(db: SupportSQLiteDatabase) {
+        db.query(
+            "SELECT CURSOR, ZONA_CLIENTE_ID, EPOCH, AFTER_ID FROM cobranza_sync_state " +
+                "WHERE RESOURCE = 'pagos'"
+        ).use { cursor ->
+            assertTrue("el cursor sembrado a media cadena debe sobrevivir", cursor.moveToFirst())
+            assertEquals(SEEDED_CURSOR, cursor.getString(0))
+            assertEquals(21, cursor.getInt(1))
+            assertTrue(
+                "EPOCH debe quedar NULL para filas pre-existentes: nunca aplicaron generación",
+                cursor.isNull(2)
+            )
+            assertEquals(
+                "AFTER_ID debe quedar en 0 (default de la 28→29): el cursor guardado " +
+                    "retoma en el mismo punto donde lo dejó el código viejo",
+                0,
+                cursor.getInt(3)
+            )
+        }
+    }
+
+    /**
+     * `Payment` termina la cadena con la columna que agregó la 26→27 y con el
+     * índice que esa migración dejó pendiente y crea la 28→29.
+     */
+    private fun assertPaymentSchema(db: SupportSQLiteDatabase) {
+        db.query("PRAGMA table_info(Payment)").use { cursor ->
+            val columns = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+            assertTrue(
+                "PAGO_RECIBIDO_ID debe existir tras MIGRATION_26_27",
+                columns.contains("PAGO_RECIBIDO_ID")
+            )
+        }
+
+        db.query("PRAGMA index_list(Payment)").use { cursor ->
+            val indices = mutableListOf<String>()
+            while (cursor.moveToNext()) {
+                indices.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            }
+            assertTrue(
+                "index_Payment_PAGO_RECIBIDO_ID debe existir tras MIGRATION_28_29",
+                indices.contains("index_Payment_PAGO_RECIBIDO_ID")
+            )
+        }
+    }
+
     @Test
-    fun `las 8 migraciones 20 a 28 corren en secuencia sin error SQL sobre un esquema sembrado`() {
+    fun `las 9 migraciones 20 a 29 corren en secuencia sin error SQL sobre un esquema sembrado`() {
         // Abrir dispara onCreate -> seedStartingSchema, deja el archivo en v20.
         val db = helper.writableDatabase
         seedUnuploadedPayment(db)
@@ -226,34 +282,15 @@ class MigrationSmokeTest : RobolectricTestBase() {
             MIGRATION_24_25,
             MIGRATION_25_26,
             MIGRATION_26_27,
-            MIGRATION_27_28
+            MIGRATION_27_28,
+            MIGRATION_28_29
         ).forEach { migration ->
             migration.migrate(db)
             if (migration === MIGRATION_23_24) seedSyncStateRow(db)
         }
 
-        db.query(
-            "SELECT CURSOR, ZONA_CLIENTE_ID, EPOCH FROM cobranza_sync_state WHERE RESOURCE = 'pagos'"
-        ).use { cursor ->
-            assertTrue("el cursor sembrado a media cadena debe sobrevivir", cursor.moveToFirst())
-            assertEquals(SEEDED_CURSOR, cursor.getString(0))
-            assertEquals(21, cursor.getInt(1))
-            assertTrue(
-                "EPOCH debe quedar NULL para filas pre-existentes: nunca aplicaron generación",
-                cursor.isNull(2)
-            )
-        }
-
-        db.query("PRAGMA table_info(Payment)").use { cursor ->
-            val columns = mutableListOf<String>()
-            while (cursor.moveToNext()) {
-                columns.add(cursor.getString(cursor.getColumnIndexOrThrow("name")))
-            }
-            assertTrue(
-                "PAGO_RECIBIDO_ID debe existir tras MIGRATION_26_27",
-                columns.contains("PAGO_RECIBIDO_ID")
-            )
-        }
+        assertSyncStateSurvived(db)
+        assertPaymentSchema(db)
 
         db.query(
             "SELECT IMPORTE, GUARDADO_EN_MICROSIP, PAGO_RECIBIDO_ID FROM Payment WHERE ID = ?",

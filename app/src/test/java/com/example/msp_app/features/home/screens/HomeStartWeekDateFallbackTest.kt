@@ -2,111 +2,87 @@ package com.example.msp_app.features.home.screens
 
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.testing.time.FakeClock
-import java.time.Clock
 import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
 import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Fix round 1/5 finding (shared by both money reviewers): the `user == null` fallback for
- * `startWeekDate` in `Home.kt:136-139` —
- * ```kotlin
- * val startWeekDate = remember(initialDate) {
- *     val startInstant = initialDate?.toDate()?.toInstant() ?: AppClock.System.now()
- *     AppTime.toWireFormat(startInstant)
- * }
- * ```
- * — is NOT behavior-neutral versus the removed legacy date util's `parseDateToIso(null)`
- * fallback. It is a benign FAVORABLE FIX, and this test pins that claim instead of just
- * asserting it in prose.
+ * DEFECTO D5 — el inicio de semana del tablero.
  *
- * The legacy date util's `parseDateToIso(null)` called its own `getIsoDateTime()` (no-arg), whose body is:
+ * **Este test estaba INVERTIDO y se invierte a propósito.** Su versión anterior fijaba, como
+ * mejora, el fallback de `Home.kt`:
  * ```kotlin
- * val zoned = (dateTime ?: LocalDateTime.now()).atZone(java.time.ZoneOffset.UTC)
- * DateTimeFormatter.ISO_INSTANT.format(zoned)
+ * val startInstant = initialDate?.toDate()?.toInstant() ?: AppClock.System.now()
  * ```
- * `LocalDateTime.now()` reads the DEVICE's wall-clock digits in the DEVICE's default zone, with
- * no zone attached to the value. `.atZone(ZoneOffset.UTC)` then LABELS those naive digits as
- * UTC — it does not convert them. On any device whose default zone isn't UTC, this produces a
- * WRONG instant, off by exactly the device's UTC offset.
+ * Aquel cambio sí arregló una cosa (el fallback viejo etiquetaba la hora local del dispositivo
+ * como UTC y daba un instante equivocado), pero conservó el error de fondo: **cuando el
+ * documento de usuario de Firestore no está disponible, la semana empieza AHORA**, y entonces
+ * ningún pago pasado califica. En campo eso se vio como $0.00 cobrado en la semana con la tabla
+ * de pagos llena. Que la causa fuera la ventana de fechas y no una resincronización pendiente
+ * quedó probado en el mismo tablero: el contador de VENTAS (103) —que no filtra por fecha—
+ * sobrevivía intacto mientras los pagos daban 0. Sólo un rango malo produce `0/103`.
  *
- * The new code (`AppTime.toWireFormat(AppClock.System.now())`) uses the TRUE current instant
- * regardless of device zone — it is always correct. Scope of the change: only the narrow window
- * before `userDataState` has loaded (`initialDate == null`); once the user record loads, this
- * branch is never taken again for that composition.
+ * La regla nueva la fija [resolveStartWeekDate]: sin fecha de carga NO hay semana (devuelve
+ * `null`), y el tablero lo dice ([START_WEEK_UNKNOWN_LABEL]) en vez de calcular sobre una
+ * ventana inventada. Si alguien reintroduce cualquier fallback —`now()`, "hoy", o el instante
+ * del dispositivo— estos tests se ponen en rojo.
  */
 class HomeStartWeekDateFallbackTest {
 
-    // Real instant the "device" clock reads at test time.
+    // Instante "real" que leería el reloj del dispositivo durante el test.
     private val fixedInstant: Instant = Instant.parse("2026-08-08T14:30:00Z")
 
     @Test
-    fun `NEW fallback yields the true current instant, independent of device zone`() {
+    fun `sin fecha de carga NO hay inicio de semana - ni ahora ni hoy`() {
+        val resultado = resolveStartWeekDate(null)
+
+        assertNull("sin FECHA_CARGA_INICIAL no se puede inventar una semana", resultado)
+        // Dicho también como propiedad, por si alguien cambia el tipo de retorno: sea lo que
+        // sea, no puede coincidir con el instante actual ni con la medianoche de hoy.
         val clock = FakeClock(fixedInstant)
-
-        val newResult = AppTime.toWireFormat(clock.now())
-
-        assertEquals("2026-08-08T14:30:00Z", newResult)
+        assertNotEquals(AppTime.toWireFormat(clock.now()), resultado)
+        assertNotEquals(
+            AppTime.toWireFormat(AppTime.startOfDay(AppTime.todayInBusinessZone(clock))),
+            resultado
+        )
     }
 
     @Test
-    fun `NEW fallback is unaffected by the JVM default TimeZone (unlike the OLD one)`() {
+    fun `con fecha de carga devuelve ese instante exacto en wire UTC`() {
+        val carga = Instant.parse("2026-08-03T16:00:00Z")
+
+        assertEquals("2026-08-03T16:00:00Z", resolveStartWeekDate(carga))
+    }
+
+    @Test
+    fun `el resultado no depende de la zona horaria del dispositivo`() {
         val original = TimeZone.getDefault()
         try {
-            val clock = FakeClock(fixedInstant)
+            val carga = Instant.parse("2026-08-03T16:00:00Z")
 
-            TimeZone.setDefault(TimeZone.getTimeZone("America/Mexico_City")) // UTC-6, no DST
-            val underCdmx = AppTime.toWireFormat(clock.now())
+            TimeZone.setDefault(TimeZone.getTimeZone("America/Mexico_City")) // UTC-6
+            val bajoCdmx = resolveStartWeekDate(carga)
 
-            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati")) // UTC+14, no DST
-            val underKiritimati = AppTime.toWireFormat(clock.now())
+            TimeZone.setDefault(TimeZone.getTimeZone("Pacific/Kiritimati")) // UTC+14
+            val bajoKiritimati = resolveStartWeekDate(carga)
 
-            assertEquals("2026-08-08T14:30:00Z", underCdmx)
-            assertEquals("2026-08-08T14:30:00Z", underKiritimati)
-            assertEquals(underCdmx, underKiritimati)
+            assertEquals("2026-08-03T16:00:00Z", bajoCdmx)
+            assertEquals(bajoCdmx, bajoKiritimati)
         } finally {
             TimeZone.setDefault(original)
         }
     }
 
     @Test
-    fun `OLD legacy-date-util getIsoDateTime fallback mislabels device wall-clock as UTC and diverges from the true instant`() {
-        val original = TimeZone.getDefault()
-        try {
-            TimeZone.setDefault(TimeZone.getTimeZone("America/Mexico_City")) // UTC-6, no DST
-
-            // OLD code, inlined verbatim from the removed legacy date util's `getIsoDateTime()`:
-            // `(dateTime ?: LocalDateTime.now()).atZone(ZoneOffset.UTC)`. `LocalDateTime.now()`
-            // is simulated deterministically for the SAME real instant via
-            // `Clock.fixed(fixedInstant, ZoneId.systemDefault())` — this reproduces exactly
-            // what the zero-arg call would have read at that moment under the zone just set.
-            val oldDeviceWallClock = LocalDateTime.now(
-                Clock.fixed(fixedInstant, ZoneId.systemDefault())
-            )
-            val oldResult = DateTimeFormatter.ISO_INSTANT.format(
-                oldDeviceWallClock.atZone(ZoneOffset.UTC)
-            )
-
-            // 14:30 UTC - 6h = 08:30 CDMX wall clock, mislabeled as 08:30 UTC by the old code.
-            assertEquals("2026-08-08T08:30:00Z", oldResult)
-
-            val newResult = AppTime.toWireFormat(FakeClock(fixedInstant).now())
-            assertEquals("2026-08-08T14:30:00Z", newResult)
-
-            assertNotEquals(
-                "OLD (mislabeled device wall-clock) and NEW (true instant) must differ under a " +
-                    "non-UTC device zone — that IS the favorable fix",
-                oldResult,
-                newResult
-            )
-        } finally {
-            TimeZone.setDefault(original)
-        }
+    fun `el aviso de semana desconocida cumple las reglas de texto del proyecto`() {
+        // es-MX, minúsculas, sin punto final, 2-4 palabras, y NUNCA la palabra "ciclo".
+        assertEquals(START_WEEK_UNKNOWN_LABEL, START_WEEK_UNKNOWN_LABEL.lowercase())
+        assertEquals(false, START_WEEK_UNKNOWN_LABEL.endsWith("."))
+        assertEquals(4, START_WEEK_UNKNOWN_LABEL.split(" ").size)
+        assertEquals(false, START_WEEK_UNKNOWN_LABEL.contains("ciclo"))
+        assertEquals(true, START_WEEK_UNKNOWN_LABEL.contains("semana"))
     }
 }

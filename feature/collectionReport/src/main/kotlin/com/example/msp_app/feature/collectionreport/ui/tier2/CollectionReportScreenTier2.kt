@@ -42,6 +42,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.ui.ChipUi
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportViewModel
+import com.example.msp_app.feature.collectionreport.ui.CycleNoticeBanner
 import com.example.msp_app.feature.collectionreport.ui.DetailSort
 import com.example.msp_app.feature.collectionreport.ui.ErrorBanner
 import com.example.msp_app.feature.collectionreport.ui.SheetKind
@@ -257,6 +258,12 @@ internal fun CollectionReportContentTier2(
             state.error?.let { message ->
                 StaggeredEntrance(index = ENTRANCE_ERROR_BANNER) {
                     ErrorBanner(message = message)
+                }
+            }
+
+            if (state.cycleNotice.isNotEmpty()) {
+                StaggeredEntrance(index = ENTRANCE_ERROR_BANNER) {
+                    CycleNoticeBanner(message = state.cycleNotice)
                 }
             }
 

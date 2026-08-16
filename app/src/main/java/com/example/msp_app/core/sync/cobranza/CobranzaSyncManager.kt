@@ -155,7 +155,9 @@ class CobranzaSyncManager(
                     SyncPage(
                         cursor = response.max_updated_at,
                         hasMore = response.has_more,
-                        afterId = response.items.lastOrNull()?.impte_docto_cc_id ?: 0,
+                        // null (no 0) cuando la página viene vacía: "sin filas
+                        // no hay posición nueva". Ver [SyncPage.afterId].
+                        afterId = response.items.lastOrNull()?.impte_docto_cc_id,
                         size = response.items.size,
                         epoch = response.sync_epoch,
                         apply = { mergePagos(response.items) }
@@ -175,7 +177,9 @@ class CobranzaSyncManager(
                     SyncPage(
                         cursor = response.max_updated_at,
                         hasMore = response.has_more,
-                        afterId = response.items.lastOrNull()?.docto_cc_id ?: 0,
+                        // Ídem pagos: null = página vacía, la posición no se
+                        // mueve. Ver [SyncPage.afterId].
+                        afterId = response.items.lastOrNull()?.docto_cc_id,
                         size = response.items.size,
                         epoch = response.sync_epoch,
                         apply = { mergeVentas(response.items, desdeIso) }
@@ -444,11 +448,28 @@ class CobranzaSyncManager(
         // corrida: es lo que se sigue escribiendo en cada página intermedia.
         val appliedEpoch = state?.EPOCH
         var cursor: String? = state?.CURSOR
-        // afterId no se persiste entre runs: si la app se mata a media
-        // corrida, el siguiente arranque retoma desde el cursor con
-        // afterId=0 y vuelve a procesar el inicio del cursor — las
-        // escrituras son idempotentes (UPSERT por PK), solo gasta red.
-        var afterId = 0
+        // `cursor` y `afterId` son UN cursor partido en dos columnas: el
+        // servidor pagina por el par `(UPDATED_AT, PK)` y sin la segunda
+        // mitad no hay forma de distinguir entre las filas empatadas en el
+        // mismo `UPDATED_AT`. Por eso se lee del estado guardado y se
+        // reescribe junto al cursor en cada página (ver el upsert de abajo).
+        //
+        // Antes solo se persistía el cursor y cada corrida arrancaba en
+        // `afterId = 0`, con el argumento de que reprocesar el inicio del
+        // grupo empatado solo gastaba red. El argumento asumía un grupo
+        // chico: el backfill de migración dejó 1,835,734 de 2,173,422 filas
+        // compartiendo un único `UPDATED_AT`, así que el grupo empatado es el
+        // historial completo, la paginación nunca sale de él y el ciclo se
+        // repite para siempre (medido en un teléfono: 2,057 pagos
+        // re-descargados cada ~76 s).
+        //
+        // Invariante que hay que sostener: donde se escribe uno se escribe el
+        // otro, y todo camino que deje el cursor en null debe dejar
+        // `afterId = 0` en la misma operación — el replay por generación de
+        // abajo lo hace explícito; los caminos de limpieza
+        // (`syncStateDao.clear`) borran la fila entera, que lo cumple por
+        // construcción.
+        var afterId = state?.AFTER_ID ?: 0
         var firstPageSeen = false
         var runEpoch: Int? = null
         var epochStable = true
@@ -461,6 +482,9 @@ class CobranzaSyncManager(
                         TAG,
                         "$resource: generación $appliedEpoch -> $serverEpoch, replay desde el inicio"
                     )
+                    // Los dos, juntos: un replay que arrancara sin cursor
+                    // pero con el `afterId` de la corrida anterior se
+                    // saltaría el principio del grupo empatado.
                     cursor = null
                     afterId = 0
                     continue
@@ -472,8 +496,26 @@ class CobranzaSyncManager(
             }
             page.apply.invoke()
             applied += page.size
-            cursor = page.cursor
-            afterId = page.afterId
+            val nextCursor = page.cursor
+            afterId = when {
+                // Página con filas: la posición nueva es la última fila, y va
+                // con el cursor que esa misma fila define.
+                page.afterId != null -> page.afterId
+                // Página vacía con el MISMO cursor (lo que el servidor
+                // garantiza: sin filas devuelve el cursor recibido) — la
+                // posición dentro del grupo empatado sigue siendo válida y
+                // tiene que conservarse. Ponerla en 0 aquí reintroduciría el
+                // defecto un tick después: el siguiente arranque volvería a
+                // bajar el grupo entero.
+                nextCursor == cursor -> afterId
+                // Cursor movido sin filas: no debería pasar, pero si pasa el
+                // `afterId` viejo pertenece a OTRO cursor y aplicarlo saltaría
+                // filas — un hueco en el cache que ningún sync posterior
+                // repone. Arrancar el grupo nuevo desde el principio solo
+                // cuesta red.
+                else -> 0
+            }
+            cursor = nextCursor
             val lastPage = !page.hasMore
             val epochToPersist = if (lastPage && epochStable) {
                 runEpoch ?: appliedEpoch
@@ -487,7 +529,11 @@ class CobranzaSyncManager(
                     CURSOR = cursor,
                     LAST_SYNCED_AT = Instant.now().toString(),
                     LAST_ERROR = null,
-                    EPOCH = epochToPersist
+                    EPOCH = epochToPersist,
+                    // La otra mitad del cursor, en la MISMA escritura: si se
+                    // guardara aparte (o no se guardara), un arranque a media
+                    // corrida retomaría el grupo empatado desde el inicio.
+                    AFTER_ID = afterId
                 )
             )
             if (lastPage) break
@@ -581,11 +627,29 @@ class CobranzaSyncManager(
      *  - `pago_recibido_id` non-null → colapso de gemelo UUID: el pago
      *    entrante es la versión numérica (IMPTE_DOCTO_CC_ID) de un pago que
      *    el app capturó offline con un UUID local. Se borra la fila UUID
-     *    local (si sigue existiendo Y ya está confirmada,
-     *    `GUARDADO_EN_MICROSIP=1`) para que "Historial de pagos" no
-     *    muestre el mismo pago dos veces. Solo se borra por el
-     *    `pago_recibido_id` exacto — nunca por contenido/monto — y jamás
-     *    un pago pendiente de subir (ver [PaymentDao.filterUploadedIDs]).
+     *    local si sigue existiendo, para que "Historial de pagos" no muestre
+     *    el mismo pago dos veces. Solo se borra por el `pago_recibido_id`
+     *    exacto — nunca por contenido/monto.
+     *
+     *    El colapso **ya no exige `GUARDADO_EN_MICROSIP = 1`** en la fila
+     *    UUID. Esa bandera dice lo que este teléfono alcanzó a anotar; el
+     *    `pago_recibido_id` dice lo que el servidor efectivamente hizo, y es
+     *    la evidencia más fuerte de las dos: prueba que el pago ya está en
+     *    Microsip con su id asignado. La carrera es estructural, no un caso
+     *    raro — el aviso del servidor sale dentro de la misma transacción que
+     *    escribe el pago, así que puede llegar antes de que
+     *    `PendingPaymentsWorker.markDone` marque la bandera; y si la respuesta
+     *    HTTP nunca llega (timeout), la bandera se queda en 0 para siempre y
+     *    el duplicado se vuelve permanente. Lo que protege a una captura que
+     *    NUNCA subió es que el servidor no puede nombrar un UUID que no
+     *    recibió (ver [PaymentDao.filterExistingIDs]).
+     *
+     *    La auto-referencia (un DTO que trajera su propio
+     *    `impte_docto_cc_id` como `pago_recibido_id`) no necesita cerrojo
+     *    aquí: todos los DELETE corren antes del `saveAll`, así que la fila
+     *    canónica se vuelve a escribir en la misma transacción. El cerrojo sí
+     *    existe donde importa, en [PaymentDao.findCollapsibleUuidTwins], que
+     *    borra sin reponer nada.
      *
      * La partición evita una segunda pasada y mantiene la ergonomía del
      * `paymentDao.saveAll` actual (un solo UPSERT batch). Los DELETE se
@@ -621,7 +685,7 @@ class CobranzaSyncManager(
                 }
             }
             if (pagoRecibidoIds.isNotEmpty()) {
-                val uuidTwins = paymentDao.filterUploadedIDs(pagoRecibidoIds)
+                val uuidTwins = paymentDao.filterExistingIDs(pagoRecibidoIds)
                 if (uuidTwins.isNotEmpty()) {
                     Log.i(TAG, "mergePagos: colapsando ${uuidTwins.size} gemelo(s) UUID")
                     paymentDao.deleteByIDs(uuidTwins)
@@ -745,7 +809,19 @@ class CobranzaSyncManager(
 private data class SyncPage(
     val cursor: String,
     val hasMore: Boolean,
-    val afterId: Int,
+    /**
+     * PK de la última fila de la página: la segunda mitad del cursor
+     * `(UPDATED_AT, PK)` con el que se pide la página siguiente.
+     *
+     * `null` cuando la página vino vacía, que NO es lo mismo que 0: el
+     * servidor devuelve el cursor recibido tal cual cuando no hay filas (ver
+     * `SyncPage.MaxUpdatedAt` en el backend), así que la posición dentro del
+     * grupo de filas empatadas en ese `UPDATED_AT` sigue siendo la misma.
+     * Traducir "vacía" a 0 haría que el siguiente arranque volviera a bajar el
+     * grupo empatado completo — el mismo bucle que persistir `after_id` viene
+     * a cerrar, solo que un tick después.
+     */
+    val afterId: Int?,
     val size: Int,
     /**
      * Generación de la proyección del servidor para este recurso, tal como

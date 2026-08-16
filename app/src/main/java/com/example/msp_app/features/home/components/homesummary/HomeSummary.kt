@@ -25,8 +25,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.msp_app.core.utils.toCurrency
 import com.example.msp_app.features.home.screens.PaymentInfoCollector
+import com.example.msp_app.features.home.screens.START_WEEK_UNKNOWN_LABEL
 import com.example.msp_app.features.home.screens.overlap
 
+/**
+ * Resumen del tablero.
+ *
+ * [startWeekKnown] `false` = todavía no se sabe dónde abre la semana (defecto D5: sin
+ * `FECHA_CARGA_INICIAL` **todas** las cifras de esta tarjeta —hoy, semanal, ambos porcentajes—
+ * salen de una ventana de fechas que no existe). En ese caso la tarjeta muestra un aviso corto
+ * en vez de un tablero de ceros: un $0.00 bien maquetado se lee como "no cobré nada", que es
+ * exactamente la confusión que se reportó desde campo. `numberOfSales` es el único dato que no
+ * depende de la ventana, y por eso era el que sobrevivía en el `0/103` original.
+ */
 @Composable
 fun HomeSummarySection(
     isDark: Boolean,
@@ -37,7 +48,8 @@ fun HomeSummarySection(
     numberOfSales: Int,
     accountsPercentageRounded: String,
     accountsPercentageAjusted: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startWeekKnown: Boolean = true
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -52,6 +64,20 @@ fun HomeSummarySection(
                 .fillMaxWidth(0.92f)
                 .background(MaterialTheme.colorScheme.background, RoundedCornerShape(16.dp))
         ) {
+            if (!startWeekKnown) {
+                Text(
+                    text = START_WEEK_UNKNOWN_LABEL,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 28.dp, horizontal = 16.dp)
+                )
+                Spacer(Modifier.height(12.dp))
+                return@OutlinedCard
+            }
             Column(
                 modifier = Modifier
                     .padding(vertical = 20.dp, horizontal = 16.dp)

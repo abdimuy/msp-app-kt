@@ -24,6 +24,7 @@ import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -1082,10 +1083,9 @@ class CobranzaReconcilerTest : RoomTestBase() {
 
     /**
      * Bug: mergePagos solo colapsa el gemelo UUID de un tiro, en el instante
-     * en que la numérica llega con `pago_recibido_id` y el UUID ya está
-     * `GUARDADO_EN_MICROSIP=1`. Si esa ventana se pierde (carrera
-     * pull-vs-markDone, o el `pago_recibido_id` llegó antes de que se
-     * empezara a persistir), el gemelo queda huérfano para siempre — el
+     * en que la numérica llega con `pago_recibido_id`. Si esa ventana se
+     * pierde (el `pago_recibido_id` llegó antes de que se empezara a
+     * persistir, o es histórico), el gemelo queda huérfano para siempre — el
      * reconciliador ignoraba las filas UUID por completo. El self-heal corre
      * SIEMPRE al inicio de reconcileNow(), incluso cuando los digests
      * coinciden y /ids nunca se llama, para converger en ese caso también.
@@ -1132,5 +1132,60 @@ class CobranzaReconcilerTest : RoomTestBase() {
             db.paymentDao().getPaymentById("uuid-twin")
         )
         assertEquals(1, db.paymentDao().getPaymentsBySaleId(100).size)
+    }
+
+    /**
+     * D4 — la carrera, en el barrido auto-sanable del reconciliador.
+     *
+     * El gemelo UUID sigue con `GUARDADO_EN_MICROSIP=0` porque el worker no
+     * alcanzó a marcarlo (el aviso del servidor sale dentro de la misma
+     * transacción que escribe el pago) o porque su respuesta HTTP nunca llegó
+     * y la bandera se quedó en 0 para siempre. El criterio viejo exigía esa
+     * bandera y dejaba el duplicado a la vista; el nuevo se apoya en la
+     * evidencia del servidor y colapsa igual.
+     */
+    @Test
+    fun selfHealColapsaGemeloUuidPendienteQueElServidorYaNombro() = runTest {
+        db.paymentDao().saveAll(
+            listOf(samplePayment(41, 101).copy(PAGO_RECIBIDO_ID = "uuid-en-vuelo"))
+        )
+        // Captura local aún marcada como pendiente: el worker no alcanzó a
+        // llamar markDone (o su respuesta se perdió).
+        db.paymentDao().saveAll(listOf(uuidPayment("uuid-en-vuelo", 101, guardado = false)))
+        // Y una captura que el servidor NUNCA vio: no la nombra nadie.
+        db.paymentDao().saveAll(listOf(uuidPayment("uuid-nunca-subido", 101, guardado = false)))
+
+        val api = FakeV2CobranzaApi(
+            pagosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 1,
+                    ids_xor = xorOf(41).toString(),
+                    ids_sum = sumOf(41).toString(),
+                    max_updated_at = null
+                )
+            ),
+            saldosDigestResponses = listOf(
+                DigestResponse(
+                    count_activos = 0,
+                    ids_xor = "0",
+                    ids_sum = "0",
+                    max_updated_at = null
+                )
+            )
+        )
+
+        val outcome = newReconciler(api).reconcileNow()
+
+        assertTrue(outcome is ReconcileOutcome.Ok)
+        assertEquals(0, api.listPagoIdsCalled)
+        assertNull(
+            "el gemelo pendiente que el servidor ya nombró debe colapsar",
+            db.paymentDao().getPaymentById("uuid-en-vuelo")
+        )
+        assertNotNull(
+            "la captura que nunca subió jamás se borra",
+            db.paymentDao().getPaymentById("uuid-nunca-subido")
+        )
+        assertNotNull(db.paymentDao().getPaymentById("41"))
     }
 }

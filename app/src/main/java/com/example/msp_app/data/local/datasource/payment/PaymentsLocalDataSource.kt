@@ -11,6 +11,7 @@ import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 class PaymentsLocalDataSource @Inject constructor(
     private val paymentDao: PaymentDao,
@@ -69,6 +70,16 @@ class PaymentsLocalDataSource @Inject constructor(
 
     suspend fun getAdjustedPaymentPercentage(startDate: String): Double {
         return paymentDao.getAdjustedPaymentPercentage(startDate) ?: 0.0
+    }
+
+    /**
+     * Variante REACTIVA del porcentaje ajustado (defecto D6). El `NULL` de SQL —que aparece
+     * cuando todavía no hay ninguna fila que sumar— se traduce a `0.0` igual que en la versión
+     * one-shot, pero aquí ese `0.0` deja de ser definitivo: en cuanto entran pagos o ventas,
+     * Room re-emite y el porcentaje se recalcula solo.
+     */
+    fun observeAdjustedPaymentPercentage(startDate: String): Flow<Double> {
+        return paymentDao.observeAdjustedPaymentPercentage(startDate).map { it ?: 0.0 }
     }
 
     suspend fun getSuggestedAmountsBySaleId(saleId: Int): List<Int> {

@@ -211,11 +211,14 @@ class CollectionReportDayStripBuilderTest {
 
     @Test
     fun `el rango del dia de la carga arranca a la hora de la carga, no a medianoche`() {
-        val range = CollectionReportStateBuilder.resolveRange(
-            period = ReportPeriod.DIA,
-            clock = clock,
-            fechaCargaInicial = MockupFixtures.CARGA_RUTA_34,
-            selectedDay = diaDeCarga
+        // `resolveRange` es nullable SOLO en Semana sin semana utilizable; Día nunca lo es.
+        val range = requireNotNull(
+            CollectionReportStateBuilder.resolveRange(
+                period = ReportPeriod.DIA,
+                clock = clock,
+                fechaCargaInicial = MockupFixtures.CARGA_RUTA_34,
+                selectedDay = diaDeCarga
+            )
         )
 
         assertEquals(AppTime.toWireFormat(MockupFixtures.CARGA_RUTA_34), range.startIso)
@@ -229,11 +232,13 @@ class CollectionReportDayStripBuilderTest {
     fun `el rango de un dia intermedio es el dia natural completo`() {
         val domingo = LocalDate.of(2026, 8, 9)
 
-        val range = CollectionReportStateBuilder.resolveRange(
-            period = ReportPeriod.DIA,
-            clock = clock,
-            fechaCargaInicial = MockupFixtures.CARGA_RUTA_34,
-            selectedDay = domingo
+        val range = requireNotNull(
+            CollectionReportStateBuilder.resolveRange(
+                period = ReportPeriod.DIA,
+                clock = clock,
+                fechaCargaInicial = MockupFixtures.CARGA_RUTA_34,
+                selectedDay = domingo
+            )
         )
 
         assertEquals(AppTime.toWireFormat(AppTime.startOfDay(domingo)), range.startIso)

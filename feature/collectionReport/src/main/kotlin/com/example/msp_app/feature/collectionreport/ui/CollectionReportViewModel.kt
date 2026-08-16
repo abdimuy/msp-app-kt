@@ -16,6 +16,7 @@ import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
+import com.example.msp_app.feature.collectionreport.domain.port.CycleStart
 import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotalsPort
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
 import com.example.msp_app.feature.collectionreport.domain.port.ReportThemePort
@@ -24,11 +25,13 @@ import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.collectionreport.domain.port.VisitsPort
 import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
 import java.time.LocalDate
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -106,6 +109,18 @@ class CollectionReportViewModel @Inject constructor(
     // ([CollectionReportDayStripBuilder.resolveSelectedDay]) y guarda de vuelta el día resuelto.
     private var requestedDay: LocalDate? = null
 
+    // Último inicio de semana resuelto de verdad (`Known` o `Missing`); `null` mientras la
+    // fuente no ha dado NI UNA respuesta. Existe para no DEGRADAR un dato bueno por un tropiezo
+    // posterior de Firestore: cada carga sigue releyendo el puerto (así una carga de ruta nueva
+    // a mitad de sesión se refleja), pero un `Unavailable` que llega después de un `Known` no
+    // borra la semana que ya se conocía.
+    private var lastResolvedCycle: CycleStart? = null
+
+    // Reintento en curso del inicio de semana. Es un job APARTE de [loadJob] para que
+    // sobreviva a las cancelaciones de carga: si el reintento colgara del `loadJob`, un
+    // `setPeriod` lo mataría y la auto-reparación no llegaría nunca.
+    private var cycleRetryJob: Job? = null
+
     init {
         telemetry.screenView(SCREEN)
         // Mantiene `darkTheme` sincronizado con el tema GLOBAL mientras la pantalla vive —
@@ -118,6 +133,69 @@ class CollectionReportViewModel @Inject constructor(
             }
         }
         load(ReportPeriod.DIA)
+    }
+
+    /**
+     * Inicio de semana para ESTA carga.
+     *
+     * Relee el puerto siempre (freshness: una carga de ruta nueva a mitad de sesión debe verse),
+     * pero con dos reglas que el `Instant?` anterior no podía expresar:
+     *  - un fallo ([CycleStart.Unavailable]) NO pisa un valor bueno anterior;
+     *  - un fallo SIN valor bueno previo agenda un reintento, y de ahí sale la auto-reparación:
+     *    cuando la fuente por fin responde, se recarga sola el periodo que esté en pantalla.
+     *    Antes esto era imposible — el reporte es todo `suspend` one-shot y se quedaba en $0
+     *    hasta que el cobrador salía y volvía a entrar.
+     */
+    private suspend fun resolveCycle(): CycleStart {
+        val fresh = readCycleStart()
+        if (fresh !is CycleStart.Unavailable) {
+            lastResolvedCycle = fresh
+            cycleRetryJob?.cancel()
+            cycleRetryJob = null
+            return fresh
+        }
+        lastResolvedCycle?.let { return it }
+        scheduleCycleRetry()
+        return CycleStart.Unavailable
+    }
+
+    /**
+     * Reintenta leer el inicio de semana con espera creciente y tope de intentos, y RECARGA en
+     * cuanto la fuente responde.
+     *
+     * No se reintenta ante [CycleStart.Missing] (lo corta [resolveCycle]): ésa es una respuesta
+     * real y estable — el cobrador no ha iniciado su semana — y machacar Firestore no la va a
+     * cambiar; lo que corresponde ahí es decírselo, que es lo que hace [applyNoCycle].
+     */
+    private fun scheduleCycleRetry() {
+        if (cycleRetryJob?.isActive == true) return
+        cycleRetryJob = viewModelScope.launch {
+            var wait = RETRY_INITIAL_MS
+            repeat(RETRY_ATTEMPTS) {
+                delay(wait)
+                wait = (wait * 2).coerceAtMost(RETRY_MAX_MS)
+                if (readCycleStart() !is CycleStart.Unavailable) {
+                    load(mutableState.value.period)
+                    return@launch
+                }
+            }
+        }
+    }
+
+    // Catch genérico deliberado, mismo criterio que `load`: el adapter real habla con Firestore
+    // y puede fallar con cualquier excepción. Un fallo NO es "no hay semana" — se clasifica como
+    // reintentable, que es la distinción que el `Instant?` anterior perdía.
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun readCycleStart(): CycleStart = try {
+        withContext(backgroundDispatcher) { userCyclePort.cycleStart() }
+    } catch (cancellation: CancellationException) {
+        throw cancellation
+    } catch (failure: Exception) {
+        telemetry.error(
+            code = "collection_report_cycle_unavailable",
+            message = failure.message ?: failure::class.simpleName.orEmpty()
+        )
+        CycleStart.Unavailable
     }
 
     /** Cambia el periodo (Día/Semana) y dispara una nueva carga con su rango. */
@@ -381,9 +459,26 @@ class CollectionReportViewModel @Inject constructor(
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             mutableState.update { it.copy(period = period, loading = true, error = null) }
+            val start = resolveCycle()
+            // Sin semana utilizable NO se consulta nada: un rango inventado produciría el $0.00
+            // con la tabla de pagos llena que se vio en campo. Se dice lo que pasa y ya.
+            val weekUsable = RangeCalculator.cycleRange(clock, start.instantOrNull) != null
+            // Día SÍ sigue siendo un día natural bien definido cuando lo único que falta es la
+            // fecha de carga (no hay contra qué recortar, pero "hoy" no depende de la semana).
+            // La excepción es una carga en el FUTURO: ahí `dayRange` también sale vacío, y
+            // pintar "sin cobros hoy" sobre un rango degenerado sería la misma mentira.
+            val dayUsable = start !is CycleStart.Known || weekUsable
+            val blocked = when (period) {
+                ReportPeriod.DIA -> !dayUsable
+                ReportPeriod.SEMANA -> !weekUsable
+            }
+            if (blocked) {
+                mutableState.update { applyNoCycle(it, period, start) }
+                return@launch
+            }
             try {
                 val sort = mutableState.value.sort
-                val content = fetchContent(period, sort)
+                val content = fetchContent(period, sort, start.instantOrNull)
                 lastPayments = content.payments
                 lastRange = content.range
                 // El día que de verdad se cargó (puede NO ser el pedido: ciclo nuevo -> hoy).
@@ -419,9 +514,10 @@ class CollectionReportViewModel @Inject constructor(
     // quita ese trabajo pesado de la animación (ver toggle-jank-diagnosis.md, fix 2).
     private suspend fun fetchContent(
         period: ReportPeriod,
-        sort: DetailSort
+        sort: DetailSort,
+        fechaCargaInicial: Instant?
     ): CollectionReportStateBuilder.LoadedContent = withContext(backgroundDispatcher) {
-        // fechaCargaInicial se pide en AMBOS periodos: el ciclo del cobrador abre en el INSTANTE
+        // fechaCargaInicial se usa en AMBOS periodos: el ciclo del cobrador abre en el INSTANTE
         // de la carga y ESE recorte aplica también al día (`inicioEfectivo(día) =
         // max(startOfDay(día), fechaCargaInicial)`, ver el KDoc de `RangeCalculator`) — sin este
         // valor, `RangeCalculator.dayRange` no tiene contra qué recortar y el día de la carga
@@ -436,7 +532,11 @@ class CollectionReportViewModel @Inject constructor(
         // `CollectionReportStateBuilder.buildHero` (DÍA -> `CobranzaSemanal(null, null, 0, 0)`) y
         // en el `salesPort` de abajo, que tampoco se consulta en Día. Pedir la fecha aquí no lo
         // enciende por accidente.
-        val fechaCargaInicial = userCyclePort.fechaCargaInicial()
+        //
+        // Ya NO se consulta el puerto aquí: llega resuelto desde [cycle] (una sola lectura por
+        // pantalla + reintentos), así el fallo transitorio de Firestore se maneja en un solo
+        // lugar y con reintento, en vez de aplanarse a `null` dentro de cada carga.
+        //
         // Días elegibles del ciclo (de la carga a hoy) y día realmente mostrado en Día: si el
         // usuario tenía elegido un día que el ciclo NUEVO ya no contiene, `resolveSelectedDay`
         // lo devuelve a hoy en vez de dejar la pantalla apuntando a un día fantasma.
@@ -446,12 +546,12 @@ class CollectionReportViewModel @Inject constructor(
                 CollectionReportDayStripBuilder.resolveSelectedDay(cycleDays, requestedDay)
             ReportPeriod.SEMANA -> null
         }
-        val range = CollectionReportStateBuilder.resolveRange(
-            period,
-            clock,
-            fechaCargaInicial,
-            selectedDay
-        )
+        // Invariante de [load]: aquí solo se llega con una ventana utilizable para el periodo
+        // pedido. Si alguien la rompe, revienta con mensaje y `load` lo convierte en banner de
+        // error — nunca en un rango inventado.
+        val range = checkNotNull(
+            CollectionReportStateBuilder.resolveRange(period, clock, fechaCargaInicial, selectedDay)
+        ) { "se pidió $period sin una ventana de semana utilizable" }
         val cobrador = userCyclePort.cobradorNombre()
         val payments = paymentsPort.paymentsIn(range)
         val forgiveness = paymentsPort.forgivenessIn(range)
@@ -470,10 +570,11 @@ class CollectionReportViewModel @Inject constructor(
         // carga), así los pagos del ciclo anterior no reviven el día de la carga. Solo en Día y
         // solo cuando hay tira que pintar: Semana no la muestra y un ciclo de un día no tiene
         // nada que elegir, así que ninguno paga esta consulta.
-        val dayGroups = if (period == ReportPeriod.DIA && cycleDays.size > 1) {
-            paymentsPort.paymentsGroupedByDaySince(
-                RangeCalculator.cycleRange(clock, fechaCargaInicial).startIso
-            )
+        // `cycleStartIso` es null exactamente cuando no hay semana utilizable — y ahí tampoco hay
+        // tira que atenuar (`cycleDays` trae 0 o 1 día), así que la consulta no se paga.
+        val cycleStartIso = RangeCalculator.cycleRange(clock, fechaCargaInicial)?.startIso
+        val dayGroups = if (period == ReportPeriod.DIA && cycleDays.size > 1 && cycleStartIso != null) {
+            paymentsPort.paymentsGroupedByDaySince(cycleStartIso)
         } else {
             emptyMap()
         }
@@ -513,6 +614,9 @@ class CollectionReportViewModel @Inject constructor(
         contentPeriod = period,
         loading = false,
         error = null,
+        // Se limpia al cargar con éxito: si el aviso se quedara pegado, el reporte diría "sin
+        // inicio de semana" encima de las cifras que acaba de reparar.
+        cycleNotice = "",
         cobrador = content.cobrador,
         rangeLabel = if (period == ReportPeriod.DIA) content.range.dayLabel() else content.range.cycleLabel(),
         pendingCount = content.pending,
@@ -556,6 +660,9 @@ class CollectionReportViewModel @Inject constructor(
         contentPeriod = period,
         loading = false,
         error = ERROR_MESSAGE,
+        // Un banner de error REEMPLAZA al aviso de semana: dos avisos apilados sobre un tablero
+        // en blanco no informan más, sólo compiten.
+        cycleNotice = "",
         rangeLabel = "",
         pendingCount = 0,
         hero = HeroUi(),
@@ -569,8 +676,62 @@ class CollectionReportViewModel @Inject constructor(
         visitRows = emptyList()
     )
 
+    /**
+     * Estado HONESTO cuando no hay ventana que consultar (defecto D5).
+     *
+     * Blanquea lo que depende del rango — igual que [applyError] y por la misma razón — pero
+     * NO usa `error`: no falló nada, falta un dato. La diferencia importa en pantalla: un $0.00
+     * bien maquetado sobre una tabla de pagos llena se lee como una cifra real ("no cobré
+     * nada"), y eso es exactamente lo que el cobrador reportó desde campo. El aviso corto de
+     * [cycleNoticeFor] dice qué falta.
+     *
+     * `cobrador`/`cycleDays`/`selectedDay` se conservan por el mismo criterio que en
+     * [applyError]: identidad y navegación no dependen del rango.
+     */
+    private fun applyNoCycle(
+        current: CollectionReportUiState,
+        period: ReportPeriod,
+        start: CycleStart
+    ): CollectionReportUiState = current.copy(
+        period = period,
+        contentPeriod = period,
+        loading = false,
+        error = null,
+        cycleNotice = cycleNoticeFor(start),
+        rangeLabel = "",
+        pendingCount = 0,
+        hero = HeroUi(),
+        efectivo = TileUi(label = "Efectivo"),
+        transferencia = TileUi(label = "Transferencia"),
+        condonado = ChipUi(label = "Condonado"),
+        visitas = ChipUi(label = "Visitas"),
+        detail = DetailUi.Payments(emptyList()),
+        dayPayments = emptyList(),
+        condonadoRows = emptyList(),
+        visitRows = emptyList()
+    )
+
+    /**
+     * Aviso es-MX del tablero cuando no hay semana (2-4 palabras, minúsculas, sin punto final;
+     * se dice "semana", nunca "ciclo"). Tres causas, tres mensajes: no es lo mismo que la
+     * fuente esté caída (se está reintentando) a que el cobrador no haya iniciado su semana
+     * (tiene que hacer algo) o a que la fecha guardada sea inservible.
+     */
+    private fun cycleNoticeFor(start: CycleStart): String = when (start) {
+        is CycleStart.Unavailable -> "semana no disponible"
+        is CycleStart.Missing -> "sin inicio de semana"
+        // Conocida pero inservible: cae en el futuro (reloj corrido o dato sucio).
+        is CycleStart.Known -> "fecha de semana inválida"
+    }
+
     private companion object {
         const val SCREEN = "collection_report"
         const val ERROR_MESSAGE = "no se pudo cargar el reporte de cobranza"
+
+        // Reintento del inicio de semana: 5 intentos con espera creciente (0.5s → 8s). Cubre el
+        // arranque con red intermitente sin machacar Firestore ni dejar la pantalla girando.
+        const val RETRY_ATTEMPTS = 5
+        const val RETRY_INITIAL_MS = 500L
+        const val RETRY_MAX_MS = 8_000L
     }
 }

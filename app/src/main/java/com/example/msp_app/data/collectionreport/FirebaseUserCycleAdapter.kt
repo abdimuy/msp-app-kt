@@ -2,10 +2,10 @@ package com.example.msp_app.data.collectionreport
 
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.models.auth.User
+import com.example.msp_app.feature.collectionreport.domain.port.CycleStart
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import java.time.Instant
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -20,16 +20,21 @@ import kotlinx.coroutines.tasks.await
  * ya cachea offline, así que la lectura one-shot es barata y respeta el corte de sesión/baseURL.
  *
  * **Contrato de datos (auditado vs [User] / schema Firestore):**
- *  - `FECHA_CARGA_INICIAL` es un `com.google.firebase.Timestamp?` → [Instant] vía
+ *  - `FECHA_CARGA_INICIAL` es un `com.google.firebase.Timestamp?` → `java.time.Instant` vía
  *    `toDate().toInstant()` (UTC, mismo puente que `AppNavigation`/`WeeklyReportScreen` viejo).
  *  - `NOMBRE` es el nombre del cobrador para el encabezado.
  *
- * **Degradación (no-regresión):** el reporte se alimenta de Room, no de este puerto; el
- * `userData` es una conveniencia de sesión. Por eso ambas lecturas degradan a
- * `null`/`""` ante ausencia de usuario o fallo de Firestore, en vez de propagar y forzar el
- * banner de error del tablero: en Día el reporte sigue renderizando con los datos locales, y en
- * Semana `RangeCalculator.cycleRange(null)` cae al rango de un día (fallback documentado), igual
- * que el `WeeklyReportScreen` viejo caía a `now()` cuando `FECHA_CARGA_INICIAL` era nula.
+ * **Degradación (defecto D5 — lo que cambió):** este adapter degradaba CUALQUIER excepción de
+ * Firestore a `null`, y ese `null` era indistinguible de "el cobrador no ha iniciado su semana".
+ * Aguas abajo, `RangeCalculator.cycleRange(null)` caía al rango de un día y el tablero mostraba
+ * $0.00 en la semana con la tabla de pagos llena — sin banner, sin aviso, y sin repararse solo
+ * (el reporte es todo `suspend` one-shot: se quedaba así hasta que el usuario salía y volvía a
+ * entrar). El fallo se seguía degradando (correcto: el reporte se alimenta de Room, no de este
+ * puerto), pero ya NO en silencio ni para siempre: se devuelve [CycleStart.Unavailable], que el
+ * ViewModel REINTENTA y, mientras tanto, anuncia en pantalla.
+ *
+ * Se conserva tal cual la degradación de [cobradorNombre] a `""`: un encabezado sin nombre no
+ * falsea ninguna cifra.
  *
  * [fetchUser] es inyectable **solo para test** (fakes-only, sin MockK); en producción usa el
  * usuario autenticado de Firebase + Firestore.
@@ -40,11 +45,12 @@ class FirebaseUserCycleAdapter(
 
     @Suppress(
         "TooGenericExceptionCaught"
-    ) // Firestore puede fallar con cualquier excepción; se degrada.
-    override suspend fun fechaCargaInicial(): Instant? = try {
-        fetchUser()?.FECHA_CARGA_INICIAL?.toDate()?.toInstant()
+    ) // Firestore puede fallar con cualquier excepción; se clasifica como reintentable.
+    override suspend fun cycleStart(): CycleStart = try {
+        val instant = fetchUser()?.FECHA_CARGA_INICIAL?.toDate()?.toInstant()
+        if (instant == null) CycleStart.Missing else CycleStart.Known(instant)
     } catch (failure: Exception) {
-        null
+        CycleStart.Unavailable
     }
 
     @Suppress("TooGenericExceptionCaught") // idem: la ausencia de nombre no debe tumbar el reporte.

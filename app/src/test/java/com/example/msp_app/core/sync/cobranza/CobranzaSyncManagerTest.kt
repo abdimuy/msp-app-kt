@@ -31,6 +31,14 @@ private const val CURSOR_VIEJO = "2020-01-01T00:00:00Z"
 private const val CURSOR_PAGINA_1 = "2026-06-01T10:00:00Z"
 private const val CURSOR_PAGINA_2 = "2026-06-01T11:00:00Z"
 
+/**
+ * El `UPDATED_AT` que el backfill de migración le puso a 1,835,734 de las
+ * 2,173,422 filas: todas empatadas en un mismo valor. Las pruebas que lo usan
+ * reproducen ese escenario — es el que rompe la paginación cuando el cliente
+ * solo persiste la mitad `UPDATED_AT` del cursor.
+ */
+private const val UPDATED_AT_BACKFILL = "2026-08-01T03:00:00.000000Z"
+
 class CobranzaSyncManagerTest : RoomTestBase() {
 
     @After
@@ -970,40 +978,53 @@ class CobranzaSyncManagerTest : RoomTestBase() {
     }
 
     /**
-     * Defensa: un pago PENDIENTE (GUARDADO_EN_MICROSIP=0, aún sin subir)
-     * jamás debe borrarse, aunque — de una forma que nunca debería pasar —
-     * un pago entrante trajera su mismo ID como pago_recibido_id. El server
-     * solo conoce el UUID de un pago que ya subió (GUARDADO=1); un
-     * pendiente nunca pudo haber llegado al server. Se prueba de todos
-     * modos como red de seguridad.
+     * D4 — LA CARRERA, extremo a extremo por el merge del sync.
+     *
+     * El cobrador captura el pago (fila UUID, `GUARDADO_EN_MICROSIP=0`) y el
+     * worker lo sube. El backend escribe el pago y emite el aviso al canal de
+     * sync **dentro de la misma transacción**, así que la fila numérica con
+     * `pago_recibido_id` puede llegar al teléfono ANTES de que
+     * `PendingPaymentsWorker.markDone` marque la bandera. Y si la respuesta
+     * HTTP nunca llega (timeout), la bandera se queda en 0 indefinidamente.
+     *
+     * Con el criterio viejo (`GUARDADO_EN_MICROSIP = 1`) el colapso no ocurría
+     * en esa ventana y el cobrador veía el pago DUPLICADO — el defecto
+     * reportado en campo. El criterio nuevo se apoya en la evidencia del
+     * servidor: `pago_recibido_id` prueba que el pago ya está en Microsip con
+     * su id asignado.
      */
     @Test
-    fun mergePagosNuncaBorraFilaUuidPendienteAunSiVieneReferenciada() = runTest {
-        val uuidPendiente = "c3c3c3c3-4444-5555-6666-777777777777"
+    fun mergePagosColapsaGemeloUuidAunSiElWorkerNoAlcanzoAMarcarLaBandera() = runTest {
+        val uuidEnVuelo = "c3c3c3c3-4444-5555-6666-777777777777"
         val seedPendiente = samplePayment(1403).copy(
-            ID = uuidPendiente,
+            ID = uuidEnVuelo,
             GUARDADO_EN_MICROSIP = false
         )
         db.paymentDao().saveAll(listOf(seedPendiente))
 
-        val numericoDto = pagoDto(impteId = 88003, doctoCcId = 1403, pagoRecibidoId = uuidPendiente)
+        val numericoDto = pagoDto(impteId = 88003, doctoCcId = 1403, pagoRecibidoId = uuidEnVuelo)
         val api = fakeApi(
             ventas = listOf(pagoPageEmpty()),
             pagos = listOf(pagoPage(items = listOf(numericoDto), hasMore = false))
         )
         newManager(api).syncNow()
 
-        val pendientes = db.paymentDao().getPendingPayments()
-        assertTrue(
-            "la fila pendiente jamás se borra, sin importar pago_recibido_id",
-            pendientes.any { it.ID == uuidPendiente }
+        val pagos = db.paymentDao().getPaymentsBySaleId(1403)
+        assertEquals(
+            "el cobrador no debe ver el pago duplicado: solo la fila numérica",
+            1,
+            pagos.size
         )
+        assertEquals("88003", pagos.first().ID)
+        assertNull(db.paymentDao().getPaymentById(uuidEnVuelo))
     }
 
     /**
-     * Caso mínimo: un pago pendiente de OTRO pago (no referenciado por
-     * ningún pago_recibido_id entrante) sobrevive un merge normal sin
-     * cambios.
+     * La protección de fondo, ahora que la bandera dejó de ser el criterio:
+     * una captura que NUNCA llegó al servidor no puede estar referenciada por
+     * ningún `pago_recibido_id` — el UUID lo genera el teléfono y el servidor
+     * no puede nombrar uno que no recibió. Aquí baja una página con otro pago
+     * y la captura pendiente sigue intacta y sigue pendiente.
      */
     @Test
     fun mergePagosPendienteNoReferenciadoSobreviveMergeNormal() = runTest {
@@ -1023,6 +1044,48 @@ class CobranzaSyncManagerTest : RoomTestBase() {
 
         val pendientes = db.paymentDao().getPendingPayments()
         assertTrue(pendientes.any { it.ID == uuidPendiente })
+    }
+
+    /**
+     * La misma protección, presionada: la página trae un `pago_recibido_id`
+     * REAL (de otra captura, ya colapsable) mientras conviven dos capturas
+     * pendientes que el servidor nunca vio. Sólo se colapsa la nombrada; las
+     * otras dos siguen en la cola de subida.
+     */
+    @Test
+    fun mergePagosNoBorraCapturasPendientesQueElServidorNuncaNombro() = runTest {
+        val uuidNombrado = "aa000000-0000-4000-8000-000000000001"
+        val uuidPendienteA = "bb000000-0000-4000-8000-000000000002"
+        val uuidPendienteB = "cc000000-0000-4000-8000-000000000003"
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(1409).copy(ID = uuidNombrado, GUARDADO_EN_MICROSIP = false),
+                samplePayment(1409).copy(ID = uuidPendienteA, GUARDADO_EN_MICROSIP = false),
+                samplePayment(1410).copy(ID = uuidPendienteB, GUARDADO_EN_MICROSIP = false)
+            )
+        )
+
+        val numericoDto = pagoDto(impteId = 88009, doctoCcId = 1409, pagoRecibidoId = uuidNombrado)
+        val api = fakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(pagoPage(items = listOf(numericoDto), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        assertNull(
+            "el UUID nombrado por el servidor colapsa",
+            db.paymentDao().getPaymentById(uuidNombrado)
+        )
+        assertNotNull(
+            "la captura pendiente del mismo cargo NO se toca",
+            db.paymentDao().getPaymentById(uuidPendienteA)
+        )
+        assertNotNull(
+            "la captura pendiente de otro cargo NO se toca",
+            db.paymentDao().getPaymentById(uuidPendienteB)
+        )
+        val pendientes = db.paymentDao().getPendingPayments().map { it.ID }
+        assertEquals(setOf(uuidPendienteA, uuidPendienteB), pendientes.toSet())
     }
 
     // ─── Migración one-time: resync completo de pagos (pago_recibido_id) ───
@@ -1658,6 +1721,272 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         assertEquals(4, db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.EPOCH)
     }
 
+    // ─── AFTER_ID: la otra mitad del cursor (D1) ───────────────────────────
+
+    /**
+     * EL defecto medido en campo: la zona 634157 re-descargaba 2,057 pagos cada
+     * ~76 segundos, indefinidamente.
+     *
+     * El servidor pagina por el par `(UPDATED_AT, PK)`. El cliente persistía
+     * solo `UPDATED_AT` y arrancaba cada corrida con `after_id = 0`, con el
+     * argumento de que reprocesar el inicio del grupo empatado solo gastaba
+     * red. El argumento asumía un grupo chico: el backfill de migración dejó
+     * 1,835,734 de 2,173,422 filas compartiendo un único `UPDATED_AT`, así que
+     * el grupo empatado es el historial completo y la paginación nunca sale de
+     * él.
+     *
+     * Aquí TODAS las filas comparten `updated_at`, igual que en producción. La
+     * segunda corrida debe arrancar del `after_id` persistido; si arrancara en
+     * 0 volvería a bajar el mismo lote para siempre.
+     */
+    @Test
+    fun segundaCorridaRetomaDelAfterIdPersistidoConTodoElLoteEmpatado() = runTest {
+        seedMigrationMarkers()
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty(), pagoPageEmpty()),
+            pagos = listOf(
+                PagoPage(
+                    items = listOf(pagoBackfill(15808001, 4001), pagoBackfill(15808002, 4002)),
+                    hasMore = true
+                ),
+                PagoPage(
+                    items = listOf(pagoBackfill(15808003, 4003), pagoBackfill(15808004, 4004)),
+                    hasMore = false
+                ),
+                PagoPage(items = emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertEquals(
+            "el cursor se ve idéntico en las tres llamadas: todas las filas " +
+                "comparten UPDATED_AT, por eso el cursor solo no alcanza",
+            listOf(null, UPDATED_AT_BACKFILL, UPDATED_AT_BACKFILL),
+            api.pagosCursorCalls
+        )
+        assertEquals(
+            "la segunda corrida arranca donde quedó la primera (15808004), " +
+                "no en 0: sin esto el mismo lote se re-descarga en cada tick",
+            listOf(0, 15808002, 15808004),
+            api.pagosAfterIdCalls
+        )
+        val state = db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_PAGOS)!!
+        assertEquals(15808004, state.AFTER_ID)
+        assertEquals(UPDATED_AT_BACKFILL, state.CURSOR)
+    }
+
+    /**
+     * Mismo arreglo, mismo camino de código, el otro recurso: ventas también
+     * persiste su `after_id` (su PK es `DOCTO_CC_ID`).
+     */
+    @Test
+    fun ventasTambienPersisteSuAfterIdEntreCorridas() = runTest {
+        seedMigrationMarkers()
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(
+                    items = listOf(
+                        ventaDto(7001, updatedAt = UPDATED_AT_BACKFILL),
+                        ventaDto(7002, updatedAt = UPDATED_AT_BACKFILL)
+                    ),
+                    hasMore = false
+                ),
+                VentaPage(items = emptyList(), hasMore = false)
+            ),
+            pagos = listOf(
+                pagoPage(emptyList(), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertEquals(listOf(0, 7002), api.ventasAfterIdCalls)
+        assertEquals(
+            7002,
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.AFTER_ID
+        )
+    }
+
+    /**
+     * El caso que el comentario viejo daba por resuelto ("si la app se mata a
+     * media corrida... solo gasta red"): la corrida muere en la segunda página
+     * y el siguiente arranque retoma desde la última página REALMENTE aplicada,
+     * no desde el inicio del grupo empatado.
+     */
+    @Test
+    fun corridaInterrumpidaRetomaDesdeLaUltimaPaginaAplicada() = runTest {
+        seedMigrationMarkers()
+        val apiCaido = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(
+                PagoPage(items = listOf(pagoBackfill(15808010, 4010)), hasMore = true),
+                PagoPage(items = emptyList(), hasMore = false, fails = true)
+            )
+        )
+        assertTrue(newManager(apiCaido).syncNow() is SyncOutcome.Error)
+        assertEquals(
+            "la página aplicada dejó su after_id persistido antes de morir",
+            15808010,
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_PAGOS)!!.AFTER_ID
+        )
+
+        val apiReintento = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(PagoPage(items = emptyList(), hasMore = false))
+        )
+        newManager(apiReintento).syncNow()
+
+        assertEquals(listOf(15808010), apiReintento.pagosAfterIdCalls)
+    }
+
+    /**
+     * Una página vacía NO es la posición 0.
+     *
+     * El servidor, cuando no hay filas nuevas, devuelve el cursor que recibió
+     * tal cual (`SyncPage.MaxUpdatedAt` del backend), así que la posición
+     * dentro del grupo empatado sigue siendo la misma. Traducir "vacía" a
+     * `after_id = 0` reintroduce el bucle un tick más tarde: tick con lote →
+     * tick vacío que borra la posición → tick que vuelve a bajar el lote
+     * entero, y así para siempre. Tres corridas seguidas es lo mínimo para
+     * verlo: la tercera tiene que seguir pidiendo desde el mismo after_id.
+     */
+    @Test
+    fun paginaVaciaNoReiniciaElAfterIdPersistido() = runTest {
+        seedMigrationMarkers()
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty(), pagoPageEmpty(), pagoPageEmpty()),
+            pagos = listOf(
+                PagoPage(items = listOf(pagoBackfill(15808020, 4020)), hasMore = false),
+                PagoPage(items = emptyList(), hasMore = false),
+                PagoPage(items = emptyList(), hasMore = false)
+            )
+        )
+        val mgr = newManager(api)
+        mgr.syncNow()
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertEquals(
+            "ni la corrida vacía ni la siguiente vuelven a 0",
+            listOf(0, 15808020, 15808020),
+            api.pagosAfterIdCalls
+        )
+        assertEquals(
+            15808020,
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_PAGOS)!!.AFTER_ID
+        )
+    }
+
+    // ─── Invariante: cursor y after_id son un par ──────────────────────────
+
+    /**
+     * Invariante duro: todo camino que deje el cursor en null tiene que dejar
+     * el `after_id` en 0 en la MISMA operación. Si no, el replay arrancaría a
+     * media tabla y se saltaría el principio del grupo empatado — un cache
+     * incompleto que ningún sync posterior repone (el `UPDATED_AT` de esas
+     * filas no vuelve a cambiar).
+     *
+     * Camino 1: limpieza por cambio de zona (`zonaChangeCleanupIfNeeded` →
+     * `syncStateDao.clear`).
+     */
+    @Test
+    fun cambioDeZonaDejaCursorNuloYAfterIdEnCero() = runTest {
+        seedMigrationMarkers()
+        val apiZona21 = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(
+                    items = listOf(ventaDto(7101, zonaId = 21, updatedAt = UPDATED_AT_BACKFILL)),
+                    hasMore = false
+                )
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiZona21, zona = 21).syncNow()
+        assertEquals(
+            7101,
+            db.cobranzaSyncStateDao().get(CobranzaSyncManager.RESOURCE_VENTAS)!!.AFTER_ID
+        )
+
+        val apiZona42 = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(items = listOf(ventaDto(7102, zonaId = 42)), hasMore = false)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(apiZona42, zona = 42).syncNow()
+
+        assertEquals("la zona nueva arranca sin cursor", listOf(null), apiZona42.ventasCursorCalls)
+        assertEquals(
+            "y con after_id en 0: el par se limpia junto o el replay se salta filas",
+            listOf(0),
+            apiZona42.ventasAfterIdCalls
+        )
+    }
+
+    /**
+     * Camino 2: el replay por cambio de generación dentro de `syncResource`.
+     * Descarta el cursor a media corrida, así que tiene que descartar el
+     * `after_id` de la corrida anterior en el mismo paso.
+     */
+    @Test
+    fun replayPorEpochReiniciaElAfterIdJuntoConElCursor() = runTest {
+        seedSyncState(
+            CobranzaSyncManager.RESOURCE_VENTAS,
+            cursor = CURSOR_VIEJO,
+            epoch = 7,
+            afterId = 7205
+        )
+
+        val api = RecordingFakeApi(
+            ventas = listOf(
+                VentaPage(items = listOf(ventaDto(7201)), hasMore = false, epoch = 8),
+                VentaPage(items = listOf(ventaDto(7201)), hasMore = false, epoch = 8)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        assertEquals(listOf(CURSOR_VIEJO, null), api.ventasCursorCalls)
+        assertEquals(
+            "el replay arranca desde el principio del grupo: after_id vuelve a 0",
+            listOf(7205, 0),
+            api.ventasAfterIdCalls
+        )
+    }
+
+    /**
+     * Camino 3: las migraciones one-time de resync de pagos
+     * (`resetPagosCursorOnce` → `syncStateDao.clear`). Se siembra un estado de
+     * pagos "ya avanzado" —cursor y after_id— sin marcadores, así que la
+     * migración lo descarta: los dos, no solo el cursor.
+     */
+    @Test
+    fun resyncOneTimeDePagosLimpiaElParCompleto() = runTest {
+        seedSyncState(
+            CobranzaSyncManager.RESOURCE_PAGOS,
+            cursor = CURSOR_VIEJO,
+            epoch = null,
+            afterId = 7305
+        )
+
+        val api = RecordingFakeApi(
+            ventas = listOf(pagoPageEmpty()),
+            pagos = listOf(PagoPage(items = emptyList(), hasMore = false))
+        )
+        newManager(api).syncNow()
+
+        assertEquals(listOf(null), api.pagosCursorCalls)
+        assertEquals(
+            "el resync one-time descarta el par entero, no media mitad",
+            listOf(0),
+            api.pagosAfterIdCalls
+        )
+    }
+
     // ─── Cargo cancelado: el pago del cobrador nunca se pierde ─────────────
 
     /**
@@ -1841,7 +2170,12 @@ class CobranzaSyncManagerTest : RoomTestBase() {
      * campo: cursor ya avanzado y una generación aplicada (o NULL, que es lo
      * que hereda de la migración 27→28).
      */
-    private suspend fun seedSyncState(resource: String, cursor: String?, epoch: Int?) {
+    private suspend fun seedSyncState(
+        resource: String,
+        cursor: String?,
+        epoch: Int?,
+        afterId: Int = 0
+    ) {
         db.cobranzaSyncStateDao().upsert(
             CobranzaSyncStateEntity(
                 RESOURCE = resource,
@@ -1849,7 +2183,8 @@ class CobranzaSyncManagerTest : RoomTestBase() {
                 CURSOR = cursor,
                 LAST_SYNCED_AT = "2026-08-01T00:00:00Z",
                 LAST_ERROR = null,
-                EPOCH = epoch
+                EPOCH = epoch,
+                AFTER_ID = afterId
             )
         )
     }
@@ -1866,6 +2201,15 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             CobranzaSyncManager.MIGRATION_PURGE_LEGACY_PAGO_IDS
         ).forEach { marker -> seedSyncState(marker, cursor = null, epoch = null) }
     }
+
+    /**
+     * Pago del lote que dejó el backfill de migración: lo único que lo
+     * distingue de [pagoDto] es que todos comparten el mismo `updated_at`,
+     * que es justo lo que hace insuficiente al cursor por sí solo.
+     */
+    private fun pagoBackfill(impteId: Int, doctoCcId: Int) =
+        pagoDto(impteId = impteId, doctoCcId = doctoCcId)
+            .copy(updated_at = UPDATED_AT_BACKFILL)
 
     private fun page(items: List<VentaDto>, hasMore: Boolean) = VentaPage(items, hasMore)
     private fun pagoPage(items: List<PagoDto>, hasMore: Boolean) = PagoPage(items, hasMore)
@@ -1894,6 +2238,17 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         val pagosCursorCalls = mutableListOf<String?>()
         val ventasCursorCalls = mutableListOf<String?>()
 
+        /**
+         * La otra mitad del cursor `(UPDATED_AT, after_id)`. Se registra
+         * aparte de [ventasCursorCalls]/[pagosCursorCalls] porque el defecto
+         * que motivó persistir `AFTER_ID` es invisible mirando solo el
+         * cursor: con todas las filas empatadas en el mismo `UPDATED_AT`, el
+         * cursor de la segunda corrida se ve idéntico esté o no el arreglo —
+         * lo que cambia es el `after_id` con el que arranca.
+         */
+        val ventasAfterIdCalls = mutableListOf<Int>()
+        val pagosAfterIdCalls = mutableListOf<Int>()
+
         override suspend fun syncVentas(
             zonaId: Int,
             cursor: String?,
@@ -1903,6 +2258,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         ): SyncVentasResponse {
             ventasDesdeCalls.add(desde)
             ventasCursorCalls.add(cursor)
+            ventasAfterIdCalls.add(afterId)
             val p = ventas.getOrNull(ventasIdx) ?: error("syncVentas called too many times")
             ventasIdx++
             if (p.fails) throw RuntimeException("network down a media paginación")
@@ -1924,6 +2280,7 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         ): SyncPagosResponse {
             pagosDesdeCalls.add(desde)
             pagosCursorCalls.add(cursor)
+            pagosAfterIdCalls.add(afterId)
             val p = pagos.getOrNull(pagosIdx) ?: error("syncPagos called too many times")
             pagosIdx++
             if (p.fails) throw RuntimeException("network down a media paginación")

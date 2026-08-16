@@ -11,6 +11,7 @@ import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
 import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
+import com.example.msp_app.feature.collectionreport.domain.port.CycleStart
 import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotalsPort
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
 import com.example.msp_app.feature.collectionreport.domain.port.ReportThemePort
@@ -79,20 +80,41 @@ class FakeVisitsPort : VisitsPort {
     }
 }
 
-/** Fake de [UserCyclePort]. */
+/**
+ * Fake de [UserCyclePort].
+ *
+ * [fechaCarga] es el atajo del caso feliz (equivale a `CycleStart.Known`); `null` equivale a
+ * [CycleStart.Missing]. Para los casos que el `Instant?` no sabía expresar hay dos palancas:
+ *  - [scriptedStarts]: una cola de respuestas consumida en orden (la última se repite) — así un
+ *    test puede simular "Firestore falla y DESPUÉS responde" y comprobar la auto-reparación;
+ *  - [nextStart]: la respuesta fija cuando no hay guion.
+ */
 class FakeUserCyclePort(
     var fechaCarga: Instant? = null,
     var nombre: String = "Cobrador Prueba"
 ) : UserCyclePort {
 
-    var fechaCargaInicialCalls: Int = 0
+    /** Respuestas en orden; la última se repite indefinidamente. Vacía = usa [nextStart]. */
+    val scriptedStarts: MutableList<CycleStart> = mutableListOf()
+
+    /** Respuesta cuando no hay guion; por defecto se deriva de [fechaCarga]. */
+    var nextStart: CycleStart? = null
+
+    var cycleStartCalls: Int = 0
         private set
     var cobradorNombreCalls: Int = 0
         private set
 
-    override suspend fun fechaCargaInicial(): Instant? {
-        fechaCargaInicialCalls++
-        return fechaCarga
+    override suspend fun cycleStart(): CycleStart {
+        cycleStartCalls++
+        if (scriptedStarts.isNotEmpty()) {
+            return if (scriptedStarts.size == 1) {
+                scriptedStarts.first()
+            } else {
+                scriptedStarts.removeAt(0)
+            }
+        }
+        return nextStart ?: fechaCarga?.let { CycleStart.Known(it) } ?: CycleStart.Missing
     }
 
     override suspend fun cobradorNombre(): String {

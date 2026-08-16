@@ -6,6 +6,8 @@ import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -32,6 +34,19 @@ class RangeCalculatorTest {
         val end = Instant.parse(range.endExclusiveIso)
         return !t.isBefore(start) && t.isBefore(end)
     }
+
+    /**
+     * [RangeCalculator.cycleRange] donde SÍ debe existir semana. Falla el test —con mensaje— si
+     * devuelve `null`, en vez de dejar que un `!!` reviente con un NPE sin contexto.
+     */
+    private fun cycle(clock: FakeClock, carga: Instant?): DateRange = requireNotNull(
+        RangeCalculator.cycleRange(clock, carga)
+    ) { "se esperaba una semana utilizable para carga=$carga" }
+
+    /** [RangeCalculator.cycleInfo] donde SÍ debe existir semana (ver [cycle]). */
+    private fun info(clock: FakeClock, carga: Instant?): CycleInfo = requireNotNull(
+        RangeCalculator.cycleInfo(clock, carga)
+    ) { "se esperaban etiquetas de semana para carga=$carga" }
 
     // region — dayRange
 
@@ -83,11 +98,14 @@ class RangeCalculatorTest {
     }
 
     @Test
-    fun `dayRange con carga null equivale al dia de hoy completo`() {
-        assertEquals(
-            RangeCalculator.cycleRange(noonAug7Cdmx, null),
-            RangeCalculator.dayRange(noonAug7Cdmx, null)
-        )
+    fun `dayRange con carga null sigue siendo el dia de hoy completo`() {
+        // Sin fecha de carga no hay contra qué recortar, pero "hoy" sigue siendo un día natural
+        // bien definido: Día NO se degrada por no saber dónde abre la semana (lo que sí se
+        // degrada es la SEMANA, ver la región cycleRange).
+        val range = RangeCalculator.dayRange(noonAug7Cdmx, null)
+        assertEquals("2026-08-07T06:00:00Z", range.startIso)
+        assertEquals("2026-08-08T06:00:00Z", range.endExclusiveIso)
+        assertEquals(1, range.days)
     }
 
     // region — dayRange(day) fuera del ciclo: vacío bien formado, jamás invertido
@@ -141,7 +159,7 @@ class RangeCalculatorTest {
     fun `cycleRange abarca desde el INSTANTE de la carga hasta el fin exclusivo de hoy`() {
         // Carga: 3-ago 10:00 CDMX. El inicio conserva la hora; el conteo de días
         // sigue siendo por calendario (3-ago … 7-ago = 5).
-        val range = RangeCalculator.cycleRange(noonAug7Cdmx, Instant.parse("2026-08-03T16:00:00Z"))
+        val range = cycle(noonAug7Cdmx, Instant.parse("2026-08-03T16:00:00Z"))
         assertEquals("2026-08-03T16:00:00Z", range.startIso)
         assertEquals("2026-08-08T06:00:00Z", range.endExclusiveIso)
         assertEquals(5, range.days)
@@ -149,22 +167,41 @@ class RangeCalculatorTest {
 
     @Test
     fun `cycleRange fin EXCLUSIVO - pago de hoy a las 23-59-59 SI cuenta`() {
-        val range = RangeCalculator.cycleRange(noonAug7Cdmx, Instant.parse("2026-08-03T16:00:00Z"))
+        val range = cycle(noonAug7Cdmx, Instant.parse("2026-08-03T16:00:00Z"))
         assertTrue(contains(range, "2026-08-08T05:59:59Z"))
         assertFalse(contains(range, "2026-08-08T06:00:00Z"))
     }
 
+    /**
+     * TEST INVERTIDO A PROPÓSITO — antes: "cycleRange con carga null cae al día de hoy completo".
+     *
+     * Ese fallback ES el defecto D5 que se vio en campo: sin `FECHA_CARGA_INICIAL` (Firestore
+     * ausente o caído) la ventana de la SEMANA se encogía a un día y el tablero mostraba $0.00
+     * cobrado con la tabla de pagos llena. Que la causa fuera el rango y no una resincronización
+     * quedó probado en el mismo tablero: el contador de VENTAS (103, sin filtro de fecha)
+     * sobrevivía intacto mientras los pagos daban 0 — sólo un rango malo produce `0/103`.
+     *
+     * La regla nueva: sin fecha de carga NO hay semana, y eso se dice (null), no se disfraza.
+     */
     @Test
-    fun `cycleRange con carga null cae al dia de hoy completo`() {
+    fun `cycleRange con carga null es null - NO cae al dia de hoy`() {
+        assertNull(RangeCalculator.cycleRange(noonAug7Cdmx, null))
+    }
+
+    @Test
+    fun `cycleRange con carga null no empieza ni hoy ni ahora`() {
+        // Criterio de aceptación 1, dicho como propiedad y no como igualdad puntual: sea cual
+        // sea el resultado, NO puede ser una ventana que arranque en el día de hoy ni en `now()`.
         val range = RangeCalculator.cycleRange(noonAug7Cdmx, null)
-        assertEquals("2026-08-07T06:00:00Z", range.startIso)
-        assertEquals("2026-08-08T06:00:00Z", range.endExclusiveIso)
-        assertEquals(1, range.days)
+        val hoy = RangeCalculator.dayRange(noonAug7Cdmx, null)
+        assertNull(range)
+        assertNotEquals(hoy.startIso, range?.startIso)
+        assertNotEquals("2026-08-07T18:00:00Z", range?.startIso)
     }
 
     @Test
     fun `cycleRange con carga hoy es un ciclo de un dia que abre a la hora de la carga`() {
-        val range = RangeCalculator.cycleRange(noonAug7Cdmx, Instant.parse("2026-08-07T15:00:00Z"))
+        val range = cycle(noonAug7Cdmx, Instant.parse("2026-08-07T15:00:00Z"))
         assertEquals("2026-08-07T15:00:00Z", range.startIso)
         assertEquals("2026-08-08T06:00:00Z", range.endExclusiveIso)
         assertEquals(1, range.days)
@@ -183,24 +220,35 @@ class RangeCalculatorTest {
         // conservando de aquel test: la fecha de NEGOCIO del inicio es el 2-ago
         // (no el 3, que es la fecha del instante en UTC), y por eso el conteo de
         // días no se mueve. Lo que cambia: el inicio ya no se trunca a las 00:00.
-        val range = RangeCalculator.cycleRange(noonAug7Cdmx, Instant.parse("2026-08-03T05:30:00Z"))
+        val range = cycle(noonAug7Cdmx, Instant.parse("2026-08-03T05:30:00Z"))
         assertEquals("2026-08-03T05:30:00Z", range.startIso)
         assertEquals(LocalDate.of(2026, 8, 2), range.startDate)
         assertEquals(6, range.days)
         assertFalse(contains(range, "2026-08-03T05:29:59Z"))
     }
 
+    /**
+     * La guarda `minOf(carga, cycleEnd)` NO se tocó: sigue impidiendo un rango invertido, y este
+     * test lo prueba donde vive — en `dayRange`/`cycleDays`, que son los que la consumen. Lo
+     * único que cambia es aguas arriba: [RangeCalculator.cycleRange] ya no SIRVE ese vacío
+     * permanente como si fuera una semana real, porque "$0 cobrado" y "tu fecha de semana no
+     * sirve" no son la misma respuesta (ver el test de abajo).
+     */
     @Test
-    fun `cycleRange con carga en el FUTURO sale vacio, jamas invertido`() {
-        // Reloj corrido o dato sucio en Firestore: la carga cae después del fin
-        // del ciclo. Se topa contra el fin en vez de producir start > end.
+    fun `carga en el FUTURO - la guarda sigue dando vacio bien formado, jamas invertido`() {
+        // Reloj corrido o dato sucio en Firestore: la carga cae después del fin del ciclo.
         val cargaFutura = Instant.parse("2026-09-01T16:00:00Z")
-        val range = RangeCalculator.cycleRange(noonAug7Cdmx, cargaFutura)
-        assertEquals(range.startIso, range.endExclusiveIso)
-        assertEquals("2026-08-08T06:00:00Z", range.startIso)
-        assertEquals(0, range.days)
-        assertFalse(contains(range, "2026-08-07T18:00:00Z"))
+        val dia = RangeCalculator.dayRange(noonAug7Cdmx, LocalDate.of(2026, 8, 7), cargaFutura)
+        assertEquals(dia.startIso, dia.endExclusiveIso)
+        assertEquals(0, dia.days)
+        assertFalse(contains(dia, "2026-08-07T18:00:00Z"))
         assertTrue(RangeCalculator.cycleDays(noonAug7Cdmx, cargaFutura).isEmpty())
+    }
+
+    @Test
+    fun `cycleRange con carga en el FUTURO es null, no un vacio que parezca semana`() {
+        assertNull(RangeCalculator.cycleRange(noonAug7Cdmx, Instant.parse("2026-09-01T16:00:00Z")))
+        assertNull(RangeCalculator.cycleInfo(noonAug7Cdmx, Instant.parse("2026-09-01T16:00:00Z")))
     }
 
     // region — cycleDays
@@ -251,7 +299,7 @@ class RangeCalculatorTest {
             ),
             days
         )
-        assertEquals(days.size, RangeCalculator.cycleRange(clock, carga).days)
+        assertEquals(days.size, cycle(clock, carga).days)
     }
 
     // region — incidente ruta 34 (13-ago-2026): el doble conteo de $3,150
@@ -264,7 +312,7 @@ class RangeCalculatorTest {
 
     @Test
     fun `ruta 34 - los pagos previos a la carga del mismo dia quedan FUERA del ciclo`() {
-        val range = RangeCalculator.cycleRange(jueves13Cdmx, cargaRuta34)
+        val range = cycle(jueves13Cdmx, cargaRuta34)
         assertEquals("2026-08-07T01:33:00Z", range.startIso)
         assertEquals("2026-08-14T06:00:00Z", range.endExclusiveIso)
         // Pago de las 17:05 del 6-ago (== 23:05Z): del ciclo ANTERIOR, fuera.
@@ -284,11 +332,11 @@ class RangeCalculatorTest {
         // naturales (jue 6 … jue 13) aunque el primero sea parcial. Que el día de
         // la carga pueda verse en $0 es transparencia buscada, no un bug — no
         // "arreglar" esto recorriendo el inicio al día siguiente.
-        val info = RangeCalculator.cycleInfo(jueves13Cdmx, cargaRuta34)
+        val info = info(jueves13Cdmx, cargaRuta34)
         assertEquals(8, info.days)
         assertEquals("semana · jue 6 – jue 13 ago · 8 días", info.cycleLabel)
         assertEquals("jueves 13 ago 2026", info.dayLabel)
-        assertEquals(8, RangeCalculator.cycleRange(jueves13Cdmx, cargaRuta34).days)
+        assertEquals(8, cycle(jueves13Cdmx, cargaRuta34).days)
     }
 
     @Test
@@ -329,7 +377,7 @@ class RangeCalculatorTest {
      * NO cuadraba con el inicio truncado a medianoche.
      */
     private fun assertDiasCubrenElCicloSinHuecos(clock: FakeClock, carga: Instant?) {
-        val cycle = RangeCalculator.cycleRange(clock, carga)
+        val cycle = cycle(clock, carga)
         val days = RangeCalculator.cycleDays(clock, carga)
         assertTrue("cycleDays no debe venir vacío para un ciclo no vacío", days.isNotEmpty())
         assertEquals("cycleDays debe tener un día por día del ciclo", cycle.days, days.size)
@@ -359,10 +407,10 @@ class RangeCalculatorTest {
         assertDiasCubrenElCicloSinHuecos(jueves13Cdmx, cargaRuta34)
     }
 
-    @Test
-    fun `los dayRange del ciclo cubren el cycleRange sin huecos ni traslapes - carga null`() {
-        assertDiasCubrenElCicloSinHuecos(noonAug7Cdmx, null)
-    }
+    // El caso "carga null" YA NO aplica a esta invariante: sin fecha de carga no hay ciclo que
+    // cubrir (`cycleRange` devuelve null). Lo que sustituye a aquel test es la pareja
+    // `cycleRange con carga null es null` / `cycleDays con carga null devuelve solo hoy`, que
+    // fija ambas mitades del contrato nuevo.
 
     @Test
     fun `los dayRange del ciclo cubren el cycleRange sin huecos ni traslapes - carga hoy`() {
@@ -391,7 +439,7 @@ class RangeCalculatorTest {
 
     @Test
     fun `cycleInfo produce dias y etiquetas es-MX`() {
-        val info = RangeCalculator.cycleInfo(noonAug7Cdmx, Instant.parse("2026-08-03T16:00:00Z"))
+        val info = info(noonAug7Cdmx, Instant.parse("2026-08-03T16:00:00Z"))
         assertEquals(5, info.days)
         assertEquals("semana · lun 3 – vie 7 ago · 5 días", info.cycleLabel)
         assertEquals("viernes 7 ago 2026", info.dayLabel)
@@ -399,15 +447,15 @@ class RangeCalculatorTest {
 
     @Test
     fun `cycleInfo ciclo de un dia usa singular dia`() {
-        val info = RangeCalculator.cycleInfo(noonAug7Cdmx, Instant.parse("2026-08-07T15:00:00Z"))
+        val info = info(noonAug7Cdmx, Instant.parse("2026-08-07T15:00:00Z"))
         assertEquals(1, info.days)
         assertEquals("semana · vie 7 ago · 1 día", info.cycleLabel)
         assertEquals("viernes 7 ago 2026", info.dayLabel)
     }
 
     @Test
-    fun `cycleInfo con carga null equivale a un dia`() {
-        assertEquals(1, RangeCalculator.cycleInfo(noonAug7Cdmx, null).days)
+    fun `cycleInfo con carga null es null - no se inventan etiquetas de semana`() {
+        assertNull(RangeCalculator.cycleInfo(noonAug7Cdmx, null))
     }
 
     // region — offset UTC histórico a través de una transición DST (2021)
@@ -429,7 +477,7 @@ class RangeCalculatorTest {
         // horas: de 05:00Z (todavía DST) a 06:00Z del 1-nov (ya estándar).
         val clock = FakeClock(Instant.parse("2021-11-01T18:00:00Z")) // 1-nov 12:00 CDMX
         val carga = Instant.parse("2021-10-30T15:00:00Z") // 30-oct 10:00 CDMX (DST)
-        val range = RangeCalculator.cycleRange(clock, carga)
+        val range = cycle(clock, carga)
         assertEquals("2021-10-30T15:00:00Z", range.startIso) // instante de la carga, en DST
         assertEquals("2021-11-02T06:00:00Z", range.endExclusiveIso) // borde en estándar (-06:00)
         assertEquals(3, range.days)

@@ -125,7 +125,7 @@ class CollectionReportDaySelectionTest {
 
         val state = vm.state.value
         assertEquals(ReportPeriod.DIA, state.period)
-        assertEquals(1, userCyclePort.fechaCargaInicialCalls) // la fecha SÍ se pide
+        assertEquals(1, userCyclePort.cycleStartCalls) // la fecha SÍ se pide
         assertEquals(0, salesPort.nonContadoActiveSalesCalls) // la meta NO se calcula
         assertEquals(0f, state.hero.porcentajeCobro)
         assertEquals(0f, state.hero.porcentajeCuentas)

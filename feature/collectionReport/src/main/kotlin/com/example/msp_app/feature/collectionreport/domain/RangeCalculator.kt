@@ -57,6 +57,20 @@ data class CycleInfo(
  * traslapes y la unión de todos cubre exactamente [cycleRange]. Eso es lo que
  * garantiza que la suma de los días cuadre con el total de la semana — que es
  * justo lo que NO cuadraba antes de este cambio.
+ *
+ * ## Sin fecha de carga NO hay semana (defecto D5)
+ *
+ * [cycleRange] devolvía el día de HOY cuando `fechaCargaInicial` era `null`. Ese
+ * "fallback documentado" es el defecto que se vio en campo: el tablero mostraba
+ * $0.00 cobrado en la semana con la tabla de pagos llena, porque la ventana se
+ * había encogido a un día sin que nada lo dijera. La prueba de que la causa era
+ * el rango y no una resincronización: el contador de VENTAS (103, sin filtro de
+ * fecha) sobrevivía intacto mientras los pagos daban 0.
+ *
+ * Ahora la ausencia de semana es REPRESENTABLE: [cycleRange] devuelve `null` y
+ * el llamador decide qué decir (el reporte lo dice, no lo disfraza de $0). Se
+ * elimina la única forma en que un dato faltante podía leerse como una cifra
+ * real.
  */
 object RangeCalculator {
 
@@ -64,13 +78,23 @@ object RangeCalculator {
      * Ciclo del cobrador: `[fechaCargaInicial, startOfNextDay(hoy))`. Sin truncar
      * la hora de la carga (ver el KDoc del objeto).
      *
-     * Si [fechaCargaInicial] es `null` (aún sin carga), cae al día de hoy
-     * completo — un ciclo de un día, el fallback ya documentado.
+     * `null` cuando NO hay una semana utilizable, por cualquiera de las dos vías:
+     *  - [fechaCargaInicial] ausente (Firestore sin el dato, o caído);
+     *  - [fechaCargaInicial] en el FUTURO respecto del fin del ciclo, donde
+     *    [cycleStart] la topa contra el borde y el rango sale permanentemente
+     *    vacío (ver el KDoc de [cycleStart]: la guarda sigue intacta, lo que
+     *    cambia es que ese vacío ya no se sirve como si fuera una semana real).
+     *
+     * Deliberadamente NO cae a "hoy": una ventana de un día presentada como la
+     * semana es indistinguible de una semana sin cobros.
      */
-    fun cycleRange(clock: AppClock, fechaCargaInicial: Instant?): DateRange {
+    fun cycleRange(clock: AppClock, fechaCargaInicial: Instant?): DateRange? {
         val today = AppTime.todayInBusinessZone(clock)
         val end = AppTime.startOfNextDay(today)
-        return wire(cycleStart(fechaCargaInicial, today, end), end)
+        val start = cycleStart(fechaCargaInicial, today, end)
+        // Rango vacío o degenerado == no hay semana que reportar.
+        if (fechaCargaInicial == null || !start.isBefore(end)) return null
+        return wire(start, end)
     }
 
     /** Día de HOY, recortado contra el inicio del ciclo. */
@@ -126,9 +150,13 @@ object RangeCalculator {
             .toList()
     }
 
-    /** Días del ciclo + etiquetas de ciclo y de día para la UI. */
-    fun cycleInfo(clock: AppClock, fechaCargaInicial: Instant?): CycleInfo {
-        val range = cycleRange(clock, fechaCargaInicial)
+    /**
+     * Días del ciclo + etiquetas de ciclo y de día para la UI. `null` cuando no
+     * hay semana utilizable — no se inventa una etiqueta para un rango que no
+     * existe (ver [cycleRange]).
+     */
+    fun cycleInfo(clock: AppClock, fechaCargaInicial: Instant?): CycleInfo? {
+        val range = cycleRange(clock, fechaCargaInicial) ?: return null
         return CycleInfo(
             days = range.days,
             cycleLabel = range.cycleLabel(),
@@ -140,11 +168,21 @@ object RangeCalculator {
      * Inicio efectivo del ciclo: el instante de la carga tal cual.
      *
      * Dos guardas, ambas contra datos, no contra el caso normal:
-     *  - sin carga (`null`) el ciclo es el día de hoy completo;
+     *  - sin carga (`null`) el inicio es la medianoche de hoy — lo que hace que
+     *    [dayRange] deje de recortar (un día natural completo, que es la lectura
+     *    correcta de "hoy" aunque no se sepa dónde abre la semana). [cycleRange]
+     *    NO usa esta rama: sin carga no hay semana, devuelve `null`.
      *  - una carga en el FUTURO (reloj del dispositivo corrido, dato sucio en
      *    Firestore) se topa contra [cycleEnd] para que el rango salga vacío
      *    (`[fin, fin)`) en vez de invertido. Antes esto no podía pasar porque el
      *    truncado a medianoche lo escondía; al conservar la hora sí puede.
+     *
+     * La guarda del futuro se conserva TAL CUAL: es la que impide que un
+     * `WHERE fecha >= ? AND fecha < ?` reciba un rango invertido y lo interprete
+     * mal en silencio, y sigue protegiendo a [dayRange]/[cycleDays]. Lo que se
+     * corrigió aguas arriba es distinto: [cycleRange] ya no SIRVE ese vacío como
+     * si fuera una semana real (devuelve `null`), porque "$0 cobrado" y "no sé
+     * cuándo abre tu semana" no son la misma respuesta.
      */
     private fun cycleStart(
         fechaCargaInicial: Instant?,

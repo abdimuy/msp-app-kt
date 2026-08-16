@@ -127,10 +127,45 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         MutableStateFlow<ResultState<Unit>>(ResultState.Idle)
     val syncPendingPaymentsState: StateFlow<ResultState<Unit>> = _syncPendingPaymentsState
 
-    private val _adjustedPaymentPercentageState =
-        MutableStateFlow<ResultState<Double>>(ResultState.Idle)
+    // Filtro que alimenta [adjustedPaymentPercentageState]. `null` = todavía no hay semana
+    // elegida -> el estado se queda Idle en vez de calcular sobre una ventana inventada.
+    // Privado; se mueve sólo desde [getAdjustedPaymentPercentage].
+    private val percentageWeekFilter: MutableStateFlow<String?> = MutableStateFlow(null)
+
+    /**
+     * "Porcentaje (Cobro)" del tablero, REACTIVO (defecto D6).
+     *
+     * Antes era una lectura de un solo tiro disparada desde `Home` antes de que las tablas
+     * estuvieran pobladas: si caía en ese hueco cacheaba `0.0` y ahí se quedaba —el 0.00% del
+     * campo— mientras todo lo demás se recuperaba por Flow. Ahora Room re-emite en cada
+     * INSERT/UPDATE de `Payment`/`sales` dentro de la ventana y el porcentaje se recalcula solo.
+     *
+     * Mismo ciclo de vida que [paymentsGroupedByDayWeeklyState]: compartido mientras haya
+     * suscriptores y 5s después del último, para no dejar un cursor de Room abierto de fondo.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val adjustedPaymentPercentageState: StateFlow<ResultState<Double>> =
-        _adjustedPaymentPercentageState
+        percentageWeekFilter
+            .filterNotNull()
+            .flatMapLatest { startWeek ->
+                paymentStore
+                    .observeAdjustedPaymentPercentage(startWeek)
+                    .map { ResultState.Success(it) as ResultState<Double> }
+                    .onStart { emit(ResultState.Loading) }
+                    .catch { e ->
+                        emit(
+                            ResultState.Error(
+                                e.message ?: "Error obteniendo porcentaje de pagos ajustados"
+                            )
+                        )
+                    }
+                    .flowOn(Dispatchers.Default)
+            }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000L),
+                ResultState.Idle
+            )
 
     private val _saleProductsState =
         MutableStateFlow<ResultState<List<ProductEntity>>>(ResultState.Idle)
@@ -407,19 +442,14 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /**
+     * Selecciona la semana sobre la que se calcula el porcentaje. Repetir el mismo valor es un
+     * no-op ([MutableStateFlow] descarta duplicados), así que es seguro llamarlo desde cualquier
+     * `LaunchedEffect` sin debounce. La lectura la hace [adjustedPaymentPercentageState] aguas
+     * abajo — aquí NO se lanza ninguna corrutina.
+     */
     fun getAdjustedPaymentPercentage(startDate: String) {
-        viewModelScope.launch {
-            _adjustedPaymentPercentageState.value = ResultState.Loading
-            try {
-                val percentage = withContext(Dispatchers.IO) {
-                    paymentStore.getAdjustedPaymentPercentage(startDate)
-                }
-                _adjustedPaymentPercentageState.value = ResultState.Success(percentage)
-            } catch (e: Exception) {
-                _adjustedPaymentPercentageState.value =
-                    ResultState.Error(e.message ?: "Error obteniendo porcentaje de pagos ajustados")
-            }
-        }
+        percentageWeekFilter.value = startDate
     }
 
     fun savePayment(payment: Payment) {

@@ -27,8 +27,9 @@ class ReportAggregatorTest {
     private val clock = FakeClock(Instant.parse("2026-08-07T18:00:00Z"))
 
     // Ciclo lun 3 – vie 7 ago (5 días).
-    private val cycle: DateRange =
+    private val cycle: DateRange = requireNotNull(
         RangeCalculator.cycleRange(clock, Instant.parse("2026-08-03T16:00:00Z"))
+    )
 
     private fun money(v: String) = Money.of(BigDecimal(v))
 

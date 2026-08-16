@@ -25,6 +25,15 @@ interface CobranzaSyncStateDao {
     )
     suspend fun recordError(resource: String, error: String, at: String)
 
+    /**
+     * Descarta el cursor de un recurso para forzar un replay completo.
+     *
+     * Borra la fila ENTERA a propósito: `CURSOR` y `AFTER_ID` son un solo
+     * cursor partido en dos columnas y tienen que irse juntos. Un `UPDATE`
+     * que dejara `CURSOR = NULL` conservando `AFTER_ID` haría que el replay
+     * arrancara a media tabla y se saltara el principio del grupo de filas
+     * empatadas en `UPDATED_AT`.
+     */
     @Query("DELETE FROM cobranza_sync_state WHERE RESOURCE = :resource")
     suspend fun clear(resource: String)
 }

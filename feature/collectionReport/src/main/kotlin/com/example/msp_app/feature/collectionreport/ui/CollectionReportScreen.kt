@@ -342,6 +342,12 @@ internal fun CollectionReportContent(
                 }
             }
 
+            if (state.cycleNotice.isNotEmpty()) {
+                StaggeredEntrance(index = ENTRANCE_ERROR_BANNER) {
+                    CycleNoticeBanner(message = state.cycleNotice)
+                }
+            }
+
             StaggeredEntrance(index = ENTRANCE_PERIOD) {
                 PeriodSelector(period = state.period, onSelect = onPeriodSelect)
             }
@@ -479,6 +485,29 @@ internal fun CollectionReportContent(
  * (Task 9) reutiliza el mismo banner — mismo criterio anti-duplicación que el resto de los
  * componentes de `ui/components` compartidos entre Tier 1 y Tier 2.
  */
+/**
+ * Aviso de "no hay semana" ([CollectionReportUiState.cycleNotice]) — mismo componente mínimo de
+ * una línea que [ErrorBanner], en tono de PENDIENTE y no de error: no falló nada, falta la fecha
+ * con la que se calcula la ventana. Existe para que el tablero en blanco de
+ * `CollectionReportViewModel.applyNoCycle` diga por qué está en blanco, en vez de servir un
+ * $0.00 que se lee como una cifra real.
+ *
+ * `internal` por el mismo motivo que [ErrorBanner]: Tier 2 lo reusa.
+ */
+@Composable
+internal fun CycleNoticeBanner(message: String, modifier: Modifier = Modifier) {
+    Text(
+        text = message,
+        style = MspTheme.type.body,
+        color = MspTheme.colors.statusPending,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(MspTheme.shapes.field)
+            .background(MspTheme.colors.statusPendingTint)
+            .padding(MspTheme.spacing.sm)
+    )
+}
+
 @Composable
 internal fun ErrorBanner(message: String, modifier: Modifier = Modifier) {
     Text(

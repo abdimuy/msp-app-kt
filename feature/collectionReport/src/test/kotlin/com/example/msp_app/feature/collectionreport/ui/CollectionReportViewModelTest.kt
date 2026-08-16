@@ -26,7 +26,6 @@ import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import com.example.msp_app.feature.collectionreport.domain.port.PaymentsPort
-import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import java.math.BigDecimal
 import java.time.Instant
@@ -212,20 +211,25 @@ class CollectionReportViewModelTest {
 
             val vm = viewModel()
             testDispatcher.scheduler.advanceUntilIdle()
-            // Día TAMBIÉN consulta el ciclo desde el fix: el recorte a la hora de la carga
+            // Día TAMBIÉN usa el ciclo desde el fix: el recorte a la hora de la carga
             // aplica al día igual que al ciclo (ver el KDoc de `RangeCalculator`), y sin la
             // fecha de carga no hay tira de días que recorrer. Antes del fix esto era 0 y el
             // recorte del día quedaba inerte.
-            assertEquals(1, userCyclePort.fechaCargaInicialCalls)
+            assertEquals(1, userCyclePort.cycleStartCalls)
 
             vm.setPeriod(ReportPeriod.SEMANA)
             testDispatcher.scheduler.advanceUntilIdle()
 
             val state = vm.state.value
             assertEquals(ReportPeriod.SEMANA, state.period)
-            assertEquals(2, userCyclePort.fechaCargaInicialCalls)
+            // Se relee en cada carga a propósito (una carga de ruta nueva a mitad de sesión debe
+            // verse); lo que cambió con el fix D5 es que un fallo ya no PISA el valor bueno ni
+            // se traduce en un rango de un día servido como si fuera la semana.
+            assertEquals(2, userCyclePort.cycleStartCalls)
 
-            val expectedRange = RangeCalculator.cycleRange(clock, userCyclePort.fechaCarga)
+            val expectedRange = requireNotNull(
+                RangeCalculator.cycleRange(clock, userCyclePort.fechaCarga)
+            )
             assertEquals(
                 5,
                 expectedRange.days
@@ -508,24 +512,25 @@ class CollectionReportViewModelTest {
         }
 
     /**
-     * Puerto de ciclo que falla SOLO cuando se le enciende el interruptor.
+     * Puerto de pagos que falla SOLO cuando se le enciende el interruptor.
      *
-     * Antes del fix de la TAREA 1 bastaba con que fallara siempre: Día no consultaba
-     * `fechaCargaInicial`, así que la carga inicial pasaba y solo tronaba al ir a Semana. Ahora
-     * ambos periodos lo consultan, y un puerto que falla desde el primer instante haría fallar
-     * también la carga de Día — el test perdería su premisa ("una carga de Día buena seguida de
-     * un fallo al cambiar a Semana") y ya no probaría lo que dice probar.
+     * La premisa del test de abajo es "una carga de Día buena seguida de un fallo al cambiar a
+     * Semana", así que el puerto que se rompe tiene que ser uno que se consulte en CADA carga.
+     * Antes ese papel lo hacía el puerto de ciclo; ya no puede: desde el fix D5 el inicio de
+     * semana se resuelve UNA vez por pantalla (con reintento) y no en cada carga — justamente
+     * para que un tropiezo de Firestore no se traduzca en un rango inventado. El puerto de pagos
+     * sí se consulta por carga y ejerce el mismo camino de error.
      */
-    private class SwitchableFailingUserCyclePort(
-        private val delegate: UserCyclePort,
+    private class SwitchableFailingPaymentsPort(
+        private val delegate: PaymentsPort,
         private val message: String
-    ) : UserCyclePort by delegate {
+    ) : PaymentsPort by delegate {
         var failing: Boolean = false
 
-        override suspend fun fechaCargaInicial(): Instant? = if (failing) {
+        override suspend fun paymentsIn(range: DateRange): List<CollectionPayment> = if (failing) {
             throw IllegalStateException(message)
         } else {
-            delegate.fechaCargaInicial()
+            delegate.paymentsIn(range)
         }
     }
 
@@ -541,11 +546,14 @@ class CollectionReportViewModelTest {
     fun `fallo al cambiar a Semana deja period, rangeLabel y contenido consistentes, sin mezclar con Dia`() =
         runTest(testDispatcher) {
             paymentsPort.payments = listOf(payment(amount = money("100.00")))
-            val failingCyclePort = SwitchableFailingUserCyclePort(userCyclePort, "firestore down")
+            // Con semana utilizable: sin ella, Semana ni siquiera consulta (estado honesto sin
+            // error), y este test no ejercería el camino de fallo que dice ejercer.
+            userCyclePort.fechaCarga = Instant.parse("2026-08-03T16:00:00Z")
+            val failingPayments = SwitchableFailingPaymentsPort(paymentsPort, "room io")
             val vm = CollectionReportViewModel(
-                paymentsPort,
+                failingPayments,
                 visitsPort,
-                failingCyclePort,
+                userCyclePort,
                 historicalTotalsPort,
                 salesPort,
                 printerPort,
@@ -560,8 +568,8 @@ class CollectionReportViewModelTest {
             assertEquals(ReportPeriod.DIA, diaState.period) // Día carga bien.
             assertEquals(money("100.00"), diaState.hero.monto)
 
-            // Firestore se cae DESPUÉS de la carga de Día — ver el KDoc del puerto.
-            failingCyclePort.failing = true
+            // Room se cae DESPUÉS de la carga de Día — ver el KDoc del puerto.
+            failingPayments.failing = true
             vm.setPeriod(ReportPeriod.SEMANA)
             testDispatcher.scheduler.advanceUntilIdle()
 

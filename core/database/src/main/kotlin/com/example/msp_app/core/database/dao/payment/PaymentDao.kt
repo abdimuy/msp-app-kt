@@ -381,6 +381,113 @@ interface PaymentDao {
     )
     suspend fun getAdjustedPaymentPercentage(startDate: String): Double?
 
+    /**
+     * Variante REACTIVA de [getAdjustedPaymentPercentage] (misma consulta, palabra por palabra;
+     * mismo criterio de duplicación que [observePaymentsByDate] frente a [getPaymentsByDate] —
+     * Room exige el SQL literal en la anotación).
+     *
+     * Existe por el defecto D6: el "Porcentaje (Cobro)" del inicio se leía UNA sola vez y se
+     * quedaba pegado en 0.00% si esa lectura caía antes de que los datos estuvieran en Room.
+     * Con este [Flow], cualquier INSERT/UPDATE en `Payment` o `sales` re-dispara la consulta y
+     * el porcentaje se recalcula solo — sin que el cobrador tenga que salir y volver a entrar.
+     */
+    @Query(
+        """
+        SELECT
+            SUM(PORCENTAJE) AS TOTAL_PORCENTAJE
+        FROM (
+            SELECT
+                sales.DOCTO_CC_ID,
+                /* calculamos el porcentaje base: */
+                CASE
+                  WHEN SUM(payment.IMPORTE) / sales.PARCIALIDAD >= 1
+                  THEN (
+                    CASE
+                      WHEN sales.NUM_PAGOS_ATRASADOS >= SUM(payment.IMPORTE) / sales.PARCIALIDAD
+                      THEN SUM(payment.IMPORTE) / sales.PARCIALIDAD
+                      ELSE 1
+                    END
+                  )
+                  ELSE SUM(payment.IMPORTE) / sales.PARCIALIDAD
+                END
+                /* y ahora lo multiplicamos por el factor según frecuencia: */
+                * CASE sales.FREC_PAGO
+                    WHEN 'SEMANAL'   THEN 1
+                    WHEN 'QUINCENAL' THEN 2
+                    WHEN 'MENSUAL'   THEN 4
+                    ELSE 1
+                  END
+                AS PORCENTAJE
+            FROM payment
+            INNER JOIN (
+                SELECT
+                    sales.DOCTO_CC_ID,
+                    sales.CLIENTE,
+                    sales.FECHA_ULT_PAGO,
+                    sales.NUM_IMPORTES,
+                    sales.TOTAL_IMPORTE,
+                    sales.FREC_PAGO,
+                    sales.PARCIALIDADES_TRANSCURRIDAS,
+                    CASE
+                      WHEN ( (sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD
+                              - (sales.PRECIO_TOTAL - sales.SALDO_REST)) / sales.PARCIALIDAD )
+                           > (sales.SALDO_REST / sales.PARCIALIDAD)
+                      THEN (sales.SALDO_REST / sales.PARCIALIDAD)
+                      ELSE ( (sales.PARCIALIDADES_TRANSCURRIDAS * sales.PARCIALIDAD
+                              - (sales.PRECIO_TOTAL - sales.SALDO_REST - sales.ENGANCHE)) / sales.PARCIALIDAD )
+                    END AS NUM_PAGOS_ATRASADOS,
+                    sales.PARCIALIDAD
+                FROM (
+                    SELECT
+                        sales.DOCTO_CC_ID,
+                        sales.CLIENTE,
+                        sales.FECHA,
+                        COALESCE(MAX(payment.FECHA_HORA_PAGO), sales.FECHA) AS FECHA_ULT_PAGO,
+                        COALESCE(COUNT(payment.FECHA_HORA_PAGO), 0) AS NUM_IMPORTES,
+                        COALESCE(SUM(payment.IMPORTE), 0) AS TOTAL_IMPORTE,
+                        sales.FREC_PAGO,
+                        sales.SALDO_REST,
+                        sales.PRECIO_TOTAL,
+                        sales.ENGANCHE,
+                        sales.PARCIALIDAD,
+                        ( JULIANDAY(
+                              CASE
+                                WHEN sales.SALDO_REST = 0
+                                THEN MAX(payment.FECHA_HORA_PAGO)
+                                ELSE DATE('now')
+                              END
+                          )
+                          - JULIANDAY(sales.FECHA) )
+                        / CASE
+                            WHEN sales.FREC_PAGO = 'SEMANAL'   THEN 7
+                            WHEN sales.FREC_PAGO = 'QUINCENAL' THEN 15
+                            WHEN sales.FREC_PAGO = 'MENSUAL'   THEN 30
+                            ELSE 1
+                          END AS PARCIALIDADES_TRANSCURRIDAS
+                    FROM sales
+                    LEFT JOIN payment
+                      ON sales.DOCTO_CC_ID = payment.DOCTO_CC_ACR_ID
+                      AND payment.FORMA_COBRO_ID IN (
+                        157,
+                        158,
+                        52569
+                      )
+                    GROUP BY sales.DOCTO_CC_ID, sales.FREC_PAGO
+                ) AS sales
+            ) AS sales
+              ON payment.DOCTO_CC_ACR_ID = sales.DOCTO_CC_ID
+            WHERE payment.FECHA_HORA_PAGO >= :startDate
+              AND payment.FORMA_COBRO_ID IN (
+                157,
+                158,
+                52569
+              )
+            GROUP BY payment.DOCTO_CC_ACR_ID
+        ) t;
+    """
+    )
+    fun observeAdjustedPaymentPercentage(startDate: String): Flow<Double?>
+
     @Query(
         """
         SELECT 
@@ -458,15 +565,37 @@ interface PaymentDao {
     suspend fun deleteByIDs(ids: List<String>)
 
     /**
-     * IDs de filas UUID (captura local) cuyo gemelo numérico ya está local
-     * (existe una fila con PAGO_RECIBIDO_ID = ese UUID). Colapsables: la
-     * numérica es la canónica. Solo UUID ya subidas (GUARDADO_EN_MICROSIP=1);
-     * nunca una captura pendiente. Red de seguridad idempotente para el caso
-     * que mergePagos no atrapó (carrera pull-vs-markDone / histórico).
+     * IDs de filas UUID (captura local) cuyo gemelo numérico ya está local:
+     * existe OTRA fila con `PAGO_RECIBIDO_ID` = ese UUID. Colapsables — la
+     * numérica es la canónica. Red de seguridad idempotente para el caso que
+     * `mergePagos` no atrapó (carrera pull-vs-markDone / histórico).
+     *
+     * **El criterio es la evidencia del servidor, no la bandera local.** Esta
+     * consulta exigía además `GUARDADO_EN_MICROSIP = 1` sobre la fila UUID,
+     * con el argumento de que "un pendiente jamás pudo haber llegado al
+     * servidor". El argumento está invertido: `PAGO_RECIBIDO_ID` sólo lo
+     * escribe `PagoDto.toEntity()` con lo que trae el canal de sync, así que
+     * una fila que referencia el UUID **prueba** que el servidor recibió esa
+     * captura y le asignó su id numérico en Microsip. La bandera dice lo que
+     * este teléfono alcanzó a anotar; el `PAGO_RECIBIDO_ID` dice lo que el
+     * servidor efectivamente hizo. Y el aviso del servidor sale dentro de la
+     * misma transacción que escribe el pago, así que puede ganarle al
+     * `markDone` del worker; peor aún, si la respuesta HTTP nunca llega
+     * (timeout) la bandera se queda en 0 para siempre y el duplicado se
+     * vuelve permanente en la pantalla del cobrador.
+     *
+     * Lo que sigue protegiendo a una captura que NUNCA llegó al servidor es
+     * justamente esa referencia: el UUID lo genera el teléfono, así que el
+     * servidor no puede nombrar uno que no recibió. Un pendiente sin subir no
+     * está referenciado por ninguna fila y nunca entra a este resultado.
+     *
+     * `PAGO_RECIBIDO_ID <> ID` descarta la auto-referencia: sin ese cerrojo
+     * una fila que se apuntara a sí misma se borraría siendo la única copia.
      */
     @Query(
-        "SELECT ID FROM Payment WHERE GUARDADO_EN_MICROSIP = 1 " +
-            "AND ID IN (SELECT PAGO_RECIBIDO_ID FROM Payment WHERE PAGO_RECIBIDO_ID IS NOT NULL)"
+        "SELECT ID FROM Payment WHERE ID IN (" +
+            "SELECT PAGO_RECIBIDO_ID FROM Payment " +
+            "WHERE PAGO_RECIBIDO_ID IS NOT NULL AND PAGO_RECIBIDO_ID <> ID)"
     )
     suspend fun findCollapsibleUuidTwins(): List<String>
 
@@ -550,16 +679,27 @@ interface PaymentDao {
     suspend fun getActiveIDsByZona(zonaId: Int): List<String>
 
     /**
-     * Filtra [ids] a solo aquellos que existen localmente Y ya están
-     * confirmados por el servidor (`GUARDADO_EN_MICROSIP = 1`). Usado por
-     * el merge de pagos para colapsar el gemelo local UUID de un pago
-     * cuando llega su versión numérica con `pago_recibido_id`: nunca borra
-     * un pago pendiente de subir (`GUARDADO_EN_MICROSIP = 0`), aunque por
-     * error llegara referenciado — un pendiente jamás pudo haber llegado
-     * al servidor, así que esto es una red de seguridad defensiva.
+     * Filtra [ids] a sólo aquellos que existen localmente. Lo usa el merge de
+     * pagos para colapsar el gemelo local UUID cuando llega la versión
+     * numérica del pago: [ids] son los `pago_recibido_id` que trae la página
+     * del servidor, y esta consulta dice cuáles de esos UUID siguen ocupando
+     * una fila propia en Room.
+     *
+     * **Ya no exige `GUARDADO_EN_MICROSIP = 1`** — ver el razonamiento
+     * completo en [findCollapsibleUuidTwins]. En corto: que el servidor
+     * devuelva `pago_recibido_id = <uuid>` es evidencia más fuerte que la
+     * bandera local, porque prueba que el pago ya está en Microsip con su id
+     * asignado, mientras que la bandera sólo dice si este teléfono alcanzó a
+     * anotarlo. Exigirla dejaba sin colapsar exactamente la carrera que
+     * produce el duplicado en campo.
+     *
+     * La protección contra borrar una captura que nunca subió no vive aquí
+     * sino en el origen de [ids]: son UUID que **el servidor nombró**, y el
+     * servidor no puede nombrar un UUID generado en el teléfono que nunca
+     * recibió. El llamador además descarta las auto-referencias.
      */
-    @Query("SELECT ID FROM Payment WHERE ID IN (:ids) AND GUARDADO_EN_MICROSIP = 1")
-    suspend fun filterUploadedIDs(ids: List<String>): List<String>
+    @Query("SELECT ID FROM Payment WHERE ID IN (:ids)")
+    suspend fun filterExistingIDs(ids: List<String>): List<String>
 
     /**
      * Cuenta los pagos del cargo cuyo `FECHA_HORA_PAGO` cae dentro de la

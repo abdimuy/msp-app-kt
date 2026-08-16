@@ -49,7 +49,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
-import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.Coord
@@ -135,8 +134,7 @@ fun HomeScreen(navController: NavController) {
         ?.FECHA_CARGA_INICIAL
 
     val startWeekDate = remember(initialDate) {
-        val startInstant = initialDate?.toDate()?.toInstant() ?: AppClock.System.now()
-        AppTime.toWireFormat(startInstant)
+        resolveStartWeekDate(initialDate?.toDate()?.toInstant())
     }
 
     LaunchedEffect(syncSalesState) {
@@ -150,13 +148,13 @@ fun HomeScreen(navController: NavController) {
             }
 
             is ResultState.Success -> {
-                paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
                 salesViewModel.getLocalSales()
                 paymentsViewModel.getCentroidsBySale()
                 visitsViewModel.getPendingVisits()
-                paymentsViewModel.getAdjustedPaymentPercentage(
-                    startWeekDate
-                )
+                startWeekDate?.let {
+                    paymentsViewModel.getPaymentsGroupedByDayWeekly(it)
+                    paymentsViewModel.getAdjustedPaymentPercentage(it)
+                }
             }
 
             else -> Unit
@@ -202,17 +200,24 @@ fun HomeScreen(navController: NavController) {
         guaranteesViewModel.syncPendingGuaranteeEvents()
     }
 
+    // `startWeekDate` es null mientras no se sepa dónde abre la semana. Al llegar el dato este
+    // efecto se re-dispara solo (la clave cambia) y el tablero se repara sin salir y volver a
+    // entrar. Antes había aquí una guarda `== "null"` que ya era código muerto: el fallback a
+    // `AppClock.System.now()` (ya retirado) garantizaba una cadena siempre válida — y esa era justo la que
+    // encogía la semana al instante actual.
     LaunchedEffect(startWeekDate) {
-        if (startWeekDate == "null") return@LaunchedEffect
+        val week = startWeekDate ?: return@LaunchedEffect
 
         salesViewModel.getLocalSales()
-        paymentsViewModel.getAdjustedPaymentPercentage(startWeekDate)
+        // Ya no hay carrera con `salesState`: el porcentaje es un Flow de Room y se recalcula
+        // solo cuando entran las ventas/pagos, en vez de cachear el 0.0 de una tabla aún vacía.
+        paymentsViewModel.getAdjustedPaymentPercentage(week)
 
         snapshotFlow { salesState }
             .filter { it is ResultState.Success }
             .first()
 
-        paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+        paymentsViewModel.getPaymentsGroupedByDayWeekly(week)
     }
 
     LaunchedEffect(updateStartOfWeekDateState) {
@@ -227,7 +232,7 @@ fun HomeScreen(navController: NavController) {
                 dialogTitle = "Listo"
                 dialogMessage = "Inicio de semana actualizado correctamente"
                 showUpdateDialog = true
-                paymentsViewModel.getPaymentsGroupedByDayWeekly(startWeekDate)
+                startWeekDate?.let { paymentsViewModel.getPaymentsGroupedByDayWeekly(it) }
             }
 
             else -> Unit
@@ -330,7 +335,8 @@ fun HomeScreen(navController: NavController) {
                             numberOfPaymentsWeekly = numberOfPaymentsWeekly,
                             numberOfSales = numberOfSales,
                             accountsPercentageRounded = accountsPercentageRounded,
-                            accountsPercentageAjusted = accountsPercentageAjustedRounded
+                            accountsPercentageAjusted = accountsPercentageAjustedRounded,
+                            startWeekKnown = startWeekDate != null
                         )
                     }
 

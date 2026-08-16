@@ -1,5 +1,6 @@
 package com.example.msp_app.core.database.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -10,6 +11,8 @@ import androidx.room.PrimaryKey
  * - `cursor` is the RFC3339 `max_updated_at` value the backend returned on
  *   the last successful page. Null when the resource has never been
  *   synced — the sync manager treats null as "full initial sync".
+ * - `after_id` is the second half of that cursor: the PK of the last row of
+ *   the last applied page. See the doc on the field.
  * - `last_synced_at` is when the most recent successful page came back,
  *   used for diagnostics.
  * - `last_error` is the most recent error message; cleared on the next
@@ -41,5 +44,25 @@ data class CobranzaSyncStateEntity(
      * distinta de NULL, así que esos dispositivos hacen un replay (una vez)
      * y quedan alineados.
      */
-    val EPOCH: Int? = null
+    val EPOCH: Int? = null,
+    /**
+     * Segunda mitad del cursor: la PK (`IMPTE_DOCTO_CC_ID` en pagos,
+     * `DOCTO_CC_ID` en ventas) de la última fila de la última página aplicada.
+     * El servidor pagina por el par `(UPDATED_AT, PK)`, así que sin este valor
+     * el cursor por sí solo no distingue entre las filas que comparten
+     * `UPDATED_AT`: retomar con `after_id = 0` reprocesa ese grupo empatado
+     * desde el principio.
+     *
+     * Se persiste junto con [CURSOR], en la misma escritura, porque los dos
+     * son un solo cursor partido en dos columnas. Invariante: donde uno se
+     * escribe, el otro también; y todo camino que deje [CURSOR] en NULL debe
+     * dejar este campo en 0 (hoy todos esos caminos borran la fila entera con
+     * `CobranzaSyncStateDao.clear`, que lo cumple por construcción).
+     *
+     * NOT NULL con default 0: 0 es "desde el inicio del grupo", que es
+     * exactamente el valor correcto tanto para una instalación nueva como
+     * para las filas que heredan la migración 28→29.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val AFTER_ID: Int = 0
 )

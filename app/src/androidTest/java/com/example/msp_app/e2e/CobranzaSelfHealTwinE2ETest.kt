@@ -203,16 +203,30 @@ class CobranzaSelfHealTwinE2ETest : PagosE2ETestBase() {
     // ── Scenario 2 (SHOULD): the pending-twin race, at DAO+reconciler level ──
 
     /**
+     * D4: the collapse criterion is the SERVER's evidence
+     * (`PAGO_RECIBIDO_ID`), not the local `GUARDADO_EN_MICROSIP` flag.
+     *
+     * The backend emits its sync notification inside the same transaction
+     * that writes the payment, so the numeric twin can reach the phone
+     * BEFORE `PendingPaymentsWorker.markDone` flips the flag — and if the
+     * HTTP response never arrives (timeout) the flag stays 0 forever. The
+     * old criterion left the UUID row uncollapsed in exactly that window,
+     * which is the duplicate reported in the field.
+     *
+     * A capture that never reached the server is still safe: the UUID is
+     * generated on the phone, so the server cannot name one it never
+     * received. `uuid-nunca-subido` below proves it stays put.
+     *
      * Full worker-vs-sync race (real WorkManager upload racing the real
      * CobranzaSyncManager pull) would require synchronizing two concurrent
      * on-device operations around a MockWebServer response — not attempted
      * here as it would be a rabbit hole for this proof. Instead this
-     * reproduces the invariant the race protects at the DAO+reconciler
-     * level, which is still fully on-device against the real Room schema
-     * and the real collapse query.
+     * reproduces the invariant at the DAO+reconciler level, which is still
+     * fully on-device against the real Room schema and the real collapse
+     * query.
      */
     @Test
-    fun gemeloPendienteNoColapsaHastaQueMarkDoneLoConfirma() = runBlocking {
+    fun gemeloPendienteColapsaCuandoElServidorYaLoNombro() = runBlocking {
         // Numeric twin already landed, referencing the UUID capture...
         db.paymentDao().saveAll(
             listOf(
@@ -224,27 +238,28 @@ class CobranzaSelfHealTwinE2ETest : PagosE2ETestBase() {
                 )
             )
         )
-        // ...but the UUID row is STILL mid-upload (GUARDADO_EN_MICROSIP=false).
-        // This is the race window: the numeric twin can arrive from the pull
-        // before the worker uploading the UUID capture calls markDone.
+        // ...but the UUID row is STILL flagged mid-upload
+        // (GUARDADO_EN_MICROSIP=false). This is the race window.
         db.paymentDao().saveAll(
             listOf(
                 samplePayment(id = "uuid-selfheal-race", doctoCcAcrId = 9301, guardado = false)
             )
         )
-
-        assertFalse(
-            "un gemelo UUID pendiente de subir jamas debe reportarse colapsable",
-            db.paymentDao().findCollapsibleUuidTwins().contains("uuid-selfheal-race")
+        // A capture the server never saw: nothing references it.
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(id = "uuid-nunca-subido", doctoCcAcrId = 9301, guardado = false)
+            )
         )
 
-        // The upload finishes for real: PendingPaymentsWorker.markDone flips
-        // GUARDADO_EN_MICROSIP via the same PaymentDao.updateEstado call path.
-        db.paymentDao().updateEstado("uuid-selfheal-race", 1)
-
+        val collapsible = db.paymentDao().findCollapsibleUuidTwins()
         assertTrue(
-            "una vez confirmado, el gemelo UUID SI debe ser colapsable",
-            db.paymentDao().findCollapsibleUuidTwins().contains("uuid-selfheal-race")
+            "el servidor ya nombro el UUID: eso prueba que el pago esta en Microsip",
+            collapsible.contains("uuid-selfheal-race")
+        )
+        assertFalse(
+            "una captura que nunca subio no la nombra nadie, jamas colapsa",
+            collapsible.contains("uuid-nunca-subido")
         )
 
         // Now the real reconciler, with a matching digest, collapses it.
@@ -258,10 +273,14 @@ class CobranzaSelfHealTwinE2ETest : PagosE2ETestBase() {
 
         assertTrue(outcome is ReconcileOutcome.Ok)
         assertNull(
-            "tras markDone, el reconcile debe colapsar el gemelo",
+            "el reconcile debe colapsar el gemelo sin esperar a markDone",
             db.paymentDao().getPaymentById("uuid-selfheal-race")
         )
         assertNotNull(db.paymentDao().getPaymentById("15808777"))
+        assertNotNull(
+            "la captura que nunca subio sigue intacta",
+            db.paymentDao().getPaymentById("uuid-nunca-subido")
+        )
     }
 
     // ── Scenario 3 (nice-to-have): real migration chain opens cleanly ──────
@@ -270,10 +289,13 @@ class CobranzaSelfHealTwinE2ETest : PagosE2ETestBase() {
     fun aperturaRealDeAppDatabaseMigrandoAV27PermiteQueryDeColapso() = runBlocking {
         // getInstance runs the full production migration chain (down to v1)
         // against a fresh on-device SQLite file — proves the schema the
-        // self-heal query depends on (PAGO_RECIBIDO_ID column + index from
-        // Migration26to27) is reachable via the real upgrade path, not only
-        // via Room.inMemoryDatabaseBuilder's fresh-create shortcut used by
-        // the rest of this suite.
+        // self-heal query depends on is reachable via the real upgrade path,
+        // not only via Room.inMemoryDatabaseBuilder's fresh-create shortcut
+        // used by the rest of this suite. That schema comes from two
+        // migrations, not one: Migration26to27 added the PAGO_RECIBIDO_ID
+        // column WITHOUT an index (an earlier version of this comment claimed
+        // the index came with it — it did not), and Migration28to29 is the one
+        // that creates index_Payment_PAGO_RECIBIDO_ID.
         AppDatabase.clearInstance()
         try {
             val realDb = AppDatabase.getInstance(context)

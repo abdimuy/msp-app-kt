@@ -76,6 +76,35 @@ interface SalesPort {
 }
 
 /**
+ * Resultado de leer el inicio de semana del cobrador (`FECHA_CARGA_INICIAL`).
+ *
+ * Las tres ramas existen porque **"no hay dato" y "no se pudo leer" exigen
+ * respuestas distintas** y el `Instant?` anterior las aplanaba en `null`: el
+ * adapter de Firestore degradaba cualquier excepción a `null`, el cálculo del
+ * rango leía ese `null` como "sin carga" y caía al día de hoy — y el cobrador
+ * veía $0.00 en la semana sin una sola pista de por qué. Con este tipo:
+ *  - [Missing] es una respuesta REAL y estable (el documento existe, el campo
+ *    no): se le dice al usuario y no se reintenta en vano;
+ *  - [Unavailable] es un fallo transitorio: **se reintenta**, y de ahí sale la
+ *    auto-reparación cuando el dato llega tarde.
+ */
+sealed interface CycleStart {
+
+    /** Hay inicio de semana. */
+    data class Known(val instant: Instant) : CycleStart
+
+    /** La fuente respondió y NO hay `FECHA_CARGA_INICIAL` — no hay semana que reportar. */
+    data object Missing : CycleStart
+
+    /** No se pudo leer la fuente (Firestore caído/sin red). Reintentable. */
+    data object Unavailable : CycleStart
+
+    /** El instante cuando se conoce; `null` en las dos ramas sin dato. */
+    val instantOrNull: Instant?
+        get() = (this as? Known)?.instant
+}
+
+/**
  * Ciclo del cobrador: inicio de la ventana visible (`FECHA_CARGA_INICIAL`) y
  * nombre para el encabezado del reporte.
  *
@@ -90,8 +119,15 @@ interface SalesPort {
  */
 interface UserCyclePort {
 
-    /** Inicio del ciclo (UTC), o `null` si el usuario aún no tiene contexto. */
-    suspend fun fechaCargaInicial(): Instant?
+    /**
+     * Inicio de semana del cobrador (UTC), clasificado — ver [CycleStart].
+     *
+     * Sigue siendo `suspend` one-shot a propósito: la política de reintento vive
+     * en el ViewModel (donde se puede probar con fakes y tiempo virtual), no en
+     * el adapter de Firestore. El contrato que sí se le exige a la
+     * implementación es NO aplanar un fallo en "no hay dato".
+     */
+    suspend fun cycleStart(): CycleStart
 
     /** Nombre del cobrador para el encabezado. */
     suspend fun cobradorNombre(): String

@@ -10,7 +10,14 @@ import androidx.room.PrimaryKey
     indices = [
         Index(value = ["DOCTO_CC_ACR_ID"]),
         Index(value = ["DOCTO_CC_ID"]),
-        Index(value = ["FECHA_HORA_PAGO"])
+        Index(value = ["FECHA_HORA_PAGO"]),
+        // PAGO_RECIBIDO_ID llegó en la migración 26→27 SIN índice, y sobre él
+        // corren la subconsulta de `findCollapsibleUuidTwins` (barrido
+        // auto-sanable del reconciler, en cada tick) y el colapso de gemelos
+        // UUID de mergePagos. Sin índice, cada pasada es un scan completo de
+        // Payment — el histórico del cobrador entero. Lo crea la migración
+        // 28→29.
+        Index(value = ["PAGO_RECIBIDO_ID"])
     ]
 )
 data class PaymentEntity(

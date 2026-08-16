@@ -35,6 +35,15 @@ data class CollectionReportUiState(
     val contentPeriod: ReportPeriod = ReportPeriod.DIA,
     val loading: Boolean = true,
     val error: String? = null,
+    // Aviso corto es-MX cuando NO hay semana que reportar y el tablero se sirve en blanco a
+    // propósito (`CollectionReportViewModel.applyNoCycle`): "semana no disponible" / "sin inicio
+    // de semana" / "fecha de semana inválida". Vacío = hay ventana y las cifras son reales.
+    //
+    // Es un campo APARTE de [error] porque no son lo mismo: `error` dice "falló la carga",
+    // esto dice "falta el dato con el que se calcula la ventana". Antes esa ausencia no se
+    // modelaba en ningún lado — el rango caía al día de hoy y el cobrador veía $0.00 en la
+    // semana con la tabla de pagos llena, sin una sola pista de por qué (defecto D5).
+    val cycleNotice: String = "",
     val cobrador: String = "",
     // "viernes 7 ago 2026" (Día) / "semana · lun 3 – vie 7 ago · 5 días" (Semana).
     val rangeLabel: String = "",
