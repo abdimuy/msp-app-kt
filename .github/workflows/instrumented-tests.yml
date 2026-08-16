@@ -1,0 +1,177 @@
+# Pruebas instrumentadas (`app/src/androidTest/`) sobre un emulador.
+#
+# Por que existe: hay 6 archivos en `app/src/androidTest/java/.../e2e/`
+# (5 clases de prueba + `PagosE2ETestBase`) y la cadena `connectedAndroidTest`
+# no aparece ni una vez en ningun `build.gradle.kts`. Nunca se han ejecutado
+# en automatico. Documentan el comportamiento del pipeline de subida de pagos
+# y visitas -- que es el codigo donde un error cuesta dinero -- pero mientras
+# nadie los corra no protegen nada.
+#
+# Por que en un workflow aparte y NO en `prePushCheck`:
+#   - Levantar un emulador en cada `git push` local convertiria el gate en
+#     algo de 20+ minutos y la gente empezaria a saltarlo con `--no-verify`,
+#     que es exactamente el problema que la CI viene a resolver.
+#   - Un emulador es infraestructura fragil (KVM, arranque, ANR del sistema).
+#     Aislado en su propio job, una falla de infraestructura aca NO tapa la
+#     senal util de `ci.yml`: las pruebas unitarias, cobertura y Roborazzi
+#     reportan su propio veredicto en paralelo.
+#
+# Por que `reactivecircus/android-emulator-runner` y no otra cosa:
+#   - Es la opcion estandar y la unica con arranque acelerado por hardware
+#     confiable en runners de GitHub: usa KVM (el paso de abajo abre el nodo
+#     `/dev/kvm` a todos los usuarios) y cachea el snapshot del AVD, con lo
+#     que el arranque baja de ~4 min a ~30 s en corridas siguientes.
+#   - La alternativa nativa son los Gradle Managed Devices de AGP
+#     (`testOptions.managedDevices`). Se descarto: obliga a tocar
+#     `app/build.gradle.kts` para declarar el dispositivo (cambia el build de
+#     todos, tambien en local) y sigue necesitando KVM igual, sin dar a cambio
+#     ni cache de snapshot ni control sobre las banderas del emulador. Aca
+#     conviene que TODO lo especifico de CI viva en `.github/`, no en el build.
+#
+# ADVERTENCIA HONESTA sobre efectos externos:
+#   `MspApplication.onCreate` inicializa `RemoteLogger` (escribe un documento
+#   de arranque en Firestore) y `RemoteDbDebugger` (se suscribe a
+#   `config`/comandos de depuracion remota). Eso corre en CUALQUIER corrida
+#   instrumentada, no solo en el smoke de UI, porque la instrumentacion
+#   arranca el proceso real de la app. Con el flavor `devlocal` el proyecto
+#   Firebase es el de DESARROLLO (`msp-dev-96ff5`), nunca produccion -- pero
+#   cada corrida de este workflow deja rastro en ese proyecto de desarrollo.
+#   Ademas `CollectionReportDeviceSmokeTest` hace un login real contra ese
+#   mismo proyecto con credenciales de desarrollo escritas en el propio
+#   archivo de prueba (repositorio publico), asi que ese test depende de que
+#   el proyecto Firebase de desarrollo este vivo y con reglas vigentes: si
+#   caducan, ese test se pone rojo por una razon que no es del codigo.
+
+name: Pruebas instrumentadas
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: instrumented-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  androidtest:
+    name: androidTest en emulador (API ${{ matrix.api-level }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        # Un solo nivel por ahora: `minSdk` es 24 y `targetSdk` 35, asi que lo
+        # honesto seria una matriz 24/35. Se arranca con 34 (imagen
+        # `google_apis` estable y con Play Services, que la app necesita para
+        # Firebase) y se amplia cuando el job tenga historial de estabilidad:
+        # meter 3 emuladores desde el dia uno multiplica por 3 la superficie
+        # de fallas de infraestructura antes de saber si una sola aguanta.
+        api-level: [34]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Configurar Gradle (cache + validacion del wrapper)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generar local.properties
+        run: ./scripts/ci-local-properties.sh
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+
+      # Sin esto el emulador arranca sin aceleracion por hardware y tarda
+      # varias veces mas (o directamente no arranca). El runner trae `/dev/kvm`
+      # pero con permisos que el usuario del job no tiene.
+      - name: Habilitar KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Compilar ANTES de arrancar el emulador: si el APK de prueba no
+      # compila, el fallo se ve en minutos y no despues de esperar el arranque
+      # del emulador. Ademas deja el emulador encendido el menor tiempo
+      # posible, que es lo que mas se cuelga.
+      - name: Compilar APK de app y de prueba
+        run: |
+          ./gradlew --build-cache --parallel --stacktrace \
+            :app:assembleDevlocalDebug \
+            :app:assembleDevlocalDebugAndroidTest
+
+      - name: Restaurar cache del AVD
+        uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-${{ matrix.api-level }}-google_apis-x86_64
+
+      # Primera corrida (o cache invalidada): crea el AVD y guarda un snapshot
+      # de arranque. `script: echo` -> no corre pruebas, solo genera el
+      # snapshot que el paso siguiente reutiliza.
+      - name: Crear snapshot del AVD
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: false
+          script: echo "AVD creado y snapshot guardado"
+
+      # `--continue` no aplica a `connectedAndroidTest` (una sola tarea), pero
+      # el runner de instrumentacion ya reporta cada metodo por separado y el
+      # XML resultante alimenta el resumen legible del paso siguiente.
+      - name: Ejecutar androidTest (flavor devlocal)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: google_apis
+          arch: x86_64
+          force-avd-creation: false
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          # Se usa el flavor `devlocal` (no `prod`) a proposito: su
+          # `V2_BASE_URL` apunta a `10.0.2.2` -- el host del emulador -- asi
+          # que ninguna prueba puede alcanzar la API de produccion aunque el
+          # codigo bajo prueba se equivoque de cliente. `prodDebug` ademas
+          # esta deshabilitado por `beforeVariants` en `app/build.gradle.kts`.
+          #
+          # El logcat se captura ANTES de lanzar Gradle: cuando una prueba
+          # instrumentada falla, el "por que" casi nunca esta en el reporte
+          # JUnit sino en el log del dispositivo (un ANR, una excepcion en un
+          # Worker, Hilt que no inyecta). Sin esto el desarrollador ve
+          # "fallo" y nada mas.
+          script: |
+            adb logcat -c || true
+            adb logcat > logcat.txt &
+            ./gradlew --build-cache --stacktrace :app:connectedDevlocalDebugAndroidTest
+
+      - name: Resumen legible de pruebas
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci-test-summary.py .
+
+      - name: Publicar reportes de androidTest
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-androidtest-api-${{ matrix.api-level }}
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            app/build/reports/androidTests/**
+            app/build/outputs/androidTest-results/**
+            logcat.txt

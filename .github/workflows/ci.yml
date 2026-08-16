@@ -1,0 +1,210 @@
+# Compuerta remota de msp-app-kt.
+#
+# Por que existe: hasta ahora TODA la compuerta de este repo vivia en el hook
+# `pre-push` local (`scripts/pre-push` -> `./gradlew prePushCheck`), en una
+# sola laptop. `git push --no-verify` la salta entera y nadie se entera. Este
+# workflow es el mismo gate corriendo donde no se puede saltar. Mismo criterio
+# que el repo hermano msp-api (ver su `CLAUDE.md` seccion 7).
+#
+# No reemplaza al hook local: el hook sigue siendo la retroalimentacion rapida
+# en la maquina del desarrollador. Esto es la red que atrapa lo que se le
+# escapo.
+#
+# Que NO esta aca a proposito:
+#   - Ninguna compuerta se relaja ni se omite. El job `pruebas-unitarias`
+#     invoca literalmente `prePushCheck`, la MISMA tarea del hook, para que no
+#     pueda haber deriva entre lo local y lo remoto: un modulo nuevo que se
+#     agregue a `prePushCheck` entra a CI solo.
+#   - Los `androidTest` (emulador) NO entran al `prePushCheck` local. Un
+#     emulador en cada push local haria el gate insoportable y la gente
+#     empezaria a saltarlo con `--no-verify`, que es justo el agujero que este
+#     archivo viene a cerrar. Viven en su propio workflow
+#     (`instrumented-tests.yml`).
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Un push nuevo sobre la misma rama cancela la corrida anterior: nadie espera
+# resultados de un commit que ya quedo atras.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # El launcher local es el JBR de Android Studio 21.0.8 (lo fija
+  # `scripts/pre-push` via JAVA_HOME). Mismo major aca. El proyecto compila a
+  # bytecode 11 (`compileOptions`/`jvmTarget` en `app/build.gradle.kts` y en
+  # `AndroidLibraryConventionPlugin`), que es otra cosa: eso no cambia.
+  JAVA_VERSION: "21"
+  # Gradle sale del wrapper (`gradle-wrapper.properties`: 8.11.1). No se fija
+  # version aca a proposito -- el wrapper manda, y `setup-gradle` valida su
+  # checksum. Las banderas comunes (`--build-cache --parallel --stacktrace`)
+  # van escritas en cada invocacion, no en una variable: expandir una variable
+  # con varias banderas depende del word splitting del shell, que shellcheck
+  # marca con razon.
+
+jobs:
+  # ── Carril rapido ────────────────────────────────────────────────────────
+  # Estilo y analisis estatico: no necesita compilar el APK ni correr
+  # Robolectric, asi que devuelve veredicto en minutos y le dice al
+  # desarrollador "esto ni siquiera es un problema de logica" sin esperar la
+  # suite completa.
+  analisis-estatico:
+    name: Analisis estatico (ktlint + detekt)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Configurar Gradle (cache + validacion del wrapper)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generar local.properties
+        run: ./scripts/ci-local-properties.sh
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+
+      # `--continue` para que una violacion de ktlint en `:core:common` no
+      # esconda las tres de detekt en `:feature:collectionReport`: el
+      # desarrollador ve TODO lo que tiene que arreglar en una sola corrida.
+      #
+      # `:build-logic` es un build compuesto: sus tareas no viven en el grafo
+      # del build principal, por eso van con su propio `--project-dir` (el
+      # `prePushCheck` local hace lo equivalente con
+      # `gradle.includedBuild("build-logic").task(":ktlintCheck")`).
+      - name: ktlint + detekt + guardia de fechas legadas
+        run: |
+          ./gradlew --build-cache --parallel --stacktrace --continue \
+            ktlintCheck \
+            detekt \
+            checkNoLegacyDateApi
+
+      - name: ktlint y compilacion de build-logic
+        run: |
+          ./gradlew --build-cache --parallel --stacktrace --continue --project-dir build-logic \
+            ktlintCheck \
+            compileKotlin
+
+      - name: Publicar reportes de lint
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-lint
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            **/build/reports/ktlint/**
+            **/build/reports/detekt/**
+
+  # ── Carril completo ──────────────────────────────────────────────────────
+  # `prePushCheck` tal cual: ktlint + unit tests de cada modulo + detekt +
+  # kover + Roborazzi + `:app:assembleDevlocalDebug`. Es deliberadamente la
+  # MISMA tarea del hook local, no una lista paralela de tareas: una lista
+  # paralela se desincroniza al primer modulo nuevo.
+  pruebas-unitarias:
+    name: Pruebas unitarias + cobertura + Roborazzi
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Configurar Gradle (cache + validacion del wrapper)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Generar local.properties
+        run: ./scripts/ci-local-properties.sh
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+
+      - name: prePushCheck (el gate local completo)
+        run: ./gradlew --build-cache --parallel --stacktrace --continue prePushCheck
+
+      # `:feature:configuracion` NO esta en `prePushCheck` (revisar la lista de
+      # `dependsOn` en `build.gradle.kts`: aparecen todos los `:core:*`, el
+      # piloto `:feature:collectionReport` y `:build-tools:detekt-rules`, pero
+      # este modulo se quedo fuera). Sus tareas SI pasan hoy, asi que CI las
+      # corre explicitamente en vez de dejar el modulo sin compuerta. Cuando se
+      # agreguen a `prePushCheck` este paso se vuelve redundante y se puede
+      # borrar -- mientras tanto, borrarlo seria bajar una compuerta.
+      - name: Modulos fuera de prePushCheck (:feature:configuracion)
+        if: ${{ !cancelled() }}
+        run: |
+          ./gradlew --build-cache --parallel --stacktrace --continue \
+            :feature:configuracion:ktlintCheck \
+            :feature:configuracion:detekt \
+            :feature:configuracion:testDebugUnitTest \
+            :feature:configuracion:koverVerifyDebug
+
+      # Traduce los cientos de `> Task :modulo:tarea` a "que modulo, que clase,
+      # que metodo, que excepcion" en la portada del job.
+      - name: Resumen legible de pruebas
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci-test-summary.py .
+
+      - name: Publicar reportes de prueba y cobertura
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-de-prueba
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            **/build/reports/tests/**
+            **/build/test-results/**
+            **/build/reports/kover/**
+            **/build/reports/detekt/**
+            **/build/reports/ktlint/**
+
+      # Las diferencias de Roborazzi son imagenes: sin el artefacto, un fallo
+      # de fidelidad visual es un mensaje "no coincide" sin manera de ver que
+      # cambio. `*_compare.png` es la vista lado-a-lado que genera Roborazzi.
+      #
+      # RIESGO CONOCIDO, sin verificar: los 208 goldens de
+      # `core/designsystem/src/test/screenshots/` y los del piloto se grabaron
+      # en macOS/arm64. Este runner es Linux/x86_64 y Robolectric usa un
+      # binario nativo de renderizado distinto por plataforma, asi que
+      # `verifyRoborazzi*` puede fallar por antialiasing y no por un cambio de
+      # UI real. Si eso pasa en la primera corrida: mirar el `*_compare.png`
+      # de este artefacto y, si la diferencia es solo de rasterizado, volver a
+      # grabar los goldens EN CI (`./gradlew recordRoborazziDebug` en este
+      # mismo runner) y commitear el resultado. Lo que NO se debe hacer es
+      # subir el umbral de comparacion: eso convierte el gate en decorativo,
+      # que es justo lo que este workflow viene a arreglar.
+      - name: Publicar diferencias de Roborazzi
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: roborazzi-diferencias
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            **/build/outputs/roborazzi/**
+            **/build/reports/roborazzi/**
+
+      - name: Publicar APK devlocalDebug
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-devlocal-debug
+          if-no-files-found: warn
+          retention-days: 7
+          path: app/build/outputs/apk/devlocal/debug/*.apk

@@ -29,3 +29,7 @@ keystore.properties
 # Git worktrees and superpowers state
 .worktrees/
 .superpowers/
+
+# Bytecode de los scripts de CI en Python (scripts/ci-test-summary.py)
+__pycache__/
+*.pyc
