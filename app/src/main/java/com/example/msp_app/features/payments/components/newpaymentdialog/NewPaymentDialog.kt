@@ -102,6 +102,13 @@ fun NewPaymentDialog(
     var selectedPaymentMethod by remember { mutableIntStateOf(Constants.PAGO_EN_EFECTIVO_ID) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var pendingPaymentId by remember { mutableStateOf<String?>(null) }
+    var guardando by remember { mutableStateOf(false) }
+
+    // Una sola clave de idempotencia por apertura del diálogo. Generarla dentro
+    // del manejador del botón daba una clave distinta por cada toque, así que la
+    // idempotencia del servidor —que sí funciona— nunca podía actuar y el
+    // segundo toque entraba como un cobro nuevo.
+    val idempotencyKey = rememberPaymentIdempotencyKey()
 
     val paymentMethods = listOf(
         Constants.PAGO_EN_EFECTIVO_ID to "Efectivo",
@@ -132,11 +139,19 @@ fun NewPaymentDialog(
             inputValue = ""
             selectedPaymentMethod = Constants.PAGO_EN_EFECTIVO_ID
             showConfirmDialog = false
+            guardando = false
             onDismissRequest()
 
             paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
             paymentsViewModel.resetSavePaymentState()
             pendingPaymentId = null
+        }
+        if (savePaymentState is ResultState.Error) {
+            // Si el guardado local falló no hay pago que duplicar: se libera el
+            // botón para que el cobrador pueda reintentar. La clave de
+            // idempotencia sigue siendo la misma, así que un reintento que sí
+            // llegue no puede convertirse en un segundo cobro.
+            guardando = false
         }
     }
 
@@ -150,14 +165,15 @@ fun NewPaymentDialog(
     }
 
     fun handleSavePayment() {
+        if (guardando) return
         if (inputValue.isBlank() || errorMessage != null) return
         if (currentUser?.COBRADOR_ID == null || currentUser.COBRADOR_ID == 0) {
             errorMessage = "No se pudo obtener el ID del cobrador. Intenta nuevamente."
             return
         }
+        guardando = true
         coroutineScope.launch {
             try {
-                val idTicket = UUID.randomUUID().toString()
                 val date = currentPaymentTimestamp()
 
                 val payment = PaymentFactory.fromSale(
@@ -165,7 +181,7 @@ fun NewPaymentDialog(
                     currentUser = currentUser,
                     importe = inputValue.toDouble(),
                     formaCobroId = selectedPaymentMethod,
-                    id = idTicket,
+                    id = idempotencyKey,
                     fecha = date
                 )
 
@@ -183,6 +199,7 @@ fun NewPaymentDialog(
 
                 // La navegación ahora ocurre en el LaunchedEffect cuando savePaymentState sea Success
             } catch (e: Exception) {
+                guardando = false
                 e.printStackTrace()
             }
         }
@@ -446,102 +463,155 @@ fun NewPaymentDialog(
     if (showConfirmDialog) {
         val amount = inputValue.toDoubleOrNull() ?: 0.0
         val saldoRestante = (sale.SALDO_REST - amount).coerceAtLeast(0.0)
-        AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        handleSavePayment()
-                    }
-                ) {
-                    Text(
-                        text = "Confirmar",
-                        color = Color.White
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) {
-                    Text(
-                        text = "Cancelar",
-                        color = if (isDark) {
-                            Color.White
-                        } else {
-                            Color.Blue
-                        }
-                    )
-                }
-            },
-            title = {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Confirmar Pago",
-                        style = MaterialTheme.typography.titleLarge,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            },
-            text = {
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "Pago a realizar",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.secondary,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(
-                                modifier = Modifier.height(8.dp)
-                            )
-                            Text(
-                                text = amount.toCurrency(noDecimals = true),
-                                style = TextStyle(
-                                    fontSize = 36.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
-                                ),
-                                textAlign = TextAlign.Center
-                            )
-                        }
+        ConfirmPaymentDialog(
+            amount = amount,
+            saldoRestante = saldoRestante,
+            isDark = isDark,
+            guardando = guardando,
+            onConfirm = { handleSavePayment() },
+            onDismiss = { showConfirmDialog = false }
+        )
+    }
+}
 
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Flecha hacia abajo",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .size(42.dp)
-                                .padding(vertical = 4.dp)
+/**
+ * Clave de idempotencia del pago: un UUID por **apertura** del diálogo.
+ *
+ * Estaba dentro del manejador del botón, así que cada toque generaba una clave
+ * distinta. La idempotencia del servidor funciona correctamente, pero sólo
+ * puede reconocer un reenvío si la clave se repite: con una clave nueva por
+ * toque, el segundo toque entraba como un cobro nuevo. El 2026-08-17 eso
+ * produjo 3 cobros duplicados, $600 de más.
+ *
+ * `remember` es lo que la ata a la apertura: sobrevive a las recomposiciones
+ * (escribir el monto, elegir forma de pago, abrir y cerrar la confirmación) y
+ * se renueva sólo cuando el diálogo se cierra y se vuelve a abrir, que es
+ * exactamente cuando empieza otro cobro.
+ */
+@Composable
+fun rememberPaymentIdempotencyKey(): String = remember { UUID.randomUUID().toString() }
+
+/**
+ * Confirmación del pago, con las tres defensas contra el cobro duplicado que el
+ * `AlertDialog` original no tenía: el botón se deshabilita, cierra el diálogo al
+ * confirmar, y un cerrojo de una sola vuelta cubre la ventana en la que el padre
+ * todavía no recompuso.
+ *
+ * El cerrojo no es redundante con [guardando]: entre el toque y el primer
+ * recompuesto del padre hay un hueco real, y ahí el botón seguiría habilitado y
+ * el diálogo seguiría montado. Ese hueco es justo el que cabe en un doble toque.
+ */
+@Composable
+fun ConfirmPaymentDialog(
+    amount: Double,
+    saldoRestante: Double,
+    isDark: Boolean,
+    guardando: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var confirmado by remember { mutableStateOf(false) }
+    val habilitado = !confirmado && !guardando
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (!habilitado) return@Button
+                    confirmado = true
+                    onDismiss()
+                    onConfirm()
+                },
+                enabled = habilitado
+            ) {
+                Text(
+                    text = "Confirmar",
+                    color = Color.White
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Cancelar",
+                    color = if (isDark) {
+                        Color.White
+                    } else {
+                        Color.Blue
+                    }
+                )
+            }
+        },
+        title = {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Confirmar Pago",
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        text = {
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Pago a realizar",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                            textAlign = TextAlign.Center
                         )
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "Saldo restante",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.secondary,
-                                textAlign = TextAlign.Center
-                            )
-                            Spacer(
-                                modifier = Modifier.height(8.dp)
-                            )
-                            Text(
-                                text = saldoRestante.toCurrency(noDecimals = true),
-                                style = TextStyle(
-                                    fontSize = 36.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF4CAF50)
-                                ),
-                                textAlign = TextAlign.Center
-                            )
-                        }
+                        Spacer(
+                            modifier = Modifier.height(8.dp)
+                        )
+                        Text(
+                            text = amount.toCurrency(noDecimals = true),
+                            style = TextStyle(
+                                fontSize = 36.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) Color.White else MaterialTheme.colorScheme.primary
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.KeyboardArrowDown,
+                        contentDescription = "Flecha hacia abajo",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .size(42.dp)
+                            .padding(vertical = 4.dp)
+                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Saldo restante",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.secondary,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(
+                            modifier = Modifier.height(8.dp)
+                        )
+                        Text(
+                            text = saldoRestante.toCurrency(noDecimals = true),
+                            style = TextStyle(
+                                fontSize = 36.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF4CAF50)
+                            ),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
-        )
-    }
+        }
+    )
 }
