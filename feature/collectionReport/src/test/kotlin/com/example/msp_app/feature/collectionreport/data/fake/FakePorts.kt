@@ -142,8 +142,13 @@ class FakeSalesPort : SalesPort {
     var nonContadoActiveSalesCalls: Int = 0
         private set
 
-    override suspend fun nonContadoActiveSales(): List<SaleForCobranza> {
+    /** Último rango recibido — el ViewModel debe pasar el MISMO que usa para los pagos. */
+    var lastRange: DateRange? = null
+        private set
+
+    override suspend fun nonContadoActiveSales(range: DateRange): List<SaleForCobranza> {
         nonContadoActiveSalesCalls++
+        lastRange = range
         return sales
     }
 }

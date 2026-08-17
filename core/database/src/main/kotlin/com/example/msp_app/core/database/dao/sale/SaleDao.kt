@@ -21,22 +21,38 @@ interface SaleDao {
      * `cobranza_repo.go` en `msp-api` — nunca hay `FREC_PAGO = 'CONTADO'` en local), así que
      * esta query solo filtra "activa".
      *
-     * **Desviación documentada vs. el Go** (`queryVentasPorZona`): el backend incluye una venta
-     * saldada si tuvo abono en la ventana (`SALDO > 0 OR abonoSemana > 0`); aquí solo se filtra
-     * `SALDO_REST > 0` porque el abono de la ventana se resuelve aparte (agrupando
-     * `CollectionPayment.saleId`, ver `SaleForCobranza`) y `SaleDao.deleteSaldadasFueraDeVentana`
-     * ya conserva localmente las saldadas con un pago reciente — el caso "saldada CON abono en
-     * la ventana" solo se pierde si esa venta salió de local ANTES del ciclo actual, un borde
-     * que no se ha observado en producción; se documenta en vez de replicar el OR completo.
+     * **Paridad con el Go** (`queryVentasPorZona`): el backend incluye una venta saldada si tuvo
+     * abono en la ventana (`SALDO > 0 OR abonoSemana > 0`), y aquí se replica ese OR.
+     *
+     * Antes solo se filtraba `SALDO_REST > 0`, con el argumento de que "saldada CON abono en la
+     * ventana" era un borde no observado en producción. **Se observó el 2026-08-16** en la ruta
+     * 25: tres ventas que el cobrador terminó de pagar esa misma semana cayeron a saldo cero y
+     * salieron del reporte, dejando su pago huérfano. El total cobrado cuadraba con Microsip al
+     * peso, pero la cobertura marcaba 73 de 305 en vez de 76 de 308 — el dinero nunca estuvo
+     * mal, la cobertura sí, y hacia abajo, que es la dirección que hace ver a un cobrador peor
+     * de lo que fue.
+     *
+     * La subconsulta filtra `FORMA_COBRO_ID IN (157, 158, 52569)` —el mismo trío de
+     * [getPaymentsByDate] en `PaymentDao`— para excluir la condonación (137026): una venta
+     * saldada únicamente por condonación no es cobranza y no debe entrar al denominador. El
+     * rango es medio-abierto (`>= start AND < end`) sobre strings RFC3339, igual que el de los
+     * pagos, para que numerador y denominador miren exactamente la misma ventana.
      */
     @Query(
         """
         SELECT DOCTO_CC_ACR_ID, PARCIALIDAD, PRECIO_TOTAL, SALDO_REST, FREC_PAGO, FECHA
         FROM sales
         WHERE SALDO_REST > 0
+           OR DOCTO_CC_ACR_ID IN (
+                SELECT p.DOCTO_CC_ACR_ID
+                FROM Payment p
+                WHERE p.FECHA_HORA_PAGO >= :startIso
+                  AND p.FECHA_HORA_PAGO < :endExclusiveIso
+                  AND p.FORMA_COBRO_ID IN (157, 158, 52569)
+           )
         """
     )
-    suspend fun getCobranzaRows(): List<SaleCobranzaRow>
+    suspend fun getCobranzaRows(startIso: String, endExclusiveIso: String): List<SaleCobranzaRow>
 
     /**
      * Referencia ligera (folio + saldo restante) de un conjunto de ventas por su

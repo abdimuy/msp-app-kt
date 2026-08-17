@@ -1,8 +1,10 @@
 package com.example.msp_app.feature.collectionreport.data.adapter
 
+import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje
+import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Money
 import java.math.BigDecimal
 import kotlinx.coroutines.test.runTest
@@ -19,6 +21,31 @@ import org.junit.Test
 class RoomSalesAdapterTest : RoomTestBase() {
 
     private val adapter by lazy { RoomSalesAdapter(db.saleDao()) }
+
+    // Ventana de la semana bajo prueba: [13-abr, 20-abr) en zona negocio.
+    private val range = DateRange("2026-04-13T06:00:00Z", "2026-04-20T06:00:00Z")
+
+    private fun payment(
+        id: String,
+        acrId: Int,
+        formaCobro: Int = 157,
+        fechaHoraPago: String = "2026-04-15T18:30:00Z"
+    ) = PaymentEntity(
+        ID = id,
+        COBRADOR = "Efrain Dominguez Reyes",
+        DOCTO_CC_ACR_ID = acrId,
+        DOCTO_CC_ID = 91027,
+        FECHA_HORA_PAGO = fechaHoraPago,
+        GUARDADO_EN_MICROSIP = true,
+        IMPORTE = 350.0,
+        LAT = 19.043415,
+        LNG = -98.198234,
+        CLIENTE_ID = 30144,
+        COBRADOR_ID = 7,
+        FORMA_COBRO_ID = formaCobro,
+        ZONA_CLIENTE_ID = 21,
+        NOMBRE_CLIENTE = "Rosa Elena Martinez Vazquez"
+    )
 
     // `restanteRaw`/`creditoRaw` (no `saldoRest`/`precioTotal`) para no disparar la regla
     // NoDoubleForMoney: son el Double crudo del schema v27 que el adapter convierte a
@@ -85,7 +112,7 @@ class RoomSalesAdapterTest : RoomTestBase() {
             )
         )
 
-        val sales = adapter.nonContadoActiveSales()
+        val sales = adapter.nonContadoActiveSales(range)
 
         assertEquals(1, sales.size)
         val sale = sales.single()
@@ -97,7 +124,7 @@ class RoomSalesAdapterTest : RoomTestBase() {
     }
 
     @Test
-    fun `nonContadoActiveSales excluye ventas saldadas`() = runTest {
+    fun `nonContadoActiveSales excluye ventas saldadas SIN abono en la ventana`() = runTest {
         db.saleDao().insertAll(
             listOf(
                 sale(acrId = 1, restanteRaw = 0.0),
@@ -106,9 +133,48 @@ class RoomSalesAdapterTest : RoomTestBase() {
             )
         )
 
-        val sales = adapter.nonContadoActiveSales()
+        val sales = adapter.nonContadoActiveSales(range)
 
         assertEquals(listOf(3), sales.map { it.doctoCcAcrId })
+    }
+
+    /**
+     * El defecto del 2026-08-16 (ruta 25): el cobrador termina de pagar una venta DENTRO de la
+     * semana, el saldo cae a cero y la venta desaparecía del reporte junto con el pago que la
+     * saldó — la cobertura marcaba 73 de 305 en vez de 76 de 308. El Go siempre la incluyó
+     * (`SALDO > 0 OR abonoSemana > 0`); esta prueba fija esa paridad.
+     */
+    @Test
+    fun `nonContadoActiveSales incluye la venta saldada CON abono en la ventana`() = runTest {
+        db.saleDao().insertAll(listOf(sale(acrId = 42, restanteRaw = 0.0)))
+        db.paymentDao().savePayment(payment(id = "p1", acrId = 42))
+
+        val sales = adapter.nonContadoActiveSales(range)
+
+        assertEquals(listOf(42), sales.map { it.doctoCcAcrId })
+    }
+
+    @Test
+    fun `nonContadoActiveSales excluye la saldada cuyo abono cae FUERA de la ventana`() = runTest {
+        db.saleDao().insertAll(listOf(sale(acrId = 42, restanteRaw = 0.0)))
+        // Un día antes de que abra la ventana: es cobranza del ciclo anterior.
+        db.paymentDao().savePayment(
+            payment(id = "p1", acrId = 42, fechaHoraPago = "2026-04-12T18:30:00Z")
+        )
+
+        assertTrue(adapter.nonContadoActiveSales(range).isEmpty())
+    }
+
+    /**
+     * Una condonación (137026) perdona deuda, no cobra: no debe resucitar una venta saldada al
+     * denominador. Mismo trío de formas que `PaymentDao.getPaymentsByDate`.
+     */
+    @Test
+    fun `nonContadoActiveSales excluye la saldada solo por condonacion`() = runTest {
+        db.saleDao().insertAll(listOf(sale(acrId = 42, restanteRaw = 0.0)))
+        db.paymentDao().savePayment(payment(id = "p1", acrId = 42, formaCobro = 137026))
+
+        assertTrue(adapter.nonContadoActiveSales(range).isEmpty())
     }
 
     @Test
@@ -120,7 +186,7 @@ class RoomSalesAdapterTest : RoomTestBase() {
             )
         )
 
-        val sales = adapter.nonContadoActiveSales().associateBy { it.doctoCcAcrId }
+        val sales = adapter.nonContadoActiveSales(range).associateBy { it.doctoCcAcrId }
 
         assertEquals(CobranzaPorcentaje.Frecuencia.SEMANAL, sales.getValue(1).frecuencia)
         assertEquals(CobranzaPorcentaje.Frecuencia.SEMANAL, sales.getValue(2).frecuencia)
@@ -128,6 +194,6 @@ class RoomSalesAdapterTest : RoomTestBase() {
 
     @Test
     fun `nonContadoActiveSales vacio sin ventas`() = runTest {
-        assertTrue(adapter.nonContadoActiveSales().isEmpty())
+        assertTrue(adapter.nonContadoActiveSales(range).isEmpty())
     }
 }

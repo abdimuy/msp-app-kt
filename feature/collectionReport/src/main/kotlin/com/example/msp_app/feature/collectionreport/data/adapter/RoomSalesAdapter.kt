@@ -4,6 +4,7 @@ import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.SaleCobranzaRow
 import com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje
+import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import com.example.msp_app.feature.collectionreport.domain.port.SalesPort
@@ -23,8 +24,9 @@ class RoomSalesAdapter(
     private val saleDao: SaleDao
 ) : SalesPort {
 
-    override suspend fun nonContadoActiveSales(): List<SaleForCobranza> =
-        saleDao.getCobranzaRows().map { it.toSaleForCobranza() }
+    override suspend fun nonContadoActiveSales(range: DateRange): List<SaleForCobranza> =
+        saleDao.getCobranzaRows(range.startIso, range.endExclusiveIso)
+            .map { it.toSaleForCobranza() }
 }
 
 private fun SaleCobranzaRow.toSaleForCobranza(): SaleForCobranza = SaleForCobranza(

@@ -563,7 +563,14 @@ class CollectionReportViewModel @Inject constructor(
         val historicalTotals = historicalTotalsPort.dailyTotals(SuggestedGoal.DEFAULT_WINDOW)
         // Ventas activas solo en Semana — evita el costo de la query en Día, donde "Meta de la
         // semana" no se muestra (ver KDoc de HeroUi/CollectionReportStateBuilder.buildHero).
-        val sales = if (period == ReportPeriod.SEMANA) salesPort.nonContadoActiveSales() else emptyList()
+        // Va el MISMO `range` que alimenta `paymentsIn` arriba, para que el denominador (ventas
+        // que cuentan en la ventana) y el numerador (las que tuvieron abono) miren el mismo
+        // periodo; pasarle otro rango reintroduce el desajuste que el parámetro corrige.
+        val sales = if (period == ReportPeriod.SEMANA) {
+            salesPort.nonContadoActiveSales(range)
+        } else {
+            emptyList()
+        }
         // Qué días del ciclo tuvieron cobro — SOLO para atenuar (que no esconder) los chips en
         // cero de la tira. Se resuelve con `paymentsGroupedByDaySince`, el puerto que ya existe
         // para justo este resumen por día, y desde el inicio REAL del ciclo (la hora de la

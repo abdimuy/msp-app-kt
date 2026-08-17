@@ -63,16 +63,21 @@ interface VisitsPort {
 /**
  * Ventas de crédito no-contado ACTIVAS del cobrador — insumo de
  * [com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje] para la tarjeta
- * "Meta de la semana" (porcentaje cobro ponderado + porcentaje cuentas/cobertura). Puerto
- * OUTBOUND deliberadamente simple (una sola función): a diferencia de [PaymentsPort], no toma
- * [DateRange] — la ventana del cálculo la fija [CobranzaPorcentaje] (`[fechaInicio, hoy]`), no
- * la consulta de ventas (una venta "activa" no depende del rango del reporte, solo su
- * `abonoSemana` — resuelto aparte agrupando [CollectionPayment.saleId]).
+ * "Meta de la semana" (porcentaje cobro ponderado + porcentaje cuentas/cobertura).
+ *
+ * **Sí toma [DateRange]**, a diferencia de lo que este puerto asumía antes. La premisa original
+ * era que "una venta activa no depende del rango del reporte", y es falsa para el caso que el Go
+ * ya contemplaba: una venta que se salda DENTRO de la ventana sigue siendo parte de la cobranza
+ * de esa ventana aunque su saldo hoy sea cero. Sin el rango, esas ventas desaparecían del
+ * reporte junto con el pago que las saldó (ver el KDoc de `SaleDao.getCobranzaRows`).
  */
 interface SalesPort {
 
-    /** Ventas de crédito no-contado activas (`sales.SALDO_REST > 0`) — ver el adapter Room. */
-    suspend fun nonContadoActiveSales(): List<SaleForCobranza>
+    /**
+     * Ventas de crédito no-contado que cuentan para la cobranza de [range]: las que tienen saldo
+     * pendiente, **más** las que se saldaron con un pago dentro de esa ventana.
+     */
+    suspend fun nonContadoActiveSales(range: DateRange): List<SaleForCobranza>
 }
 
 /**
