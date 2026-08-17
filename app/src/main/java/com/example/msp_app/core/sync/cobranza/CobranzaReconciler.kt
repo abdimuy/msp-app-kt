@@ -445,7 +445,6 @@ class CobranzaReconciler(
 
     companion object {
         const val PAGE_LIMIT = 5000
-        const val RECONCILE_INTERVAL_MS = 5 * 60_000L
         private const val TAG = "CobranzaReconciler"
 
         /** Barrido auto-sanable al entrar a `reconcileNow` (histórico / carreras previas). */

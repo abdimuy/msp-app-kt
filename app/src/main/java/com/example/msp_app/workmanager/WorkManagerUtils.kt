@@ -10,6 +10,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.example.msp_app.workers.ClienteSyncWorker
+import com.example.msp_app.workers.CobranzaReconcileWorker
 import com.example.msp_app.workers.PendingGuaranteeEventsWorker
 import com.example.msp_app.workers.PendingGuaranteesWorker
 import com.example.msp_app.workers.PendingLocalSalesWorker
@@ -119,6 +120,72 @@ fun enqueuePendingLocalSalesWorker(
 
     WorkManager.getInstance(context)
         .enqueueUniqueWork(uniqueName, policy, request)
+}
+
+/** Nombre del trabajo único que reconcilia **ya**, al abrir la app. */
+const val COBRANZA_RECONCILE_NOW_WORK = "cobranza_reconcile_now"
+
+/** Nombre del trabajo único que mantiene la cadencia de respaldo. */
+const val COBRANZA_RECONCILE_PERIODIC_WORK = "cobranza_reconcile_periodic"
+
+/**
+ * Cadencia de respaldo del reconciliador.
+ *
+ * Son 15 y no 5 minutos porque **15 es el piso de WorkManager**
+ * (`PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS`): pedir menos no acorta
+ * nada, lo sube en silencio. La cobertura real de los 5 minutos originales la
+ * da [enqueueCobranzaReconcileNowWorker], que corre en cada apertura.
+ */
+const val COBRANZA_RECONCILE_PERIOD_MINUTES = 15L
+
+/**
+ * Reconcilia **de inmediato**, sin retraso inicial.
+ *
+ * El bucle anterior vivía en el ciclo de vida de la UI con el `delay` **antes**
+ * de la primera vuelta y moría en `ON_STOP`: exigía cinco minutos seguidos en
+ * primer plano cuando el uso real son ráfagas de segundos, así que nunca corrió
+ * en la flota. Reconciliar primero y esperar después es el orden, no un detalle.
+ *
+ * `KEEP` para que abrir y cerrar la app varias veces seguidas no apile
+ * corridas: si ya hay una sin terminar, se conserva.
+ */
+fun enqueueCobranzaReconcileNowWorker(context: Context, replace: Boolean = false) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = OneTimeWorkRequestBuilder<CobranzaReconcileWorker>()
+        .setConstraints(constraints)
+        .build()
+
+    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(COBRANZA_RECONCILE_NOW_WORK, policy, request)
+}
+
+/**
+ * Cadencia de respaldo del reconciliador, ya fuera del ciclo de vida: sigue
+ * corriendo aunque el cobrador cierre la app a los pocos segundos.
+ */
+fun enqueueCobranzaReconcilePeriodicWorker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = PeriodicWorkRequestBuilder<CobranzaReconcileWorker>(
+        COBRANZA_RECONCILE_PERIOD_MINUTES,
+        TimeUnit.MINUTES
+    )
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniquePeriodicWork(
+            COBRANZA_RECONCILE_PERIODIC_WORK,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
 }
 
 fun enqueueClienteSyncWorker(context: Context) {

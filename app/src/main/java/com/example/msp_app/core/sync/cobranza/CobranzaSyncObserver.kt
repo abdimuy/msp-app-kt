@@ -7,23 +7,24 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.coroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import com.example.msp_app.workmanager.enqueueCobranzaReconcileNowWorker
+import com.example.msp_app.workmanager.enqueueCobranzaReconcilePeriodicWorker
 
 /**
- * Wires a [CobranzaSyncManager], a [CobranzaReconciler] and a
- * [CobranzaSseSubscriber] to the host's lifecycle. The sync manager and SSE
- * subscriber start on `ON_START` and stop on `ON_STOP`, so the 30s polling
+ * Wires a [CobranzaSyncManager] and a [CobranzaSseSubscriber] to the host's
+ * lifecycle. Both start on `ON_START` and stop on `ON_STOP`, so the 30s polling
  * loop and SSE streams only run while a screen is foregrounded with the
  * cobrador authenticated.
  *
- * The reconciler runs on a separate periodic job (every
- * [CobranzaReconciler.RECONCILE_INTERVAL_MS] = 5 min). It does NOT fire
- * immediately on `ON_START` — the regular sync just ran and reconcile is
- * purely defensive. The job is cancelled on `ON_STOP`.
+ * El reconciliador **ya no vive aquí**. Vivía en un bucle atado al ciclo de
+ * vida con el `delay` **antes** de la primera vuelta, y el job moría en
+ * `ON_STOP`: para correr una sola vez exigía cinco minutos ininterrumpidos de
+ * app en primer plano. El uso real de un cobrador son ráfagas de segundos, así
+ * que **no corrió nunca en ningún teléfono de la flota** — y con él nunca corrió
+ * el rescate por `by-ids`, el único canal sin watermark. Ahora lo agenda
+ * WorkManager: `enqueueCobranzaReconcileNowWorker` corre en cada apertura, sin
+ * retraso inicial, y `enqueueCobranzaReconcilePeriodicWorker` sostiene la
+ * cadencia de respaldo aunque la app se cierre.
  *
  * The SSE subscriber listens to server-push notifications from both the
  * pagos and saldos stream endpoints. On any event it triggers
@@ -38,20 +39,16 @@ fun CobranzaSyncObserver(manager: CobranzaSyncManager) {
     val context = LocalContext.current
 
     DisposableEffect(lifecycleOwner, manager) {
-        var reconcilerJob: Job? = null
-        val reconciler = CobranzaReconcilerProvider.get(context)
-
         val observer = LifecycleEventObserver { owner, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
                     val scope = owner.lifecycle.coroutineScope
                     manager.start(scope)
-                    reconcilerJob = scope.launch(Dispatchers.IO) {
-                        while (isActive) {
-                            delay(CobranzaReconciler.RECONCILE_INTERVAL_MS)
-                            reconciler.reconcileNow()
-                        }
-                    }
+                    // Reconciliar primero, esperar después: el trabajo puntual
+                    // sale sin retraso inicial y el periódico sólo sostiene la
+                    // cadencia. Ambos sobreviven al `ON_STOP`.
+                    enqueueCobranzaReconcileNowWorker(context)
+                    enqueueCobranzaReconcilePeriodicWorker(context)
                     // Iniciar SSE después del sync manager para que syncNow()
                     // ya esté disponible cuando llegue el primer evento.
                     val sseSubscriber = CobranzaSseProvider.get(manager, scope)
@@ -62,8 +59,6 @@ fun CobranzaSyncObserver(manager: CobranzaSyncManager) {
                     // el manager se está apagando.
                     CobranzaSseProvider.get(manager, owner.lifecycle.coroutineScope).stop()
                     manager.stop()
-                    reconcilerJob?.cancel()
-                    reconcilerJob = null
                 }
                 else -> Unit
             }
@@ -73,7 +68,6 @@ fun CobranzaSyncObserver(manager: CobranzaSyncManager) {
             lifecycleOwner.lifecycle.removeObserver(observer)
             CobranzaSseProvider.get(manager, lifecycleOwner.lifecycle.coroutineScope).stop()
             manager.stop()
-            reconcilerJob?.cancel()
         }
     }
 }
