@@ -22,9 +22,10 @@ local.properties
 *.jks
 keystore.properties
 
-# Kotlin compiler error logs
-.kotlin/.worktrees
-.kotlin/errors/
+# Kotlin compiler error logs y cache de sesiones. Los dos patrones de
+# abajo solo anclaban en la raiz, asi que `build-logic/.kotlin/` quedaba
+# fuera y ensuciaba el arbol — lo que aborta el script de release.
+**/.kotlin/
 
 # Git worktrees and superpowers state
 .worktrees/
