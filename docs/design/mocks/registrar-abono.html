@@ -1,0 +1,267 @@
+<title>Registrar abono</title>
+<style>
+  :root{
+    --bg:#080A09; --surf:#141A18; --surf2:#1B2220; --line:#242D2A;
+    --ink:#F4F7F6; --mut:#8E9995; --faint:#5D6864;
+    --ac:#34D399; --acDeep:#0F2A22; --acInk:#6EE7B7;
+    --red:#F0736A; --redDeep:#2A1613;
+    --amb:#E3AC4E; --ambDeep:#2A2210;
+    --vio:#A78BFA; --vioDeep:#1E1A33;
+    --teal:#3BC9DB; --tealDeep:#0D2830;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#050706;color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;padding:44px 20px 80px}
+  .wrap{max-width:1300px;margin:0 auto}
+  .top{text-align:center;max-width:60ch;margin:0 auto 40px}
+  .kick{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ac);margin:0 0 10px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.028em;margin:0 0 9px;line-height:1.12}
+  .top p{margin:0;color:var(--mut);font-size:14px;line-height:1.6}
+  .row{display:flex;gap:32px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;align-items:center;gap:12px;width:352px}
+  .cap{font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);text-align:center;line-height:1.5}
+  .cap b{color:var(--ac)}
+  .nu{font-variant-numeric:tabular-nums lining-nums}
+
+  .dev{width:352px;padding:9px;border-radius:42px;background:#000;box-shadow:0 40px 80px -34px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.08)}
+  .scr{height:718px;border-radius:34px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative}
+  .bar{height:34px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:3px 20px 0;font-size:12px;font-weight:600}
+  .bar .r{color:var(--mut);font-size:11.5px;font-weight:500}
+  .body{flex:1;overflow:hidden;padding:0 15px;display:flex;flex-direction:column;gap:9px}
+  .body > *{flex:0 0 auto}
+
+  .head{padding:6px 2px 2px}
+  .head .h{font-size:21px;font-weight:700;letter-spacing:-.025em}
+  .head .s{font-size:12px;color:var(--mut);margin-top:2px}
+
+  .ctx{font-size:12px;color:var(--mut);background:var(--surf);border-radius:13px;padding:11px 13px;font-weight:600;line-height:1.5}
+  .ctx b{color:var(--ink);font-weight:700}
+  .sync{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:var(--ac);margin-top:7px}
+  .sync .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+
+  .capa{background:var(--surf);border-radius:18px;padding:14px;text-align:center}
+  .capa .k{font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint)}
+  .capa .v{font-size:36px;font-weight:700;letter-spacing:-.035em;margin-top:5px;color:var(--ac);line-height:1}
+  .capa .f{font-size:11px;color:var(--faint);margin-top:7px}
+  .capa.err{box-shadow:inset 0 0 0 1.5px var(--red)} .capa.err .v{color:var(--red)}
+
+  .sugs{display:flex;gap:7px;overflow:hidden;padding:1px}
+  .sug{flex:1;min-width:0;border-radius:14px;padding:9px 11px;background:var(--surf);box-shadow:inset 0 0 0 1.5px var(--line)}
+  .sug .sv{font-size:16px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .sug .sk{font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin-top:4px}
+  .sug.rec{background:var(--acDeep);box-shadow:inset 0 0 0 1.5px var(--ac)}
+  .sug.rec .sv,.sug.rec .sk{color:var(--acInk)}
+  .sug.alc{box-shadow:inset 0 0 0 1.5px var(--teal)} .sug.alc .sv,.sug.alc .sk{color:var(--teal)}
+  .sug.liq{box-shadow:inset 0 0 0 1.5px var(--vio)} .sug.liq .sv,.sug.liq .sk{color:var(--vio)}
+
+  .meths{display:flex;gap:7px}
+  .m{flex:1;text-align:center;font-size:12.5px;font-weight:700;padding:11px 5px;border-radius:12px;background:var(--surf);color:var(--mut);box-shadow:inset 0 0 0 1.5px var(--line)}
+  .m.on{background:var(--acDeep);color:var(--acInk);box-shadow:inset 0 0 0 1.5px var(--ac)}
+
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .key{min-height:42px;border-radius:12px;background:var(--surf);font-size:21px;font-weight:650;display:flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+  .key.mut{color:var(--mut);font-size:17px}
+
+  .photo{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:13px;background:var(--surf);
+         color:var(--mut);font-size:13px;font-weight:650;box-shadow:inset 0 0 0 1.5px var(--line)}
+  .photo svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9}
+
+  .blockerr{display:flex;gap:10px;background:var(--redDeep);color:#FFA79E;border-radius:14px;padding:12px 13px;box-shadow:inset 0 0 0 1.5px var(--red)}
+  .blockerr .bt{font-size:12.5px;font-weight:800}
+  .blockerr .bd{font-size:11.5px;font-weight:600;margin-top:3px;line-height:1.4}
+
+  .acts{position:absolute;left:0;right:0;bottom:0;padding:14px 15px 20px;background:linear-gradient(transparent,var(--bg) 40%);display:flex;flex-direction:column;gap:8px}
+  .btn{min-height:52px;border-radius:15px;font-size:15px;font-weight:750;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn.sm{min-height:44px;font-size:13.5px}
+  .btn.pri{background:var(--ac);color:#062018}
+  .btn.gho{background:var(--surf);color:var(--ink)}
+  .btn.dan{background:var(--red);color:#1A0D0C}
+  .btn.off{background:var(--surf2);color:var(--faint)}
+
+  .scrim{position:absolute;inset:0;background:rgba(3,6,5,.62);display:flex;align-items:flex-end;z-index:5}
+  .sheet{width:100%;background:var(--surf);border-radius:24px 24px 0 0;padding:11px 15px 20px;display:flex;flex-direction:column;gap:10px}
+  .grab{width:36px;height:4px;border-radius:99px;background:var(--line);align-self:center;margin-bottom:2px}
+  .sh{font-size:15.5px;font-weight:750;letter-spacing:-.015em}
+  .who{display:flex;align-items:center;gap:11px}
+  .av{width:40px;height:40px;border-radius:13px;background:var(--acDeep);color:var(--acInk);display:grid;place-items:center;font-weight:700;font-size:14px;flex:0 0 auto}
+  .who .wn{font-size:14.5px;font-weight:750}
+  .who .wp{font-size:11px;color:var(--faint);margin-top:2px}
+  .sbig{text-align:center;padding:2px 0}
+  .sbig .v{font-size:38px;font-weight:700;letter-spacing:-.035em;color:var(--ac);line-height:1}
+  .sbig.warn .v{color:var(--red)}
+  .sbig .mt{font-size:11.5px;color:var(--faint);font-weight:650;margin-top:5px}
+  .flowb{display:flex;align-items:center;gap:9px;background:var(--surf2);border-radius:14px;padding:11px 13px}
+  .flowb .sf{flex:1;min-width:0}
+  .flowb .fk{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--faint)}
+  .flowb .fv{font-size:16px;font-weight:750;margin-top:3px}
+  .flowb .new .fv{color:var(--ac)}
+  .flowb .ar{color:var(--faint);flex:0 0 auto;font-size:15px}
+  .two{font-size:11px;color:var(--faint);text-align:center;font-weight:700;display:flex;align-items:center;gap:6px;justify-content:center}
+  .two .st{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;box-shadow:inset 0 0 0 1.5px var(--line)}
+  .two .st.done{background:var(--ac);color:#062018;box-shadow:none}
+
+  .aband{display:flex;gap:10px;background:var(--redDeep);color:#FFA79E;border-radius:14px;padding:12px 13px;box-shadow:inset 0 0 0 1.5px var(--red)}
+  .aband .at{font-size:12.5px;font-weight:800}
+  .aband .ad{font-size:11.5px;font-weight:600;margin-top:3px;line-height:1.4}
+  .aband .cmp{display:flex;gap:14px;margin-top:8px;font-size:11px;font-weight:750}
+  .wband{display:flex;gap:10px;background:var(--ambDeep);color:var(--amb);border-radius:14px;padding:11px 13px;font-size:11.5px;font-weight:650;line-height:1.4}
+
+  .notes{max-width:64ch;margin:52px auto 0;font-size:14px;line-height:1.75;color:var(--mut)}
+  .notes h3{font-size:16px;font-weight:650;color:var(--ink);margin:0 0 12px}
+  .notes p{margin:0 0 13px}
+  .notes b{color:var(--ink);font-weight:650}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <p class="kick">msp · cobranza en campo</p>
+    <h1>Registrar abono</h1>
+    <p>El diseño de seguridad de tu mock, traído a nuestro lenguaje: montos sugeridos, bloqueo duro por sobrepago, confirmación en dos pasos y alerta de monto raro.</p>
+  </div>
+
+  <div class="row">
+
+    <!-- 1 · CAPTURA -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:44</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="body">
+          <div class="head"><div class="h">Abono</div><div class="s">Victoria Flores Olmedo</div></div>
+          <div class="ctx">Venta <b>V-5188</b> · Refrigerador Mabe 14' · saldo <b>$1,450</b>
+            <div class="sync"><span class="d"></span>Saldo al 1 sep 9:41 · actualizado</div></div>
+
+          <div class="capa">
+            <div class="k">Monto recibido</div>
+            <div class="v nu">$220.00</div>
+            <div class="f">Folio COB-A-010437 · efectivo</div>
+          </div>
+
+          <div class="sugs">
+            <div class="sug rec"><div class="sv nu">$220</div><div class="sk">✓ esperado hoy</div></div>
+            <div class="sug alc"><div class="sv nu">$440</div><div class="sk">al corriente</div></div>
+            <div class="sug liq"><div class="sv nu">$1,290</div><div class="sk">liquidar</div></div>
+          </div>
+
+          <div class="meths"><span class="m on">Efectivo</span><span class="m">Transferencia</span></div>
+
+          <div class="pad">
+            <span class="key">1</span><span class="key">2</span><span class="key">3</span>
+            <span class="key">4</span><span class="key">5</span><span class="key">6</span>
+            <span class="key">7</span><span class="key">8</span><span class="key">9</span>
+            <span class="key mut">.</span><span class="key">0</span><span class="key mut">⌫</span>
+          </div>
+
+          <div class="photo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg>Agregar foto (opcional)</div>
+        </div>
+        <div class="acts"><div class="btn pri">Registrar abono &nbsp;<span class="nu">$220.00</span></div></div>
+      </div></div>
+      <span class="cap">1 · Captura<br>montos sugeridos + foto</span>
+    </div>
+
+    <!-- 2 · BLOQUEO -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:45</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="body">
+          <div class="head"><div class="h">Abono</div><div class="s">Victoria Flores Olmedo</div></div>
+          <div class="ctx">Venta <b>V-5188</b> · Refrigerador Mabe 14' · saldo <b>$1,450</b></div>
+
+          <div class="capa err">
+            <div class="k">Monto recibido</div>
+            <div class="v nu">$300,000.00</div>
+            <div class="f">Folio COB-A-010437 · efectivo</div>
+          </div>
+
+          <div class="blockerr">
+            <span style="font-size:17px">⊘</span>
+            <div><div class="bt">El abono excede el saldo</div>
+              <div class="bd">Máximo que puedes registrar: liquidar <b style="color:#FFC7BF">$1,290</b></div></div>
+          </div>
+
+          <div class="meths"><span class="m on">Efectivo</span><span class="m">Transferencia</span></div>
+          <div class="pad">
+            <span class="key">1</span><span class="key">2</span><span class="key">3</span>
+            <span class="key">4</span><span class="key">5</span><span class="key">6</span>
+            <span class="key">7</span><span class="key">8</span><span class="key">9</span>
+            <span class="key mut">.</span><span class="key">0</span><span class="key mut">⌫</span>
+          </div>
+        </div>
+        <div class="acts"><div class="btn off">Registrar abono &nbsp;<span class="nu">$300,000.00</span></div></div>
+      </div></div>
+      <span class="cap">2 · Bloqueo duro<br>sobrepago imposible</span>
+    </div>
+
+    <!-- 3 · CONFIRMAR -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:46</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="body" style="opacity:.5">
+          <div class="head"><div class="h">Abono</div><div class="s">Victoria Flores Olmedo</div></div>
+          <div class="ctx">Venta <b>V-5188</b> · saldo <b>$1,450</b></div>
+          <div class="capa"><div class="k">Monto recibido</div><div class="v nu">$220.00</div></div>
+        </div>
+        <div class="scrim"><div class="sheet">
+          <div class="grab"></div>
+          <div class="sh">Confirmar abono</div>
+          <div class="who"><span class="av">VF</span>
+            <div><div class="wn">Victoria Flores Olmedo</div><div class="wp">Refrigerador Mabe 14' · V-5188</div></div></div>
+          <div class="sbig"><div class="v nu">$220.00</div><div class="mt">Efectivo · Folio COB-A-010437</div></div>
+          <div class="flowb">
+            <div class="sf"><div class="fk">Saldo anterior</div><div class="fv nu">$1,450.00</div></div>
+            <span class="ar">→</span>
+            <div class="sf new"><div class="fk">Saldo nuevo</div><div class="fv nu">$1,230.00</div></div>
+          </div>
+          <div class="btn pri">Confirmar y registrar</div>
+          <div class="btn gho sm">Editar</div>
+          <div class="two"><span class="st done">1</span>Revisado<span class="st">2</span>Confirmar</div>
+        </div></div>
+      </div></div>
+      <span class="cap">3 · Confirmar<br>siempre, dos pasos</span>
+    </div>
+
+    <!-- 4 · MONTO RARO -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:47</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="body" style="opacity:.5">
+          <div class="head"><div class="h">Abono</div><div class="s">Victoria Flores Olmedo</div></div>
+          <div class="ctx">Venta <b>V-5188</b> · saldo <b>$1,450</b></div>
+        </div>
+        <div class="scrim"><div class="sheet">
+          <div class="grab"></div>
+          <div class="aband">
+            <span style="font-size:17px">⚠</span>
+            <div><div class="at">Monto inusual — verifica</div>
+              <div class="ad">Es 10× el pago esperado. ¿Tecleaste un dígito de más?</div>
+              <div class="cmp"><span>Esperado <b style="color:#FFC7BF">$220</b></span><span>Este abono <b style="color:#FFC7BF">$2,200</b></span></div></div>
+          </div>
+          <div class="wband"><span>🕐</span><span>Ya recibió un abono de $220 esta semana · lun 25 ago</span></div>
+          <div class="who"><span class="av" style="background:var(--redDeep);color:var(--red)">VF</span>
+            <div><div class="wn">Victoria Flores Olmedo</div><div class="wp">Refrigerador Mabe 14' · V-5188</div></div></div>
+          <div class="sbig warn"><div class="v nu">$2,200.00</div><div class="mt">Efectivo</div></div>
+          <div class="flowb">
+            <div class="sf"><div class="fk">Saldo anterior</div><div class="fv nu">$1,450.00</div></div>
+            <span class="ar">→</span>
+            <div class="sf new"><div class="fk">Saldo nuevo</div><div class="fv nu" style="color:var(--red)">$0.00</div></div>
+          </div>
+          <div class="btn dan">Sí, el monto es correcto</div>
+          <div class="btn gho sm">Corregir monto</div>
+          <div class="two"><span class="st done">1</span>Revisado<span class="st">2</span>Confirmar monto raro</div>
+        </div></div>
+      </div></div>
+      <span class="cap"><b>4 · Alerta fuerte</b><br>raro o duplicado</span>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <h3>Lo que conservé de tu mock, y por qué</h3>
+    <p><b>El monto es el protagonista</b> — 36px en verde, con el folio debajo. Todo lo demás recede. Y los tres montos sugeridos hacen que el caso normal sea un toque: <b>esperado hoy</b> marcado, <b>al corriente</b> y <b>liquidar</b>.</p>
+    <p><b>Bloqueo duro por sobrepago.</b> No es una advertencia que se pueda ignorar: el botón se apaga y el borde del monto se pone rojo. Con el máximo escrito, para que el cobrador sepa qué sí puede registrar.</p>
+    <p><b>Confirmación siempre, en dos pasos</b>, con <b>saldo anterior → saldo nuevo</b> antes de tocar nada. Es lo que convierte un error de dedo en un error visible.</p>
+    <p><b>La alerta de monto raro es de otro color y otro botón.</b> Rojo sólido, “Sí, el monto es correcto” — obliga a afirmar en vez de solo continuar. Y arriba la banda ámbar del duplicado de la semana, que es el otro modo de falla real.</p>
+    <p><b>Agregué la foto opcional</b>, que decidimos que entra en pagos y visitas. Va abajo del teclado y <b>nunca bloquea el guardado</b>: si la cámara falla, el abono se registra igual.</p>
+    <p>Los tres sugeridos ahora llevan <b>color propio</b>: verde lo esperado hoy, turquesa ponerse al corriente, violeta liquidar — el mismo violeta que usa “promesa” en el semáforo. Y quité <b>Terminal</b>: quedan efectivo y transferencia, que es lo que ustedes cobran.</p>
+  </div>
+</div>

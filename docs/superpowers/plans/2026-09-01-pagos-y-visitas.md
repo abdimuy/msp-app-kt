@@ -86,6 +86,46 @@ tokens reales de `MspColors.kt`:
 
 **No se toca `:feature:collectionReport` ni se regraban sus goldens.**
 
+**DECISIÓN DEL USUARIO (2026-09-01):** los cuatro mocks **NO se republican**. Son artifacts que el
+usuario posee, pintados en esmeralda, y se quedan así **como registro de lo que se acordó**. Copia
+local sin tocar en `docs/design/mocks/` — es la referencia visual de las Tasks 16-20.
+
+Por lo tanto esta tarea entrega **una sola cosa**:
+
+**`docs/design/paleta-mocks-a-mspcolors.md` — la tabla autoritativa.** Es lo que de verdad gatea a
+las Tasks 16-20: el implementador de cada pantalla mira el mock para **composición, escala y
+jerarquía**, y mira esta tabla para **color**. Debe listar, fila por fila:
+
+- el color del mock (el hex, y el nombre de la variable CSS: `--ac`, `--teal`, `--amb`, `--red`,
+  `--vio`, `--surf`, `--line`, `--ink`, `--mut`, `--faint`, …),
+- el token de `MspColors` que lo reemplaza (**leer `MspColors.kt` de verdad** — no inventar nombres),
+- su valor en claro y en oscuro,
+- y **para qué sirve**: acción / estado / superficie / línea / texto.
+
+Cubrir explícitamente:
+
+- **Acción:** todo lo tocable y protagónico → azul de marca `#2563EB`. El esmeralda `--ac` del mock
+  se parte en dos destinos según el uso: **acción → azul**, **estado pagado → `statusPaid`**.
+- **Los cinco colores de estado del semáforo:** verde pagado · turquesa parcial (`--teal`) ·
+  ámbar vuelvo (`--amb`) · rojo promesa/negado (`--red`) · violeta cita (`--vio`).
+- **Los tres montos sugeridos** del mock de abono: verde *esperado hoy* · turquesa *al corriente* ·
+  violeta *liquidar*.
+- **Superficies y líneas:** `--bg` `#080A09`, `--surf` `#141A18`, `--surf2` `#1B2220`,
+  `--line` `#242D2A`, y los tres niveles de texto `--ink` / `--mut` / `--faint`.
+
+**Si falta un token en `MspColors` para algún estado, proponerlo** con nombre, valor claro/oscuro,
+razón y **contraste medido contra su fondo** — no inventarlo suelto. Marcar en la tabla cuáles son
+propuestas y cuáles ya existen.
+
+**Nota heredada:** hay **3 pares de color bajo AA** parqueados desde el Plan 3 esperando decisión del
+usuario (`NIGHT-REPORT.md`, sección B). Si alguno de esos pares aparece en esta tabla, **señalarlo**
+en su fila — no resolverlo.
+
+**Verificación:** cada token citado existe de verdad en `MspColors.kt` (o está marcado como
+propuesta). Control positivo: si citas un token, demuestra con `grep` que está en el archivo.
+
+**No se toca `:feature:collectionReport` ni se regraban sus goldens.**
+
 **RULING DEL ORQUESTADOR (pre-flight):** los cuatro mocks **NO viven en el repo** — `docs/design/`
 solo tiene `reporte-cobranza-mockup.html`. Son artifacts publicados en claude.ai que el usuario posee.
 Por eso esta tarea entrega **dos cosas**:

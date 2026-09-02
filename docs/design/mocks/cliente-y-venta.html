@@ -1,0 +1,381 @@
+<title>Cliente y venta</title>
+<style>
+  :root{
+    --bg:#080A09; --surf:#141A18; --surf2:#1B2220; --line:#242D2A;
+    --ink:#F4F7F6; --mut:#8E9995; --faint:#5D6864;
+    --ac:#34D399; --acDeep:#0F2A22; --acInk:#6EE7B7;
+    --teal:#3BC9DB; --tealDeep:#0D2830;
+    --amb:#E3AC4E; --ambDeep:#2A2210;
+    --red:#F0736A; --redDeep:#2A1613;
+    --vio:#A78BFA; --vioDeep:#1E1A33;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#050706;color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;padding:44px 20px 80px}
+  .wrap{max-width:1080px;margin:0 auto}
+  .top{text-align:center;max-width:60ch;margin:0 auto 40px}
+  .kick{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ac);margin:0 0 10px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.028em;margin:0 0 9px;line-height:1.12}
+  .top p{margin:0;color:var(--mut);font-size:14px;line-height:1.6}
+  .row{display:flex;gap:44px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;align-items:center;gap:13px}
+  .cap{font-size:10.5px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--faint)}
+  .cap b{color:var(--ac)}
+
+  .dev{width:388px;padding:10px;border-radius:46px;background:#000;box-shadow:0 44px 88px -36px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.08)}
+  .scr{border-radius:37px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+  .bar{height:38px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:4px 22px 0;font-size:12.5px;font-weight:600}
+  .bar .r{color:var(--mut);font-size:12px;font-weight:500}
+  .flow{padding:0 18px 4px;display:flex;flex-direction:column}
+  .flow > *{flex:0 0 auto}
+  .nu{font-variant-numeric:tabular-nums lining-nums}
+
+  .nav{display:flex;align-items:center;gap:9px;padding:2px 0 15px}
+  .cir{width:34px;height:34px;border-radius:50%;background:var(--surf);display:grid;place-items:center;flex:0 0 auto}
+  .cir svg{width:15px;height:15px;stroke:var(--ink);fill:none;stroke-width:2.1}
+  .nav .push{margin-left:auto}
+
+  /* ── estados ── */
+  .st{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto}
+  .st svg{width:15px;height:15px;fill:none;stroke-width:2.3}
+  .st.pago{background:var(--acDeep)} .st.pago svg{stroke:var(--ac)}
+  .st.parcial{background:var(--tealDeep)} .st.parcial svg{stroke:var(--teal)}
+  .st.vuelvo{background:var(--ambDeep)} .st.vuelvo svg{stroke:var(--amb)}
+  .st.promesa{background:var(--redDeep)} .st.promesa svg{stroke:var(--red)}
+  .st.negado{background:var(--red)} .st.negado svg{stroke:#1A0D0C}
+  .st.cita{background:var(--vioDeep)} .st.cita svg{stroke:var(--vio)}
+  .st.nadie{background:var(--surf2)} .st.nadie svg{stroke:var(--faint)}
+  .st.sin{background:var(--surf)} .st.sin svg{stroke:#3E4844}
+  .st.lg{width:44px;height:44px;border-radius:14px}
+  .st.lg svg{width:21px;height:21px}
+
+  .idr{display:flex;gap:12px;align-items:flex-start}
+  .clus{display:flex;gap:4px;flex:0 0 auto}
+  .clus .st{width:22px;height:22px;border-radius:7px}
+  .clus .st svg{width:12px;height:12px}
+  .idt{min-width:0;flex:1}
+  .idt h2{margin:0;font-size:21px;font-weight:700;letter-spacing:-.028em;line-height:1.18}
+  .idt .l1,.idt .l2{font-size:12.5px;color:var(--mut);line-height:1.45}
+  .idt .l1{margin-top:5px}
+  .cuentas{display:inline-flex;align-items:center;font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+           background:var(--surf2);color:var(--mut);padding:4px 8px;border-radius:7px;margin-top:9px}
+
+  .money{margin-top:14px;background:var(--surf);border-radius:19px;padding:15px 16px}
+  .mtop{display:flex;align-items:center}
+  .mk{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--faint)}
+  .mstate{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--red);background:var(--redDeep);padding:5px 10px;border-radius:8px}
+  .mfig{font-size:33px;font-weight:700;letter-spacing:-.035em;line-height:1;margin-top:8px}
+  .mfoot{display:flex;justify-content:space-between;margin-top:14px;font-size:11.5px;color:var(--faint)}
+  .mfoot b{color:var(--mut);font-weight:600}
+
+  .tip{display:flex;gap:10px;margin-top:11px;background:var(--redDeep);border-radius:14px;padding:12px 13px;font-size:12.5px;line-height:1.45;color:#FFA79E;font-weight:600}
+
+  .prog{height:4px;border-radius:99px;background:var(--surf2);overflow:hidden}
+  .prog i{display:block;height:100%;border-radius:99px;background:var(--ac)}
+  .pgrid{display:flex;gap:22px;margin-top:14px}
+  .pgrid .k{font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:var(--faint)}
+  .pgrid .v{font-size:14.5px;font-weight:700;margin-top:4px}
+
+  .sl{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:21px 0 9px}
+
+  .sale{background:var(--surf);border-radius:19px;padding:14px 15px;position:relative;overflow:hidden}
+  .sale + .sale{margin-top:9px}
+  .sale::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+  .sale.s-pago::before{background:var(--ac);opacity:.7}
+  .sale.s-promesa::before{background:var(--red)}
+  .srow{display:flex;align-items:center;gap:11px}
+  .sbody{flex:1;min-width:0}
+  .sttl{font-size:14.5px;font-weight:650;letter-spacing:-.012em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ssub{font-size:11.5px;margin-top:3px;font-weight:600}
+  .s-pago .ssub{color:var(--ac)} .s-promesa .ssub{color:var(--red)}
+  .samt{font-size:15px;font-weight:700;letter-spacing:-.02em;flex:0 0 auto}
+  .sale .prog{margin-top:13px}
+  .sbar{display:flex;align-items:center;margin-top:10px;font-size:11.5px;color:var(--faint)}
+  .sbar b{color:var(--mut);font-weight:600}
+  .sbar .act{margin-left:auto;font-size:12.5px;font-weight:650;color:var(--ink);opacity:.9}
+
+  .liq{background:var(--surf);border-radius:19px;padding:15px 16px;display:flex;align-items:center;gap:14px}
+  .liq .k{font-size:10px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--faint)}
+  .liq .n{font-size:25px;font-weight:700;letter-spacing:-.032em;margin-top:6px;line-height:1}
+  .liq .d{font-size:11.5px;color:var(--faint);margin-top:6px}
+  .liq .use{margin-left:auto;flex:0 0 auto;background:var(--acDeep);color:var(--acInk);font-size:12.5px;font-weight:700;padding:10px 15px;border-radius:11px}
+
+  /* estado grande en la pantalla de venta */
+  .stbig{display:flex;align-items:center;gap:12px;background:var(--surf);border-radius:19px;padding:14px 15px}
+  .stbig .tt{font-size:14.5px;font-weight:700}
+  .stbig .dd{font-size:11.5px;color:var(--faint);margin-top:3px;line-height:1.4}
+
+  /* ── ritmo ── */
+  .weeks{display:flex;gap:4px;align-items:flex-end;height:42px}
+  .weeks span{flex:1;border-radius:4px;background:var(--ac)}
+  .weeks span.l{background:var(--amb)} .weeks span.m{background:var(--redDeep);border:1px solid #3A211E}
+  .wl{display:flex;justify-content:space-between;margin-top:9px;font-size:10.5px;color:var(--faint)}
+  .sum{display:flex;gap:7px;margin-top:12px}
+  .sum div{flex:1;background:var(--surf2);border-radius:11px;padding:9px 10px}
+  .sum .k{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .sum .v{font-size:14px;font-weight:700;margin-top:3px}
+
+  /* ── riel agrupado por mes ── */
+  .rail{position:relative;padding-left:20px;margin-top:2px}
+  .rail::before{content:"";position:absolute;left:4px;top:8px;bottom:16px;width:2px;background:var(--line)}
+  .mm{position:relative;display:flex;align-items:center;gap:9px;margin:14px 0 10px}
+  .mm:first-child{margin-top:4px}
+  .mm::before{content:"";position:absolute;left:-20px;top:50%;transform:translateY(-50%);width:10px;height:10px;border-radius:3px;background:var(--surf2);border:2px solid var(--bg)}
+  .mm .mn{font-size:10px;font-weight:800;letter-spacing:.15em;text-transform:uppercase;color:var(--mut)}
+  .mm .ml{flex:1;height:1px;background:var(--line)}
+  .mm .ms{font-size:12px;font-weight:700;color:var(--mut)}
+  .pi{position:relative;padding:0 0 13px}
+  .pi::before{content:"";position:absolute;left:-19px;top:6px;width:8px;height:8px;border-radius:50%;background:var(--ac);border:2px solid var(--bg)}
+  .pr{display:flex;align-items:baseline;gap:9px}
+  .pam{font-size:15.5px;font-weight:700;letter-spacing:-.02em}
+  .pme{font-size:11.5px;color:var(--faint)}
+  .pdt{margin-left:auto;font-size:11.5px;color:var(--faint);font-weight:600}
+  .pnt{font-size:11.5px;color:var(--mut);margin-top:3px}
+  .allof{display:block;text-align:center;padding:9px 0 2px;font-size:12.5px;font-weight:650;color:var(--mut)}
+
+  .ct{display:flex;gap:12px;align-items:baseline;padding:10px 0}
+  .ct + .ct{border-top:1px solid var(--line)}
+  .ct .d{width:44px;flex:0 0 auto;font-size:11px;color:var(--faint);font-weight:600}
+  .ct .t{font-size:13.5px;font-weight:600;line-height:1.35}
+  .ct .t .p{display:inline-block;width:5px;height:5px;border-radius:99px;background:var(--red);margin-right:8px;vertical-align:middle}
+  .ct .t .p.v{background:var(--vio)} .ct .t .p.g{background:var(--ac)}
+  .ct .q{font-size:12px;color:var(--mut);margin-top:5px;line-height:1.45}
+  .ct .amt{margin-left:auto;font-size:13px;font-weight:700;flex:0 0 auto}
+
+  .kv{display:flex;padding:9px 0;font-size:12.5px}
+  .kv + .kv{border-top:1px solid var(--line)}
+  .kv .k{color:var(--faint);flex:1}
+  .kv .v{color:var(--ink);font-weight:600;text-align:right}
+  .know{background:var(--surf);border-radius:19px;padding:14px 15px;font-size:13px;line-height:1.6;color:var(--mut)}
+  .know b{color:var(--ink);font-weight:650}
+  .map{height:108px;border-radius:19px;overflow:hidden;position:relative;background:radial-gradient(120% 90% at 60% 40%,#16211E,#0D1412);border:1px solid var(--line)}
+  .map .g{position:absolute;inset:0;opacity:.5;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:34px 34px}
+  .map .rd{position:absolute;left:-10%;right:-10%;top:52%;height:7px;background:#1F2A27;transform:rotate(-7deg)}
+  .map .dt{position:absolute;left:57%;top:41%;width:15px;height:15px;border-radius:50%;background:var(--ac);border:3px solid #0B100E;box-shadow:0 0 0 5px rgba(52,211,153,.16)}
+  .map .lb{position:absolute;left:12px;bottom:11px;font-size:11.5px;font-weight:650;color:var(--mut)}
+  .map .go{position:absolute;right:11px;bottom:10px;background:var(--surf);color:var(--ink);font-size:12px;font-weight:700;padding:8px 12px;border-radius:10px}
+  .prod{display:flex;align-items:center;gap:11px;padding:11px 0}
+  .prod + .prod{border-top:1px solid var(--line)}
+  .prod .pic{width:32px;height:32px;border-radius:10px;background:var(--surf2);display:grid;place-items:center;flex:0 0 auto;font-size:13px}
+  .prod .pn{font-size:13.5px;font-weight:600}
+  .prod .pq{margin-left:auto;font-size:12.5px;color:var(--faint)}
+  .gar{background:var(--surf);border-radius:19px;padding:14px 15px}
+  .gtop{display:flex;align-items:center;gap:10px}
+  .gtop .gt{font-size:13.5px;font-weight:650}
+  .gtop .gs{font-size:11.5px;color:var(--faint);margin-top:2px}
+  .gtop .gc{margin-left:auto;font-size:10.5px;font-weight:700;padding:5px 9px;border-radius:8px;background:var(--vioDeep);color:var(--vio)}
+  .gact{display:flex;gap:8px;margin-top:12px}
+  .gact span{flex:1;text-align:center;font-size:12.5px;font-weight:650;padding:10px;border-radius:11px;background:var(--surf2)}
+
+  .dock{display:flex;gap:9px;padding:13px 18px 24px;background:var(--bg);border-top:1px solid var(--line);position:sticky;bottom:0}
+  .cta{height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:14.5px;font-weight:700}
+  .cta.p{flex:1.7;background:var(--ac);color:#062018}
+  .cta.s{flex:1;background:var(--surf);color:var(--ink)}
+  .cta.m{width:50px;flex:0 0 auto;background:var(--surf);color:var(--mut);font-size:19px}
+
+  .notes{max-width:64ch;margin:52px auto 0;font-size:14px;line-height:1.75;color:var(--mut)}
+  .notes h3{font-size:16px;font-weight:650;color:var(--ink);margin:0 0 12px}
+  .notes p{margin:0 0 13px}
+  .notes b{color:var(--ink);font-weight:650}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <p class="kick">msp · cobranza en campo</p>
+    <h1>Cliente y venta</h1>
+    <p>Con el catálogo de ocho estados aplicado por venta, cluster en el encabezado del cliente, e historial de pagos combinando ritmo y riel agrupado por mes.</p>
+  </div>
+
+  <div class="row">
+
+    <!-- ═══ CLIENTE ═══ -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:41</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="flow">
+          <div class="nav">
+            <div class="cir"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+            <div class="cir push"><svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
+            <div class="cir"><svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div>
+          </div>
+
+          <div class="idr">
+            <div class="clus">
+              <span class="st pago"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+              <span class="st promesa"><svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+            </div>
+            <div class="idt">
+              <h2>Victoria Flores Olmedo</h2>
+              <div class="l1">238 162 7597 · MIG-5021</div>
+              <div class="l2">C. Hidalgo 214, Centro · a 400 m</div>
+              <span class="cuentas">2 cuentas</span>
+            </div>
+          </div>
+
+          <div class="money">
+            <div class="mtop"><span class="mk">Saldo total</span><span class="mstate">Vencido 12d</span></div>
+            <div class="mfig nu">$3,550</div>
+            <div class="mfoot"><span>Cumple <b>8 de 12</b> semanas</span><span>Última visita <b>hace 8 días</b></span></div>
+          </div>
+
+          <div class="tip"><span>⚠</span><span>Una venta pagó y la otra prometió para el 15. Falta una.</span></div>
+
+          <div class="sl">Sus ventas</div>
+          <div class="sale s-pago">
+            <div class="srow">
+              <span class="st pago"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span>
+              <div class="sbody"><div class="sttl">Sala 3 piezas + base</div><div class="ssub">Pagó esta semana · V-5021</div></div>
+              <div class="samt nu">$2,100</div>
+            </div>
+            <div class="prog"><i style="width:75%"></i></div>
+            <div class="sbar"><b>18 de 24</b>&nbsp; abonos · parcialidad $350<span class="act">Ver venta ›</span></div>
+          </div>
+          <div class="sale s-promesa">
+            <div class="srow">
+              <span class="st promesa"><svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+              <div class="sbody"><div class="sttl">Refrigerador Mabe 14'</div><div class="ssub">Prometió pagar vie 15 · V-5188</div></div>
+              <div class="samt nu">$1,450</div>
+            </div>
+            <div class="prog"><i style="width:44%"></i></div>
+            <div class="sbar"><b>9 de 20</b>&nbsp; abonos · parcialidad $220<span class="act">Ver venta ›</span></div>
+          </div>
+
+          <div class="sl">Liquidación</div>
+          <div class="liq">
+            <div><div class="k">Hoy liquida todo con</div><div class="n nu">$3,180</div><div class="d">Vigente hasta el 6 sep</div></div>
+            <div class="use">Usar</div>
+          </div>
+
+          <div class="sl">Últimos contactos</div>
+          <div class="ct"><span class="d">24 ago</span><div><div class="t"><span class="p"></span>No responde aunque está</div></div></div>
+          <div class="ct"><span class="d">10 ago</span><div><div class="t"><span class="p v"></span>Prometió el 15 · $350</div>
+            <div class="q">“el viernes que cobre mi esposo”</div></div></div>
+          <div class="ct"><span class="d">3 ago</span><div><div class="t"><span class="p g"></span>Cobré</div></div><span class="amt nu">$350</span></div>
+          <span class="allof">Ver los 27 contactos</span>
+
+          <div class="sl">Lo que hay que saber</div>
+          <div class="know">Trabaja de noche — <b>antes de las 10 am</b>. Atiende la suegra. Casa azul, portón negro.</div>
+
+          <div class="sl">Ubicación</div>
+          <div class="map"><div class="g"></div><div class="rd"></div><div class="dt"></div>
+            <span class="lb">C. Hidalgo 214 · a 400 m</span><span class="go">Cómo llegar</span></div>
+
+          <div class="sl">Datos del cliente</div>
+          <div class="kv"><span class="k">Zona</span><span class="v">Ruta 25 · Centro</span></div>
+          <div class="kv"><span class="k">Aval o responsable</span><span class="v">Rosa María Ramírez</span></div>
+          <div class="kv"><span class="k">Teléfono del aval</span><span class="v nu">238 118 4402</span></div>
+          <div class="kv"><span class="k">Cliente desde</span><span class="v">feb 2024</span></div>
+        </div>
+        <div class="dock"><div class="cta p">Registrar abono</div><div class="cta s">Visita</div><div class="cta m">⋯</div></div>
+      </div></div>
+      <span class="cap">Cliente · cluster de 2 estados</span>
+    </div>
+
+    <!-- ═══ VENTA ═══ -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:41</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="flow">
+          <div class="nav">
+            <div class="cir"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+            <div class="cir push"><svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></div>
+            <div class="cir"><svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--mut);font-weight:600;margin-bottom:9px">
+            <span class="st promesa" style="width:22px;height:22px;border-radius:7px"><svg viewBox="0 0 24 24" style="width:12px;height:12px" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+            Victoria Flores Olmedo ›
+          </div>
+          <h2 style="margin:0;font-size:21px;font-weight:700;letter-spacing:-.028em;line-height:1.18">Refrigerador Mabe 14'</h2>
+          <div style="font-size:12.5px;color:var(--mut);margin-top:5px">MIG-V-5188 · crédito 12232 · 4 may 2026</div>
+
+          <div class="stbig" style="margin-top:14px">
+            <span class="st promesa lg"><svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+            <div><div class="tt">Prometió: viernes 15</div><div class="dd">No cae este periodo. Regresas la siguiente semana.</div></div>
+          </div>
+
+          <div class="money">
+            <div class="mtop"><span class="mk">Saldo de esta venta</span><span class="mstate">Vencido 12d</span></div>
+            <div class="mfig nu">$1,450</div>
+            <div class="prog" style="margin-top:15px"><i style="width:44%"></i></div>
+            <div class="pgrid">
+              <div><div class="k">Abonos</div><div class="v nu">9 / 20</div></div>
+              <div><div class="k">Parcialidad</div><div class="v nu">$220</div></div>
+              <div><div class="k">Frecuencia</div><div class="v">Semanal</div></div>
+            </div>
+          </div>
+
+          <div class="sl">Liquidación de esta venta</div>
+          <div class="liq">
+            <div><div class="k">Hoy liquida con</div><div class="n nu">$1,290</div><div class="d">Vigente hasta el 6 sep</div></div>
+            <div class="use">Usar</div>
+          </div>
+
+          <div class="sl">Ritmo · últimas 12 semanas</div>
+          <div class="weeks">
+            <span style="height:70%"></span><span style="height:70%"></span><span class="l" style="height:46%"></span>
+            <span style="height:70%"></span><span class="m" style="height:24%"></span><span style="height:70%"></span>
+            <span style="height:100%"></span><span class="l" style="height:46%"></span><span style="height:70%"></span>
+            <span class="m" style="height:24%"></span><span class="m" style="height:24%"></span><span class="m" style="height:24%"></span>
+          </div>
+          <div class="wl"><span>jun</span><span>ago</span></div>
+          <div class="sum">
+            <div><div class="k">Cumple</div><div class="v nu">8 de 12</div></div>
+            <div><div class="k">Promedio</div><div class="v nu">$385</div></div>
+            <div><div class="k">Sin pago</div><div class="v nu">3 sem</div></div>
+          </div>
+
+          <div class="sl">Pagos</div>
+          <div class="rail">
+            <div class="mm"><span class="mn">Agosto</span><span class="ml"></span><span class="ms nu">$350</span></div>
+            <div class="pi"><div class="pr"><span class="pam nu">$350</span><span class="pme">Efectivo</span><span class="pdt">3 ago</span></div>
+              <div class="pnt">Recibo COB-A-10388</div></div>
+            <div class="mm"><span class="mn">Julio</span><span class="ml"></span><span class="ms nu">$1,750</span></div>
+            <div class="pi"><div class="pr"><span class="pam nu">$350</span><span class="pme">Transferencia</span><span class="pdt">27 jul</span></div></div>
+            <div class="pi"><div class="pr"><span class="pam nu">$700</span><span class="pme">Efectivo</span><span class="pdt">20 jul</span></div>
+              <div class="pnt">Cubrió la semana atrasada</div></div>
+            <div class="pi"><div class="pr"><span class="pam nu">$350</span><span class="pme">Efectivo</span><span class="pdt">13 jul</span></div></div>
+            <div class="pi"><div class="pr"><span class="pam nu">$350</span><span class="pme">Efectivo</span><span class="pdt">6 jul</span></div></div>
+            <div class="mm"><span class="mn">Junio</span><span class="ml"></span><span class="ms nu">$1,050</span></div>
+            <div class="pi"><div class="pr"><span class="pam nu">$350</span><span class="pme">Efectivo</span><span class="pdt">29 jun</span></div></div>
+          </div>
+          <span class="allof">Ver los 9 abonos</span>
+
+          <div class="sl">Productos</div>
+          <div class="prod"><span class="pic">🧊</span><span class="pn">Refrigerador Mabe 14'</span><span class="pq nu">$6,400</span></div>
+
+          <div class="sl">Datos de la venta</div>
+          <div class="kv"><span class="k">Fecha de venta</span><span class="v">4 may 2026</span></div>
+          <div class="kv"><span class="k">Total venta</span><span class="v nu">$6,400</span></div>
+          <div class="kv"><span class="k">Precio de contado</span><span class="v nu">$5,200</span></div>
+          <div class="kv"><span class="k">Enganche</span><span class="v nu">$900</span></div>
+          <div class="kv"><span class="k">Abonado</span><span class="v nu">$4,950</span></div>
+          <div class="kv"><span class="k">Vendedor</span><span class="v">J. Carlos Méndez</span></div>
+
+          <div class="sl">Garantía</div>
+          <div class="gar">
+            <div class="gtop">
+              <span class="st cita"><svg viewBox="0 0 24 24" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.4 8.4-8 9-4.6-.6-8-4-8-9V7z"/></svg></span>
+              <div><div class="gt">Refrigerador Mabe 14'</div><div class="gs">Reportada el 18 ago</div></div>
+              <span class="gc">Notificado</span>
+            </div>
+            <div class="gact"><span>Recolectar producto</span><span>Imprimir aviso</span></div>
+          </div>
+        </div>
+        <div class="dock"><div class="cta p">Abonar $220</div><div class="cta s">Visita</div><div class="cta m">⋯</div></div>
+      </div></div>
+      <span class="cap"><b>Venta</b> · estado + ritmo + riel</span>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <h3>Lo que se agregó</h3>
+    <p><b>El estado por venta.</b> Cada venta lleva su cuadro con ícono, y el color nunca va solo — siempre con texto. Aquí una pagó y la otra prometió, que es justo el caso que se pierde cuando la pantalla agrega todo al cliente.</p>
+    <p><b>Cluster en el encabezado.</b> Con dos o más cuentas, los cuadros van juntos arriba y aparece el badge <b>2 cuentas</b>; el avatar cede su lugar porque el estado importa más que las iniciales. Con una sola venta iría el cuadro grande ahí.</p>
+    <p><b>El estado también manda en la pantalla de venta</b>, en grande y con su explicación: “Prometió: viernes 15 — no cae este periodo”. Es lo que le dice al cobrador si tiene que volver.</p>
+    <p><b>Historial = ritmo + riel.</b> Arriba las 12 semanas con cumple / tarde / sin pago y el resumen; abajo el detalle con recibo y notas.</p>
+    <p><b>La agrupación por mes es visible sin colapsar:</b> el mes interrumpe el riel con un nodo cuadrado, su nombre y el subtotal. Los pagos cuelgan debajo con nodos redondos. Se distingue de un vistazo qué pertenece a qué mes, y nada queda escondido detrás de un toque.</p>
+  </div>
+</div>
