@@ -113,6 +113,26 @@ class PendingVisitsWorker @JvmOverloads constructor(
                         Result.retry()
                     }
                 }
+
+                VisitUploadDecision.RETRY_THEN_FAIL -> {
+                    // Pure-retry code (401/408/425/429) with NO server-side
+                    // custody guarantee — unlike RETRY_THEN_DONE, the cap
+                    // here must NEVER mark done. runAttemptCount is 0 on the
+                    // first run; +1 counts this attempt.
+                    if (runAttemptCount + 1 >= maxAttempts) {
+                        Log.w(
+                            TAG,
+                            "Visita ${visit.ID}: HTTP ${e.code()} tras ${runAttemptCount + 1} " +
+                                "intentos sin custodia confirmada; se detiene este job de " +
+                                "WorkManager (no se marca lista, sigue pendiente para " +
+                                "VisitsPendingSynchronizer)"
+                        )
+                        Result.failure()
+                    } else {
+                        Log.w(TAG, "Visita ${visit.ID}: HTTP ${e.code()} transitorio, reintentando")
+                        Result.retry()
+                    }
+                }
             }
         } catch (e: IOException) {
             // El server no la vio: jamás marcar lista. El teléfono la conserva.

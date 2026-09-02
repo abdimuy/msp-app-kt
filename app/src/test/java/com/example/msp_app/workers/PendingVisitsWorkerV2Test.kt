@@ -228,12 +228,98 @@ class PendingVisitsWorkerV2Test : RoomTestBase() {
     }
 
     @Test
-    fun v2_409_returns_retry() = runTest {
+    fun v2_409_marks_done_at_first_attempt_because_idempotent_lookup_confirms_it() = runTest {
         seed(pendingVisit())
         val api = fakeV2Api { _, _ -> throw httpError(409) }
 
-        assertEquals(ListenableWorker.Result.retry(), buildAndRunWorker(api = api))
-        assertEquals(0, guardadoFlag("visita-001"))
+        // runAttemptCount defaults to 0 — this is attempt 1, nowhere near any
+        // cap. A 409 (ErrVisitaYaExiste) must be treated as success on the
+        // very first try because registrar_visita.go resolves the collision
+        // by ID and returns the SAME visita already stored server-side.
+        val result = buildAndRunWorker(api = api)
+
+        assertEquals(
+            "409 is idempotent success (server already holds this visita by id), not a retry",
+            ListenableWorker.Result.success(),
+            result
+        )
+        assertEquals(1, guardadoFlag("visita-001"))
+    }
+
+    /**
+     * Robustez suprema: the pure-RETRY set with NO server-side custody
+     * guarantee (401 token blip, 408/425/429 gateway/rate-limiter backoff)
+     * must stop retrying at the exact attempt cap — not "eventually", not
+     * one attempt early, not one attempt late — and must NEVER mark
+     * GUARDADO_EN_MICROSIP, unlike the RETRY_THEN_DONE 5xx cap: there is no
+     * proof of custody, so a capped visita must stay pending for
+     * VisitsPendingSynchronizer to pick up again on the next session.
+     */
+    @Test
+    fun v2_pure_retry_codes_stop_asking_for_retry_exactly_at_the_cap() = runTest {
+        val maxAttempts = 3
+
+        listOf(401, 408, 425, 429).forEach { code ->
+            val visitId = "visita-$code"
+            seed(pendingVisit(id = visitId))
+            val api = fakeV2Api { _, _ -> throw httpError(code) }
+
+            // Below the cap (attempt 1 of 3, runAttemptCount=0): keep retrying.
+            val belowCap = buildAndRunWorker(
+                visitId = visitId,
+                api = api,
+                maxAttempts = maxAttempts,
+                runAttemptCount = 0
+            )
+            assertEquals(
+                "HTTP $code below the cap must keep retrying",
+                ListenableWorker.Result.retry(),
+                belowCap
+            )
+            assertEquals(
+                "HTTP $code below the cap must not mark the visita done",
+                0,
+                guardadoFlag(visitId)
+            )
+
+            // Exactly at the cap (attempt 3 of 3, runAttemptCount=2): stop
+            // retrying, but do NOT mark done — no custody guarantee.
+            val atCap = buildAndRunWorker(
+                visitId = visitId,
+                api = api,
+                maxAttempts = maxAttempts,
+                runAttemptCount = maxAttempts - 1
+            )
+            assertEquals(
+                "HTTP $code at the exact cap must stop asking for a retry",
+                ListenableWorker.Result.failure(),
+                atCap
+            )
+            assertEquals(
+                "HTTP $code at the cap must stay pending, not be marked done",
+                0,
+                guardadoFlag(visitId)
+            )
+
+            // One attempt past the cap (runAttemptCount=maxAttempts): still
+            // capped, still pending — never reopens into retry.
+            val pastCap = buildAndRunWorker(
+                visitId = visitId,
+                api = api,
+                maxAttempts = maxAttempts,
+                runAttemptCount = maxAttempts
+            )
+            assertEquals(
+                "HTTP $code past the cap must remain capped, not resume retrying",
+                ListenableWorker.Result.failure(),
+                pastCap
+            )
+            assertEquals(
+                "HTTP $code past the cap must still stay pending, not be marked done",
+                0,
+                guardadoFlag(visitId)
+            )
+        }
     }
 
     @Test
