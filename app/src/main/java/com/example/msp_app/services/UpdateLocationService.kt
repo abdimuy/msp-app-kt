@@ -10,7 +10,6 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
-import com.example.msp_app.workmanager.enqueuePendingVisitsWorker
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -52,8 +51,7 @@ class UpdateLocationService : Service(), CoroutineScope {
             updateVisitLocation = { id, lat, lng ->
                 visitsStore.updateVisitLocation(id, lat, lng)
             },
-            enqueuePayment = { id -> enqueuePendingPaymentsWorker(applicationContext, id) },
-            enqueueVisit = { id -> enqueuePendingVisitsWorker(applicationContext, id) }
+            enqueuePayment = { id -> enqueuePendingPaymentsWorker(applicationContext, id) }
         )
 
         val chanId = "loc_service"

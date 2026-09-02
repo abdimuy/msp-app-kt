@@ -1,6 +1,7 @@
 package com.example.msp_app.data.local.datasource.visit
 
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
@@ -23,10 +24,23 @@ import org.junit.Test
 class VisitsLocalDataSourceTest : RoomTestBase() {
 
     private lateinit var store: VisitsLocalDataSource
+    private lateinit var enqueuer: RecordingVisitsWorkEnqueuer
 
     @Before
     fun setUpStore() {
-        store = VisitsLocalDataSource(db.visitDao(), db.saleDao())
+        enqueuer = RecordingVisitsWorkEnqueuer()
+        store = VisitsLocalDataSource(db.visitDao(), db.saleDao(), enqueuer)
+    }
+
+    /** Fake a mano (sin MockK): estado publico + lista publica de llamadas. */
+    private class RecordingVisitsWorkEnqueuer : VisitsWorkEnqueuer {
+        data class Call(val visitId: String, val replace: Boolean)
+
+        val calls: MutableList<Call> = mutableListOf()
+
+        override fun enqueue(visitId: String, replace: Boolean) {
+            calls += Call(visitId, replace)
+        }
     }
 
     // ─── fixtures ────────────────────────────────────────────────────────────
@@ -177,6 +191,45 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         assertEquals(-97.3902, got.LNG, 1e-9)
     }
 
+    // ─── Task 5, robustez suprema: la ubicacion tardia nunca duplica la subida ─
+    // updateVisitLocation solo toca LAT/LNG (VisitDao.updateLocation) y desde
+    // Task 5 UpdateLocationHandler ya no encola nada en la rama de visita: es
+    // estructuralmente imposible que esta actualizacion tardia encole. Estos
+    // dos tests cubren los dos estados en los que puede encontrar a la visita.
+
+    @Test
+    fun updateVisitLocation_llegaTardeSobreVisitaYaSubida_noLaPisaNiReencola() = runTest {
+        store.saveVisit(visit(id = "up-1", guardado = 1, lat = 0.0, lng = 0.0))
+
+        store.updateVisitLocation("up-1", 18.99, -97.11)
+
+        val got = store.getVisitById("up-1")
+        assertEquals(18.99, got.LAT, 1e-9)
+        assertEquals(-97.11, got.LNG, 1e-9)
+        assertEquals(
+            "sigue marcada como subida; la ubicacion tardia no pisa GUARDADO_EN_MICROSIP",
+            1,
+            got.GUARDADO_EN_MICROSIP
+        )
+        assertTrue(
+            "updateVisitLocation no encola nada: no puede crear una segunda subida",
+            enqueuer.calls.isEmpty()
+        )
+    }
+
+    @Test
+    fun updateVisitLocation_llegaTardeSobreVisitaPendiente_noEncola() = runTest {
+        store.saveVisit(visit(id = "pend-loc-1", guardado = 0, lat = 0.0, lng = 0.0))
+
+        store.updateVisitLocation("pend-loc-1", 18.99, -97.11)
+
+        assertEquals(0, store.getVisitById("pend-loc-1").GUARDADO_EN_MICROSIP)
+        assertTrue(
+            "el encolado ya paso en el guardado inicial; la ubicacion tardia no vuelve a encolar",
+            enqueuer.calls.isEmpty()
+        )
+    }
+
     // ─── insertVisitAndUpdateState: visita + estado de cobranza de la venta ───
 
     @Test
@@ -196,6 +249,75 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         assertEquals(
             "una visita NO abona: SALDO_REST intacto (updateTotal con 0.0)",
             1000.0,
+            updated.SALDO_REST,
+            1e-9
+        )
+        assertEquals("VISITADO", updated.ESTADO_COBRANZA)
+    }
+
+    // ─── Task 5: saveVisitAndEnqueue — el guardado encola la subida el mismo ──
+    // ─── (headline test, task-5-brief.md) ──────────────────────────────────────
+
+    /**
+     * Headline test del plan (task-5-brief.md): "guardar una visita con el
+     * servicio de ubicacion completamente ausente y comprobar que igual
+     * queda encolada para subir". Ni [com.example.msp_app.services.UpdateLocationService]
+     * ni [com.example.msp_app.services.UpdateLocationHandler] se referencian
+     * en ningun punto de este test — el servicio de ubicacion no solo no
+     * corre, no existe en este camino. Esto tambien cubre el caso de
+     * robustez suprema "la ubicacion nunca llega": la visita queda subible
+     * sin depender de que updateVisitLocation se llame jamas.
+     *
+     * **Control de reversion (verificado, ver task-5-report.md):** comentar
+     * la linea `enqueuer.enqueue(...)` en
+     * [VisitsLocalDataSource.saveVisitAndEnqueue] pone este test en ROJO —
+     * `enqueuer.calls` queda vacio.
+     */
+    @Test
+    fun saveVisitAndEnqueue_enqueuesUploadEvenWithoutLocationService() = runTest {
+        db.saleDao().insertAll(
+            listOf(sale(saleId = 5000, saldoRest = 1000.0, estado = "PENDIENTE"))
+        )
+
+        store.saveVisitAndEnqueue(
+            saleId = 5000,
+            visit = visit(id = "no-loc-1", saleCargoId = 5000),
+            newState = EstadoCobranza.VISITADO
+        )
+
+        assertEquals(
+            "la visita se escribio localmente",
+            "no-loc-1",
+            store.getVisitById("no-loc-1").ID
+        )
+        assertEquals(
+            "el guardado local encola por si mismo, sin esperar la ubicacion",
+            listOf(RecordingVisitsWorkEnqueuer.Call("no-loc-1", replace = false)),
+            enqueuer.calls
+        )
+        assertEquals(
+            "todavia pendiente de subir (nadie confirmo el servidor)",
+            0,
+            store.getVisitById("no-loc-1").GUARDADO_EN_MICROSIP
+        )
+    }
+
+    @Test
+    fun saveVisitAndEnqueue_setsEstadoDeCobranzaLikeInsertVisitAndUpdateState() = runTest {
+        db.saleDao().insertAll(
+            listOf(sale(saleId = 6000, saldoRest = 500.0, estado = "PENDIENTE"))
+        )
+
+        store.saveVisitAndEnqueue(
+            saleId = 6000,
+            visit = visit(id = "sve-1", saleCargoId = 6000),
+            newState = EstadoCobranza.VISITADO
+        )
+
+        val updated = db.saleDao().findByDoctoCcId(6001)!!
+        assertEquals(
+            "conserva el comportamiento de insertVisitAndUpdateState: no abona",
+            500.0,
             updated.SALDO_REST,
             1e-9
         )

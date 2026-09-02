@@ -2,16 +2,19 @@ package com.example.msp_app.data.local.datasource.visit
 
 import android.content.Context
 import androidx.room.Transaction
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import javax.inject.Inject
 
 class VisitsLocalDataSource @Inject constructor(
     private val visitDao: VisitDao,
-    private val saleDao: SaleDao
+    private val saleDao: SaleDao,
+    private val enqueuer: VisitsWorkEnqueuer
 ) {
     /**
      * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
@@ -22,7 +25,8 @@ class VisitsLocalDataSource @Inject constructor(
      */
     constructor(context: Context) : this(
         AppDatabase.getInstance(context).visitDao(),
-        AppDatabase.getInstance(context).saleDao()
+        AppDatabase.getInstance(context).saleDao(),
+        VisitsWorkManagerEnqueuer(context)
     )
 
     suspend fun getVisitById(id: String): VisitEntity {
@@ -68,6 +72,45 @@ class VisitsLocalDataSource @Inject constructor(
             0.0,
             newState
         )
+    }
+
+    /**
+     * Task 5 (plan `pagos-y-visitas`) — bug: the upload used to be enqueued
+     * only from [com.example.msp_app.services.UpdateLocationHandler], which
+     * ran inside [com.example.msp_app.services.UpdateLocationService]. If
+     * that `Service` never ran (permission denied, Play Services down, a
+     * refused foreground-service start), the visit was written to Room and
+     * NEVER enqueued for upload — the collector believed it was registered;
+     * it was not.
+     *
+     * **Audit of pagos' shape (see task-5-report.md):**
+     * [com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource.saveAndEnqueue]
+     * has the same name and the same intent — insert + enqueue as one call
+     * — but its body is only [insertPaymentAndUpdateSale]; it never actually
+     * calls an enqueuer. Pagos carries the identical latent bug (its upload
+     * also only gets enqueued from `UpdateLocationHandler`). Fixing pagos is
+     * out of Task 5's scope (title and brief are visit-only); this method is
+     * the corrected version of that shape, applied to visits.
+     *
+     * The local write and the enqueue happen in the same call, so the
+     * upload no longer depends on the location service ever running. The
+     * location arriving later only calls [updateVisitLocation] (LAT/LNG
+     * columns only, via `VisitDao.updateLocation`) — it never touches
+     * `GUARDADO_EN_MICROSIP` and [UpdateLocationHandler.handle] no longer
+     * enqueues on that path, so a late location update can neither clobber
+     * an already-uploaded visit nor create a second upload.
+     *
+     * Placed on the data source — not in `VisitsViewModel.saveVisit` —
+     * because Task 13 is planned to rewrite `saveVisit` again (a visit will
+     * belong to the client rather than a single sale). Whatever that new
+     * shape looks like, it still has to insert the visit through this data
+     * source; keeping the enqueue glued to the insert here means Task 13's
+     * rewrite carries it along by construction, instead of it living at a
+     * call site a restructuring could drop.
+     */
+    suspend fun saveVisitAndEnqueue(saleId: Int, visit: VisitEntity, newState: EstadoCobranza) {
+        insertVisitAndUpdateState(saleId, visit, newState)
+        enqueuer.enqueue(visit.ID, replace = false)
     }
 
     suspend fun updateTemporaryCollectionDate(saleId: Int, newDate: String) {

@@ -84,7 +84,9 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
 
             try {
                 withContext(Dispatchers.IO) {
-                    visitStore.insertVisitAndUpdateState(
+                    // Task 5: encola la subida en el mismo guardado, no
+                    // depende de que UpdateLocationService corra.
+                    visitStore.saveVisitAndEnqueue(
                         saleId = saleId,
                         visit = visit.toEntity(),
                         newState = status

@@ -16,10 +16,22 @@ import kotlinx.coroutines.CancellationException
  * plumbing on purpose: it is a plain, Android-`Service`-free unit so
  * - it is unit-testable without Robolectric/Room (all dependencies are
  *   plain suspend/plain lambdas the caller wires up), and
- * - Task 5's planned rewrite (decoupling visit enqueueing from this
- *   service) can swap out [enqueueVisit] / [updateVisitLocation] without
- *   touching the guard in [fetchLocationOrNull] — the fix survives that
- *   rewrite because it does not live inline in the `Service`'s callbacks.
+ * - Task 5's rewrite (decoupling visit enqueueing from this service) could
+ *   change [updateVisitLocation]'s caller without touching the guard in
+ *   [fetchLocationOrNull] — the fix survives that rewrite because it does
+ *   not live inline in the `Service`'s callbacks.
+ *
+ * **Task 5 (plan `pagos-y-visitas`):** the visit branch used to call an
+ * `enqueueVisit` lambda here too — the ONLY place a visit's upload got
+ * enqueued. If this `Service` never ran (permission denied, Play Services
+ * down, foreground-service start refused), the visit was written to Room
+ * and never enqueued. The upload is now enqueued by
+ * [com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource.saveVisitAndEnqueue]
+ * at save time, so this class no longer enqueues visits at all — the
+ * location arriving late only updates LAT/LNG (see [handle]). This does NOT
+ * apply to payments: `enqueuePayment` is unchanged and out of Task 5's
+ * scope (pagos has the same latent bug — see task-5-report.md — but fixing
+ * it was not asked for here).
  *
  * `client.getCurrentLocation(...)` throws [SecurityException] SYNCHRONOUSLY
  * (before it ever returns a `Task`) when the location permission is
@@ -37,8 +49,7 @@ class UpdateLocationHandler(
     private val telemetry: Telemetry,
     private val updatePaymentLocation: suspend (id: String, lat: Double, lng: Double) -> Unit,
     private val updateVisitLocation: suspend (id: String, lat: Double, lng: Double) -> Unit,
-    private val enqueuePayment: (id: String) -> Unit,
-    private val enqueueVisit: (id: String) -> Unit
+    private val enqueuePayment: (id: String) -> Unit
 ) {
     /**
      * Exactly one of [paymentId] / [visitId] is expected non-null (the
@@ -59,8 +70,12 @@ class UpdateLocationHandler(
                 }
 
                 visitId != null -> {
+                    // Task 5: NUNCA encola aqui. El guardado ya encolo la
+                    // subida (VisitsLocalDataSource.saveVisitAndEnqueue); esta
+                    // rama solo actualiza LAT/LNG si la ubicacion llego. Al no
+                    // encolar, no puede crear una segunda subida ni pisar el
+                    // estado de una visita ya subida.
                     location?.let { updateVisitLocation(visitId, it.latitude, it.longitude) }
-                    enqueueVisit(visitId)
                 }
             }
         } catch (e: CancellationException) {

@@ -26,6 +26,11 @@ import org.junit.Test
  * [UpdateLocationHandler.fetchLocationOrNull] pone en ROJO
  * `sin permiso de ubicacion, completa sin propagar y con ubicacion en null`
  * — la excepción vuelve a propagar en vez de completar.
+ *
+ * Task 5: la rama de visita ya NO recibe un `enqueueVisit` — no existe forma
+ * de que este handler encole una visita, ni siquiera por accidente. Ver
+ * `VisitsLocalDataSourceTest` para el encolado real (en el guardado) y para
+ * la prueba de que la ubicación tardía no lo duplica.
  */
 class UpdateLocationHandlerTest : RobolectricTestBase() {
 
@@ -33,7 +38,6 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
     private val paymentLocationUpdates = mutableListOf<Triple<String, Double, Double>>()
     private val visitLocationUpdates = mutableListOf<Triple<String, Double, Double>>()
     private val enqueuedPayments = mutableListOf<String>()
-    private val enqueuedVisits = mutableListOf<String>()
 
     @Before
     fun setUp() {
@@ -41,15 +45,13 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
         paymentLocationUpdates.clear()
         visitLocationUpdates.clear()
         enqueuedPayments.clear()
-        enqueuedVisits.clear()
     }
 
     private fun handler() = UpdateLocationHandler(
         telemetry = telemetry,
         updatePaymentLocation = { id, lat, lng -> paymentLocationUpdates += Triple(id, lat, lng) },
         updateVisitLocation = { id, lat, lng -> visitLocationUpdates += Triple(id, lat, lng) },
-        enqueuePayment = { id -> enqueuedPayments += id },
-        enqueueVisit = { id -> enqueuedVisits += id }
+        enqueuePayment = { id -> enqueuedPayments += id }
     )
 
     private fun fakeLocation(lat: Double, lng: Double): Location = Location("fused").apply {
@@ -103,7 +105,6 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
         }
 
         assertTrue(visitLocationUpdates.isEmpty())
-        assertEquals(listOf("visita-1"), enqueuedVisits)
     }
 
     // --- otro fallo de Play Services (no permiso) ---
@@ -137,6 +138,22 @@ class UpdateLocationHandlerTest : RobolectricTestBase() {
         assertEquals(listOf("pago-3"), enqueuedPayments)
         assertTrue(telemetry.recorded.none { it.type == TelemetryEventType.ERROR })
     }
+
+    @Test
+    fun `con ubicacion disponible para visita, solo actualiza LAT-LNG (Task 5, no encola)`() =
+        runBlocking {
+            handler().handle(paymentId = null, visitId = "visita-3") {
+                fakeLocation(19.4326, -99.1332)
+            }
+
+            assertEquals(
+                listOf(Triple("visita-3", 19.4326, -99.1332)),
+                visitLocationUpdates
+            )
+            assertTrue(telemetry.recorded.none { it.type == TelemetryEventType.ERROR })
+            // No hay ningun parametro `enqueueVisit` en este handler (Task 5):
+            // es estructuralmente imposible que esta rama encole una visita.
+        }
 
     // --- cancelación estructurada: nunca se traga ---
 
