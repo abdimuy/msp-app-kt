@@ -55,20 +55,34 @@ enum class VisitUploadDecision {
 
 /**
  * Classifies a visit upload HTTP status. The golden rule: only ever reach
- * DONE when there is confidence the server holds the visita (a 2xx, a 4xx that
- * the capture middleware guarantees is persisted, or a 409 that the server's
- * idempotent-by-id lookup proves is the SAME visita already stored). Network
- * failures never reach this function — they are always retried by the worker
- * so the visita is never lost from a device that alone still holds it.
+ * DONE when there is confidence the server holds the visita — a 2xx, or a
+ * 4xx that the capture middleware guarantees is persisted. (409 is also
+ * mapped to DONE, but defensively, not on that same confidence — see the
+ * comment on the 409 branch below.) Network failures never reach this
+ * function — they are always retried by the worker so the visita is never
+ * lost from a device that alone still holds it.
  */
 object VisitUploadClassifier {
     fun classifyHttpCode(code: Int): VisitUploadDecision = when (code) {
-        // 409 = ErrVisitaYaExiste. The visita's ID is a client-generated UUID
-        // used as an end-to-end idempotency key, and app/registrar_visita.go
-        // handles the collision by looking the visita up by that ID and
-        // returning the EXISTING one — the server already has it. So a 409
-        // is a success signal, not a retry: mark DONE immediately, at
-        // attempt 1, not only once the attempt cap is reached.
+        // 409 = ErrVisitaYaExiste. DEFENSIVE, currently unreachable: on an ID
+        // collision, app/registrar_visita.go's RegistrarVisita catches
+        // ErrVisitaYaExiste, calls FindByID, and returns (visita, nil) — no
+        // error — so infra/visitashttp/handlers.go answers 201, not 409.
+        // If that FindByID itself fails, the raw error propagates unmapped
+        // and platform/apperror.mapAppError turns it into a generic 500 (even
+        // domain.ErrVisitaNoEncontrada maps to 404, per
+        // infra/visitasfb/repo.go); domain/errors.go states outright that
+        // nothing in the package produces 409 as an HTTP-facing error.
+        // POST /v2/visitas cannot currently return HTTP 409 at all. This
+        // branch is a defensive fallback, not a verified classification of an
+        // observed server signal: if a real 409 ever were observed, it would
+        // mean the server's confirming FindByID lookup was bypassed or
+        // broken — which is exactly the case where trusting it as proof of
+        // custody would be wrong. Kept as DONE anyway as a defensive choice
+        // (a real, currently-impossible 409 would mean the server already
+        // rejected the ID as a duplicate, so retrying it blindly is not
+        // obviously better either) — but this branch must NOT be read as
+        // "409 proves the server has it". It is unverified today.
         409 -> VisitUploadDecision.DONE
         // 401 (token blip), 408/425/429 (gateway/rate-limiter backoff
         // signals): none of these reach the cobranza failed-intent capture
