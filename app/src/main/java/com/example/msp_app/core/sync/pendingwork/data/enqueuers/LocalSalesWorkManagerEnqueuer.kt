@@ -7,7 +7,7 @@ import com.example.msp_app.workmanager.enqueuePendingLocalSalesWorker
 class LocalSalesWorkManagerEnqueuer(
     private val context: Context
 ) : LocalSalesWorkEnqueuer {
-    override fun enqueue(localSaleId: String, userEmail: String, replace: Boolean) {
-        enqueuePendingLocalSalesWorker(context, localSaleId, userEmail, replace)
+    override fun enqueue(localSaleId: String, userEmail: String) {
+        enqueuePendingLocalSalesWorker(context, localSaleId, userEmail)
     }
 }

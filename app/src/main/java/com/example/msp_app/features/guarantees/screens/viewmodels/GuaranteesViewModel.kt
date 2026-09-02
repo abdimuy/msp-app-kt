@@ -237,8 +237,7 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 pendingGuarantees.forEach { guarantee ->
                     enqueuePendingGuaranteesWorker(
                         getApplication(),
-                        guarantee.EXTERNAL_ID,
-                        replace = true
+                        guarantee.EXTERNAL_ID
                     )
                 }
             } catch (e: Exception) {
@@ -256,10 +255,7 @@ class GuaranteesViewModel(application: Application) : AndroidViewModel(applicati
                 val pendingEvents =
                     guaranteeStore.getAllGuaranteeEvents().filter { it.ENVIADO == 0 }
                 if (pendingEvents.isNotEmpty()) {
-                    enqueuePendingGuaranteeEventsWorker(
-                        getApplication(),
-                        replace = true
-                    )
+                    enqueuePendingGuaranteeEventsWorker(getApplication())
                 }
             } catch (e: Exception) {
                 Log.e("GuaranteesViewModel", "Error sincronizando eventos pendientes: ${e.message}")

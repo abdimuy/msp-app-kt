@@ -35,10 +35,11 @@ class LocalSalesPendingSynchronizerTest {
 
         assertEquals(SyncResult.Enqueued(itemCount = 3, workRequestCount = 3), result)
         assertEquals(listOf("s1", "s2", "s3"), enqueuer.calls.map { it.saleId })
-        // KEEP, never REPLACE — a live sale upload must not be cancelled
-        // and re-run (see SyncAllPendingWorkUseCase KDoc, Task 6 audit).
-        assertTrue(enqueuer.calls.none { it.replace })
         assertTrue(enqueuer.calls.all { it.email == "u@example.com" })
+        // KEEP is no longer a runtime choice to assert on: LocalSalesWorkEnqueuer
+        // no longer has a `replace` parameter, and enqueuePendingLocalSalesWorker
+        // hardcodes ExistingWorkPolicy.KEEP internally — REPLACE is not
+        // reachable from this call at all (see SyncAllPendingWorkUseCase KDoc).
     }
 
     @Test
@@ -122,12 +123,12 @@ class LocalSalesPendingSynchronizerTest {
     private class RecordingEnqueuer(
         private val failingIds: Set<String> = emptySet()
     ) : LocalSalesWorkEnqueuer {
-        data class Call(val saleId: String, val email: String, val replace: Boolean)
+        data class Call(val saleId: String, val email: String)
 
         val calls: MutableList<Call> = mutableListOf()
 
-        override fun enqueue(localSaleId: String, userEmail: String, replace: Boolean) {
-            calls += Call(localSaleId, userEmail, replace)
+        override fun enqueue(localSaleId: String, userEmail: String) {
+            calls += Call(localSaleId, userEmail)
             if (localSaleId in failingIds) throw RuntimeException("boom for $localSaleId")
         }
     }

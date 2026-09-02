@@ -6,7 +6,6 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.ports.GuaranteesW
 import com.example.msp_app.core.database.entities.GuaranteeEntity
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GuaranteesPendingSynchronizerTest {
@@ -38,10 +37,11 @@ class GuaranteesPendingSynchronizerTest {
         val result = sync.sync(ctx)
 
         assertEquals(SyncResult.Enqueued(itemCount = 2, workRequestCount = 2), result)
-        assertEquals(listOf("ext-1", "ext-2"), enqueuer.calls.map { it.first })
-        // KEEP, never REPLACE — a live guarantee upload must not be
-        // cancelled and re-run (see SyncAllPendingWorkUseCase KDoc).
-        assertTrue(enqueuer.calls.all { !it.second })
+        assertEquals(listOf("ext-1", "ext-2"), enqueuer.calls)
+        // KEEP is no longer a runtime choice to assert on: GuaranteesWorkEnqueuer
+        // no longer has a `replace` parameter, and enqueuePendingGuaranteesWorker
+        // hardcodes ExistingWorkPolicy.KEEP internally — REPLACE is not
+        // reachable from this call at all (see SyncAllPendingWorkUseCase KDoc).
     }
 
     @Test
@@ -93,10 +93,10 @@ class GuaranteesPendingSynchronizerTest {
     private class RecordingEnqueuer(
         private val failingIds: Set<String> = emptySet()
     ) : GuaranteesWorkEnqueuer {
-        val calls: MutableList<Pair<String, Boolean>> = mutableListOf()
+        val calls: MutableList<String> = mutableListOf()
 
-        override fun enqueue(guaranteeExternalId: String, replace: Boolean) {
-            calls += guaranteeExternalId to replace
+        override fun enqueue(guaranteeExternalId: String) {
+            calls += guaranteeExternalId
             if (guaranteeExternalId in failingIds) throw RuntimeException("boom")
         }
     }

@@ -7,7 +7,7 @@ import com.example.msp_app.workmanager.enqueuePendingGuaranteeEventsWorker
 class GuaranteeEventsWorkManagerEnqueuer(
     private val context: Context
 ) : GuaranteeEventsWorkEnqueuer {
-    override fun enqueue(replace: Boolean) {
-        enqueuePendingGuaranteeEventsWorker(context, replace)
+    override fun enqueue() {
+        enqueuePendingGuaranteeEventsWorker(context)
     }
 }

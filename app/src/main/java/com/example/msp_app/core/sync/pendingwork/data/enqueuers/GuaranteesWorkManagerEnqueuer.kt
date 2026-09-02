@@ -7,7 +7,7 @@ import com.example.msp_app.workmanager.enqueuePendingGuaranteesWorker
 class GuaranteesWorkManagerEnqueuer(
     private val context: Context
 ) : GuaranteesWorkEnqueuer {
-    override fun enqueue(guaranteeExternalId: String, replace: Boolean) {
-        enqueuePendingGuaranteesWorker(context, guaranteeExternalId, replace)
+    override fun enqueue(guaranteeExternalId: String) {
+        enqueuePendingGuaranteesWorker(context, guaranteeExternalId)
     }
 }

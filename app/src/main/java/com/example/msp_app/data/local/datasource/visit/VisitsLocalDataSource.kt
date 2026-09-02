@@ -110,7 +110,7 @@ class VisitsLocalDataSource @Inject constructor(
      */
     suspend fun saveVisitAndEnqueue(saleId: Int, visit: VisitEntity, newState: EstadoCobranza) {
         insertVisitAndUpdateState(saleId, visit, newState)
-        enqueuer.enqueue(visit.ID, replace = false)
+        enqueuer.enqueue(visit.ID)
     }
 
     suspend fun updateTemporaryCollectionDate(saleId: Int, newDate: String) {

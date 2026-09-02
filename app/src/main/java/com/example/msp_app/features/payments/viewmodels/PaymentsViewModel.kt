@@ -425,8 +425,7 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                     pending.forEach { payment ->
                         enqueuePendingPaymentsWorker(
                             getApplication(),
-                            payment.ID,
-                            replace = true
+                            payment.ID
                         )
                     }
                     _syncPendingPaymentsState.value = ResultState.Success(Unit)

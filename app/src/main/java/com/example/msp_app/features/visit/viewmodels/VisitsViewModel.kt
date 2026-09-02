@@ -62,8 +62,7 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
                 for (visit in pendingVisits) {
                     enqueuePendingVisitsWorker(
                         visitId = visit.ID,
-                        context = getApplication(),
-                        replace = true
+                        context = getApplication()
                     )
                 }
 

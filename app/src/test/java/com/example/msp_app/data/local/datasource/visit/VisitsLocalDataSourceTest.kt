@@ -37,12 +37,12 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
 
     /** Fake a mano (sin MockK): estado publico + lista publica de llamadas. */
     private class RecordingVisitsWorkEnqueuer : VisitsWorkEnqueuer {
-        data class Call(val visitId: String, val replace: Boolean)
+        data class Call(val visitId: String)
 
         val calls: MutableList<Call> = mutableListOf()
 
-        override fun enqueue(visitId: String, replace: Boolean) {
-            calls += Call(visitId, replace)
+        override fun enqueue(visitId: String) {
+            calls += Call(visitId)
         }
     }
 
@@ -318,7 +318,7 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         )
         assertEquals(
             "el guardado local encola por si mismo, sin esperar la ubicacion",
-            listOf(RecordingVisitsWorkEnqueuer.Call("no-loc-1", replace = false)),
+            listOf(RecordingVisitsWorkEnqueuer.Call("no-loc-1")),
             enqueuer.calls
         )
         assertEquals(

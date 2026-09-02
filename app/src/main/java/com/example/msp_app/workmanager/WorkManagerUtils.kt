@@ -18,7 +18,22 @@ import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
 import java.util.concurrent.TimeUnit
 
-fun enqueuePendingPaymentsWorker(context: Context, paymentId: String, replace: Boolean = false) {
+/**
+ * `ExistingWorkPolicy.KEEP` is not a default here — it is the only policy
+ * these five pending-work functions know how to produce. `REPLACE` cancels
+ * whatever is already running under the same unique name; `KEEP` only ever
+ * skips a fresh enqueue while that existing work is still
+ * ENQUEUED/RUNNING/BLOCKED, and once it reaches a terminal state
+ * (SUCCEEDED/FAILED/CANCELLED) `KEEP` enqueues the new request exactly like
+ * `REPLACE` would — so `REPLACE` never rescues anything `KEEP` doesn't
+ * already recover for free, and its only real effect is cancelling a live
+ * upload and risking a duplicate send. These five cover the money path
+ * (payments, visits, guarantees, guarantee events, local sales), so a
+ * `replace` parameter that a caller could set to `true` was a standing
+ * invitation to reopen that risk — removed instead of merely discouraged.
+ * See `SyncAllPendingWorkUseCase` KDoc for the full audit (Task 6).
+ */
+fun enqueuePendingPaymentsWorker(context: Context, paymentId: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -30,14 +45,13 @@ fun enqueuePendingPaymentsWorker(context: Context, paymentId: String, replace: B
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_payments_$paymentId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingVisitsWorker(context: Context, visitId: String, replace: Boolean = false) {
+fun enqueuePendingVisitsWorker(context: Context, visitId: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -48,18 +62,13 @@ fun enqueuePendingVisitsWorker(context: Context, visitId: String, replace: Boole
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_visit_$visitId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingGuaranteesWorker(
-    context: Context,
-    guaranteeExternalId: String,
-    replace: Boolean = false
-) {
+fun enqueuePendingGuaranteesWorker(context: Context, guaranteeExternalId: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -70,14 +79,13 @@ fun enqueuePendingGuaranteesWorker(
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_guarantee_$guaranteeExternalId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingGuaranteeEventsWorker(context: Context, replace: Boolean = false) {
+fun enqueuePendingGuaranteeEventsWorker(context: Context) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -88,19 +96,13 @@ fun enqueuePendingGuaranteeEventsWorker(context: Context, replace: Boolean = fal
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_guarantee_events"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingLocalSalesWorker(
-    context: Context,
-    localSaleId: String,
-    userEmail: String,
-    replace: Boolean = false
-) {
+fun enqueuePendingLocalSalesWorker(context: Context, localSaleId: String, userEmail: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -115,11 +117,10 @@ fun enqueuePendingLocalSalesWorker(
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_local_sale_$localSaleId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
 /** Nombre del trabajo único que reconcilia **ya**, al abrir la app. */

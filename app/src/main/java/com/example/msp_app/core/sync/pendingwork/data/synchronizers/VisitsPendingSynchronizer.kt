@@ -23,7 +23,7 @@ class VisitsPendingSynchronizer(
         val capped = pending.take(MAX_ITEMS_PER_SYNC)
         var successCount = 0
         capped.forEach { visit ->
-            runCatching { enqueuer.enqueue(visit.ID, replace = false) }
+            runCatching { enqueuer.enqueue(visit.ID) }
                 .onSuccess { successCount++ }
         }
         SyncResult.Enqueued(itemCount = capped.size, workRequestCount = successCount)

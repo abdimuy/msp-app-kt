@@ -7,7 +7,7 @@ import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 class PaymentsWorkManagerEnqueuer(
     private val context: Context
 ) : PaymentsWorkEnqueuer {
-    override fun enqueue(paymentId: String, replace: Boolean) {
-        enqueuePendingPaymentsWorker(context, paymentId, replace)
+    override fun enqueue(paymentId: String) {
+        enqueuePendingPaymentsWorker(context, paymentId)
     }
 }

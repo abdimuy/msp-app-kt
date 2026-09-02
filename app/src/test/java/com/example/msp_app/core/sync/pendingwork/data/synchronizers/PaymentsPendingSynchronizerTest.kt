@@ -32,9 +32,11 @@ class PaymentsPendingSynchronizerTest {
         val result = sync.sync(ctx)
 
         assertEquals(SyncResult.Enqueued(itemCount = 2, workRequestCount = 2), result)
-        // KEEP, never REPLACE — a live payment upload must not be cancelled
-        // and re-run (see SyncAllPendingWorkUseCase KDoc, Task 6 audit).
-        assertEquals(listOf("p1" to false, "p2" to false), enqueuer.calls)
+        assertEquals(listOf("p1", "p2"), enqueuer.calls)
+        // KEEP is no longer a runtime choice to assert on: PaymentsWorkEnqueuer
+        // no longer has a `replace` parameter, and enqueuePendingPaymentsWorker
+        // hardcodes ExistingWorkPolicy.KEEP internally — REPLACE is not
+        // reachable from this call at all (see SyncAllPendingWorkUseCase KDoc).
     }
 
     @Test
@@ -91,10 +93,10 @@ class PaymentsPendingSynchronizerTest {
     private class RecordingEnqueuer(
         private val failingIds: Set<String> = emptySet()
     ) : PaymentsWorkEnqueuer {
-        val calls: MutableList<Pair<String, Boolean>> = mutableListOf()
+        val calls: MutableList<String> = mutableListOf()
 
-        override fun enqueue(paymentId: String, replace: Boolean) {
-            calls += paymentId to replace
+        override fun enqueue(paymentId: String) {
+            calls += paymentId
             if (paymentId in failingIds) throw RuntimeException("boom")
         }
     }

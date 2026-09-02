@@ -159,7 +159,7 @@ class CobranzaSyncReenqueueTest : RoomTestBase() {
     private class RecordingEnqueuer : PaymentsWorkEnqueuer {
         val enqueuedIds: MutableList<String> = mutableListOf()
 
-        override fun enqueue(paymentId: String, replace: Boolean) {
+        override fun enqueue(paymentId: String) {
             enqueuedIds += paymentId
         }
     }

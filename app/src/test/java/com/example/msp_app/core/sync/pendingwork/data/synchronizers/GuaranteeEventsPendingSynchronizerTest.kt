@@ -37,9 +37,11 @@ class GuaranteeEventsPendingSynchronizerTest {
 
         assertEquals(SyncResult.Enqueued(itemCount = 5, workRequestCount = 1), result)
         assertEquals(1, enqueuer.calls)
-        // KEEP, never REPLACE — a live batch upload must not be cancelled
-        // and re-run (see SyncAllPendingWorkUseCase KDoc, Task 6 audit).
-        assertEquals(false, enqueuer.lastReplace)
+        // KEEP is no longer a runtime choice to assert on:
+        // GuaranteeEventsWorkEnqueuer no longer has a `replace` parameter, and
+        // enqueuePendingGuaranteeEventsWorker hardcodes ExistingWorkPolicy.KEEP
+        // internally — REPLACE is not reachable from this call at all (see
+        // SyncAllPendingWorkUseCase KDoc, Task 6 audit).
     }
 
     @Test
@@ -82,11 +84,9 @@ class GuaranteeEventsPendingSynchronizerTest {
         private val shouldFail: Boolean = false
     ) : GuaranteeEventsWorkEnqueuer {
         var calls: Int = 0
-        var lastReplace: Boolean = false
 
-        override fun enqueue(replace: Boolean) {
+        override fun enqueue() {
             calls++
-            lastReplace = replace
             if (shouldFail) throw RuntimeException("boom")
         }
     }
