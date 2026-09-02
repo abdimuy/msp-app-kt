@@ -24,7 +24,7 @@ class LocalSalesPendingSynchronizerTest {
     }
 
     @Test
-    fun `three pending enqueues all three with REPLACE policy`() = runTest {
+    fun `three pending enqueues all three with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val sync = LocalSalesPendingSynchronizer(
             fetchPending = { listOf(saleWithId("s1"), saleWithId("s2"), saleWithId("s3")) },
@@ -35,7 +35,9 @@ class LocalSalesPendingSynchronizerTest {
 
         assertEquals(SyncResult.Enqueued(itemCount = 3, workRequestCount = 3), result)
         assertEquals(listOf("s1", "s2", "s3"), enqueuer.calls.map { it.saleId })
-        assertTrue(enqueuer.calls.all { it.replace })
+        // KEEP, never REPLACE — a live sale upload must not be cancelled
+        // and re-run (see SyncAllPendingWorkUseCase KDoc, Task 6 audit).
+        assertTrue(enqueuer.calls.none { it.replace })
         assertTrue(enqueuer.calls.all { it.email == "u@example.com" })
     }
 

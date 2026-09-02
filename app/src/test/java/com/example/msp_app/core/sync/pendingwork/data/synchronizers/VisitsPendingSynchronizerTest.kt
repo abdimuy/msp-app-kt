@@ -6,6 +6,7 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkE
 import com.example.msp_app.core.database.entities.VisitEntity
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VisitsPendingSynchronizerTest {
@@ -22,7 +23,7 @@ class VisitsPendingSynchronizerTest {
     }
 
     @Test
-    fun `enqueues each pending visit`() = runTest {
+    fun `enqueues each pending visit with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val sync = VisitsPendingSynchronizer(
             fetchPending = { listOf(visitWithId("v1"), visitWithId("v2"), visitWithId("v3")) },
@@ -32,7 +33,10 @@ class VisitsPendingSynchronizerTest {
         val result = sync.sync(ctx)
 
         assertEquals(SyncResult.Enqueued(itemCount = 3, workRequestCount = 3), result)
-        assertEquals(listOf("v1", "v2", "v3"), enqueuer.calls)
+        assertEquals(listOf("v1", "v2", "v3"), enqueuer.calls.map { it.first })
+        // KEEP, never REPLACE — an in-flight upload for this same visit must
+        // not be cancelled and re-run (see SyncAllPendingWorkUseCase KDoc).
+        assertTrue(enqueuer.calls.all { !it.second })
     }
 
     @Test
@@ -81,10 +85,10 @@ class VisitsPendingSynchronizerTest {
     private class RecordingEnqueuer(
         private val failingIds: Set<String> = emptySet()
     ) : VisitsWorkEnqueuer {
-        val calls: MutableList<String> = mutableListOf()
+        val calls: MutableList<Pair<String, Boolean>> = mutableListOf()
 
         override fun enqueue(visitId: String, replace: Boolean) {
-            calls += visitId
+            calls += visitId to replace
             if (visitId in failingIds) throw RuntimeException("boom")
         }
     }

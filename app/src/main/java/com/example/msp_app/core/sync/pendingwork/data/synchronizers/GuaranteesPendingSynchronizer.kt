@@ -23,7 +23,7 @@ class GuaranteesPendingSynchronizer(
         val capped = pending.take(MAX_ITEMS_PER_SYNC)
         var successCount = 0
         capped.forEach { guarantee ->
-            runCatching { enqueuer.enqueue(guarantee.EXTERNAL_ID, replace = true) }
+            runCatching { enqueuer.enqueue(guarantee.EXTERNAL_ID, replace = false) }
                 .onSuccess { successCount++ }
         }
         SyncResult.Enqueued(itemCount = capped.size, workRequestCount = successCount)

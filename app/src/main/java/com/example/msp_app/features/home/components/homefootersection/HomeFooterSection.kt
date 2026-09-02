@@ -163,7 +163,7 @@ fun HomeFooterSection(
             },
             modifier = Modifier.fillMaxWidth(0.92f)
         ) {
-            Text("ENVIAR PAGOS PENDIENTES", color = Color.White)
+            Text("enviar pendientes", color = Color.White)
         }
 
         Button(onClick = onResendAllPayments, modifier = Modifier.fillMaxWidth(0.92f)) {

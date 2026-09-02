@@ -22,7 +22,7 @@ class PaymentsPendingSynchronizerTest {
     }
 
     @Test
-    fun `enqueues all pending with REPLACE policy`() = runTest {
+    fun `enqueues all pending with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val sync = PaymentsPendingSynchronizer(
             fetchPending = { listOf(paymentWithId("p1"), paymentWithId("p2")) },
@@ -32,7 +32,9 @@ class PaymentsPendingSynchronizerTest {
         val result = sync.sync(ctx)
 
         assertEquals(SyncResult.Enqueued(itemCount = 2, workRequestCount = 2), result)
-        assertEquals(listOf("p1" to true, "p2" to true), enqueuer.calls)
+        // KEEP, never REPLACE — a live payment upload must not be cancelled
+        // and re-run (see SyncAllPendingWorkUseCase KDoc, Task 6 audit).
+        assertEquals(listOf("p1" to false, "p2" to false), enqueuer.calls)
     }
 
     @Test
