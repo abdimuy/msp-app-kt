@@ -3,10 +3,10 @@ package com.example.msp_app.services
 import android.Manifest
 import android.app.Service
 import android.content.Intent
-import android.util.Log
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import com.example.msp_app.R
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
@@ -15,28 +15,46 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
+@AndroidEntryPoint
 class UpdateLocationService : Service(), CoroutineScope {
     private val job = SupervisorJob()
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + job
 
+    @Inject
+    lateinit var telemetry: Telemetry
+
     private lateinit var client: FusedLocationProviderClient
     private lateinit var cts: CancellationTokenSource
-    private lateinit var paymentsStore: PaymentsLocalDataSource
-    private lateinit var visitsStore: VisitsLocalDataSource
+    private lateinit var handler: UpdateLocationHandler
 
     override fun onCreate() {
         super.onCreate()
         client = LocationServices.getFusedLocationProviderClient(this)
         cts = CancellationTokenSource()
-        paymentsStore = PaymentsLocalDataSource(applicationContext)
-        visitsStore = VisitsLocalDataSource(applicationContext)
+
+        val paymentsStore = PaymentsLocalDataSource(applicationContext)
+        val visitsStore = VisitsLocalDataSource(applicationContext)
+        handler = UpdateLocationHandler(
+            telemetry = telemetry,
+            updatePaymentLocation = { id, lat, lng ->
+                paymentsStore.updatePaymentLocation(id, lat, lng)
+            },
+            updateVisitLocation = { id, lat, lng ->
+                visitsStore.updateVisitLocation(id, lat, lng)
+            },
+            enqueuePayment = { id -> enqueuePendingPaymentsWorker(applicationContext, id) },
+            enqueueVisit = { id -> enqueuePendingVisitsWorker(applicationContext, id) }
+        )
 
         val chanId = "loc_service"
         val notify = NotificationCompat.Builder(this, chanId)
@@ -55,43 +73,15 @@ class UpdateLocationService : Service(), CoroutineScope {
         val visitId = intent?.getStringExtra("visit_id")
         if (paymentId == null && visitId == null) return START_NOT_STICKY
 
-        client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
-            .addOnSuccessListener { loc ->
-                launch {
-                    try {
-                        if (paymentId != null) {
-                            paymentsStore.updatePaymentLocation(
-                                paymentId,
-                                loc.latitude,
-                                loc.longitude
-                            )
-                            enqueuePendingPaymentsWorker(applicationContext, paymentId)
-                        } else {
-                            visitsStore.updateVisitLocation(visitId!!, loc.latitude, loc.longitude)
-                            enqueuePendingVisitsWorker(applicationContext, visitId)
-                        }
-                        stopSelf()
-                    } catch (e: Exception) {
-                        Log.e("UpdateLocationService", "Error al actualizar ubicación", e)
-                        stopSelf()
-                    }
+        launch {
+            try {
+                handler.handle(paymentId, visitId) {
+                    client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token).await()
                 }
+            } finally {
+                stopSelf()
             }
-            .addOnFailureListener {
-                launch {
-                    try {
-                        if (paymentId != null) {
-                            enqueuePendingPaymentsWorker(applicationContext, paymentId)
-                        } else {
-                            enqueuePendingVisitsWorker(applicationContext, visitId!!)
-                        }
-                    } catch (e: Exception) {
-                        Log.e("UpdateLocationService", "Error en FailureListener", e)
-                    } finally {
-                        stopSelf()
-                    }
-                }
-            }
+        }
 
         return START_STICKY
     }
