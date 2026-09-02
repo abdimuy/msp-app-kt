@@ -1,11 +1,14 @@
 package com.example.msp_app.data.local.datasource.visit
 
+import android.location.Location
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
+import com.example.msp_app.services.UpdateLocationHandler
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -192,41 +195,64 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
     }
 
     // ─── Task 5, robustez suprema: la ubicacion tardia nunca duplica la subida ─
-    // updateVisitLocation solo toca LAT/LNG (VisitDao.updateLocation) y desde
-    // Task 5 UpdateLocationHandler ya no encola nada en la rama de visita: es
-    // estructuralmente imposible que esta actualizacion tardia encole. Estos
-    // dos tests cubren los dos estados en los que puede encontrar a la visita.
+    // Round 1 de revision (Important): estos dos tests antes llamaban
+    // store.updateVisitLocation directo — un metodo que NUNCA toco el
+    // enqueuer, ni antes ni despues del fix. Pasaban igual con el codigo
+    // sin arreglar (tautologicos). Ahora ejercitan UpdateLocationHandler.handle(),
+    // que es el camino real que toma una ubicacion tardia en produccion —
+    // el mismo que UpdateLocationService invoca. El hecho de que handle()
+    // ya no tenga un parametro `enqueueVisit` (fue borrado del constructor,
+    // no dejado sin llamar) hace que "no puede volver a encolar" sea una
+    // garantia del sistema de tipos, no de una asercion: no hay reversion
+    // que probar ahi porque no queda ninguna dependencia que observar. Ver
+    // task-5-report.md para el control de reversion real de este round
+    // (revertir el fix de saveVisitAndEnqueue, no el parametro borrado).
+
+    private fun locationHandler() = UpdateLocationHandler(
+        telemetry = RecordingTelemetry(),
+        updatePaymentLocation = { _, _, _ -> },
+        updateVisitLocation = { id, lat, lng -> store.updateVisitLocation(id, lat, lng) },
+        enqueuePayment = { _ -> }
+    )
+
+    private fun fakeLocation(lat: Double, lng: Double): Location = Location("fused").apply {
+        latitude = lat
+        longitude = lng
+    }
 
     @Test
-    fun updateVisitLocation_llegaTardeSobreVisitaYaSubida_noLaPisaNiReencola() = runTest {
+    fun handlerLlegaTardeSobreVisitaYaSubida_noLaPisa() = runTest {
         store.saveVisit(visit(id = "up-1", guardado = 1, lat = 0.0, lng = 0.0))
 
-        store.updateVisitLocation("up-1", 18.99, -97.11)
+        locationHandler().handle(paymentId = null, visitId = "up-1") {
+            fakeLocation(18.99, -97.11)
+        }
 
         val got = store.getVisitById("up-1")
-        assertEquals(18.99, got.LAT, 1e-9)
-        assertEquals(-97.11, got.LNG, 1e-9)
+        assertEquals("la ubicacion tardia si se persiste", 18.99, got.LAT, 1e-9)
+        assertEquals("la ubicacion tardia si se persiste", -97.11, got.LNG, 1e-9)
         assertEquals(
             "sigue marcada como subida; la ubicacion tardia no pisa GUARDADO_EN_MICROSIP",
             1,
             got.GUARDADO_EN_MICROSIP
         )
-        assertTrue(
-            "updateVisitLocation no encola nada: no puede crear una segunda subida",
-            enqueuer.calls.isEmpty()
-        )
     }
 
     @Test
-    fun updateVisitLocation_llegaTardeSobreVisitaPendiente_noEncola() = runTest {
+    fun handlerLlegaTardeSobreVisitaPendiente_noLaMarcaSubida() = runTest {
         store.saveVisit(visit(id = "pend-loc-1", guardado = 0, lat = 0.0, lng = 0.0))
 
-        store.updateVisitLocation("pend-loc-1", 18.99, -97.11)
+        locationHandler().handle(paymentId = null, visitId = "pend-loc-1") {
+            fakeLocation(18.99, -97.11)
+        }
 
-        assertEquals(0, store.getVisitById("pend-loc-1").GUARDADO_EN_MICROSIP)
-        assertTrue(
-            "el encolado ya paso en el guardado inicial; la ubicacion tardia no vuelve a encolar",
-            enqueuer.calls.isEmpty()
+        val got = store.getVisitById("pend-loc-1")
+        assertEquals("la ubicacion tardia si se persiste", 18.99, got.LAT, 1e-9)
+        assertEquals("la ubicacion tardia si se persiste", -97.11, got.LNG, 1e-9)
+        assertEquals(
+            "sigue pendiente; la ubicacion tardia no la marca subida por error",
+            0,
+            got.GUARDADO_EN_MICROSIP
         )
     }
 

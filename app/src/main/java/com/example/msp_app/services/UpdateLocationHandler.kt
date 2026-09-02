@@ -75,6 +75,15 @@ class UpdateLocationHandler(
                     // rama solo actualiza LAT/LNG si la ubicacion llego. Al no
                     // encolar, no puede crear una segunda subida ni pisar el
                     // estado de una visita ya subida.
+                    //
+                    // Round 1 de revision: no hay test de reversion para "esta
+                    // rama no puede volver a encolar" a proposito. La garantia
+                    // es del sistema de tipos, no de una asercion — el
+                    // constructor de este handler ya no tiene NINGUN parametro
+                    // `enqueueVisit` (fue borrado, no dejado sin llamar), asi
+                    // que no queda ningun colaborador que un test pudiera
+                    // observar. Reintroducir ese parametro solo para medir su
+                    // ausencia reintroduciria el bug que Task 5 arreglo.
                     location?.let { updateVisitLocation(visitId, it.latitude, it.longitude) }
                 }
             }
