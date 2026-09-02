@@ -10,10 +10,10 @@ import org.junit.Test
 
 /**
  * Task 12 (fechas/AppTime migration, bug #9) — [PdfGenerator.printedAtLabel] is the testable
- * seam extracted from the three `SimpleDateFormat(..., Locale.getDefault()).format(Date())`
- * sites in [PdfGenerator] (`generatePdfFromLines`, `generateWarehouseInventoryPdf`,
- * `generateDailyReportPdf`) — none of those functions are unit-testable directly (Android
- * `PdfDocument`/`Canvas`), so this pure wrapper carries the coverage instead.
+ * seam extracted from the `SimpleDateFormat(..., Locale.getDefault()).format(Date())`
+ * sites in [PdfGenerator] (`generateWarehouseInventoryPdf`, `generateDailyReportPdf`) — neither
+ * of those functions is unit-testable directly (Android `PdfDocument`/`Canvas`), so this pure
+ * wrapper carries the coverage instead.
  */
 class PdfGeneratorPrintedAtLabelTest {
 
