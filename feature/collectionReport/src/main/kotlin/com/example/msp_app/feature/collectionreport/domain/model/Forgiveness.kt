@@ -1,5 +1,7 @@
 package com.example.msp_app.feature.collectionreport.domain.model
 
+import com.example.msp_app.core.common.money.Money
+
 /**
  * Condonación — monto perdonado a un cliente (saldo mínimo, ajuste de
  * intereses, redondeo de cierre, etc.).

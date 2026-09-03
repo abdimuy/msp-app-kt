@@ -1,10 +1,10 @@
 package com.example.msp_app.feature.collectionreport.data.adapter
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.collectionreport.domain.SuggestedGoal
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import java.math.BigDecimal
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals

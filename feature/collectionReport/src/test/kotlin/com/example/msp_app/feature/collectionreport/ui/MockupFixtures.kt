@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.feature.collectionreport.domain.DeltaChip
@@ -7,7 +8,6 @@ import com.example.msp_app.feature.collectionreport.domain.DeltaDirection
 import com.example.msp_app.feature.collectionreport.domain.Insight
 import com.example.msp_app.feature.collectionreport.domain.Timeline
 import com.example.msp_app.feature.collectionreport.domain.TimelineBucket
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import java.math.BigDecimal

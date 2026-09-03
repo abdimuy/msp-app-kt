@@ -1,6 +1,5 @@
-package com.example.msp_app.feature.collectionreport.domain.model
+package com.example.msp_app.core.common.money
 
-import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import java.math.BigDecimal
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -9,8 +8,14 @@ import org.junit.Test
 
 /**
  * Robustez SUPREMA del VO de dinero: invariante de escala 2, aritmética exacta
- * (sin `Double`), igualdad por valor consistente, y render consistente con
- * `formatMoneyMxn` (HALF_UP). Cero dependencia de Android — unit test JVM puro.
+ * (sin `Double`), igualdad por valor consistente. Cero dependencia de
+ * Android — unit test JVM puro.
+ *
+ * Mudado desde `:feature:collectionReport` (Task 15, Plan 5). El test de
+ * consistencia con `formatMoneyMxn` (design system) se quedó allá —
+ * `MoneyFormatMoneyMxnConsistencyTest` — porque `:core:common` no depende de
+ * `:core:designsystem` y esta mudanza es mecánica, no una excusa para abrir
+ * una dependencia nueva entre módulos.
  */
 class MoneyTest {
 
@@ -147,21 +152,5 @@ class MoneyTest {
     fun `sin perdida de precision en montos grandes`() {
         val big = Money.of(BigDecimal("12345678901234.56"))
         assertEquals(BigDecimal("12345678901234.56"), big.amount)
-    }
-
-    // region — render consistente con el design system
-
-    @Test
-    fun `render via formatMoneyMxn es consistente`() {
-        // formatMoneyMxn redondea a peso entero para DISPLAY (decisión de negocio: sin
-        // centavos); el `Money` que le entra sigue siendo exacto a escala 2 — el
-        // redondeo ocurre SOLO en el string de salida, nunca en el VO.
-        assertEquals("$1,234,568", formatMoneyMxn(Money.of(1234567.89).amount))
-        assertEquals("$0", formatMoneyMxn(Money.ZERO.amount))
-        assertEquals("-$850", formatMoneyMxn(Money.of(-850.0).amount))
-        assertEquals(
-            "$351",
-            formatMoneyMxn(Money.sum(listOf(Money.of(350.50), Money.of(0.49))).amount)
-        )
     }
 }

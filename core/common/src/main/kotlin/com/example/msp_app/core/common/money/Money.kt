@@ -1,4 +1,4 @@
-package com.example.msp_app.feature.collectionreport.domain.model
+package com.example.msp_app.core.common.money
 
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -19,6 +19,12 @@ import java.math.RoundingMode
  *
  * El render a pantalla es `formatMoneyMxn(money.amount)` (design system): la
  * aritmética NUNCA sale a `Double`.
+ *
+ * Vivía en `:feature:collectionReport` (`domain/model/Money.kt`); se elevó a
+ * `:core:common` en Task 15 (Plan 5, Fase 5) porque `:feature:pagos` también
+ * necesita un tipo de dinero y una dependencia feature->feature no está
+ * permitida por el layout hexagonal del repo. Es una MUDANZA mecánica, no una
+ * reescritura: el tipo es idéntico byte a byte salvo el `package`.
  */
 @JvmInline
 value class Money private constructor(val amount: BigDecimal) : Comparable<Money> {

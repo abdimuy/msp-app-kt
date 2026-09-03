@@ -419,6 +419,15 @@ tasks.register("prePushCheck") {
         // enterara. Sus cuatro tareas pasan hoy tal cual (cobertura medida:
         // 87.78% LINE), así que sumarlas no arrastra deuda nueva.
         ":feature:configuracion:ktlintCheck",
+        // `:feature:pagos` y `:feature:visitas` (Task 15, Plan 5 Fase 5): a
+        // diferencia de `:feature:collectionReport` (Task 1, wiring PARCIAL a
+        // propósito) y del hueco que tuvo `:feature:configuracion`, estos dos
+        // módulos entran a las CINCO líneas del gate desde el día uno —
+        // ktlint, test, kover, detekt Y roborazzi — porque van a alojar
+        // pantallas (Tasks 16-21) y un módulo fuera de esta lista pasa el
+        // gate sin que nadie lo pruebe. Andamio vacío, pero cableado completo.
+        ":feature:pagos:ktlintCheck",
+        ":feature:visitas:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
         ":core:common:testDebugUnitTest",
@@ -433,6 +442,8 @@ tasks.register("prePushCheck") {
         ":core:settings:testDebugUnitTest",
         ":feature:collectionReport:testDebugUnitTest",
         ":feature:configuracion:testDebugUnitTest", // ver "HUECO CERRADO" arriba
+        ":feature:pagos:testDebugUnitTest",
+        ":feature:visitas:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
         // `koverVerifyDebug`, no el agregado `koverVerify`: el agregado también
@@ -478,6 +489,13 @@ tasks.register("prePushCheck") {
         // `kover` de su `build.gradle.kts`).
         ":feature:collectionReport:koverVerifyDebug",
         ":feature:configuracion:koverVerifyDebug", // ver "HUECO CERRADO" arriba
+        // `:feature:pagos` / `:feature:visitas` (Task 15): `koverVerifyDebug`
+        // (no el agregado `koverVerify`) por el mismo gotcha
+        // Robolectric-bajo-`release` de arriba — ambos aplican
+        // `msp.android.compose`. Piso 0% (placeholder `msp.kover`), igual que
+        // el resto de módulos nuevos sin línea base de cobertura todavía.
+        ":feature:pagos:koverVerifyDebug",
+        ":feature:visitas:koverVerifyDebug",
         ":core:common:detekt",
         ":core:database:detekt",
         ":core:designsystem:detekt",
@@ -490,6 +508,12 @@ tasks.register("prePushCheck") {
         ":core:settings:detekt",
         ":feature:collectionReport:detekt",
         ":feature:configuracion:detekt", // ver "HUECO CERRADO" arriba
+        // `:feature:pagos` / `:feature:visitas` (Task 15): detekt estricto sin
+        // baseline — módulos nuevos, `buildUponDefaultConfig = true` vía
+        // `msp.detekt`. `:feature:pagos` además suma `detekt-money.yml`
+        // (`NoDoubleForMoney`, ver su `build.gradle.kts`): maneja cobranza.
+        ":feature:pagos:detekt",
+        ":feature:visitas:detekt",
         ":build-tools:detekt-rules:detekt",
         ":core:designsystem:verifyRoborazziDebug",
         // Task 11 (Plan 5, cierre del piloto): el gate de fidelidad visual
@@ -500,6 +524,16 @@ tasks.register("prePushCheck") {
         // "agregarlos antes haría fallar el gate por falta de
         // capturas/umbral"), esos goldens ya están committeados.
         ":feature:collectionReport:verifyRoborazziDebug",
+        // `:feature:pagos` / `:feature:visitas` (Task 15): a diferencia de
+        // `:core:designsystem`/`:feature:collectionReport` (que solo sumaron
+        // `verifyRoborazziDebug` cuando ya tenían goldens committeados), estos
+        // dos entran desde el día uno, sin capturas todavía — se confirmó que
+        // la tarea pasa en verde con cero pruebas Roborazzi en el módulo (ver
+        // task-15-report.md). Van a alojar pantallas (Tasks 16-21) y quedarse
+        // fuera del gate hasta que existan capturas es exactamente el hueco
+        // silencioso que `:feature:configuracion` ya pagó una vez.
+        ":feature:pagos:verifyRoborazziDebug",
+        ":feature:visitas:verifyRoborazziDebug",
         ":app:assembleDevlocalDebug",
     )
 }

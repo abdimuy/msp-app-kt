@@ -4,8 +4,9 @@ import java.time.Instant
 
 /**
  * Visita de cobranza — modelo de dominio. No mueve dinero (una visita puede no
- * derivar en pago), así que no lleva [Money]; el tablero solo la cuenta y lista
- * el motivo/nota (chip "Visitas" + sheet).
+ * derivar en pago), así que no lleva
+ * [com.example.msp_app.core.common.money.Money]; el tablero solo la cuenta y
+ * lista el motivo/nota (chip "Visitas" + sheet).
  *
  * @property id UUID de la visita.
  * @property cliente nombre del cliente visitado.

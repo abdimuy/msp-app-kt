@@ -10,10 +10,10 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import java.math.BigDecimal
 import org.junit.Assert.assertFalse
 import org.junit.Rule
