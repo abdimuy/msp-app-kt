@@ -9,6 +9,8 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
+import com.example.msp_app.core.utils.VisitScope
+import com.example.msp_app.core.utils.VisitScopeMapper
 import javax.inject.Inject
 
 class VisitsLocalDataSource @Inject constructor(
@@ -60,6 +62,24 @@ class VisitsLocalDataSource @Inject constructor(
         )
     }
 
+    /**
+     * Task 13 (plan `pagos-y-visitas`) — antes de este cambio, TODA visita
+     * colapsaba a la venta `saleId` sin importar su tipo. Eso es correcto
+     * para "vuelvo" / "se negó" / "prometió" (esa venta específica), pero
+     * incorrecto para "no estaba" / "cita a una hora": una puerta cerrada
+     * no es un hecho sobre una venta, es un hecho sobre el cliente, y las
+     * demás ventas de ese cliente se quedaban sin tocar aunque el modelo
+     * de dominio (`internal/visitas/domain/visita.go:46-61`, indexado por
+     * `ClienteID`) ya lo permitía.
+     *
+     * El alcance se deriva de `visit.TIPO_VISITA` vía [VisitScopeMapper] —
+     * no hay una segunda lista de literales aquí. [VisitScope.CLIENTE]
+     * propaga a TODAS las ventas activas del cliente
+     * ([SaleDao.updateEstadoCobranzaActivasByClienteId], acotada por
+     * `CLIENTE_ID = visit.CLIENTE_ID`: no puede tocar la venta de otro
+     * cliente). [VisitScope.VENTA] preserva el comportamiento anterior —
+     * toca solo `saleId`.
+     */
     @Transaction
     suspend fun insertVisitAndUpdateState(
         saleId: Int,
@@ -67,11 +87,13 @@ class VisitsLocalDataSource @Inject constructor(
         newState: EstadoCobranza
     ) {
         visitDao.insertVisit(visit)
-        saleDao.updateTotal(
-            saleId,
-            0.0,
-            newState
-        )
+        when (VisitScopeMapper.map(visit.TIPO_VISITA)) {
+            VisitScope.CLIENTE ->
+                saleDao.updateEstadoCobranzaActivasByClienteId(visit.CLIENTE_ID, newState)
+
+            VisitScope.VENTA ->
+                saleDao.updateTotal(saleId, 0.0, newState)
+        }
     }
 
     /**
@@ -101,12 +123,12 @@ class VisitsLocalDataSource @Inject constructor(
      * an already-uploaded visit nor create a second upload.
      *
      * Placed on the data source — not in `VisitsViewModel.saveVisit` —
-     * because Task 13 is planned to rewrite `saveVisit` again (a visit will
-     * belong to the client rather than a single sale). Whatever that new
-     * shape looks like, it still has to insert the visit through this data
-     * source; keeping the enqueue glued to the insert here means Task 13's
-     * rewrite carries it along by construction, instead of it living at a
-     * call site a restructuring could drop.
+     * because Task 13 rewrites [insertVisitAndUpdateState] to propagate a
+     * client-scope visit to every active sale, instead of collapsing it
+     * onto a single one. That rewrite still has to insert the visit through
+     * this data source; keeping the enqueue glued to the insert here means
+     * Task 13's rewrite carries it along by construction (unchanged below),
+     * instead of it living at a call site a restructuring could drop.
      */
     suspend fun saveVisitAndEnqueue(saleId: Int, visit: VisitEntity, newState: EstadoCobranza) {
         insertVisitAndUpdateState(saleId, visit, newState)

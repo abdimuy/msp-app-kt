@@ -286,10 +286,47 @@ interface SaleDao {
     )
     suspend fun updateTotal(saleId: Int, amount: Double, estadoCobranza: EstadoCobranza)
 
+    /**
+     * Propaga un cambio de `ESTADO_COBRANZA` a TODAS las ventas ACTIVAS
+     * (`SALDO_REST > 0`) de un cliente. Es el escritor detrás de una visita
+     * de **alcance cliente** (Task 13, plan `pagos-y-visitas`): "no estaba"
+     * y "cita a una hora" son una condición del domicilio, no de una venta
+     * en particular, y deben verse en todas las cuentas abiertas del
+     * cliente — ver `VisitScopeMapper` en `:app`
+     * (`com.example.msp_app.core.utils`).
+     *
+     * "Activa" = `SALDO_REST > 0`. Una venta ya saldada no se toca: el
+     * resultado de tocar la puerta no aplica a una deuda que ya no existe,
+     * y tocarla igual falsearía el semáforo de una cuenta cerrada.
+     *
+     * Un solo `UPDATE` acotado por `CLIENTE_ID` — no un `IN (:ids)` ni un
+     * loop de updates por fila — así que no hereda el techo de variables
+     * SQL que documenta `VisitDao.markSyncedByIds`. Un `CLIENTE_ID` sin
+     * ventas activas no lanza: el `WHERE` no matchea ninguna fila y la
+     * actualización afecta 0.
+     *
+     * No toca `SALDO_REST` — una visita nunca abona, igual que
+     * [updateTotal] con `amount = 0.0`.
+     *
+     * @return cuántas filas se actualizaron (0 si el cliente no tiene
+     *   ventas activas).
+     */
     @Query(
         """
         UPDATE sales
-        SET 
+        SET ESTADO_COBRANZA = :estadoCobranza
+        WHERE CLIENTE_ID = :clienteId AND SALDO_REST > 0
+        """
+    )
+    suspend fun updateEstadoCobranzaActivasByClienteId(
+        clienteId: Int,
+        estadoCobranza: EstadoCobranza
+    ): Int
+
+    @Query(
+        """
+        UPDATE sales
+        SET
             DIA_TEMPORAL_COBRANZA = :newDate
         WHERE 
             DOCTO_CC_ACR_ID = :saleId
