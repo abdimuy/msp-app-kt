@@ -178,6 +178,19 @@ fun NewVisitDialog(
                 fecha = date
             )
 
+            // Task 13 fix round 1 (plan `pagos-y-visitas`): `sale.DOCTO_CC_ID`
+            // and `sale.DOCTO_CC_ACR_ID` are two DIFFERENT id spaces
+            // (SaleEntity: DOCTO_CC_ACR_ID is the @PrimaryKey, DOCTO_CC_ID is
+            // a separate unique column). `VisitsLocalDataSource`'s VENTA
+            // branch reaches `SaleDao.updateTotal`, which filters
+            // `WHERE DOCTO_CC_ACR_ID = :saleId` — passing `sale.DOCTO_CC_ID`
+            // here updated zero rows, or the wrong row, for every sale-scope
+            // visit ("vuelvo" / "se negó" / "prometió"). `visit` was already
+            // built with the correct id: `VisitFactory.fromSale` sets
+            // `IMPTE_DOCTO_CC_ID = sale.DOCTO_CC_ACR_ID` (see
+            // `VisitFactoryTest`), so reusing it here — instead of a second,
+            // independently-fallible read of `sale.DOCTO_CC_ID` — ties this
+            // call to the one already-tested source of truth.
             if (selectedOption == Constants.PIDE_REAGENDAR) {
                 val date = selectedDate ?: return@launch
                 val time = selectedTime ?: LocalTime.MIDNIGHT
@@ -186,9 +199,9 @@ fun NewVisitDialog(
                     .atZone(ZoneId.systemDefault())
                     .toInstant()
                     .toString()
-                visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID, isoDate)
+                visitsViewModel.saveVisit(visit, visit.IMPTE_DOCTO_CC_ID, isoDate)
             } else {
-                visitsViewModel.saveVisit(visit, sale.DOCTO_CC_ID, null)
+                visitsViewModel.saveVisit(visit, visit.IMPTE_DOCTO_CC_ID, null)
             }
 
             val intent = Intent(context, UpdateLocationService::class.java).apply {

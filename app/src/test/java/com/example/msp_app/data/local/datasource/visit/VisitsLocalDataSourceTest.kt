@@ -9,6 +9,10 @@ import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.data.models.sale.FrecuenciaPago
+import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.visit.toEntity
+import com.example.msp_app.features.visit.newvisit.VisitFactory
 import com.example.msp_app.services.UpdateLocationHandler
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -117,6 +121,53 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         PRECIO_DE_CONTADO = 3000.0,
         AVAL_O_RESPONSABLE = "",
         FREC_PAGO = "SEMANAL"
+    )
+
+    /**
+     * [Sale] de dominio — la forma que recibe `NewVisitDialog` (no
+     * [SaleEntity]) — con `DOCTO_CC_ACR_ID` y `DOCTO_CC_ID` deliberadamente
+     * distintos, mismo patrón que `VisitFactoryTest`. Usada por el test de
+     * la ronda 1 de revisión que cruza el limite real de `VisitFactory`
+     * (ver [saleScopeVisit_usesTheIdVisitFactoryComputes_notSaleDoctoCcId]).
+     */
+    private fun saleDomain(doctoCcAcrId: Int, doctoCcId: Int, clienteId: Int = 4821) = Sale(
+        DOCTO_CC_ACR_ID = doctoCcAcrId,
+        DOCTO_CC_ID = doctoCcId,
+        FOLIO = "A-$doctoCcAcrId",
+        CLIENTE_ID = clienteId,
+        APLICADO = "S",
+        COBRADOR_ID = 7,
+        CLIENTE = "Guadalupe Hernandez Soto",
+        ZONA_CLIENTE_ID = 21,
+        LIMITE_CREDITO = 0.0,
+        NOTAS = "",
+        ZONA_NOMBRE = "Centro",
+        IMPORTE_PAGO_PROMEDIO = 350.0,
+        TOTAL_IMPORTE = 3500.0,
+        NUM_IMPORTES = 10,
+        FECHA = "2026-01-01T00:00:00Z",
+        PARCIALIDAD = 350,
+        ENGANCHE = 500.0,
+        TIEMPO_A_CORTO_PLAZOMESES = 0,
+        MONTO_A_CORTO_PLAZO = 0.0,
+        VENDEDOR_1 = "",
+        VENDEDOR_2 = "",
+        VENDEDOR_3 = "",
+        PRECIO_TOTAL = 3500.0,
+        IMPTE_REST = 700.0,
+        SALDO_REST = 700.0,
+        FECHA_ULT_PAGO = null,
+        CALLE = "Av. Reforma 100",
+        CIUDAD = "Tehuacan",
+        ESTADO = "Puebla",
+        TELEFONO = "2381234567",
+        NOMBRE_COBRADOR = "Ramirez Ortiz, Fernando",
+        ESTADO_COBRANZA = EstadoCobranza.PENDIENTE,
+        DIA_COBRANZA = "LUNES",
+        DIA_TEMPORAL_COBRANZA = "",
+        PRECIO_DE_CONTADO = 3000.0,
+        AVAL_O_RESPONSABLE = "",
+        FREC_PAGO = FrecuenciaPago.SEMANAL
     )
 
     // ─── saveVisit / getPendingVisits ────────────────────────────────────────
@@ -391,6 +442,59 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             "la otra venta del MISMO cliente no se toca: 'prometio' es de alcance venta",
             "PENDIENTE",
             db.saleDao().findByDoctoCcId(7701)!!.ESTADO_COBRANZA
+        )
+    }
+
+    /**
+     * Ronda 1 de revisión (fix): `NewVisitDialog.kt:189/191` pasaba
+     * `sale.DOCTO_CC_ID` como `saleId` — `SaleEntity` declara
+     * `DOCTO_CC_ACR_ID` como `@PrimaryKey` y `DOCTO_CC_ID` como columna
+     * `unique` SEPARADA, no un alias. `SaleDao.updateTotal` filtra por
+     * `DOCTO_CC_ACR_ID`, así que toda visita de alcance VENTA actualizaba
+     * cero filas (o la equivocada). El fix usa `visit.IMPTE_DOCTO_CC_ID`
+     * — el id que `VisitFactory.fromSale` YA calcula correctamente desde
+     * `sale.DOCTO_CC_ACR_ID` (ver `VisitFactoryTest`) — en vez de leer
+     * `sale.DOCTO_CC_ID` por segunda vez, de forma independiente y falible.
+     *
+     * Este test cruza el límite real que ningún otro test cruzaba: construye
+     * el [Sale] de dominio que recibe el diálogo (no un [VisitEntity] armado
+     * a mano) con `DOCTO_CC_ACR_ID` != `DOCTO_CC_ID`, pasa por
+     * [VisitFactory.fromSale] — la función real que usa `NewVisitDialog` —
+     * y llama [VisitsLocalDataSource.insertVisitAndUpdateState] con el valor
+     * que el call site corregido pasa hoy: `visit.IMPTE_DOCTO_CC_ID`.
+     *
+     * **Control de reversión (verificado, ver task-13-report.md):** cambiar
+     * `visit.IMPTE_DOCTO_CC_ID` por `theSale.DOCTO_CC_ID` en el `saleId` de
+     * abajo — el valor EXACTO que `NewVisitDialog.kt` pasaba antes del fix —
+     * pone este test en ROJO: `findByDoctoCcId` sigue en "PENDIENTE" porque
+     * el `UPDATE` cae sobre un `DOCTO_CC_ACR_ID` que no existe.
+     */
+    @Test
+    fun saleScopeVisit_usesTheIdVisitFactoryComputes_notSaleDoctoCcId() = runTest {
+        val theSale = saleDomain(doctoCcAcrId = 9100, doctoCcId = 9400)
+        db.saleDao().insertAll(listOf(sale(saleId = 9100, saldoRest = 700.0)))
+
+        val visit = VisitFactory.fromSale(
+            sale = theSale,
+            currentUser = null,
+            tipoVisita = Constants.PIDE_REAGENDAR,
+            formaCobroId = 0,
+            nota = "",
+            id = "boundary-1",
+            fecha = "2026-06-02T15:00:00Z"
+        )
+
+        store.insertVisitAndUpdateState(
+            saleId = visit.IMPTE_DOCTO_CC_ID,
+            visit = visit.toEntity(),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals(
+            "la venta real (DOCTO_CC_ACR_ID) debe recibir el estado — este es EXACTAMENTE " +
+                "el valor que NewVisitDialog.kt pasaba antes del fix (sale.DOCTO_CC_ID)",
+            "VOLVER_VISITAR",
+            db.saleDao().findByDoctoCcId(9101)!!.ESTADO_COBRANZA
         )
     }
 
