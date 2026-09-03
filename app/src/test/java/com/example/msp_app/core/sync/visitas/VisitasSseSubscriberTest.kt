@@ -2,6 +2,7 @@ package com.example.msp_app.core.sync.visitas
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.ERROR_CODE_SIN_ZONA
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.ERROR_CODE_STREAM_CAIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.ERROR_CODE_STREAM_DESHABILITADO
 import com.example.msp_app.core.sync.cobranza.UserContext
@@ -82,9 +83,16 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
     private fun event(type: String, data: String = """{"ts":1}"""): String =
         "event: $type\ndata: $data\n\n"
 
+    /**
+     * @param latch se cuenta SOLO cuando dispara la reconciliación.
+     * @param errorLatch se cuenta SOLO cuando se reporta un error. Están
+     *   separados a propósito: un latch compartido deja pasar un test que
+     *   creía estar esperando un disparo y en realidad esperaba un reporte.
+     */
     private fun buildSubscriber(
         onTrigger: suspend () -> Unit = { triggers.incrementAndGet() },
         latch: CountDownLatch? = null,
+        errorLatch: CountDownLatch? = null,
         zona: Int? = 21
     ): VisitasSseSubscriber {
         val client = OkHttpClient.Builder()
@@ -98,7 +106,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
             errorReporter = object : SyncErrorReporter {
                 override fun report(code: String, message: String, props: Map<String, String>) {
                     reportedCodes += code
-                    latch?.countDown()
+                    errorLatch?.countDown()
                 }
             }
         )
@@ -108,8 +116,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
             userContextFlow = MutableStateFlow(
                 zona?.let { UserContext(zona = it, fechaCargaInicial = null) }
             ).asStateFlow(),
-            handler = handler,
-            coroutineScope = testScope
+            handler = handler
         )
     }
 
@@ -121,7 +128,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse(event("visitas_confirmadas")))
 
         val subscriber = buildSubscriber(latch = latch)
-        subscriber.start()
+        subscriber.start(testScope)
         val fired = latch.await(5, TimeUnit.SECONDS)
         subscriber.stop()
 
@@ -134,7 +141,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse(""))
 
         val subscriber = buildSubscriber()
-        subscriber.start()
+        subscriber.start(testScope)
         val request = server.takeRequest(5, TimeUnit.SECONDS)
         subscriber.stop()
 
@@ -168,7 +175,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
         )
 
         val subscriber = buildSubscriber(latch = latch)
-        subscriber.start()
+        subscriber.start(testScope)
         val fired = latch.await(5, TimeUnit.SECONDS)
         // Margen para que un disparo extra indebido alcance a registrarse.
         Thread.sleep(300)
@@ -193,7 +200,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse(event("pagos_changed", """{"ts":1,"ids":[7]}""")))
 
         val subscriber = buildSubscriber()
-        subscriber.start()
+        subscriber.start(testScope)
         Thread.sleep(1_000)
         subscriber.stop()
 
@@ -209,7 +216,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(sseResponse("data: {\"ts\":1}\n\n"))
 
         val subscriber = buildSubscriber()
-        subscriber.start()
+        subscriber.start(testScope)
         Thread.sleep(1_000)
         subscriber.stop()
 
@@ -228,8 +235,8 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
             )
         }
 
-        val subscriber = buildSubscriber(latch = latch)
-        subscriber.start()
+        val subscriber = buildSubscriber(errorLatch = latch)
+        subscriber.start(testScope)
         latch.await(5, TimeUnit.SECONDS)
         Thread.sleep(500)
         subscriber.stop()
@@ -254,8 +261,8 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
         server.enqueue(MockResponse().setResponseCode(500))
         server.enqueue(MockResponse().setResponseCode(500))
 
-        val subscriber = buildSubscriber(latch = latch)
-        subscriber.start()
+        val subscriber = buildSubscriber(errorLatch = latch)
+        subscriber.start(testScope)
         latch.await(5, TimeUnit.SECONDS)
         subscriber.stop()
 
@@ -270,7 +277,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
     @Test
     fun `sin zona no se abre ningun stream`() {
         val subscriber = buildSubscriber(zona = null)
-        subscriber.start()
+        subscriber.start(testScope)
         Thread.sleep(500)
         subscriber.stop()
 
@@ -286,7 +293,7 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
     fun `stop es idempotente y no lanza`() {
         server.enqueue(sseResponse(""))
         val subscriber = buildSubscriber()
-        subscriber.start()
+        subscriber.start(testScope)
         subscriber.stop()
         subscriber.stop()
     }
@@ -297,12 +304,133 @@ class VisitasSseSubscriberTest : RobolectricTestBase() {
             override fun dispatch(request: RecordedRequest): MockResponse = sseResponse("")
         }
         val subscriber = buildSubscriber()
-        subscriber.start()
-        subscriber.start()
+        subscriber.start(testScope)
+        subscriber.start(testScope)
         Thread.sleep(500)
         subscriber.stop()
 
         assertEquals("dos start no deben abrir dos streams", 1, server.requestCount)
+    }
+
+    // ─── El scope muerto: el defecto que mataba al cuarto disparador ────────
+
+    /**
+     * La secuencia exacta de producción: el cobrador sale de la app y vuelve a
+     * entrar dentro del MISMO proceso. Eso destruye la Activity y cancela su
+     * `lifecycle.coroutineScope`, pero [VisitasSseProvider] cachea el
+     * suscriptor para todo el proceso.
+     *
+     * Con el scope capturado en el constructor, a partir del segundo arranque
+     * el suscriptor quedaba con un scope muerto: cada push se descartaba en un
+     * `launch` no-op, el zoneWatchJob nunca colectaba y el backoff nunca
+     * reintentaba — **con el socket sano, así que `onStreamFailure` no
+     * reportaba nada**. El cuarto disparador muerto y en silencio.
+     *
+     * Este test es lo que impide que vuelva: si alguien reintroduce la captura
+     * en el constructor, aquí no llega ningún disparo.
+     */
+    @Test
+    fun `un push sigue disparando despues de que muere el scope de la Activity`() {
+        val latch = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse =
+                sseResponse(event("visitas_confirmadas"))
+        }
+        val subscriber = buildSubscriber(latch = latch)
+
+        // Primera Activity: arranca y se detiene con normalidad.
+        val scopeActivityA = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        subscriber.start(scopeActivityA)
+        subscriber.stop()
+
+        // El usuario sale de la app: la Activity muere y su scope se cancela.
+        scopeActivityA.cancel()
+
+        // Segunda Activity, mismo proceso, MISMO suscriptor cacheado.
+        val scopeActivityB = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        subscriber.start(scopeActivityB)
+
+        val fired = latch.await(5, TimeUnit.SECONDS)
+        subscriber.stop()
+        scopeActivityB.cancel()
+
+        assertTrue(
+            "tras relanzar la app el push DEBE seguir disparando la reconciliación — " +
+                "un scope capturado en el constructor deja el cuarto disparador " +
+                "muerto y sin telemetría",
+            fired
+        )
+        assertEquals(1, triggers.get())
+    }
+
+    /**
+     * Control positivo del test de arriba: con el scope vivo el mismo montaje
+     * SÍ dispara, así que un `false` allá significa "el scope muerto lo
+     * rompió" y no "este test nunca habría detectado nada".
+     */
+    @Test
+    fun `control positivo — con el scope vivo el mismo montaje dispara`() {
+        val latch = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse =
+                sseResponse(event("visitas_confirmadas"))
+        }
+        val subscriber = buildSubscriber(latch = latch)
+
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        subscriber.start(scope)
+        val fired = latch.await(5, TimeUnit.SECONDS)
+        subscriber.stop()
+        scope.cancel()
+
+        assertTrue(fired)
+    }
+
+    /**
+     * El rebind ocurre ANTES del early-return por `running`. Si un `start`
+     * sobre un suscriptor ya marcado como corriendo solo retornara, un scope
+     * muerto quedaría pegado para siempre.
+     */
+    @Test
+    fun `un start con el suscriptor ya corriendo igual rebindea el scope`() {
+        val latch = CountDownLatch(1)
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse =
+                sseResponse(event("visitas_confirmadas"))
+        }
+        val subscriber = buildSubscriber(latch = latch)
+
+        val scopeA = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        subscriber.start(scopeA)
+        // Sin stop() en medio: el suscriptor sigue `running`.
+        scopeA.cancel()
+        val scopeB = CoroutineScope(Dispatchers.Default + SupervisorJob())
+        subscriber.start(scopeB)
+
+        val fired = latch.await(5, TimeUnit.SECONDS)
+        subscriber.stop()
+        scopeB.cancel()
+
+        assertTrue("el rebind no puede quedar detrás del early-return", fired)
+    }
+
+    // ─── Sin zona: se reporta, no se traga ───────────────────────────────────
+
+    @Test
+    fun `sin zona se reporta con su codigo nombrado`() {
+        val latch = CountDownLatch(1)
+        val subscriber = buildSubscriber(errorLatch = latch, zona = null)
+
+        subscriber.start(testScope)
+        latch.await(5, TimeUnit.SECONDS)
+        subscriber.stop()
+
+        assertTrue(
+            "\"el push nunca se abrió\" y \"el push se abrió y murió\" deben ser " +
+                "distinguibles desde fuera del teléfono",
+            reportedCodes.contains(ERROR_CODE_SIN_ZONA)
+        )
+        assertEquals("y sigue sin abrir ningún stream", 0, server.requestCount)
     }
 
     @Test

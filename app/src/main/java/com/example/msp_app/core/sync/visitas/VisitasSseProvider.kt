@@ -12,7 +12,6 @@ import com.example.msp_app.data.api.FirebaseAuthTokenProvider
 import com.example.msp_app.data.api.V2ApiProvider
 import dagger.hilt.android.EntryPointAccessors
 import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.CoroutineScope
 import okhttp3.OkHttpClient
 
 /**
@@ -28,6 +27,21 @@ import okhttp3.OkHttpClient
  * connection is long-lived and the 60s default would cut it before the
  * server's first 25s keep-alive ping.
  *
+ * ## No CoroutineScope is captured here — that was a real defect
+ *
+ * [get] deliberately takes no scope. The caller passes the live one to
+ * [VisitasSseSubscriber.start] instead, on every ON_START.
+ *
+ * The earlier shape cached the subscriber together with the FIRST
+ * `lifecycle.coroutineScope` it ever saw. Backing out of the app and
+ * relaunching within the same process destroys that Activity and cancels its
+ * scope, while this singleton survives — so from the second launch onward the
+ * cached subscriber held a dead scope, dropped every push through a no-op
+ * `launch`, never ran its zone-watch collector and never retried its backoff,
+ * all while the socket stayed healthy so nothing was ever reported. Removing
+ * the parameter is what makes that unrepresentable rather than merely fixed:
+ * there is no longer a scope for a caller to get wrong.
+ *
  * ## The trigger is re-resolved, never captured
  *
  * [VisitsReconcileTriggerProvider.get] is called on every event rather than
@@ -42,9 +56,9 @@ object VisitasSseProvider {
     @Volatile
     private var instance: VisitasSseSubscriber? = null
 
-    fun get(context: Context, scope: CoroutineScope): VisitasSseSubscriber {
+    fun get(context: Context): VisitasSseSubscriber {
         return instance ?: synchronized(this) {
-            instance ?: build(context, scope).also { instance = it }
+            instance ?: build(context).also { instance = it }
         }
     }
 
@@ -60,7 +74,7 @@ object VisitasSseProvider {
         }
     }
 
-    private fun build(context: Context, scope: CoroutineScope): VisitasSseSubscriber {
+    private fun build(context: Context): VisitasSseSubscriber {
         val appContext = context.applicationContext
         val client = OkHttpClient.Builder()
             .addInterceptor(BearerAuthInterceptor(FirebaseAuthTokenProvider()))
@@ -89,8 +103,7 @@ object VisitasSseProvider {
                         entryPoint.syncErrorReporter().report(code, message, props)
                     }
                 }
-            ),
-            coroutineScope = scope
+            )
         )
     }
 

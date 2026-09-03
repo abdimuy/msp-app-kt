@@ -74,7 +74,7 @@ fun VisitsReconcileObserver() {
                     // composición ni impedir el disparador de conectividad de
                     // abajo, que es el que cubre la correctitud.
                     runCatching {
-                        VisitasSseProvider.get(context, owner.lifecycle.coroutineScope).start()
+                        VisitasSseProvider.get(context).start(owner.lifecycle.coroutineScope)
                     }.onFailure { e ->
                         Log.w(TAG, "no se pudo arrancar el stream SSE de visitas", e)
                     }
@@ -98,7 +98,7 @@ fun VisitsReconcileObserver() {
 
                 Lifecycle.Event.ON_STOP -> {
                     runCatching {
-                        VisitasSseProvider.get(context, owner.lifecycle.coroutineScope).stop()
+                        VisitasSseProvider.get(context).stop()
                     }.onFailure { e ->
                         Log.w(TAG, "no se pudo detener el stream SSE de visitas", e)
                     }

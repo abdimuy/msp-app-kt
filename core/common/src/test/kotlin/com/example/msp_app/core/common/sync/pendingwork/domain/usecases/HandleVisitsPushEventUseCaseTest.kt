@@ -1,6 +1,7 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.ERROR_CODE_EVENTO_FALLIDO
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.ERROR_CODE_SIN_ZONA
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.ERROR_CODE_STREAM_CAIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.ERROR_CODE_STREAM_DESHABILITADO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase.Companion.EVENT_VISITAS_CONFIRMADAS
@@ -229,11 +230,26 @@ class HandleVisitsPushEventUseCaseTest {
     }
 
     @Test
+    fun `sin zona se reporta con su propio codigo`() {
+        val reporter = RecordingSyncErrorReporter()
+
+        build(RecordingTrigger(), reporter).onStreamHasNoZone()
+
+        assertEquals(listOf(ERROR_CODE_SIN_ZONA), reporter.codes)
+        assertTrue(
+            "no tener zona todavía y haber perdido el stream son estados distintos: " +
+                "uno es un hueco de aprovisionamiento y el otro una caída",
+            ERROR_CODE_SIN_ZONA != ERROR_CODE_STREAM_CAIDO
+        )
+    }
+
+    @Test
     fun `todos los codigos son constantes unicas y grepeables`() {
         val codigos = listOf(
             ERROR_CODE_EVENTO_FALLIDO,
             ERROR_CODE_STREAM_CAIDO,
-            ERROR_CODE_STREAM_DESHABILITADO
+            ERROR_CODE_STREAM_DESHABILITADO,
+            ERROR_CODE_SIN_ZONA
         )
 
         assertEquals("los códigos deben ser únicos", codigos.size, codigos.toSet().size)

@@ -55,14 +55,38 @@ import okhttp3.sse.EventSources
  * - **anything else** — exponential backoff 1s → 2s → 4s → 8s → 16s → 30s
  *   (cap), reset on each successful connection. Every failure reports.
  *
- * Lifecycle: [start] on ON_START, [stop] on ON_STOP. Both idempotent.
+ ## Lifecycle, and why the scope arrives at [start] instead of the constructor
+ *
+ * [start] on ON_START, [stop] on ON_STOP. Both idempotent.
+ *
+ * The [CoroutineScope] every internal launch uses is **bound at [start], not
+ * captured at construction**, and that is a fix for a real defect rather than a
+ * style choice. This class is a process-wide singleton; the scope it was given
+ * is an Activity's `lifecycle.coroutineScope`. Backing out of the app and
+ * relaunching inside the same process destroys that Activity and cancels its
+ * scope, but the cached singleton survives — so a constructor-captured scope is
+ * dead from the second launch onward while the object holding it looks fine.
+ *
+ * The failure is silent in the worst possible way: the socket stays healthy, so
+ * [HandleVisitsPushEventUseCase.onStreamFailure] never fires. Every push would
+ * be dropped by a no-op `launch`, the zone-watch collector would never run, and
+ * the backoff reconnect would never fire — with zero telemetry. A dead fourth
+ * trigger that reports nothing is exactly the outcome this task exists to
+ * prevent.
+ *
+ * Binding at [start] was chosen over giving this class a process-lifetime scope
+ * of its own for two reasons. It is directly testable in the exact production
+ * sequence — cancel scope A, start with scope B, assert a push still triggers —
+ * and it keeps the SSE work inside the foreground lifecycle where it belongs; a
+ * process-lifetime scope would keep reconnect timers alive behind a
+ * backgrounded app unless separately cancelled, which is more state to get
+ * wrong, not less.
  */
 class VisitasSseSubscriber(
     private val okHttpClient: OkHttpClient,
     private val baseUrl: String,
     private val userContextFlow: StateFlow<UserContext?>,
-    private val handler: HandleVisitsPushEventUseCase,
-    private val coroutineScope: CoroutineScope
+    private val handler: HandleVisitsPushEventUseCase
 ) {
     private val mu = Object()
 
@@ -85,17 +109,34 @@ class VisitasSseSubscriber(
     @Volatile
     private var running = false
 
+    /**
+     * El scope vivo del ciclo de vida actual. Se reasigna en cada [start] y se
+     * limpia en [stop], de modo que ningún lanzamiento use jamás el scope de
+     * una Activity ya destruida. Nulo mientras el suscriptor está detenido.
+     */
+    @Volatile
+    private var boundScope: CoroutineScope? = null
+
     // ─── API pública ─────────────────────────────────────────────────────────
 
-    fun start() {
+    /**
+     * @param scope el scope del ciclo de vida ACTUAL. Se rebindea en cada
+     *   llamada: una Activity nueva trae un scope vivo y el suscriptor cacheado
+     *   deja de arrastrar el de la anterior, que ya fue cancelado.
+     */
+    fun start(scope: CoroutineScope) {
         if (featureFlagOff) {
             Log.i(TAG, "start: feature flag off — SSE de visitas deshabilitado")
             return
         }
+        // El rebind va ANTES del early-return por `running`: si el suscriptor
+        // quedó marcado como corriendo con un scope ya muerto, un `start` que
+        // solo retornara lo dejaría muerto para siempre.
+        boundScope = scope
         if (running) return
         running = true
         connect()
-        zoneWatchJob = coroutineScope.launch {
+        zoneWatchJob = scope.launch {
             userContextFlow
                 .distinctUntilChangedBy { it?.zona }
                 // drop(1): el StateFlow re-emite el valor actual al suscribirnos
@@ -114,6 +155,7 @@ class VisitasSseSubscriber(
 
     fun stop() {
         running = false
+        boundScope = null
         zoneWatchJob?.cancel()
         zoneWatchJob = null
         synchronized(mu) {
@@ -135,7 +177,11 @@ class VisitasSseSubscriber(
      */
     private fun connect() {
         val zona = userContextFlow.value?.zona ?: run {
+            // Se REPORTA, no solo se loguea: sin esto, "el push nunca se abrió
+            // para este cobrador" y "el push se abrió y está muerto" se ven
+            // idénticos desde fuera del teléfono.
             Log.i(TAG, "connect: zona todavía null — esperando via zoneWatchJob")
+            handler.onStreamHasNoZone()
             return
         }
         val path = "v2/visitas/sync/visitas/zona/$zona/stream"
@@ -180,7 +226,14 @@ class VisitasSseSubscriber(
          * decide, y un nombre desconocido no dispara nada.
          */
         override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-            coroutineScope.launch {
+            val scope = boundScope ?: run {
+                // Sin scope vivo no hay a dónde lanzar. Se reporta en vez de
+                // descartarse en silencio: un push perdido sin rastro es
+                // justamente el modo de falla que esta clase evita.
+                handler.onStreamFailure(null, null)
+                return
+            }
+            scope.launch {
                 val outcome = handler.onEvent(type)
                 Log.i(TAG, "SSE visitas evento: type=$type outcome=$outcome")
             }
@@ -214,7 +267,7 @@ class VisitasSseSubscriber(
             }
             val wait = backoffMillis(current)
             Log.w(TAG, "SSE visitas falló (attempt=$current) — reintento en ${wait}ms")
-            coroutineScope.launch {
+            boundScope?.launch {
                 delay(wait)
                 if (running && !featureFlagOff) connect()
             }

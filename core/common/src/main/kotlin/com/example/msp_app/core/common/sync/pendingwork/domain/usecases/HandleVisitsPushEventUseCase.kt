@@ -130,6 +130,31 @@ class HandleVisitsPushEventUseCase(
         )
     }
 
+    /**
+     * Reports that the stream could not be opened because the phone has no
+     * zona yet.
+     *
+     * The route requires a positive `zona_id`, so this is a real, reachable
+     * state — a collector whose zona has not arrived gets no push at all. Left
+     * unreported it is indistinguishable from the outside from a stream that
+     * opened and then died: both look like "pushes stopped", and one is a
+     * provisioning gap while the other is an outage.
+     *
+     * Its own code rather than [ERROR_CODE_STREAM_CAIDO], for the same reason
+     * the 503 has one: the two demand different responses from whoever reads
+     * the telemetry. Correctness is unaffected either way — the visitas
+     * `by-ids` channel carries no `zona_id`, so pending visitas are not
+     * zone-scoped and the other three triggers reconcile them regardless. Only
+     * push latency is lost.
+     */
+    fun onStreamHasNoZone() {
+        errorReporter.report(
+            code = ERROR_CODE_SIN_ZONA,
+            message = CONTEXT_NO_ZONE,
+            props = emptyMap()
+        )
+    }
+
     companion object {
         /**
          * The one SSE event name this build acts on. Must match the server's
@@ -152,6 +177,12 @@ class HandleVisitsPushEventUseCase(
         /** The server answered 503: visitas SSE is switched off server-side. */
         const val ERROR_CODE_STREAM_DESHABILITADO: String = "visitas_push_stream_deshabilitado"
 
+        /**
+         * No zona yet, so the stream cannot be opened. Push is unavailable for
+         * this collector; the other three triggers still reconcile.
+         */
+        const val ERROR_CODE_SIN_ZONA: String = "visitas_push_sin_zona"
+
         /** Props key for the HTTP status that accompanied a stream failure. */
         const val PROP_HTTP_CODE: String = "http_code"
 
@@ -159,6 +190,8 @@ class HandleVisitsPushEventUseCase(
         private const val CONTEXT_STREAM = "HandleVisitsPushEventUseCase.onStreamFailure"
         private const val CONTEXT_STREAM_DISABLED =
             "HandleVisitsPushEventUseCase.onStreamDisabledByServer: 503"
+        private const val CONTEXT_NO_ZONE =
+            "HandleVisitsPushEventUseCase.onStreamHasNoZone: zona_id ausente"
         private const val NO_THROWABLE = "sin_throwable"
     }
 }
