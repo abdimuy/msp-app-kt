@@ -109,7 +109,7 @@ data class IncidenciaCobranza(val code: String, val ocurrencias: Int) {
          * [EstadoCuenta.ABONO_PARCIAL] — el estado conservador, el que sí manda
          * al cobrador a confirmar. El servidor toma la misma precaución:
          * `CalcAporte` devuelve `decimal.Zero` cuando `Parcialidad <= 0`
-         * (`internal/rutas/domain/aporte.go:74-77`).
+         * (`internal/rutas/domain/aporte.go:76-78`).
          */
         const val CODE_PARCIALIDAD_NO_POSITIVA: String = "cobranza_parcialidad_no_positiva"
 

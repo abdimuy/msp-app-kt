@@ -24,7 +24,7 @@ import java.time.Instant
  * ## Por qué inclusivo en los dos extremos
  *
  * Para no discrepar del servidor. La consulta que calcula `ABONO_SEMANA`
- * (`internal/rutas/infra/rutasfb/cobranza_repo.go:105-112`) filtra
+ * (`internal/rutas/infra/rutasfb/cobranza_repo.go:104-112`) filtra
  * `FECHA >= ? AND FECHA <= ?` con `desde = fechaInicio` y `hasta = now`
  * (`internal/rutas/app/cobranza_semanal.go:51`). `AppTime` prefiere rangos
  * semiabiertos `[inicio, fin)` para rangos de *día*, y con razón; acá el

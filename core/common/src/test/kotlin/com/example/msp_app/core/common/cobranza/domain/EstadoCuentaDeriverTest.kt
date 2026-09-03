@@ -104,10 +104,17 @@ class EstadoCuentaDeriverTest {
     }
 
     @Test
-    fun `sin dinero el borde no aplica`() {
+    fun `sin dinero el borde no aplica y devuelve null, no un estado`() {
+        // Devolver SIN_TOCAR aqui borraria un SE_NEGO para quien llame directo.
+        assertNull(EstadoCuentaDeriver.estadoPorDinero(BigDecimal.ZERO, BigDecimal("300")))
+        assertNull(EstadoCuentaDeriver.estadoPorDinero(BigDecimal("-50"), BigDecimal("300")))
+    }
+
+    @Test
+    fun `sin dinero pero con visita, derivar conserva la visita y no la pisa con sin tocar`() {
         assertEquals(
-            EstadoCuenta.SIN_TOCAR,
-            EstadoCuentaDeriver.estadoPorDinero(BigDecimal.ZERO, BigDecimal("300"))
+            EstadoCuenta.SE_NEGO,
+            estadoDe(visitas = listOf(visita(TipoVisitaCatalogo.FUE_GROSERO)))
         )
     }
 

@@ -42,11 +42,13 @@ object EstadoCuentaDeriver {
      * `aporte = MIN(AbonoSemana / Parcialidad, vencidas + 1)`, con
      * `vencidas = MAX(0, …) >= 0`. Una venta aporta una cuota completa
      * (`aporte >= 1`) **si y solo si** `AbonoSemana >= Parcialidad`. Y
-     * `calcReporteZona` (`internal/rutas/app/cobranza_semanal.go:129`) cuenta la
-     * venta como "cobrada algo" con `AbonoSemana.IsPositive()`. Esos dos
-     * predicados son exactamente los dos cortes de abajo:
+     * `calcReporteZona` (`internal/rutas/app/listar_rutas.go:80`, con el
+     * `AbonoSemana.IsPositive()` en `:96`) cuenta la venta como "cobrada algo".
+     * Ojo al citar: el `IsPositive()` de `cobranza_semanal.go:139` es OTRO —
+     * está sobre `Parcialidad`, no sobre `AbonoSemana`. Esos dos predicados son
+     * exactamente los dos cortes de abajo:
      *
-     * - `abonoVentana <= 0` → no entró dinero (no es asunto de esta función).
+     * - `abonoVentana <= 0` → no entró dinero: devuelve `null` (ver abajo).
      * - `0 < abonoVentana < parcialidad` → [EstadoCuenta.ABONO_PARCIAL].
      * - `abonoVentana >= parcialidad` → [EstadoCuenta.PAGO].
      *
@@ -61,10 +63,21 @@ object EstadoCuentaDeriver {
      * [EstadoCuenta.ABONO_PARCIAL] —el estado conservador, el que manda a
      * confirmar— y se reporta con
      * [IncidenciaCobranza.CODE_PARCIALIDAD_NO_POSITIVA]. El servidor toma la
-     * misma precaución devolviendo `decimal.Zero` (`aporte.go:74-77`).
+     * misma precaución devolviendo `decimal.Zero` (`aporte.go:76-78`).
+     *
+     * ## Por qué devuelve `EstadoCuenta?` y no [EstadoCuenta.SIN_TOCAR]
+     *
+     * "No entró dinero" NO es un estado: es la ausencia de una respuesta, y
+     * quien pregunta tiene que seguir preguntando (¿hubo visita?). Una versión
+     * anterior devolvía [EstadoCuenta.SIN_TOCAR] en ese caso y solo era correcta
+     * porque [derivar] la llamaba detrás de una guarda. Quien la llamara directo
+     * desde una pantalla convertía en silencio un [EstadoCuenta.SE_NEGO] en
+     * "nadie tocó esta cuenta" — un cobrador al que le cerraron la puerta
+     * pintado como cuenta sin trabajar. El `null` obliga al llamador a decidir,
+     * y el compilador se lo recuerda.
      */
-    fun estadoPorDinero(abonoVentana: BigDecimal, parcialidad: BigDecimal): EstadoCuenta = when {
-        abonoVentana.signum() <= 0 -> EstadoCuenta.SIN_TOCAR
+    fun estadoPorDinero(abonoVentana: BigDecimal, parcialidad: BigDecimal): EstadoCuenta? = when {
+        abonoVentana.signum() <= 0 -> null
         parcialidad.signum() <= 0 -> EstadoCuenta.ABONO_PARCIAL
         abonoVentana >= parcialidad -> EstadoCuenta.PAGO
         else -> EstadoCuenta.ABONO_PARCIAL
@@ -75,7 +88,7 @@ object EstadoCuentaDeriver {
      *
      * [cuentas] son las ventas a crédito activas del cobrador. El llamador NO
      * debe incluir ventas de contado: el servidor las excluye de toda métrica
-     * de cobranza (`Frecuencia.EsContado`, `cobranza_repo.go:114`) porque no
+     * de cobranza (`Frecuencia.EsContado`, `cobranza_repo.go:116`) porque no
      * tienen parcialidad real.
      *
      * [pagos] y [visitas] pueden traer filas de cualquier fecha; esta función
@@ -111,7 +124,8 @@ object EstadoCuentaDeriver {
      * cobro cuenta como cobranza. Espeja
      * `SELECT DOCTO_CC_ACR_ID, SUM(IMPORTE) … WHERE CANCELADO = 'N' AND
      * CONCEPTO_CC_ID = 87327 AND FECHA >= ? AND FECHA <= ? GROUP BY
-     * DOCTO_CC_ACR_ID` (`cobranza_repo.go:103-112`), con
+     * DOCTO_CC_ACR_ID` (`cobranza_repo.go:104-112`; el filtro de fecha en
+     * `:110-111`), con
      * [VentanaCobro.FORMAS_COBRO_COBRANZA] en el papel de `CONCEPTO_CC_ID`.
      *
      * Un pago cancelado no debe llegar hasta acá: el adaptador no lo trae, igual
@@ -131,9 +145,10 @@ object EstadoCuentaDeriver {
         abonoVentana: BigDecimal,
         visita: VisitaEnVentana?
     ): ResultadoEstadoCuenta {
-        if (abonoVentana.signum() > 0) {
+        val porDinero = estadoPorDinero(abonoVentana, cuenta.parcialidad)
+        if (porDinero != null) {
             return ResultadoEstadoCuenta(
-                estado = estadoPorDinero(abonoVentana, cuenta.parcialidad),
+                estado = porDinero,
                 abonoVentana = abonoVentana,
                 parcialidad = cuenta.parcialidad
             )
