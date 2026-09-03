@@ -8,14 +8,15 @@ import org.junit.Test
 
 /**
  * Prueba trivial post-hoist: [AppDatabase] compila y vive en `:core:database`,
- * y reporta la version de esquema vigente (v29: la 28->29 agrego AFTER_ID a
- * `cobranza_sync_state` —la otra mitad del cursor de paginacion— y el indice
- * sobre `Payment.PAGO_RECIBIDO_ID` que la 26->27 dejo pendiente).
+ * y reporta la version de esquema vigente (v30: la 29->30 —la unica migracion
+ * del plan `pagos-y-visitas`— agrego cinco columnas nullable a `Visit`
+ * (promesa y cita) y cinco tablas nuevas: comprobantes de visita y de pago,
+ * recomendaciones, y las dos mitades de la ficha del cliente).
  */
 class AppDatabaseTest : RobolectricTestBase() {
 
     @Test
-    fun `AppDatabase se instancia in-memory y reporta version 29`() {
+    fun `AppDatabase se instancia in-memory y reporta version 30`() {
         val db = Room.inMemoryDatabaseBuilder(
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
@@ -24,7 +25,7 @@ class AppDatabaseTest : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(29, db.openHelper.readableDatabase.version)
+            assertEquals(30, db.openHelper.readableDatabase.version)
         } finally {
             db.close()
         }

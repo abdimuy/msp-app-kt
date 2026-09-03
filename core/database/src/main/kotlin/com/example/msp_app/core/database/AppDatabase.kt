@@ -16,6 +16,8 @@ import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDa
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.entities.ClientProfileEntity
+import com.example.msp_app.core.database.entities.ClientProfileSignalEntity
 import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
 import com.example.msp_app.core.database.entities.GuaranteeEntity
@@ -27,11 +29,14 @@ import com.example.msp_app.core.database.entities.LocalSaleImageEntity
 import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
+import com.example.msp_app.core.database.entities.VisitRecommendationEntity
 import com.example.msp_app.core.database.migrations.MIGRATION_20_21
 import com.example.msp_app.core.database.migrations.MIGRATION_21_22
 import com.example.msp_app.core.database.migrations.MIGRATION_22_23
@@ -41,6 +46,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_25_26
 import com.example.msp_app.core.database.migrations.MIGRATION_26_27
 import com.example.msp_app.core.database.migrations.MIGRATION_27_28
 import com.example.msp_app.core.database.migrations.MIGRATION_28_29
+import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 
 @Database(
     entities = [
@@ -58,10 +64,15 @@ import com.example.msp_app.core.database.migrations.MIGRATION_28_29
         LocalSaleProductEntity::class,
         LocalSaleComboEntity::class,
         ClienteEntity::class,
-        CobranzaSyncStateEntity::class
+        CobranzaSyncStateEntity::class,
+        VisitImageEntity::class,
+        PaymentImageEntity::class,
+        VisitRecommendationEntity::class,
+        ClientProfileEntity::class,
+        ClientProfileSignalEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 29,
+    version = 30,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -93,7 +104,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         /**
          * Única fuente de verdad para la configuración del builder de producción
-         * (las 9 migraciones + el fallback destructivo pre-20). `getInstance`
+         * (las 10 migraciones + el fallback destructivo pre-20). `getInstance`
          * llama a esta función; los tests de migración de este mismo módulo
          * (`internal`, visible por friend-path del compilador Kotlin/AGP entre
          * `main` y su propio `test` source set) también, en vez de duplicar esta
@@ -122,7 +133,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_25_26,
                     MIGRATION_26_27,
                     MIGRATION_27_28,
-                    MIGRATION_28_29
+                    MIGRATION_28_29,
+                    MIGRATION_29_30
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

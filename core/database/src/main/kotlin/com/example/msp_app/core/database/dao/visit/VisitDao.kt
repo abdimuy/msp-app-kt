@@ -23,7 +23,12 @@ interface VisitDao {
             TIPO_VISITA,
             ZONA_CLIENTE_ID,
             IMPTE_DOCTO_CC_ID,
-            GUARDADO_EN_MICROSIP
+            GUARDADO_EN_MICROSIP,
+            PROMESA_VENTA_ID,
+            PROMESA_FECHA,
+            PROMESA_MONTO_CENTAVOS,
+            CITA_FECHA,
+            CITA_HORA
         FROM Visit
         WHERE ID = :id
         """
@@ -50,7 +55,12 @@ interface VisitDao {
             TIPO_VISITA,
             ZONA_CLIENTE_ID,
             IMPTE_DOCTO_CC_ID,
-            GUARDADO_EN_MICROSIP
+            GUARDADO_EN_MICROSIP,
+            PROMESA_VENTA_ID,
+            PROMESA_FECHA,
+            PROMESA_MONTO_CENTAVOS,
+            CITA_FECHA,
+            CITA_HORA
         FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 0
         """
@@ -72,7 +82,12 @@ interface VisitDao {
             TIPO_VISITA,
             ZONA_CLIENTE_ID,
             IMPTE_DOCTO_CC_ID,
-            GUARDADO_EN_MICROSIP
+            GUARDADO_EN_MICROSIP,
+            PROMESA_VENTA_ID,
+            PROMESA_FECHA,
+            PROMESA_MONTO_CENTAVOS,
+            CITA_FECHA,
+            CITA_HORA
         FROM Visit
         WHERE FECHA >= :start AND FECHA < :end
         ORDER BY FECHA DESC
