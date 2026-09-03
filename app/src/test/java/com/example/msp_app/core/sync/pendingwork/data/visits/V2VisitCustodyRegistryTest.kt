@@ -1,6 +1,6 @@
 package com.example.msp_app.core.sync.pendingwork.data.visits
 
-import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -102,7 +102,7 @@ class V2VisitCustodyRegistryTest {
     @Test
     fun `justo en el tope (100) la peticion se envia con los 100 ids`() = runTest {
         enqueueJson("[]")
-        val batch = ids(ReconcileVisitsUseCase.MAX_IDS_PER_REQUEST)
+        val batch = ids(VisitCustodyRegistry.MAX_IDS_PER_REQUEST)
 
         registry.findExisting(batch)
 

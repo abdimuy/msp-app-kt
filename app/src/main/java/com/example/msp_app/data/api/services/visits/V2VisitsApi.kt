@@ -40,8 +40,8 @@ interface V2VisitsApi {
      * read as a single id and quietly confirm nothing. The caller joins.
      *
      * **At most 100 ids per call** (`maxIDsPorRequest` server-side); 101
-     * answers `422 ids_too_many`. Chunking is the reconciler's job — see
-     * `ReconcileVisitsUseCase.MAX_IDS_PER_REQUEST`.
+     * answers `422 ids_too_many`. The cap is declared once, on the port that
+     * describes this endpoint: `VisitCustodyRegistry.MAX_IDS_PER_REQUEST`.
      *
      * **No `zona_id`** (orchestrator Ruling B): the question is only "do you
      * have these UUIDs the phone uploaded?", and a zone could only make the

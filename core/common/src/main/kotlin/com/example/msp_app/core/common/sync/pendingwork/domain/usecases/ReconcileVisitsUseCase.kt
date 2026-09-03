@@ -52,6 +52,14 @@ import kotlinx.coroutines.CancellationException
  * job, which goes through the `VisitsWorkEnqueuer` port that hardcodes
  * `ExistingWorkPolicy.KEEP`.
  *
+ * ## Where the batch cap lives
+ *
+ * [VisitCustodyRegistry.MAX_IDS_PER_REQUEST] — on the port, because it
+ * describes the endpoint, not this caller. This use case is one consumer of
+ * that number; the Retrofit adapter is another, and it enforces the same
+ * bound with a `require` so a future caller that skips the chunking gets a
+ * loud local failure instead of a `422`.
+ *
  * ## Threading
  *
  * No dispatcher is injected and none is needed: both ports are `suspend` and
@@ -76,7 +84,7 @@ class ReconcileVisitsUseCase(
         var confirmedCount = 0
         var failedRequestCount = 0
 
-        pending.chunked(MAX_IDS_PER_REQUEST).forEach { chunk ->
+        pending.chunked(VisitCustodyRegistry.MAX_IDS_PER_REQUEST).forEach { chunk ->
             requestCount++
             val answered = askServer(chunk)
             if (answered == null) {
@@ -168,22 +176,6 @@ class ReconcileVisitsUseCase(
     }
 
     companion object {
-        /**
-         * **Exactly the server's cap, and it must stay exactly that.**
-         *
-         * `GET /v2/visitas/by-ids` declares `maxIDsPorRequest = 100`
-         * (msp-api, Task 8) and answers `422 ids_too_many` at 101. The number
-         * is a URL-length budget, not a SQLite one: a UUID plus its comma is
-         * 37 bytes on the wire, so 100 ids is ~3.7 KB of a ~8 KB practical
-         * request-line ceiling — and well under IIS's 2,048-byte default
-         * query-string limit's siblings on the production target.
-         *
-         * Copying cobranza's 500 would have meant ~18.5 KB and a wall of 422s;
-         * quietly sending 101 would leave those visitas pending forever with no
-         * signal. Hence: chunk at 100, and let a violation be loud.
-         */
-        const val MAX_IDS_PER_REQUEST: Int = 100
-
         /** The local pending list could not be read; the run stopped before any request. */
         const val ERROR_CODE_PENDIENTES_ILEGIBLES: String = "visitas_reconcile_pendientes_ilegibles"
 

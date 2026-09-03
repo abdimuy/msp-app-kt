@@ -1,11 +1,11 @@
 package com.example.msp_app.core.common.sync.pendingwork.domain.usecases
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.models.VisitReconcileResult
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry.Companion.MAX_IDS_PER_REQUEST
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_CONSULTA_FALLIDA
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_MARCADO_FALLIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_PENDIENTES_ILEGIBLES
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_RESPUESTA_AJENA
-import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.MAX_IDS_PER_REQUEST
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakePendingVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakeVisitCustodyRegistry
 import com.example.msp_app.core.common.sync.pendingwork.fakes.RecordingSyncErrorReporter

@@ -1,7 +1,7 @@
 package com.example.msp_app.core.sync.pendingwork.data.visits
 
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry
-import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustodyRegistry.Companion.MAX_IDS_PER_REQUEST
 import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import javax.inject.Inject
 
@@ -37,8 +37,8 @@ class V2VisitCustodyRegistry @Inject constructor(
         require(visitIds.isNotEmpty()) {
             "by-ids nunca se llama con lista vacia: el servidor responde 422 ids_required"
         }
-        require(visitIds.size <= ReconcileVisitsUseCase.MAX_IDS_PER_REQUEST) {
-            "by-ids acepta como maximo ${ReconcileVisitsUseCase.MAX_IDS_PER_REQUEST} ids por " +
+        require(visitIds.size <= MAX_IDS_PER_REQUEST) {
+            "by-ids acepta como maximo $MAX_IDS_PER_REQUEST ids por " +
                 "peticion (recibidos ${visitIds.size}); el servidor responde 422 ids_too_many"
         }
         return api.visitasExistentesPorIds(visitIds.joinToString(separator = ","))
