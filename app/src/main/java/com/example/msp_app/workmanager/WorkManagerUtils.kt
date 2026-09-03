@@ -16,6 +16,7 @@ import com.example.msp_app.workers.PendingGuaranteesWorker
 import com.example.msp_app.workers.PendingLocalSalesWorker
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
+import com.example.msp_app.workers.VisitsReconcileWorker
 import java.util.concurrent.TimeUnit
 
 /**
@@ -184,6 +185,67 @@ fun enqueueCobranzaReconcilePeriodicWorker(context: Context) {
     WorkManager.getInstance(context)
         .enqueueUniquePeriodicWork(
             COBRANZA_RECONCILE_PERIODIC_WORK,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+}
+
+/** Nombre del trabajo único que reconcilia visitas **ya**, al abrir la app. */
+const val VISITS_RECONCILE_NOW_WORK = "visits_reconcile_now"
+
+/** Nombre del trabajo único que mantiene la cadencia de respaldo de visitas. */
+const val VISITS_RECONCILE_PERIODIC_WORK = "visits_reconcile_periodic"
+
+/**
+ * Cadencia de respaldo del reconciliador de visitas — mismo valor que
+ * [COBRANZA_RECONCILE_PERIOD_MINUTES] y por la misma razón: 15 es el piso de
+ * WorkManager (`PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS`), no una
+ * eleccion de negocio. Sin razon documentada para desviarse, Task 11 usa el
+ * mismo numero que cobranza en vez de inventar uno nuevo.
+ */
+const val VISITS_RECONCILE_PERIOD_MINUTES = 15L
+
+/**
+ * Reconcilia visitas **de inmediato**, sin retraso inicial — disparador de
+ * "abrir la app". `KEEP`: si ya hay una corrida sin terminar (p. ej. el
+ * disparador de conectividad la encolo hace un instante), esta llamada no la
+ * cancela ni encola una segunda; y aunque WorkManager encolara ambas, el
+ * mutex de proceso en `TriggerVisitsReconciliationUseCase` deja pasar una
+ * sola. Ver `VisitsReconcileWorker`.
+ */
+fun enqueueVisitsReconcileNowWorker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = OneTimeWorkRequestBuilder<VisitsReconcileWorker>()
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(VISITS_RECONCILE_NOW_WORK, ExistingWorkPolicy.KEEP, request)
+}
+
+/**
+ * Cadencia de respaldo del reconciliador de visitas, fuera del ciclo de vida
+ * de la UI: sigue corriendo aunque el cobrador cierre la app a los pocos
+ * segundos de abrirla.
+ */
+fun enqueueVisitsReconcilePeriodicWorker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = PeriodicWorkRequestBuilder<VisitsReconcileWorker>(
+        VISITS_RECONCILE_PERIOD_MINUTES,
+        TimeUnit.MINUTES
+    )
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniquePeriodicWork(
+            VISITS_RECONCILE_PERIODIC_WORK,
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )

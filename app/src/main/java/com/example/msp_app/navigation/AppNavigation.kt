@@ -33,6 +33,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncObserver
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.cobranza.UserContext
+import com.example.msp_app.core.sync.pendingwork.VisitsReconcileObserver
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
@@ -242,6 +243,17 @@ fun AppNavigation() {
         }
     }
 
+    val authedUserData = (userDataState as? ResultState.Success<User?>)?.data
+
+    // Task 11 — visitas reconciler triggers (app open, periodic, connectivity).
+    // Gated on "authenticated", not on ZONA_CLIENTE_ID like the cobranza block
+    // below: a pending visita can exist for a collector with no zone assigned
+    // yet. See VisitsReconcileObserver's KDoc for why it is not merged into
+    // CobranzaSyncObserver.
+    if (authedUserData != null) {
+        VisitsReconcileObserver()
+    }
+
     // Drive the cobranza incremental sync (ventas + pagos) while the user is
     // authenticated and has a zona assigned. The manager polls every 30 s
     // and reacts to connectivity changes; the observer ties its lifecycle
@@ -250,7 +262,6 @@ fun AppNavigation() {
     // FECHA_CARGA_INICIAL (Firestore) marca el inicio de la ventana visible
     // del cobrador: se envía como `?desde=` al backend para conservar las
     // saldadas con pago en ventana, y dispara el prune local cuando cambia.
-    val authedUserData = (userDataState as? ResultState.Success<User?>)?.data
     if (authedUserData != null && authedUserData.ZONA_CLIENTE_ID > 0) {
         val zonaActual = authedUserData.ZONA_CLIENTE_ID
         val fechaCargaInicialIso = authedUserData.FECHA_CARGA_INICIAL
