@@ -1,6 +1,8 @@
 package com.example.msp_app.core.sync.pendingwork.data.visits
 
 import androidx.test.core.app.ApplicationProvider
+import org.junit.After
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertSame
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,6 +29,20 @@ import org.robolectric.annotation.Config
 @Config(sdk = [33], manifest = Config.NONE, application = android.app.Application::class)
 class VisitsReconcileTriggerProviderTest {
 
+    /**
+     * Without this, the first [VisitsReconcileTriggerProvider.get] call in
+     * the JVM permanently caches an instance closed over THAT call's
+     * `applicationContext` — under Robolectric that context is per-test-
+     * method, so a later test in the same run would silently inherit the
+     * stale instance instead of getting a fresh one. An order-dependent
+     * flake, and nothing here would go red to reveal it — hence the explicit
+     * reset rather than trusting Robolectric's class reloading alone.
+     */
+    @After
+    fun tearDown() {
+        VisitsReconcileTriggerProvider.reset()
+    }
+
     @Test
     fun `get devuelve SIEMPRE la misma instancia de proceso`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -48,5 +64,20 @@ class VisitsReconcileTriggerProviderTest {
         // Si esto lanzara, seria porque build() dejo de ser perezoso y esta
         // llamando a EntryPointAccessors contra una Application sin Hilt.
         VisitsReconcileTriggerProvider.get(context)
+    }
+
+    @Test
+    fun `reset fuerza que el SIGUIENTE get reconstruya una instancia distinta`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        val beforeReset = VisitsReconcileTriggerProvider.get(context)
+        VisitsReconcileTriggerProvider.reset()
+        val afterReset = VisitsReconcileTriggerProvider.get(context)
+
+        assertNotSame(
+            "reset() que no reconstruye de verdad es tan inutil como no tenerlo",
+            beforeReset,
+            afterReset
+        )
     }
 }

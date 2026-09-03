@@ -91,6 +91,28 @@ class VisitsReconcileWorkerTest {
     }
 
     @Test
+    fun `el trabajo periodico corre de verdad cuando se abren sus DOS compuertas`() {
+        // La prueba de arriba solo demuestra el HORARIO (ENQUEUED + 15 min).
+        // Esta lo maneja hasta doWork(): un PeriodicWorkRequest tiene DOS
+        // compuertas propias — la constraint de red Y el retraso del propio
+        // periodo (`setPeriodDelayMet`) — y abrir solo la primera no alcanza
+        // para que corra.
+        enqueueVisitsReconcilePeriodicWorker(context)
+
+        val id = trabajosDe(VISITS_RECONCILE_PERIODIC_WORK).single().id
+        val driver = WorkManagerTestInitHelper.getTestDriver(context)
+            ?: error("TestDriver no disponible — initializeTestWorkManager no corrio")
+        driver.setAllConstraintsMet(id)
+        driver.setPeriodDelayMet(id)
+
+        assertEquals(
+            "abrir ambas compuertas del periodico debe correr el worker de verdad",
+            1,
+            corridas.get()
+        )
+    }
+
+    @Test
     fun `un disparador que lanza no revienta el worker, y el resultado sigue siendo success`() {
         val worker = TestListenableWorkerBuilder<VisitsReconcileWorker>(context)
             .setWorkerFactory(

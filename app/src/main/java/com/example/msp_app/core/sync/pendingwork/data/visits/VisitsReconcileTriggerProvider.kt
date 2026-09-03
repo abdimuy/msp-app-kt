@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.pendingwork.data.visits
 
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SyncErrorReporter
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.TriggerVisitsReconciliationUseCase
 import com.example.msp_app.core.sync.pendingwork.di.VisitsReconcileEntryPoint
@@ -33,6 +34,27 @@ object VisitsReconcileTriggerProvider {
     fun get(context: Context): TriggerVisitsReconciliationUseCase {
         return instance ?: synchronized(this) {
             instance ?: build(context).also { instance = it }
+        }
+    }
+
+    /**
+     * Clears the cached instance so the NEXT [get] rebuilds from scratch.
+     *
+     * Exists for tests only. Without it, the first [get] call anywhere in the
+     * JVM permanently caches a [TriggerVisitsReconciliationUseCase] closed
+     * over THAT call's `applicationContext` — under Robolectric that context
+     * is per-test-method, so a later test expecting a fresh singleton would
+     * silently get the stale one instead: an order-dependent flake, not a
+     * loud failure. Call from `@After` in any test that calls [get].
+     *
+     * No production caller needs this: the whole point of the singleton is
+     * that it lives for the process, and nothing in `:app` ever wants to
+     * force a rebuild mid-process.
+     */
+    @VisibleForTesting
+    fun reset() {
+        synchronized(this) {
+            instance = null
         }
     }
 

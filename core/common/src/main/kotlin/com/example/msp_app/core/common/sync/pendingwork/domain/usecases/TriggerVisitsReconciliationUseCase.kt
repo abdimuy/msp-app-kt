@@ -36,6 +36,27 @@ import kotlinx.coroutines.sync.Mutex
  * singleton — see `VisitsReconcileTriggerProvider`), not of this class: a
  * fresh instance per call would make the mutex pointless.
  *
+ * ## Accepted trade-off: a skip can mean a bounded delay, not just a duplicate
+ *
+ * `tryLock` collapsing two SIMULTANEOUS signals into one run is the case
+ * above. There is a different case worth naming explicitly: a run can already
+ * be in flight, stuck on a slow network call, when a trigger carrying genuine
+ * NEW information arrives — e.g. connectivity returns mid-run after a stretch
+ * offline. That trigger is skipped too, even though "connectivity just
+ * returned" is new, not a duplicate of whatever started the in-flight run.
+ *
+ * This was decided, not overlooked: the in-flight run cannot hang forever.
+ * `RetrofitClientFactory.V2_TIMEOUT_SECONDS = 60` bounds both connect and read
+ * for the `by-ids` call `ReconcileVisitsUseCase` makes, so the mutex releases
+ * within, worst case, low tens of seconds per chunk — nowhere close to the
+ * 15-minute periodic backstop that would otherwise be the next chance to
+ * reconcile. The skipped signal is not lost information, only a bounded
+ * delay: the connectivity-restored state persists (it is not an edge-only
+ * pulse), so the very next trigger — periodic, or another connectivity flicker
+ * — picks up the same pending ids once the lock frees. **No case exists where
+ * a skip here means the reconciliation never happens**, only that it happens
+ * up to ~60s-per-chunk later than the eager path would have.
+ *
  * ## Why [reconcileVisits] is a function, not a [ReconcileVisitsUseCase]
  *
  * `VisitsReconcileModule` (`:app`, Task 10) deliberately keeps

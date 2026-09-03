@@ -1,6 +1,7 @@
 package com.example.msp_app.core.sync.pendingwork
 
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -53,8 +54,10 @@ fun VisitsReconcileObserver() {
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(Unit) {
-        enqueueVisitsReconcileNowWorker(context)
-        enqueueVisitsReconcilePeriodicWorker(context)
+        registerVisitsReconcileWorkManagerTriggers(
+            registerNow = { enqueueVisitsReconcileNowWorker(context) },
+            registerPeriodic = { enqueueVisitsReconcilePeriodicWorker(context) }
+        )
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -93,4 +96,33 @@ fun VisitsReconcileObserver() {
             connectivityJob?.cancel()
         }
     }
+}
+
+/**
+ * Registers the app-open and periodic `WorkManager` triggers **independently**
+ * — this is NOT `registerNow(); registerPeriodic()` in a shared try/catch, on
+ * purpose. A shared block (or no guard at all) means a single throw out of
+ * [registerNow] — e.g. a transient `WorkManager` hiccup — silently prevents
+ * [registerPeriodic] from ever running, and with it goes the session's entire
+ * 15-minute backstop, with nothing in the logs to say so. The periodic worker
+ * is the trigger that exists specifically to catch what the other two miss;
+ * losing it silently is the one failure mode this whole task exists to
+ * eliminate, so each enqueue gets its own `runCatching` + `Log.w` — same
+ * "defense in depth" shape as the `SessionSync` block and the connectivity
+ * path in [VisitsReconcileObserver].
+ *
+ * A free function, not inlined into the `LaunchedEffect` above, specifically
+ * so this independence is unit-testable without Robolectric/Compose: a test
+ * passes a throwing [registerNow] and a recording [registerPeriodic] and
+ * asserts the second still ran. See `VisitsReconcileObserverTriggersTest`.
+ */
+@VisibleForTesting
+internal fun registerVisitsReconcileWorkManagerTriggers(
+    registerNow: () -> Unit,
+    registerPeriodic: () -> Unit
+) {
+    runCatching(registerNow)
+        .onFailure { e -> Log.w(TAG, "no se pudo encolar el disparador de apertura", e) }
+    runCatching(registerPeriodic)
+        .onFailure { e -> Log.w(TAG, "no se pudo encolar el disparador periodico", e) }
 }
