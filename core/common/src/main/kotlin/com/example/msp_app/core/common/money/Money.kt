@@ -25,6 +25,12 @@ import java.math.RoundingMode
  * necesita un tipo de dinero y una dependencia feature->feature no está
  * permitida por el layout hexagonal del repo. Es una MUDANZA mecánica, no una
  * reescritura: el tipo es idéntico byte a byte salvo el `package`.
+ *
+ * **Frontera con `BigDecimal` pelado:** este es el tipo para `application/`/`ui/`
+ * de `:feature:pagos`/`:feature:visitas`; el `BigDecimal` sin envolver de
+ * [com.example.msp_app.core.common.cobranza.domain.CuentaDelPeriodo] es
+ * precisión de cable/derivación y se queda en esa capa (REGLA DE DINERO,
+ * `global-constraints.md`).
  */
 @JvmInline
 value class Money private constructor(val amount: BigDecimal) : Comparable<Money> {

@@ -33,9 +33,6 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:network"))
     implementation(project(":core:telemetry"))
-    // Recibo térmico del pago: PrintPaymentReceiptUseCase (P2, "T4 ViewModel"
-    // en su KDoc) es exactamente el consumidor que este módulo va a tener.
-    implementation(project(":core:printing"))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

@@ -13,6 +13,12 @@ import java.time.LocalTime
  * `NoDoubleForMoney` de este módulo lo prohíbe y `0.1 + 0.2 != 0.3` es la razón
  * de fondo. En Room el campo es `Int` (pesos enteros); el puente a
  * [BigDecimal] lo hace el adaptador, no el dominio.
+ *
+ * **Frontera con `Money`:** este `BigDecimal` pelado es precisión de
+ * cable/derivación y se queda en `cobranza/domain/`; al cruzar hacia
+ * `application/`/`ui/` de `:feature:pagos`/`:feature:visitas` se envuelve con
+ * [com.example.msp_app.core.common.money.Money.of] en el adaptador (REGLA DE
+ * DINERO, `global-constraints.md`).
  */
 data class CuentaDelPeriodo(
     val ventaId: Int,
