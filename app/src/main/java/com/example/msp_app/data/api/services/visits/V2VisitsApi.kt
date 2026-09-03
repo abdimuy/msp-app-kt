@@ -1,8 +1,10 @@
 package com.example.msp_app.data.api.services.visits
 
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 /**
  * Retrofit service for the msp-api v2 cobranza visita endpoint.
@@ -27,6 +29,29 @@ interface V2VisitsApi {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: CrearVisitaBody
     ): VisitaDTO
+
+    /**
+     * Asks the server which of [ids] it already holds — the read half of the
+     * visitas reconciler (msp-api Task 8).
+     *
+     * [ids] is a **comma-separated** list, not repeated `ids=` parameters: the
+     * server splits one `ids` query value on commas, so a Retrofit
+     * `@Query("ids") ids: List<String>` (which emits `ids=a&ids=b`) would be
+     * read as a single id and quietly confirm nothing. The caller joins.
+     *
+     * **At most 100 ids per call** (`maxIDsPorRequest` server-side); 101
+     * answers `422 ids_too_many`. Chunking is the reconciler's job — see
+     * `ReconcileVisitsUseCase.MAX_IDS_PER_REQUEST`.
+     *
+     * **No `zona_id`** (orchestrator Ruling B): the question is only "do you
+     * have these UUIDs the phone uploaded?", and a zone could only make the
+     * answer wrong.
+     *
+     * The response is a bare JSON array of the ids that exist. Ids the server
+     * does not know are simply absent — never an error.
+     */
+    @GET("v2/visitas/by-ids")
+    suspend fun visitasExistentesPorIds(@Query("ids") ids: String): List<String>
 }
 
 /**

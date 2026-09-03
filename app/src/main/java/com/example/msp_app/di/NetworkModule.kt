@@ -1,6 +1,8 @@
 package com.example.msp_app.di
 
 import com.example.msp_app.data.api.ApiProvider
+import com.example.msp_app.data.api.V2ApiProvider
+import com.example.msp_app.data.api.services.visits.V2VisitsApi
 import com.example.msp_app.data.api.services.warehouses.WarehousesApi
 import dagger.Module
 import dagger.Provides
@@ -48,4 +50,23 @@ object NetworkModule {
      */
     @Provides
     fun provideWarehousesApi(): WarehousesApi = ApiProvider.create(WarehousesApi::class.java)
+
+    /**
+     * Servicio v2 de visitas — hoy solo lo inyecta el reconciliador de visitas
+     * (Task 10, `V2VisitCustodyRegistry`); `PendingVisitsWorker` sigue
+     * construyéndolo directo por `V2ApiProvider.create(...)` como el resto del
+     * código legacy, sin cambios.
+     *
+     * Igual que [provideWarehousesApi], deliberadamente **SIN `@Singleton`**.
+     * La baseURL v2 no está hoy bajo el kill-switch de Firestore (es estática
+     * por flavor, ver KDoc de [V2ApiProvider]), así que el riesgo concreto de
+     * congelarla no existe *todavía* — pero la regla del repo es sobre la
+     * FORMA, no sobre qué proveedor está bajo kill-switch este mes: nada
+     * `@Singleton` sostiene un servicio salido de un `ApiProvider`. Poner
+     * scope acá sería el precedente que alguien copia el día que la v2 sí
+     * gane un override remoto, y entonces el flip no alcanzaría a nadie.
+     * `NetworkKillSwitchGuardTest` fija esta forma por reflexión.
+     */
+    @Provides
+    fun provideV2VisitsApi(): V2VisitsApi = V2ApiProvider.create(V2VisitsApi::class.java)
 }

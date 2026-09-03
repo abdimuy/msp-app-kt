@@ -80,6 +80,12 @@ class PendingVisitsWorkerV2Test : RoomTestBase() {
     ): V2VisitsApi = object : V2VisitsApi {
         override suspend fun crearVisita(idempotencyKey: String, body: CrearVisitaBody): VisitaDTO =
             crear(idempotencyKey, body)
+
+        // El worker de subida nunca consulta by-ids — eso es del reconciliador
+        // (Task 10). Si algun cambio futuro lo hiciera, este fake lo grita en
+        // vez de responder algo plausible y esconder el acoplamiento nuevo.
+        override suspend fun visitasExistentesPorIds(ids: String): List<String> =
+            throw AssertionError("PendingVisitsWorker no debe llamar by-ids")
     }
 
     private fun happyApi(): V2VisitsApi = fakeV2Api { _, _ -> VisitaDTO(id = "visita-001") }

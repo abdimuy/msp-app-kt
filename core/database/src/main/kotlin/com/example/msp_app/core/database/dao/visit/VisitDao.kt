@@ -86,6 +86,28 @@ interface VisitDao {
     @Query("UPDATE Visit SET LAT = :lat, LNG = :lng WHERE id = :id")
     suspend fun updateLocation(id: String, lat: Double, lng: Double)
 
+    /**
+     * Flips `GUARDADO_EN_MICROSIP` to 1 for [ids] — and only for [ids].
+     *
+     * The one caller is the visitas reconciler
+     * (`ReconcileVisitsUseCase` in `:core:common`, wired through
+     * `RoomPendingVisitsStore`), which passes exclusively ids that
+     * `GET /v2/visitas/by-ids` confirmed the server already holds. It never
+     * passes an id on the strength of an HTTP status.
+     *
+     * `WHERE ID IN (:ids)` binds one SQL parameter per id, so the caller must
+     * keep the batch bounded: every Android below API 31 ships
+     * `SQLITE_MAX_VARIABLE_NUMBER = 999`, and this repo's `minSdk` is 24. An
+     * unbounded `IN (...)` is the exact failure `CLAUDE.md` records — "too many
+     * SQL variables" swallowed by an outer catch and turned into a silent error
+     * on every tick. `RoomPendingVisitsStore` chunks below that ceiling.
+     *
+     * @return how many rows actually changed, so a caller can tell "marked" from
+     *   "the id was not there".
+     */
+    @Query("UPDATE Visit SET GUARDADO_EN_MICROSIP = 1 WHERE ID IN (:ids)")
+    suspend fun markSyncedByIds(ids: List<String>): Int
+
     @Query("DELETE FROM Visit")
     suspend fun deleteAllVisits()
 
