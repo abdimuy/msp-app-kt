@@ -13,6 +13,7 @@ import androidx.lifecycle.coroutineScope
 import com.example.msp_app.core.network.ConnectivityMonitor
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileConnectivityTrigger
 import com.example.msp_app.core.sync.pendingwork.data.visits.VisitsReconcileTriggerProvider
+import com.example.msp_app.core.sync.visitas.VisitasSseProvider
 import com.example.msp_app.workmanager.enqueueVisitsReconcileNowWorker
 import com.example.msp_app.workmanager.enqueueVisitsReconcilePeriodicWorker
 import kotlinx.coroutines.Job
@@ -65,6 +66,19 @@ fun VisitsReconcileObserver() {
         val observer = LifecycleEventObserver { owner, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
+                    // Cuarto disparador (Task 12): el push del servidor. Se
+                    // monta y desmonta en el MISMO límite de ciclo de vida que
+                    // el de conectividad — un stream SSE abierto con la app en
+                    // background es una conexión sostenida sin nadie que la
+                    // aproveche. Un fallo al arrancarlo no puede tumbar la
+                    // composición ni impedir el disparador de conectividad de
+                    // abajo, que es el que cubre la correctitud.
+                    runCatching {
+                        VisitasSseProvider.get(context, owner.lifecycle.coroutineScope).start()
+                    }.onFailure { e ->
+                        Log.w(TAG, "no se pudo arrancar el stream SSE de visitas", e)
+                    }
+
                     val trigger = VisitsReconcileConnectivityTrigger(
                         connectivity = ConnectivityMonitor.getInstance(context)
                     ) {
@@ -83,6 +97,11 @@ fun VisitsReconcileObserver() {
                 }
 
                 Lifecycle.Event.ON_STOP -> {
+                    runCatching {
+                        VisitasSseProvider.get(context, owner.lifecycle.coroutineScope).stop()
+                    }.onFailure { e ->
+                        Log.w(TAG, "no se pudo detener el stream SSE de visitas", e)
+                    }
                     connectivityJob?.cancel()
                     connectivityJob = null
                 }
