@@ -23,7 +23,9 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 /**
  * Implementación real de [RegistroDeVisitaPort], provista desde el composition
@@ -68,7 +70,7 @@ class RegistroDeVisitaAdapter(
     override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro = try {
         // La venta da la atribución que el contrato de `VisitFactory` fija:
         // COBRADOR y ZONA_CLIENTE_ID salen de la venta, COBRADOR_ID del usuario.
-        val venta = saleDao.getByClientId(visita.clienteId).firstOrNull()
+        val venta = cuentaDeAtribucion(visita.clienteId)
         val usuario = traerUsuario()
         when {
             venta == null -> ResultadoDelRegistro.CLIENTE_NO_ESTA_EN_EL_TELEFONO
@@ -94,25 +96,62 @@ class RegistroDeVisitaAdapter(
     }
 
     /**
-     * Escribe el hecho completo y **después** encola el envío.
+     * La cuenta de la que sale la atribución (`COBRADOR`, `ZONA_CLIENTE_ID`) y,
+     * como último escalón, la cuenta de la visita — **elegida de forma
+     * determinista**.
+     *
+     * `SaleDao.getByClientId` agrupa por `DOCTO_CC_ID` y **no lleva `ORDER
+     * BY`**. En la práctica SQLite suele emitir en orden ascendente de la llave
+     * del grupo, pero nada lo garantiza: ni el plan de consulta, ni una versión
+     * distinta del motor, ni la misma base después de un `VACUUM`. Con
+     * `firstOrNull()`, la venta a la que aterriza una promesa "del cliente
+     * completo" podía cambiar entre dos corridas de la app sin que nada en el
+     * dato cambiara. Es la misma forma que la Task 17 tuvo que arreglar con un
+     * desempate explícito, y por la misma razón.
+     *
+     * El desempate es **el `DOCTO_CC_ACR_ID` más bajo**: es la llave primaria de
+     * la venta, así que es única y total —no hay empate posible— y estable entre
+     * dispositivos y corridas. Además tiene lectura de negocio: es la cuenta más
+     * vieja del cliente, que es el default razonable cuando el cobrador no
+     * eligió ninguna.
+     */
+    private suspend fun cuentaDeAtribucion(clienteId: Int): SaleWithProductsEntity? =
+        saleDao.getByClientId(clienteId).minByOrNull { it.DOCTO_CC_ACR_ID }
+
+    /**
+     * Escribe el hecho completo y encola el envío — **las dos cosas o ninguna**.
      *
      * ## Por qué el encolado quedó FUERA de la transacción
      *
-     * `VisitsLocalDataSource.saveVisitAndEnqueue` pega el insert y el encolado
-     * en una sola llamada, y esa es la propiedad que la Task 5 vino a
-     * garantizar: **el envío no depende de que `UpdateLocationService` corra**.
-     * Esa propiedad se conserva íntegra —el encolado sigue ocurriendo en la
-     * MISMA llamada, incondicionalmente y sin mirar la ubicación—, pero desde
-     * dentro de `withTransaction` tenía un defecto propio: si algo posterior
+     * Dentro de `withTransaction` tenía un defecto propio: si algo posterior
      * lanzaba (el enlace de la recomendación, por ejemplo), la fila se revertía
      * y el trabajo de WorkManager ya estaba agendado, así que el worker
      * despertaba a buscar una visita que no existe.
      *
-     * Por eso el insert y sus dos escrituras acompañantes van en la
-     * transacción, y el encolado va **inmediatamente después**, cuando ya se
-     * sabe que hay fila. No hay camino entre las dos líneas que pueda saltarse
-     * el encolado: cualquier fallo de la transacción sale por la excepción y
-     * nunca llega aquí.
+     * ## Por qué el par va dentro de `NonCancellable`
+     *
+     * Sacarlo de la transacción abrió una ventana peor que la que cerró.
+     * `registrar` corre bajo el `viewModelScope` de la pantalla, que se cancela
+     * en cuanto el cobrador navega hacia atrás. Y una cancelación no se observa
+     * solo "entre las dos líneas": `withTransaction` termina en un `withContext`,
+     * y **`withContext` lanza al reanudar si el job se canceló mientras el bloque
+     * corría, aunque el bloque haya terminado bien** — o sea, con la transacción
+     * ya *comiteada*. El resultado sería una visita escrita y jamás encolada:
+     * **exactamente el defecto que la Task 5 existió para arreglar**, alcanzado
+     * por otra puerta.
+     *
+     * Por eso el `NonCancellable` envuelve el par completo y no solo el
+     * encolado: envolver solo la segunda línea no sirve de nada si la
+     * cancelación se observa al salir de la primera. Con esto:
+     *
+     * - una **falla** de la transacción revierte la fila y no encola nada;
+     * - una **cancelación** no puede colarse entre el commit y el encolado;
+     * - la **muerte del proceso** entre los dos sigue siendo recuperable —
+     *   `VisitsPendingSynchronizer` reencola en el siguiente login todo lo que
+     *   quedó en `GUARDADO_EN_MICROSIP = 0`.
+     *
+     * El bloque no bloquea nada perceptible: son tres escrituras locales a
+     * SQLite y un `enqueue` de WorkManager, todo sin red.
      */
     private suspend fun guardar(
         visita: VisitaARegistrar,
@@ -120,16 +159,18 @@ class RegistroDeVisitaAdapter(
         cobradorId: Int
     ) {
         val entidad = entidadDe(visita, venta, cobradorId)
-        db.withTransaction {
-            visitas.insertVisitAndUpdateState(
-                saleId = entidad.IMPTE_DOCTO_CC_ID,
-                visit = entidad,
-                newState = VisitStatusMapper.map(entidad.TIPO_VISITA)
-            )
-            reagendarCobranzaLegada(entidad)
-            ligarRecomendacion(visita)
+        withContext(NonCancellable) {
+            db.withTransaction {
+                visitas.insertVisitAndUpdateState(
+                    saleId = entidad.IMPTE_DOCTO_CC_ID,
+                    visit = entidad,
+                    newState = VisitStatusMapper.map(entidad.TIPO_VISITA)
+                )
+                reagendarCobranzaLegada(entidad)
+                ligarRecomendacion(visita)
+            }
+            visitas.enqueueUpload(entidad.ID)
         }
-        visitas.enqueueUpload(entidad.ID)
     }
 
     /**
@@ -192,9 +233,11 @@ class RegistroDeVisitaAdapter(
      *    de ser un control que promete un efecto que no tenía.
      * 2. **La cuenta por la que se entró**, cuando no hubo promesa (o la promesa
      *    fue del cliente completo).
-     * 3. **La primera cuenta del cliente**, la misma fila que ya dio la
-     *    atribución (`COBRADOR`, `ZONA_CLIENTE_ID`), cuando se entró por el
-     *    cliente y no se eligió venta.
+     * 3. **La cuenta más vieja del cliente** —el `DOCTO_CC_ACR_ID` más bajo—,
+     *    la misma fila que ya dio la atribución (`COBRADOR`, `ZONA_CLIENTE_ID`),
+     *    cuando se entró por el cliente y no se eligió venta. La elige
+     *    [cuentaDeAtribucion] con un desempate explícito: la consulta que las
+     *    trae **no tiene `ORDER BY`**.
      *
      * ## Por qué NO choca con la regla de alcance de la Task 13
      *

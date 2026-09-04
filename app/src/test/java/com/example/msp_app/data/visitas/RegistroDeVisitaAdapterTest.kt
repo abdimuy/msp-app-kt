@@ -3,6 +3,7 @@ package com.example.msp_app.data.visitas
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitRecommendationEntity
@@ -22,9 +23,12 @@ import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -56,11 +60,19 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         adaptador = adaptadorCon { cobrador }
     }
 
-    private fun adaptadorCon(usuario: suspend () -> User?) = RegistroDeVisitaAdapter(
+    /**
+     * [usuario] va al final para que el `adaptadorCon { … }` de los tests de
+     * cobrador siga siendo una lambda de cierre.
+     */
+    private fun adaptadorCon(
+        saleDao: SaleDao = db.saleDao(),
+        recomendaciones: VisitRecommendationDao = db.visitRecommendationDao(),
+        usuario: suspend () -> User?
+    ) = RegistroDeVisitaAdapter(
         db = db,
-        saleDao = db.saleDao(),
+        saleDao = saleDao,
         visitas = VisitsLocalDataSource(db.visitDao(), db.saleDao(), encolador, clock),
-        recomendaciones = db.visitRecommendationDao(),
+        recomendaciones = recomendaciones,
         telemetry = telemetry,
         clock = clock,
         traerUsuario = usuario
@@ -298,6 +310,50 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         assertEquals(VENTA_B, guardada.IMPTE_DOCTO_CC_ID)
     }
 
+    /**
+     * **La cuenta por defecto no depende del orden en que la consulta devuelva
+     * las ventas.**
+     *
+     * `SaleDao.getByClientId` agrupa por `DOCTO_CC_ID` y no lleva `ORDER BY`, y
+     * "SQLite suele emitir en orden ascendente" no es una garantía. Aquí el
+     * orden de la fuente se invierte de verdad —un DAO que delega en el real y
+     * devuelve la lista al revés— y la venta elegida tiene que ser la misma. Es
+     * el mismo desempate explícito que la Task 17 tuvo que agregar.
+     */
+    @Test
+    fun `la cuenta por defecto no depende del orden de la consulta`() = runTest {
+        adaptador.registrar(visita(ventaId = null, tipoVisita = Constants.NO_SE_ENCONTRABA))
+        val conElOrdenDeLaBase = db.visitDao().getVisitById(VISITA_ID).IMPTE_DOCTO_CC_ID
+
+        db.visitDao().deleteAllVisits()
+        val alReves = adaptadorCon(saleDao = SaleDaoAlReves(db.saleDao())) { cobrador }
+        alReves.registrar(visita(ventaId = null, tipoVisita = Constants.NO_SE_ENCONTRABA))
+        val conElOrdenInvertido = db.visitDao().getVisitById(VISITA_ID).IMPTE_DOCTO_CC_ID
+
+        assertEquals(
+            "la venta elegida no puede depender del orden de la fuente",
+            conElOrdenDeLaBase,
+            conElOrdenInvertido
+        )
+        // Y el desempate es nombrado, no incidental: la cuenta más vieja.
+        assertEquals(VENTA_A, conElOrdenDeLaBase)
+    }
+
+    /**
+     * La atribución (`COBRADOR`, `ZONA_CLIENTE_ID`) sale de la MISMA fila, así
+     * que tampoco puede bailar entre corridas.
+     */
+    @Test
+    fun `la atribucion tampoco depende del orden de la consulta`() = runTest {
+        val alReves = adaptadorCon(saleDao = SaleDaoAlReves(db.saleDao())) { cobrador }
+
+        alReves.registrar(visita(ventaId = null))
+
+        val guardada = db.visitDao().getVisitById(VISITA_ID)
+        assertEquals("Efraín Domínguez Reyes", guardada.COBRADOR)
+        assertEquals(21, guardada.ZONA_CLIENTE_ID)
+    }
+
     // ─── el par con la recomendación ─────────────────────────────────────────
 
     /**
@@ -430,6 +486,46 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         assertEquals("IllegalStateException", evento.props[VisitasTelemetria.PROP_EXCEPCION])
     }
 
+    /**
+     * **Una cancelación no puede separar la escritura del encolado.**
+     *
+     * `registrar` corre bajo el `viewModelScope` de la pantalla, que se cancela
+     * en cuanto el cobrador navega hacia atrás. Sacar el encolado de la
+     * transacción abrió esa ventana: `withTransaction` termina en un
+     * `withContext`, que **lanza al reanudar si el job se canceló mientras el
+     * bloque corría, aunque el bloque haya terminado bien** — con la transacción
+     * ya comiteada. El resultado sería una visita escrita y jamás encolada, que
+     * es exactamente el defecto que la Task 5 existió para arreglar.
+     *
+     * El fake cancela el job como ÚLTIMA escritura de la transacción, que es
+     * justo el instante en que la ventana se abre. Se afirman las DOS mitades:
+     * la visita quedó escrita **y** quedó encolada.
+     */
+    @Test
+    fun `una cancelacion no deja la visita escrita y sin encolar`() = runTest {
+        db.visitRecommendationDao().guardar(recomendacion())
+        val propio = Job()
+        val conCancelacion = adaptadorCon(
+            recomendaciones = DaoQueCancela(db.visitRecommendationDao(), propio)
+        ) { cobrador }
+
+        // `join()` y no `advanceUntilIdle()`: la transacción de Room corre en su
+        // propio `transactionExecutor`, fuera del scheduler del test, así que
+        // adelantar el reloj virtual devolvería el control con la escritura
+        // todavía en vuelo y la prueba mediría antes de tiempo.
+        launch(propio) { conCancelacion.registrar(visita(recomendacionId = REC_ID)) }.join()
+
+        assertNotNull(
+            "la transaccion alcanzo a comitear: la visita esta escrita",
+            runCatching { db.visitDao().getVisitById(VISITA_ID) }.getOrNull()
+        )
+        assertEquals(
+            "una visita escrita y sin encolar es el defecto de la Task 5 por otra puerta",
+            listOf(VISITA_ID),
+            encolador.encoladas
+        )
+    }
+
     /** La reagenda legada se conserva: la lista vieja sigue viendo lo mismo. */
     @Test
     fun `una promesa deja la fecha temporal de cobranza en la venta`() = runTest {
@@ -518,6 +614,32 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         AVAL_O_RESPONSABLE = "Rosa María Ramírez",
         FREC_PAGO = "SEMANAL"
     )
+
+    /**
+     * Fake a mano (sin MockK) que **cancela el job al ligar la recomendación**,
+     * que es la última escritura de la transacción — el instante exacto en el
+     * que se abre la ventana entre el commit y el encolado. No lanza: la
+     * transacción termina bien y la cancelación queda pedida.
+     */
+    private class DaoQueCancela(
+        private val real: VisitRecommendationDao,
+        private val job: Job
+    ) : VisitRecommendationDao by real {
+        override suspend fun ligarConVisita(id: String, visitaId: String): Int {
+            val ligadas = real.ligarConVisita(id, visitaId)
+            job.cancel()
+            return ligadas
+        }
+    }
+
+    /**
+     * Fake a mano que devuelve las ventas del cliente **al revés**. La consulta
+     * real no lleva `ORDER BY`, así que este es el orden que la base podría
+     * emitir cualquier día sin avisar.
+     */
+    private class SaleDaoAlReves(private val real: SaleDao) : SaleDao by real {
+        override suspend fun getByClientId(clientId: Int) = real.getByClientId(clientId).reversed()
+    }
 
     /**
      * Fake a mano (sin MockK) que **revienta al ligar la recomendación**, que es
