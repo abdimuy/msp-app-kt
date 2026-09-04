@@ -324,8 +324,12 @@ class RegistroDeAbonoAdapter(
  * y `FirebaseUserCycleAdapter`, como lectura suspend one-shot. Su `COBRADOR_ID`
  * es a quién se le atribuye el abono: al que está parado frente al cliente, no
  * al cobrador de la venta (contrato de atribución de `PaymentFactory`).
+ *
+ * `internal` y no `private` porque [FichaDelClienteAdapter], en este mismo
+ * paquete, necesita la MISMA resolución: una tercera copia del bloque sería una
+ * tercera cosa que puede despegarse de las otras dos.
  */
-private suspend fun usuarioAutenticado(): User? {
+internal suspend fun usuarioAutenticado(): User? {
     val email = FirebaseAuth.getInstance().currentUser?.email ?: return null
     val snapshot = FirebaseFirestore.getInstance()
         .collection(Constants.USERS_COLLECTION)

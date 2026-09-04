@@ -3,17 +3,20 @@ package com.example.msp_app.di
 import android.content.Context
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
+import com.example.msp_app.data.pagos.FichaDelClienteAdapter
 import com.example.msp_app.data.pagos.RegistroDeAbonoAdapter
 import com.example.msp_app.data.pagos.SettlementLiquidacionAdapter
 import com.example.msp_app.data.pagos.UserCyclePeriodoDeCobroAdapter
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
+import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
@@ -90,6 +93,25 @@ object PagosPortsModule {
     ): ComprobantesPort = ComprobantesDeAbonoAdapter(
         context = context,
         imagenes = paymentImageDao,
+        telemetry = telemetry,
+        clock = clock
+    )
+
+    /**
+     * La ficha del cliente (Task 24). Vive aquí y no en `PagosDataModule`
+     * porque su `COBRADOR_ID` sale del usuario autenticado de Firestore, que
+     * solo existe en `:app`.
+     *
+     * SIN `@Singleton` (kill-switch de sesión): resuelve el usuario vigente en
+     * cada guardado, igual que [RegistroDeAbonoAdapter].
+     */
+    @Provides
+    fun provideFichaDelClientePort(
+        clientProfileDao: ClientProfileDao,
+        telemetry: Telemetry,
+        clock: AppClock
+    ): FichaDelClientePort = FichaDelClienteAdapter(
+        fichas = clientProfileDao,
         telemetry = telemetry,
         clock = clock
     )

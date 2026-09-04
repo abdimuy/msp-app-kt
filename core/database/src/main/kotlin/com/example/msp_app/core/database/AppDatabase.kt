@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
+import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
@@ -99,6 +100,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun localSaleProduct(): LocalSaleProductDao
     abstract fun localSaleComboDao(): LocalSaleComboDao
     abstract fun clienteDao(): ClienteDao
+
+    /**
+     * `cliente_ficha` + `cliente_ficha_senales` — la ficha del cliente
+     * (Task 26 / consumida por la Task 24).
+     */
+    abstract fun clientProfileDao(): ClientProfileDao
     abstract fun cobranzaSyncStateDao(): CobranzaSyncStateDao
 
     companion object {

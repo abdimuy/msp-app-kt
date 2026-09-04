@@ -13,6 +13,7 @@ import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
+import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import javax.inject.Inject
 
 /**
@@ -33,7 +34,8 @@ import javax.inject.Inject
  * versión del motor, ni la misma base después de un `VACUUM`.
  *
  * Eso no era cosmético. La primera de esta lista es **dos cosas a la vez**: el
- * representante del cliente (nombre, teléfono, dirección, zona, aval, ficha) y
+ * representante del cliente (nombre, teléfono, dirección, zona, aval, nota de
+ * la venta) y
  * —vía `cuentaQueEncabeza`— **la cuenta a la que apunta el botón de dinero del
  * dock**. Sin orden, la cuenta que se cobra podía cambiar entre dos corridas
  * sin que cambiara un solo dato.
@@ -46,6 +48,17 @@ import javax.inject.Inject
  * llamadores ajenos — el mismo razonamiento por el que la Task 19 puso su
  * desempate en `RegistroDeVisitaAdapter`.
  *
+ * ## La ficha se lee aparte, y su fallo no tumba la pantalla
+ *
+ * [FichaDelClientePort.fichaDe] es **total**: contesta `null` cuando no se pudo
+ * leer en vez de lanzar, así que un problema con la ficha nunca deja al cobrador
+ * sin el saldo ni sin sus ventas. La ficha es conocimiento; el detalle es
+ * dinero, y el dinero no depende de ella.
+ *
+ * No entra a [ReunirCobranzaDelCliente] porque esa lectura la comparte el
+ * detalle de VENTA, que no pinta ficha: meterla ahí sería una consulta de más
+ * en cada apertura de una pantalla que no la usa.
+ *
  * El criterio es [OrdenDeCobranza.PRIMERO] —el mismo con el que la lista de la
  * Task 17 ordena la ruta del día, así que la fila de arriba aquí es la que ese
  * orden ya considera primera— rematado con `ventaId` ascendente. Ese remate es
@@ -57,7 +70,8 @@ import javax.inject.Inject
  * `CarteraEnPantalla` (`.thenBy { it.clienteId }`).
  */
 class CargarDetalleCliente @Inject constructor(
-    private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente
+    private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
+    private val fichaPort: FichaDelClientePort
 ) {
 
     suspend operator fun invoke(clienteId: Int): DetalleCliente? {
@@ -79,7 +93,8 @@ class CargarDetalleCliente @Inject constructor(
             ventas = ventas.map { it.aVentaDelCliente(cobranza.estados[it.ventaId]) },
             contactos = contactos.take(CONTACTOS_VISIBLES),
             totalContactos = contactos.size,
-            ficha = primera.notas.takeIf { it.isNotBlank() },
+            notaDeLaVenta = primera.notas.takeIf { it.isNotBlank() },
+            ficha = fichaPort.fichaDe(clienteId),
             liquidacion = cobranza.liquidacionTotal(),
             ultimaVisita = cobranza.visitas.maxByOrNull { it.fecha }?.fecha
         )

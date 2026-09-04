@@ -44,7 +44,27 @@ data class DetalleCliente(
     val ventas: List<VentaDelCliente>,
     val contactos: List<ContactoDeCobranza>,
     val totalContactos: Int,
-    val ficha: String?,
+    /**
+     * Lo que trae la VENTA en su campo `NOTAS`, tal como llega del servidor.
+     *
+     * **No es la ficha del cliente y por eso ya no se llama así.** La Task 16 lo
+     * nombró `ficha` porque era lo único parecido que existía; es dato del
+     * servidor, se reescribe en cada sincronización de `sales` y el cobrador no
+     * lo puede editar. La ficha de verdad —conocimiento local, editable,
+     * persistente— es [ficha], y confundirlas era exactamente el riesgo:
+     * escribir en una creyendo escribir en la otra.
+     */
+    val notaDeLaVenta: String?,
+    /**
+     * La ficha del cliente: el catálogo cerrado y la nota libre.
+     *
+     * **`null` significa "no se pudo leer", NO "no tiene".** Un cliente sin
+     * ficha llega como [FichaDelCliente] vacía. La distinción es la que impide
+     * que una lectura fallida se pinte como ficha en blanco y el cobrador
+     * escriba encima del conocimiento que sí estaba guardado — ver
+     * [com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort.fichaDe].
+     */
+    val ficha: FichaDelCliente?,
     val liquidacion: Liquidacion?,
     val ultimaVisita: Instant?
 ) {

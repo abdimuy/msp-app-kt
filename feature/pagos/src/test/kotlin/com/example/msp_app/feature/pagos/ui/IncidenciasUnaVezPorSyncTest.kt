@@ -13,8 +13,10 @@ import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.pagos.application.CargarDetalleCliente
 import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
+import com.example.msp_app.feature.pagos.application.GuardarFichaDelCliente
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
@@ -86,7 +88,8 @@ class IncidenciasUnaVezPorSyncTest : RobolectricTestBase() {
                 mapOf(PagosRutas.ARG_CLIENTE_ID to PagosFixtures.CLIENTE_ID)
             ),
             cargarDetalleCliente = CargarDetalleCliente(
-                ReunirCobranzaDelCliente(
+                fichaPort = FakeFichaPort(),
+                reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                     ventasPort = ventasPort,
                     pagosPort = pagosPort,
                     visitasPort = visitasPort,
@@ -98,6 +101,7 @@ class IncidenciasUnaVezPorSyncTest : RobolectricTestBase() {
                     derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria)
                 )
             ),
+            guardarFichaDelCliente = GuardarFichaDelCliente(FakeFichaPort()),
             telemetry = telemetria,
             io = testDispatcher
         )

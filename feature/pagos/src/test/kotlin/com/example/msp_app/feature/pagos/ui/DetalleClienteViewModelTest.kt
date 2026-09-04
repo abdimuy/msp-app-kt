@@ -7,9 +7,11 @@ import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.pagos.application.CargarDetalleCliente
 import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
+import com.example.msp_app.feature.pagos.application.GuardarFichaDelCliente
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
@@ -51,6 +53,7 @@ class DetalleClienteViewModelTest {
     private val visitasPort = FakeVisitasPort()
     private val liquidacionPort = FakeLiquidacionPort()
     private val periodoPort = FakePeriodoDeCobroPort()
+    private val fichaPort = FakeFichaPort()
 
     @Before
     fun setUp() {
@@ -70,7 +73,8 @@ class DetalleClienteViewModelTest {
     private fun viewModel(clienteId: Int = PagosFixtures.CLIENTE_ID) = DetalleClienteViewModel(
         savedStateHandle = SavedStateHandle(mapOf(PagosRutas.ARG_CLIENTE_ID to clienteId)),
         cargarDetalleCliente = CargarDetalleCliente(
-            ReunirCobranzaDelCliente(
+            fichaPort = fichaPort,
+            reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,
                 visitasPort = visitasPort,
@@ -79,6 +83,7 @@ class DetalleClienteViewModelTest {
                 derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria)
             )
         ),
+        guardarFichaDelCliente = GuardarFichaDelCliente(fichaPort),
         telemetry = telemetria,
         io = testDispatcher
     )

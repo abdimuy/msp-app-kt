@@ -3,17 +3,20 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
+import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
+import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.ui.PagosFixtures
 import java.math.BigDecimal
 import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
@@ -53,9 +56,11 @@ class CargarDetalleClienteOrdenTest {
     private val visitasPort = FakeVisitasPort()
     private val liquidacionPort = FakeLiquidacionPort()
     private val periodoPort = FakePeriodoDeCobroPort()
+    private val fichaPort = FakeFichaPort()
 
     private fun cargar() = CargarDetalleCliente(
-        ReunirCobranzaDelCliente(
+        fichaPort = fichaPort,
+        reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
             ventasPort = ventasPort,
             pagosPort = pagosPort,
             visitasPort = visitasPort,
@@ -136,23 +141,57 @@ class CargarDetalleClienteOrdenTest {
     }
 
     /**
-     * El representante del cliente —nombre, teléfono, dirección, ficha— sale de
-     * la MISMA primera venta que el dock cobra. Sin el orden, dos cuentas del
-     * mismo cliente con fichas distintas pintaban una u otra según la corrida.
+     * El representante del cliente —nombre, teléfono, dirección, nota de la
+     * venta— sale de la MISMA primera venta que el dock cobra. Sin el orden, dos
+     * cuentas del mismo cliente con notas distintas pintaban una u otra según la
+     * corrida.
+     *
+     * La **ficha** (Task 24) NO entra aquí y ese es justo el punto: es del
+     * CLIENTE, no de una venta, así que no depende de este orden en absoluto.
      */
     @Test
     fun `el representante del cliente sale de la primera venta ya ordenada`() = runTest {
-        val alta = sinAbonos(90_009).copy(notas = "ficha de la cuenta alta")
-        val baja = sinAbonos(90_001).copy(notas = "ficha de la cuenta baja")
+        val alta = sinAbonos(90_009).copy(notas = "nota de la cuenta alta")
+        val baja = sinAbonos(90_001).copy(notas = "nota de la cuenta baja")
 
         ventasPort.ventas = listOf(alta, baja)
         val primero = checkNotNull(cargar()(PagosFixtures.CLIENTE_ID))
         ventasPort.ventas = listOf(baja, alta)
         val segundo = checkNotNull(cargar()(PagosFixtures.CLIENTE_ID))
 
-        assertEquals("ficha de la cuenta baja", primero.ficha)
-        assertEquals(primero.ficha, segundo.ficha)
+        assertEquals("nota de la cuenta baja", primero.notaDeLaVenta)
+        assertEquals(primero.notaDeLaVenta, segundo.notaDeLaVenta)
         assertEquals(90_001, primero.ventas.first().ventaId)
+    }
+
+    /**
+     * La ficha se lee UNA vez por carga, con el `CLIENTE_ID` —nunca con un
+     * `DOCTO_CC_ACR_ID`—, y es la misma sin importar cómo salgan ordenadas las
+     * ventas. Este plan ya lleva siete defectos de "un id donde iba el otro".
+     */
+    @Test
+    fun `la ficha es del CLIENTE y no cambia con el orden de sus ventas`() = runTest {
+        fichaPort.fichas[PagosFixtures.CLIENTE_ID] = FichaDelCliente(nota = "atiende la suegra")
+        val alta = sinAbonos(90_009)
+        val baja = sinAbonos(90_001)
+
+        ventasPort.ventas = listOf(alta, baja)
+        val primero = checkNotNull(cargar()(PagosFixtures.CLIENTE_ID))
+        ventasPort.ventas = listOf(baja, alta)
+        val segundo = checkNotNull(cargar()(PagosFixtures.CLIENTE_ID))
+
+        assertEquals("atiende la suegra", primero.ficha?.nota)
+        assertEquals(primero.ficha, segundo.ficha)
+    }
+
+    /** Un fallo de la ficha no puede dejar al cobrador sin saldo ni sin ventas. */
+    @Test
+    fun `si la ficha no se puede leer el detalle igual se arma`() = runTest {
+        fichaPort.seLee = false
+        ventasPort.ventas = listOf(sinAbonos(90_001))
+        val detalle = checkNotNull(cargar()(PagosFixtures.CLIENTE_ID))
+        assertNull("no se pudo leer, no es que no haya", detalle.ficha)
+        assertEquals(1, detalle.ventas.size)
     }
 
     // --- Plomería ------------------------------------------------------------

@@ -3,6 +3,7 @@ package com.example.msp_app.core.database.di
 import android.content.Context
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
+import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
@@ -109,4 +110,11 @@ object DatabaseModule {
     @Provides
     fun provideCobranzaSyncStateDao(db: AppDatabase): CobranzaSyncStateDao =
         db.cobranzaSyncStateDao()
+
+    /**
+     * `cliente_ficha` + `cliente_ficha_senales` — la ficha del cliente
+     * (Task 24). Sin `@Singleton`, igual que sus vecinos.
+     */
+    @Provides
+    fun provideClientProfileDao(db: AppDatabase): ClientProfileDao = db.clientProfileDao()
 }

@@ -212,6 +212,49 @@ object PagosTelemetria {
      */
     const val CODE_TICKET_PAGO_FUERA_DEL_DIA: String = "pagos_ticket_fuera_del_dia"
 
+    /**
+     * **No se pudo LEER la ficha del cliente.** El detalle se pinta igual —la
+     * ficha no bloquea una pantalla de dinero—, pero la sección queda en "no se
+     * pudo leer" y **sin poder editarse**: una ficha en blanco editable sobre
+     * una lectura fallida invitaría a escribir encima del conocimiento que sí
+     * estaba guardado.
+     */
+    const val CODE_FICHA_NO_SE_PUDO_LEER: String = "pagos_ficha_no_se_pudo_leer"
+
+    /**
+     * La ESCRITURA de la ficha falló. Nada quedó a medias: nota y señales van
+     * dentro de una transacción de Room. Ni el texto de la nota ni el id del
+     * cliente se emiten.
+     */
+    const val CODE_FICHA_NO_SE_GUARDO: String = "pagos_ficha_no_se_guardo"
+
+    /**
+     * La ficha se guardó **sin `COBRADOR_ID`** porque el usuario no se pudo
+     * resolver. Es un final deliberado y no un fallo —la ficha no es dinero y
+     * `COBRADOR_ID` es nullable a propósito—, pero "es esperado" no autoriza el
+     * silencio: autoriza un código propio. Una app que empieza a guardar TODA
+     * la ficha sin atribución es una sesión rota, y tiene que verse.
+     */
+    const val CODE_FICHA_SIN_COBRADOR: String = "pagos_ficha_sin_cobrador"
+
+    /**
+     * La ficha guardada trae literales de señal que este build no conoce — un
+     * valor retirado del catálogo, que *nace corto y crece con evidencia*. Se
+     * ignoran al pintar y **no se borran** al guardar. Viaja el CONTEO, nunca el
+     * literal: viene del disco y la norma anti-PII exige `props` estático del
+     * desarrollador.
+     */
+    const val CODE_FICHA_SENAL_DESCONOCIDA: String = "pagos_ficha_senal_desconocida"
+
+    /**
+     * La ficha no quedó guardada, visto **desde la pantalla**. Es un evento
+     * distinto de [CODE_FICHA_NO_SE_GUARDO] —el del adaptador— y por eso lleva
+     * código propio: emitir los dos con el mismo código contaría una sola falla
+     * dos veces, y el conteo es justo la señal que la norma de errores existe
+     * para producir. Cubre además el final que el adaptador nunca ve.
+     */
+    const val CODE_FICHA_NO_QUEDO_GUARDADA: String = "pagos_ficha_no_quedo_guardada"
+
     /** Clave estática de `props` con los nombres de los bloqueos de seguridad. */
     const val PROP_BLOQUEOS: String = "bloqueos"
 

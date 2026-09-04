@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,15 +27,17 @@ import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
+import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
 import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
 import com.example.msp_app.feature.pagos.ui.components.FilaDeContacto
 import com.example.msp_app.feature.pagos.ui.components.FilaDeVenta
+import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
-import com.example.msp_app.feature.pagos.ui.components.Tarjeta
+import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeLiquidacion
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeSaldo
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
@@ -91,6 +94,13 @@ fun DetalleClienteScreen(
         onMasAcciones = { cuenta?.let(onMasAcciones) },
         onUsarLiquidacion = { cuenta?.let(onRegistrarAbono) },
         onVerContactos = { cuenta?.let(onMasAcciones) },
+        fichaDelCliente = AccionesDeLaFicha(
+            onEditar = viewModel::editarFicha,
+            onCerrar = viewModel::cerrarFicha,
+            onSenal = viewModel::alternarSenal,
+            onNota = viewModel::escribirNota,
+            onGuardar = viewModel::guardarFicha
+        ),
         modifier = modifier
     )
 }
@@ -140,7 +150,8 @@ fun DetalleClienteContent(
     onMasAcciones: () -> Unit,
     onUsarLiquidacion: () -> Unit,
     onVerContactos: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha()
 ) {
     Column(
         modifier = modifier
@@ -157,7 +168,8 @@ fun DetalleClienteContent(
                     onAtras = onAtras,
                     onAbrirVenta = onAbrirVenta,
                     onUsarLiquidacion = onUsarLiquidacion,
-                    onVerContactos = onVerContactos
+                    onVerContactos = onVerContactos,
+                    onEditarFicha = fichaDelCliente.onEditar
                 )
             }
         }
@@ -170,7 +182,32 @@ fun DetalleClienteContent(
             )
         }
     }
+    HojaDeLaFicha(
+        edicion = state.edicionDeLaFicha,
+        onCerrar = fichaDelCliente.onCerrar,
+        onSenal = fichaDelCliente.onSenal,
+        onNota = fichaDelCliente.onNota,
+        onGuardar = fichaDelCliente.onGuardar
+    )
 }
+
+/**
+ * Las cinco acciones de la ficha, juntas.
+ *
+ * Van en un objeto y no en cinco parámetros sueltos porque
+ * [DetalleClienteContent] ya recibe ocho lambdas y detekt corta ahí
+ * (`LongParameterList`); además así la pantalla del golden pasa un default
+ * inerte en vez de repetir cinco `{}`. Mismo criterio que
+ * `AccionesDeLaVisita` en `:feature:visitas`.
+ */
+@Immutable
+data class AccionesDeLaFicha(
+    val onEditar: () -> Unit = {},
+    val onCerrar: () -> Unit = {},
+    val onSenal: (SenalDeFicha) -> Unit = {},
+    val onNota: (String) -> Unit = {},
+    val onGuardar: () -> Unit = {}
+)
 
 @Composable
 private fun CuerpoDelCliente(
@@ -178,7 +215,8 @@ private fun CuerpoDelCliente(
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onUsarLiquidacion: () -> Unit,
-    onVerContactos: () -> Unit
+    onVerContactos: () -> Unit,
+    onEditarFicha: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -198,6 +236,16 @@ private fun CuerpoDelCliente(
             Spacer(Modifier.height(MspTheme.spacing.sm))
             Aviso(aviso)
         }
+
+        // La ficha va ARRIBA de "sus ventas": es lo que se lee ANTES de tocar
+        // la puerta. Su posición se mide en `LaFichaSeVeYSeTocaTest`, no se
+        // supone — la Task 22 descubrió tarde que su sección caía debajo de la
+        // línea de flotación.
+        SeccionDeLaFicha(
+            ficha = detalle.ficha,
+            notaDeLaVenta = detalle.notaDeLaVenta,
+            onEditar = onEditarFicha
+        )
 
         LabelDeSeccion("sus ventas")
         detalle.ventas.forEach { venta ->
@@ -219,17 +267,6 @@ private fun CuerpoDelCliente(
             detalle.contactos.forEach { FilaDeContacto(it) }
             Spacer(Modifier.height(MspTheme.spacing.sm))
             VerTodos("ver los ${detalle.totalContactos} contactos", onVerContactos)
-        }
-
-        detalle.ficha?.let { ficha ->
-            LabelDeSeccion("lo que hay que saber")
-            Tarjeta {
-                Text(
-                    text = ficha,
-                    style = MspTheme.type.body,
-                    color = MspTheme.colors.onSurfaceMuted
-                )
-            }
         }
 
         LabelDeSeccion("datos del cliente")

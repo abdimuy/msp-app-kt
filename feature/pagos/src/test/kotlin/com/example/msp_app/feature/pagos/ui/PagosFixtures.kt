@@ -12,12 +12,14 @@ import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDeGarantia
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
+import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.HistorialDePagos
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
+import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import java.math.BigDecimal
@@ -200,9 +202,24 @@ object PagosFixtures {
             )
         ),
         totalContactos = 27,
-        ficha = "Trabaja de noche — antes de las 10 am. Atiende la suegra. Casa azul, portón negro.",
+        notaDeLaVenta = "entrega en la puerta de atrás",
+        ficha = fichaDelCliente(),
         liquidacion = liquidacionDelCliente(),
         ultimaVisita = Instant.parse("2026-08-24T17:00:00Z")
+    )
+
+    /**
+     * La ficha del mock: dos señales del catálogo cerrado y la nota libre con
+     * lo que NO es catálogo — quién atiende por su nombre y las señas de la
+     * casa. Es exactamente el reparto que la Task 24 decidió: *"trabaja de
+     * noche"* y *"atiende la suegra"* son señales porque la máquina las
+     * consulta; *"casa azul, portón negro"* es nota porque solo la lee un
+     * humano.
+     */
+    fun fichaDelCliente(): FichaDelCliente = FichaDelCliente(
+        senales = setOf(SenalDeFicha.ESTA_EN_LA_NOCHE, SenalDeFicha.ATIENDE_OTRA_PERSONA),
+        nota = "atiende la suegra, doña Remedios.\ncasa azul, portón negro.",
+        actualizada = Instant.parse("2026-08-24T17:00:00Z")
     )
 
     private fun venta(

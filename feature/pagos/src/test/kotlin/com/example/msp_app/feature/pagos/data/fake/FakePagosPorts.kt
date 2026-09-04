@@ -4,17 +4,20 @@ import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
+import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
+import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
+import com.example.msp_app.feature.pagos.domain.port.ResultadoDeLaFicha
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import com.example.msp_app.feature.pagos.domain.port.VisitasPort
@@ -226,5 +229,41 @@ class FakeComprobantesPort : ComprobantesPort {
     override suspend fun descartar(archivo: String) {
         fallaAlDescartar?.let { throw it }
         descartados += archivo
+    }
+}
+
+/**
+ * Fake de [FichaDelClientePort]: guarda en memoria y graba lo que se le pidió
+ * escribir. Estado público + lista pública, sin MockK.
+ *
+ * [seLee] existe para el caso que el puerto real distingue y que la pantalla
+ * NO puede aplanar: `false` significa *"no se pudo leer"*, y entonces
+ * [fichaDe] devuelve `null` — no una ficha vacía.
+ */
+class FakeFichaPort : FichaDelClientePort {
+
+    val fichas: MutableMap<Int, FichaDelCliente> = mutableMapOf()
+
+    /** `false` = la lectura falla y contesta `null`. */
+    var seLee: Boolean = true
+
+    /** `false` = la escritura falla; nada se guarda. */
+    var seGuarda: Boolean = true
+
+    /** Cada guardado que llegó, en orden: el cliente y la ficha pedida. */
+    val guardados: MutableList<Pair<Int, FichaDelCliente>> = mutableListOf()
+
+    /** Con qué instante se sella la ficha guardada — el reloj del fake. */
+    var actualizadaEn: Instant = Instant.parse("2026-09-01T18:00:00Z")
+
+    override suspend fun fichaDe(clienteId: Int): FichaDelCliente? =
+        if (seLee) fichas[clienteId] ?: FichaDelCliente() else null
+
+    override suspend fun guardar(clienteId: Int, ficha: FichaDelCliente): ResultadoDeLaFicha {
+        guardados += clienteId to ficha
+        if (!seGuarda) return ResultadoDeLaFicha.FalloElGuardado
+        val guardada = ficha.copy(actualizada = actualizadaEn)
+        fichas[clienteId] = guardada
+        return ResultadoDeLaFicha.Guardada(guardada)
     }
 }
