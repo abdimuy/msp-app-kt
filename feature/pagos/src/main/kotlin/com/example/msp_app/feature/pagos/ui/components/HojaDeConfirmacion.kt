@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
@@ -287,12 +288,29 @@ private fun QuienEs(cliente: String, producto: String, folio: String, raro: Bool
             )
         }
         Column {
-            Text(text = cliente, style = MspTheme.type.name, color = colors.onSurface, maxLines = 1)
+            // DOS líneas para el nombre, y elipsis si aun así no cabe (Ruling
+            // AP). En una pantalla de dinero la identidad es el dato que no se
+            // puede adivinar: a escala 2.0 "Victoria Flores Olmedo" se cortaba
+            // en "Victoria Flores" y el apellido desaparecía **sin ninguna
+            // señal** de que faltaba texto. Un apellido con elipsis sigue sin
+            // leerse, por eso aquí la respuesta es dejarlo bajar de línea.
+            Text(
+                text = cliente,
+                style = MspTheme.type.name,
+                color = colors.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            // El producto y el folio se quedan en UNA línea: a diferencia del
+            // nombre, los dos se pueden reconstruir —el folio está en la tira de
+            // contexto de la pantalla de atrás y en el ticket—, así que basta con
+            // que el corte se vea.
             Text(
                 text = "$producto · $folio",
                 style = MspTheme.type.caption,
                 color = colors.onSurfaceMuted,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -364,11 +382,16 @@ private fun CeldaDeSaldo(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
+        // Elipsis (Ruling AP): a escala 2.0 "saldo anterior" y "saldo nuevo"
+        // quedaban las dos en "saldo", idénticas y sin marca de corte. Con la
+        // elipsis al menos se ve que están recortadas — ver el reporte de la
+        // ronda 5 para si eso alcanza para distinguirlas.
         Text(
             text = etiqueta,
             style = MspTheme.type.eyebrow,
             color = MspTheme.colors.onSurfaceMuted,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         Text(
             text = formatMoneyMxn(importe.amount),
