@@ -49,6 +49,13 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
     /** Un comprobante creado ANTES del corte: ya se dio por abandonado. */
     private val antiguo = "2026-05-30T09:00:00Z"
 
+    /**
+     * El instante inmediatamente anterior al corte. Un segundo menos que
+     * [corteDeComprobantes], que en el formato de cable (`ISO_INSTANT`, ancho
+     * fijo, UTC) es la unidad más chica que la comparación de texto distingue.
+     */
+    private val justoAntesDelCorte = "2026-06-07T23:59:59Z"
+
     private fun visit(id: String, guardado: Int, promesa: String? = null, cita: String? = null) =
         VisitEntity(
             ID = id,
@@ -239,6 +246,28 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
 
         assertNoLongerExists(dao, "visita-con-foto-vieja")
+    }
+
+    /**
+     * **El tercer borde, el que faltaba:** el instante **justo antes** del corte
+     * ya NO retiene.
+     *
+     * Con solo "el corte exacto retiene" y "un valor lejano no retiene", un
+     * `>` escrito donde va `>=` —o un `>=` donde va `>`— se detecta a medias:
+     * los tres juntos (antes / exacto / después) fijan la comparación completa.
+     */
+    @Test
+    fun `el comprobante del instante justo anterior al corte ya no retiene`() = runTest {
+        dao.insertVisit(visit(id = "visita-borde-anterior", guardado = 1))
+        sembrarImagen(
+            id = "IMG-1",
+            visitaId = "visita-borde-anterior",
+            creadaEn = justoAntesDelCorte
+        )
+
+        dao.deleteUploadedVisits(conservarDesde = corte, comprobantesDesde = corteDeComprobantes)
+
+        assertNoLongerExists(dao, "visita-borde-anterior")
     }
 
     /** El borde exacto: el instante del corte RETIENE (`>=`, no `>`). */

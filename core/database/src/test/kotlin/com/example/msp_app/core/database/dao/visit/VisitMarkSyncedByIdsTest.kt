@@ -103,4 +103,73 @@ class VisitMarkSyncedByIdsTest : RobolectricTestBase() {
         assertEquals(1, dao.getVisitById("v-1").GUARDADO_EN_MICROSIP)
         assertEquals(emptyList<String>(), dao.getPendingVisits().map { it.ID })
     }
+
+    // ─── Ruling AR: un comprobante sin entregar retiene la visita ────────────
+
+    /**
+     * **La constraint literal, en el camino donde la letra es correcta.**
+     *
+     * `by-ids` confirma que el servidor tiene la visita, pero la foto pendiente
+     * todavía no llegó. Marcarla la sacaría del conjunto pendiente para siempre
+     * y tiraría una foto que el servidor **sí iba a aceptar**: al reintentar, la
+     * ruta resuelve la colisión con `FindByID`, adjunta la imagen nueva y
+     * contesta 201.
+     */
+    @Test
+    fun `una visita con comprobante sin subir no se marca`() = runTest {
+        val dao = database.visitDao()
+        dao.insertVisit(visit("v-con-foto"))
+        dao.insertVisit(visit("v-sin-foto"))
+        sembrarImagen(id = "IMG-1", visitaId = "v-con-foto")
+
+        val changed = dao.markSyncedByIds(listOf("v-con-foto", "v-sin-foto"))
+
+        assertEquals("solo se marco la que no debe nada", 1, changed)
+        assertEquals(0, dao.getVisitById("v-con-foto").GUARDADO_EN_MICROSIP)
+        // Control positivo, en la MISMA llamada: sin la de al lado, un UPDATE
+        // que no marcara nada pasaría igual.
+        assertEquals(1, dao.getVisitById("v-sin-foto").GUARDADO_EN_MICROSIP)
+    }
+
+    /** Un comprobante **ya subido** no retiene: `SUBIDA_EN` es lo que distingue. */
+    @Test
+    fun `un comprobante ya subido no retiene la visita`() = runTest {
+        val dao = database.visitDao()
+        dao.insertVisit(visit("v-entregada"))
+        sembrarImagen(id = "IMG-1", visitaId = "v-entregada", subidaEn = "2026-09-04T18:00:00Z")
+
+        assertEquals(1, dao.markSyncedByIds(listOf("v-entregada")))
+        assertEquals(1, dao.getVisitById("v-entregada").GUARDADO_EN_MICROSIP)
+    }
+
+    /**
+     * El comprobante pendiente de OTRA visita no retiene a la de al lado. Con
+     * una sola visita en la tabla, un `NOT IN` sin correlación por `VISITA_ID`
+     * pasaría igual.
+     */
+    @Test
+    fun `el comprobante pendiente de otra visita no retiene a la de al lado`() = runTest {
+        val dao = database.visitDao()
+        dao.insertVisit(visit("v-1"))
+        dao.insertVisit(visit("v-2"))
+        sembrarImagen(id = "IMG-1", visitaId = "v-2")
+
+        assertEquals(1, dao.markSyncedByIds(listOf("v-1")))
+        assertEquals(1, dao.getVisitById("v-1").GUARDADO_EN_MICROSIP)
+    }
+
+    private suspend fun sembrarImagen(id: String, visitaId: String, subidaEn: String? = null) =
+        database.visitImageDao().insertAll(
+            listOf(
+                com.example.msp_app.core.database.entities.VisitImageEntity(
+                    ID = id,
+                    VISITA_ID = visitaId,
+                    URI = "/files/comprobante_visita_$id.jpg",
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-04T17:00:00Z",
+                    SUBIDA_EN = subidaEn
+                )
+            )
+        )
 }

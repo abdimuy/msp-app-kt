@@ -186,7 +186,7 @@ interface VisitDao {
     /**
      * Flips `GUARDADO_EN_MICROSIP` to 1 for [ids] — and only for [ids].
      *
-     * The one caller is the visitas reconciler
+     * The caller is the visitas reconciler
      * (`ReconcileVisitsUseCase` in `:core:common`, wired through
      * `RoomPendingVisitsStore`), which passes exclusively ids that
      * `GET /v2/visitas/by-ids` confirmed the server already holds. It never
@@ -199,10 +199,40 @@ interface VisitDao {
      * SQL variables" swallowed by an outer catch and turned into a silent error
      * on every tick. `RoomPendingVisitsStore` chunks below that ceiling.
      *
+     * ## Una visita con comprobantes sin `SUBIDA_EN` NO se marca (Ruling AR)
+     *
+     * Es la constraint que el KDoc de
+     * [com.example.msp_app.core.database.entities.VisitImageEntity] le encarga a
+     * la Task 23, aplicada **literalmente y sin ventana** — y este es el camino
+     * donde la letra es correcta, a diferencia del de la poda.
+     *
+     * La razón es que acá bloquear **no pierde nada, entrega**: la visita se
+     * queda en `GUARDADO_EN_MICROSIP = 0`, `VisitsPendingSynchronizer` la vuelve
+     * a encolar, el worker manda el multipart, y el servidor —que resuelve la
+     * colisión con `FindByID` y sólo guarda las imágenes cuyo id todavía no
+     * tiene— contesta **201 y se queda con la foto**. Marcarla acá, en cambio,
+     * la saca del conjunto pendiente para siempre y tira una foto que el
+     * servidor **sí iba a aceptar**.
+     *
+     * El precio es que esa visita se reintente de más. Es exactamente lo que la
+     * idempotencia por UUID está construida para pagar.
+     *
+     * No hay riesgo de reintento infinito: el worker marca por su cuenta al
+     * recibir el 2xx (y ahí sí estampa `SUBIDA_EN`), y una imagen que ya no
+     * tiene archivo se omite del multipart, así que la visita sube igual y el
+     * worker la cierra.
+     *
      * @return how many rows actually changed, so a caller can tell "marked" from
-     *   "the id was not there".
+     *   "the id was not there" — y ahora también de "la retuvo un comprobante
+     *   sin entregar".
      */
-    @Query("UPDATE Visit SET GUARDADO_EN_MICROSIP = 1 WHERE ID IN (:ids)")
+    @Query(
+        """
+        UPDATE Visit SET GUARDADO_EN_MICROSIP = 1
+        WHERE ID IN (:ids)
+          AND ID NOT IN (SELECT VISITA_ID FROM visita_imagenes WHERE SUBIDA_EN IS NULL)
+        """
+    )
     suspend fun markSyncedByIds(ids: List<String>): Int
 
     @Query("DELETE FROM Visit")

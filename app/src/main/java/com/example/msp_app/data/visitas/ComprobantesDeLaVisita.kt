@@ -45,10 +45,17 @@ data class PartesDeComprobantesDeVisita(
  *   cerró: con clave de storage determinista, un id opcional dejaba que un
  *   reintento sin id guardara la foto **dos veces**. En cobranza sigue siendo
  *   opcional y el servidor acuña uno.
- * - **Un MIME no permitido tumba la VISITA entera.** `parseImagenesFromForm`
- *   corta con `ErrImagenMimeNoPermitido` en la primera parte mala, así que la
- *   visita no se registra. Por eso el filtro de abajo no es defensa en
- *   profundidad: es lo que impide que una foto tire trabajo de campo.
+ * - **La whitelist es OTRA declaración.** `domain.IsAllowedMime` (visitas) y el
+ *   tag `contentType` de `CrearPagoMultipartFields.Imagen` (cobranza) coinciden
+ *   hoy y no tienen por qué mañana: son dos paquetes Go que no se conocen.
+ *
+ * Lo que **no** los diferencia, aunque una versión anterior de este comentario
+ * lo afirmara: un MIME no permitido tumba la escritura entera en **las dos**
+ * rutas — acá `parseImagenesFromForm` corta con `ErrImagenMimeNoPermitido`, y
+ * allá Huma valida el tag `contentType` antes del handler y devuelve 422 del
+ * request completo. Por eso el filtro de abajo no es defensa en profundidad en
+ * ninguna de las dos: es lo que impide que una foto tire trabajo de campo (o
+ * dinero).
  *
  * Fundirlos en una sola función haría que un cambio en un endpoint cambiara el
  * otro en silencio, que es exactamente el acoplamiento que no se quiere entre

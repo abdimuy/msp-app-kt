@@ -38,7 +38,13 @@ enum class FalloDeLaFoto {
     TIPO_NO_PERMITIDO,
 
     /** Ya hay [com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita.MAXIMO]. */
-    YA_NO_CABEN
+    YA_NO_CABEN,
+
+    /**
+     * La foto terminó de comprimirse **después** de que la escritura ya tomó
+     * los comprobantes. No falló nada; simplemente no alcanzó a entrar.
+     */
+    LLEGO_TARDE
 }
 
 /**

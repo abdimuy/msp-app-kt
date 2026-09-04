@@ -15,6 +15,7 @@ import com.example.msp_app.feature.visitas.data.fake.FakeUbicacionPort
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
+import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -398,6 +399,145 @@ class RegistrarVisitaFotosTest {
             it.name == VisitasTelemetria.CODE_VISITA_FOTO_ILEGIBLE
         }
         assertEquals("1", evento.props[VisitasTelemetria.PROP_OCURRENCIAS])
+    }
+
+    // ─── la ventana del guardado (F1) ────────────────────────────────────────
+
+    /**
+     * **La carrera del cobrador con prisa:** la foto todavía se está
+     * comprimiendo cuando toca "guardar".
+     *
+     * El test actúa DENTRO de la ventana —`fotoTomada()` sin `advanceUntilIdle()`
+     * después, y `guardar()` acto seguido— y afirma primero que la ventana
+     * existe (el estado todavía no tiene la foto).
+     *
+     * **Lo que se garantiza NO es que la foto entre.** No puede: esperarla sería
+     * que la foto bloquee el guardado, que es la regla que manda sobre esta
+     * tarea entera. Lo que se garantiza es que **no desaparezca en silencio** —
+     * lleva su propio código, el cobrador ve el aviso, y el archivo que nadie va
+     * a subir no se queda ocupando disco.
+     */
+    @Test
+    fun `una foto que se comprime mientras se guarda no se pierde en silencio`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+            vm.onResultado(ResultadoDeVisita.NO_ESTABA)
+            vm.pedirFoto()
+            advanceUntilIdle()
+
+            vm.fotoTomada()
+            assertEquals(
+                "la ventana existe: la foto aun no esta en el estado",
+                emptyList<Any>(),
+                vm.state.value.comprobantes
+            )
+            vm.guardar()
+            advanceUntilIdle()
+
+            assertEquals("la visita se registra igual", vm.visitaId, vm.state.value.registrada)
+            assertEquals(FalloDeLaFoto.LLEGO_TARDE, vm.state.value.falloDeLaFoto)
+            assertTrue(
+                "el archivo que nadie va a subir no se queda en disco",
+                camaraPort.descartados.isNotEmpty()
+            )
+            val evento = telemetria.recorded.single {
+                it.type == TelemetryEventType.ERROR &&
+                    it.name == VisitasTelemetria.CODE_VISITA_FOTO_TARDE
+            }
+            assertEquals(VisitasTelemetria.CODE_VISITA_FOTO_TARDE, evento.name)
+        }
+
+    /**
+     * **Control positivo de la ventana:** el MISMO montaje, con la compresión
+     * resuelta antes del toque, sí lleva la foto al write.
+     *
+     * Sin esto, la prueba de arriba no distinguiría "llegó tarde y se reportó"
+     * de "las fotos nunca llegan al write".
+     */
+    @Test
+    fun `control positivo, con la compresion resuelta la foto si entra al write`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+            vm.onResultado(ResultadoDeVisita.NO_ESTABA)
+            tomarFoto(vm)
+
+            vm.guardar()
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf("IMG-1"),
+                registroPort.registradas.single().comprobantes.map { it.id }
+            )
+            assertNull(vm.state.value.falloDeLaFoto)
+        }
+
+    /**
+     * El otro lado: la foto que termina cuando la escritura **ya se llevó la
+     * lista**. No puede entrar —la visita ya está escrita y encolada— así que lo
+     * único que se puede hacer bien es **no callarlo** y no dejar el archivo
+     * ocupando disco.
+     */
+    @Test
+    fun `una foto que llega despues de la escritura se reporta y se borra`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+            vm.onResultado(ResultadoDeVisita.NO_ESTABA)
+            vm.pedirFoto()
+            advanceUntilIdle()
+
+            vm.guardar()
+            advanceUntilIdle()
+            assertEquals(vm.visitaId, vm.state.value.registrada)
+
+            vm.fotoTomada()
+            advanceUntilIdle()
+
+            assertEquals(
+                "la visita se escribio sin ella, y no se le agrega despues",
+                emptyList<Any>(),
+                registroPort.registradas.single().comprobantes
+            )
+            assertEquals(emptyList<Any>(), vm.state.value.comprobantes)
+            assertEquals(FalloDeLaFoto.LLEGO_TARDE, vm.state.value.falloDeLaFoto)
+            assertTrue(
+                "el archivo que nadie va a subir no se queda en disco",
+                camaraPort.descartados.isNotEmpty()
+            )
+            assertTrue(
+                telemetria.recorded.any {
+                    it.type == TelemetryEventType.ERROR &&
+                        it.name == VisitasTelemetria.CODE_VISITA_FOTO_TARDE
+                }
+            )
+        }
+
+    /**
+     * **Control positivo del anterior.** Si la escritura FALLA, nada quedó
+     * escrito y la lista vuelve a estar abierta: la misma foto tardía sí se
+     * adjunta, para que el reintento se la lleve. Sin esto, el arreglo de arriba
+     * convertiría un guardado fallido en una foto perdida.
+     */
+    @Test
+    fun `si el guardado falla la foto tardia si se adjunta`() = runTest(testDispatcher) {
+        registroPort.resultado = ResultadoDelRegistro.FALLO_EL_GUARDADO
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.NO_ESTABA)
+        vm.pedirFoto()
+        advanceUntilIdle()
+
+        vm.guardar()
+        advanceUntilIdle()
+        assertEquals(FalloDeLaVisita.NO_SE_PUDO_GUARDAR, vm.state.value.fallo)
+
+        vm.fotoTomada()
+        advanceUntilIdle()
+
+        assertEquals(listOf("IMG-1"), vm.state.value.comprobantes.map { it.id })
+        assertEquals(emptyList<Any>(), camaraPort.descartados)
     }
 
     // ─── helpers ─────────────────────────────────────────────────────────────

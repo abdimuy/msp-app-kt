@@ -142,6 +142,17 @@ class RegistrarVisitaViewModel @Inject constructor(
      */
     private var pidiendoFoto: Boolean = false
 
+    /**
+     * **La escritura ya tomó los comprobantes.** De acá en adelante ninguna foto
+     * puede entrar a ESTA visita, por buena que sea.
+     *
+     * No se persiste: si el proceso muere durante la escritura, el guard
+     * [yaSeEncolo] y la recarga deciden, y esta bandera vuelve a `false` con el
+     * ViewModel nuevo — que es lo correcto, porque la escritura de ese proceso
+     * ya no va a publicar nada.
+     */
+    private var laEscrituraYaTomoLasFotos: Boolean = false
+
     private val mutableState = MutableStateFlow(RegistrarVisitaUiState())
     val state: StateFlow<RegistrarVisitaUiState> = mutableState.asStateFlow()
 
@@ -340,10 +351,12 @@ class RegistrarVisitaViewModel @Inject constructor(
      * adjunta.
      *
      * Un tipo fuera de la whitelist del servidor se descarta **aquí**, con su
-     * archivo: en visitas guardarlo no aplazaría un rechazo de la foto, sino un
-     * **422 de la visita entera** (`parseImagenesFromForm` corta el request al
-     * primer MIME no permitido), y para entonces el teléfono ya no la tendría a
-     * mano.
+     * archivo: guardarlo solo aplazaría un **422 de la visita entera**
+     * (`parseImagenesFromForm` corta el request al primer MIME no permitido)
+     * hasta un momento en que el teléfono ya no la tendría a mano. Es la misma
+     * consecuencia que tiene en pagos —Huma rechaza allá el request completo por
+     * el tag `contentType`—, y no la diferencia entre las dos que una versión
+     * anterior de este comentario afirmaba.
      */
     @Suppress(
         "TooGenericExceptionCaught"
@@ -418,12 +431,61 @@ class RegistrarVisitaViewModel @Inject constructor(
         borrarArchivo(quitado.archivo)
     }
 
-    private fun adjuntar(comprobante: ComprobanteDeVisita) {
+    /**
+     * Cuelga la foto ya procesada — **salvo que llegue tarde**.
+     *
+     * ## La ventana que esto cierra
+     *
+     * `aceptar()` es asíncrono (comprime), así que entre "la cámara volvió" y
+     * "la foto está en el estado" hay un hueco. Si el cobrador toca **guardar**
+     * dentro de ese hueco, la escritura ya se llevó su lista y esta foto no
+     * entra a `visita_imagenes`, no sube nunca, y —sin esta compuerta— **no deja
+     * rastro**: la única forma que tiene una foto BUENA de desaparecer.
+     *
+     * [guardar] estrecha el hueco leyendo los comprobantes lo más tarde posible
+     * (ver su KDoc), así que el caso normal se salva. Lo que queda después de
+     * esa lectura es irrecuperable por construcción, y entonces **se reporta y
+     * se borra el archivo**: nada lo va a subir, y dejarlo sería una foto
+     * ocupando disco que nadie va a entregar.
+     */
+    private suspend fun adjuntar(comprobante: ComprobanteDeVisita) {
+        if (laEscrituraYaTomoLasFotos || mutableState.value.registrada != null) {
+            rechazarTardia(comprobante)
+            return
+        }
         comprobantes = comprobantes + comprobante
         mutableState.value = mutableState.value.copy(
             comprobantes = comprobantes,
             falloDeLaFoto = null
         )
+    }
+
+    /**
+     * La foto llegó después de que la escritura tomó los comprobantes. **No se
+     * traga**: código propio, porque no falló nada y aun así la evidencia no
+     * existe en ningún lado.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // borrar un archivo puede fallar por permisos o por FS; se reporta y se sigue.
+    private suspend fun rechazarTardia(comprobante: ComprobanteDeVisita) {
+        telemetry.error(
+            code = VisitasTelemetria.CODE_VISITA_FOTO_TARDE,
+            message = "la foto termino de procesarse cuando la escritura ya se llevo la lista",
+            props = emptyMap()
+        )
+        mutableState.value = mutableState.value.copy(falloDeLaFoto = FalloDeLaFoto.LLEGO_TARDE)
+        try {
+            camara.descartar(comprobante.archivo)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            reportarFalloDeFoto(
+                fallo,
+                "no se pudo borrar la foto que llego tarde",
+                conAviso = false
+            )
+        }
     }
 
     @Suppress(
@@ -507,7 +569,17 @@ class RegistrarVisitaViewModel @Inject constructor(
         yaSeEncolo = true
         mutableState.value = actual.copy(guardando = true, fallo = null)
         viewModelScope.launch {
-            aplicar(escribir(actual))
+            // Los comprobantes se leen ACÁ y no en el snapshot del toque: es lo
+            // más tarde que se puede leerlos sin que la escritura ya haya
+            // empezado, y rescata a la foto cuyo `adjuntar` quedó encolado
+            // justo antes del toque. NO rescata a la que sigue comprimiéndose
+            // —esperarla sería que la foto bloquee el guardado— y por eso
+            // `adjuntar` la reporta en vez de tragársela.
+            val conLasFotosDeAhora = actual.copy(comprobantes = mutableState.value.comprobantes)
+            // Y desde este instante la lista está tomada: lo que llegue después
+            // no entra, y `adjuntar` lo reporta en vez de tragárselo.
+            laEscrituraYaTomoLasFotos = true
+            aplicar(escribir(conLasFotosDeAhora))
         }
     }
 
@@ -546,6 +618,9 @@ class RegistrarVisitaViewModel @Inject constructor(
             return
         }
         yaSeEncolo = false
+        // Nada quedó escrito, así que la lista vuelve a estar abierta: el
+        // reintento tiene que poder llevarse las fotos que se sigan adjuntando.
+        laEscrituraYaTomoLasFotos = false
         telemetry.error(
             code = VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO,
             message = "la visita no quedo registrada",
@@ -610,6 +685,7 @@ class RegistrarVisitaViewModel @Inject constructor(
                 // quizá no se escribió", la primera es la que no pierde trabajo
                 // de campo.
                 yaSeEncolo = false
+                laEscrituraYaTomoLasFotos = false
             }
         }
     } catch (cancelada: CancellationException) {

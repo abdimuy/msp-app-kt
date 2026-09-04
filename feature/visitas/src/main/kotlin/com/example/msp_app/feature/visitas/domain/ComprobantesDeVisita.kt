@@ -26,6 +26,11 @@ import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
  * Lo que sí es común de verdad —reconocer un JPEG por sus primeros bytes— es
  * doce líneas sin contrato adentro, y duplicarlas cuesta menos que acoplar dos
  * endpoints.
+ *
+ * Lo que **no** los separa, para que nadie lo repita: la consecuencia de un MIME
+ * no permitido es la misma en los dos (se cae la escritura entera, no solo la
+ * imagen). Cambia dónde se valida —el tag `contentType` de Huma en cobranza, el
+ * loop del handler en visitas—, no qué pasa.
  */
 object ComprobantesDeVisita {
 

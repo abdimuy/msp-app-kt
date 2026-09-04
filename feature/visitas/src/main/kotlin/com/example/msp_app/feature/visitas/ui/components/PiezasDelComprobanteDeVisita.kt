@@ -179,6 +179,7 @@ private fun AvisoDeLaFoto(fallo: FalloDeLaFoto) {
                 FalloDeLaFoto.NO_SE_PUDO_TOMAR -> "no se pudo adjuntar"
                 FalloDeLaFoto.TIPO_NO_PERMITIDO -> "ese archivo no se acepta"
                 FalloDeLaFoto.YA_NO_CABEN -> "ya no caben más"
+                FalloDeLaFoto.LLEGO_TARDE -> "no alcanzó a entrar"
             },
             style = MspTheme.type.bodyStrong,
             color = colors.statusPartial

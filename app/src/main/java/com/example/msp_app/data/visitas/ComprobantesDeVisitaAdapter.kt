@@ -2,6 +2,7 @@ package com.example.msp_app.data.visitas
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.FileProvider
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
@@ -56,9 +57,15 @@ internal const val PREFIJO_COMPROBANTE_VISITA = "comprobante_visita_"
  * escribió la cámara es preguntarnos a nosotros mismos. Se leen los primeros
  * bytes y decide [ComprobantesDeVisita.tipoDe]. Un archivo vacío —cámara que
  * contesta OK sin escribir— cae en `application/octet-stream`, que no está
- * permitido, y el ViewModel lo rechaza con su aviso. Acá eso pesa más que en
- * pagos: un MIME fuera de la whitelist hace que el servidor conteste 422 a la
- * **visita entera**, no solo a la foto.
+ * permitido, y el ViewModel lo rechaza con su aviso. Y eso pesa: un MIME fuera
+ * de la whitelist hace que el servidor conteste 422 a la **visita entera**, no
+ * solo a la foto.
+ *
+ * (Corrección: una versión anterior de este comentario decía que en pagos el
+ * rechazo era solo de la imagen. **Es falso** — en cobranza la whitelist vive en
+ * el tag `contentType` de `CrearPagoMultipartFields.Imagen`, que Huma valida
+ * ANTES del handler y devuelve 422 del request completo. Las dos rutas tumban su
+ * escritura entera; lo que cambia es dónde se valida, no la consecuencia.)
  */
 class ComprobantesDeVisitaAdapter(
     private val context: Context,
@@ -143,6 +150,20 @@ class ComprobantesDeVisitaAdapter(
      *    que la visita se registre, así que un cobrador que se arrepiente y sale
      *    de la pantalla deja el archivo sin fila.
      *
+     * ## Huérfana es la que no tiene padre; pendiente NO es huérfana
+     *
+     * La consulta exige `VISITA_ID NOT IN (SELECT ID FROM Visit)`, así que una
+     * imagen pendiente **cuya visita sigue existiendo** no se toca nunca: esa no
+     * es basura, es evidencia esperando señal.
+     *
+     * Lo que sí puede caer es la pendiente **sin padre** — su visita ya se podó
+     * y nadie la va a subir jamás. Ahí borrar es correcto (si no, el disco del
+     * teléfono crece sin techo), pero **borrarla en silencio no**: eso convierte
+     * el barrido en el desagüe mudo de toda evidencia no entregada, incluida la
+     * que las mitigaciones de esta misma tarea decían dejar "visible durante la
+     * ventana". Por eso se cuenta y se reporta
+     * ([VisitasTelemetria.CODE_VISITA_FOTO_BARRIDA_SIN_SUBIR]).
+     *
      * Las dos por ANTIGÜEDAD, nunca al instante: un archivo reciente sin fila
      * puede ser el de la captura que está ocurriendo ahora mismo, y una fila sin
      * visita puede estar a medio reinsertar (`VisitDao.insertVisit` es
@@ -157,16 +178,19 @@ class ComprobantesDeVisitaAdapter(
      * Es best-effort y corre al preparar la cámara, nunca en el tick del merge de
      * sincronización. Su fallo no puede impedir tomar una foto.
      */
+    @VisibleForTesting
     @Suppress(
         "TooGenericExceptionCaught"
     ) // leer un directorio o la base puede fallar; ninguna de las dos toca la captura.
-    private suspend fun barrerHuerfanos() {
+    internal suspend fun barrerHuerfanos() {
         try {
             val corte = clock.now().minus(VEJEZ)
-            imagenes.huerfanasAnterioresA(AppTime.toWireFormat(corte)).forEach { fila ->
+            val huerfanas = imagenes.huerfanasAnterioresA(AppTime.toWireFormat(corte))
+            huerfanas.forEach { fila ->
                 File(fila.URI).delete()
                 imagenes.eliminar(fila.ID)
             }
+            reportarLoQueNuncaSubio(huerfanas.count { it.SUBIDA_EN == null })
             val vivas = imagenes.rutasVivas().toSet()
             comprobantesDeVisitaHuerfanos(context.filesDir, vivas, corte.toEpochMilli())
                 .forEach { it.delete() }
@@ -179,6 +203,21 @@ class ComprobantesDeVisitaAdapter(
                 props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
             )
         }
+    }
+
+    /**
+     * Dice **cuántas** fotos se barrieron sin haber subido nunca. Solo el
+     * conteo: ni ids, ni rutas, ni nada del cliente (anti-PII).
+     *
+     * Cero no se reporta — un barrido que no perdió nada no es un evento.
+     */
+    private fun reportarLoQueNuncaSubio(cuantas: Int) {
+        if (cuantas == 0) return
+        telemetry.error(
+            code = VisitasTelemetria.CODE_VISITA_FOTO_BARRIDA_SIN_SUBIR,
+            message = "se barrieron comprobantes de visitas podadas que nunca llegaron a subir",
+            props = mapOf(VisitasTelemetria.PROP_OCURRENCIAS to cuantas.toString())
+        )
     }
 
     private companion object {

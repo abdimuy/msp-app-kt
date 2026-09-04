@@ -122,6 +122,28 @@ object VisitasTelemetria {
     const val CODE_VISITA_COMPROBANTES_NO_SE_GUARDARON: String =
         "visita_comprobantes_no_se_guardaron"
 
+    /**
+     * La foto terminó de procesarse **después** de que la escritura ya tomó los
+     * comprobantes, así que no pudo entrar a esa visita.
+     *
+     * Código propio y no [CODE_VISITA_FOTO_FALLO]: nada falló — la cámara
+     * funcionó, la compresión funcionó, y aun así la evidencia no existe en
+     * ningún lado. Es el único desenlace en el que una foto BUENA se pierde, y
+     * perderla en silencio es justo lo que la norma prohíbe.
+     */
+    const val CODE_VISITA_FOTO_TARDE: String = "visita_foto_tarde"
+
+    /**
+     * El barrido borró una fila cuya visita ya no existe y que **nunca llegó a
+     * subir**: evidencia que no se entregó y ya no se va a entregar.
+     *
+     * Se emite con el CONTEO, nunca con ids ni rutas. Sin este evento el
+     * barrido es un desagüe silencioso — y era, además, el desagüe de las dos
+     * mitigaciones de esta misma tarea (la retención de la poda y la ventana de
+     * visibilidad): las dos terminaban acá, mudas.
+     */
+    const val CODE_VISITA_FOTO_BARRIDA_SIN_SUBIR: String = "visita_foto_barrida_sin_subir"
+
     /** Prop con el MIME rechazado. Valor técnico cerrado, nunca dato del cliente. */
     const val PROP_TIPO: String = "tipo"
 
