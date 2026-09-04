@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -55,6 +56,9 @@ const val ALERTA_RARO_TAG: String = "pagos_abono_alerta_raro"
 
 /** `testTag` de la banda ámbar del posible duplicado de la semana. */
 const val DUPLICADO_TAG: String = "pagos_abono_duplicado"
+
+/** `testTag` de la banda ámbar del abono corto. */
+const val ABONO_CORTO_TAG: String = "pagos_abono_corto"
 
 /** `testTag` del indicador de dos pasos. */
 const val DOS_PASOS_TAG: String = "pagos_abono_dos_pasos"
@@ -171,7 +175,11 @@ fun HojaDeConfirmacion(
             verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)
         ) {
             Agarradera()
-            if (raro) {
+            // Las bandas se pintan cuando hay ALGO que decir, no solo cuando la
+            // hoja escala: un aviso de tono suave (Ruling AM) tiene banda pero
+            // no enciende `raro`. El titular "confirmar abono" le cede el lugar,
+            // igual que ya hacía con el duplicado solo.
+            if (veredicto.rarezas.isNotEmpty()) {
                 BandasDeRareza(
                     rarezas = veredicto.rarezas,
                     importe = importe,
@@ -371,7 +379,14 @@ private fun CeldaDeSaldo(
     }
 }
 
-/** Las bandas de rareza: la alerta roja y, si aplica, el posible duplicado ámbar. */
+/**
+ * Las bandas del veredicto, de mayor a menor gravedad: la alerta roja (una sola,
+ * la más grave) y después las ámbar, que se acumulan.
+ *
+ * El `when` sin sujeto es lo que hace que **solo una** alerta roja se pinte: dos
+ * titulares en rojo compiten entre sí y ninguno se lee. Las ámbar no compiten
+ * —describen hechos distintos del mismo abono— y por eso van en `if` sueltos.
+ */
 @Composable
 private fun BandasDeRareza(rarezas: Set<RarezaDelAbono>, importe: Money, esperadoHoy: Money) {
     val colors = MspTheme.colors
@@ -394,28 +409,13 @@ private fun BandasDeRareza(rarezas: Set<RarezaDelAbono>, importe: Money, esperad
             }
         }
 
-        RarezaDelAbono.ABAJO_DE_LO_ESPERADO in rarezas -> AlertaRoja(
-            titulo = "abono corto — verifica",
-            detalle = "es menor al pago esperado, la cuenta se queda debiendo la diferencia"
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)) {
-                Text(
-                    text = "esperado ${formatMoneyMxn(esperadoHoy.amount)}",
-                    style = MspTheme.type.captionStrong,
-                    color = colors.statusOverdue
-                )
-                Text(
-                    text = "este abono ${formatMoneyMxn(importe.amount)}",
-                    style = MspTheme.type.captionStrong,
-                    color = colors.statusOverdue
-                )
-            }
-        }
-
         RarezaDelAbono.NO_TERMINA_EN_CINCUENTA in rarezas -> AlertaRoja(
             titulo = "monto poco común — verifica",
             detalle = "no termina en 00 ni en 50, confirma que es correcto"
         )
+    }
+    if (RarezaDelAbono.ABAJO_DE_LO_ESPERADO in rarezas) {
+        BandaDeAbonoCorto(importe = importe, esperadoHoy = esperadoHoy)
     }
     if (RarezaDelAbono.YA_ABONO_ESTE_PERIODO in rarezas) BandaDeDuplicado()
 }
@@ -442,6 +442,57 @@ private fun AlertaRoja(titulo: String, detalle: String, extra: (@Composable () -
             Text(text = titulo, style = MspTheme.type.bodyStrong, color = colors.statusOverdue)
             Text(text = detalle, style = MspTheme.type.caption, color = colors.statusOverdue)
             extra?.invoke()
+        }
+    }
+}
+
+/**
+ * **El abono corto, en ámbar y no en rojo** (Ruling AM, ronda 3 de arreglo).
+ *
+ * Repone el aviso que `NewPaymentDialog` pintaba y que se perdió al retirarlo,
+ * pero en el tono que le toca: `statusPartial` es el token con el que el resto
+ * de la app ya pinta `EstadoCuenta.ABONO_PARCIAL`, o sea este mismo desenlace.
+ * Cobrar menos de la cuota es normal y frecuente; lo que el aviso compra es que
+ * sea **deliberado**, no que parezca un accidente.
+ *
+ * Lleva las **dos cifras** porque sin ellas el cobrador ve que algo falta pero
+ * no contra qué: "esperado $220 · este abono $150" es la frase entera.
+ *
+ * Deliberadamente NO comparte composable con [BandaDeDuplicado] pese al
+ * parecido: aquélla tiene golden (`monto_raro`) y extraerle un tronco común
+ * arriesgaría moverlo por un píxel de layout, a cambio de ahorrar quince líneas.
+ */
+@Composable
+private fun BandaDeAbonoCorto(importe: Money, esperadoHoy: Money) {
+    val colors = MspTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.statusPartialTint, MspTheme.shapes.control)
+            .border(1.dp, colors.statusPartial, MspTheme.shapes.control)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .testTag(ABONO_CORTO_TAG),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Info,
+            contentDescription = null,
+            tint = colors.statusPartial,
+            modifier = Modifier.size(16.dp)
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
+            Text(
+                text = "abono corto",
+                style = MspTheme.type.bodyStrong,
+                color = colors.statusPartial
+            )
+            Text(
+                text = "esperado ${formatMoneyMxn(esperadoHoy.amount)} · " +
+                    "este abono ${formatMoneyMxn(importe.amount)}",
+                style = MspTheme.type.captionStrong,
+                color = colors.statusPartial
+            )
         }
     }
 }

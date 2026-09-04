@@ -218,6 +218,27 @@ object AbonoFixtures {
         }
 
     /**
+     * **Corto Y duplicado a la vez**: $150 sobre una venta que espera $120 y que
+     * ya recibió $100 esta semana. Gana la más grave — la hoja escala.
+     *
+     * Con `abonoDelPeriodo = $100` sobre una parcialidad de $220, lo esperado hoy
+     * baja a $120, así que $150 **no** es corto contra esa cifra. Para que las
+     * dos rarezas coincidan de verdad el monto tiene que quedar por debajo de
+     * $120: se usa $100, que además termina en 00 y no llega a 5x, o sea que las
+     * únicas dos encendidas son las que este fixture quiere.
+     */
+    fun enAbonoCortoYDuplicado(): RegistrarAbonoUiState =
+        conMonto(MontoCapturado(crudo = "100"), estadoConAbonoParcial()).let { base ->
+            base.copy(
+                confirmacion = ConfirmacionPendiente(
+                    importe = base.monto.importe,
+                    metodo = base.metodo,
+                    veredicto = base.veredicto
+                )
+            )
+        }
+
+    /**
      * El final incómodo: la escritura no se pudo comprobar, el guard sigue
      * puesto y el CTA tiene que estar APAGADO, con la banda ofreciendo el
      * reintento real.

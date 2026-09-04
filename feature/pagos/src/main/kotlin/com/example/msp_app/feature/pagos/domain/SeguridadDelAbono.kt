@@ -29,16 +29,39 @@ enum class BloqueoDelAbono {
 }
 
 /**
- * Por qué un abono que SÍ se puede registrar se ve raro. Una rareza **nunca**
- * bloquea: escala la confirmación a una alerta roja que obliga a afirmar el
- * monto en vez de solo continuar.
+ * Por qué un abono que SÍ se puede registrar merece un aviso. Una rareza
+ * **nunca** bloquea.
  *
  * Solo se evalúan sobre un monto que no está bloqueado — un monto prohibido no
  * necesita además ruido de "¿seguro?" encima.
+ *
+ * ## Dos tonos, y la diferencia importa (Ruling AM, ronda 3 de arreglo)
+ *
+ * [escalaLaHoja] parte estas rarezas en dos, y no es una decisión de gusto:
+ *
+ * - **Las que escalan** son las anómalas: el dígito de más, el monto que no
+ *   cuadra, el posible cobro duplicado. La hoja se pinta en rojo y el CTA cambia
+ *   a "sí, el monto es correcto" — hay que **afirmar** el monto, no solo
+ *   continuar.
+ * - **Las que solo avisan** describen un desenlace que el dominio de este plan ya
+ *   modela como **normal**: `EstadoCuenta` distingue *Pagó* de *Abonó parcial*, y
+ *   el contrato de tests exige probar los tres casos alrededor de la
+ *   `PARCIALIDAD`. Un desenlace que el dominio trata como de primera clase no
+ *   puede pintar la pantalla de peligro.
+ *
+ * El daño de mezclarlas es concreto y va en la dirección contraria a la
+ * intuición: **una alarma que suena en el caso común entrena al cobrador a
+ * descartarla**, y se lleva por delante a la que sí importaba. Degradar el canal
+ * del duplicado —que es raro y es caro— es peor que no haber avisado del abono
+ * corto.
+ *
+ * @property escalaLaHoja si esta rareza sola basta para poner la confirmación en
+ *   rojo. Toda rareza nueva tiene que declararlo: es la pregunta que este enum
+ *   obliga a contestar.
  */
-enum class RarezaDelAbono {
+enum class RarezaDelAbono(val escalaLaHoja: Boolean) {
     /** Cinco veces o más lo esperado hoy. El dígito de más. */
-    MUY_ARRIBA_DE_LO_ESPERADO,
+    MUY_ARRIBA_DE_LO_ESPERADO(escalaLaHoja = true),
 
     /**
      * Menos de lo esperado hoy. **El hermano de arriba, en la otra dirección.**
@@ -53,18 +76,24 @@ enum class RarezaDelAbono {
      * cubre este caso: `montoInicialDe` lo marca como sugerido y la primera
      * tecla lo reemplaza entero, así que el cobrador que teclea un monto corto
      * nunca vio la cifra que reemplazó. Éste es exactamente ese cobrador.
+     *
+     * **No escala la hoja** (Ruling AM): un abono parcial es un desenlace que el
+     * dominio ya trata como normal. Se dice en ámbar —el mismo tono de
+     * `EstadoCuenta.ABONO_PARCIAL`— y el CTA sigue siendo "confirmar y
+     * registrar". Es la única rareza de este tono junto con... ninguna otra: las
+     * demás sí son anómalas.
      */
-    ABAJO_DE_LO_ESPERADO,
+    ABAJO_DE_LO_ESPERADO(escalaLaHoja = false),
 
     /**
      * No termina en 00 ni en 50. Se exenta cuando liquida la venta (== saldo) o
      * cuando es exactamente lo esperado hoy: esos dos montos son raros por
      * aritmética, no por error de dedo.
      */
-    NO_TERMINA_EN_CINCUENTA,
+    NO_TERMINA_EN_CINCUENTA(escalaLaHoja = true),
 
     /** Esta venta ya recibió dinero en el periodo abierto. El posible duplicado. */
-    YA_ABONO_ESTE_PERIODO
+    YA_ABONO_ESTE_PERIODO(escalaLaHoja = true)
 }
 
 /**
@@ -82,8 +111,17 @@ data class VeredictoDelAbono(
     /** Se puede registrar si y solo si nada lo bloquea. */
     val sePuedeRegistrar: Boolean get() = bloqueos.isEmpty()
 
-    /** Registrable pero inusual: la confirmación se pone roja. */
-    val esRaro: Boolean get() = rarezas.isNotEmpty()
+    /**
+     * Registrable pero **anómalo**: la confirmación se pone roja y el CTA obliga
+     * a afirmar el monto.
+     *
+     * No es "hay alguna rareza" sino "hay alguna que escale" (Ruling AM). Un
+     * aviso de tono suave —hoy solo [RarezaDelAbono.ABAJO_DE_LO_ESPERADO]— se
+     * pinta igual, en su banda ámbar, sin encender esto. Y basta **una** grave
+     * para escalar: con un abono corto encima de un posible duplicado, gana la
+     * más grave.
+     */
+    val esRaro: Boolean get() = rarezas.any { it.escalaLaHoja }
 
     companion object {
         /**

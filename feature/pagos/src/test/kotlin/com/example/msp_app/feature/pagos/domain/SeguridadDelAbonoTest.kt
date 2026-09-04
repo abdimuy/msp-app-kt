@@ -142,8 +142,9 @@ class SeguridadDelAbonoTest {
         val veredicto = evaluar(dinero("150"))
         assertTrue(RarezaDelAbono.ABAJO_DE_LO_ESPERADO in veredicto.rarezas)
         assertTrue("una rareza NUNCA bloquea", veredicto.sePuedeRegistrar)
-        assertTrue(veredicto.esRaro)
         assertTrue(veredicto.bloqueos.isEmpty())
+        // Que ADEMAS no escale la hoja es del Ruling AM, y vive en su propio
+        // test: aqui se afirma solo que no bloquea.
     }
 
     /**
@@ -178,6 +179,79 @@ class SeguridadDelAbonoTest {
                     RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO in rarezas
             )
         }
+    }
+
+    // --- Los dos tonos de aviso (Ruling AM, ronda 3 de arreglo) --------------
+
+    /**
+     * **El abono corto avisa pero NO escala la hoja.** `EstadoCuenta` distingue
+     * *Pagó* de *Abonó parcial*: un desenlace que el dominio modela como normal
+     * no puede pintar la pantalla de peligro. Y el daño de mezclarlos va en la
+     * dirección contraria a la intuición — una alarma que suena en el caso común
+     * entrena al cobrador a descartarla, y se lleva por delante a la del
+     * duplicado, que sí es rara y sí es cara.
+     *
+     * $150 termina en 50 y no llega a 5x, así que la ÚNICA rareza encendida es
+     * la del abono corto: si `esRaro` fuera `true` aquí, sería por ella.
+     */
+    @Test
+    fun `un abono corto solo avisa, no escala la hoja`() {
+        val veredicto = evaluar(dinero("150"))
+        assertEquals(setOf(RarezaDelAbono.ABAJO_DE_LO_ESPERADO), veredicto.rarezas)
+        assertFalse("el aviso suave no puede poner la hoja en rojo", veredicto.esRaro)
+        assertTrue(veredicto.sePuedeRegistrar)
+    }
+
+    /**
+     * **Y las graves siguen escalando, una por una.** Sin esto, mover `esRaro` a
+     * "alguna que escale" podría haber apagado las tres a la vez y todos los
+     * demás tests seguirían verdes.
+     */
+    @Test
+    fun `las tres rarezas graves siguen escalando la hoja`() {
+        assertTrue("5x lo esperado", evaluar(dinero("1100")).esRaro)
+        assertTrue("no termina en 00 ni 50", evaluar(dinero("317")).esRaro)
+        assertTrue(
+            "ya abono este periodo",
+            SeguridadDelAbono.evaluar(
+                monto = dinero("300"),
+                saldo = saldo,
+                esperadoHoy = esperado,
+                yaAbonoEstePeriodo = true
+            ).esRaro
+        )
+    }
+
+    /**
+     * **Corto MÁS grave: gana la más grave.** Un abono corto encima de un posible
+     * duplicado tiene que escalar igual — el aviso suave no puede apagar al que
+     * sí importaba.
+     */
+    @Test
+    fun `un abono corto encima de un duplicado si escala`() {
+        val veredicto = SeguridadDelAbono.evaluar(
+            monto = dinero("150"),
+            saldo = saldo,
+            esperadoHoy = esperado,
+            yaAbonoEstePeriodo = true
+        )
+        assertTrue(RarezaDelAbono.ABAJO_DE_LO_ESPERADO in veredicto.rarezas)
+        assertTrue(RarezaDelAbono.YA_ABONO_ESTE_PERIODO in veredicto.rarezas)
+        assertTrue("gana la mas grave", veredicto.esRaro)
+    }
+
+    /**
+     * El tono lo declara el propio enum, así que se puede afirmar de golpe: **una
+     * sola** rareza es de aviso suave, y es la del abono corto. Cualquier rareza
+     * nueva que se agregue sin pensar el tono rompe esta afirmación, que es
+     * exactamente cuándo hay que pensarlo.
+     */
+    @Test
+    fun `solo el abono corto es aviso suave, las demas escalan`() {
+        assertEquals(
+            setOf(RarezaDelAbono.ABAJO_DE_LO_ESPERADO),
+            RarezaDelAbono.entries.filterNot { it.escalaLaHoja }.toSet()
+        )
     }
 
     @Test

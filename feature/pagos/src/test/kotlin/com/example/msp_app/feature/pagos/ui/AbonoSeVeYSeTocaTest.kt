@@ -24,6 +24,7 @@ import com.example.msp_app.core.designsystem.theme.mspLightColors
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.ui.components.ABONO_CORTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AFIRMAR_EL_MONTO
 import com.example.msp_app.feature.pagos.ui.components.ALERTA_RARO_TAG
 import com.example.msp_app.feature.pagos.ui.components.BLOQUEO_TAG
@@ -284,36 +285,64 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **El aviso del abono corto, repuesto (Ruling AL).** `NewPaymentDialog`
-     * pintaba "el pago es menor a la parcialidad acordada de $X" y ese aviso se
-     * fue con él; la pantalla nueva no tenía nada equivalente.
+     * **El aviso del abono corto, repuesto (AL) y en su tono (AM).**
      *
-     * Se afirma la banda **y sus dos cifras**: sin ellas el cobrador ve que algo
-     * está raro pero no contra qué. Y se afirma que **sigue pudiendo registrar**
-     * — un abono corto es legítimo, el aviso solo lo vuelve deliberado.
+     * `NewPaymentDialog` pintaba "el pago es menor a la parcialidad acordada de
+     * $X" y ese aviso se fue con él. Vuelve, pero **en ámbar**: un abono parcial
+     * es un desenlace que el dominio ya modela como normal (`EstadoCuenta`
+     * distingue *Pagó* de *Abonó parcial*), y una alarma que suena en el caso
+     * común entrena al cobrador a descartar también la que sí importa.
+     *
+     * Se afirman las tres cosas que la ronda 3 decidió, no solo la banda:
+     * que está, que **no** hay alerta roja, y que el CTA sigue siendo el azul de
+     * "confirmar y registrar" en vez del `Danger` que obliga a afirmar el monto.
      *
      * **Control de reversión (verificado, ver `task-21-fix-1-report.md`):**
-     * quitar el `if (esperadoHoy > Money.ZERO && monto < esperadoHoy)` de
-     * `SeguridadDelAbono.rarezasDe` pone este test en ROJO.
+     * volver `esRaro` a `rarezas.isNotEmpty()` pone este test en ROJO.
      */
     @Test
-    fun `un abono menor a lo esperado avisa, con las dos cifras, y aun asi registra`() {
+    fun `un abono corto avisa en ambar, sin alerta roja y sin CTA de peligro`() {
         pinta(AbonoFixtures.enAbonoCorto())
-        composeTestRule.onNodeWithTag(ALERTA_RARO_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithText("abono corto — verifica").assertIsDisplayed()
-        composeTestRule.onNodeWithText("esperado $220").assertIsDisplayed()
-        composeTestRule.onNodeWithText("este abono $150").assertIsDisplayed()
-        val avisoDeMontoAlto = composeTestRule
-            .onAllNodesWithText("monto inusual — verifica")
-            .fetchSemanticsNodes()
+        composeTestRule.onNodeWithTag(ABONO_CORTO_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("abono corto").assertIsDisplayed()
+        composeTestRule.onNodeWithText("esperado $220 · este abono $150").assertIsDisplayed()
+
         assertEquals(
-            "no es el aviso del monto ALTO: son direcciones opuestas",
+            "un desenlace normal no pinta la hoja de peligro",
             0,
-            avisoDeMontoAlto.size
+            composeTestRule.onAllNodesWithTag(ALERTA_RARO_TAG).fetchSemanticsNodes().size
         )
+        assertEquals(
+            "ni cambia el CTA por el que obliga a afirmar el monto",
+            0,
+            composeTestRule.onAllNodesWithText(AFIRMAR_EL_MONTO).fetchSemanticsNodes().size
+        )
+        composeTestRule.onNodeWithText("confirmar y registrar").assertIsDisplayed()
+
         assertEquals("y no registra por sí solo", 0, registros)
         composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
         assertEquals("un abono corto es legítimo: avisa, no bloquea", 1, registros)
+    }
+
+    /**
+     * **La otra dirección: gana la más grave.** Un abono corto encima de un
+     * posible duplicado sí escala — el aviso suave no puede apagar al que sí
+     * importaba, que es justo el daño que el Ruling AM vino a evitar.
+     *
+     * Las dos bandas ámbar conviven; lo que cambia es que ahora la hoja está en
+     * rojo y el CTA obliga a afirmar el monto.
+     */
+    @Test
+    fun `un abono corto encima de un duplicado si escala la hoja`() {
+        pinta(AbonoFixtures.enAbonoCortoYDuplicado())
+        composeTestRule.onNodeWithTag(ABONO_CORTO_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(DUPLICADO_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText(AFIRMAR_EL_MONTO).assertIsDisplayed()
+        assertEquals(
+            "el botón azul de continuar NO está: hay que afirmar el monto",
+            0,
+            composeTestRule.onAllNodesWithText("confirmar y registrar").fetchSemanticsNodes().size
+        )
     }
 
     @Test
