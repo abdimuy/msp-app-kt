@@ -23,6 +23,17 @@ dependencies {
     // Dispatchers.IO viven en `DantSuPrinterGateway`.
     implementation(libs.kotlinx.coroutines.core)
 
+    // `AppClock`/`AppTime` (Task 20): la regla "el ticket solo se imprime el dia
+    // del cobro" compara DIAS DE NEGOCIO (`America/Mexico_City`), y esa zona
+    // tiene una sola fuente en el repo. Sin esto la regla tendria que recibir
+    // fechas ya calculadas y cada llamador podria calcularlas distinto.
+    implementation(project(":core:common"))
+
+    // Telemetria (NORMA DE ERRORES, vinculante en `:core:*`): `SharedPrefsPrintLog`
+    // reporta un `commit` fallido y una fecha ilegible con su codigo propio en
+    // vez de tragarselos.
+    implementation(project(":core:telemetry"))
+
     // `androidx.core.content.edit` (PreferredPrinterRepository) y
     // `ContextCompat.checkSelfPermission` (BluetoothPrinterDiscovery).
     implementation(libs.androidx.core.ktx)
@@ -36,4 +47,9 @@ dependencies {
     // acá solo falta `ApplicationProvider` para los tests Robolectric
     // (BluetoothPrinterDiscoveryTest / PreferredPrinterRepositoryTest).
     testImplementation(libs.androidx.test.core)
+
+    // `FakeClock` + `RecordingTelemetry` (fakes-only, sin MockK) para la regla
+    // del dia del cobro y el registro de impresiones (Task 20). Aciclico:
+    // `:core:testing` no depende de `:core:printing`.
+    testImplementation(project(":core:testing"))
 }

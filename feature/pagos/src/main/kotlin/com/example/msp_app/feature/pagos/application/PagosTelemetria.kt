@@ -123,6 +123,22 @@ object PagosTelemetria {
     /** Falló la carga de la venta en la pantalla de abono. El id NO se emite. */
     const val CODE_ABONO_VENTA_FALLO: String = "pagos_abono_venta_fallo"
 
+    /**
+     * La ruta del ticket de pago apunta a un abono que el teléfono no tiene (o a
+     * una condonación, que no sale por el puerto de cobranza). El id NO se
+     * emite. Es una ruta rota, no una condición normal, y por eso se reporta.
+     */
+    const val CODE_TICKET_PAGO_SIN_ABONO: String = "pagos_ticket_sin_abono"
+
+    /** Falló la lectura del abono del ticket. Ningún dato del cliente se emite. */
+    const val CODE_TICKET_PAGO_FALLO: String = "pagos_ticket_fallo"
+
+    /**
+     * La impresión del ticket de pago falló. Viaja el NOMBRE de la clase del
+     * fallo, nunca la MAC de la impresora: identifica el equipo del cobrador.
+     */
+    const val CODE_TICKET_PAGO_NO_SE_IMPRIMIO: String = "pagos_ticket_no_se_imprimio"
+
     /** Clave estática de `props` con los nombres de los bloqueos de seguridad. */
     const val PROP_BLOQUEOS: String = "bloqueos"
 

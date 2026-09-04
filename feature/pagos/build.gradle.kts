@@ -33,6 +33,11 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:network"))
     implementation(project(":core:telemetry"))
+    // Impresion termica (Task 20): PrinterPort/PreferredPrinterStore/PrintLogStore +
+    // la regla del dia del cobro y el registro de impresiones. La Task 15 quito
+    // esta dependencia porque el modulo no tenia consumidor todavia; esta tarea
+    // trae el consumidor (el ticket de pago) junto con ella.
+    implementation(project(":core:printing"))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

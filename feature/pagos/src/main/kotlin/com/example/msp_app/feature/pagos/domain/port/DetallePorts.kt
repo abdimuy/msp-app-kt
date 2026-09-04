@@ -58,6 +58,18 @@ interface PagosPort {
      * los pagos del periodo — fuera de él no cambian ningún estado.
      */
     suspend fun pagosDelPeriodo(ventana: VentanaCobro): List<PagoDelHistorial>
+
+    /**
+     * UN abono por su id, o `null` si el teléfono no lo tiene (o si no es
+     * cobranza: la condonación no sale por aquí, igual que no sale por
+     * [pagosDe]).
+     *
+     * Existe para el ticket de pago (Task 20): su ruta lleva SOLO el `pagoId`
+     * —así sobrevive a la rotación y a la muerte del proceso sin depender de
+     * quién navegó hasta ella— y la venta se resuelve desde
+     * [PagoDelHistorial.ventaId].
+     */
+    suspend fun pago(pagoId: String): PagoDelHistorial?
 }
 
 /** Bitácora de visitas de un cliente. */

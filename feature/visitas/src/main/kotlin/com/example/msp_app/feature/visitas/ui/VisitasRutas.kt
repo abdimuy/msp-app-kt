@@ -41,12 +41,26 @@ object VisitasRutas {
      */
     const val SIN_VENTA: Int = 0
 
+    /** Argumento `Visit.ID` del ticket de visita. */
+    const val ARG_VISITA_ID: String = "visitaId"
+
     /** Registrar visita. */
     const val REGISTRAR: String = "visitas/registrar/{$ARG_CLIENTE_ID}?$ARG_VENTA_ID={$ARG_VENTA_ID}"
+
+    /**
+     * Ticket de visita (Task 20). Lleva **solo** el `visitaId`: de esa fila salen
+     * el cliente, el desenlace y —sobre todo— el instante de la visita, que es la
+     * entrada de la regla del día. Así la pantalla vuelve entera después de una
+     * rotación o de que el proceso muera con el picker de Bluetooth encima.
+     */
+    const val TICKET: String = "visitas/ticket/{$ARG_VISITA_ID}"
 
     /** La ruta concreta para visitar al cliente [clienteId] desde la venta [ventaId]. */
     fun registrar(clienteId: Int, ventaId: Int? = null): String =
         "visitas/registrar/$clienteId?$ARG_VENTA_ID=${ventaId ?: SIN_VENTA}"
+
+    /** La ruta concreta del ticket de la visita [visitaId]. */
+    fun ticketDeVisita(visitaId: String): String = "visitas/ticket/$visitaId"
 }
 
 /**
@@ -74,5 +88,22 @@ fun NavGraphBuilder.destinoDeRegistrarVisita(onAtras: () -> Unit, onRegistrada: 
             onAtras = onAtras,
             onRegistrada = onRegistrada
         )
+    }
+}
+
+/**
+ * Registra el destino del **ticket de visita** (Task 20) en el grafo.
+ *
+ * Aparte del de registrar por el mismo criterio que en `:feature:pagos`: cada
+ * registro se queda con los callbacks que le tocan. La Task 21, que cablea los
+ * puntos de entrada, es la que lleva el `onRegistrada` hasta
+ * [VisitasRutas.ticketDeVisita].
+ */
+fun NavGraphBuilder.destinoDeTicketDeVisita(onAtras: () -> Unit) {
+    composable(
+        route = VisitasRutas.TICKET,
+        arguments = listOf(navArgument(VisitasRutas.ARG_VISITA_ID) { type = NavType.StringType })
+    ) {
+        TicketDeVisitaScreen(viewModel = hiltViewModel(), onAtras = onAtras)
     }
 }

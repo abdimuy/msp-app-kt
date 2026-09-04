@@ -35,6 +35,46 @@ interface VisitDao {
     )
     suspend fun getVisitById(id: String): VisitEntity
 
+    /**
+     * La MISMA fila que [getVisitById], pero **anulable**.
+     *
+     * [getVisitById] se declara no-nula y por eso revienta con
+     * `NullPointerException` cuando el id no existe — los tests del repo ya la
+     * envuelven en `runCatching { }.getOrNull()` para tolerarlo. El ticket de
+     * visita (Task 20) entra por una ruta que puede apuntar a una visita ya
+     * podada, y "no está" es un estado normal de esa pantalla, no una
+     * excepción. Se agrega una consulta nueva en vez de cambiar la firma de la
+     * existente: hay una docena de llamadores que dependen del tipo no-nulo.
+     *
+     * No toca el schema: es una `@Query` de lectura sobre las mismas columnas.
+     */
+    @Query(
+        """
+        SELECT 
+            ID,
+            CLIENTE_ID,
+            COBRADOR,
+            COBRADOR_ID,
+            FECHA,
+            FORMA_COBRO_ID,
+            LAT,
+            LNG,
+            NOTA,
+            TIPO_VISITA,
+            ZONA_CLIENTE_ID,
+            IMPTE_DOCTO_CC_ID,
+            GUARDADO_EN_MICROSIP,
+            PROMESA_VENTA_ID,
+            PROMESA_FECHA,
+            PROMESA_MONTO_CENTAVOS,
+            CITA_FECHA,
+            CITA_HORA
+        FROM Visit
+        WHERE ID = :id
+        """
+    )
+    suspend fun findVisitById(id: String): VisitEntity?
+
     @Insert(
         onConflict = OnConflictStrategy.REPLACE
     )

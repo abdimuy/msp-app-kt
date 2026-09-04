@@ -133,3 +133,23 @@ class FakeUbicacionPort(
         return ubicacion
     }
 }
+
+/**
+ * Fake de [com.example.msp_app.feature.visitas.domain.port.VisitaImpresaPort]:
+ * la visita ya registrada, leída de vuelta por su id.
+ */
+class FakeVisitaImpresaPort(
+    var visitas: List<com.example.msp_app.feature.visitas.domain.model.VisitaRegistrada> =
+        emptyList()
+) : com.example.msp_app.feature.visitas.domain.port.VisitaImpresaPort {
+
+    /** Cada id consultado, en orden. */
+    val consultadas: MutableList<String> = mutableListOf()
+
+    override suspend fun visita(
+        visitaId: String
+    ): com.example.msp_app.feature.visitas.domain.model.VisitaRegistrada? {
+        consultadas += visitaId
+        return visitas.firstOrNull { it.visitaId == visitaId }
+    }
+}

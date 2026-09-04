@@ -1,11 +1,15 @@
 package com.example.msp_app.feature.visitas.di
 
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.visitas.data.adapter.RoomContextoDeVisitaAdapter
 import com.example.msp_app.feature.visitas.data.adapter.RoomRecomendacionesAdapter
+import com.example.msp_app.feature.visitas.data.adapter.RoomVisitaImpresaAdapter
 import com.example.msp_app.feature.visitas.domain.port.ContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.RecomendacionesPort
+import com.example.msp_app.feature.visitas.domain.port.VisitaImpresaPort
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -49,6 +53,11 @@ object VisitasDataModule {
     @Provides
     fun provideRecomendacionesPort(dao: VisitRecommendationDao): RecomendacionesPort =
         RoomRecomendacionesAdapter(dao)
+
+    /** La visita ya registrada, leída de vuelta para el ticket (Task 20). */
+    @Provides
+    fun provideVisitaImpresaPort(dao: VisitDao, telemetry: Telemetry): VisitaImpresaPort =
+        RoomVisitaImpresaAdapter(dao, telemetry)
 
     @Provides
     @VisitasIoDispatcher

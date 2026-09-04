@@ -45,6 +45,31 @@ object VisitasTelemetria {
     /** No se pudo leer la recomendación del cliente. La pantalla sigue sin ella. */
     const val CODE_RECOMENDACION_FALLO: String = "visita_recomendacion_fallo"
 
+    /** Id de pantalla del ticket de visita (Task 20). */
+    const val PANTALLA_TICKET: String = "visitas_ticket"
+
+    /**
+     * `Visit.FECHA` no se pudo leer. **Sin ella la regla del día no puede
+     * decidir**, así que el ticket no se arma: una fecha inventada abriría o
+     * cerraría la impresión por accidente.
+     */
+    const val CODE_TICKET_VISITA_SIN_FECHA: String = "visita_ticket_sin_fecha"
+
+    /** `CITA_HORA` no venía en `HH:mm`. El ticket se imprime sin hora. */
+    const val CODE_TICKET_VISITA_HORA_INVALIDA: String = "visita_ticket_hora_invalida"
+
+    /** La ruta del ticket apunta a una visita que el teléfono ya no tiene. */
+    const val CODE_TICKET_VISITA_SIN_VISITA: String = "visita_ticket_sin_visita"
+
+    /** Falló la lectura de la visita o del cliente del ticket. */
+    const val CODE_TICKET_VISITA_FALLO: String = "visita_ticket_fallo"
+
+    /**
+     * La impresión del ticket de visita falló. Viaja el NOMBRE de la clase del
+     * fallo, nunca la MAC de la impresora: identifica el equipo del cobrador.
+     */
+    const val CODE_TICKET_VISITA_NO_SE_IMPRIMIO: String = "visita_ticket_no_se_imprimio"
+
     /** Prop con el NOMBRE de la clase de la excepción — nunca su texto. */
     const val PROP_EXCEPCION: String = "exception"
 

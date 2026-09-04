@@ -70,6 +70,15 @@ class FakePagosPort : PagosPort {
         ventanasConsultadas += ventana
         return pagos.filter { ventana.contiene(it.fecha) }
     }
+
+    /** Cada `pago(id)` recibido, en orden — para poder afirmar que NO se llamó. */
+    val pagosConsultados: MutableList<String> = mutableListOf()
+
+    /** Busca por id sobre el MISMO conjunto que devuelve el historial. */
+    override suspend fun pago(pagoId: String): PagoDelHistorial? {
+        pagosConsultados += pagoId
+        return pagos.firstOrNull { it.pagoId == pagoId }
+    }
 }
 
 class FakeVisitasPort : VisitasPort {

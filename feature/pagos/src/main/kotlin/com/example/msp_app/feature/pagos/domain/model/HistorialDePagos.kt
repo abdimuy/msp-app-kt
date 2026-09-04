@@ -87,7 +87,18 @@ data class PagoDelHistorial(
     val importe: Money,
     val formaCobroId: Int,
     val metodo: MetodoDeCobro,
-    val nota: String?
+    val nota: String?,
+    /**
+     * Quién cobró (`Payment.COBRADOR`). Campo ADITIVO de la Task 20: el ticket
+     * de pago lo imprime en el renglón "cobró", y el dato ya vive en la fila del
+     * pago — leerlo de ahí evita un puerto nuevo hacia la sesión y hace que el
+     * ticket diga quién cobró ESE abono, no quién trae el teléfono hoy.
+     *
+     * Vacío cuando la fila no lo trae. Un solo escritor de producción
+     * ([com.example.msp_app.feature.pagos.data.adapter.RoomPagosAdapter]), así
+     * que el default no esconde ningún camino sin barrer.
+     */
+    val cobrador: String = ""
 )
 
 /**

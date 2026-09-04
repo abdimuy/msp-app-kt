@@ -3,6 +3,7 @@ package com.example.msp_app.feature.visitas.domain.port
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.RecomendacionMostrada
+import com.example.msp_app.feature.visitas.domain.model.VisitaRegistrada
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -98,6 +99,24 @@ interface RegistroDeVisitaPort {
 
     /** Registra [visita]. Total: no lanza, contesta con un [ResultadoDelRegistro]. */
     suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro
+}
+
+/**
+ * Lee de vuelta una visita **ya registrada**, por su id.
+ *
+ * Existe para el ticket de visita (Task 20): su ruta lleva solo el `visitaId`
+ * —así vuelve entera después de una rotación o de que el proceso muera con el
+ * picker de Bluetooth encima— y de esa fila salen las dos cosas que el ticket no
+ * puede inventar: **cuándo** se registró la visita (la entrada de la regla del
+ * día del cobro) y **quién** la registró.
+ *
+ * Cruza a `:core:database`, que es lo que lo justifica frente a YAGNI. `null`
+ * cuando el teléfono ya no tiene esa visita: es un estado normal de la pantalla
+ * —la poda de sincronizadas la pudo haber borrado— y no una excepción.
+ */
+interface VisitaImpresaPort {
+
+    suspend fun visita(visitaId: String): VisitaRegistrada?
 }
 
 /** El cliente y sus cuentas, para pintar la pantalla. Solo lectura. */

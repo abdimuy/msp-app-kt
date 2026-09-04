@@ -31,6 +31,9 @@ object PagosRutas {
     /** Argumento `DOCTO_CC_ACR_ID` del detalle de venta. */
     const val ARG_VENTA_ID: String = "ventaId"
 
+    /** Argumento `Payment.ID` del ticket de pago. */
+    const val ARG_PAGO_ID: String = "pagoId"
+
     /**
      * La lista de cobranza por cliente (Task 17) — el reemplazo de las dos
      * listas de hoy. Sin argumentos: es la ruta del cobrador completa.
@@ -58,8 +61,19 @@ object PagosRutas {
     /** La ruta concreta de la venta [ventaId]. */
     fun detalleVenta(ventaId: Int): String = "pagos/venta/$ventaId"
 
+    /**
+     * Ticket de pago (Task 20). Lleva **solo** el `pagoId`: la pantalla resuelve
+     * la venta desde el abono, así que vuelve entera después de una rotación o
+     * de que el proceso muera con el picker de Bluetooth encima, sin depender de
+     * quién navegó hasta ella.
+     */
+    const val TICKET_PAGO: String = "pagos/ticket/{$ARG_PAGO_ID}"
+
     /** La ruta concreta para abonar a la venta [ventaId]. */
     fun registrarAbono(ventaId: Int): String = "pagos/abono/$ventaId"
+
+    /** La ruta concreta del ticket del abono [pagoId]. */
+    fun ticketDePago(pagoId: String): String = "pagos/ticket/$pagoId"
 }
 
 /**
@@ -149,5 +163,21 @@ fun NavGraphBuilder.destinoDeRegistrarAbono(onAtras: () -> Unit, onRegistrado: (
             onAtras = onAtras,
             onRegistrado = onRegistrado
         )
+    }
+}
+
+/**
+ * Registra el destino del **ticket de pago** (Task 20) en el grafo.
+ *
+ * Aparte de los demás por el mismo criterio: cada registro se queda con los
+ * callbacks que le tocan. La Task 21, que cablea los puntos de entrada, es la
+ * que lleva el `onRegistrado` del abono hasta [PagosRutas.ticketDePago].
+ */
+fun NavGraphBuilder.destinoDeTicketDePago(onAtras: () -> Unit) {
+    composable(
+        route = PagosRutas.TICKET_PAGO,
+        arguments = listOf(navArgument(PagosRutas.ARG_PAGO_ID) { type = NavType.StringType })
+    ) {
+        TicketDePagoScreen(viewModel = hiltViewModel(), onAtras = onAtras)
     }
 }

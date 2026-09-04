@@ -34,6 +34,17 @@ class RoomPagosAdapter(
         aHistorial(paymentDao.getPaymentsBySaleId(ventaId))
 
     /**
+     * Un abono por su id — la entrada del ticket de pago (Task 20), que solo
+     * lleva el `pagoId` en la ruta para sobrevivir a la muerte del proceso.
+     *
+     * Pasa por el MISMO [aHistorial] que las otras dos lecturas, así que hereda
+     * el filtro de formas de cobranza y el descarte reportado de una fecha
+     * impresentable: una condonación NO devuelve ticket de pago.
+     */
+    override suspend fun pago(pagoId: String): PagoDelHistorial? =
+        paymentDao.getPaymentById(pagoId)?.let { aHistorial(listOf(it)) }?.firstOrNull()
+
+    /**
      * Los abonos de TODA la ruta dentro de la ventana, en UNA consulta — la
      * lista de clientes (Task 17) deriva el periodo de cientos de ventas y una
      * lectura por venta serían cientos de viajes a Room.
@@ -87,6 +98,7 @@ private fun PaymentEntity.aPagoDelHistorial(): PagoDelHistorial? {
         importe = Money.of(IMPORTE),
         formaCobroId = FORMA_COBRO_ID,
         metodo = MetodoDeCobro.de(FORMA_COBRO_ID),
-        nota = null
+        nota = null,
+        cobrador = COBRADOR
     )
 }
