@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -10,7 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Icon
@@ -32,8 +35,11 @@ import com.example.msp_app.feature.pagos.ui.FalloDeLaFoto
 /** `testTag` de la sección de comprobantes de la pantalla de abono. */
 const val COMPROBANTES_TAG: String = "pagos_abono_comprobantes"
 
-/** `testTag` del botón que abre la cámara. */
+/** `testTag` del botón que abre la cámara desde la sección, debajo del teclado. */
 const val AGREGAR_FOTO_TAG: String = "pagos_abono_agregar_foto"
+
+/** `testTag` del botón de cámara **en línea**, en la fila del método de cobro. */
+const val FOTO_EN_LINEA_TAG: String = "pagos_abono_foto_en_linea"
 
 /** Prefijo del `testTag` del botón que quita un comprobante; se completa con su id. */
 const val QUITAR_FOTO_TAG: String = "pagos_abono_quitar_foto_"
@@ -186,6 +192,82 @@ private fun AvisoDeLaFoto(fallo: FalloDeLaFoto) {
             style = MspTheme.type.bodyStrong,
             color = colors.statusPartial
         )
+    }
+}
+
+/**
+ * **El punto de entrada visible** a la evidencia (Ruling AQ): un botón cuadrado
+ * de cámara al final de la fila del método de cobro.
+ *
+ * ## Por qué aquí y no en el encabezado
+ *
+ * Las dos sedes cuestan **cero dp verticales**, que era la objeción que cerraba
+ * las otras salidas —empujar el teclado fuera de pantalla, lo que la Task 18 ya
+ * rechazó al decidir dónde iba el botón de atrás—. Las separa el ANCHO, medido
+ * en los goldens:
+ *
+ * - En el encabezado a escala 2.0, "Victoria Flores Olmedo" llega **al borde
+ *   derecho de la pantalla** (`pagos_abono_captura_light_2_0.png`). Robarle
+ *   56dp cortaría el apellido, y el apellido es el dato que el cobrador no
+ *   puede reconstruir: es exactamente el defecto del Ruling AP, reabierto.
+ * - En la fila del método, en cambio, sobra: a 1.0 cada pastilla mide 160dp y
+ *   "transferencia" ocupa unos 75. Quitarle 32dp a cada una no aprieta nada.
+ *
+ * A 1.5 y 2.0 la fila se apila ([SelectorDeMetodo] lo hace desde la Task 18) y
+ * el botón baja con ella, ganando su propia línea. Ahí ya no hay nada que
+ * proteger: a esas escalas el teclado **ya** vive debajo de la línea de
+ * flotación, así que la línea extra no empuja nada que estuviera visible.
+ *
+ * Enseña el conteo cuando hay fotos: el botón es también el indicador de que la
+ * evidencia está puesta, sin obligar a bajar hasta la sección.
+ */
+@Composable
+fun BotonDeFotoEnLinea(
+    cuantos: Int,
+    habilitado: Boolean,
+    onAgregar: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MspTheme.colors
+    val contenido = if (habilitado) colors.brand else colors.onSurfaceMuted
+    Surface(
+        onClick = onAgregar,
+        enabled = habilitado,
+        modifier = modifier
+            .heightIn(min = TOQUE)
+            .widthIn(min = TOQUE)
+            .testTag(FOTO_EN_LINEA_TAG),
+        shape = MspTheme.shapes.control,
+        color = if (cuantos > 0) colors.brandTint else colors.surface,
+        border = BorderStroke(1.5.dp, if (cuantos > 0) colors.brand else colors.outline)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = MspTheme.spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(
+                MspTheme.spacing.xs,
+                Alignment.CenterHorizontally
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Add,
+                // La descripción dice la ACCIÓN, no el dibujo: es lo que un
+                // lector de pantalla tiene que anunciar.
+                contentDescription = "agregar foto",
+                tint = contenido,
+                modifier = Modifier.size(18.dp)
+            )
+            // La palabra va, aunque cueste ancho. Un "+" solo, en una fila de
+            // métodos de cobro, se lee como "otro método"; el icono de cámara
+            // no existe en `material-icons-core` y traer el paquete extendido
+            // por un glifo no se paga. "foto" no se puede malinterpretar.
+            Text(
+                text = if (cuantos > 0) "foto $cuantos" else "foto",
+                style = MspTheme.type.methodLabel,
+                color = contenido,
+                maxLines = 1
+            )
+        }
     }
 }
 

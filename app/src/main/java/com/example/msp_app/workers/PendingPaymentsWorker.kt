@@ -115,7 +115,15 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         return try {
             val json = Gson().toJson(payment.toCrearPagoBody())
             val datos = json.toRequestBody("application/json".toMediaTypeOrNull())
+            // Un fallo de LECTURA no se traga: ver `comprobantesDe`.
             val comprobantes = comprobantesDe(payment)
+                ?: return Result.retry().also {
+                    Log.w(
+                        TAG,
+                        "Pago ${payment.ID}: no se pudieron leer los comprobantes; " +
+                            "NO se sube el pago para no quemar su id sin la evidencia"
+                    )
+                }
             val response = v2Api.crearPago(
                 idempotencyKey = payment.ID,
                 datos = datos,
@@ -186,14 +194,31 @@ class PendingPaymentsWorker @JvmOverloads constructor(
     }
 
     /**
-     * Los comprobantes PENDIENTES del pago, ya convertidos en partes.
+     * Los comprobantes PENDIENTES del pago, ya convertidos en partes, o `null`
+     * si **la lectura falló**.
      *
      * Filtra por `PAGO_ID` —el del pago— y por `SUBIDA_EN IS NULL`: una imagen
-     * que el servidor ya confirmó no se vuelve a mandar. Es best-effort: si la
-     * base no responde, el pago sube **sin** comprobantes en vez de no subir.
-     * El dinero manda; la foto lo acompaña.
+     * que el servidor ya confirmó no se vuelve a mandar.
+     *
+     * ## Por qué un fallo de lectura NO deja subir el pago
+     *
+     * Tentador: subir el pago sin fotos y no bloquear el dinero. Es una trampa,
+     * y es la misma que este worker ya evita en `RECONCILED_VIA_GET`, entrando
+     * por la otra puerta. Si el pago sube sin evidencia, **quema su `datos.id`**:
+     * el reintento cae en el replay idempotente del servidor, que descarta los
+     * blobs del segundo request, y `markUploaded` estampa `SUBIDA_EN` y borra el
+     * archivo local. Un error de lectura pasajero acaba en un comprobante que
+     * **nunca llegó al servidor y ya no existe en el teléfono**.
+     *
+     * El pago no se pierde: se reintenta con su misma clave, que es exactamente
+     * lo que el worker ya hace ante un `IOException`. Lo que se protege es que
+     * el pago y su evidencia viajen **juntos o en otro intento**, nunca a medias.
+     *
+     * Ojo con la distinción: una imagen **omitida** (sin archivo, o de tipo no
+     * permitido) NO es un fallo de lectura. Ahí sí se sube el pago —la foto no
+     * lo bloquea— y la fila se queda pendiente en vez de estamparse.
      */
-    private suspend fun comprobantesDe(payment: PaymentEntity): PartesDeComprobantes = try {
+    private suspend fun comprobantesDe(payment: PaymentEntity): PartesDeComprobantes? = try {
         val pendientes = imagenes.getPendientesDe(payment.ID)
         partesDeComprobantes(pendientes).also {
             if (it.omitidas > 0) {
@@ -206,7 +231,7 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         }
     } catch (e: Exception) {
         Log.e(TAG, "Pago ${payment.ID}: no se pudieron leer los comprobantes", e)
-        PartesDeComprobantes(partes = emptyList(), enviadas = emptyList(), omitidas = 0)
+        null
     }
 
     /**

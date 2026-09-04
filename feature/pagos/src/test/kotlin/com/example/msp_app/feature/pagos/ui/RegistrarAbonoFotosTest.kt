@@ -379,6 +379,109 @@ class RegistrarAbonoFotosTest {
         advanceUntilIdle()
     }
 
+    // --- La ventana entre la muerte del proceso y la carga (ronda 1, I-1) ----
+
+    /**
+     * **La carrera que el arreglo cierra, ejercitada de verdad.**
+     *
+     * El proceso murió con la cámara encima. El ViewModel se reconstruye y el
+     * resultado de la cámara llega **antes** de que la carga resuelva: aquí NO
+     * se llama `advanceUntilIdle()` antes de `fotoTomada()`, y esa omisión es el
+     * test entero. Con el destino leído del estado, en esta ventana
+     * `state.destinoDeFoto` es `null`, la foto se perdía en silencio y la carga
+     * reponía después el destino — la pantalla reabría la cámara.
+     *
+     * **Control de reversión:** volver a `mutableState.value.destinoDeFoto` en
+     * `tomarDestinoPendiente` pone este test en ROJO.
+     */
+    @Test
+    fun `una foto que llega ANTES de que la carga resuelva no se pierde`() =
+        runTest(testDispatcher) {
+            val handle = handleConDestinoPendiente()
+            val vm = viewModel(handle)
+
+            // Sin `advanceUntilIdle()`: la carga sigue en vuelo, como en el
+            // teléfono real cuando el resultado de la cámara llega primero.
+            assertNull(
+                "la ventana existe: el estado aun no tiene el destino",
+                vm.state.value.destinoDeFoto
+            )
+            vm.fotoTomada()
+            advanceUntilIdle()
+
+            assertEquals(
+                "la foto se adjunto con el id que se acuño antes de morir el proceso",
+                listOf(DESTINO_PENDIENTE_ID),
+                vm.state.value.comprobantes.map { it.id }
+            )
+            assertNull(
+                "y el destino quedo suelto: la camara no se vuelve a abrir",
+                vm.state.value.destinoDeFoto
+            )
+        }
+
+    /**
+     * El otro lado de la misma carrera: cuando la carga termina **después**, no
+     * puede reponer un destino que la cámara ya atendió. Si lo repusiera, el
+     * `LaunchedEffect` de la pantalla dispararía la cámara otra vez.
+     */
+    @Test
+    fun `la carga no repone un destino que la camara ya atendio`() = runTest(testDispatcher) {
+        val vm = viewModel(handleConDestinoPendiente())
+        vm.fotoTomada()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.destinoDeFoto)
+        assertEquals(1, vm.state.value.comprobantes.size)
+        // Y una recarga explícita tampoco lo resucita.
+        vm.cargar()
+        advanceUntilIdle()
+        assertNull(vm.state.value.destinoDeFoto)
+    }
+
+    /** Una cancelación en la misma ventana también encuentra su crudo y lo borra. */
+    @Test
+    fun `una camara cancelada en la ventana borra el crudo igual`() = runTest(testDispatcher) {
+        val vm = viewModel(handleConDestinoPendiente())
+
+        vm.fotoCancelada()
+        advanceUntilIdle()
+
+        assertEquals(listOf(CRUDO_PENDIENTE), camaraPort.descartados)
+        assertNull(vm.state.value.destinoDeFoto)
+    }
+
+    /**
+     * Y si de verdad no hay destino que reclame la foto, **no se traga**: lleva
+     * su propio código, porque es la única forma que tiene una foto de perderse
+     * en este camino.
+     */
+    @Test
+    fun `una foto sin destino se reporta en vez de desaparecer`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.fotoTomada()
+        advanceUntilIdle()
+
+        assertEquals(emptyList<Any>(), vm.state.value.comprobantes)
+        assertTrue(
+            telemetria.recorded.any {
+                it.type == TelemetryEventType.ERROR &&
+                    it.name == PagosTelemetria.CODE_ABONO_FOTO_SIN_DESTINO
+            }
+        )
+    }
+
+    /** El `SavedStateHandle` de un proceso que murió con la cámara encima. */
+    private fun handleConDestinoPendiente() = handle().also {
+        it[CLAVE_DESTINO] = listOf(
+            DESTINO_PENDIENTE_ID,
+            "content://fake/camara/pendiente",
+            CRUDO_PENDIENTE
+        ).joinToString("\n")
+    }
+
     /** El `SavedStateHandle` del destino, con la clave del abono fijada. */
     private fun handle() = SavedStateHandle(
         mapOf(
@@ -417,5 +520,10 @@ class RegistrarAbonoFotosTest {
          */
         const val CLAVE_ABONO_ID = "pagos_abono_id"
         const val CLAVE_COMPROBANTES = "pagos_abono_comprobantes"
+        const val CLAVE_DESTINO = "pagos_abono_destino_foto"
+
+        /** El id acuñado antes de que el proceso muriera con la cámara encima. */
+        const val DESTINO_PENDIENTE_ID = "IMG-SOBREVIVIENTE"
+        const val CRUDO_PENDIENTE = "/tmp/fake/crudo-pendiente.jpg"
     }
 }

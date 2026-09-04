@@ -357,7 +357,10 @@ fun fondoDelSugerido(cual: MontosSugeridos.Sugerencia, colors: MspColors): Color
 @Composable
 fun SelectorDeMetodo(
     seleccionado: MetodoDeCobro,
+    comprobantes: Int,
+    puedeAgregarFoto: Boolean,
     onMetodo: (MetodoDeCobro) -> Unit,
+    onAgregarFoto: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     EnFilaOApiladas(modifier = modifier) { anchoDeCadaUno ->
@@ -369,6 +372,14 @@ fun SelectorDeMetodo(
                 modifier = anchoDeCadaUno
             )
         }
+        // La cámara viaja con esta fila (Ruling AQ): cuesta cero dp verticales
+        // a escala normal, que es la única donde el teclado cabe en pantalla.
+        // El razonamiento completo está en el KDoc de [BotonDeFotoEnLinea].
+        BotonDeFotoEnLinea(
+            cuantos = comprobantes,
+            habilitado = puedeAgregarFoto,
+            onAgregar = onAgregarFoto
+        )
     }
 }
 

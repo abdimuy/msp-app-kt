@@ -7,6 +7,7 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.testing.RoomTestBase
@@ -314,6 +315,93 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         assertEquals(2, enviadas.size)
     }
 
+    /**
+     * **Un fallo de LECTURA no sube el pago** (ronda 1, I-2).
+     *
+     * Subirlo sin evidencia quemaría su `datos.id`: el reintento cae en el
+     * replay idempotente del servidor —que descarta los blobs del segundo
+     * request— y `markUploaded` estamparía `SUBIDA_EN` y borraría el archivo
+     * local. Un error pasajero acabaría en un comprobante que nunca llegó al
+     * servidor y ya no existe en el teléfono. Es la misma trampa que
+     * `RECONCILED_VIA_GET` evita, entrando por la otra puerta.
+     *
+     * El pago no se pierde: se reintenta con su misma clave.
+     *
+     * **Control de reversión:** devolver `PartesDeComprobantes` vacío en vez de
+     * `null` desde `comprobantesDe` pone este test en ROJO.
+     */
+    @Test
+    fun v2_si_la_lectura_de_comprobantes_falla_no_se_sube_el_pago() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+
+        var llamadas = 0
+        val api = fakeV2Api { _, _ ->
+            llamadas++
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        val resultado = buildAndRunWorker(api = api, imagenes = PaymentImageDaoQueTruena())
+
+        assertEquals(ListenableWorker.Result.retry(), resultado)
+        assertEquals("el id del pago NO se quema", 0, llamadas)
+        assertFalse("y el pago sigue pendiente", guardadoFlag("pago-001"))
+        assertNull(
+            "el comprobante sigue pendiente y con su archivo",
+            db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN
+        )
+    }
+
+    /**
+     * **Control positivo del de arriba.** El mismo montaje con el DAO real SÍ
+     * sube: el `retry` de arriba lo produce el fallo de lectura, no un worker
+     * que dejó de subir.
+     */
+    @Test
+    fun v2_control_positivo_con_el_dao_real_si_sube() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+
+        var llamadas = 0
+        val api = fakeV2Api { _, _ ->
+            llamadas++
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertEquals(1, llamadas)
+    }
+
+    /**
+     * Una imagen **omitida** no es un fallo de lectura: el pago sí sube —la foto
+     * nunca lo bloquea— y la fila se queda pendiente en vez de estamparse. Es la
+     * frontera exacta entre I-2 y el comportamiento que se quiere conservar.
+     */
+    @Test
+    fun v2_una_imagen_omitida_no_impide_subir_el_pago() = runTest {
+        seed(pendingPayment())
+        sembrarImagenSinArchivo("IMG-SIN-ARCHIVO")
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = happyApi()))
+        assertTrue(guardadoFlag("pago-001"))
+        assertNull(db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN)
+    }
+
+    /** Un `PaymentImageDao` que no puede leer. Delegación no: aquí truena la lectura. */
+    private class PaymentImageDaoQueTruena : PaymentImageDao {
+        override suspend fun insertAll(imagenes: List<PaymentImageEntity>) = Unit
+        override suspend fun getByPagoId(pagoId: String): List<PaymentImageEntity> = emptyList()
+        override suspend fun getPendientesDe(pagoId: String): List<PaymentImageEntity> =
+            error("la base no responde")
+
+        override suspend fun marcarSubida(imagenId: String, subidaEn: String) = Unit
+        override suspend fun rutasVivas(): List<String> = emptyList()
+        override suspend fun huerfanasAnterioresA(limite: String): List<PaymentImageEntity> =
+            emptyList()
+
+        override suspend fun eliminar(imagenId: String) = Unit
+    }
+
     // ─── plomería de comprobantes ────────────────────────────────────────────
 
     private suspend fun sembrarImagen(
@@ -363,12 +451,14 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
 
     // ─── worker runner ───────────────────────────────────────────────────────────
 
+    @Suppress("LongParameterList") // un parámetro por pieza que el worker recibe.
     private fun buildAndRunWorker(
         paymentId: String? = "pago-001",
         api: V2PaymentsApi = happyApi(),
         legacyApi: PaymentsApi = throwingLegacyApi(),
         useV2: Boolean = true,
-        runAttemptCount: Int = 0
+        runAttemptCount: Int = 0,
+        imagenes: PaymentImageDao = db.paymentImageDao()
     ): ListenableWorker.Result {
         val inputBuilder = Data.Builder()
         if (paymentId != null) inputBuilder.putString("payment_id", paymentId)
@@ -390,8 +480,7 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
                     v2Api = api,
                     legacyApi = legacyApi,
                     useV2 = useV2,
-                    // El DAO por defecto sale de `AppDatabase.getInstance`, que
-                    // `RoomTestBase` ya apuntó a la base en memoria.
+                    imagenes = imagenes,
                     clock = clock
                 )
             })

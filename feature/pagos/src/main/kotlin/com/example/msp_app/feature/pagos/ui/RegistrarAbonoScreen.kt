@@ -214,7 +214,13 @@ private fun CuerpoDelAbono(
         if (state.registrado != null) BandaDeRegistrado()
         MensajeDeFallo(state = state, onRevisar = onRevisar)
         ChipsSugeridos(sugeridos = state.sugeridos, onSugerido = onSugerido)
-        SelectorDeMetodo(seleccionado = state.metodo, onMetodo = onMetodo)
+        SelectorDeMetodo(
+            seleccionado = state.metodo,
+            comprobantes = state.comprobantes.size,
+            puedeAgregarFoto = state.sePuedeAgregarFoto,
+            onMetodo = onMetodo,
+            onAgregarFoto = onAgregarFoto
+        )
         TecladoDeMontos(onDigito = onDigito, onPunto = onPunto, onBorrar = onBorrar)
         // La foto va DEBAJO del teclado, dentro de la columna que hace scroll:
         // el teclado es lo que el cobrador usa en cada abono y el comprobante

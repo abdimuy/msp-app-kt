@@ -169,6 +169,17 @@ object PagosTelemetria {
     const val CODE_ABONO_FOTO_ILEGIBLE: String = "pagos_abono_foto_ilegible"
 
     /**
+     * La cámara devolvió una foto y **ya no había destino que la reclamara**.
+     *
+     * Es la única forma que tiene una foto de perderse en el camino de captura,
+     * así que lleva código propio en vez de irse con el de "no se pudo tomar":
+     * son fallas distintas y se diagnostican distinto. El abono no se ve
+     * afectado —la foto nunca lo bloquea—, pero el cobrador creyó adjuntar algo
+     * que no quedó, y eso tiene que ser visible.
+     */
+    const val CODE_ABONO_FOTO_SIN_DESTINO: String = "pagos_abono_foto_sin_destino"
+
+    /**
      * El abono quedó escrito pero **sus comprobantes no se pudieron guardar**.
      * El dinero no se toca: el resultado sigue siendo `REGISTRADO`, igual que
      * cuando falla la ubicación. Lo que se pierde es la foto, así que lleva

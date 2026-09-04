@@ -185,10 +185,25 @@ class RegistrarAbonoViewModel @Inject constructor(
     /** Vuelve a leer la venta. Cada llamada es UNA sincronización. */
     fun cargar() {
         viewModelScope.launch {
-            mutableState.value = RegistrarAbonoUiState(cargando = true)
-            mutableState.value = leer()
+            mutableState.value = conLoCapturado(RegistrarAbonoUiState(cargando = true))
+            mutableState.value = conLoCapturado(leer())
         }
     }
+
+    /**
+     * Cuelga lo capturado —comprobantes y destino en vuelo— al estado que se va
+     * a publicar, leyéndolo del `SavedStateHandle` **en el instante de la
+     * asignación**.
+     *
+     * El instante importa. Si el destino se leyera al construir el estado (antes
+     * del `withContext` de la carga) y la cámara volviera mientras tanto, esta
+     * asignación repondría un destino ya atendido y la pantalla **volvería a
+     * abrir la cámara**. Aquí la lectura y la publicación ocurren sin punto de
+     * suspensión entre medias, en el mismo dispatcher, así que
+     * [tomarDestinoPendiente] no puede colarse entre las dos.
+     */
+    private fun conLoCapturado(estado: RegistrarAbonoUiState): RegistrarAbonoUiState =
+        estado.copy(comprobantes = comprobantes, destinoDeFoto = destinoGuardado)
 
     // --- La foto: cuelga del abono y NUNCA lo detiene -------------------------
 
@@ -245,7 +260,7 @@ class RegistrarAbonoViewModel @Inject constructor(
         "TooGenericExceptionCaught"
     ) // comprimir puede reventar hasta con un OOM; el abono no se entera.
     fun fotoTomada() {
-        val destino = mutableState.value.destinoDeFoto ?: return
+        val destino = tomarDestinoPendiente() ?: return reportarFotoSinDestino()
         viewModelScope.launch {
             try {
                 val comprobante = withContext(io) { camara.aceptar(destino) }
@@ -258,17 +273,50 @@ class RegistrarAbonoViewModel @Inject constructor(
                 throw cancelada
             } catch (fallo: Throwable) {
                 reportarFalloDeFoto(fallo, "no se pudo procesar la foto tomada")
-            } finally {
-                soltarDestino()
             }
         }
     }
 
     /** La cámara volvió sin foto (cancelada, o fallida). Se limpia el crudo vacío. */
     fun fotoCancelada() {
-        val destino = mutableState.value.destinoDeFoto ?: return
-        soltarDestino()
+        val destino = tomarDestinoPendiente() ?: return
         borrarArchivo(destino.archivoCrudo)
+    }
+
+    /**
+     * Toma el destino en vuelo **y lo suelta**, sincrónicamente y en un solo
+     * paso.
+     *
+     * ## Por qué el `SavedStateHandle` manda sobre el estado
+     *
+     * Cuando el proceso muere con la cámara encima, el ViewModel se reconstruye
+     * y el resultado de la cámara llega **antes** de que [cargar] resuelva: en
+     * esa ventana `state.destinoDeFoto` todavía es `null` aunque el destino
+     * exista. Leerlo del estado tiraba la foto ahí, en silencio, y después la
+     * carga reponía el destino y la pantalla **reabría la cámara** — desde
+     * afuera, un bucle. El handle no tiene esa ventana: sobrevive intacto.
+     *
+     * Soltarlo aquí y no en un `finally` es lo que impide la reapertura: el
+     * destino desaparece antes de que ninguna corrutina pueda publicarlo de
+     * nuevo.
+     */
+    private fun tomarDestinoPendiente(): DestinoDeFoto? {
+        val destino = destinoGuardado ?: mutableState.value.destinoDeFoto ?: return null
+        soltarDestino()
+        return destino
+    }
+
+    /**
+     * Llegó una foto sin destino que la reclame. **No se traga**: es la única
+     * forma que tiene una foto de perderse en este camino, y perder evidencia
+     * en silencio es justo lo que la norma de errores prohíbe.
+     */
+    private fun reportarFotoSinDestino() {
+        telemetry.error(
+            code = PagosTelemetria.CODE_ABONO_FOTO_SIN_DESTINO,
+            message = "la camara devolvio una foto y ya no habia destino que la reclamara",
+            props = emptyMap()
+        )
     }
 
     /** Quita un comprobante ya adjunto y borra su archivo. */
@@ -620,12 +668,10 @@ class RegistrarAbonoViewModel @Inject constructor(
                     venta = venta,
                     sugeridos = MontosSugeridos.de(venta, AppTime.todayInBusinessZone(clock)),
                     monto = montoInicialDe(venta),
-                    registrado = resolverGuard(venta),
-                    // Una recarga NO pierde lo capturado: los comprobantes y el
-                    // destino en vuelo viven en el `SavedStateHandle`, no en el
-                    // estado que esta función reconstruye desde cero.
-                    comprobantes = comprobantes,
-                    destinoDeFoto = destinoGuardado
+                    registrado = resolverGuard(venta)
+                    // Lo capturado NO se repone aquí: lo cuelga `conLoCapturado`
+                    // en el instante de publicar, que es lo que impide reponer
+                    // un destino que la cámara ya atendió.
                 )
             )
         }

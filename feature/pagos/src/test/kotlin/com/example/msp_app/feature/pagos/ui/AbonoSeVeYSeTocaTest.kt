@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -36,6 +37,7 @@ import com.example.msp_app.feature.pagos.ui.components.CONFIRMAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.DUPLICADO_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.FALLO_FOTO_TAG
+import com.example.msp_app.feature.pagos.ui.components.FOTO_EN_LINEA_TAG
 import com.example.msp_app.feature.pagos.ui.components.HOJA_TAG
 import com.example.msp_app.feature.pagos.ui.components.METODOS_DE_CAPTURA
 import com.example.msp_app.feature.pagos.ui.components.METODO_TAG
@@ -489,6 +491,45 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     fun `la hoja cuenta el comprobante adjunto`() {
         pinta(AbonoFixtures.enConfirmacionConComprobante())
         composeTestRule.onNodeWithText("1 comprobante").assertIsDisplayed()
+    }
+
+    /**
+     * **El punto de entrada que cierra la línea de flotación** (Ruling AQ).
+     *
+     * La sección de comprobantes vive debajo del teclado y no se ve sin scroll
+     * —medido en los goldens—. Este botón está en la fila del método, o sea
+     * **arriba**, visible sin mover nada. Se afirma que se ve sin `performScrollTo`
+     * a propósito: es la diferencia entera entre "cara de alcanzar" y "a un toque".
+     */
+    @Test
+    fun `el boton de foto en linea se ve sin scroll y abre la camara`() {
+        pinta(AbonoFixtures.enCaptura())
+
+        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).performClick()
+        assertEquals(1, fotosPedidas)
+        assertTocable(FOTO_EN_LINEA_TAG, "foto en linea")
+    }
+
+    /** Y enseña cuántas van: es también el indicador de que la evidencia está puesta. */
+    @Test
+    fun `el boton de foto en linea cuenta los comprobantes`() {
+        pinta(AbonoFixtures.enCapturaConComprobantes())
+        // Sobre el nodo del botón, no por texto suelto: "2" también aparece en
+        // la fila "comprobante 2" de la sección de abajo.
+        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).assertTextContains("foto 2")
+    }
+
+    /**
+     * Con la hoja de confirmación arriba el botón está apagado: lo que la hoja
+     * enseña ("1 comprobante") tiene que ser lo que se registra. Es la misma
+     * guarda que ya apaga el teclado, y aquí se mide por su consecuencia.
+     */
+    @Test
+    fun `con la hoja arriba el boton de foto en linea no dispara`() {
+        pinta(AbonoFixtures.enConfirmacionConComprobante())
+        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).performClick()
+        assertEquals("un boton apagado no puede abrir la camara", 0, fotosPedidas)
     }
 
     private fun assertTocable(tag: String, que: String) {
