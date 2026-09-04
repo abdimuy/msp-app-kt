@@ -42,14 +42,16 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose) // collectAsStateWithLifecycle
     implementation(libs.androidx.navigation.compose) // NavController en la firma del screen
     implementation(libs.androidx.hilt.navigation.compose) // hiltViewModel()
+    // `rememberLauncherForActivityResult` + `ActivityResultContracts.TakePicture`
+    // (Task 23): la cámara del comprobante. Estaba solo como `testImplementation`
+    // —roborazzi-compose lo declara `compileOnly` y lo necesita en runtime para
+    // hostear los goldens—; ahora hace falta también en producción, y
+    // `testImplementation` extiende `implementation`, así que esta línea cubre
+    // los dos usos y la de abajo se retira.
+    implementation(libs.androidx.activity.compose)
 
     testImplementation(project(":core:testing")) // fakes + Turbine + Robolectric + roborazzi (api)
     testImplementation(libs.androidx.ui.test.junit4)
-    // roborazzi-compose declara androidx.activity:activity-compose como
-    // compileOnly (no viene transitivo vía el `api` de :core:testing) — lo
-    // necesita en runtime para hostear el composable en un ComponentActivity
-    // real al capturar goldens, cuando las pantallas lleguen (Tasks 16+).
-    testImplementation(libs.androidx.activity.compose)
 
     // Regla custom `NoDoubleForMoney` — registrada vía ServiceLoader, por eso
     // viaja como `detektPlugins` y no como dependencia normal. Pone el ruleset

@@ -78,6 +78,56 @@ object VisitasTelemetria {
      */
     const val CODE_TICKET_VISITA_FUERA_DEL_DIA: String = "visita_ticket_fuera_del_dia"
 
+    // ─── Los comprobantes de la visita (Task 23) ─────────────────────────────
+
+    /**
+     * La capa de fotos falló: la cámara no se pudo preparar, la compresión
+     * reventó, el archivo no se pudo borrar. **La visita se registra igual** —
+     * es la misma regla que ya rige para la ubicación. El error no se traga: se
+     * emite con su código, exactamente como la norma exige para un fallo que se
+     * decide ignorar.
+     */
+    const val CODE_VISITA_FOTO_FALLO: String = "visita_foto_fallo"
+
+    /**
+     * La cámara dejó un archivo de un tipo que el servidor no acepta. Código
+     * propio y no [CODE_VISITA_FOTO_FALLO]: no es una falla del teléfono, es un
+     * archivo que **la visita entera** habría hecho rebotar con 422
+     * (`imagen_mime_no_permitido` corta el request completo), y se diagnostica
+     * distinto.
+     */
+    const val CODE_VISITA_FOTO_TIPO_NO_PERMITIDO: String = "visita_foto_tipo_no_permitido"
+
+    /**
+     * La cámara devolvió una foto y ya no había destino que la reclamara. Es la
+     * ÚNICA forma que tiene una foto de perderse en este camino, y perder
+     * evidencia en silencio es justo lo que la norma prohíbe. Código propio
+     * porque se diagnostica distinto de "no se pudo tomar".
+     */
+    const val CODE_VISITA_FOTO_SIN_DESTINO: String = "visita_foto_sin_destino"
+
+    /**
+     * Una entrada de comprobante guardada en el `SavedStateHandle` no se pudo
+     * leer al volver de la muerte del proceso. Se descarta —no puede tumbar la
+     * pantalla— pero se cuenta y se reporta.
+     */
+    const val CODE_VISITA_FOTO_ILEGIBLE: String = "visita_foto_ilegible"
+
+    /**
+     * La visita quedó escrita y encolada, pero sus comprobantes **no** se
+     * pudieron guardar. La visita se conserva: el trabajo de campo pesa más que
+     * la foto. Código propio porque el desenlace es distinto de
+     * [CODE_VISITA_NO_SE_GUARDO] — ahí no quedó nada, aquí quedó la visita.
+     */
+    const val CODE_VISITA_COMPROBANTES_NO_SE_GUARDARON: String =
+        "visita_comprobantes_no_se_guardaron"
+
+    /** Prop con el MIME rechazado. Valor técnico cerrado, nunca dato del cliente. */
+    const val PROP_TIPO: String = "tipo"
+
+    /** Prop con CUÁNTAS veces ocurrió lo que se reporta. Nunca un dato de negocio. */
+    const val PROP_OCURRENCIAS: String = "ocurrencias"
+
     /** Prop con el NOMBRE de la clase de la excepción — nunca su texto. */
     const val PROP_EXCEPCION: String = "exception"
 

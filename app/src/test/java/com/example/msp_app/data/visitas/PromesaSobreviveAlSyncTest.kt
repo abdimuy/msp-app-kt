@@ -86,6 +86,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
             saleDao = db.saleDao(),
             visitas = visitas,
             recomendaciones = db.visitRecommendationDao(),
+            imagenes = db.visitImageDao(),
             telemetry = telemetry,
             clock = clock,
             traerUsuario = { cobrador }

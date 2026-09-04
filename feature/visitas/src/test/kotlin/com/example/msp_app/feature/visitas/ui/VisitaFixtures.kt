@@ -5,6 +5,7 @@ import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -60,6 +61,24 @@ object VisitaFixtures {
     /** Con la recomendación a la vista: lo que el sistema sugirió, en pantalla. */
     fun conRecomendacion(): RegistrarVisitaUiState =
         elegir().copy(recomendacion = VisitasFixtures.recomendacion())
+
+    /**
+     * **El estado más apretado de la sección de comprobantes** (Task 23): dos
+     * fotos adjuntas, el aviso ámbar encendido y el botón de agregar.
+     *
+     * Se captura la SECCIÓN sola y no la pantalla entera, y la razón es una
+     * medición: a 360×800dp la sección vive debajo de la línea de flotación, así
+     * que un golden de pantalla completa saldría idéntico al de sin fotos —
+     * verde porque no ve nada. Es exactamente la lección de la Task 21 que la
+     * Task 22 tuvo que aprender otra vez.
+     */
+    fun conComprobantes(): RegistrarVisitaUiState = noEstaba().copy(
+        comprobantes = listOf(
+            ComprobanteDeVisita("IMG-1", "/files/comprobante_visita_IMG-1.jpg", "image/jpeg"),
+            ComprobanteDeVisita("IMG-2", "/files/comprobante_visita_IMG-2.jpg", "image/jpeg")
+        ),
+        falloDeLaFoto = FalloDeLaFoto.TIPO_NO_PERMITIDO
+    )
 
     /** El estado que arma la pantalla con [captura], con sus bloqueos derivados. */
     fun estado(captura: CapturaDeVisita): RegistrarVisitaUiState = RegistrarVisitaUiState(

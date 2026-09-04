@@ -75,9 +75,22 @@ const val RECOMENDACION_TAG: String = "visitas_recomendacion"
  */
 internal val TOQUE = 56.dp
 
-/** La fila de navegación: solo "atrás", igual que el `.nav` de las otras pantallas. */
+/**
+ * La fila de navegación: "atrás" y, a la derecha, lo que [alFinal] ponga.
+ *
+ * [alFinal] existe para el afordante de la foto (Task 23) y ocupa el hueco que
+ * ya había: la fila terminaba en un `Box(weight(1f))` vacío. **Coste vertical
+ * cero** — la fila ya medía [TOQUE] de alto y el botón mide lo mismo, así que
+ * nada de lo de abajo se mueve. Es la salida que la Task 22 tuvo que encontrar
+ * cuando su sección quedó bajo la línea de flotación, aplicada antes de que el
+ * problema exista en vez de después.
+ */
 @Composable
-fun BarraDeVisita(onAtras: () -> Unit, modifier: Modifier = Modifier) {
+fun BarraDeVisita(
+    onAtras: () -> Unit,
+    modifier: Modifier = Modifier,
+    alFinal: @Composable () -> Unit = {}
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -102,6 +115,7 @@ fun BarraDeVisita(onAtras: () -> Unit, modifier: Modifier = Modifier) {
             }
         }
         Box(modifier = Modifier.weight(1f))
+        alFinal()
     }
 }
 

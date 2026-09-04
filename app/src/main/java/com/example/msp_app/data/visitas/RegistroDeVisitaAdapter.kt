@@ -5,9 +5,11 @@ import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.core.utils.VisitStatusMapper
@@ -46,6 +48,12 @@ import kotlinx.coroutines.withContext
  * recomendador — que es justo lo que §10 dice que es imposible de reconstruir
  * después. Mismo patrón que ya usan `CobranzaReconciler` y `RegistroDeAbonoAdapter`.
  *
+ * ## Las fotos van entre el commit y el encolado (Task 23)
+ *
+ * Ver [guardarComprobantes]: fuera de la transacción para que una foto no pueda
+ * revertir la visita, y antes de `enqueueUpload` para que el worker no suba la
+ * visita sin ellas. Las dos mitades tienen su test.
+ *
  * ## El borde `Money` → centavos
  *
  * `PROMESA_MONTO_CENTAVOS` es `Long` (centavos enteros), nunca `Double`. La
@@ -54,11 +62,15 @@ import kotlinx.coroutines.withContext
  *
  * [traerUsuario] es inyectable **solo para test** (fakes-only, sin MockK).
  */
+@Suppress(
+    "LongParameterList"
+) // las dependencias reales del adaptador; el DAO de fotos es la septima.
 class RegistroDeVisitaAdapter(
     private val db: AppDatabase,
     private val saleDao: SaleDao,
     private val visitas: VisitsLocalDataSource,
     private val recomendaciones: VisitRecommendationDao,
+    private val imagenes: VisitImageDao,
     private val telemetry: Telemetry,
     private val clock: AppClock = AppClock.System,
     private val traerUsuario: suspend () -> User? = ::usuarioAutenticado
@@ -169,7 +181,68 @@ class RegistroDeVisitaAdapter(
                 reagendarCobranzaLegada(entidad)
                 ligarRecomendacion(visita)
             }
+            guardarComprobantes(visita)
             visitas.enqueueUpload(entidad.ID)
+        }
+    }
+
+    /**
+     * Escribe las fotos de la visita. **Entre el commit y el encolado**, y las
+     * dos posiciones son funcionales:
+     *
+     * - **Después del commit y fuera de la transacción**, porque la foto no
+     *   puede revertir la visita. Si escribir una fila fallara dentro de
+     *   `withTransaction`, el trabajo de campo se perdería por una foto — que es
+     *   exactamente lo que "la foto nunca bloquea el guardado" prohíbe.
+     * - **Antes de `enqueueUpload`**, porque encolar es lo que despierta al
+     *   worker, y el worker sube lo que encuentre en `visita_imagenes` **una
+     *   sola vez**: al recibir un 2xx marca `GUARDADO_EN_MICROSIP` y ya nadie
+     *   reintenta. Escribir las fotos después habría subido la visita sin ellas
+     *   cada vez que el teléfono tuviera señal en ese instante, y sin segundo
+     *   intento. Es el mismo orden que la Task 22 tuvo que fijar del lado del
+     *   dinero, por la misma razón.
+     *
+     * Un fallo aquí **no cambia el resultado**: la visita quedó escrita y
+     * encolada. Se reporta con su propio código —el desenlace es distinto de
+     * "no se guardó nada"— y se sigue.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // escribir en Room puede fallar con cualquier excepcion; la visita ya esta escrita.
+    private suspend fun guardarComprobantes(visita: VisitaARegistrar) {
+        if (visita.comprobantes.isEmpty()) return
+        try {
+            val creadaEn = AppTime.toWireFormat(clock.now())
+            imagenes.insertAll(
+                visita.comprobantes.mapIndexed { indice, comprobante ->
+                    VisitImageEntity(
+                        // El id de LA IMAGEN, nunca el de la visita: el servidor
+                        // lo exige como `id_<n>` y con él arma la clave de
+                        // storage. Cruzarlos haría que un reintento subiera dos
+                        // filas con la misma clave.
+                        ID = comprobante.id,
+                        VISITA_ID = visita.visitaId,
+                        URI = comprobante.archivo,
+                        MIME = comprobante.mime,
+                        DESCRIPCION = null,
+                        // La POSICIÓN de captura: es la que decide el `n` de
+                        // `id_<n>` cuando el worker arma el multipart.
+                        ORDEN = indice,
+                        CREADA_EN = creadaEn,
+                        SUBIDA_EN = null
+                    )
+                }
+            )
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            // Anti-PII: el nombre de la clase de la excepción, nunca su texto ni
+            // la ruta del archivo.
+            telemetry.error(
+                code = VisitasTelemetria.CODE_VISITA_COMPROBANTES_NO_SE_GUARDARON,
+                message = "la visita quedo escrita y encolada pero sus fotos no se guardaron",
+                props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+            )
         }
     }
 

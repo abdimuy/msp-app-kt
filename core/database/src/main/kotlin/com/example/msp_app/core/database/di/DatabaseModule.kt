@@ -15,6 +15,7 @@ import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDa
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import dagger.Module
 import dagger.Provides
@@ -72,6 +73,10 @@ object DatabaseModule {
 
     @Provides
     fun provideVisitDao(db: AppDatabase): VisitDao = db.visitDao()
+
+    /** `visita_imagenes` — los comprobantes de la visita (Task 23). */
+    @Provides
+    fun provideVisitImageDao(db: AppDatabase): VisitImageDao = db.visitImageDao()
 
     @Provides
     fun provideVisitRecommendationDao(db: AppDatabase): VisitRecommendationDao =

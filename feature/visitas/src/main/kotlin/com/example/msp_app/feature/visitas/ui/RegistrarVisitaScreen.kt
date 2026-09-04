@@ -4,6 +4,9 @@
 
 package com.example.msp_app.feature.visitas.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +39,7 @@ import com.example.msp_app.feature.visitas.ui.components.AvisoDeAlcance
 import com.example.msp_app.feature.visitas.ui.components.BandaDeFallo
 import com.example.msp_app.feature.visitas.ui.components.BandaDeRecomendacion
 import com.example.msp_app.feature.visitas.ui.components.BarraDeVisita
+import com.example.msp_app.feature.visitas.ui.components.BotonDeFotoEnLinea
 import com.example.msp_app.feature.visitas.ui.components.CHIP_TAG
 import com.example.msp_app.feature.visitas.ui.components.CalendarioDeVisita
 import com.example.msp_app.feature.visitas.ui.components.CampoDeMonto
@@ -47,6 +51,7 @@ import com.example.msp_app.feature.visitas.ui.components.ETIQUETA_TAG
 import com.example.msp_app.feature.visitas.ui.components.OpcionDeResultado
 import com.example.msp_app.feature.visitas.ui.components.RelojDeLaCita
 import com.example.msp_app.feature.visitas.ui.components.RotuloDeSeccion
+import com.example.msp_app.feature.visitas.ui.components.SeccionDeComprobantesDeVisita
 import com.example.msp_app.feature.visitas.ui.components.TarjetaDelFold
 import com.example.msp_app.feature.visitas.ui.components.TiraDelCliente
 import java.math.BigDecimal
@@ -67,6 +72,13 @@ fun RegistrarVisitaScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // El contrato de cámara del sistema: escribe en el `content://` que se le
+    // pasa y contesta true/false. El ViewModel no lo conoce — deja el destino en
+    // el estado y esta capa lo lanza, que es lo que lo mantiene testeable sin
+    // Robolectric.
+    val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) viewModel.fotoTomada() else viewModel.fotoCancelada()
+    }
     RegistrarVisitaContent(
         state = state,
         acciones = AccionesDeLaVisita(
@@ -87,10 +99,18 @@ fun RegistrarVisitaScreen(
             onCerrarReloj = viewModel::cerrarReloj,
             onHoraDelReloj = viewModel::onHoraDelReloj,
             onGuardar = viewModel::guardar,
-            onReintentar = viewModel::cargar
+            onReintentar = viewModel::cargar,
+            onAgregarFoto = viewModel::pedirFoto,
+            onQuitarFoto = viewModel::quitarFoto
         ),
         modifier = modifier
     )
+    val destino = state.destinoDeFoto
+    if (destino != null) {
+        // Clave el id del destino: una recomposición no reabre la cámara, y un
+        // destino nuevo sí la abre.
+        LaunchedEffect(destino.id) { camara.launch(Uri.parse(destino.uriParaLaCamara)) }
+    }
     val registrada = state.registrada
     if (registrada != null) {
         LaunchedEffect(registrada) { onRegistrada(registrada) }
@@ -122,7 +142,9 @@ data class AccionesDeLaVisita(
     val onCerrarReloj: () -> Unit,
     val onHoraDelReloj: (LocalTime) -> Unit,
     val onGuardar: () -> Unit,
-    val onReintentar: () -> Unit
+    val onReintentar: () -> Unit,
+    val onAgregarFoto: () -> Unit,
+    val onQuitarFoto: (String) -> Unit
 ) {
     companion object {
         /** Todas mudas — para goldens y previews, donde nada se toca. */
@@ -144,7 +166,9 @@ data class AccionesDeLaVisita(
             onCerrarReloj = {},
             onHoraDelReloj = {},
             onGuardar = {},
-            onReintentar = {}
+            onReintentar = {},
+            onAgregarFoto = {},
+            onQuitarFoto = {}
         )
     }
 }
@@ -157,8 +181,12 @@ data class AccionesDeLaVisita(
  * guardar lo dice `ReglasDeLaVisita` a través del estado, y el color de cada
  * desenlace sale de la tabla de paleta. La pantalla solo pinta.
  *
- * **Hueco para la Task 23:** la foto entra al final de la columna que hace
- * scroll, igual que en el mock, y nada de lo de arriba se mueve para que quepa.
+ * **La foto (Task 23)** entra en el hueco que este KDoc le tenía reservado: al
+ * final de la columna que hace scroll, y nada de lo de arriba se movió para que
+ * quepa. Su punto de ENTRADA, en cambio, va arriba —en la fila del encabezado,
+ * con coste vertical cero—, porque al pie de esta columna la sección queda
+ * debajo de la línea de flotación a 360×800dp y el cobrador podría no
+ * descubrirla nunca.
  */
 @Composable
 fun RegistrarVisitaContent(
@@ -234,7 +262,16 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
             .padding(horizontal = MspTheme.spacing.md),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        BarraDeVisita(onAtras = acciones.onAtras)
+        BarraDeVisita(
+            onAtras = acciones.onAtras,
+            alFinal = {
+                BotonDeFotoEnLinea(
+                    cuantos = state.comprobantes.size,
+                    habilitado = state.sePuedeAgregarFoto,
+                    onAgregar = acciones.onAgregarFoto
+                )
+            }
+        )
         Text(
             text = "visita",
             style = MspTheme.type.screenTitle,
@@ -274,6 +311,13 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
             nota = state.captura.nota,
             habilitado = state.sePuedeCapturar,
             onCambio = acciones.onNota
+        )
+        SeccionDeComprobantesDeVisita(
+            comprobantes = state.comprobantes,
+            fallo = state.falloDeLaFoto,
+            puedeAgregar = state.sePuedeAgregarFoto,
+            onAgregar = acciones.onAgregarFoto,
+            onQuitar = acciones.onQuitarFoto
         )
         Box(modifier = Modifier.padding(bottom = MspTheme.spacing.md))
     }

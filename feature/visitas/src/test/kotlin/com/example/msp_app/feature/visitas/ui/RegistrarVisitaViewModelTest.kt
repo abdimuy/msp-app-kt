@@ -8,6 +8,7 @@ import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.visitas.application.AbrirRegistroDeVisita
 import com.example.msp_app.feature.visitas.application.RegistrarVisita
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
+import com.example.msp_app.feature.visitas.data.fake.FakeComprobantesDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeRecomendacionesPort
 import com.example.msp_app.feature.visitas.data.fake.FakeRegistroDeVisitaPort
@@ -61,6 +62,7 @@ class RegistrarVisitaViewModelTest {
     private val recomendacionesPort = FakeRecomendacionesPort()
     private val registroPort = FakeRegistroDeVisitaPort()
     private var ubicacionPort = FakeUbicacionPort()
+    private val camaraPort = FakeComprobantesDeVisitaPort()
 
     @Before
     fun setUp() {
@@ -84,6 +86,7 @@ class RegistrarVisitaViewModelTest {
         savedStateHandle = estado,
         abrirRegistro = AbrirRegistroDeVisita(contextoPort, recomendacionesPort, telemetria),
         registrarVisita = RegistrarVisita(registroPort, ubicacionPort, telemetria),
+        camara = camaraPort,
         telemetry = telemetria,
         clock = clock,
         io = testDispatcher
@@ -132,6 +135,7 @@ class RegistrarVisitaViewModelTest {
             ),
             abrirRegistro = AbrirRegistroDeVisita(roto, recomendacionesPort, telemetria),
             registrarVisita = RegistrarVisita(registroPort, ubicacionPort, telemetria),
+            camara = camaraPort,
             telemetry = telemetria,
             clock = clock,
             io = testDispatcher

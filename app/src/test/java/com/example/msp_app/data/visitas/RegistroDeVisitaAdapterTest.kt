@@ -4,8 +4,10 @@ import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.database.entities.SaleEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
 import com.example.msp_app.core.database.entities.VisitRecommendationEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
@@ -14,6 +16,7 @@ import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.port.CitaEstructurada
 import com.example.msp_app.feature.visitas.domain.port.PromesaEstructurada
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
@@ -73,6 +76,7 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         saleDao = saleDao,
         visitas = VisitsLocalDataSource(db.visitDao(), db.saleDao(), encolador, clock),
         recomendaciones = recomendaciones,
+        imagenes = db.visitImageDao(),
         telemetry = telemetry,
         clock = clock,
         traerUsuario = usuario
@@ -384,7 +388,10 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         adaptador.registrar(visita(recomendacionId = REC_ID))
         db.visitDao().markSyncedByIds(listOf(VISITA_ID))
 
-        db.visitDao().deleteUploadedVisits(conservarDesde = "2027-01-01")
+        db.visitDao().deleteUploadedVisits(
+            conservarDesde = "2027-01-01",
+            comprobantesDesde = "2027-01-01T00:00:00Z"
+        )
 
         val ligada = db.visitRecommendationDao().porId(REC_ID)
         assertEquals("la sugerencia no se va con la visita", VISITA_ID, ligada?.VISITA_ID)
@@ -464,6 +471,7 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
             saleDao = db.saleDao(),
             visitas = VisitsLocalDataSource(db.visitDao(), db.saleDao(), encolador, clock),
             recomendaciones = DaoQueRevienta(db.visitRecommendationDao()),
+            imagenes = db.visitImageDao(),
             telemetry = telemetry,
             clock = clock,
             traerUsuario = { cobrador }
@@ -551,7 +559,8 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         promesa: PromesaEstructurada? = null,
         cita: CitaEstructurada? = null,
         ubicacion: UbicacionDeLaVisita? = null,
-        recomendacionId: String? = null
+        recomendacionId: String? = null,
+        comprobantes: List<ComprobanteDeVisita> = emptyList()
     ) = VisitaARegistrar(
         visitaId = id,
         clienteId = clienteId,
@@ -561,7 +570,8 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         promesa = promesa,
         cita = cita,
         ubicacion = ubicacion,
-        recomendacionId = recomendacionId
+        recomendacionId = recomendacionId,
+        comprobantes = comprobantes
     )
 
     private fun recomendacion() = VisitRecommendationEntity(
@@ -650,6 +660,153 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
     ) : VisitRecommendationDao by real {
         override suspend fun ligarConVisita(id: String, visitaId: String): Int =
             throw IllegalStateException("room se cayo a media transaccion")
+    }
+
+    // ─── los comprobantes (Task 23) ──────────────────────────────────────────
+
+    /** Sin fotos, no se escribe ninguna fila. */
+    @Test
+    fun `una visita sin comprobantes no escribe ninguna fila`() = runTest {
+        adaptador.registrar(visita())
+
+        assertEquals(emptyList<Any>(), db.visitImageDao().getByVisitaId(VISITA_ID))
+    }
+
+    /**
+     * Las fotos se escriben con **el id de la imagen** y el de la visita en su
+     * propia columna. Cruzarlos mandaría al servidor una foto cuya clave es la
+     * de la visita — y, en el reintento, una segunda imagen con la misma clave.
+     */
+    @Test
+    fun `los comprobantes se escriben con el id de la imagen y el de la visita separados`() =
+        runTest {
+            adaptador.registrar(visita(comprobantes = listOf(foto("IMG-1"))))
+
+            val fila = db.visitImageDao().getByVisitaId(VISITA_ID).single()
+            assertEquals("IMG-1", fila.ID)
+            assertEquals(VISITA_ID, fila.VISITA_ID)
+            assertEquals("/files/comprobante_visita_IMG-1.jpg", fila.URI)
+            assertEquals("image/jpeg", fila.MIME)
+            assertNull("una foto recien escrita esta pendiente de subir", fila.SUBIDA_EN)
+        }
+
+    /** `ORDEN` es la posición de captura: la que decide el `n` de `id_<n>`. */
+    @Test
+    fun `varios comprobantes conservan su orden de captura`() = runTest {
+        adaptador.registrar(
+            visita(comprobantes = listOf(foto("IMG-1"), foto("IMG-2"), foto("IMG-3")))
+        )
+
+        val filas = db.visitImageDao().getByVisitaId(VISITA_ID)
+        assertEquals(listOf("IMG-1", "IMG-2", "IMG-3"), filas.map { it.ID })
+        assertEquals(listOf(0, 1, 2), filas.map { it.ORDEN })
+    }
+
+    /**
+     * **El orden entre las dos escrituras es funcional, no estético.** Encolar
+     * es lo que despierta al worker, y el worker sube lo que encuentre en
+     * `visita_imagenes` **una sola vez**: al recibir un 2xx marca
+     * `GUARDADO_EN_MICROSIP` y ya nadie reintenta. Escribir las fotos después de
+     * encolar habría subido la visita sin ellas cada vez que el teléfono tuviera
+     * señal en ese instante.
+     *
+     * Se mide DESDE DENTRO del encolador, que es el único punto donde la
+     * pregunta "¿ya estaban escritas?" tiene una respuesta que no depende del
+     * orden en que el test mire después.
+     */
+    @Test
+    fun `los comprobantes ya estan escritos cuando se encola el envio`() = runTest {
+        var filasAlEncolar = -1
+        val espia = EncoladorQueMira {
+            filasAlEncolar = db.visitImageDao().getByVisitaId(VISITA_ID).size
+        }
+        val conEspia = RegistroDeVisitaAdapter(
+            db = db,
+            saleDao = db.saleDao(),
+            visitas = VisitsLocalDataSource(db.visitDao(), db.saleDao(), espia, clock),
+            recomendaciones = db.visitRecommendationDao(),
+            imagenes = db.visitImageDao(),
+            telemetry = telemetry,
+            clock = clock,
+            traerUsuario = { cobrador }
+        )
+
+        conEspia.registrar(visita(comprobantes = listOf(foto("IMG-1"))))
+
+        assertEquals("la foto se escribe ANTES de encolar", 1, filasAlEncolar)
+    }
+
+    /**
+     * **Si guardar la foto truena, la visita queda escrita y encolada igual.**
+     * La foto nunca bloquea el guardado — ni siquiera cuando lo que falla es
+     * guardar la foto.
+     */
+    @Test
+    fun `si guardar la foto truena, la visita queda escrita, encolada y se reporta`() = runTest {
+        val conDaoRoto = RegistroDeVisitaAdapter(
+            db = db,
+            saleDao = db.saleDao(),
+            visitas = VisitsLocalDataSource(db.visitDao(), db.saleDao(), encolador, clock),
+            recomendaciones = db.visitRecommendationDao(),
+            imagenes = DaoDeImagenesQueRevienta(),
+            telemetry = telemetry,
+            clock = clock,
+            traerUsuario = { cobrador }
+        )
+
+        val resultado = conDaoRoto.registrar(visita(comprobantes = listOf(foto("IMG-1"))))
+
+        assertEquals(ResultadoDelRegistro.REGISTRADA, resultado)
+        assertNotNull("la visita se queda", db.visitDao().getVisitById(VISITA_ID))
+        assertEquals(listOf(VISITA_ID), encolador.encoladas)
+        val evento = telemetry.recorded.single {
+            it.name == VisitasTelemetria.CODE_VISITA_COMPROBANTES_NO_SE_GUARDARON
+        }
+        assertEquals("IllegalStateException", evento.props[VisitasTelemetria.PROP_EXCEPCION])
+    }
+
+    /**
+     * **Control positivo del anterior.** El mismo montaje con el DAO real SÍ
+     * escribe la fila, así que el "la visita se queda" de arriba no puede ser un
+     * adaptador que dejó de escribir fotos por otra razón.
+     */
+    @Test
+    fun `control positivo, el mismo montaje si escribe la fila`() = runTest {
+        adaptador.registrar(visita(comprobantes = listOf(foto("IMG-1"))))
+
+        assertEquals(1, db.visitImageDao().getByVisitaId(VISITA_ID).size)
+    }
+
+    private fun foto(id: String) = ComprobanteDeVisita(
+        id = id,
+        archivo = "/files/comprobante_visita_$id.jpg",
+        mime = "image/jpeg"
+    )
+
+    /** Encolador que ejecuta [alEncolar] en el instante exacto del encolado. */
+    private class EncoladorQueMira(private val alEncolar: suspend () -> Unit) : VisitsWorkEnqueuer {
+        override fun enqueue(visitId: String) {
+            kotlinx.coroutines.runBlocking { alEncolar() }
+        }
+    }
+
+    /** DAO de imágenes que revienta al escribir. Lo demás no hace falta acá. */
+    private class DaoDeImagenesQueRevienta : VisitImageDao {
+        override suspend fun insertAll(imagenes: List<VisitImageEntity>) =
+            throw IllegalStateException("room se cayo al escribir la foto")
+
+        override suspend fun getByVisitaId(visitaId: String): List<VisitImageEntity> = emptyList()
+
+        override suspend fun getPendientesDe(visitaId: String): List<VisitImageEntity> = emptyList()
+
+        override suspend fun marcarSubida(imagenId: String, subidaEn: String) = Unit
+
+        override suspend fun rutasVivas(): List<String> = emptyList()
+
+        override suspend fun huerfanasAnterioresA(limite: String): List<VisitImageEntity> =
+            emptyList()
+
+        override suspend fun eliminar(imagenId: String) = Unit
     }
 
     /** Fake a mano (sin MockK): lista pública de llamadas. */

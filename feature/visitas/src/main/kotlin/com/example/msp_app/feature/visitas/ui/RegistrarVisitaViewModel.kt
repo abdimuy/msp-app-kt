@@ -12,9 +12,13 @@ import com.example.msp_app.feature.visitas.application.RegistrarVisita
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.di.VisitasIoDispatcher
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
+import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
+import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
+import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -48,6 +52,19 @@ import kotlinx.coroutines.withContext
  * 2. **[yaSeEncolo], el guard**, puesto **sincrónicamente antes** de lanzar la
  *    corrutina: ni un doble toque rápido ni un toque sobre el ViewModel recreado
  *    pueden colarse entre el chequeo y el lanzamiento.
+ * 3. **El destino de la cámara y los comprobantes ya adjuntos** (Task 23). El
+ *    destino en particular: si el proceso muere con la cámara encima, el
+ *    resultado llega ANTES de que [cargar] resuelva, y en esa ventana el estado
+ *    todavía está vacío. Leer el destino del estado ahí tira la foto en silencio
+ *    y después repone el destino, con lo que la cámara **se vuelve a abrir**.
+ *    Ver [tomarDestinoPendiente] y [conLoCapturado].
+ *
+ * ## La foto cuelga de la visita y no la puede detener
+ *
+ * Las tres llamadas al puerto de cámara corren dentro de su propio
+ * `catch (Throwable)` con telemetría, ninguna dentro del camino que escribe, y
+ * ninguna toca `fallo`, `guardando` ni el guard. Es el mismo trato que la Task 5
+ * le dio a la ubicación, y la regla que manda sobre esta tarea entera.
  *
  * ## Nada se serializa en la nota
  *
@@ -58,12 +75,16 @@ import kotlinx.coroutines.withContext
  */
 @HiltViewModel
 @Suppress(
-    "TooManyFunctions"
+    "TooManyFunctions",
+    // Septima dependencia: el puerto de camara (Task 23). Precedente:
+    // RegistrarAbonoViewModel y CollectionReportViewModel.
+    "LongParameterList"
 ) // una funcion por control de la captura; agruparlas escondería cuál toca qué campo.
 class RegistrarVisitaViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val abrirRegistro: AbrirRegistroDeVisita,
     private val registrarVisita: RegistrarVisita,
+    private val camara: ComprobantesDeVisitaPort,
     private val telemetry: Telemetry,
     private val clock: AppClock,
     @VisitasIoDispatcher private val io: CoroutineDispatcher
@@ -87,21 +108,95 @@ class RegistrarVisitaViewModel @Inject constructor(
             savedStateHandle[CLAVE_YA_SE_ENCOLO] = valor
         }
 
+    /**
+     * El destino que espera a la cámara, persistido: el proceso puede morir con
+     * la cámara encima y la foto tiene que volver con **el id que ya se le
+     * acuñó**, o el reintento de subida deja de ser idempotente — y en visitas
+     * ni siquiera es eso: el `id_<n>` es un campo REQUERIDO del contrato.
+     */
+    private var destinoGuardado: DestinoDeFoto?
+        get() = savedStateHandle.get<String>(CLAVE_DESTINO)
+            ?.let { ComprobantesDeVisita.decodificarDestino(it) }
+        set(valor) {
+            savedStateHandle[CLAVE_DESTINO] =
+                valor?.let { ComprobantesDeVisita.codificarDestino(it) }
+        }
+
+    /**
+     * Los comprobantes ya adjuntos. La memoria manda y el `SavedStateHandle` es
+     * su espejo: se decodifica UNA vez, al construirse el ViewModel, para que un
+     * formato viejo no se reporte en cada recomposición.
+     */
+    private var comprobantes: List<ComprobanteDeVisita> = emptyList()
+        set(valor) {
+            field = valor
+            savedStateHandle[CLAVE_COMPROBANTES] =
+                ArrayList(valor.map { ComprobantesDeVisita.codificar(it) })
+        }
+
+    /**
+     * Hay un destino de cámara en vuelo. **No se persiste**: si el proceso muere
+     * antes de que el destino quede guardado, no se acuñó nada que proteger. Es
+     * el mismo patrón sincrónico del guard de la visita, sobre un recurso mucho
+     * más barato.
+     */
+    private var pidiendoFoto: Boolean = false
+
     private val mutableState = MutableStateFlow(RegistrarVisitaUiState())
     val state: StateFlow<RegistrarVisitaUiState> = mutableState.asStateFlow()
 
     init {
         telemetry.screenView(VisitasTelemetria.PANTALLA)
+        restaurarComprobantes()
         cargar()
+    }
+
+    /**
+     * Vuelve a poner en pie lo capturado antes de que el proceso muriera. Lo que
+     * no se pueda leer se descarta —no puede tumbar la pantalla— pero se
+     * **cuenta y se reporta**: una foto que desaparece sola es justo lo que la
+     * norma de errores prohíbe.
+     */
+    private fun restaurarComprobantes() {
+        val crudos = savedStateHandle.get<ArrayList<String>>(CLAVE_COMPROBANTES).orEmpty()
+        val leidos = crudos.mapNotNull { ComprobantesDeVisita.decodificar(it) }
+        // Reescribe el handle ya normalizado: lo ilegible no vuelve a leerse ni
+        // a contarse en la siguiente muerte de proceso.
+        comprobantes = leidos
+        val ilegibles = crudos.size - leidos.size
+        if (ilegibles > 0) {
+            telemetry.error(
+                code = VisitasTelemetria.CODE_VISITA_FOTO_ILEGIBLE,
+                message = "una entrada de comprobante guardada no se pudo leer; se descarto",
+                props = mapOf(VisitasTelemetria.PROP_OCURRENCIAS to ilegibles.toString())
+            )
+        }
     }
 
     /** Vuelve a leer el cliente y su recomendación. Cada llamada es UNA lectura. */
     fun cargar() {
         viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(cargando = true, error = null)
-            mutableState.value = leer()
+            mutableState.value = conLoCapturado(
+                mutableState.value.copy(cargando = true, error = null)
+            )
+            mutableState.value = conLoCapturado(leer())
         }
     }
+
+    /**
+     * Cuelga lo capturado —comprobantes y destino en vuelo— al estado que se va a
+     * publicar, leyéndolo del `SavedStateHandle` **en el instante de la
+     * asignación**.
+     *
+     * El instante importa. [leer] construye un estado NUEVO, así que sin esto la
+     * recarga borraría las fotos. Y si el destino se leyera antes del
+     * `withContext` de la carga y la cámara volviera mientras tanto, esta
+     * asignación repondría un destino ya atendido y la pantalla **volvería a
+     * abrir la cámara**. Leído aquí, no hay punto de suspensión entre la lectura
+     * y la publicación: [tomarDestinoPendiente] no puede colarse entre las dos.
+     */
+    private fun conLoCapturado(estado: RegistrarVisitaUiState): RegistrarVisitaUiState =
+        estado.copy(comprobantes = comprobantes, destinoDeFoto = destinoGuardado)
 
     /**
      * Elige el desenlace. **Limpia lo que el desenlace anterior había capturado**
@@ -198,6 +293,206 @@ class RegistrarVisitaViewModel @Inject constructor(
         cerrarReloj()
     }
 
+    // --- La foto: cuelga de la visita y NUNCA la detiene -----------------------
+
+    /**
+     * **Paso uno de la foto:** prepara el destino y pide abrir la cámara.
+     *
+     * No abre nada por sí mismo — deja [RegistrarVisitaUiState.destinoDeFoto] y
+     * la pantalla lanza el intent. Así el ViewModel no importa `android.*` y el
+     * camino se puede probar sin Robolectric.
+     *
+     * [pidiendoFoto] se pone **sincrónicamente antes** del `launch`, igual que
+     * el guard de la visita: dos toques rápidos no pueden acuñar dos destinos,
+     * que es la forma de dejar un archivo huérfano por cada toque de más.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // preparar el destino toca disco y FileProvider; la visita no se entera.
+    fun pedirFoto() {
+        val actual = mutableState.value
+        if (!actual.sePuedeCapturar || actual.destinoDeFoto != null || pidiendoFoto) return
+        if (actual.comprobantes.size >= ComprobantesDeVisita.MAXIMO) {
+            mutableState.value = actual.copy(falloDeLaFoto = FalloDeLaFoto.YA_NO_CABEN)
+            return
+        }
+        pidiendoFoto = true
+        viewModelScope.launch {
+            try {
+                val destino = withContext(io) { camara.nuevoDestino() }
+                destinoGuardado = destino
+                mutableState.value = mutableState.value.copy(
+                    destinoDeFoto = destino,
+                    falloDeLaFoto = null
+                )
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                reportarFalloDeFoto(fallo, "no se pudo preparar el destino de la foto")
+            } finally {
+                pidiendoFoto = false
+            }
+        }
+    }
+
+    /**
+     * **Paso dos de la foto:** la cámara escribió. Comprime, valida el tipo y
+     * adjunta.
+     *
+     * Un tipo fuera de la whitelist del servidor se descarta **aquí**, con su
+     * archivo: en visitas guardarlo no aplazaría un rechazo de la foto, sino un
+     * **422 de la visita entera** (`parseImagenesFromForm` corta el request al
+     * primer MIME no permitido), y para entonces el teléfono ya no la tendría a
+     * mano.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // comprimir puede reventar hasta con un OOM; la visita no se entera.
+    fun fotoTomada() {
+        val destino = tomarDestinoPendiente() ?: return reportarFotoSinDestino()
+        viewModelScope.launch {
+            try {
+                val comprobante = withContext(io) { camara.aceptar(destino) }
+                if (ComprobantesDeVisita.permitido(comprobante.mime)) {
+                    adjuntar(comprobante)
+                } else {
+                    rechazarPorTipo(comprobante)
+                }
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                reportarFalloDeFoto(fallo, "no se pudo procesar la foto tomada")
+            }
+        }
+    }
+
+    /** La cámara volvió sin foto (cancelada, o fallida). Se limpia el crudo vacío. */
+    fun fotoCancelada() {
+        val destino = tomarDestinoPendiente() ?: return
+        borrarArchivo(destino.archivoCrudo)
+    }
+
+    /**
+     * Toma el destino en vuelo **y lo suelta**, sincrónicamente y en un solo
+     * paso.
+     *
+     * ## Por qué el `SavedStateHandle` manda sobre el estado
+     *
+     * Cuando el proceso muere con la cámara encima, el ViewModel se reconstruye
+     * y el resultado de la cámara llega **antes** de que [cargar] resuelva: en
+     * esa ventana `state.destinoDeFoto` todavía es `null` aunque el destino
+     * exista. Leerlo del estado tiraría la foto ahí, en silencio, y después la
+     * carga repondría el destino y la pantalla **reabriría la cámara** — desde
+     * afuera, un bucle. El handle no tiene esa ventana: sobrevive intacto.
+     *
+     * Soltarlo aquí y no en un `finally` es lo que impide la reapertura: el
+     * destino desaparece antes de que ninguna corrutina pueda publicarlo de
+     * nuevo.
+     */
+    private fun tomarDestinoPendiente(): DestinoDeFoto? {
+        val destino = destinoGuardado ?: mutableState.value.destinoDeFoto ?: return null
+        soltarDestino()
+        return destino
+    }
+
+    /**
+     * Llegó una foto sin destino que la reclame. **No se traga**: es la única
+     * forma que tiene una foto de perderse en este camino, y perder evidencia en
+     * silencio es justo lo que la norma de errores prohíbe.
+     */
+    private fun reportarFotoSinDestino() {
+        telemetry.error(
+            code = VisitasTelemetria.CODE_VISITA_FOTO_SIN_DESTINO,
+            message = "la camara devolvio una foto y ya no habia destino que la reclamara",
+            props = emptyMap()
+        )
+    }
+
+    /** Quita un comprobante ya adjunto y borra su archivo. */
+    fun quitarFoto(id: String) {
+        val actual = mutableState.value
+        if (!actual.sePuedeCapturar) return
+        val quitado = actual.comprobantes.firstOrNull { it.id == id } ?: return
+        comprobantes = actual.comprobantes.filterNot { it.id == id }
+        mutableState.value = actual.copy(comprobantes = comprobantes, falloDeLaFoto = null)
+        borrarArchivo(quitado.archivo)
+    }
+
+    private fun adjuntar(comprobante: ComprobanteDeVisita) {
+        comprobantes = comprobantes + comprobante
+        mutableState.value = mutableState.value.copy(
+            comprobantes = comprobantes,
+            falloDeLaFoto = null
+        )
+    }
+
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // borrar un archivo puede fallar por permisos o por FS; se reporta y se sigue.
+    private suspend fun rechazarPorTipo(comprobante: ComprobanteDeVisita) {
+        telemetry.error(
+            code = VisitasTelemetria.CODE_VISITA_FOTO_TIPO_NO_PERMITIDO,
+            message = "la camara dejo un tipo que el servidor no acepta; no se adjunta",
+            // Anti-PII: el MIME es un valor tecnico cerrado, no dato del cliente.
+            props = mapOf(VisitasTelemetria.PROP_TIPO to comprobante.mime)
+        )
+        mutableState.value = mutableState.value.copy(
+            falloDeLaFoto = FalloDeLaFoto.TIPO_NO_PERMITIDO
+        )
+        // El archivo se va con el rechazo: nada lo va a subir nunca.
+        try {
+            camara.descartar(comprobante.archivo)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            reportarFalloDeFoto(fallo, "no se pudo borrar la foto rechazada", conAviso = false)
+        }
+    }
+
+    /** Suelta el destino en el estado y en el `SavedStateHandle`, a la vez. */
+    private fun soltarDestino() {
+        destinoGuardado = null
+        mutableState.value = mutableState.value.copy(destinoDeFoto = null)
+    }
+
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // idem: el borrado es best-effort y su fallo no vuelve a la pantalla.
+    private fun borrarArchivo(archivo: String) {
+        viewModelScope.launch {
+            try {
+                withContext(io) { camara.descartar(archivo) }
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                // Sin aviso en pantalla: el cobrador pidió quitar la foto y la
+                // foto se quitó. Lo que quedó fue un archivo en disco, y eso es
+                // asunto del que lo tiene que limpiar, no suyo.
+                reportarFalloDeFoto(fallo, "no se pudo borrar el archivo local", conAviso = false)
+            }
+        }
+    }
+
+    /**
+     * Un fallo de la capa de fotos. Reporta con el NOMBRE de la clase de la
+     * excepción (nunca su texto, que puede arrastrar la ruta o la nota del
+     * cobrador) y, si toca, enciende el aviso.
+     *
+     * **Nunca toca la visita**: no cambia `fallo`, ni `guardando`, ni el guard.
+     */
+    private fun reportarFalloDeFoto(fallo: Throwable, porque: String, conAviso: Boolean = true) {
+        telemetry.error(
+            code = VisitasTelemetria.CODE_VISITA_FOTO_FALLO,
+            message = "$porque; la visita no se ve afectada",
+            props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+        )
+        if (conAviso) {
+            mutableState.value = mutableState.value.copy(
+                falloDeLaFoto = FalloDeLaFoto.NO_SE_PUDO_TOMAR
+            )
+        }
+    }
+
     /**
      * Registra la visita. **El único camino que escribe.**
      *
@@ -224,7 +519,11 @@ class RegistrarVisitaViewModel @Inject constructor(
                 ventaId = ventaId,
                 captura = actual.captura,
                 hoy = actual.hoy,
-                recomendacionId = actual.recomendacion?.recomendacionId
+                recomendacionId = actual.recomendacion?.recomendacionId,
+                // Del ESTADO, no del campo: es el mismo estado que el guard ya
+                // congeló al empezar a guardar, así que lo que se escribe es
+                // exactamente lo que la pantalla enseñaba.
+                comprobantes = actual.comprobantes
             )
         }
 
@@ -327,5 +626,7 @@ class RegistrarVisitaViewModel @Inject constructor(
     private companion object {
         const val CLAVE_VISITA_ID = "visitas_visita_id"
         const val CLAVE_YA_SE_ENCOLO = "visitas_ya_se_encolo"
+        const val CLAVE_DESTINO = "visitas_destino_de_foto"
+        const val CLAVE_COMPROBANTES = "visitas_comprobantes"
     }
 }

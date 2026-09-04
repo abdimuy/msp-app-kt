@@ -1,9 +1,12 @@
 package com.example.msp_app.feature.visitas.data.fake
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
+import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.visitas.domain.model.RecomendacionMostrada
 import com.example.msp_app.feature.visitas.domain.model.VentaParaVisitar
+import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.RecomendacionesPort
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
@@ -151,5 +154,64 @@ class FakeVisitaImpresaPort(
     ): com.example.msp_app.feature.visitas.domain.model.VisitaRegistrada? {
         consultadas += visitaId
         return visitas.firstOrNull { it.visitaId == visitaId }
+    }
+}
+
+/**
+ * Fake de [ComprobantesDeVisitaPort] — la cámara.
+ *
+ * Graba TODO lo que se le pide: los destinos que acuñó, los que aceptó y los
+ * archivos que se le mandó borrar. Cada una de las tres funciones puede fallar
+ * por separado, porque los tres caminos tienen que dejar la visita registrada
+ * igual y ninguno puede tapar al otro.
+ *
+ * [mimeAceptado] es lo que devuelve [aceptar]: cambiarlo a algo fuera de la
+ * whitelist es cómo se prueba el rechazo por tipo sin escribir bytes reales.
+ */
+class FakeComprobantesDeVisitaPort(
+    var fallaAlPreparar: Throwable? = null,
+    var fallaAlAceptar: Throwable? = null,
+    var fallaAlDescartar: Throwable? = null,
+    var mimeAceptado: String = "image/jpeg"
+) : ComprobantesDeVisitaPort {
+
+    /** Los destinos acuñados, en orden. */
+    val destinos: MutableList<DestinoDeFoto> = mutableListOf()
+
+    /** Los destinos que llegaron a [aceptar], en orden. */
+    val aceptados: MutableList<DestinoDeFoto> = mutableListOf()
+
+    /** Las rutas que se mandó borrar, en orden. */
+    val descartados: MutableList<String> = mutableListOf()
+
+    private var siguiente = 0
+
+    override suspend fun nuevoDestino(): DestinoDeFoto {
+        fallaAlPreparar?.let { throw it }
+        siguiente++
+        val destino = DestinoDeFoto(
+            id = "IMG-$siguiente",
+            uriParaLaCamara = "content://fake/camara/$siguiente",
+            archivoCrudo = "/tmp/fake/crudo-$siguiente.jpg"
+        )
+        destinos += destino
+        return destino
+    }
+
+    override suspend fun aceptar(destino: DestinoDeFoto): ComprobanteDeVisita {
+        fallaAlAceptar?.let { throw it }
+        aceptados += destino
+        // CONSERVA el id del destino, que es el contrato del puerto: acuñar otro
+        // aquí dejaría el `id_<n>` sin clave estable entre reintentos.
+        return ComprobanteDeVisita(
+            id = destino.id,
+            archivo = "/tmp/fake/comprobante-${destino.id}.jpg",
+            mime = mimeAceptado
+        )
+    }
+
+    override suspend fun descartar(archivo: String) {
+        descartados += archivo
+        fallaAlDescartar?.let { throw it }
     }
 }

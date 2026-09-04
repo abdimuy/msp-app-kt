@@ -13,6 +13,7 @@ import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import com.example.msp_app.core.utils.VisitScope
 import com.example.msp_app.core.utils.VisitScopeMapper
+import java.time.Duration
 import javax.inject.Inject
 
 class VisitsLocalDataSource @Inject constructor(
@@ -190,7 +191,11 @@ class VisitsLocalDataSource @Inject constructor(
      */
     suspend fun deleteUploadedVisits() {
         val corte = AppTime.todayInBusinessZone(clock).minusDays(RETENCION_DE_COMPROMISOS_DIAS)
-        visitDao.deleteUploadedVisits(conservarDesde = AppTime.toWireDate(corte))
+        val corteDeComprobantes = clock.now().minus(RETENCION_DE_COMPROBANTES)
+        visitDao.deleteUploadedVisits(
+            conservarDesde = AppTime.toWireDate(corte),
+            comprobantesDesde = AppTime.toWireFormat(corteDeComprobantes)
+        )
     }
 
     private companion object {
@@ -202,5 +207,17 @@ class VisitsLocalDataSource @Inject constructor(
          * él la poda dejaría de podar para siempre las filas con promesa.
          */
         const val RETENCION_DE_COMPROMISOS_DIAS: Long = 90
+
+        /**
+         * Cuánto bloquea la poda un comprobante que todavía no subió (Task 23).
+         *
+         * Es **la misma ventana** que usa el barrido de huérfanos de
+         * `ComprobantesDeVisitaAdapter`, y tienen que coincidir: mientras la fila
+         * bloquea, el barrido no la toca; en cuanto deja de bloquear, el barrido
+         * ya la puede recoger. Con dos números distintos habría un hueco en el
+         * que la visita se poda y su archivo se queda, o uno en el que la visita
+         * no se poda y nadie limpia nunca.
+         */
+        val RETENCION_DE_COMPROBANTES: Duration = Duration.ofDays(7)
     }
 }

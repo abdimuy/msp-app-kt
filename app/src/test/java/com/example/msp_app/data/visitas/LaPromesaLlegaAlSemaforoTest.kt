@@ -79,6 +79,7 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
                 clock
             ),
             recomendaciones = db.visitRecommendationDao(),
+            imagenes = db.visitImageDao(),
             telemetry = telemetry,
             clock = clock,
             traerUsuario = { User(ID = "u-1", COBRADOR_ID = 7) }

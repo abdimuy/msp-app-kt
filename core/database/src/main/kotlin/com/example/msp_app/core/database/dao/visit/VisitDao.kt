@@ -237,15 +237,40 @@ interface VisitDao {
      * `VisitsLocalDataSource.deleteUploadedVisits`, que la calcula desde el
      * reloj de negocio y documenta cuánto dura.
      *
+     * ## Por qué la TERCERA condición (Task 23)
+     *
+     * El KDoc de [com.example.msp_app.core.database.entities.VisitImageEntity] le
+     * encarga a la Task 23 esto textual: *"impedir que se pode una visita con
+     * comprobantes sin `SUBIDA_EN`"*. La foto viaja en el MISMO request que la
+     * visita, así que lo normal es que las dos cosas queden listas a la vez; lo
+     * que esta condición cubre es el hueco que abre la convivencia JSON
+     * (Ruling E): `GET /v2/visitas/by-ids` puede confirmar la visita mientras
+     * una foto sigue pendiente, y podar entonces borraría la única pista de que
+     * esa evidencia quedó sin entregar.
+     *
+     * **La condición se vence sola, y eso es a propósito.** Solo cuenta el
+     * comprobante pendiente creado en o después de [comprobantesDesde]; una fila
+     * más vieja ya se dio por abandonada y deja de bloquear. Sin ese tope, una
+     * foto que nunca va a poder subirse —su visita ya quedó marcada, así que
+     * nadie la reintenta— clavaría su visita en la tabla para siempre, que es un
+     * defecto peor que el que se está cerrando.
+     *
      * @param conservarDesde fecha de corte en formato de cable (`yyyy-MM-dd`).
      *   Una visita cuyo compromiso caiga en ese día o después SOBREVIVE.
+     * @param comprobantesDesde instante de corte en formato de cable de `AppTime`
+     *   (`ISO_INSTANT`, UTC, ancho fijo — comparable como texto). Una visita con
+     *   un comprobante pendiente creado en ese instante o después SOBREVIVE.
      */
     @Query(
         """
         DELETE FROM Visit
         WHERE GUARDADO_EN_MICROSIP = 1
           AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarDesde
+          AND ID NOT IN (
+              SELECT VISITA_ID FROM visita_imagenes
+              WHERE SUBIDA_EN IS NULL AND CREADA_EN >= :comprobantesDesde
+          )
         """
     )
-    suspend fun deleteUploadedVisits(conservarDesde: String)
+    suspend fun deleteUploadedVisits(conservarDesde: String, comprobantesDesde: String)
 }

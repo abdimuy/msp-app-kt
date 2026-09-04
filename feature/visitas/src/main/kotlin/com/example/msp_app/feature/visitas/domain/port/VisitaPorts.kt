@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.visitas.domain.port
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.RecomendacionMostrada
 import com.example.msp_app.feature.visitas.domain.model.VisitaRegistrada
@@ -30,7 +31,20 @@ data class VisitaARegistrar(
     val cita: CitaEstructurada? = null,
     val ubicacion: UbicacionDeLaVisita? = null,
     /** La recomendación que llevó al cobrador a esta puerta, si la hubo. */
-    val recomendacionId: String? = null
+    val recomendacionId: String? = null,
+    /**
+     * Las fotos que el cobrador adjuntó, **en orden de captura** (Task 23).
+     *
+     * Viajan DENTRO de [VisitaARegistrar] y no por una llamada aparte, y eso no
+     * es estilo: el adaptador escribe la visita y **encola el envío en la misma
+     * llamada** (propiedad de la Task 5). Una segunda llamada después de
+     * `registrar` correría carrera contra el worker, que ya podría haber subido
+     * la visita SIN fotos — y como esa subida marca `GUARDADO_EN_MICROSIP`, no
+     * habría segundo intento y la evidencia se perdería.
+     *
+     * Vacía es el caso normal. Que falten **nunca** impide registrar.
+     */
+    val comprobantes: List<ComprobanteDeVisita> = emptyList()
 )
 
 /**
@@ -97,7 +111,15 @@ enum class ResultadoDelRegistro {
  */
 interface RegistroDeVisitaPort {
 
-    /** Registra [visita]. Total: no lanza, contesta con un [ResultadoDelRegistro]. */
+    /**
+     * Registra [visita]. Total: no lanza, contesta con un [ResultadoDelRegistro].
+     *
+     * **Contrato de orden (Task 23):** los [VisitaARegistrar.comprobantes] quedan
+     * escritos ANTES de que el envío se encole, y su escritura **no puede**
+     * revertir la visita ni cambiar el resultado. Las dos mitades importan: la
+     * primera porque el worker sube lo que encuentra en `visita_imagenes` y solo
+     * sube una vez; la segunda porque la foto nunca bloquea el guardado.
+     */
     suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro
 }
 

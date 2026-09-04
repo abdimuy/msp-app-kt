@@ -4,6 +4,7 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.CitaEstructurada
 import com.example.msp_app.feature.visitas.domain.port.PromesaEstructurada
@@ -51,14 +52,20 @@ class RegistrarVisita @Inject constructor(
      *   del envío.
      * @param ventaId la cuenta que el cobrador tenía abierta, o `null` si entró
      *   por el cliente.
+     * @param comprobantes las fotos adjuntas, en orden de captura (Task 23).
+     *   Viajan hasta el puerto **sin pasar por [ReglasDeLaVisita]**: ninguna
+     *   regla las mira y ninguna las puede convertir en un bloqueo. Es la
+     *   traducción literal de "la foto nunca bloquea el guardado".
      */
+    @Suppress("LongParameterList") // los comprobantes son el septimo dato del hecho, no una opcion.
     suspend operator fun invoke(
         visitaId: String,
         clienteId: Int,
         ventaId: Int?,
         captura: CapturaDeVisita,
         hoy: LocalDate,
-        recomendacionId: String? = null
+        recomendacionId: String? = null,
+        comprobantes: List<ComprobanteDeVisita> = emptyList()
     ): ResultadoDelRegistro {
         val bloqueos = ReglasDeLaVisita.bloqueosDe(captura, hoy)
         if (bloqueos.isNotEmpty()) {
@@ -86,7 +93,8 @@ class RegistrarVisita @Inject constructor(
                 promesa = promesaDe(resultado, captura),
                 cita = citaDe(resultado, captura),
                 ubicacion = ubicacionActual(),
-                recomendacionId = recomendacionId
+                recomendacionId = recomendacionId,
+                comprobantes = comprobantes
             )
         )
     }

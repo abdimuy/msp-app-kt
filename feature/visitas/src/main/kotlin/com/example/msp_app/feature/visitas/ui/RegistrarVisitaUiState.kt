@@ -1,8 +1,11 @@
 package com.example.msp_app.feature.visitas.ui
 
+import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.model.BloqueoDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
+import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.visitas.domain.model.RecomendacionMostrada
 import java.time.LocalDate
 
@@ -20,6 +23,22 @@ enum class FalloDeLaVisita(val mensaje: String) {
     CLIENTE_NO_ESTA("ese cliente ya no está"),
     SIN_COBRADOR("falta el cobrador"),
     NO_SE_PUDO_GUARDAR("no se pudo guardar")
+}
+
+/**
+ * Por qué la foto no se adjuntó. **Ninguno de los tres impide registrar la
+ * visita** — por eso el aviso es ámbar y no rojo (el rojo en esta pantalla
+ * significa "esto no se puede guardar", que es otra cosa).
+ */
+enum class FalloDeLaFoto {
+    /** La cámara falló, el permiso se negó o la compresión reventó. */
+    NO_SE_PUDO_TOMAR,
+
+    /** El archivo no es de un tipo que el servidor acepte. */
+    TIPO_NO_PERMITIDO,
+
+    /** Ya hay [com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita.MAXIMO]. */
+    YA_NO_CABEN
 }
 
 /**
@@ -47,7 +66,22 @@ data class RegistrarVisitaUiState(
     /** El calendario de "otro día" está abierto. */
     val eligiendoDia: Boolean = false,
     /** El reloj de "otra hora" está abierto. */
-    val eligiendoHora: Boolean = false
+    val eligiendoHora: Boolean = false,
+    /**
+     * Las fotos adjuntas, en orden de captura (Task 23).
+     *
+     * Van **fuera** de [captura] a propósito: `onResultado` limpia la captura al
+     * cambiar de desenlace —una promesa arrastrada es un compromiso que el
+     * cliente no hizo— y las fotos no son parte de ese compromiso; el cobrador
+     * fotografió la puerta y sigue fotografiada aunque cambie de opinión sobre
+     * qué pasó. Además `ReglasDeLaVisita` solo mira [captura], así que estando
+     * aquí ninguna regla puede convertir una foto en un bloqueo.
+     */
+    val comprobantes: List<ComprobanteDeVisita> = emptyList(),
+    /** Hay un destino listo y la cámara tiene que abrirse. `null` = nada en vuelo. */
+    val destinoDeFoto: DestinoDeFoto? = null,
+    /** Por qué la última foto no se adjuntó. Nunca apaga el CTA. */
+    val falloDeLaFoto: FalloDeLaFoto? = null
 ) {
     /**
      * ¿El CTA está vivo? Si esto es `false` el botón se pinta apagado **y** no
@@ -63,6 +97,16 @@ data class RegistrarVisitaUiState(
     /** ¿Se puede seguir capturando? Con la visita ya registrada, no. */
     val sePuedeCapturar: Boolean
         get() = contexto != null && !guardando && registrada == null
+
+    /**
+     * ¿Se puede adjuntar OTRA foto? Mismo gate que capturar, más el tope.
+     *
+     * El tope se pregunta aquí y **también** al pedir la foto: la pantalla apaga
+     * el botón, y el ViewModel vuelve a mirar porque un control apagado no es
+     * una invariante.
+     */
+    val sePuedeAgregarFoto: Boolean
+        get() = sePuedeCapturar && comprobantes.size < ComprobantesDeVisita.MAXIMO
 
     /** La razón que se muestra bajo el CTA apagado. `null` cuando no hay ninguna. */
     val razonDelBloqueo: String?

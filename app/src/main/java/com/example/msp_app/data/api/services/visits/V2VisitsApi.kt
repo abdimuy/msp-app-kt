@@ -1,33 +1,88 @@
 package com.example.msp_app.data.api.services.visits
 
+import okhttp3.MultipartBody
+import okhttp3.RequestBody
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Query
 
 /**
  * Retrofit service for the msp-api v2 cobranza visita endpoint.
  *
- * `POST /v2/visitas` is a plain JSON endpoint — unlike
- * [com.example.msp_app.data.api.services.payment.V2PaymentsApi] there is no
- * multipart envelope, since visitas never carry a comprobante image.
+ * ## `POST /v2/visitas` speaks TWO wire formats, and this client uses both
  *
- * Idempotency is end-to-end by `id`: re-sending the same UUID returns the
- * existing visita with no double-insert, so the retry worker can safely
- * resend without a reconcile-via-GET step. The `Idempotency-Key` header is
- * set to the same id for defence in depth (if present it must equal the body
- * `id`).
+ * An earlier version of this comment said visitas *"never carry a comprobante
+ * image"*. That was true when it was written and is not any more: attaching
+ * photos to a visita is a **product decision that was taken and then reversed**
+ * (plan `pagos-y-visitas`, Task 23), and msp-api's Task 9 turned this route
+ * from plain JSON into a route that reads its own body and accepts either
+ * shape. The comment is updated rather than deleted so the next reader knows
+ * the change was deliberate and not an oversight.
+ *
+ * What the server accepts (verified in `internal/visitas/infra/visitashttp`,
+ * not assumed):
+ *
+ *  - **`application/json`** — the legacy body, byte-for-byte what it always
+ *    was. It is NOT a fallback: the phones already in the field send this and
+ *    must keep working, which is why the coexistence exists at all (Ruling E).
+ *    An *absent* Content-Type also resolves to JSON.
+ *  - **`multipart/form-data`** — the same JSON document in a `datos` field,
+ *    plus 0..N repeated `imagen` file parts with their positional `id_<n>` /
+ *    `descripcion_<n>` companions.
+ *
+ * This client sends JSON when the visita carries no pending photo and
+ * multipart when it does — see `PendingVisitsWorker.uploadV2` for why keeping the
+ * proven JSON path for the overwhelmingly common case is the smaller blast
+ * radius.
+ *
+ * ## Idempotency
+ *
+ * End-to-end by `id`: re-sending the same UUID returns the existing visita with
+ * no double-insert (**201, not 409** — on a collision the server does
+ * `FindByID` and returns what it has), so the retry worker can safely resend
+ * without a reconcile-via-GET step. With photos the guarantee holds too and by
+ * the same key: `RegistrarVisitaConImagenes` reads which `imagen` ids the
+ * visita already has and stores only the new ones, so a retry carrying the same
+ * `id_<n>` values writes nothing and orphans no blob.
+ *
+ * The `Idempotency-Key` header is set to the same id for defence in depth (if
+ * present it must equal the body `id`, or the server answers
+ * `idempotency_key_mismatch`).
  *
  * Auth is transparent: the v2 client's `BearerAuthInterceptor` (`:core:network`)
  * attaches the Firebase token and refreshes it once on a 401.
  */
 interface V2VisitsApi {
 
+    /** The legacy JSON shape. Unchanged, and still what a photo-less visita sends. */
     @POST("v2/visitas")
     suspend fun crearVisita(
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: CrearVisitaBody
+    ): VisitaDTO
+
+    /**
+     * The multipart shape, used when the visita carries comprobantes.
+     *
+     * @param datos the very same [CrearVisitaBody] document, serialized to JSON
+     *   — the server parses the `datos` field with the same decoder it uses for
+     *   a JSON body (`decodeDatosField` → `decodeCrearVisitaJSON`), so the two
+     *   formats cannot drift apart in what they accept.
+     * @param imagenes the comprobante parts, already built by
+     *   `partesDeComprobantesDeVisita`: N files under the **`imagen`** field
+     *   plus their positional `id_<n>` / `descripcion_<n>` text parts.
+     *   Deliberately an unnamed `@Part` — each part carries its own form name.
+     */
+    @Multipart
+    @POST("v2/visitas")
+    suspend fun crearVisitaConImagenes(
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Part("datos") datos: RequestBody,
+        @Part imagenes: List<MultipartBody.Part>
     ): VisitaDTO
 
     /**
@@ -55,7 +110,9 @@ interface V2VisitsApi {
 }
 
 /**
- * Body serialized as the JSON request payload.
+ * Body serialized as the JSON request payload — either as the whole body
+ * (`application/json`) or inside the multipart `datos` field. It is the SAME
+ * document both ways; the server decodes it with the same function.
  *
  * Field names MUST match the Go `CrearVisitaBody` exactly and carry no
  * extras — the server decodes with `DisallowUnknownFields`, so an unknown
