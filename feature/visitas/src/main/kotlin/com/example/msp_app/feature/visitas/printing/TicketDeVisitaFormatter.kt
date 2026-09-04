@@ -158,9 +158,7 @@ object TicketDeVisitaFormatter {
                     )
                 )
             )
-            val hora = cita.hora?.format(
-                java.time.format.DateTimeFormatter.ofPattern(PATRON_HORA)
-            ) ?: SIN_HORA
+            val hora = cita.hora?.let { AppTime.formatTime(it, PATRON_HORA) } ?: SIN_HORA
             add(TicketLine.Line(TicketLayout.twoCol(LABEL_HORA, hora, ancho)))
             add(TicketLine.Separator())
         }

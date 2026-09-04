@@ -57,11 +57,23 @@ constructor(
 
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    /**
+     * Lo que se sabe de [ticketId].
+     *
+     * **Una fecha ilegible NO borra el conteo.** Se devuelve el registro con
+     * `firstPrintedAt = null`: la copia se sigue detectando y se sigue marcando,
+     * solo pierde la hora. Descartar la entrada entera —lo que hacía la primera
+     * versión— costaba exactamente una copia **indetectable**: el siguiente
+     * papel salía limpio, sin banda.
+     */
     override fun find(ticketId: String): PrintRecord? {
         val prints = prefs.getInt(claveConteo(ticketId), 0)
         if (prints <= 0) return null
-        val primera = leerInstante(ticketId) ?: return null
-        return PrintRecord(ticketId = ticketId, prints = prints, firstPrintedAt = primera)
+        return PrintRecord(
+            ticketId = ticketId,
+            prints = prints,
+            firstPrintedAt = leerInstante(ticketId)
+        )
     }
 
     override fun record(ticketId: String, at: Instant): PrintRecord {
@@ -70,7 +82,10 @@ constructor(
             ticketId = ticketId,
             prints = (previo?.prints ?: 0) + 1,
             // La PRIMERA vez nunca se pisa: es la que dice qué copia salió antes.
-            firstPrintedAt = previo?.firstPrintedAt ?: at
+            // Y "no había registro" no es lo mismo que "el registro perdió su
+            // fecha": en el segundo caso la hora se queda DESCONOCIDA, porque
+            // sellar la de ahora afirmaría que esta copia fue la primera.
+            firstPrintedAt = if (previo == null) at else previo.firstPrintedAt
         )
         guardar(nuevo)
         return nuevo
@@ -84,7 +99,14 @@ constructor(
     private fun guardar(registro: PrintRecord) {
         val editor = prefs.edit()
         editor.putInt(claveConteo(registro.ticketId), registro.prints)
-        editor.putString(clavePrimera(registro.ticketId), registro.firstPrintedAt.toString())
+        val primera = registro.firstPrintedAt
+        if (primera == null) {
+            // Primera vez desconocida: se limpia la cadena corrupta en vez de
+            // sellar la de AHORA, que afirmaría que esta copia fue la primera.
+            editor.remove(clavePrimera(registro.ticketId))
+        } else {
+            editor.putString(clavePrimera(registro.ticketId), primera.toString())
+        }
         if (!editor.commit()) {
             telemetry.error(
                 code = PrintLogTelemetry.CODE_PRINT_LOG_NO_SE_GUARDO,
@@ -97,9 +119,10 @@ constructor(
 
     /**
      * Lee la fecha de la primera impresión. Una cadena ilegible (disco corrupto,
-     * un formato viejo) degrada a `null` —la entrada se vuelve a construir en la
-     * siguiente impresión— pero **no en silencio**: emite su propio código.
-     * Anti-PII: viaja el nombre de la clase de la excepción, nunca su texto.
+     * un formato viejo) degrada a `null` — el CONTEO se conserva, así que la
+     * reimpresión se sigue detectando y solo se pierde la hora. No es silencioso:
+     * emite su propio código. Anti-PII: viaja el nombre de la clase de la
+     * excepción, nunca su texto.
      */
     private fun leerInstante(ticketId: String): Instant? {
         val crudo = prefs.getString(clavePrimera(ticketId), null) ?: return null

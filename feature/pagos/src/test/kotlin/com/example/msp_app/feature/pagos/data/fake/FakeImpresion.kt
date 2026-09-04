@@ -94,7 +94,9 @@ class FakePrintLog : PrintLogStore {
         val nuevo = PrintRecord(
             ticketId = ticketId,
             prints = (previo?.prints ?: 0) + 1,
-            firstPrintedAt = previo?.firstPrintedAt ?: at
+            // Mismo contrato que el de disco: "sin registro" sella la hora,
+            // "registro sin fecha" la deja desconocida.
+            firstPrintedAt = if (previo == null) at else previo.firstPrintedAt
         )
         registros[ticketId] = nuevo
         return nuevo

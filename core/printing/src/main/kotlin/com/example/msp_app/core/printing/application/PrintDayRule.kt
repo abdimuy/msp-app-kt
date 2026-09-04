@@ -18,7 +18,7 @@ sealed interface PrintPermission {
      * printer. Printing again is allowed — the customer may have lost the
      * paper — and the copy is **marked** so the reprint is detectable.
      */
-    data class Reimpresion(val previas: Int, val primeraVez: Instant) : PrintPermission
+    data class Reimpresion(val previas: Int, val primeraVez: Instant?) : PrintPermission
 
     /**
      * Today is not the collection day. **Nothing prints**, first copy or not.
@@ -27,6 +27,17 @@ sealed interface PrintPermission {
      */
     data object FueraDelDia : PrintPermission
 }
+
+/**
+ * El rechazo de la regla del día, devuelto por
+ * [PrintTicketUseCase] dentro de un `Result.failure`.
+ *
+ * Existe porque la regla se aplica en el **punto de escritura** y no solo en la
+ * pantalla: un `Boolean` de vuelta obligaría a cada llamador a inventar su
+ * propio mensaje, y un `PrintError` diría que falló la impresora, que es falso —
+ * aquí no se intentó imprimir nada.
+ */
+object ImpresionFueraDelDia : Exception("el ticket solo se imprime el dia del cobro")
 
 /**
  * *El ticket solo se imprime el día del cobro.*

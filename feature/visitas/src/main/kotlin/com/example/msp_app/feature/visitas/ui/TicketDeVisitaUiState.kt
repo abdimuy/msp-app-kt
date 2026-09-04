@@ -42,8 +42,11 @@ data class TicketDeVisitaUiState(
     val detalleDeCopia: String
         get() {
             val copia = permiso as? PrintPermission.Reimpresion ?: return ""
-            val hora = AppTime.formatForDisplay(copia.primeraVez, AppTime.Formats.TIME_24H)
-            return "copia ${copia.previas + 1} · $hora"
+            val numero = "copia ${copia.previas + 1}"
+            // Hora desconocida: el registro conservó el conteo y perdió la fecha.
+            // Se dice CUÁL copia es, que es lo que la hace detectable.
+            val hora = copia.primeraVez ?: return numero
+            return "$numero · ${AppTime.formatForDisplay(hora, AppTime.Formats.TIME_24H)}"
         }
 }
 

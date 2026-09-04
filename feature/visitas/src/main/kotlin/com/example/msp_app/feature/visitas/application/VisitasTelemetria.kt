@@ -70,6 +70,14 @@ object VisitasTelemetria {
      */
     const val CODE_TICKET_VISITA_NO_SE_IMPRIMIO: String = "visita_ticket_no_se_imprimio"
 
+    /**
+     * El punto de escritura RECHAZÓ la impresión porque el día de la visita ya
+     * pasó. Llegar aquí significa que se tocó un CTA que debía estar apagado
+     * —normalmente porque el día cambió con la pantalla abierta—: es un defecto
+     * distinto de "no se imprimió" y por eso lleva código propio.
+     */
+    const val CODE_TICKET_VISITA_FUERA_DEL_DIA: String = "visita_ticket_fuera_del_dia"
+
     /** Prop con el NOMBRE de la clase de la excepción — nunca su texto. */
     const val PROP_EXCEPCION: String = "exception"
 

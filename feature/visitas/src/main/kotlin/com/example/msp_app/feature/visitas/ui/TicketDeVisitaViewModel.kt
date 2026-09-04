@@ -3,6 +3,7 @@ package com.example.msp_app.feature.visitas.ui
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.printing.application.ImpresionFueraDelDia
 import com.example.msp_app.core.printing.application.PrintPermission
 import com.example.msp_app.core.printing.application.TicketPrinting
 import com.example.msp_app.core.printing.domain.PrintError
@@ -27,11 +28,14 @@ import kotlinx.coroutines.withContext
  * El ticket de visita: lo arma, lo muestra y lo imprime.
  *
  * Gemelo del `TicketDePagoViewModel` y por la misma razón que sus estados
- * comparten forma: la regla del mock —**solo el día del cobro**, **cada
+ * comparten forma: la regla del mock —**solo el día de la visita**, **cada
  * impresión registrada**— es una sola, y las dos pantallas la aplican con las
- * MISMAS piezas de `:core:printing` (la fachada [TicketPrinting]). Nadie llama a `PrinterPort.print` directo desde aquí:
- * imprimir y registrar son una sola operación, así que no existe un camino que
- * imprima sin dejar rastro.
+ * MISMAS piezas de `:core:printing` (la fachada [TicketPrinting]).
+ *
+ * El permiso que vive en el estado es para PINTARSE. La regla se hace cierta en
+ * `PrintTicketUseCase`, que relee el reloj en el instante de imprimir: nadie
+ * llama a `PrinterPort.print` directo desde aquí, y comprobar-el-día, imprimir y
+ * registrar son una sola operación indivisible.
  */
 @HiltViewModel
 @Suppress(
@@ -140,7 +144,12 @@ class TicketDeVisitaViewModel @Inject constructor(
         )
         val lineas = TicketDeVisitaFormatter.toTicketLines(ticket, permiso)
         val resultado = withContext(io) {
-            impresion.imprimir(device = dispositivo, ticketId = ticket.visitaId, ticket = lineas)
+            impresion.imprimir(
+                device = dispositivo,
+                ticketId = ticket.visitaId,
+                cobradoEn = ticket.registradaEn,
+                ticket = lineas
+            )
         }
         resultado.fold(
             onSuccess = {
@@ -158,7 +167,22 @@ class TicketDeVisitaViewModel @Inject constructor(
                     )
                 )
             },
-            onFailure = { reportarFallo(it, dispositivo, disponibles) }
+            onFailure = { fallo ->
+                // El rechazo por día NO deja la pantalla ofreciendo imprimir: se
+                // vuelve a leer el permiso, la banda pasa a "fuera del día" y el
+                // CTA se apaga. Es el único camino por el que la pantalla puede
+                // enterarse de que el día cambió mientras estaba abierta.
+                if (fallo === ImpresionFueraDelDia) {
+                    val vencido = withContext(io) {
+                        impresion.permiso(ticket.visitaId, ticket.registradaEn)
+                    }
+                    mutableState.value = mutableState.value.copy(
+                        permiso = vencido,
+                        vistaPrevia = vistaPreviaDe(ticket, vencido)
+                    )
+                }
+                reportarFallo(fallo, dispositivo, disponibles)
+            }
         )
     }
 
@@ -179,7 +203,11 @@ class TicketDeVisitaViewModel @Inject constructor(
         disponibles: List<PrinterDevice>
     ) {
         telemetry.error(
-            code = VisitasTelemetria.CODE_TICKET_VISITA_NO_SE_IMPRIMIO,
+            code = if (fallo === ImpresionFueraDelDia) {
+                VisitasTelemetria.CODE_TICKET_VISITA_FUERA_DEL_DIA
+            } else {
+                VisitasTelemetria.CODE_TICKET_VISITA_NO_SE_IMPRIMIO
+            },
             message = "el ticket de visita no se imprimio",
             props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
@@ -229,6 +257,7 @@ class TicketDeVisitaViewModel @Inject constructor(
 
     /** Mensajes cortos es-MX: 2-4 palabras, minúsculas, sin punto final. */
     private fun mensajeDe(fallo: Throwable): String = when (fallo) {
+        ImpresionFueraDelDia -> "ya no es el día"
         is PrintError.BluetoothDisabled -> "activa el bluetooth"
         is PrintError.NotPaired -> "impresora no emparejada"
         is PrintError.PermissionDenied -> "falta permiso bluetooth"

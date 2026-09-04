@@ -43,6 +43,18 @@ class TicketDePagoFormatterTest {
     }
 
     @Test
+    fun `una copia con hora desconocida sigue llevando la marca`() {
+        // El registro conservó el conteo y perdió la fecha (prefs corruptas).
+        // El papel dice QUE es copia y CUÁL, que es lo que la hace detectable;
+        // perder el conteo para no perder la hora sería exactamente al revés.
+        val papel = texto(PrintPermission.Reimpresion(previas = 1, primeraVez = null))
+
+        assertTrue(papel.contains("*** REIMPRESION ***"))
+        assertTrue(papel.contains("copia 2"))
+        assertFalse(papel.contains("primera"))
+    }
+
+    @Test
     fun `la tercera copia dice copia 3`() {
         val papel = texto(
             PrintPermission.Reimpresion(previas = 2, primeraVez = TicketFixtures.PRIMERA_COPIA)

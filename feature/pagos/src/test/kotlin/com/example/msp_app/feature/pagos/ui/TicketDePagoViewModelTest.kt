@@ -188,6 +188,74 @@ class TicketDePagoViewModelTest {
 
     // endregion
 
+    /**
+     * **El caso que se escapó en la primera versión.**
+     *
+     * Todas las pruebas de arriba mueven el reloj ANTES de construir el
+     * ViewModel, así que ejercitan la pantalla pintándose y nunca el momento de
+     * imprimir. Aquí la pantalla se abre **el día del cobro** —permiso bueno,
+     * CTA encendido— y el día cambia **con la pantalla abierta**: es la pantalla
+     * abierta a las 23:58 y tocada a las 00:01, o el ViewModel que sobrevive a
+     * una noche en segundo plano.
+     *
+     * El veredicto guardado dice que sí se puede; la lectura fresca del reloj
+     * dentro de `PrintTicketUseCase` dice que no, y es la que manda.
+     */
+    @Test
+    fun `si el dia cambia CON la pantalla abierta, el toque no imprime`() =
+        runTest(testDispatcher) {
+            preferida.savePreferredAddress(FakePrinterPort.IMPRESORA.address)
+            val vm = viewModel()
+            advanceUntilIdle()
+            // La pantalla se pintó imprimible: este es el estado rancio.
+            assertTrue(vm.state.value.sePuedeImprimir)
+
+            reloj.advanceDays(1)
+            vm.imprimir()
+            advanceUntilIdle()
+
+            // Ni papel ni registro. Control positivo: `la primera impresion sale
+            // y queda registrada` usa los MISMOS fakes y sí llena las dos listas.
+            assertEquals(emptyList<Any>(), printer.impresos)
+            assertEquals(emptyList<String>(), log.registrados)
+        }
+
+    @Test
+    fun `tras el rechazo la pantalla pasa sola a fuera del dia`() = runTest(testDispatcher) {
+        preferida.savePreferredAddress(FakePrinterPort.IMPRESORA.address)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        reloj.advanceDays(1)
+        vm.imprimir()
+        advanceUntilIdle()
+
+        // El CTA se apaga solo: el cobrador no se queda tocando un botón que
+        // no hace nada, y la banda explica por qué.
+        assertTrue(vm.state.value.fueraDelDia)
+        assertFalse(vm.state.value.sePuedeImprimir)
+        assertEquals("ya no es el día", vm.state.value.impresion.mensaje)
+    }
+
+    @Test
+    fun `el rechazo por dia se reporta con su codigo propio`() = runTest(testDispatcher) {
+        preferida.savePreferredAddress(FakePrinterPort.IMPRESORA.address)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        reloj.advanceDays(1)
+        vm.imprimir()
+        advanceUntilIdle()
+
+        // Código propio y no el de "no se imprimió": llegar aquí significa que
+        // se tocó un CTA que debía estar apagado, que es otro defecto.
+        assertNotNull(
+            telemetria.recorded.singleOrNull {
+                it.type == TelemetryEventType.ERROR && it.name == PagosTelemetria.CODE_TICKET_PAGO_FUERA_DEL_DIA
+            }
+        )
+    }
+
     // region — el registro de impresiones ---------------------------------------
 
     @Test

@@ -139,6 +139,15 @@ object PagosTelemetria {
      */
     const val CODE_TICKET_PAGO_NO_SE_IMPRIMIO: String = "pagos_ticket_no_se_imprimio"
 
+    /**
+     * El punto de escritura RECHAZÓ la impresión porque el día del cobro ya
+     * pasó. Llegar aquí significa que la pantalla dejó tocar un CTA que debía
+     * estar apagado —normalmente porque el día cambió con la pantalla abierta—,
+     * y por eso lleva código propio y no el de "no se imprimió": es un defecto
+     * distinto y se diagnostica distinto.
+     */
+    const val CODE_TICKET_PAGO_FUERA_DEL_DIA: String = "pagos_ticket_fuera_del_dia"
+
     /** Clave estática de `props` con los nombres de los bloqueos de seguridad. */
     const val PROP_BLOQUEOS: String = "bloqueos"
 

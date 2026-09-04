@@ -12,14 +12,18 @@ import java.time.Instant
  * @property prints how many times that ticket has been physically sent to a
  *   printer. `1` after the first print; `>= 2` means every later copy is a
  *   reprint.
- * @property firstPrintedAt the instant of the FIRST print. It is what the
- *   reprint banner shows, so whoever holds the paper can tell which copy came
- *   first.
+ * @property firstPrintedAt the instant of the FIRST print, or `null` when the
+ *   count survived but the stored instant did not (a corrupted prefs file, an
+ *   older format). `null` means **"this is a copy, but the hour of the first one
+ *   is unknown"** — deliberately different from "never printed", which is a
+ *   `null` [PrintRecord]. The banner degrades to `copia N` without an hour
+ *   rather than silently losing the count, which would print the next copy as if
+ *   it were the first. See [PrintLogStore]'s second limit.
  */
 data class PrintRecord(
     val ticketId: String,
     val prints: Int,
-    val firstPrintedAt: Instant
+    val firstPrintedAt: Instant?
 )
 
 /**
@@ -52,6 +56,14 @@ data class PrintRecord(
  * way to close that hole without a schema change, and this task must not add
  * one. It is written down here so it is a known limitation and not a surprise.
  *
+ * **The second limit — a corrupted stored date.** If the counter survives but the
+ * instant next to it cannot be parsed, the record keeps its count and loses only
+ * the hour ([PrintRecord.firstPrintedAt] `null`): the copy is still detected and
+ * still marked, it just says `copia 2` instead of `copia 2 - primera 12:05`. The
+ * earlier design dropped the whole entry there, which cost exactly one
+ * **undetectable** copy — the next print came out clean, with no banner. That is
+ * the failure this nullability exists to prevent, not a cosmetic detail.
+ *
  * The log is also per-device: a ticket printed from another phone is invisible
  * here. A collector carries one phone and the payment is registered on it, so
  * that is the same boundary the rest of the offline stack already has.
@@ -71,7 +83,9 @@ interface PrintLogStore {
      * record. The first call stores `prints = 1` and `firstPrintedAt = at`;
      * every later call only increments the counter and **keeps the original
      * [PrintRecord.firstPrintedAt]** — the first copy's timestamp is the one
-     * that identifies which paper came first, so it is never overwritten.
+     * that identifies which paper came first, so it is never overwritten. When a
+     * previous record exists with an unknown first instant, it stays unknown:
+     * stamping [at] there would claim this copy was the first one.
      */
     fun record(ticketId: String, at: Instant): PrintRecord
 }

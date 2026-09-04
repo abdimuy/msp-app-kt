@@ -85,7 +85,7 @@ class SharedPrefsPrintLogTest {
     }
 
     @Test
-    fun `una fecha ilegible degrada a sin registro y NO se traga`() {
+    fun `una fecha ilegible CONSERVA el conteo y solo pierde la hora`() {
         // Se ensucia el archivo a mano: es el disco corrupto/el formato viejo.
         context.getSharedPreferences("print_log_prefs", Context.MODE_PRIVATE)
             .edit()
@@ -93,7 +93,12 @@ class SharedPrefsPrintLogTest {
             .putString("$ticket.primera", "no-es-una-fecha")
             .commit()
 
-        assertNull(log.find(ticket))
+        // El registro sobrevive SIN la hora: la copia se sigue detectando.
+        // Descartar la entrada entera —lo que hacía la primera versión— costaba
+        // exactamente una copia indetectable: el siguiente papel salía limpio.
+        val leido = log.find(ticket)
+        assertEquals(1, leido?.prints)
+        assertNull(leido?.firstPrintedAt)
 
         val errores = telemetry.recorded.filter { it.type == TelemetryEventType.ERROR }
         assertEquals(
@@ -105,6 +110,24 @@ class SharedPrefsPrintLogTest {
             "DateTimeParseException",
             errores.single().props[PrintLogTelemetry.PROP_EXCEPCION]
         )
+    }
+
+    @Test
+    fun `tras una fecha ilegible la siguiente copia sigue contando`() {
+        context.getSharedPreferences("print_log_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putInt("$ticket.conteo", 1)
+            .putString("$ticket.primera", "no-es-una-fecha")
+            .commit()
+
+        val siguiente = log.record(ticket, primera.plusSeconds(SEIS_MINUTOS))
+
+        // Es la copia 2, no la 1: el conteo no se reinició. La hora sigue sin
+        // saberse, y NO se sella la de ahora — eso afirmaría que esta copia fue
+        // la primera.
+        assertEquals(2, siguiente.prints)
+        assertNull(siguiente.firstPrintedAt)
+        assertEquals(2, log.find(ticket)?.prints)
     }
 
     @Test

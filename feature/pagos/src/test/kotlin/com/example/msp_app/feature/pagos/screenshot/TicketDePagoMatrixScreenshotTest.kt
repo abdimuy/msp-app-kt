@@ -90,6 +90,7 @@ private fun Ticket(state: TicketDePagoUiState) {
         onImprimir = {},
         onCambiarImpresora = {},
         onElegirImpresora = {},
+        onCerrarImpresion = {},
         onReintentar = {}
     )
 }

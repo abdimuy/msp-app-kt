@@ -4,9 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -20,6 +22,7 @@ import com.example.msp_app.core.printing.domain.PrinterDevice
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.ui.components.BANDA_DEL_TICKET_TAG
 import com.example.msp_app.feature.pagos.ui.components.CAMBIAR_IMPRESORA_TAG
+import com.example.msp_app.feature.pagos.ui.components.CERRAR_IMPRESION_TAG
 import com.example.msp_app.feature.pagos.ui.components.IMPRESORA_TAG
 import com.example.msp_app.feature.pagos.ui.components.IMPRIMIR_TAG
 import com.example.msp_app.feature.pagos.ui.components.RESUMEN_DEL_TICKET_TAG
@@ -53,6 +56,7 @@ class TicketSeVeYSeTocaTest : RobolectricTestBase() {
     private val nivelActual = mutableStateOf(FontSizeLevel.NORMAL)
     private var impresiones = 0
     private var cambiosDeImpresora = 0
+    private var cierres = 0
     private val elegidas = mutableListOf<PrinterDevice>()
 
     @Test
@@ -150,6 +154,25 @@ class TicketSeVeYSeTocaTest : RobolectricTestBase() {
      * columnas.
      */
 
+    @Test
+    fun `el picker y el fallo se pueden cerrar`() {
+        // Sin esta salida, abrir la lista de impresoras —o fallar una
+        // impresión— dejaba al cobrador sin forma de volver al ticket. Una banda
+        // roja que no se puede cerrar es una trampa chica pero real.
+        pinta(TicketFixtures.eligiendoImpresora())
+        assertTocable(CERRAR_IMPRESION_TAG, "cerrar")
+        composeTestRule.onNodeWithTag(CERRAR_IMPRESION_TAG).performClick()
+        assertEquals(1, cierres)
+    }
+
+    @Test
+    fun `sin picker ni fallo no hay boton de cerrar que estorbe`() {
+        // Control positivo del test de arriba: el botón existe SOLO cuando hay
+        // algo que cerrar, así que su ausencia aquí no es un tag mal escrito.
+        pinta(TicketFixtures.primeraImpresion())
+        composeTestRule.onAllNodesWithTag(CERRAR_IMPRESION_TAG).assertCountEquals(0)
+    }
+
     private fun assertTocable(tag: String, que: String) {
         val bordes = composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
         val alto = bordes.bottom - bordes.top
@@ -178,6 +201,7 @@ class TicketSeVeYSeTocaTest : RobolectricTestBase() {
             onImprimir = { impresiones++ },
             onCambiarImpresora = { cambiosDeImpresora++ },
             onElegirImpresora = { elegidas += it },
+            onCerrarImpresion = { cierres++ },
             onReintentar = {}
         )
     }

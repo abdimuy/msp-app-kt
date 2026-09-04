@@ -9,8 +9,8 @@ import javax.inject.Inject
 
 /**
  * **The whole printing surface a ticket screen needs**, behind one dependency:
- * may I print this ticket, which printers are there, remember this one, and
- * print-and-log.
+ * how should I paint myself, which printers are there, remember this one, and
+ * check-the-day + print + log.
  *
  * ## Why a facade and not three injections
  *
@@ -49,14 +49,20 @@ constructor(
     fun recordar(device: PrinterDevice) = directorio.recordar(device)
 
     /**
-     * Imprime **y registra** en una sola operación. No hay ningún otro camino
-     * hacia el `PrinterPort` desde un feature: es lo que hace cierta la mitad
-     * "cada impresión queda registrada" de la regla del mock.
+     * **Comprueba el día, imprime y registra**, en una sola operación.
+     *
+     * [cobradoEn] es obligatorio a propósito: no hay forma de llegar al
+     * `PrinterPort` desde un feature sin darle a la regla el dato que necesita,
+     * y la regla se evalúa con una lectura FRESCA del reloj dentro de
+     * [PrintTicketUseCase] — no con el veredicto que la pantalla usó para pintar
+     * el botón. Devuelve `Result.failure(ImpresionFueraDelDia)` si el día ya
+     * pasó, sin tocar la impresora.
      */
     suspend fun imprimir(
         device: PrinterDevice,
         ticketId: String,
+        cobradoEn: Instant,
         ticket: PrintableTicket,
         profile: PrinterProfile = PrinterProfile.PROFILE_58MM
-    ): Result<PrintRecord> = imprimirYRegistrar(device, ticketId, ticket, profile)
+    ): Result<PrintRecord> = imprimirYRegistrar(device, ticketId, cobradoEn, ticket, profile)
 }

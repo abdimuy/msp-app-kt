@@ -15,22 +15,29 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
+import com.example.msp_app.core.designsystem.component.MspPrinterRow
+import com.example.msp_app.core.designsystem.component.MspTicketBanner
+import com.example.msp_app.core.designsystem.component.MspTicketFacsimile
+import com.example.msp_app.core.designsystem.component.MspTicketSummary
+import com.example.msp_app.core.designsystem.component.MspTicketTopBar
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.printing.domain.PrinterDevice
-import com.example.msp_app.feature.pagos.ui.components.BandaDelTicket
-import com.example.msp_app.feature.pagos.ui.components.BarraDelTicket
+import com.example.msp_app.feature.pagos.ui.components.ATRAS_TAG
+import com.example.msp_app.feature.pagos.ui.components.BANDA_DEL_TICKET_TAG
 import com.example.msp_app.feature.pagos.ui.components.CAMBIAR_IMPRESORA_TAG
+import com.example.msp_app.feature.pagos.ui.components.CERRAR_IMPRESION_TAG
+import com.example.msp_app.feature.pagos.ui.components.IMPRESORA_TAG
 import com.example.msp_app.feature.pagos.ui.components.IMPRIMIR_TAG
-import com.example.msp_app.feature.pagos.ui.components.RenglonDeImpresora
-import com.example.msp_app.feature.pagos.ui.components.ResumenDelTicket
-import com.example.msp_app.feature.pagos.ui.components.VistaPreviaDelTicket
+import com.example.msp_app.feature.pagos.ui.components.RESUMEN_DEL_TICKET_TAG
+import com.example.msp_app.feature.pagos.ui.components.VISTA_PREVIA_TAG
 
 private const val TITULO = "ticket de pago"
 private const val CTA_IMPRIMIR = "imprimir ticket"
 private const val CTA_CAMBIAR = "cambiar impresora"
 private const val CTA_REINTENTAR = "reintentar"
+private const val CTA_CERRAR = "cerrar"
 private const val CARGANDO = "cargando"
 private const val SIN_IMPRESORAS = "empareja una impresora"
 private const val ELIGE_IMPRESORA = "elige impresora"
@@ -63,6 +70,7 @@ fun TicketDePagoScreen(
         onImprimir = viewModel::imprimir,
         onCambiarImpresora = viewModel::cambiarImpresora,
         onElegirImpresora = viewModel::elegirImpresora,
+        onCerrarImpresion = viewModel::cerrarImpresion,
         onReintentar = viewModel::cargar,
         modifier = modifier
     )
@@ -86,6 +94,7 @@ fun TicketDePagoContent(
     onImprimir: () -> Unit,
     onCambiarImpresora: () -> Unit,
     onElegirImpresora: (PrinterDevice) -> Unit,
+    onCerrarImpresion: () -> Unit,
     onReintentar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -95,7 +104,11 @@ fun TicketDePagoContent(
             .background(MspTheme.colors.background)
             .padding(horizontal = MspTheme.spacing.md)
     ) {
-        BarraDelTicket(titulo = TITULO, onAtras = onAtras)
+        MspTicketTopBar(
+            titulo = TITULO,
+            onAtras = onAtras,
+            atrasModifier = Modifier.testTag(ATRAS_TAG)
+        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -110,7 +123,7 @@ fun TicketDePagoContent(
             }
         }
         if (state.error == null && !state.cargando) {
-            DockDelTicket(state, onImprimir, onCambiarImpresora)
+            DockDelTicket(state, onImprimir, onCambiarImpresora, onCerrarImpresion)
         }
     }
 }
@@ -124,15 +137,16 @@ private fun CuerpoDelTicket(
     // Las cifras primero, en la tipografía que SÍ crece con la preferencia del
     // usuario; el facsímil del papel debajo. Ver el KDoc de `ResumenDelTicket`.
     state.ticket?.let { ticket ->
-        ResumenDelTicket(
+        MspTicketSummary(
             cliente = ticket.cliente,
             etiquetaPrincipal = ETIQUETA_ABONO,
             montoPrincipal = formatMoneyMxn(ticket.importe.amount),
             etiquetaSecundaria = ETIQUETA_SALDO,
-            montoSecundario = formatMoneyMxn(ticket.saldoActual.amount)
+            montoSecundario = formatMoneyMxn(ticket.saldoActual.amount),
+            modifier = Modifier.testTag(RESUMEN_DEL_TICKET_TAG)
         )
     }
-    VistaPreviaDelTicket(state.vistaPrevia)
+    MspTicketFacsimile(state.vistaPrevia, Modifier.testTag(VISTA_PREVIA_TAG))
     if (state.impresion.fase == FaseDeImpresion.ELIGIENDO) {
         PickerDeImpresoras(state, onElegirImpresora)
     }
@@ -148,39 +162,44 @@ private fun CuerpoDelTicket(
 private fun BandaDeEstado(state: TicketDePagoUiState) {
     val colors = MspTheme.colors
     when {
-        state.fueraDelDia -> BandaDelTicket(
+        state.fueraDelDia -> MspTicketBanner(
             titulo = FUERA_TITULO,
             detalle = FUERA_DETALLE,
             fondo = colors.statusOverdueTint,
-            contenido = colors.statusOverdue
+            contenido = colors.statusOverdue,
+            modifier = Modifier.testTag(BANDA_DEL_TICKET_TAG)
         )
 
-        state.impresion.fase == FaseDeImpresion.IMPRIMIENDO -> BandaDelTicket(
+        state.impresion.fase == FaseDeImpresion.IMPRIMIENDO -> MspTicketBanner(
             titulo = ENVIANDO_TITULO,
             detalle = ENVIANDO_DETALLE,
             fondo = colors.statusInfoTint,
-            contenido = colors.statusInfo
+            contenido = colors.statusInfo,
+            modifier = Modifier.testTag(BANDA_DEL_TICKET_TAG)
         )
 
-        state.impresion.fase == FaseDeImpresion.FALLO -> BandaDelTicket(
+        state.impresion.fase == FaseDeImpresion.FALLO -> MspTicketBanner(
             titulo = FALLO_TITULO,
             detalle = state.impresion.mensaje.orEmpty(),
             fondo = colors.dangerTint,
-            contenido = colors.danger
+            contenido = colors.danger,
+            modifier = Modifier.testTag(BANDA_DEL_TICKET_TAG)
         )
 
-        state.impresion.fase == FaseDeImpresion.IMPRESO -> BandaDelTicket(
+        state.impresion.fase == FaseDeImpresion.IMPRESO -> MspTicketBanner(
             titulo = IMPRESO_TITULO,
             detalle = IMPRESO_DETALLE,
             fondo = colors.statusPaidTint,
-            contenido = colors.statusPaid
+            contenido = colors.statusPaid,
+            modifier = Modifier.testTag(BANDA_DEL_TICKET_TAG)
         )
 
-        state.esReimpresion -> BandaDelTicket(
+        state.esReimpresion -> MspTicketBanner(
             titulo = COPIA_TITULO,
             detalle = state.detalleDeCopia,
             fondo = colors.statusPendingTint,
-            contenido = colors.statusPending
+            contenido = colors.statusPending,
+            modifier = Modifier.testTag(BANDA_DEL_TICKET_TAG)
         )
 
         else -> Unit
@@ -198,10 +217,12 @@ private fun PickerDeImpresoras(
     ) {
         Nota(if (state.impresion.disponibles.isEmpty()) SIN_IMPRESORAS else ELIGE_IMPRESORA)
         state.impresion.disponibles.forEach { dispositivo ->
-            RenglonDeImpresora(
-                dispositivo = dispositivo,
+            MspPrinterRow(
+                nombre = dispositivo.name,
+                direccion = dispositivo.address,
                 elegida = dispositivo.address == state.impresion.impresora?.address,
-                onClick = { onElegirImpresora(dispositivo) }
+                onClick = { onElegirImpresora(dispositivo) },
+                modifier = Modifier.testTag(IMPRESORA_TAG + dispositivo.address)
             )
         }
     }
@@ -211,7 +232,8 @@ private fun PickerDeImpresoras(
 private fun DockDelTicket(
     state: TicketDePagoUiState,
     onImprimir: () -> Unit,
-    onCambiarImpresora: () -> Unit
+    onCambiarImpresora: () -> Unit,
+    onCerrarImpresion: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -241,17 +263,34 @@ private fun DockDelTicket(
                 .fillMaxWidth()
                 .testTag(CAMBIAR_IMPRESORA_TAG)
         )
+        // Salida del picker y del aviso de fallo. Sin esto, abrir la lista de
+        // impresoras —o fallar una impresión— dejaba al cobrador sin forma de
+        // volver a la pantalla sin salir del ticket: una banda roja que no se
+        // puede cerrar es una trampa chica pero real.
+        if (state.impresion.fase == FaseDeImpresion.ELIGIENDO ||
+            state.impresion.fase == FaseDeImpresion.FALLO
+        ) {
+            MspPrimaryFieldButton(
+                text = CTA_CERRAR,
+                variant = PrimaryFieldButtonVariant.Ghost,
+                onClick = onCerrarImpresion,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(CERRAR_IMPRESION_TAG)
+            )
+        }
     }
 }
 
 @Composable
 private fun BloqueDeError(error: ErrorDelTicket, onReintentar: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)) {
-        BandaDelTicket(
+        MspTicketBanner(
             titulo = FALLO_TITULO,
             detalle = error.mensaje,
             fondo = MspTheme.colors.dangerTint,
-            contenido = MspTheme.colors.danger
+            contenido = MspTheme.colors.danger,
+            modifier = Modifier.testTag(BANDA_DEL_TICKET_TAG)
         )
         if (error == ErrorDelTicket.NO_SE_PUDO_LEER) {
             MspPrimaryFieldButton(

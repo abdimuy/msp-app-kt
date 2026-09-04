@@ -14,6 +14,40 @@ Robolectric y los tests de Compose necesitan
 El source set `src/test` es uno solo, así que la debug corre exactamente los
 mismos tests. No busques `testProdReleaseUnitTest`: no existe.
 
+## 0.1 Compuerta manual: **impresión térmica con impresora real**
+
+> **Obligatoria antes de soltar cualquier build que toque tickets.**
+> La impresión térmica **no se puede probar en emulador** y ninguna prueba
+> automatizada la cubre: no hay nada que simule una impresora en este repo, a
+> propósito. Lo que sí está automatizado —la regla del día del cobro y el
+> registro de reimpresiones— corre en `prePushCheck`; esto es lo que queda.
+
+**Preparación:** una impresora térmica de 58 mm emparejada por Bluetooth (probado
+con PT-210), un **abono registrado hoy** y una **visita registrada hoy** en el
+teléfono.
+
+| # | Qué hacer | Qué tiene que pasar |
+|---|---|---|
+| 1 | Abrir el ticket de pago del abono de hoy y tocar **imprimir ticket** sin impresora recordada | Aparece la lista de emparejadas; al elegir una, sale el papel |
+| 2 | Mirar el papel | 32 columnas, **sin acentos rotos ni cuadritos**; los importes pegados al borde derecho; ninguna línea partida |
+| 3 | Comparar el papel con la vista previa de la pantalla | **Idéntico renglón por renglón** |
+| 4 | Volver a tocar **imprimir ticket** | La banda dice `copia ya impresa`; el segundo papel trae `*** REIMPRESION ***` con `copia 2 - primera <hora>` |
+| 5 | Tocar **cambiar impresora** con una impresión ya hecha | El picker abre y permite cambiar sin salir de la pantalla |
+| 6 | Tocar **cerrar** con el picker abierto y con el aviso de fallo | Los dos se cierran y la pantalla vuelve al ticket |
+| 7 | Apagar el Bluetooth y tocar imprimir | Banda roja `no se imprimió` + `activa el bluetooth`; **el conteo NO sube** (el papel siguiente no se marca como copia extra) |
+| 8 | Alejar o apagar la impresora a media impresión | Mensaje `no se envió el ticket`, sin congelamiento (el adapter tiene su timeout de 8 s) |
+| 9 | **Cerrar la app por completo y reabrir** el mismo ticket | Sigue diciendo `copia ya impresa` — el registro sobrevivió al reinicio |
+| 10 | **Cambiar la fecha del teléfono al día siguiente** y abrir el mismo ticket | Banda `fuera del día · solo se imprime hoy`, CTA **gris y sin sombra**, y tocarlo no imprime nada |
+| 11 | Con el ticket ABIERTO, cambiar la fecha del teléfono al día siguiente y **entonces** tocar imprimir | No sale papel; la pantalla pasa sola a `fuera del día`. Es el caso de las 23:58/00:01 |
+| 12 | Repetir 1-11 con el **ticket de visita** | Mismo comportamiento; además el texto del papel corresponde al desenlace registrado (una promesa **no** imprime la carta de cobranza dura) |
+| 13 | Poner el tamaño de letra en **muy grande** y abrir los dos tickets | Las cifras del resumen se leen completas; el facsímil no se sale de la pantalla |
+| 14 | Papel a punto de acabarse | El ticket sale hasta donde alcanza; la app no se cae |
+
+**Límite conocido del registro de reimpresiones:** vive en `SharedPreferences`
+(mismo directorio privado y mismo borrado que la base de Room). Si se **borran
+los datos de la app o se reinstala** el mismo día y el pago vuelve del servidor,
+ese ticket imprimiría como primera copia. Cerrarlo requiere una tabla nueva.
+
 ## 1. Compilar release
 
 ```bash

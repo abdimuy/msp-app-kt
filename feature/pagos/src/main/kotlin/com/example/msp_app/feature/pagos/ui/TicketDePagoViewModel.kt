@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.ui
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.printing.application.ImpresionFueraDelDia
 import com.example.msp_app.core.printing.application.PrintPermission
 import com.example.msp_app.core.printing.application.TicketPrinting
 import com.example.msp_app.core.printing.domain.PrintError
@@ -28,11 +29,15 @@ import kotlinx.coroutines.withContext
  *
  * ## Las dos mitades de la regla del mock
  *
- * 1. **Solo se imprime el día del cobro.** El veredicto lo produce
- *    `EvaluatePrintPermission` (regla `PrintDayRule` + reloj `AppClock`), vive en
- *    [TicketDePagoUiState.permiso] y apaga el CTA. No se recalcula en el
- *    Composable: un segundo cálculo es un segundo lugar donde la regla puede
- *    diferir.
+ * 1. **Solo se imprime el día del cobro.** Esta pantalla usa
+ *    `TicketPrinting.permiso` para PINTARSE —apagar el CTA, decir si el
+ *    siguiente papel sería copia— y ese veredicto vive en
+ *    [TicketDePagoUiState.permiso]. Pero **lo que hace cierta la regla no es el
+ *    botón**: la comprobación de verdad ocurre dentro de `PrintTicketUseCase`,
+ *    con una lectura FRESCA del reloj en el instante de imprimir. Un veredicto
+ *    leído al abrir la pantalla está rancio en cuanto se lee — una pantalla
+ *    abierta a las 23:58 y tocada a las 00:01 imprimía fuera del día con el
+ *    diseño anterior.
  * 2. **Cada impresión queda registrada.** Nadie llama a `PrinterPort.print`
  *    desde aquí: se llama a `TicketPrinting.imprimir`, que imprime **y** registra en
  *    la misma operación, así que no existe un camino que imprima sin registrar.
@@ -162,7 +167,12 @@ class TicketDePagoViewModel @Inject constructor(
         )
         val lineas = TicketDePagoFormatter.toTicketLines(ticket, permiso)
         val resultado = withContext(io) {
-            impresion.imprimir(device = dispositivo, ticketId = ticket.pagoId, ticket = lineas)
+            impresion.imprimir(
+                device = dispositivo,
+                ticketId = ticket.pagoId,
+                cobradoEn = ticket.cobradoEn,
+                ticket = lineas
+            )
         }
         resultado.fold(
             onSuccess = {
@@ -180,7 +190,22 @@ class TicketDePagoViewModel @Inject constructor(
                     )
                 )
             },
-            onFailure = { reportarFallo(it, dispositivo, disponibles) }
+            onFailure = { fallo ->
+                // El rechazo por día NO deja la pantalla ofreciendo imprimir: se
+                // vuelve a leer el permiso, la banda pasa a "fuera del día" y el
+                // CTA se apaga. Es el único camino por el que la pantalla puede
+                // enterarse de que el día cambió mientras estaba abierta.
+                if (fallo === ImpresionFueraDelDia) {
+                    val vencido = withContext(io) {
+                        impresion.permiso(ticket.pagoId, ticket.cobradoEn)
+                    }
+                    mutableState.value = mutableState.value.copy(
+                        permiso = vencido,
+                        vistaPrevia = vistaPreviaDe(ticket, vencido)
+                    )
+                }
+                reportarFallo(fallo, dispositivo, disponibles)
+            }
         )
     }
 
@@ -201,7 +226,11 @@ class TicketDePagoViewModel @Inject constructor(
         disponibles: List<PrinterDevice>
     ) {
         telemetry.error(
-            code = PagosTelemetria.CODE_TICKET_PAGO_NO_SE_IMPRIMIO,
+            code = if (fallo === ImpresionFueraDelDia) {
+                PagosTelemetria.CODE_TICKET_PAGO_FUERA_DEL_DIA
+            } else {
+                PagosTelemetria.CODE_TICKET_PAGO_NO_SE_IMPRIMIO
+            },
             message = "el ticket de pago no se imprimio",
             props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
@@ -250,6 +279,7 @@ class TicketDePagoViewModel @Inject constructor(
 
     /** Mensajes cortos es-MX: 2-4 palabras, minúsculas, sin punto final. */
     private fun mensajeDe(fallo: Throwable): String = when (fallo) {
+        ImpresionFueraDelDia -> "ya no es el día"
         is PrintError.BluetoothDisabled -> "activa el bluetooth"
         is PrintError.NotPaired -> "impresora no emparejada"
         is PrintError.PermissionDenied -> "falta permiso bluetooth"

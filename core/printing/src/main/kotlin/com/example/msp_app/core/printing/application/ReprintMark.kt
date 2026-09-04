@@ -35,14 +35,17 @@ object ReprintMark {
      */
     fun lines(permiso: PrintPermission, width: Int): List<TicketLine> {
         val reimpresion = permiso as? PrintPermission.Reimpresion ?: return emptyList()
-        val copia = reimpresion.previas + 1
-        val hora = AppTime.formatForDisplay(reimpresion.primeraVez, AppTime.Formats.TIME_24H)
+        val copia = "$ETIQUETA_COPIA ${reimpresion.previas + 1}"
+        // Hora desconocida (el registro conservó el conteo y perdió la fecha):
+        // el papel dice QUE es copia y cuál, que es lo que hace detectable la
+        // reimpresión. Perder el conteo para no perder la hora sería al revés.
+        val leyenda = reimpresion.primeraVez
+            ?.let { "$copia - $ETIQUETA_PRIMERA ${AppTime.formatForDisplay(it, AppTime.Formats.TIME_24H)}" }
+            ?: copia
         return listOf(
             TicketLine.Separator('='),
             TicketLine.Bold(TicketLayout.center(TITULO, width)),
-            TicketLine.CenteredLine(
-                TicketLayout.center("$ETIQUETA_COPIA $copia - $ETIQUETA_PRIMERA $hora", width)
-            ),
+            TicketLine.CenteredLine(TicketLayout.center(leyenda, width)),
             TicketLine.Separator('=')
         )
     }
