@@ -2346,6 +2346,130 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         override suspend fun saldosByIds(zonaId: Int, ids: String) = error("not used in sync tests")
     }
 
+    // ─── El saldo mostrado y los pagos en vuelo ─────────────────────────
+    //
+    // Al cobrar, insertPaymentAndUpdateSale descuenta SALDO_REST en la misma
+    // transacción del insert. mergeVentas reescribe esa fila cada 30 s con el
+    // DTO del servidor, que todavía no sabe del pago, y el saldo saltaba hacia
+    // atrás delante del cobrador.
+    //
+    // El arreglo NO es preservar el valor local. SALDO_REST lo POSEE el
+    // servidor —a diferencia de ESTADO_COBRANZA y DIA_TEMPORAL_COBRANZA, que
+    // son del cobrador— y conservarlo a ciegas desincroniza el teléfono de
+    // todo lo que pase en la oficina. El invariante es:
+    //
+    //   el saldo mostrado nunca es un valor local; es el del servidor menos
+    //   los pagos que el servidor no ha reconocido
+    //
+    // Estas cinco pruebas son las propiedades de ese invariante. La de la
+    // cancelación es la que reprueba la versión ingenua.
+
+    /** Pago capturado y no reconocido: el saldo se muestra descontado. */
+    @Test
+    fun saldoDescuentaElPagoQueElServidorTodaviaNoHaVisto() = runTest {
+        val api = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(400)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        // Captura local: UUID, sin fila numérica que la nombre.
+        db.paymentDao().saveAll(listOf(samplePayment(400).copy(ID = "uuid-400", IMPORTE = 150.0)))
+
+        newManager(api).syncNow()
+
+        // servidor 4000 − 150 en vuelo
+        assertEquals(3850.0, db.saleDao().findByDoctoCcId(400)!!.SALDO_REST, 0.001)
+    }
+
+    /**
+     * El servidor reconoce el pago: NO se descuenta dos veces.
+     *
+     * Es el modo de fallo de la fórmula "servidor menos pendientes": el
+     * servidor ya bajó el saldo a 3850, y restarle otra vez los 150 daría
+     * 3700. El criterio de "no reconocido" es la fila local sin gemelo, así
+     * que en cuanto la numérica la nombra deja de contar.
+     */
+    @Test
+    fun saldoNoDescuentaDosVecesElPagoQueElServidorYaReconocio() = runTest {
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = listOf(ventaDto(401).copy(saldo = "3850.00")), hasMore = false)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(401).copy(ID = "uuid-401", IMPORTE = 150.0),
+                // La fila numérica del servidor nombra al UUID local.
+                samplePayment(401).copy(ID = "9001", IMPORTE = 150.0, PAGO_RECIBIDO_ID = "uuid-401")
+            )
+        )
+
+        newManager(api).syncNow()
+
+        assertEquals(3850.0, db.saleDao().findByDoctoCcId(401)!!.SALDO_REST, 0.001)
+    }
+
+    /**
+     * LA PRUEBA QUE REPRUEBA LA VERSIÓN INGENUA.
+     *
+     * Con un pago en vuelo, el servidor cambia el saldo por OTRA razón —la
+     * oficina condona, otro cobrador aplica, se ajusta el cargo—. Preservar el
+     * valor local dejaría al teléfono con el número viejo para siempre. Partir
+     * del valor del servidor hace que el cambio entre en el mismo tick, y el
+     * pago en vuelo se le sigue restando encima.
+     */
+    @Test
+    fun elCambioDelServidorEntraAunqueHayaUnPagoEnVuelo() = runTest {
+        val api = fakeApi(
+            // El servidor bajó el cargo a 1000 por su cuenta.
+            ventas = listOf(
+                page(items = listOf(ventaDto(402).copy(saldo = "1000.00")), hasMore = false)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        // La venta ya estaba en el teléfono con el saldo viejo ya descontado.
+        db.saleDao().insertAll(listOf(ventaDto(402).toEntity().copy(SALDO_REST = 3850.0)))
+        db.paymentDao().saveAll(listOf(samplePayment(402).copy(ID = "uuid-402", IMPORTE = 150.0)))
+
+        newManager(api).syncNow()
+
+        // 1000 del servidor − 150 en vuelo. NO 3850, que sería ignorar al servidor.
+        assertEquals(850.0, db.saleDao().findByDoctoCcId(402)!!.SALDO_REST, 0.001)
+    }
+
+    /** Sin pagos en vuelo, el saldo es exactamente el del servidor. */
+    @Test
+    fun sinPagosEnVueloElSaldoEsExactamenteElDelServidor() = runTest {
+        val api = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(403)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+
+        newManager(api).syncNow()
+
+        assertEquals(4000.0, db.saleDao().findByDoctoCcId(403)!!.SALDO_REST, 0.001)
+    }
+
+    /**
+     * Un pago de OTRO cargo no toca este saldo.
+     *
+     * Sin el filtro por DOCTO_CC_ACR_ID la suma sería global y el cobrador
+     * vería descuentos ajenos en todas sus ventas — un defecto peor que el que
+     * se está arreglando.
+     */
+    @Test
+    fun elPagoEnVueloDeOtroCargoNoDescuentaEsteSaldo() = runTest {
+        val api = fakeApi(
+            ventas = listOf(page(items = listOf(ventaDto(404)), hasMore = false)),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        db.paymentDao().saveAll(listOf(samplePayment(999).copy(ID = "uuid-999", IMPORTE = 150.0)))
+
+        newManager(api).syncNow()
+
+        assertEquals(4000.0, db.saleDao().findByDoctoCcId(404)!!.SALDO_REST, 0.001)
+    }
+
     private fun samplePayment(doctoCcId: Int) = PaymentEntity(
         ID = "pmt-$doctoCcId",
         COBRADOR = "",

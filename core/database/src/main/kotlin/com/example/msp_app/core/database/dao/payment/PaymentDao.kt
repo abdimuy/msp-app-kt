@@ -717,6 +717,82 @@ interface PaymentDao {
     )
     suspend fun countPagosDesde(doctoCcAcrId: Int, fechaIso: String): Int
 
+    /**
+     * Suma de los pagos de un cargo que **el servidor todavía no ha
+     * reconocido** — el descuento que la fila del servidor aún no trae.
+     *
+     * ## Por qué existe
+     *
+     * Al cobrar, `insertPaymentAndUpdateSale` descuenta el `SALDO_REST` en la
+     * misma transacción del insert. El sync reescribe esa fila cada 30 s con
+     * el DTO del servidor, que todavía no sabe del pago, y el saldo salta
+     * hacia atrás delante del cobrador.
+     *
+     * ## Por qué NO se arregla preservando el valor local
+     *
+     * Porque `SALDO_REST` **lo posee el servidor**, a diferencia de
+     * `ESTADO_COBRANZA` y `DIA_TEMPORAL_COBRANZA`, que son locales y por eso
+     * sí se preservan tal cual. Conservar el número local a ciegas es decirle
+     * al teléfono que ignore al servidor: si mientras el pago está en vuelo la
+     * oficina cancela la venta, otro cobrador aplica un pago o entra una
+     * condonación, el teléfono **no se entera nunca**.
+     *
+     * La forma correcta es que el servidor siga mandando y sólo se le reste lo
+     * que aún no ha visto:
+     *
+     * ```
+     * SALDO_REST = saldo del servidor − suma de esta consulta
+     * ```
+     *
+     * Cada tick parte del valor del servidor, así que cualquier cambio de allá
+     * entra siempre, y lo local es sólo un delta por los pagos en vuelo.
+     *
+     * ## Qué cuenta como "no reconocido"
+     *
+     * El criterio NO es `GUARDADO_EN_MICROSIP`. Esa bandera es local y el
+     * documento del sync (§6) la descarta expresamente como evidencia: el
+     * worker puede no alcanzar a marcarla, y un pago RECHAZADO también la deja
+     * en 1. La evidencia fuerte es la del servidor.
+     *
+     * El predicado es el mismo que usa el colapso del gemelo UUID, a
+     * propósito: una fila local (`ID LIKE '%-%'`) a la que ninguna fila
+     * numérica nombra por `PAGO_RECIBIDO_ID`. En cuanto el servidor la nombra,
+     * el colapso la borra y esta suma deja de incluirla — que es exactamente
+     * lo que hace converger el saldo sin doble conteo.
+     *
+     * `PAGO_RECIBIDO_ID <> ID` descarta la auto-referencia, igual que en
+     * [pagoRecibidoIdsReclamados].
+     *
+     * ## Límite conocido
+     *
+     * Un pago que Microsip RECHAZÓ se queda como fila local para siempre, así
+     * que se resta para siempre y el saldo mostrado queda por debajo del real.
+     * Hoy no hay forma de distinguirlo: el teléfono no guarda el estado que el
+     * servidor devuelve. Se cierra cuando la fila local pueda decir "rechazado"
+     * — el otro arreglo de este mismo bloque.
+     *
+     * ## Por qué es por cargo y no por lote
+     *
+     * Se consulta una vez por venta, dentro del bucle de `mergeVentas`, en vez
+     * de resolver la página entera con un `IN (...)`. Eso evita el tope de 999
+     * parámetros de SQLite en Android ≤ 11 (§7.4 del documento del sync), que
+     * ninguna prueba puede detectar: Robolectric usa el SQLite de escritorio,
+     * con tope alto.
+     */
+    @Query(
+        """
+        SELECT COALESCE(SUM(IMPORTE), 0)
+        FROM Payment
+        WHERE DOCTO_CC_ACR_ID = :doctoCcAcrId
+          AND ID LIKE '%-%'
+          AND ID NOT IN (
+              SELECT PAGO_RECIBIDO_ID FROM Payment
+              WHERE PAGO_RECIBIDO_ID IS NOT NULL AND PAGO_RECIBIDO_ID <> ID
+          )
+        """
+    )
+    suspend fun sumImporteNoReconocidoPorElServidor(doctoCcAcrId: Int): Double
+
     @Query("DELETE FROM payment")
     suspend fun deleteAll()
 

@@ -13,6 +13,7 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.api.services.cobranza.PagoDto
 import com.example.msp_app.data.api.services.cobranza.V2CobranzaApi
 import com.example.msp_app.data.api.services.cobranza.VentaDto
+import com.example.msp_app.data.api.services.cobranza.conSaldoAjustadoPorPagosEnVuelo
 import com.example.msp_app.data.api.services.cobranza.toEntity
 import com.example.msp_app.data.models.product.toEntity
 import java.time.Instant
@@ -693,11 +694,20 @@ class CobranzaSyncManager(
                 // Saldada con pagos en ventana → cae al upsert normal.
             }
             val existing = saleDao.findByDoctoCcId(dto.docto_cc_id)
-            val incoming = dto.toEntity()
+            // El saldo del servidor menos lo que el servidor todavía no ha
+            // visto. NO es preservar el valor local: se parte SIEMPRE del que
+            // llega, así que una cancelación de oficina, el pago de otro
+            // cobrador o una condonación entran en el mismo tick. Ver
+            // [PaymentDao.sumImporteNoReconocidoPorElServidor].
+            val incoming = dto.toEntity().conSaldoAjustadoPorPagosEnVuelo(
+                paymentDao.sumImporteNoReconocidoPorElServidor(dto.docto_cc_id)
+            )
             val merged = if (existing == null) {
                 incoming
             } else {
                 incoming.copy(
+                    // ESTADO_COBRANZA y DIA_TEMPORAL_COBRANZA sí se preservan
+                    // tal cual: son del cobrador, el servidor no los posee.
                     ESTADO_COBRANZA = existing.ESTADO_COBRANZA,
                     DIA_TEMPORAL_COBRANZA = existing.DIA_TEMPORAL_COBRANZA
                 )
