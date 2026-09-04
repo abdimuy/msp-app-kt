@@ -1,6 +1,5 @@
 package com.example.msp_app.navigation
 
-import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,49 +27,27 @@ import org.junit.Test
  * este plan declaró intacta). Si el escáner mirara el directorio equivocado o
  * no leyera nada, el control positivo daría 0 y el test se pondría rojo antes de
  * poder mentir sobre el diálogo.
+ *
+ * El escáner vive en [EscanerDeFuentes] y desde la ronda 1 de arreglo recorre
+ * **`:app` + `:feature:*` + `:core:*`**, no solo `:app`: un sobreviviente en un
+ * módulo del feature no habría sido atrapado por la versión anterior.
  */
 class RetiroDelDialogoDeVisitaTest {
 
-    /**
-     * `src/main/java` de `:app`. El directorio de trabajo de un test de Gradle
-     * es el del módulo; el `?:` cubre correr la clase desde la raíz del repo.
-     */
-    private val fuentes: File =
-        File("src/main/java").takeIf { it.isDirectory } ?: File("app/src/main/java")
+    private val escaner = EscanerDeFuentes()
 
-    private val archivos: List<File> by lazy {
-        fuentes.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
-    }
-
-    /**
-     * Los archivos cuyo **código** menciona [simbolo]. Las líneas de comentario
-     * y de KDoc se descartan: este plan documenta en el código los defectos que
-     * mató, y un KDoc que explica por qué el diálogo se fue no es una llamada al
-     * diálogo. Contarlo como referencia haría imposible probar la ausencia sin
-     * borrar la explicación, que es justo lo contrario de lo que se quiere.
-     *
-     * La coincidencia es de **palabra completa**: buscar `SalesScreen` a secas
-     * encontraría `UnifiedSalesScreen`, que es otra pantalla y que el brief
-     * ordena no tocar — el test habría fallado por la razón equivocada, o peor,
-     * habría pasado por ella.
-     */
-    private fun archivosQueMencionan(simbolo: String): List<String> {
-        val patron = Regex("(?<![A-Za-z0-9_])" + Regex.escape(simbolo) + "(?![A-Za-z0-9_])")
-        return archivos.filter { archivo ->
-            archivo.readText().lineSequence().any { linea ->
-                val limpia = linea.trim()
-                val esComentario = limpia.startsWith("//") ||
-                    limpia.startsWith("*") ||
-                    limpia.startsWith("/*")
-                !esComentario && patron.containsMatchIn(limpia)
-            }
-        }.map { it.path }
-    }
+    private fun archivosQueMencionan(simbolo: String): List<String> =
+        escaner.archivosQueMencionan(simbolo)
 
     @Test
-    fun `el escaner de verdad lee el codigo de la app`() {
-        assertTrue("no se encontró $fuentes", fuentes.isDirectory)
-        assertTrue("no se leyó ni un .kt", archivos.size > 100)
+    fun `el escaner de verdad lee el codigo de la app y de los modulos`() {
+        assertTrue("no se encontró ninguna raíz de fuentes", escaner.raices.size > 5)
+        assertTrue("no se leyó ni un .kt", escaner.archivos.size > 100)
+        // Y de verdad entra a `:feature:*`, que era el hueco del escáner viejo.
+        assertTrue(
+            "el escáner no leyó :feature:pagos: ${escaner.raices}",
+            escaner.archivos.any { it.path.contains("feature/pagos") }
+        )
     }
 
     /**
@@ -82,10 +59,9 @@ class RetiroDelDialogoDeVisitaTest {
         assertEquals(emptyList<String>(), archivosQueMencionan("NewVisitDialog"))
         assertEquals(
             false,
-            File(
-                fuentes,
-                "com/example/msp_app/features/visit/components/NewVisitDialog.kt"
-            ).exists()
+            escaner.existe(
+                "app/src/main/java/com/example/msp_app/features/visit/components/NewVisitDialog.kt"
+            )
         )
     }
 

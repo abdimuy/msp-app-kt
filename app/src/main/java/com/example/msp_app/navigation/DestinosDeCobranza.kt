@@ -58,6 +58,22 @@ object DestinosDeCobranza {
     fun ventaDeUnRecibo(payment: Payment): String = PagosRutas.detalleVenta(payment.DOCTO_CC_ACR_ID)
 
     /**
+     * Registrar abono desde una venta abierta: se abona a la **cuenta**
+     * (`DOCTO_CC_ACR_ID`), nunca a la persona.
+     *
+     * Un abono nombra una sola cuenta, así que aquí no hay nada que elegir — y
+     * por eso el destino es `pagos/abono/{ventaId}` directo y no el detalle del
+     * cliente. El id es el `DOCTO_CC_ACR_ID` porque es lo que
+     * `SaleDao.getById` filtra: el `DOCTO_CC_ID` del crédito abriría otra venta
+     * o ninguna, que es el defecto del commit `721c5551` del lado del cobro.
+     */
+    fun abonoDeUnaVenta(sale: Sale): String = PagosRutas.registrarAbono(sale.DOCTO_CC_ACR_ID)
+
+    /** Igual que la anterior, para la tarjeta de venta de las listas. */
+    fun abonoDeUnaVenta(sale: SaleWithProducts): String =
+        PagosRutas.registrarAbono(sale.DOCTO_CC_ACR_ID)
+
+    /**
      * Registrar visita desde una venta abierta: se visita la **puerta**
      * (`CLIENTE_ID`) con esa cuenta como contexto (`DOCTO_CC_ACR_ID`).
      */

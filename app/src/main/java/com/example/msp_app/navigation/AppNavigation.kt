@@ -87,8 +87,30 @@ sealed class Screen(val route: String) {
      * Desde la Task 21 ya no es la puerta de ninguna lista: se llega por el "⋯"
      * de las pantallas de detalle nuevas, que es donde vive la **condonación**
      * —cuya lógica este plan declaró intacta— junto con el mapa de la venta, los
-     * productos, la garantía y el historial completo. El argumento es el
-     * `DOCTO_CC_ACR_ID`, que es lo que `SaleDao.getById` filtra.
+     * productos, la garantía y el historial completo.
+     *
+     * ## Qué id espera esta ruta, y quién le manda otro
+     *
+     * `SaleDetailsScreen` resuelve su argumento con `SaleDao.getById`, que filtra
+     * **`DOCTO_CC_ACR_ID`** (la llave primaria de `sales`). Eso es lo que la ruta
+     * necesita, y lo que le mandan los llamadores nuevos —`destinosDeCobranza`,
+     * en el `onMasAcciones` de `:feature:pagos`—.
+     *
+     * **Dos llamadores legados le mandan un `DOCTO_CC_ID`**, que es el id del
+     * **crédito** y otro espacio de números:
+     *
+     * - `SaleDetailsScreen.kt:239` — la lista "otras ventas del cliente" navega
+     *   con `saleItem.DOCTO_CC_ID`.
+     * - `GuaranteesScreen.kt:108` — `saleViewModel.loadSaleDetails(saleId)` con un
+     *   `saleId` que la ruta `guarantee/{saleId}` trae como `DOCTO_CC_ID` (las
+     *   garantías están indexadas por crédito).
+     *
+     * Los dos aterrizan igual en `SaleDao.getById`, así que abren otra venta o
+     * ninguna. Es el **miembro #7 de la familia del identificador** de este plan
+     * (commit `721c5551`), **preexistente** y de `:app` legado: queda anotado
+     * aquí y va al triage final, no se arregla de paso. Este KDoc dice lo que la
+     * ruta espera y quién no se lo da — antes afirmaba que todos le mandaban
+     * `DOCTO_CC_ACR_ID`, que es falso.
      */
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sales/sale_details/$saleId"

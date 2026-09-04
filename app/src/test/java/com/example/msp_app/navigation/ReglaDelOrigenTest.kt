@@ -10,9 +10,11 @@ import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -151,6 +153,52 @@ class ReglaDelOrigenTest {
         nav.navigate(PagosRutas.registrarAbono(VENTA))
         assertEquals(PagosRutas.REGISTRAR_ABONO, ruta())
         assertEquals(VENTA, argInt(PagosRutas.ARG_VENTA_ID))
+    }
+
+    /**
+     * Punto de entrada: `SaleActionsSection` ("Agregar Pago" del detalle legado)
+     * y `SaleItem` ("agregar pago" del menú de la tarjeta) — los dos llamadores
+     * que tenían el `NewPaymentDialog` y que la ronda 1 de arreglo enrutó al
+     * destino de la Task 18.
+     *
+     * Se abona a la **cuenta**: el argumento es el `DOCTO_CC_ACR_ID`, que es lo
+     * que `pagos/abono/{ventaId}` lee y lo que `SaleDao.getById` filtra.
+     */
+    @Test
+    fun `desde una venta, agregar pago lleva a registrar abono de ESA cuenta`() {
+        nav.navigate(DestinosDeCobranza.abonoDeUnaVenta(venta()))
+        assertEquals(PagosRutas.REGISTRAR_ABONO, ruta())
+        assertEquals(VENTA, argInt(PagosRutas.ARG_VENTA_ID))
+    }
+
+    /**
+     * **El control que nombra el defecto de la familia del identificador.** El
+     * id que viaja al abono NO es el del crédito ni el del cliente, y los tres
+     * números son distintos de verdad en el fixture: si dos coincidieran, la
+     * afirmación de arriba no probaría nada.
+     */
+    @Test
+    fun `el abono NO viaja con el credito ni con el cliente`() {
+        val ruta = DestinosDeCobranza.abonoDeUnaVenta(venta())
+        assertEquals(PagosRutas.registrarAbono(VENTA), ruta)
+        assertNotEquals(PagosRutas.registrarAbono(CREDITO), ruta)
+        assertNotEquals(PagosRutas.registrarAbono(CLIENTE), ruta)
+        assertNotEquals(VENTA, CREDITO)
+        assertNotEquals(VENTA, CLIENTE)
+    }
+
+    /**
+     * Las dos sobrecargas —`Sale` del detalle legado y `SaleWithProducts` de la
+     * tarjeta de lista— tienen que producir **la misma ruta** para la misma
+     * cuenta. Son dos llamadores de la misma regla y divergir sería el defecto
+     * que [DestinosDeCobranza] existe para impedir.
+     */
+    @Test
+    fun `las dos sobrecargas del abono producen la misma ruta`() {
+        assertEquals(
+            DestinosDeCobranza.abonoDeUnaVenta(venta()),
+            DestinosDeCobranza.abonoDeUnaVenta(ventaConProductos())
+        )
     }
 
     /**
@@ -329,6 +377,50 @@ class ReglaDelOrigenTest {
         AVAL_O_RESPONSABLE = "Rosalba Rentería",
         FREC_PAGO = FrecuenciaPago.SEMANAL
     )
+
+    /** La MISMA cuenta, en la forma que traen las tarjetas de las listas. */
+    private fun ventaConProductos(): SaleWithProducts = venta().let { v ->
+        SaleWithProducts(
+            DOCTO_CC_ACR_ID = v.DOCTO_CC_ACR_ID,
+            DOCTO_CC_ID = v.DOCTO_CC_ID,
+            FOLIO = v.FOLIO,
+            CLIENTE_ID = v.CLIENTE_ID,
+            APLICADO = v.APLICADO,
+            COBRADOR_ID = v.COBRADOR_ID,
+            CLIENTE = v.CLIENTE,
+            ZONA_CLIENTE_ID = v.ZONA_CLIENTE_ID,
+            LIMITE_CREDITO = v.LIMITE_CREDITO,
+            NOTAS = v.NOTAS,
+            ZONA_NOMBRE = v.ZONA_NOMBRE,
+            IMPORTE_PAGO_PROMEDIO = v.IMPORTE_PAGO_PROMEDIO,
+            TOTAL_IMPORTE = v.TOTAL_IMPORTE,
+            NUM_IMPORTES = v.NUM_IMPORTES,
+            FECHA = v.FECHA,
+            PARCIALIDAD = v.PARCIALIDAD,
+            ENGANCHE = v.ENGANCHE,
+            TIEMPO_A_CORTO_PLAZOMESES = v.TIEMPO_A_CORTO_PLAZOMESES,
+            MONTO_A_CORTO_PLAZO = v.MONTO_A_CORTO_PLAZO,
+            VENDEDOR_1 = v.VENDEDOR_1,
+            VENDEDOR_2 = v.VENDEDOR_2,
+            VENDEDOR_3 = v.VENDEDOR_3,
+            PRECIO_TOTAL = v.PRECIO_TOTAL,
+            IMPTE_REST = v.IMPTE_REST,
+            SALDO_REST = v.SALDO_REST,
+            FECHA_ULT_PAGO = v.FECHA_ULT_PAGO,
+            CALLE = v.CALLE,
+            CIUDAD = v.CIUDAD,
+            ESTADO = v.ESTADO,
+            TELEFONO = v.TELEFONO,
+            NOMBRE_COBRADOR = v.NOMBRE_COBRADOR,
+            ESTADO_COBRANZA = v.ESTADO_COBRANZA,
+            DIA_COBRANZA = v.DIA_COBRANZA,
+            DIA_TEMPORAL_COBRANZA = v.DIA_TEMPORAL_COBRANZA,
+            PRECIO_DE_CONTADO = v.PRECIO_DE_CONTADO,
+            AVAL_O_RESPONSABLE = v.AVAL_O_RESPONSABLE,
+            FREC_PAGO = v.FREC_PAGO ?: FrecuenciaPago.SEMANAL,
+            PRODUCTOS = "Refrigerador Mabe 14'"
+        )
+    }
 
     private companion object {
         const val RAIZ = "raiz_de_prueba"
