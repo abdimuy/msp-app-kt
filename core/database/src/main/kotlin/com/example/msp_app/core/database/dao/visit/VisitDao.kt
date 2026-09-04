@@ -95,6 +95,48 @@ interface VisitDao {
     )
     suspend fun getVisitsByDate(start: String, end: String): List<VisitEntity>
 
+    /**
+     * Todas las visitas de un cliente, de la más reciente a la más vieja —
+     * la bitácora "últimos contactos" del detalle de cliente
+     * (`:feature:pagos`, Task 16).
+     *
+     * Solo lectura: NO toca el schema (Room es inmutable, hay datos en
+     * producción). Corre sobre el índice `CLIENTE_ID` que la tabla ya declara,
+     * así que no hace falta índice nuevo — que sería un cambio de schema.
+     *
+     * Barre TODO el histórico del cliente, no una ventana: la bitácora es
+     * precisamente lo que pasó antes del periodo en curso, y acotarla por fecha
+     * la dejaría vacía justo en el cliente al que nadie ha visitado esta semana,
+     * que es el que más falta hace conocer.
+     */
+    @Query(
+        """
+        SELECT 
+            ID,
+            CLIENTE_ID,
+            COBRADOR,
+            COBRADOR_ID,
+            FECHA,
+            FORMA_COBRO_ID,
+            LAT,
+            LNG,
+            NOTA,
+            TIPO_VISITA,
+            ZONA_CLIENTE_ID,
+            IMPTE_DOCTO_CC_ID,
+            GUARDADO_EN_MICROSIP,
+            PROMESA_VENTA_ID,
+            PROMESA_FECHA,
+            PROMESA_MONTO_CENTAVOS,
+            CITA_FECHA,
+            CITA_HORA
+        FROM Visit
+        WHERE CLIENTE_ID = :clienteId
+        ORDER BY FECHA DESC
+        """
+    )
+    suspend fun getVisitsByClienteId(clienteId: Int): List<VisitEntity>
+
     @Query("UPDATE Visit SET GUARDADO_EN_MICROSIP = :newState WHERE id = :id")
     suspend fun updateState(id: String, newState: Int)
 
