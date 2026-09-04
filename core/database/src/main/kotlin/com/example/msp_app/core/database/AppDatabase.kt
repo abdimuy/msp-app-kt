@@ -16,6 +16,7 @@ import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDa
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.database.entities.ClientProfileEntity
 import com.example.msp_app.core.database.entities.ClientProfileSignalEntity
 import com.example.msp_app.core.database.entities.ClienteEntity
@@ -80,6 +81,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun paymentDao(): PaymentDao
     abstract fun productDao(): ProductDao
     abstract fun visitDao(): VisitDao
+
+    /** `visita_recomendaciones` — el par sugerencia/desenlace (Task 19). */
+    abstract fun visitRecommendationDao(): VisitRecommendationDao
     abstract fun guaranteeDao(): GuaranteeDao
     abstract fun productInventoryDao(): ProductInventoryDao
     abstract fun productInventoryImageDao(): ProductInventoryImageDao

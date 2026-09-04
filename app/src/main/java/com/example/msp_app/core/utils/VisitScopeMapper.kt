@@ -38,5 +38,15 @@ typealias VisitScope = com.example.msp_app.core.common.cobranza.domain.VisitScop
  * la Task 13 existe para evitar, no para reintroducir por otro lado.
  */
 object VisitScopeMapper {
-    fun map(tipoVisita: String): VisitScope = TipoVisitaCatalogo.alcanceDe(tipoVisita)
+    /**
+     * @param tieneCita `Visit.CITA_FECHA != null`. Una visita con día de cita
+     *   es [VisitScope.CLIENTE] —"quedaron de verse" es un hecho del domicilio,
+     *   no de una deuda— aunque su literal sea de alcance venta. La Task 19
+     *   escribe `PIDE_TIEMPO` como literal de cable de la cita, y ese literal
+     *   sin día sigue siendo [VisitScope.VENTA] exactamente como antes: **el
+     *   día es lo único que cambia la lectura**, así que ninguna visita ya
+     *   capturada cambia de alcance. Ver `TipoVisitaCatalogo.estadoDe`.
+     */
+    fun map(tipoVisita: String, tieneCita: Boolean = false): VisitScope =
+        TipoVisitaCatalogo.alcanceDe(tipoVisita, tieneCita)
 }

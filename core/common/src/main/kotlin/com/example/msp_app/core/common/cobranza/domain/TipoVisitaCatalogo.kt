@@ -189,14 +189,46 @@ object TipoVisitaCatalogo {
     /**
      * Estado de [tipoVisita]. Función TOTAL: un literal fuera del catálogo cae
      * en [ESTADO_DESCONOCIDO], nunca en `null` y nunca en la nada.
+     *
+     * ## [tieneCita]: el único dato que gana al literal
+     *
+     * [EstadoCuenta.CITA_A_UNA_HORA] **no sale de ningún literal** y nunca va a
+     * salir: el catálogo de `TIPO_VISITA` está cerrado en el servidor
+     * (Ruling D) y ninguno de sus 14 valores significa "quedamos a tal hora".
+     * Lo que sí significa eso es un DATO: `Visit.CITA_FECHA`, la columna que la
+     * Task 26 agregó y que la Task 19 empezó a escribir. Cuando esa columna
+     * trae día, la visita **es** una cita, venga con el literal que venga.
+     *
+     * La Task 19 escribe [PIDE_TIEMPO] ("Pidió que regrese otro día") como
+     * literal de cable de una cita, porque es el valor del catálogo cerrado que
+     * más se le parece y el servidor lo acepta. Eso le da a ese literal un
+     * segundo significado — *"regresa otro día"* a secas, o *"regresa el jueves
+     * a las 4"*—, y **el día es lo que los separa**: una fila histórica de
+     * [PIDE_TIEMPO] no tiene `CITA_FECHA`, así que sigue derivando
+     * [EstadoCuenta.VISITE_VUELVO] exactamente como antes. Ninguna visita ya
+     * capturada cambia de estado por este parámetro.
+     *
+     * Las diez etiquetas que el cobrador elige **no cambian de estado**: la
+     * cita no es una de ellas, es una rama propia de la pantalla.
+     *
+     * @param tieneCita `Visit.CITA_FECHA != null` — el DÍA de la cita, no la
+     *   hora. Una cita sin hora sigue siendo una cita (el mock contempla "otro
+     *   día sin hora"); lo que no existe es una cita sin día, y por eso la
+     *   guarda pregunta por el día.
      */
-    fun estadoDe(tipoVisita: String): EstadoCuenta = estadoPorTipo[tipoVisita] ?: ESTADO_DESCONOCIDO
+    fun estadoDe(tipoVisita: String, tieneCita: Boolean = false): EstadoCuenta = when {
+        tieneCita -> EstadoCuenta.CITA_A_UNA_HORA
+        else -> estadoPorTipo[tipoVisita] ?: ESTADO_DESCONOCIDO
+    }
 
     /**
      * Alcance de [tipoVisita]. **Única** clasificación cliente/venta del repo:
      * `VisitScopeMapper` (`:app`, Task 13) delega aquí y `VisitsLocalDataSource`
      * lo consume a través suyo. Se deriva del estado, así que no puede
-     * desincronizarse de [estadoDe].
+     * desincronizarse de [estadoDe] — incluida la rama de [tieneCita]: una cita
+     * es [VisitScope.CLIENTE] porque [EstadoCuenta.CITA_A_UNA_HORA] lo es, sin
+     * una segunda tabla que pudiera contradecirlo.
      */
-    fun alcanceDe(tipoVisita: String): VisitScope = estadoDe(tipoVisita).alcance
+    fun alcanceDe(tipoVisita: String, tieneCita: Boolean = false): VisitScope =
+        estadoDe(tipoVisita, tieneCita).alcance
 }

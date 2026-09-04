@@ -169,10 +169,43 @@ interface VisitDao {
     suspend fun deleteAllVisits()
 
     /**
-     * Prunes only visitas already confirmed by the server (GUARDADO_EN_MICROSIP = 1).
+     * Prunes only visitas already confirmed by the server (GUARDADO_EN_MICROSIP = 1)
+     * **and that no longer carry a local-only commitment**.
      * Unlike [deleteAllVisits], this never touches a visita still pending upload —
      * see [com.example.msp_app.features.sales.viewmodels.SalesViewModel.syncSales].
+     *
+     * ## Por qué la segunda condición (Ruling V del plan `pagos-y-visitas`)
+     *
+     * `PROMESA_FECHA`, `PROMESA_MONTO_CENTAVOS`, `CITA_FECHA` y `CITA_HORA`
+     * **no existen en el servidor**: el contrato de `POST /v2/visitas` no las
+     * lleva y el plan decidió no expandirlo. O sea que son datos que solo viven
+     * en este teléfono. Con la poda anterior —`GUARDADO_EN_MICROSIP = 1` a
+     * secas— una promesa duraba hasta el siguiente `syncSales` y desaparecía
+     * para siempre, sin que nadie pudiera recuperarla de ningún lado. Eso vacía
+     * el propósito entero de haberla estructurado: la promesa existe **para
+     * poder consultarse**, es el insumo del recomendador y la única forma de
+     * medir si se cumplió.
+     *
+     * La condición se lee: *"borra la visita subida cuyo compromiso más lejano
+     * ya quedó antes de [conservarDesde]"*. `MAX(...)` es el escalar de dos
+     * argumentos de SQLite, y los `COALESCE(..., '')` hacen que una visita SIN
+     * compromiso (las dos columnas en `NULL`) dé `''`, que es menor que
+     * cualquier fecha `yyyy-MM-dd` — o sea que se poda igual que antes. **El
+     * comportamiento para una visita sin promesa ni cita no cambia.**
+     *
+     * No es "nunca borrar": es una ventana de retención. Ver
+     * `VisitsLocalDataSource.deleteUploadedVisits`, que la calcula desde el
+     * reloj de negocio y documenta cuánto dura.
+     *
+     * @param conservarDesde fecha de corte en formato de cable (`yyyy-MM-dd`).
+     *   Una visita cuyo compromiso caiga en ese día o después SOBREVIVE.
      */
-    @Query("DELETE FROM Visit WHERE GUARDADO_EN_MICROSIP = 1")
-    suspend fun deleteUploadedVisits()
+    @Query(
+        """
+        DELETE FROM Visit
+        WHERE GUARDADO_EN_MICROSIP = 1
+          AND MAX(COALESCE(PROMESA_FECHA, ''), COALESCE(CITA_FECHA, '')) < :conservarDesde
+        """
+    )
+    suspend fun deleteUploadedVisits(conservarDesde: String)
 }

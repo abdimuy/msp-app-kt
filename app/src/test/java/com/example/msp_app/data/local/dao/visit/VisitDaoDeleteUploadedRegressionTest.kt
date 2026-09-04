@@ -28,21 +28,27 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
 
     private val dao get() = db.visitDao()
 
-    private fun visit(id: String, guardado: Int) = VisitEntity(
-        ID = id,
-        CLIENTE_ID = 11486,
-        COBRADOR = "Ramirez Ortiz, Fernando",
-        COBRADOR_ID = 200,
-        FECHA = "2026-06-01T09:30:00Z",
-        FORMA_COBRO_ID = 0,
-        LAT = 0.0,
-        LNG = 0.0,
-        NOTA = "Visita de prueba",
-        TIPO_VISITA = "SIN_PAGO",
-        ZONA_CLIENTE_ID = 21552,
-        IMPTE_DOCTO_CC_ID = 5000,
-        GUARDADO_EN_MICROSIP = guardado
-    )
+    /** El corte de retención de los tests: todo compromiso anterior a este día se poda. */
+    private val corte = "2026-06-15"
+
+    private fun visit(id: String, guardado: Int, promesa: String? = null, cita: String? = null) =
+        VisitEntity(
+            ID = id,
+            CLIENTE_ID = 11486,
+            COBRADOR = "Ramirez Ortiz, Fernando",
+            COBRADOR_ID = 200,
+            FECHA = "2026-06-01T09:30:00Z",
+            FORMA_COBRO_ID = 0,
+            LAT = 0.0,
+            LNG = 0.0,
+            NOTA = "Visita de prueba",
+            TIPO_VISITA = "SIN_PAGO",
+            ZONA_CLIENTE_ID = 21552,
+            IMPTE_DOCTO_CC_ID = 5000,
+            GUARDADO_EN_MICROSIP = guardado,
+            PROMESA_FECHA = promesa,
+            CITA_FECHA = cita
+        )
 
     @Test
     fun `deleteUploadedVisits removes only confirmed rows and preserves pending ones`() = runTest {
@@ -54,7 +60,7 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         dao.insertVisit(visit(id = "visita-pending-1", guardado = 0))
         dao.insertVisit(visit(id = "visita-pending-2", guardado = 0))
 
-        dao.deleteUploadedVisits()
+        dao.deleteUploadedVisits(conservarDesde = corte)
 
         // The two confirmed visitas are gone.
         assertNoLongerExists(dao, "visita-uploaded-1")
@@ -87,6 +93,68 @@ class VisitDaoDeleteUploadedRegressionTest : RoomTestBase() {
         assertTrue(
             "deleteAllVisits leaves nothing behind, pending or not",
             dao.getPendingVisits().isEmpty()
+        )
+    }
+
+    /**
+     * **Ruling V.** Una visita YA SUBIDA que carga una promesa vigente NO se
+     * poda: el servidor no tiene columnas para la promesa, así que borrar la
+     * fila borraría la promesa para siempre.
+     */
+    @Test
+    fun `una promesa vigente sobrevive a la poda aunque la visita ya este subida`() = runTest {
+        dao.insertVisit(visit(id = "visita-con-promesa", guardado = 1, promesa = "2026-09-04"))
+        dao.insertVisit(visit(id = "visita-con-cita", guardado = 1, cita = "2026-07-01"))
+        dao.insertVisit(visit(id = "visita-sin-compromiso", guardado = 1))
+
+        dao.deleteUploadedVisits(conservarDesde = corte)
+
+        assertNotNull(
+            "la promesa no puede morir en la poda",
+            dao.getVisitById("visita-con-promesa")
+        )
+        assertNotNull("la cita no puede morir en la poda", dao.getVisitById("visita-con-cita"))
+        // La visita sin compromiso se poda exactamente como antes: el
+        // comportamiento viejo no cambió para las filas viejas.
+        assertNoLongerExists(dao, "visita-sin-compromiso")
+    }
+
+    /**
+     * La ventana de retención sí cierra: un compromiso anterior al corte se
+     * poda. Sin esta prueba, "nunca borrar" pasaría por "conservar lo vigente".
+     */
+    @Test
+    fun `un compromiso anterior al corte si se poda`() = runTest {
+        dao.insertVisit(visit(id = "promesa-vieja", guardado = 1, promesa = "2026-06-14"))
+        dao.insertVisit(visit(id = "promesa-del-corte", guardado = 1, promesa = corte))
+
+        dao.deleteUploadedVisits(conservarDesde = corte)
+
+        assertNoLongerExists(dao, "promesa-vieja")
+        // El borde exacto: el día del corte SOBREVIVE (`<`, no `<=`).
+        assertNotNull("el dia del corte sobrevive", dao.getVisitById("promesa-del-corte"))
+    }
+
+    /**
+     * La promesa manda sobre la cita cuando la visita trae las dos: se conserva
+     * mientras el compromiso MÁS LEJANO siga vigente, no el primero que aparezca.
+     */
+    @Test
+    fun `con promesa vieja y cita futura gana la cita`() = runTest {
+        dao.insertVisit(
+            visit(
+                id = "promesa-vieja-cita-futura",
+                guardado = 1,
+                promesa = "2026-01-02",
+                cita = "2026-09-10"
+            )
+        )
+
+        dao.deleteUploadedVisits(conservarDesde = corte)
+
+        assertNotNull(
+            "el compromiso mas lejano decide, no el primero",
+            dao.getVisitById("promesa-vieja-cita-futura")
         )
     }
 

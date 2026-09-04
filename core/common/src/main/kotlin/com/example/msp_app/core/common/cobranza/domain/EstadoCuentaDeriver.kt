@@ -155,7 +155,10 @@ object EstadoCuentaDeriver {
         }
         if (visita != null) {
             return ResultadoEstadoCuenta(
-                estado = TipoVisitaCatalogo.estadoDe(visita.tipoVisita),
+                // `fechaCita` gana al literal: ningún `TIPO_VISITA` significa
+                // "quedamos a tal hora", y el día de la cita sí. Ver el KDoc de
+                // `TipoVisitaCatalogo.estadoDe`.
+                estado = TipoVisitaCatalogo.estadoDe(visita.tipoVisita, visita.fechaCita != null),
                 abonoVentana = abonoVentana,
                 parcialidad = cuenta.parcialidad,
                 fechaPromesa = visita.fechaPromesa,
@@ -226,7 +229,13 @@ object EstadoCuentaDeriver {
         companion object {
             fun de(visitasDelPeriodo: List<VisitaEnVentana>): IndiceVisitas {
                 val (deCliente, deVenta) = visitasDelPeriodo.partition {
-                    TipoVisitaCatalogo.alcanceDe(it.tipoVisita) == VisitScope.CLIENTE
+                    // El MISMO par (literal, ¿tiene día de cita?) que usa
+                    // `resolver`: si el estado de una visita puede ser
+                    // `CITA_A_UNA_HORA`, su alcance tiene que poder ser
+                    // CLIENTE, o la cita se aplicaría a una sola venta.
+                    val alcance =
+                        TipoVisitaCatalogo.alcanceDe(it.tipoVisita, it.fechaCita != null)
+                    alcance == VisitScope.CLIENTE
                 }
                 val (ligadas, sueltas) = deVenta.partition { it.ventaId != null }
                 return IndiceVisitas(

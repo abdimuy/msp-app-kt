@@ -221,13 +221,98 @@ class EstadoCuentaDeriverTest {
         )
     }
 
+    /**
+     * **El estado que estaba muerto, ahora vivo.** Ningún literal produce
+     * `CITA_A_UNA_HORA` —por diseño: no se reconstruye desde texto libre— y por
+     * eso lo produce el DATO. La Task 19 escribe `CITA_FECHA`, y con día la
+     * visita es una cita venga con el literal que venga.
+     */
     @Test
-    fun `estado 6 de 8 - Cita a una hora, cuando la Task 19 entregue el dato`() {
-        // No hay literal que produzca CITA_A_UNA_HORA (por diseño: no se
-        // reconstruye desde texto libre). Lo que esta tarea deja listo es el
-        // canal: el estado existe, es de alcance cliente y su hora viaja en
-        // ResultadoEstadoCuenta.
+    fun `estado 6 de 8 - Cita a una hora, derivada del dia de la cita`() {
         assertEquals(VisitScope.CLIENTE, EstadoCuenta.CITA_A_UNA_HORA.alcance)
+        val conCita = visita(TipoVisitaCatalogo.PIDE_TIEMPO).copy(
+            fechaCita = LocalDate.of(2026, 9, 3),
+            horaCita = LocalTime.of(16, 0)
+        )
+
+        assertEquals(EstadoCuenta.CITA_A_UNA_HORA, estadoDe(visitas = listOf(conCita)))
+    }
+
+    /**
+     * **Control positivo del literal:** el MISMO `PIDE_TIEMPO` sin día de cita
+     * sigue derivando "visité, vuelvo", exactamente como antes de la Task 19.
+     * Sin esta prueba, la de arriba no distinguiría "el día lo convierte en
+     * cita" de "ese literal ahora siempre es cita" — y ninguna fila histórica
+     * puede cambiar de significado.
+     */
+    @Test
+    fun `el mismo literal sin dia de cita sigue siendo visite vuelvo`() {
+        assertEquals(
+            EstadoCuenta.VISITE_VUELVO,
+            estadoDe(visitas = listOf(visita(TipoVisitaCatalogo.PIDE_TIEMPO)))
+        )
+    }
+
+    /**
+     * Y la cita se **propaga a todas las cuentas del cliente**: es un hecho del
+     * domicilio. El alcance sale del estado, así que no puede contradecirlo.
+     */
+    @Test
+    fun `una cita se propaga a todas las ventas del cliente`() {
+        val conCita = visita(TipoVisitaCatalogo.PIDE_TIEMPO, ventaId = ventaGuadalupe).copy(
+            fechaCita = LocalDate.of(2026, 9, 3)
+        )
+        val derivacion = EstadoCuentaDeriver.derivar(
+            cuentas = listOf(cuenta(), cuenta(ventaId = ventaGuadalupeDos)),
+            pagos = emptyList(),
+            visitas = listOf(conCita),
+            ventana = ventana
+        )
+
+        assertEquals(
+            EstadoCuenta.CITA_A_UNA_HORA,
+            derivacion.porVenta.getValue(ventaGuadalupeDos).estado
+        )
+    }
+
+    /**
+     * La fecha y la hora de la cita **viajan** con el resultado: la pantalla
+     * necesita las dos para decidir si es una cita o un pendiente (Task 16) y si
+     * cae hoy (Task 17).
+     */
+    @Test
+    fun `el dia y la hora de la cita llegan al resultado`() {
+        val conCita = visita(TipoVisitaCatalogo.PIDE_TIEMPO).copy(
+            fechaCita = LocalDate.of(2026, 9, 3),
+            horaCita = LocalTime.of(16, 30)
+        )
+        val resultado = EstadoCuentaDeriver
+            .derivar(listOf(cuenta()), emptyList(), listOf(conCita), ventana)
+            .porVenta
+            .getValue(ventaGuadalupe)
+
+        assertEquals(LocalDate.of(2026, 9, 3), resultado.fechaCita)
+        assertEquals(LocalTime.of(16, 30), resultado.horaCita)
+    }
+
+    /**
+     * La promesa estructurada también llega entera: fecha Y monto. Es el par que
+     * vuelve medible el cumplimiento.
+     */
+    @Test
+    fun `la fecha y el monto de la promesa llegan al resultado`() {
+        val conPromesa = visita(TipoVisitaCatalogo.PIDE_REAGENDAR).copy(
+            fechaPromesa = LocalDate.of(2026, 9, 4),
+            montoPrometido = BigDecimal("220.00")
+        )
+        val resultado = EstadoCuentaDeriver
+            .derivar(listOf(cuenta()), emptyList(), listOf(conPromesa), ventana)
+            .porVenta
+            .getValue(ventaGuadalupe)
+
+        assertEquals(EstadoCuenta.PROMETIO_PROXIMA, resultado.estado)
+        assertEquals(LocalDate.of(2026, 9, 4), resultado.fechaPromesa)
+        assertEquals(0, BigDecimal("220.00").compareTo(resultado.montoPrometido))
     }
 
     @Test

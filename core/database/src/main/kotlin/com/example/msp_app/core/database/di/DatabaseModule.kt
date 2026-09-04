@@ -14,6 +14,7 @@ import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDa
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -66,6 +67,10 @@ object DatabaseModule {
 
     @Provides
     fun provideVisitDao(db: AppDatabase): VisitDao = db.visitDao()
+
+    @Provides
+    fun provideVisitRecommendationDao(db: AppDatabase): VisitRecommendationDao =
+        db.visitRecommendationDao()
 
     @Provides
     fun provideGuaranteeDao(db: AppDatabase): GuaranteeDao = db.guaranteeDao()

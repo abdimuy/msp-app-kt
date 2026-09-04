@@ -14,6 +14,7 @@ import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
+import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.FILA_DE_CLIENTE_TAG
 import com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE
@@ -41,22 +42,25 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private fun pinta(nivel: FontSizeLevel = FontSizeLevel.NORMAL) {
+    private fun pinta(
+        nivel: FontSizeLevel = FontSizeLevel.NORMAL,
+        clientes: List<ClienteEnLista> = ListaFixtures.ruta()
+    ) {
         composeTestRule.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(
                 LocalDensity provides Density(density.density, nivel.nominalScale),
                 LocalFontSizeLevel provides nivel
             ) {
-                MspTheme(darkTheme = false, animateColors = false) { Lista() }
+                MspTheme(darkTheme = false, animateColors = false) { Lista(clientes) }
             }
         }
     }
 
     @Composable
-    private fun Lista() {
+    private fun Lista(clientes: List<ClienteEnLista>) {
         val proyeccion = CarteraEnPantalla.proyectar(
-            clientes = ListaFixtures.ruta(),
+            clientes = clientes,
             segmento = SegmentoDeCobranza.TODOS,
             query = "",
             hoy = ListaFixtures.HOY
@@ -88,32 +92,45 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * El chip "hoy" no se pinta mientras `HOY_VISIBLE` esté apagado: hoy
-     * `PROMESA_FECHA`/`CITA_FECHA` no las escribe nadie (Task 19), así que
-     * marcaría 0 para siempre y le enseñaría al cobrador que la fila de filtros
-     * miente. No esconde trabajo: una promesa sin fecha ya cae en "vencidos".
+     * **El chip "hoy" ya se pinta.** Estuvo apagado mientras nadie escribía
+     * `PROMESA_FECHA`/`CITA_FECHA`: habría marcado 0 para siempre y le habría
+     * enseñado al cobrador que la fila de filtros miente. La Task 19 hizo
+     * existir esa captura, así que el interruptor se encendió.
      */
     @Test
-    fun `el chip de hoy no se pinta mientras nadie escriba las fechas`() {
-        pinta()
-        assertEquals(false, HOY_VISIBLE)
-        assertEquals(
-            0,
-            composeTestRule
-                .onAllNodesWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
-                .fetchSemanticsNodes()
-                .size
-        )
-        // Los otros tres sí están: se apaga un chip, no la fila.
-        listOf(
-            SegmentoDeCobranza.TODOS,
-            SegmentoDeCobranza.VENCIDOS,
-            SegmentoDeCobranza.SIN_VISITAR
-        ).forEach {
+    fun `los cuatro chips se pintan, hoy incluido`() {
+        pinta(clientes = ListaFixtures.rutaConPromesaDeHoy())
+        assertEquals(true, HOY_VISIBLE)
+        SegmentoDeCobranza.entries.forEach {
             composeTestRule
                 .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + it.name.lowercase())
                 .assertIsDisplayed()
         }
+    }
+
+    /**
+     * Y **cuenta de verdad**: la promesa de Esperanza cae hoy, así que el chip
+     * marca 1 en vez del 0 estructural que tenía antes.
+     */
+    @Test
+    fun `el chip de hoy cuenta la promesa que cae hoy`() {
+        val proyeccion = CarteraEnPantalla.proyectar(
+            clientes = ListaFixtures.rutaConPromesaDeHoy(),
+            segmento = SegmentoDeCobranza.TODOS,
+            query = "",
+            hoy = ListaFixtures.HOY
+        )
+
+        assertEquals(1, proyeccion.conteos[SegmentoDeCobranza.HOY])
+        // Control positivo: sin esa puerta el chip vuelve a 0, así que el 1 de
+        // arriba lo produce el dato y no una cuenta que siempre da uno.
+        val sinPromesa = CarteraEnPantalla.proyectar(
+            clientes = ListaFixtures.ruta(),
+            segmento = SegmentoDeCobranza.TODOS,
+            query = "",
+            hoy = ListaFixtures.HOY
+        )
+        assertEquals(0, sinPromesa.conteos[SegmentoDeCobranza.HOY])
     }
 
     @Test

@@ -77,32 +77,36 @@ fun ChipsDeSegmento(
 }
 
 /**
- * Los chips que se pintan hoy.
+ * Los chips que se pintan hoy — **los cuatro**, desde la Task 19.
  *
- * ## Por qué "hoy" no está
+ * ## Por qué "hoy" estuvo apagado, y por qué ya no
  *
  * [SegmentoDeCobranza.HOY] solo puede contener cuentas con `PROMESA_FECHA` o
- * `CITA_FECHA`, y **nadie escribe todavía esas columnas**: la captura
- * estructurada la construye la Task 19. O sea que hoy el chip es
- * estructuralmente incapaz de marcar otra cosa que 0.
+ * `CITA_FECHA`. Mientras nadie escribía esas columnas el chip era
+ * estructuralmente incapaz de marcar otra cosa que 0, y un chip que dice
+ * "hoy 0" al lado de "vencidos 34" durante semanas le enseña al cobrador que la
+ * fila de filtros miente — cuando deja de leer la fila, se pierden también los
+ * chips que sí sirven.
  *
- * **Y no esconde trabajo:** una promesa sin fecha mapea al trato `REGRESAS` y
- * por lo tanto a *vencidos*, así que no existe una
- * cuenta que solo "hoy" sacaría a flote. Lo que sí hace un chip que dice
- * "hoy 0" al lado de "vencidos 34" durante semanas es enseñarle al cobrador que
- * la fila de filtros miente — y cuando deja de leer la fila, se pierden también
- * los chips que sí sirven. Deshabilitarlo con un aviso sería peor: gasta un
- * estado visual, en un teléfono a una mano y en la calle, para explicar una
- * función que todavía no existe.
- *
- * **La Task 19 cambia este booleano y regraba los goldens.** No hay nada más
- * que hacer: el segmento, sus ramas, sus tests y sus goldens ya están.
+ * **La Task 19 escribe esas columnas**: la promesa estructurada (venta + fecha +
+ * monto) y la cita con día y hora nacen en `:feature:visitas`, así que el
+ * segmento ya cuenta cuentas reales y el chip se enciende. El segmento no
+ * cambió ni una rama: siempre filtró y contó bien; lo único apagado era su
+ * render, y este booleano es lo único que se movió.
  */
 private fun segmentosVisibles(): List<SegmentoDeCobranza> =
     SegmentoDeCobranza.entries.filter { HOY_VISIBLE || it != SegmentoDeCobranza.HOY }
 
-/** El interruptor del párrafo de arriba. Lo enciende la Task 19. */
-const val HOY_VISIBLE: Boolean = false
+/**
+ * El interruptor del párrafo de arriba. **Encendido por la Task 19**, que es la
+ * que hizo existir `PROMESA_FECHA` y `CITA_FECHA` como dato capturado.
+ *
+ * Se conserva como constante —en vez de borrar el filtro— porque es el registro
+ * de por qué el chip no estuvo desde el principio, y porque `ListaSeVeYSeToca`
+ * afirma sobre él: si alguien lo volviera a apagar sin apagar la captura, un
+ * test se pone rojo.
+ */
+const val HOY_VISIBLE: Boolean = true
 
 @Composable
 private fun ChipDeSegmento(

@@ -3,6 +3,8 @@ package com.example.msp_app.data.local.datasource.visit
 import android.content.Context
 import androidx.room.Transaction
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
@@ -16,7 +18,8 @@ import javax.inject.Inject
 class VisitsLocalDataSource @Inject constructor(
     private val visitDao: VisitDao,
     private val saleDao: SaleDao,
-    private val enqueuer: VisitsWorkEnqueuer
+    private val enqueuer: VisitsWorkEnqueuer,
+    private val clock: AppClock = AppClock.System
 ) {
     /**
      * Puente legacy: los callers `viewModel()` y los workers aún no-Hilt
@@ -87,7 +90,7 @@ class VisitsLocalDataSource @Inject constructor(
         newState: EstadoCobranza
     ) {
         visitDao.insertVisit(visit)
-        when (VisitScopeMapper.map(visit.TIPO_VISITA)) {
+        when (VisitScopeMapper.map(visit.TIPO_VISITA, visit.CITA_FECHA != null)) {
             VisitScope.CLIENTE ->
                 saleDao.updateEstadoCobranzaActivasByClienteId(visit.CLIENTE_ID, newState)
 
@@ -143,8 +146,41 @@ class VisitsLocalDataSource @Inject constructor(
         visitDao.deleteAllVisits()
     }
 
-    /** Prunes only visitas already confirmed by the server; see [VisitDao.deleteUploadedVisits]. */
+    /**
+     * Prunes uploaded visitas — **except the ones still holding a promesa or a
+     * cita this phone is the only place in the world that knows about**
+     * (Ruling V, plan `pagos-y-visitas`).
+     *
+     * `POST /v2/visitas` has no field for `PROMESA_FECHA`,
+     * `PROMESA_MONTO_CENTAVOS`, `CITA_FECHA` or `CITA_HORA`, and the plan
+     * decided not to expand the server. So an uploaded visit is only "safely
+     * copied elsewhere" for the columns the contract carries; its promesa is
+     * NOT. Deleting the row deleted the promise for good — and the promise is
+     * the input the recommender and the compliance measurement are built on.
+     *
+     * The window is [RETENCION_DE_COMPROMISOS_DIAS] days **after** the
+     * commitment's own date, not after the visit: a promise for next Friday
+     * survives until long after next Friday, which is exactly the span in
+     * which "did they pay what they promised?" can still be answered. Once it
+     * closes, the row prunes like any other and the table stays bounded.
+     *
+     * A visita with neither promesa nor cita prunes exactly as before — the
+     * `COALESCE(..., '')` in the query makes its commitment date the empty
+     * string, which is below every real date.
+     */
     suspend fun deleteUploadedVisits() {
-        visitDao.deleteUploadedVisits()
+        val corte = AppTime.todayInBusinessZone(clock).minusDays(RETENCION_DE_COMPROMISOS_DIAS)
+        visitDao.deleteUploadedVisits(conservarDesde = AppTime.toWireDate(corte))
+    }
+
+    private companion object {
+        /**
+         * Cuánto sobrevive una visita subida DESPUÉS de la fecha de su
+         * compromiso. Noventa días cubren de sobra la ventana en que la promesa
+         * todavía se puede cruzar contra los pagos posteriores (la cobranza
+         * corre por semana), y ponen un techo al crecimiento de la tabla: sin
+         * él la poda dejaría de podar para siempre las filas con promesa.
+         */
+        const val RETENCION_DE_COMPROMISOS_DIAS: Long = 90
     }
 }

@@ -66,7 +66,13 @@ class CargarDetalleCliente @Inject constructor(
                 fecha = visita.fecha,
                 etiqueta = visita.tipoVisita.lowercase(),
                 nota = visita.nota?.takeIf { it.isNotBlank() },
-                estado = TipoVisitaCatalogo.estadoDe(visita.tipoVisita),
+                // El MISMO par (literal, ¿trae día de cita?) que usa el deriver:
+                // una cita en la bitácora tiene que verse como cita, no como
+                // el "vuelvo" de su literal de cable.
+                estado = TipoVisitaCatalogo.estadoDe(
+                    visita.tipoVisita,
+                    visita.fechaCita != null
+                ),
                 importe = null
             )
         }

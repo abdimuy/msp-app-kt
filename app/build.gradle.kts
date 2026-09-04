@@ -272,6 +272,11 @@ dependencies {
     // reales de `LiquidacionPort` (el cálculo de liquidación que ya vive aquí) y de
     // `PeriodoDeCobroPort` (`FECHA_CARGA_INICIAL` de Firestore) en su composition root.
     implementation(project(":feature:pagos"))
+    // Registrar visita (Plan 5, Task 19). `:app` provee los adapters reales de
+    // `RegistroDeVisitaPort` (la escritura que ya corre en producción,
+    // `VisitsLocalDataSource.saveVisitAndEnqueue`) y de `UbicacionPort`
+    // (Play Services) en su composition root.
+    implementation(project(":feature:visitas"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

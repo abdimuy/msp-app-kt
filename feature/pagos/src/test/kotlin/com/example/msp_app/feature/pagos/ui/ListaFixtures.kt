@@ -29,6 +29,7 @@ object ListaFixtures {
     const val VICTORIA: Int = 5021
     const val RICARDO: Int = 6102
     const val GUADALUPE: Int = 7310
+    const val ESPERANZA: Int = 8412
 
     fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
 
@@ -38,12 +39,14 @@ object ListaFixtures {
         estado: EstadoCuenta,
         parcialidad: Money = dinero("350"),
         abonoDelPeriodo: Money = Money.ZERO,
-        fechaPromesa: LocalDate? = null
+        fechaPromesa: LocalDate? = null,
+        montoPrometido: Money? = null
     ): EstadoDelPeriodo = EstadoDelPeriodo(
         estado = estado,
         abonoDelPeriodo = abonoDelPeriodo,
         parcialidad = parcialidad,
-        fechaPromesa = fechaPromesa
+        fechaPromesa = fechaPromesa,
+        montoPrometido = montoPrometido
     )
 
     /**
@@ -183,8 +186,46 @@ object ListaFixtures {
         )
     )
 
+    /**
+     * **Esperanza prometió pagar HOY** — la puerta que hace existir el chip
+     * *hoy*.
+     *
+     * No está en [ruta] a propósito: aquella ruta es la que documenta el defecto
+     * "cuatro ventas de tres clientes pintan tres filas" y meterle una cuarta
+     * puerta le cambiaría el sentido a esa prueba. Esta cuenta vive en
+     * [rutaConPromesaDeHoy], que es la que usan el chip y sus goldens.
+     */
+    fun esperanza(): ClienteEnLista = cliente(
+        clienteId = ESPERANZA,
+        nombre = "Esperanza Vargas Trejo",
+        telefono = "238 118 4472",
+        direccion = "C. Allende 41, La Paz",
+        ventas = listOf(
+            venta(
+                ventaId = 80233,
+                folio = "V-8233",
+                descripcion = "Comedor 6 sillas",
+                saldo = dinero("2600"),
+                totalVenta = dinero("7400"),
+                enganche = dinero("900"),
+                fechaVenta = LocalDate.of(2026, 7, 8),
+                estado = estado(
+                    EstadoCuenta.PROMETIO_PROXIMA,
+                    fechaPromesa = HOY,
+                    montoPrometido = dinero("400")
+                )
+            )
+        )
+    )
+
     /** La ruta completa, en el orden en que la fuente la devuelve. */
     fun ruta(): List<ClienteEnLista> = listOf(victoria(), ricardo(), guadalupe())
+
+    /**
+     * La ruta **con una promesa que cae hoy** — la que necesita el chip *hoy*,
+     * encendido desde la Task 19 (`HOY_VISIBLE`).
+     */
+    fun rutaConPromesaDeHoy(): List<ClienteEnLista> = ruta() + esperanza()
 
     /** Las ventas crudas de la ruta, para los tests que entran por los puertos. */
     fun datosDeLaRuta(): List<DatosDeVenta> = listOf(

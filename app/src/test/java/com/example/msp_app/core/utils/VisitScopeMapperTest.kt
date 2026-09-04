@@ -84,4 +84,40 @@ class VisitScopeMapperTest {
     fun `map returns VENTA for empty string`() {
         assertEquals(VisitScope.VENTA, VisitScopeMapper.map(""))
     }
+
+    // ─── Task 19: el DÍA de la cita gana al literal ──────────────────────────
+
+    /**
+     * Una visita con día de cita es de alcance CLIENTE: "quedaron de verse" es
+     * un hecho del domicilio, no de una deuda, así que se propaga a todas las
+     * cuentas del cliente. El literal de cable de la cita (`PIDE_TIEMPO`) es de
+     * alcance venta — **lo que cambia la lectura es el dato, no la etiqueta**.
+     */
+    @Test
+    fun `map returns CLIENTE when the visit carries a cita day`() {
+        assertEquals(
+            VisitScope.CLIENTE,
+            VisitScopeMapper.map(Constants.PIDE_TIEMPO, tieneCita = true)
+        )
+    }
+
+    /**
+     * Control positivo del párrafo de arriba: el MISMO literal sin día sigue
+     * siendo VENTA, así que ninguna fila histórica cambia de alcance. Sin esta
+     * prueba, la de arriba no distinguiría "el día lo hace de cliente" de "ese
+     * literal ahora siempre es de cliente".
+     */
+    @Test
+    fun `map keeps VENTA for the same label without a cita day`() {
+        assertEquals(
+            VisitScope.VENTA,
+            VisitScopeMapper.map(Constants.PIDE_TIEMPO, tieneCita = false)
+        )
+    }
+
+    /** La bandera gana incluso sobre un literal desconocido: la cita es la cita. */
+    @Test
+    fun `map returns CLIENTE for an unknown label carrying a cita day`() {
+        assertEquals(VisitScope.CLIENTE, VisitScopeMapper.map("Unknown status", tieneCita = true))
+    }
 }
