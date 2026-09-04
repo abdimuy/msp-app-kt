@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -26,15 +27,19 @@ import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.ui.components.ABONO_CORTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AFIRMAR_EL_MONTO
+import com.example.msp_app.feature.pagos.ui.components.AGREGAR_FOTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.ALERTA_RARO_TAG
 import com.example.msp_app.feature.pagos.ui.components.BLOQUEO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_SUGERIDO_TAG
+import com.example.msp_app.feature.pagos.ui.components.COMPROBANTES_EN_HOJA_TAG
 import com.example.msp_app.feature.pagos.ui.components.CONFIRMAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.DUPLICADO_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_TAG
+import com.example.msp_app.feature.pagos.ui.components.FALLO_FOTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.HOJA_TAG
 import com.example.msp_app.feature.pagos.ui.components.METODOS_DE_CAPTURA
 import com.example.msp_app.feature.pagos.ui.components.METODO_TAG
+import com.example.msp_app.feature.pagos.ui.components.QUITAR_FOTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TECLA_BORRAR
 import com.example.msp_app.feature.pagos.ui.components.TECLA_PUNTO
 import com.example.msp_app.feature.pagos.ui.components.TECLA_TAG
@@ -68,6 +73,8 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     private var registros = 0
     private var ediciones = 0
     private var revisiones = 0
+    private var fotosPedidas = 0
+    private val fotosQuitadas = mutableListOf<String>()
     private val digitos = mutableListOf<Int>()
     private val metodos = mutableListOf<MetodoDeCobro>()
     private val sugeridosTocados = mutableListOf<Money>()
@@ -392,6 +399,98 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
             .getUnclippedBoundsInRoot()
     }
 
+    // --- Los comprobantes (Task 22) ------------------------------------------
+
+    /**
+     * El botón de la cámara es tocable de verdad. El plan pide >=50px y las
+     * Tasks 16 y 17 ya shipearon un control de 49.5dp y otro de ~38dp confiando
+     * en el modificador: aquí se mide.
+     */
+    @Test
+    fun `el boton de agregar foto se toca y avisa`() {
+        pinta(AbonoFixtures.enCaptura())
+        composeTestRule.onNodeWithTag(AGREGAR_FOTO_TAG).performScrollTo().performClick()
+        assertEquals(1, fotosPedidas)
+        assertTocable(AGREGAR_FOTO_TAG, "agregar foto")
+    }
+
+    /**
+     * Cada comprobante se enseña con su **posición**, no con su id: un UUID no
+     * le dice nada a nadie parado en una puerta. Y quitarlo manda el id de ESE
+     * comprobante, no el del otro.
+     */
+    @Test
+    fun `cada comprobante se enumera y se puede quitar`() {
+        val state = AbonoFixtures.enCapturaConComprobantes()
+        pinta(state)
+
+        composeTestRule.onNodeWithText("comprobante 1").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("comprobante 2").performScrollTo().assertIsDisplayed()
+
+        val segundo = state.comprobantes[1]
+        composeTestRule.onNodeWithTag(QUITAR_FOTO_TAG + segundo.id).performScrollTo().performClick()
+        assertEquals(
+            "se quita el que se tocó, no el primero",
+            listOf(segundo.id),
+            fotosQuitadas
+        )
+        assertTocable(QUITAR_FOTO_TAG + segundo.id, "quitar comprobante")
+    }
+
+    /**
+     * **La foto que falla avisa en ÁMBAR, y el CTA del dinero sigue vivo.**
+     *
+     * Es la regla que manda sobre esta tarea, medida en la pantalla: un aviso de
+     * foto no puede leerse como "el abono no se puede registrar", que es lo que
+     * significa el rojo aquí.
+     */
+    @Test
+    fun `el aviso de la foto no apaga el CTA del abono`() {
+        pinta(AbonoFixtures.enFalloDeFoto())
+
+        composeTestRule.onNodeWithTag(FALLO_FOTO_TAG).performScrollTo().assertIsDisplayed()
+        assertEquals(
+            "un fallo de foto no pinta la banda roja del bloqueo",
+            0,
+            composeTestRule.onAllNodesWithTag(BLOQUEO_TAG).fetchSemanticsNodes().size
+        )
+        composeTestRule.onNodeWithTag(CTA_ABONO_TAG).performClick()
+        assertEquals("y el abono se sigue pudiendo registrar", 1, confirmaciones)
+    }
+
+    /**
+     * **Control positivo del aviso.** Sin fallo no hay banda: la de arriba la
+     * enciende el estado, no un componente que se pinta siempre.
+     */
+    @Test
+    fun `control positivo - sin fallo de foto no hay aviso`() {
+        pinta(AbonoFixtures.enCaptura())
+        assertEquals(
+            0,
+            composeTestRule.onAllNodesWithTag(FALLO_FOTO_TAG).fetchSemanticsNodes().size
+        )
+    }
+
+    /**
+     * La hoja de confirmación **siempre** dice cuántos comprobantes van, también
+     * en cero: el paso dos existe para que el cobrador vea lo que va a registrar
+     * antes de registrarlo, y un comprobante olvidado se corrige con un toque de
+     * "editar". Enseñarlo solo cuando hay fotos convertiría el olvido en
+     * silencio.
+     */
+    @Test
+    fun `la hoja dice cuantos comprobantes van, tambien cuando no hay`() {
+        pinta(AbonoFixtures.enConfirmacion())
+        composeTestRule.onNodeWithTag(COMPROBANTES_EN_HOJA_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("sin comprobante").assertIsDisplayed()
+    }
+
+    @Test
+    fun `la hoja cuenta el comprobante adjunto`() {
+        pinta(AbonoFixtures.enConfirmacionConComprobante())
+        composeTestRule.onNodeWithText("1 comprobante").assertIsDisplayed()
+    }
+
     private fun assertTocable(tag: String, que: String) {
         val bordes = composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
         val alto = bordes.bottom - bordes.top
@@ -423,7 +522,9 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
             onRegistrar = { confirmaciones += 1 },
             onConfirmar = { registros += 1 },
             onEditar = { ediciones += 1 },
-            onRevisar = { revisiones += 1 }
+            onRevisar = { revisiones += 1 },
+            onAgregarFoto = { fotosPedidas += 1 },
+            onQuitarFoto = { fotosQuitadas += it }
         )
     }
 

@@ -2,8 +2,11 @@ package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.runtime.Immutable
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.VeredictoDelAbono
+import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
+import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 
@@ -34,6 +37,25 @@ enum class FalloDelAbono {
      * abrir la pantalla, mirando el historial.
      */
     NO_SE_PUDO_VERIFICAR
+}
+
+/**
+ * Por qué la foto no se adjuntó. **Ninguno de los tres para el abono**: el
+ * dinero se registra igual, y esto solo decide qué dice el aviso.
+ *
+ * Son tres y no un texto por la misma razón que [FalloDelAbono]: al cobrador se
+ * le dice algo distinto en cada caso — volver a intentar, cambiar de archivo, o
+ * que ya no caben más.
+ */
+enum class FalloDeLaFoto {
+    /** La cámara, la compresión o el almacenamiento fallaron. Se puede reintentar. */
+    NO_SE_PUDO_TOMAR,
+
+    /** El archivo no es de un tipo que el servidor acepte. Reintentar no lo arregla. */
+    TIPO_NO_PERMITIDO,
+
+    /** Ya hay [com.example.msp_app.feature.pagos.domain.Comprobantes.MAXIMO] comprobantes. */
+    YA_NO_CABEN
 }
 
 /**
@@ -75,6 +97,21 @@ data class RegistrarAbonoUiState(
     val guardando: Boolean = false,
     val registrado: String? = null,
     val fallo: FalloDelAbono? = null,
+    /**
+     * Los comprobantes adjuntos, **en orden de captura**. El índice de esta
+     * lista es el `ORDEN` con el que se persisten y el `n` de `id_<n>` con el
+     * que viajan, así que su orden es contrato, no presentación.
+     */
+    val comprobantes: List<ComprobanteDelAbono> = emptyList(),
+    /**
+     * El destino ya preparado que espera a la cámara. No nulo **es** la petición
+     * de abrir la cámara: la pantalla lo mira y dispara el intent. Vive también
+     * en el `SavedStateHandle`, porque el proceso puede morir con la cámara
+     * encima y la foto tiene que volver con el id que ya se le acuñó.
+     */
+    val destinoDeFoto: DestinoDeFoto? = null,
+    /** Por qué la última foto no se adjuntó. Nunca impide registrar el abono. */
+    val falloDeLaFoto: FalloDeLaFoto? = null,
     /**
      * El **cerrojo** de la verificación pendiente: la escritura no se pudo
      * comprobar y el guard anti-duplicado sigue puesto.
@@ -120,4 +157,18 @@ data class RegistrarAbonoUiState(
      */
     val sePuedeCapturar: Boolean
         get() = registrado == null && !guardando && confirmacion == null && !verificacionPendiente
+
+    /**
+     * ¿Se puede adjuntar otra foto? La MISMA guarda que el teclado, más el
+     * techo del teléfono y "la cámara ya está abierta".
+     *
+     * Comparte [sePuedeCapturar] a propósito: adjuntar un comprobante a un
+     * abono que ya se registró no lo alcanzaría —los comprobantes se escriben
+     * en el mismo paso que el dinero—, así que ofrecer el botón sería ofrecer
+     * un botón mudo, que es exactamente lo que esta pantalla no hace.
+     */
+    val sePuedeAgregarFoto: Boolean
+        get() = sePuedeCapturar &&
+            destinoDeFoto == null &&
+            comprobantes.size < Comprobantes.MAXIMO
 }

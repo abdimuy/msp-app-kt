@@ -11,6 +11,7 @@ import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleProductDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
@@ -79,6 +80,9 @@ import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
     abstract fun paymentDao(): PaymentDao
+
+    /** `pago_imagenes` — los comprobantes del abono (Task 22). */
+    abstract fun paymentImageDao(): PaymentImageDao
     abstract fun productDao(): ProductDao
     abstract fun visitDao(): VisitDao
 

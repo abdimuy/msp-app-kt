@@ -87,8 +87,10 @@ private val PASO = 18.dp
  * rojo, y el botón de registrar cambia a `Danger` con un texto que **obliga a
  * afirmar el monto** en vez de solo continuar.
  *
- * **Hueco para la Task 22:** la evidencia (foto) entra entre [CifraDeLaHoja] y
- * el flujo de saldos, sin mover ninguna de las tres piezas de seguridad.
+ * **La evidencia (Task 22)** ocupa el hueco que este diseño le había dejado:
+ * entre [CifraDeLaHoja] y el flujo de saldos, sin mover ninguna de las tres
+ * piezas de seguridad. Es una línea de texto y no una miniatura — ver el KDoc
+ * de [SeccionDeComprobantes] para por qué.
  */
 @Composable
 fun HojaDeConfirmacion(
@@ -99,6 +101,7 @@ fun HojaDeConfirmacion(
     metodo: MetodoDeCobro,
     veredicto: VeredictoDelAbono,
     esperadoHoy: Money,
+    comprobantes: Int,
     onConfirmar: () -> Unit,
     onEditar: () -> Unit,
     modifier: Modifier = Modifier
@@ -195,6 +198,7 @@ fun HojaDeConfirmacion(
             }
             QuienEs(cliente = cliente, producto = producto, folio = folio, raro = raro)
             CifraDeLaHoja(importe = importe, metodo = metodo, raro = raro)
+            ComprobantesDeLaHoja(cuantos = comprobantes)
             FlujoDeSaldos(veredicto = veredicto, raro = raro)
             if (raro) {
                 MspPrimaryFieldButton(

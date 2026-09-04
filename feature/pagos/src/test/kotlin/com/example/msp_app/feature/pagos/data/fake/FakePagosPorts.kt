@@ -1,12 +1,15 @@
 package com.example.msp_app.feature.pagos.data.fake
 
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
+import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
+import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
+import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
@@ -161,5 +164,67 @@ class FakeRegistroDeAbonoPort : RegistroDeAbonoPort {
         registrados += abono
         alRegistrar(abono)
         return resultado
+    }
+}
+
+/**
+ * El fake de la cámara del comprobante. Estado público + listas que graban, sin
+ * MockK y sin tocar un archivo real.
+ *
+ * Los tres [fallaAlPreparar]/[fallaAlAceptar]/[fallaAlDescartar] existen porque
+ * el contrato del puerto dice que **puede lanzar**, y la regla que manda sobre
+ * la Task 22 es que ningún fallo suyo llegue al dinero. Un fake que nunca
+ * lanzara dejaría esa regla sin probar.
+ */
+class FakeComprobantesPort : ComprobantesPort {
+
+    /** Cada destino entregado, en orden. */
+    val destinos: MutableList<DestinoDeFoto> = mutableListOf()
+
+    /** Cada comprobante aceptado, en orden. */
+    val aceptados: MutableList<ComprobanteDelAbono> = mutableListOf()
+
+    /** Las rutas que se pidió borrar, en orden. Es lo que prueba que no se filtra disco. */
+    val descartados: MutableList<String> = mutableListOf()
+
+    /** El MIME que devolverá el próximo [aceptar]. Se cambia para el tipo no permitido. */
+    var mime: String = "image/jpeg"
+
+    var fallaAlPreparar: Throwable? = null
+
+    var fallaAlAceptar: Throwable? = null
+
+    var fallaAlDescartar: Throwable? = null
+
+    private var siguiente = 0
+
+    override suspend fun nuevoDestino(): DestinoDeFoto {
+        fallaAlPreparar?.let { throw it }
+        siguiente += 1
+        val destino = DestinoDeFoto(
+            id = "IMG-%03d".format(siguiente),
+            uriParaLaCamara = "content://fake/camara/$siguiente",
+            archivoCrudo = "/tmp/fake/crudo-$siguiente.jpg"
+        )
+        destinos += destino
+        return destino
+    }
+
+    override suspend fun aceptar(destino: DestinoDeFoto): ComprobanteDelAbono {
+        fallaAlAceptar?.let { throw it }
+        // El id del destino se CONSERVA: es el contrato del puerto, y el fake
+        // no puede mentir sobre eso o los tests de idempotencia probarían nada.
+        val comprobante = ComprobanteDelAbono(
+            id = destino.id,
+            archivo = "/tmp/fake/comprobante-${destino.id}.jpg",
+            mime = mime
+        )
+        aceptados += comprobante
+        return comprobante
+    }
+
+    override suspend fun descartar(archivo: String) {
+        fallaAlDescartar?.let { throw it }
+        descartados += archivo
     }
 }

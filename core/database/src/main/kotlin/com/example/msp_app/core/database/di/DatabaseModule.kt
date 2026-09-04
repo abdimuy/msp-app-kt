@@ -9,6 +9,7 @@ import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleProductDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
@@ -23,7 +24,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * Expone por Hilt la [AppDatabase] y sus 12 DAOs — el binding que las
+ * Expone por Hilt la [AppDatabase] y sus DAOs — el binding que las
  * Tasks 6-8 (datasources inyectados) y los futuros `@HiltViewModel`/
  * `@HiltWorker` consumen.
  *
@@ -61,6 +62,10 @@ object DatabaseModule {
 
     @Provides
     fun providePaymentDao(db: AppDatabase): PaymentDao = db.paymentDao()
+
+    /** `pago_imagenes` — los comprobantes del abono (Task 22). */
+    @Provides
+    fun providePaymentImageDao(db: AppDatabase): PaymentImageDao = db.paymentImageDao()
 
     @Provides
     fun provideProductDao(db: AppDatabase): ProductDao = db.productDao()

@@ -1,5 +1,8 @@
 package com.example.msp_app.feature.pagos.ui
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +36,7 @@ import com.example.msp_app.feature.pagos.ui.components.BandaDeRegistrado
 import com.example.msp_app.feature.pagos.ui.components.ChipsSugeridos
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDelAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeConfirmacion
+import com.example.msp_app.feature.pagos.ui.components.SeccionDeComprobantes
 import com.example.msp_app.feature.pagos.ui.components.SelectorDeMetodo
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeCaptura
 import com.example.msp_app.feature.pagos.ui.components.TecladoDeMontos
@@ -62,6 +66,9 @@ fun RegistrarAbonoScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        if (ok) viewModel.fotoTomada() else viewModel.fotoCancelada()
+    }
     RegistrarAbonoContent(
         state = state,
         onAtras = onAtras,
@@ -74,8 +81,19 @@ fun RegistrarAbonoScreen(
         onConfirmar = viewModel::confirmar,
         onEditar = viewModel::descartarConfirmacion,
         onRevisar = viewModel::cargar,
+        onAgregarFoto = viewModel::pedirFoto,
+        onQuitarFoto = viewModel::quitarFoto,
         modifier = modifier
     )
+    // El destino no nulo ES la petición de abrir la cámara: el ViewModel lo
+    // acuña y lo persiste ANTES de que el intent salga, así que si el proceso
+    // muere con la cámara encima la foto vuelve con el id que ya tenía — que es
+    // lo que mantiene idempotente al reintento de subida. La clave del efecto
+    // es ese id: una recomposición no vuelve a abrir la cámara.
+    val destino = state.destinoDeFoto
+    if (destino != null) {
+        LaunchedEffect(destino.id) { camara.launch(Uri.parse(destino.uriParaLaCamara)) }
+    }
     val registrado = state.registrado
     if (registrado != null) {
         LaunchedEffect(registrado) { onRegistrado(registrado) }
@@ -91,10 +109,11 @@ fun RegistrarAbonoScreen(
  * banda del bloqueo, el CTA apagado y el color de la hoja salen todos del mismo
  * [com.example.msp_app.feature.pagos.domain.VeredictoDelAbono].
  *
- * **Hueco para la Task 22:** la foto entra debajo del teclado, dentro de la
- * columna que hace scroll, y en la hoja entre la cifra y el flujo de saldos.
- * Ninguna de las tres piezas de seguridad —bloqueo, dos pasos, alerta roja—
- * necesita moverse para que quepa.
+ * **La foto (Task 22)** ocupa el hueco que este diseño le había dejado: debajo
+ * del teclado, dentro de la columna que hace scroll, y en la hoja entre la
+ * cifra y el flujo de saldos. Ninguna de las tres piezas de seguridad —bloqueo,
+ * dos pasos, alerta roja— se movió para que quepa, y ninguna de las dos lambdas
+ * nuevas puede llegar al dinero: van al puerto de la cámara y vuelven.
  */
 @Composable
 fun RegistrarAbonoContent(
@@ -109,6 +128,8 @@ fun RegistrarAbonoContent(
     onConfirmar: () -> Unit,
     onEditar: () -> Unit,
     onRevisar: () -> Unit,
+    onAgregarFoto: () -> Unit,
+    onQuitarFoto: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -131,7 +152,9 @@ fun RegistrarAbonoContent(
                         onBorrar = onBorrar,
                         onMetodo = onMetodo,
                         onSugerido = onSugerido,
-                        onRevisar = onRevisar
+                        onRevisar = onRevisar,
+                        onAgregarFoto = onAgregarFoto,
+                        onQuitarFoto = onQuitarFoto
                     )
                 }
             }
@@ -149,6 +172,7 @@ fun RegistrarAbonoContent(
                 metodo = confirmacion.metodo,
                 veredicto = confirmacion.veredicto,
                 esperadoHoy = MontosSugeridos.esperadoHoy(state.venta),
+                comprobantes = state.comprobantes.size,
                 onConfirmar = onConfirmar,
                 onEditar = onEditar
             )
@@ -166,7 +190,9 @@ private fun CuerpoDelAbono(
     onBorrar: () -> Unit,
     onMetodo: (MetodoDeCobro) -> Unit,
     onSugerido: (Money) -> Unit,
-    onRevisar: () -> Unit
+    onRevisar: () -> Unit,
+    onAgregarFoto: () -> Unit,
+    onQuitarFoto: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -190,6 +216,17 @@ private fun CuerpoDelAbono(
         ChipsSugeridos(sugeridos = state.sugeridos, onSugerido = onSugerido)
         SelectorDeMetodo(seleccionado = state.metodo, onMetodo = onMetodo)
         TecladoDeMontos(onDigito = onDigito, onPunto = onPunto, onBorrar = onBorrar)
+        // La foto va DEBAJO del teclado, dentro de la columna que hace scroll:
+        // el teclado es lo que el cobrador usa en cada abono y el comprobante
+        // solo en algunos, así que empujarlo hacia abajo sería cobrarle a todos
+        // el costo de la excepción.
+        SeccionDeComprobantes(
+            comprobantes = state.comprobantes,
+            fallo = state.falloDeLaFoto,
+            puedeAgregar = state.sePuedeAgregarFoto,
+            onAgregar = onAgregarFoto,
+            onQuitar = onQuitarFoto
+        )
     }
 }
 

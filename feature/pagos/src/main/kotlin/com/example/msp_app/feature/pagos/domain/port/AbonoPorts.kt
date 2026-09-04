@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.domain.port
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 
 /**
@@ -18,7 +19,18 @@ data class AbonoARegistrar(
     val abonoId: String,
     val ventaId: Int,
     val importe: Money,
-    val metodo: MetodoDeCobro
+    val metodo: MetodoDeCobro,
+    /**
+     * Los comprobantes adjuntos, **en el orden en que se tomaron** — la
+     * posición en esta lista es el `ORDEN` con el que se persisten y el `n` de
+     * `id_<n>` con el que viajarán en el multipart.
+     *
+     * Viajan en el mismo objeto que el dinero pero **no entran a la
+     * transacción**: el adaptador los escribe DESPUÉS del commit y fuera de
+     * él, igual que pide la ubicación. La lista vacía es el caso normal —
+     * llevar comprobante es opcional, y la foto nunca bloquea el guardado.
+     */
+    val comprobantes: List<ComprobanteDelAbono> = emptyList()
 )
 
 /**

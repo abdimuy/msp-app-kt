@@ -3,9 +3,12 @@ package com.example.msp_app.data.pagos
 import androidx.room.withTransaction
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
@@ -103,6 +106,18 @@ import kotlinx.coroutines.tasks.await
  * sigue siendo `REGISTRADO`. Misma regla que la foto — **el dinero se guarda
  * aunque no haya GPS, señal ni permiso**.
  *
+ * ## Los comprobantes: el segundo caso de la misma familia (Task 22)
+ *
+ * Las fotos se escriben con la MISMA forma que la ubicación —después del
+ * commit, fuera de la transacción, dentro de un `catch (Throwable)` con
+ * telemetría— porque tienen el mismo contrato: **la foto nunca bloquea el
+ * guardado**. Ni la cámara que falla, ni el disco lleno, ni Room negándose a
+ * insertar pueden convertir un abono ya escrito en `FALLO_EL_GUARDADO`.
+ *
+ * Lo único que las distingue es el ORDEN entre ellas: los comprobantes van
+ * **antes** de pedir la ubicación, porque pedir la ubicación es lo que encola
+ * el worker que los va a subir. Ver [guardarComprobantes].
+ *
  * [traerUsuario] y [pedirUbicacion] son inyectables **solo para test**
  * (fakes-only, sin MockK): ningún test unitario arranca un servicio real.
  */
@@ -110,6 +125,7 @@ class RegistroDeAbonoAdapter(
     private val db: AppDatabase,
     private val saleDao: SaleDao,
     private val pagos: PaymentsLocalDataSource,
+    private val imagenes: PaymentImageDao,
     private val telemetry: Telemetry,
     private val clock: AppClock = AppClock.System,
     private val traerUsuario: suspend () -> User? = ::usuarioAutenticado,
@@ -132,6 +148,13 @@ class RegistroDeAbonoAdapter(
                 guardar(abono, venta.toDomain(), usuario)
                 // Fuera de la transacción y DESPUÉS del commit: el dinero ya
                 // está escrito y nada de lo que pase aquí puede deshacerlo.
+                //
+                // Los comprobantes van ANTES de la ubicación, y ese orden es
+                // funcional, no estético: pedir la ubicación es lo que ENCOLA el
+                // worker de subida (ver arriba, razón 2), así que escribir las
+                // fotos después sería mandar el pago sin ellas cada vez que el
+                // teléfono tenga señal en ese instante.
+                guardarComprobantes(abono)
                 pedirUbicacionDelAbono(abono.abonoId)
                 ResultadoDelAbono.REGISTRADO
             }
@@ -173,6 +196,60 @@ class RegistroDeAbonoAdapter(
                 saleId = pago.DOCTO_CC_ACR_ID,
                 newAmount = pago.IMPORTE,
                 newEstadoCobranza = EstadoCobranza.PAGADO
+            )
+        }
+    }
+
+    /**
+     * Guarda los comprobantes del abono recién escrito. **Total: no propaga
+     * nada** — es el segundo caso de la misma familia que la ubicación.
+     *
+     * ## Qué va en cada columna, y por qué importa
+     *
+     * - `ID` es el UUID de **la imagen**, el que el teléfono acuñó antes de
+     *   abrir la cámara y el que viaja como `id_<n>`. Es lo que hace idempotente
+     *   al reintento: sin él, el servidor inventa uno nuevo en cada intento
+     *   (`parsePositionalImagenID`) y la misma foto sube dos veces.
+     * - `PAGO_ID` es el `Payment.ID` — el mismo `abonoId` que ya viajó a
+     *   `pedirUbicacion`. **No son la misma columna ni el mismo valor**, y
+     *   cruzarlos es el defecto que este plan ya cazó siete veces.
+     * - `ORDEN` es la posición en la lista, que es el orden de captura y el `n`
+     *   del multipart.
+     * - `SUBIDA_EN` nace `NULL`: nadie ha subido nada todavía. Lo estampa el
+     *   worker, y solo por las que el servidor efectivamente recibió.
+     *
+     * Un fallo aquí **no puede** cambiar el resultado: el abono ya está en la
+     * base, y devolver `FALLO_EL_GUARDADO` haría que la pantalla ofreciera
+     * reintentar un cobro que ya ocurrió. Se reporta y se sigue.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // Room puede fallar de varias formas; ninguna toca el dinero ya commiteado.
+    private suspend fun guardarComprobantes(abono: AbonoARegistrar) {
+        if (abono.comprobantes.isEmpty()) return
+        try {
+            val creadaEn = AppTime.toWireFormat(clock.now())
+            imagenes.insertAll(
+                abono.comprobantes.mapIndexed { orden, comprobante ->
+                    PaymentImageEntity(
+                        ID = comprobante.id,
+                        PAGO_ID = abono.abonoId,
+                        URI = comprobante.archivo,
+                        MIME = comprobante.mime,
+                        ORDEN = orden,
+                        CREADA_EN = creadaEn
+                    )
+                }
+            )
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            // Anti-PII: el nombre de la clase de la excepción, nunca su texto
+            // (que podría arrastrar la ruta del archivo).
+            telemetry.error(
+                code = PagosTelemetria.CODE_ABONO_SIN_COMPROBANTES,
+                message = "no se pudieron guardar los comprobantes; el abono si quedo escrito",
+                props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
             )
         }
     }

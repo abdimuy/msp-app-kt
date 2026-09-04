@@ -1,5 +1,6 @@
 package com.example.msp_app.data.api.services.payment
 
+import okhttp3.MultipartBody
 import okhttp3.RequestBody
 import retrofit2.http.GET
 import retrofit2.http.Header
@@ -12,9 +13,13 @@ import retrofit2.http.Path
  * Retrofit service for the msp-api v2 cobranza pago endpoint.
  *
  * `POST /v2/cobranza/pagos` is a `multipart/form-data` endpoint: the pago JSON
- * travels in the `datos` field and (optionally) N `imagen` file parts. This
- * client sends **zero images** — the phone only needs to durably deliver the
- * pago; comprobantes are not part of the cobranza upload flow.
+ * travels in the `datos` field and (optionally) N `imagen` file parts.
+ *
+ * Since Task 22 the client DOES send images: the comprobantes the cobrador
+ * attached ride inside the very same request as the money — atomic on the
+ * server (`pago + imagenes en una sola tx`), with no staging bucket and no
+ * orphan objects. Parts are built by `partesDeComprobantes`; a pago with no
+ * comprobante travels exactly as it did before, with an empty list.
  *
  * Idempotency is end-to-end by `datos.id`: re-sending the same UUID returns the
  * existing pago (200) with no double-collection, so the retry worker can safely
@@ -26,11 +31,21 @@ import retrofit2.http.Path
  */
 interface V2PaymentsApi {
 
+    /**
+     * @param imagenes the comprobante parts, already built by
+     *   `partesDeComprobantes`: N files under the **`imagen`** field plus their
+     *   positional `id_<n>` / `descripcion_<n>` text parts. Deliberately an
+     *   unnamed `@Part` — each part carries its own form name — and with **no
+     *   default value**: a caller that forgets the comprobantes has to say so
+     *   out loud (`emptyList()`), which is the normal case and must stay
+     *   visible at the call site.
+     */
     @Multipart
     @POST("v2/cobranza/pagos")
     suspend fun crearPago(
         @Header("Idempotency-Key") idempotencyKey: String,
-        @Part("datos") datos: RequestBody
+        @Part("datos") datos: RequestBody,
+        @Part imagenes: List<MultipartBody.Part>
     ): PagoRecibidoDTO
 
     /**

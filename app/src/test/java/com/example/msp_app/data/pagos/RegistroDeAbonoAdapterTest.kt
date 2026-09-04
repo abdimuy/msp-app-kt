@@ -1,8 +1,10 @@
 package com.example.msp_app.data.pagos
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RoomTestBase
@@ -11,11 +13,13 @@ import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
+import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import java.math.BigDecimal
 import java.time.Instant
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -50,13 +54,21 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     @Before
     fun setUpAdaptador() = runTest {
         pagos = PaymentsLocalDataSource(db.paymentDao(), db.saleDao())
+        imagenes = db.paymentImageDao()
         db.saleDao().insertAll(listOf(venta()))
     }
+
+    /**
+     * El DAO de comprobantes que verá el adaptador. Se cambia por uno que
+     * truena para probar que **la foto no puede tocar el dinero**.
+     */
+    private lateinit var imagenes: PaymentImageDao
 
     private fun adaptador() = RegistroDeAbonoAdapter(
         db = db,
         saleDao = db.saleDao(),
         pagos = pagos,
+        imagenes = imagenes,
         telemetry = telemetria,
         clock = clock,
         traerUsuario = { usuario },
@@ -123,6 +135,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             db = db,
             saleDao = db.saleDao(),
             pagos = pagos,
+            imagenes = db.paymentImageDao(),
             telemetry = telemetria,
             clock = clock,
             traerUsuario = { error("firestore caido cobrando a Victoria Flores") },
@@ -168,6 +181,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
                     db.paymentDao(),
                     SaleDaoQueTruenaAlDescontar(db.saleDao())
                 ),
+                imagenes = db.paymentImageDao(),
                 telemetry = telemetria,
                 clock = clock,
                 traerUsuario = { usuario },
@@ -359,6 +373,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
                 db.paymentDao(),
                 SaleDaoQueTruenaAlDescontar(db.saleDao())
             ),
+            imagenes = db.paymentImageDao(),
             telemetry = telemetria,
             clock = clock,
             traerUsuario = { usuario },
@@ -368,6 +383,155 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         assertEquals(ResultadoDelAbono.FALLO_EL_GUARDADO, fragil.registrar(abono(dinero("220"))))
         assertTrue(ubicacionesPedidas.isEmpty())
     }
+
+    // --- Los comprobantes: se escriben, y jamás deciden -----------------------
+
+    /**
+     * Los comprobantes quedan escritos con **cada columna en su lugar**.
+     *
+     * `ID` es el UUID de la IMAGEN —el que viaja como `id_<n>` y hace
+     * idempotente al reintento— y `PAGO_ID` es el del pago. Este plan ya cazó
+     * siete defectos de la familia "un id donde iba el otro", y sin esta
+     * afirmación cruzarlos dejaría todos los demás tests en verde.
+     *
+     * **Control de reversión:** borrar `guardarComprobantes(abono)` de
+     * `registrar` pone este test en ROJO.
+     */
+    @Test
+    fun `los comprobantes se escriben con el id de la imagen y el del pago separados`() = runTest {
+        val resultado = adaptador().registrar(
+            abono(dinero("220")).copy(comprobantes = listOf(comprobante("IMG-1")))
+        )
+
+        assertEquals(ResultadoDelAbono.REGISTRADO, resultado)
+        val fila = db.paymentImageDao().getByPagoId(ABONO_ID).single()
+        assertEquals("el ID es el de la imagen", "IMG-1", fila.ID)
+        assertEquals("el PAGO_ID es el del pago", ABONO_ID, fila.PAGO_ID)
+        assertNotEquals("y no son el mismo valor", fila.ID, fila.PAGO_ID)
+        assertEquals("/tmp/IMG-1.jpg", fila.URI)
+        assertEquals("image/jpeg", fila.MIME)
+        assertEquals(0, fila.ORDEN)
+        assertEquals("2026-09-01T18:00:00Z", fila.CREADA_EN)
+        assertNull("nace pendiente de subir", fila.SUBIDA_EN)
+    }
+
+    /** El ORDEN es la posición de captura: es el `n` con el que se parean los ids. */
+    @Test
+    fun `varios comprobantes conservan su orden de captura`() = runTest {
+        adaptador().registrar(
+            abono(dinero("220")).copy(
+                comprobantes = listOf(
+                    comprobante("IMG-1"),
+                    comprobante("IMG-2"),
+                    comprobante("IMG-3")
+                )
+            )
+        )
+
+        val filas = db.paymentImageDao().getByPagoId(ABONO_ID)
+        assertEquals(listOf("IMG-1", "IMG-2", "IMG-3"), filas.map { it.ID })
+        assertEquals(listOf(0, 1, 2), filas.map { it.ORDEN })
+    }
+
+    @Test
+    fun `un abono sin comprobantes no escribe ninguna fila`() = runTest {
+        adaptador().registrar(abono(dinero("220")))
+
+        assertTrue(db.paymentImageDao().getByPagoId(ABONO_ID).isEmpty())
+    }
+
+    /**
+     * **La regla que manda sobre esta tarea, medida.** La capa de fotos LANZA y
+     * el abono igual queda escrito, con su saldo descontado y su ubicación
+     * pedida (que es lo que lo encola).
+     *
+     * **Control de reversión:** quitar el `try/catch` de `guardarComprobantes`
+     * propaga la excepción al `catch` general y el resultado se vuelve
+     * `FALLO_EL_GUARDADO` — este test se pone ROJO.
+     */
+    @Test
+    fun `si guardar la foto truena, el abono queda escrito, encolado y se reporta`() = runTest {
+        imagenes = PaymentImageDaoQueTruena(db.paymentImageDao())
+
+        val resultado = adaptador().registrar(
+            abono(dinero("220")).copy(comprobantes = listOf(comprobante("IMG-1")))
+        )
+
+        assertEquals(ResultadoDelAbono.REGISTRADO, resultado)
+        assertEquals("el pago quedo escrito", 220.0, pagos.getPaymentById(ABONO_ID)!!.IMPORTE, 0.0)
+        assertEquals("y el saldo bajo", 1230.0, saldo(), 1e-9)
+        assertEquals("y quedo encolado", listOf(ABONO_ID), ubicacionesPedidas)
+
+        val error = telemetria.recorded.single {
+            it.type == TelemetryEventType.ERROR &&
+                it.name == PagosTelemetria.CODE_ABONO_SIN_COMPROBANTES
+        }
+        assertEquals("IllegalStateException", error.props[PagosTelemetria.PROP_EXCEPCION])
+        assertFalse(error.props.values.any { it.contains("Victoria") })
+    }
+
+    /**
+     * **El orden entre las dos cosas post-commit importa, y es funcional.**
+     *
+     * Pedir la ubicación es lo que ENCOLA el worker de subida
+     * (`UpdateLocationHandler` → `enqueuePendingPaymentsWorker`). Si los
+     * comprobantes se escribieran después, un teléfono con señal en ese instante
+     * subiría el pago **sin sus fotos** — y como el pago se marca entregado, no
+     * habría segundo intento.
+     *
+     * Se mide desde adentro de la lambda de ubicación: cuando se pide, las filas
+     * ya tienen que estar.
+     */
+    @Test
+    fun `los comprobantes ya estan escritos cuando se pide la ubicacion`() = runTest {
+        var filasAlPedirUbicacion = -1
+        alPedirUbicacion = { pagoId ->
+            ubicacionesPedidas += pagoId
+            filasAlPedirUbicacion = runBlocking { db.paymentImageDao().getByPagoId(ABONO_ID).size }
+        }
+
+        adaptador().registrar(
+            abono(dinero("220")).copy(comprobantes = listOf(comprobante("IMG-1")))
+        )
+
+        assertEquals("la foto se escribe ANTES de encolar", 1, filasAlPedirUbicacion)
+    }
+
+    /** Un abono que no se registró no deja comprobantes sueltos. */
+    @Test
+    fun `un abono que NO se registro no escribe comprobantes`() = runTest {
+        usuario = null
+        adaptador().registrar(
+            abono(dinero("220")).copy(comprobantes = listOf(comprobante("IMG-1")))
+        )
+        assertTrue("sin cobrador no hay foto que guardar", todasLasImagenes().isEmpty())
+
+        usuario = COBRADOR
+        adaptador().registrar(
+            abono(dinero("1451")).copy(comprobantes = listOf(comprobante("IMG-2")))
+        )
+        assertTrue("un sobrepago bloqueado tampoco", todasLasImagenes().isEmpty())
+    }
+
+    /**
+     * **Control positivo del test de arriba.** El mismo montaje, con el abono
+     * pasando de verdad, SÍ escribe: el vacío de arriba es una ausencia medida.
+     */
+    @Test
+    fun `control positivo, el mismo montaje si escribe cuando el abono pasa`() = runTest {
+        adaptador().registrar(
+            abono(dinero("220")).copy(comprobantes = listOf(comprobante("IMG-3")))
+        )
+        assertEquals(1, todasLasImagenes().size)
+    }
+
+    private suspend fun todasLasImagenes() = db.paymentImageDao().getByPagoId(ABONO_ID)
+
+    private fun comprobante(id: String) = ComprobanteDelAbono(
+        id = id,
+        archivo = "/tmp/$id.jpg",
+        mime = "image/jpeg"
+    )
 
     // --- Plomería ------------------------------------------------------------
 
@@ -429,6 +593,16 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
      * `SaleDao` real salvo por [updateTotal], que truena. Delegación de Kotlin:
      * fakes escritos a mano, sin MockK ni Mockito.
      */
+    /**
+     * `PaymentImageDao` real salvo por el insert, que truena. Es la capa de
+     * fotos fallando de la peor forma posible: **después** de que el dinero ya
+     * está commiteado.
+     */
+    private class PaymentImageDaoQueTruena(real: PaymentImageDao) : PaymentImageDao by real {
+        override suspend fun insertAll(imagenes: List<PaymentImageEntity>): Unit =
+            error("no se pudo escribir el comprobante de Victoria Flores")
+    }
+
     private class SaleDaoQueTruenaAlDescontar(real: SaleDao) : SaleDao by real {
         override suspend fun updateTotal(
             saleId: Int,

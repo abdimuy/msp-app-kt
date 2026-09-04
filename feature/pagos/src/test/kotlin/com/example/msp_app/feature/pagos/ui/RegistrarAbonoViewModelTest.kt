@@ -13,6 +13,7 @@ import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.RegistrarAbono
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeComprobantesPort
 import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
@@ -69,6 +70,8 @@ class RegistrarAbonoViewModelTest {
     private val garantiasPort = FakeGarantiasPort()
     private val periodoPort = FakePeriodoDeCobroPort()
     private val registroPort = FakeRegistroDeAbonoPort()
+
+    private val camaraPort = FakeComprobantesPort()
 
     @Before
     fun setUp() {
@@ -678,6 +681,7 @@ class RegistrarAbonoViewModelTest {
             clock = clock
         ),
         registrarAbono = RegistrarAbono(registroPort, telemetria),
+        camara = camaraPort,
         telemetry = telemetria,
         clock = clock,
         io = testDispatcher
@@ -694,6 +698,7 @@ class RegistrarAbonoViewModelTest {
          */
         const val CLAVE_ABONO_ID = "pagos_abono_id"
         const val CLAVE_YA_SE_ENCOLO = "pagos_abono_ya_se_encolo"
+        const val CLAVE_COMPROBANTES = "pagos_abono_comprobantes"
         const val ABONO_FIJO = "abono-de-prueba-0001"
     }
 }

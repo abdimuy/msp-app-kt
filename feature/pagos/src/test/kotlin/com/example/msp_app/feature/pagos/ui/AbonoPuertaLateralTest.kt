@@ -17,6 +17,7 @@ import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.RegistrarAbono
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeComprobantesPort
 import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
@@ -81,6 +82,8 @@ class AbonoPuertaLateralTest : RobolectricTestBase() {
     private val garantiasPort = FakeGarantiasPort()
     private val periodoPort = FakePeriodoDeCobroPort()
     private val registroPort = FakeRegistroDeAbonoPort()
+
+    private val camaraPort = FakeComprobantesPort()
 
     @Before
     fun setUp() {
@@ -175,6 +178,7 @@ class AbonoPuertaLateralTest : RobolectricTestBase() {
                 clock = clock
             ),
             registrarAbono = RegistrarAbono(registroPort, telemetria),
+            camara = camaraPort,
             telemetry = telemetria,
             clock = clock,
             io = testDispatcher
@@ -194,7 +198,9 @@ class AbonoPuertaLateralTest : RobolectricTestBase() {
                     onRegistrar = vm::pedirConfirmacion,
                     onConfirmar = vm::confirmar,
                     onEditar = vm::descartarConfirmacion,
-                    onRevisar = vm::cargar
+                    onRevisar = vm::cargar,
+                    onAgregarFoto = vm::pedirFoto,
+                    onQuitarFoto = vm::quitarFoto
                 )
             }
         }

@@ -11,11 +11,15 @@ import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.RegistrarAbono
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
 import com.example.msp_app.feature.pagos.domain.VeredictoDelAbono
+import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
+import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
@@ -67,15 +71,31 @@ import kotlinx.coroutines.withContext
  *
  * Nada de aquí depende de visitas. La rareza "ya abonó este periodo" se lee del
  * dinero del periodo (`EstadoDelPeriodo.abonoDelPeriodo`), no de una visita.
+ *
+ * ## La foto cuelga del abono y no lo puede detener (Task 22)
+ *
+ * Los comprobantes viven en el `SavedStateHandle` por la misma razón que las
+ * otras dos cosas: **la cámara manda al cobrador fuera de la app** y el proceso
+ * puede morir mientras tanto. Cada llamada al puerto de la cámara va dentro de
+ * su `catch (Throwable)` con telemetría, ninguna corre dentro del camino que
+ * escribe dinero, y ningún fallo suyo escribe en `fallo`, en `guardando` ni en
+ * el guard: la regla que manda sobre esta tarea es que **la foto nunca bloquea
+ * el guardado**.
  */
 @HiltViewModel
 @Suppress(
-    "TooManyFunctions"
+    "TooManyFunctions",
+    // Siete dependencias: las seis de la Task 18 mas el puerto de la camara.
+    // Agruparlas en un holder solo escondería el wiring —mismo criterio que
+    // `CollectionReportViewModel`—, y el puerto no puede vivir en otro tipo
+    // inyectado sin partir en dos el estado único de la pantalla.
+    "LongParameterList"
 ) // una tecla por gesto del teclado + los dos pasos de la confirmacion; partirla los separaria.
 class RegistrarAbonoViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val cargarDetalleVenta: CargarDetalleVenta,
     private val registrarAbono: RegistrarAbono,
+    private val camara: ComprobantesPort,
     private val telemetry: Telemetry,
     private val clock: AppClock,
     @PagosIoDispatcher private val io: CoroutineDispatcher
@@ -99,12 +119,67 @@ class RegistrarAbonoViewModel @Inject constructor(
             savedStateHandle[CLAVE_YA_SE_ENCOLO] = valor
         }
 
+    /**
+     * El destino que espera a la cámara, persistido: el proceso puede morir con
+     * la cámara encima y la foto tiene que volver con **el id que ya se le
+     * acuñó**, o el reintento de subida deja de ser idempotente.
+     */
+    private var destinoGuardado: DestinoDeFoto?
+        get() = savedStateHandle.get<String>(CLAVE_DESTINO)
+            ?.let { Comprobantes.decodificarDestino(it) }
+        set(valor) {
+            savedStateHandle[CLAVE_DESTINO] = valor?.let { Comprobantes.codificarDestino(it) }
+        }
+
+    /**
+     * Los comprobantes ya adjuntos. La memoria manda y el `SavedStateHandle` es
+     * su espejo: se decodifica UNA vez, al construirse el ViewModel, para que
+     * un formato viejo no se reporte en cada recomposición.
+     */
+    private var comprobantes: List<ComprobanteDelAbono> = emptyList()
+        set(valor) {
+            field = valor
+            savedStateHandle[CLAVE_COMPROBANTES] =
+                ArrayList(valor.map { Comprobantes.codificar(it) })
+        }
+
+    /**
+     * Hay un destino de cámara en vuelo. **No se persiste**: si el proceso
+     * muere antes de que el destino quede guardado, no se acuñó nada que
+     * proteger. Es el mismo patrón sincrónico del guard del abono, aplicado a
+     * un recurso mucho más barato.
+     */
+    private var pidiendoFoto: Boolean = false
+
     private val mutableState = MutableStateFlow(RegistrarAbonoUiState())
     val state: StateFlow<RegistrarAbonoUiState> = mutableState.asStateFlow()
 
     init {
         telemetry.screenView(PANTALLA)
+        restaurarComprobantes()
         cargar()
+    }
+
+    /**
+     * Vuelve a poner en pie lo capturado antes de que el proceso muriera. Lo
+     * que no se pueda leer se descarta —no puede tumbar la pantalla del
+     * dinero— pero se **cuenta y se reporta**: una foto que desaparece sola es
+     * justo lo que la norma de errores prohíbe.
+     */
+    private fun restaurarComprobantes() {
+        val crudos = savedStateHandle.get<ArrayList<String>>(CLAVE_COMPROBANTES).orEmpty()
+        val leidos = crudos.mapNotNull { Comprobantes.decodificar(it) }
+        // Reescribe el handle ya normalizado: lo ilegible no vuelve a leerse ni
+        // a contarse en la siguiente muerte de proceso.
+        comprobantes = leidos
+        val ilegibles = crudos.size - leidos.size
+        if (ilegibles > 0) {
+            telemetry.error(
+                code = PagosTelemetria.CODE_ABONO_FOTO_ILEGIBLE,
+                message = "una entrada de comprobante guardada no se pudo leer; se descarto",
+                props = mapOf(PagosTelemetria.PROP_OCURRENCIAS to ilegibles.toString())
+            )
+        }
     }
 
     /** Vuelve a leer la venta. Cada llamada es UNA sincronización. */
@@ -112,6 +187,172 @@ class RegistrarAbonoViewModel @Inject constructor(
         viewModelScope.launch {
             mutableState.value = RegistrarAbonoUiState(cargando = true)
             mutableState.value = leer()
+        }
+    }
+
+    // --- La foto: cuelga del abono y NUNCA lo detiene -------------------------
+
+    /**
+     * **Paso uno de la foto:** prepara el destino y pide abrir la cámara.
+     *
+     * No abre nada por sí mismo — deja [RegistrarAbonoUiState.destinoDeFoto]
+     * puesto y la pantalla dispara el intent. Así el id viaja por el
+     * `SavedStateHandle` y sobrevive a que el proceso muera con la cámara
+     * encima, que es el escenario normal en un teléfono de gama baja.
+     *
+     * [pidiendoFoto] se pone **sincrónicamente antes** del `launch`, igual que
+     * el guard del abono: dos toques rápidos no pueden acuñar dos destinos, que
+     * dejaría un archivo crudo huérfano por cada uno.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // la camara falla de mil formas; ninguna puede llegar al dinero.
+    fun pedirFoto() {
+        val actual = mutableState.value
+        if (!actual.sePuedeCapturar || actual.destinoDeFoto != null || pidiendoFoto) return
+        if (actual.comprobantes.size >= Comprobantes.MAXIMO) {
+            mutableState.value = actual.copy(falloDeLaFoto = FalloDeLaFoto.YA_NO_CABEN)
+            return
+        }
+        pidiendoFoto = true
+        viewModelScope.launch {
+            try {
+                val destino = withContext(io) { camara.nuevoDestino() }
+                destinoGuardado = destino
+                mutableState.value = mutableState.value.copy(
+                    destinoDeFoto = destino,
+                    falloDeLaFoto = null
+                )
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                reportarFalloDeFoto(fallo, "no se pudo preparar el destino de la foto")
+            } finally {
+                pidiendoFoto = false
+            }
+        }
+    }
+
+    /**
+     * **Paso dos de la foto:** la cámara escribió. Comprime, valida el tipo y
+     * adjunta.
+     *
+     * Un tipo fuera de la whitelist del servidor se descarta **aquí**, con su
+     * archivo: guardarlo solo aplazaría el rechazo hasta un 422 que nadie va a
+     * ver, en un teléfono que ya no tiene la foto a mano.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // comprimir puede reventar hasta con un OOM; el abono no se entera.
+    fun fotoTomada() {
+        val destino = mutableState.value.destinoDeFoto ?: return
+        viewModelScope.launch {
+            try {
+                val comprobante = withContext(io) { camara.aceptar(destino) }
+                if (Comprobantes.permitido(comprobante.mime)) {
+                    adjuntar(comprobante)
+                } else {
+                    rechazarPorTipo(comprobante)
+                }
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                reportarFalloDeFoto(fallo, "no se pudo procesar la foto tomada")
+            } finally {
+                soltarDestino()
+            }
+        }
+    }
+
+    /** La cámara volvió sin foto (cancelada, o fallida). Se limpia el crudo vacío. */
+    fun fotoCancelada() {
+        val destino = mutableState.value.destinoDeFoto ?: return
+        soltarDestino()
+        borrarArchivo(destino.archivoCrudo)
+    }
+
+    /** Quita un comprobante ya adjunto y borra su archivo. */
+    fun quitarFoto(id: String) {
+        val actual = mutableState.value
+        if (!actual.sePuedeCapturar) return
+        val quitado = actual.comprobantes.firstOrNull { it.id == id } ?: return
+        comprobantes = actual.comprobantes.filterNot { it.id == id }
+        mutableState.value = actual.copy(comprobantes = comprobantes, falloDeLaFoto = null)
+        borrarArchivo(quitado.archivo)
+    }
+
+    private fun adjuntar(comprobante: ComprobanteDelAbono) {
+        comprobantes = comprobantes + comprobante
+        mutableState.value = mutableState.value.copy(
+            comprobantes = comprobantes,
+            falloDeLaFoto = null
+        )
+    }
+
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // borrar un archivo puede fallar por permisos o por FS; se reporta y se sigue.
+    private suspend fun rechazarPorTipo(comprobante: ComprobanteDelAbono) {
+        telemetry.error(
+            code = PagosTelemetria.CODE_ABONO_FOTO_TIPO_NO_PERMITIDO,
+            message = "la camara dejo un tipo que el servidor no acepta; no se adjunta",
+            // Anti-PII: el MIME es un valor tecnico cerrado, no dato del cliente.
+            props = mapOf(PagosTelemetria.PROP_TIPO to comprobante.mime)
+        )
+        mutableState.value = mutableState.value.copy(
+            falloDeLaFoto = FalloDeLaFoto.TIPO_NO_PERMITIDO
+        )
+        // El archivo se va con el rechazo: nada lo va a subir nunca.
+        try {
+            camara.descartar(comprobante.archivo)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            reportarFalloDeFoto(fallo, "no se pudo borrar la foto rechazada", conAviso = false)
+        }
+    }
+
+    /** Suelta el destino en el estado y en el `SavedStateHandle`, a la vez. */
+    private fun soltarDestino() {
+        destinoGuardado = null
+        mutableState.value = mutableState.value.copy(destinoDeFoto = null)
+    }
+
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // idem: el borrado es best-effort y su fallo no vuelve a la pantalla.
+    private fun borrarArchivo(archivo: String) {
+        viewModelScope.launch {
+            try {
+                withContext(io) { camara.descartar(archivo) }
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                // Sin aviso en pantalla: el cobrador pidió quitar la foto y la
+                // foto se quitó. Lo que quedó fue un archivo en disco, y eso es
+                // asunto del que lo tiene que limpiar, no suyo.
+                reportarFalloDeFoto(fallo, "no se pudo borrar el archivo local", conAviso = false)
+            }
+        }
+    }
+
+    /**
+     * Un fallo de la capa de fotos. Reporta con el NOMBRE de la clase de la
+     * excepción (nunca su texto, que puede arrastrar la ruta o datos del
+     * cliente) y, si toca, enciende el aviso.
+     *
+     * **Nunca toca el abono**: no cambia `fallo`, ni `guardando`, ni el guard.
+     */
+    private fun reportarFalloDeFoto(fallo: Throwable, porque: String, conAviso: Boolean = true) {
+        telemetry.error(
+            code = PagosTelemetria.CODE_ABONO_FOTO_FALLO,
+            message = "$porque; el abono no se ve afectado",
+            props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+        )
+        if (conAviso) {
+            mutableState.value = mutableState.value.copy(
+                falloDeLaFoto = FalloDeLaFoto.NO_SE_PUDO_TOMAR
+            )
         }
     }
 
@@ -242,7 +483,11 @@ class RegistrarAbonoViewModel @Inject constructor(
             abonoId = abonoId,
             venta = venta,
             importe = confirmacion.importe,
-            metodo = confirmacion.metodo
+            metodo = confirmacion.metodo,
+            // Se manda lo que el ESTADO tiene en este instante, no lo que la
+            // hoja congeló: con la hoja arriba `sePuedeCapturar` es falso, así
+            // que la lista no puede haber cambiado desde el paso uno.
+            comprobantes = comprobantes
         )
     }
 
@@ -375,7 +620,12 @@ class RegistrarAbonoViewModel @Inject constructor(
                     venta = venta,
                     sugeridos = MontosSugeridos.de(venta, AppTime.todayInBusinessZone(clock)),
                     monto = montoInicialDe(venta),
-                    registrado = resolverGuard(venta)
+                    registrado = resolverGuard(venta),
+                    // Una recarga NO pierde lo capturado: los comprobantes y el
+                    // destino en vuelo viven en el `SavedStateHandle`, no en el
+                    // estado que esta función reconstruye desde cero.
+                    comprobantes = comprobantes,
+                    destinoDeFoto = destinoGuardado
                 )
             )
         }
@@ -440,5 +690,11 @@ class RegistrarAbonoViewModel @Inject constructor(
         /** Llaves del `SavedStateHandle`. Sobreviven rotación y muerte de proceso. */
         const val CLAVE_ABONO_ID = "pagos_abono_id"
         const val CLAVE_YA_SE_ENCOLO = "pagos_abono_ya_se_encolo"
+
+        /** Los comprobantes adjuntos, codificados. Ver [Comprobantes.codificar]. */
+        const val CLAVE_COMPROBANTES = "pagos_abono_comprobantes"
+
+        /** El destino que espera a la cámara. Ver [Comprobantes.codificarDestino]. */
+        const val CLAVE_DESTINO = "pagos_abono_destino_foto"
     }
 }

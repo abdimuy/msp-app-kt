@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
+import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
@@ -35,12 +36,16 @@ class RegistrarAbono @Inject constructor(
     /**
      * @param abonoId la clave de idempotencia del destino, que es también el id del pago.
      * @param venta la venta cargada — de ella sale el saldo contra el que se topa el monto.
+     * @param comprobantes las fotos adjuntas, en orden de captura. **No participan de la
+     *   decisión**: un abono con foto y uno sin ella pasan por los mismos bloqueos, y uno
+     *   BLOQUEADO no escribe nada — ni dinero ni comprobantes.
      */
     suspend operator fun invoke(
         abonoId: String,
         venta: DetalleVenta,
         importe: Money,
-        metodo: MetodoDeCobro
+        metodo: MetodoDeCobro,
+        comprobantes: List<ComprobanteDelAbono> = emptyList()
     ): ResultadoDelAbono {
         val bloqueos = SeguridadDelAbono.bloqueosDe(monto = importe, saldo = venta.saldo)
         if (bloqueos.isNotEmpty()) {
@@ -59,7 +64,8 @@ class RegistrarAbono @Inject constructor(
                 abonoId = abonoId,
                 ventaId = venta.ventaId,
                 importe = importe,
-                metodo = metodo
+                metodo = metodo,
+                comprobantes = comprobantes
             )
         )
     }

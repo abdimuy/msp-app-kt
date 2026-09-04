@@ -89,6 +89,14 @@ class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
     @Test
     fun `abono corto dark muy grande`() = abonoCorto(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
 
+    @Test
+    fun `confirmar con comprobante light`() =
+        estado("confirmar_comprobante", AbonoFixtures.enConfirmacionConComprobante(), dark = false)
+
+    @Test
+    fun `confirmar con comprobante dark`() =
+        estado("confirmar_comprobante", AbonoFixtures.enConfirmacionConComprobante(), dark = true)
+
     private fun captura(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_abono_captura_${tema(dark)}_${sufijoDe(nivel)}",
         dark = dark,
@@ -128,6 +136,8 @@ private fun Abono(state: RegistrarAbonoUiState) {
         onRegistrar = {},
         onConfirmar = {},
         onEditar = {},
-        onRevisar = {}
+        onRevisar = {},
+        onAgregarFoto = {},
+        onQuitarFoto = {}
     )
 }

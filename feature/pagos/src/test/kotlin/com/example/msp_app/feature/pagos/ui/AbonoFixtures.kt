@@ -5,6 +5,7 @@ import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
+import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
@@ -237,6 +238,32 @@ object AbonoFixtures {
                 )
             )
         }
+
+    /**
+     * **La captura con dos comprobantes ya adjuntos** (Task 22).
+     *
+     * Dos y no uno: con uno solo, un bug que pintara siempre "comprobante 1"
+     * pasaría desapercibido, y el número de la fila es lo único que distingue
+     * una foto de otra en esta pantalla.
+     */
+    fun enCapturaConComprobantes(): RegistrarAbonoUiState = enCaptura().copy(
+        comprobantes = listOf(comprobante("IMG-1"), comprobante("IMG-2"))
+    )
+
+    /** El aviso ámbar de la foto que no se pudo adjuntar, sobre la captura sana. */
+    fun enFalloDeFoto(): RegistrarAbonoUiState =
+        enCaptura().copy(falloDeLaFoto = FalloDeLaFoto.NO_SE_PUDO_TOMAR)
+
+    /** La hoja de confirmación con un comprobante adjunto. */
+    fun enConfirmacionConComprobante(): RegistrarAbonoUiState =
+        enConfirmacion().copy(comprobantes = listOf(comprobante("IMG-1")))
+
+    /** Un comprobante de prueba. La ruta es la de un archivo local ya comprimido. */
+    fun comprobante(id: String): ComprobanteDelAbono = ComprobanteDelAbono(
+        id = id,
+        archivo = "/data/user/0/com.example.msp_app/files/comprobante_pago_$id.jpg",
+        mime = "image/jpeg"
+    )
 
     /**
      * El final incómodo: la escritura no se pudo comprobar, el guard sigue

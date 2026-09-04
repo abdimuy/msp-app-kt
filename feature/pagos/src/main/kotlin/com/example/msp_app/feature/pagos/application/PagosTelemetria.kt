@@ -138,6 +138,45 @@ object PagosTelemetria {
     const val CODE_ABONO_SIN_UBICACION: String = "pagos_abono_sin_ubicacion"
 
     /**
+     * **La cámara no dejó comprobante.** Cubre las tres formas de fallar del
+     * puerto de comprobantes —preparar el destino, comprimir la foto tomada, o
+     * borrar un archivo descartado—, todas fuera del camino del dinero.
+     *
+     * El abono se captura y se registra igual: llevar comprobante es opcional y
+     * **la foto nunca bloquea el guardado**. Lo que no puede es fallar en
+     * silencio: un cobrador que cree haber adjuntado el recibo y no lo adjuntó
+     * se entera cuando la oficina se lo pide, semanas después.
+     */
+    const val CODE_ABONO_FOTO_FALLO: String = "pagos_abono_foto_fallo"
+
+    /**
+     * La foto capturada trae un tipo que **el servidor no acepta**
+     * ([com.example.msp_app.feature.pagos.domain.Comprobantes.TIPOS_PERMITIDOS],
+     * copia de la whitelist de `CrearPagoMultipartFields`). Se descarta al
+     * adjuntar, en el teléfono, en vez de guardarse para que la subida la
+     * rechace con un 422 que nadie va a ver — pero se reporta: una cámara que
+     * empieza a devolver otro tipo es un cambio de plataforma que hay que ver.
+     */
+    const val CODE_ABONO_FOTO_TIPO_NO_PERMITIDO: String = "pagos_abono_foto_tipo_no_permitido"
+
+    /**
+     * Al volver de la muerte del proceso, una entrada de comprobante guardada
+     * en el `SavedStateHandle` no se pudo leer. Se descarta solo la ilegible y
+     * el resto de la captura sigue viva. Lleva el CONTEO, nunca la ruta: una
+     * foto que desaparece de la pantalla sin decir nada es justo lo que la
+     * norma de errores prohíbe.
+     */
+    const val CODE_ABONO_FOTO_ILEGIBLE: String = "pagos_abono_foto_ilegible"
+
+    /**
+     * El abono quedó escrito pero **sus comprobantes no se pudieron guardar**.
+     * El dinero no se toca: el resultado sigue siendo `REGISTRADO`, igual que
+     * cuando falla la ubicación. Lo que se pierde es la foto, así que lleva
+     * código propio y grepeable en vez de irse con el del guardado.
+     */
+    const val CODE_ABONO_SIN_COMPROBANTES: String = "pagos_abono_sin_comprobantes"
+
+    /**
      * La ruta del ticket de pago apunta a un abono que el teléfono no tiene (o a
      * una condonación, que no sale por el puerto de cobranza). El id NO se
      * emite. Es una ruta rota, no una condición normal, y por eso se reporta.
@@ -173,4 +212,10 @@ object PagosTelemetria {
 
     /** Clave estática de `props` con el nombre simple de la clase de excepción. */
     const val PROP_EXCEPCION: String = "excepcion"
+
+    /**
+     * Clave estática de `props` con el MIME rechazado. Un MIME es un valor
+     * técnico de catálogo cerrado, no un dato del cliente: no es PII.
+     */
+    const val PROP_TIPO: String = "tipo"
 }

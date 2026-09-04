@@ -4,13 +4,16 @@ import android.content.Context
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
+import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
 import com.example.msp_app.data.pagos.RegistroDeAbonoAdapter
 import com.example.msp_app.data.pagos.SettlementLiquidacionAdapter
 import com.example.msp_app.data.pagos.UserCyclePeriodoDeCobroAdapter
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
+import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
@@ -22,9 +25,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 
 /**
- * Cablea los dos puertos de `:feature:pagos` cuyas fuentes viven en `:app`:
- * el cálculo de liquidación que ya existía y el `FECHA_CARGA_INICIAL` de
- * Firestore. Los puertos que leen Room se cablean dentro del feature
+ * Cablea los puertos de `:feature:pagos` cuyas fuentes viven en `:app`: el
+ * cálculo de liquidación que ya existía, el `FECHA_CARGA_INICIAL` de Firestore,
+ * la escritura del abono y la cámara del comprobante (Task 22 — necesita
+ * `FileProvider` e `ImageCompressor`, que viven aquí). Los puertos que leen
+ * Room se cablean dentro del feature
  * (`PagosDataModule`), igual que hace `:feature:collectionReport`.
  *
  * SIN `@Singleton` (kill-switch de sesión): [UserCyclePeriodoDeCobroAdapter]
@@ -58,14 +63,34 @@ object PagosPortsModule {
         db: AppDatabase,
         saleDao: SaleDao,
         paymentDao: PaymentDao,
+        paymentImageDao: PaymentImageDao,
         telemetry: Telemetry,
         clock: AppClock
     ): RegistroDeAbonoPort = RegistroDeAbonoAdapter(
         db = db,
         saleDao = saleDao,
         pagos = PaymentsLocalDataSource(paymentDao, saleDao),
+        imagenes = paymentImageDao,
         telemetry = telemetry,
         clock = clock,
         pedirUbicacion = { pagoId -> pedirUbicacionDelPago(context, pagoId) }
+    )
+
+    /**
+     * La cámara del comprobante (Task 22). SIN `@Singleton`, igual que sus
+     * vecinos: no sostiene ni sesión ni red, y el `Context` de aplicación ya es
+     * único de por sí.
+     */
+    @Provides
+    fun provideComprobantesPort(
+        @ApplicationContext context: Context,
+        paymentImageDao: PaymentImageDao,
+        telemetry: Telemetry,
+        clock: AppClock
+    ): ComprobantesPort = ComprobantesDeAbonoAdapter(
+        context = context,
+        imagenes = paymentImageDao,
+        telemetry = telemetry,
+        clock = clock
     )
 }
