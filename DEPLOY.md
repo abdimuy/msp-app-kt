@@ -48,6 +48,56 @@ teléfono.
 los datos de la app o se reinstala** el mismo día y el pago vuelve del servidor,
 ese ticket imprimiría como primera copia. Cerrarlo requiere una tabla nueva.
 
+## 0.2 Compuerta manual: **la visita sube sola, sin señal**
+
+> **Obligatoria antes de soltar cualquier build que toque el sync de visitas.**
+> Es el criterio de que los cuatro disparadores automáticos (apertura, periódico
+> de 15 min, conectividad restaurada, push SSE) funcionan **en campo** y no solo
+> en Robolectric. Y es **lo único que autoriza a quitar el botón "enviar
+> pendientes"**: hoy una visita pendiente bloquea "INICIALIZAR SEMANA"
+> (`AuthViewModel.kt:118-131`), así que quitar el botón antes de que esta
+> compuerta pase deja al cobrador trabado sin salida manual.
+
+**Preparación:** un teléfono real (no emulador — hace falta apagar la señal de
+verdad) con la app instalada, sesión iniciada y ventas cargadas. Confirmá que
+hay **cero** visitas pendientes antes de empezar: si "INICIALIZAR SEMANA" no se
+queja, no hay pendientes.
+
+| # | Qué hacer | Qué tiene que pasar |
+|---|---|---|
+| 1 | **Modo avión ON** — Wi-Fi y datos apagados los dos | El teléfono queda sin ninguna ruta a la red |
+| 2 | Registrar una visita completa desde la pantalla nueva (tipo, y promesa o cita si aplica) | Guarda sin error. Si tomás foto, **la foto no bloquea el guardado** |
+| 3 | Mirar el botón **"enviar pendientes"**. **No lo toques** — es la regla de esta compuerta | — |
+| 4 | **Matar la app por completo** (recientes → deslizar). No "atrás": matarla | — |
+| 5 | Esperar 30 s con el modo avión todavía puesto | — |
+| 6 | **Modo avión OFF**; esperar a que vuelva la señal | — |
+| 7 | **Reabrir la app** y llegar a Home, **sin tocar "enviar pendientes"** | — |
+| 8 | Esperar hasta 2 minutos sin tocar nada | La visita **desaparece de pendientes sola** |
+| 9 | Tocar **"INICIALIZAR SEMANA"** | **No se queja de visitas pendientes** — es la señal dura de que subió |
+| 10 | Verificar en el servidor que la visita está, con su id | Existe **una sola vez** |
+
+**Si falla el paso 8 pero el 9 no se queja:** subió y el marcado local no se
+actualizó. Mirar la telemetría de `by-ids`.
+**Si falla el 8 y el 9 SÍ se queja:** no subió. **El botón manual se queda, sin
+discusión.** Revisar si el disparador de conectividad llegó a registrarse.
+**Si sube pero aparece dos veces en el servidor:** es lo contrario de lo
+diseñado (una sola ruta de escritura hacia "sincronizada"). Parar y reportar.
+
+## 0.3 Compuerta manual: **mirar los goldens como imágenes**
+
+> Roborazzi verde significa *"idéntico al golden"*, **no** *"se ve bien"*. Un
+> golden feo commiteado se queda verde para siempre. Los PNG viven en
+> `<módulo>/src/test/screenshots/` y se abren con cualquier visor: no hay que
+> correr nada.
+
+Mirar, como mínimo, en el tamaño de letra más grande (`*_2_0`): la hoja de
+confirmación del abono (que el nombre del cliente se lea completo y que "saldo
+anterior" y "saldo nuevo" se distingan), la captura del abono, el detalle de
+cliente (que la primera venta siga visible) y la pantalla de registrar visita.
+
+Si algo se ve mal, el golden está mal: se corrige el componente y se regraba.
+**Nunca** se sube `RoborazziConfig.CHANGE_THRESHOLD` para que un desajuste pase.
+
 ## 1. Compilar release
 
 ```bash
