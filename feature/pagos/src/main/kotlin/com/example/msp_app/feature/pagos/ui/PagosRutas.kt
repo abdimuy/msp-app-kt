@@ -43,11 +43,23 @@ object PagosRutas {
     /** Detalle de venta. Desde un pago o un recibo se entra directo aquí (Task 21). */
     const val DETALLE_VENTA: String = "pagos/venta/{$ARG_VENTA_ID}"
 
+    /**
+     * Registrar abono (Task 18). **La pantalla del dinero**, y por eso un
+     * destino propio y no un diálogo: su `SavedStateHandle` sostiene la clave de
+     * idempotencia y el guard anti-duplicado, que tienen que sobrevivir a la
+     * rotación y a la muerte del proceso mientras la cámara (Task 22) está
+     * encima. Un diálogo alojado en la composición del llamador no vuelve.
+     */
+    const val REGISTRAR_ABONO: String = "pagos/abono/{$ARG_VENTA_ID}"
+
     /** La ruta concreta del cliente [clienteId]. */
     fun detalleCliente(clienteId: Int): String = "pagos/cliente/$clienteId"
 
     /** La ruta concreta de la venta [ventaId]. */
     fun detalleVenta(ventaId: Int): String = "pagos/venta/$ventaId"
+
+    /** La ruta concreta para abonar a la venta [ventaId]. */
+    fun registrarAbono(ventaId: Int): String = "pagos/abono/$ventaId"
 }
 
 /**
@@ -113,6 +125,29 @@ fun NavGraphBuilder.destinoDeListaDeClientes(
             onAtras = onAtras,
             onAbrirCliente = onAbrirCliente,
             onAbrirVenta = onAbrirVenta
+        )
+    }
+}
+
+/**
+ * Registra el destino de **registrar abono** (Task 18) en el grafo.
+ *
+ * Va aparte de [destinosDePagos] por la misma razón que la lista: cada registro
+ * se queda con los callbacks que le tocan, en vez de una función de nueve
+ * lambdas sueltas. La Task 21, que cablea los puntos de entrada, llama a los
+ * tres.
+ *
+ * [onRegistrado] recibe el id del abono — la Task 20 lo lleva al ticket.
+ */
+fun NavGraphBuilder.destinoDeRegistrarAbono(onAtras: () -> Unit, onRegistrado: (String) -> Unit) {
+    composable(
+        route = PagosRutas.REGISTRAR_ABONO,
+        arguments = listOf(navArgument(PagosRutas.ARG_VENTA_ID) { type = NavType.IntType })
+    ) {
+        RegistrarAbonoScreen(
+            viewModel = hiltViewModel(),
+            onAtras = onAtras,
+            onRegistrado = onRegistrado
         )
     }
 }

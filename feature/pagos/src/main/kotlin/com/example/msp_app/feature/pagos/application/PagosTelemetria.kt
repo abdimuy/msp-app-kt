@@ -62,6 +62,40 @@ object PagosTelemetria {
     /** Falló la carga de la lista de clientes. Ningún dato de cliente se emite. */
     const val CODE_LISTA_CLIENTES_FALLO: String = "pagos_lista_clientes_fallo"
 
+    /**
+     * Un abono BLOQUEADO (sobrepago, no positivo o venta sin saldo) llegó hasta
+     * el caso de uso. El segundo cinturón lo detuvo y nada se escribió, pero
+     * significa que la pantalla dejó pasar algo: es un defecto, no una
+     * condición normal, y por eso se emite en vez de solo devolverse.
+     */
+    const val CODE_ABONO_BLOQUEADO_EN_APLICACION: String = "pagos_abono_bloqueado_en_aplicacion"
+
+    /**
+     * El abono no se pudo guardar. **Nada quedó escrito** (la escritura es una
+     * transacción), así que el guard anti-duplicado se libera y el cobrador
+     * puede reintentar con la MISMA clave de idempotencia.
+     */
+    const val CODE_ABONO_NO_SE_GUARDO: String = "pagos_abono_no_se_guardo"
+
+    /**
+     * El destino de abono volvió con su guard anti-duplicado puesto pero el
+     * abono NO aparece en el historial de la venta: la escritura nunca aterrizó
+     * (proceso muerto entre el toque y la transacción). Se libera el guard para
+     * que el cobrador pueda capturar de nuevo, y se emite porque un guard que
+     * se libera solo es exactamente el tipo de cosa que no puede pasar callada
+     * en una pantalla de dinero.
+     */
+    const val CODE_ABONO_GUARD_SIN_ABONO: String = "pagos_abono_guard_sin_abono"
+
+    /** Falló la carga de la venta en la pantalla de abono. El id NO se emite. */
+    const val CODE_ABONO_VENTA_FALLO: String = "pagos_abono_venta_fallo"
+
+    /** Clave estática de `props` con los nombres de los bloqueos de seguridad. */
+    const val PROP_BLOQUEOS: String = "bloqueos"
+
+    /** Clave estática de `props` con el nombre del resultado del registro. */
+    const val PROP_RESULTADO: String = "resultado"
+
     /** Clave estática de `props` con el conteo de ocurrencias de una incidencia. */
     const val PROP_OCURRENCIAS: String = "ocurrencias"
 

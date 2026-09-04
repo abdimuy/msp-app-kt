@@ -6,10 +6,13 @@ import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
+import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
+import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import com.example.msp_app.feature.pagos.domain.port.VisitasPort
 import java.time.Instant
@@ -112,5 +115,25 @@ class FakePeriodoDeCobroPort : PeriodoDeCobroPort {
     override suspend fun inicioDelPeriodo(): Instant? {
         lecturas += inicio
         return inicio
+    }
+}
+
+/**
+ * El fake de la escritura de dinero. [registrados] es la lista que graba CADA
+ * llamada — es sobre ella que se afirma "ninguna ruta guarda dos veces": la
+ * prueba no es que el resultado sea correcto, es que el tamaño de esta lista
+ * sea exactamente uno.
+ */
+class FakeRegistroDeAbonoPort : RegistroDeAbonoPort {
+
+    /** Todo lo que se intentó escribir, en orden. */
+    val registrados: MutableList<AbonoARegistrar> = mutableListOf()
+
+    /** Qué contesta el puerto. Se cambia para probar los caminos de fallo. */
+    var resultado: ResultadoDelAbono = ResultadoDelAbono.REGISTRADO
+
+    override suspend fun registrar(abono: AbonoARegistrar): ResultadoDelAbono {
+        registrados += abono
+        return resultado
     }
 }
