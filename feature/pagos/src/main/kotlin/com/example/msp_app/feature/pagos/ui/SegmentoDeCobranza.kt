@@ -61,8 +61,9 @@ enum class SegmentoDeCobranza(val etiqueta: String) {
      *
      * **Hoy no se pinta** — ver `HOY_VISIBLE` en `PiezasDeLaLista.kt`. El
      * segmento existe entero (filtra, cuenta y está probado); lo único apagado
-     * es su chip, porque `PROMESA_FECHA`/`CITA_FECHA` todavía no las escribe
-     * nadie y el chip marcaría 0 para siempre.
+     * es su chip, porque la captura que escribe `PROMESA_FECHA`/`CITA_FECHA`
+     * (Task 19) todavía no es alcanzable desde ninguna pantalla y el chip
+     * marcaría 0 para siempre. Lo enciende la Task 21.
      */
     HOY("hoy"),
 

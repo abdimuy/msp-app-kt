@@ -50,11 +50,27 @@ enum class BloqueoDeLaVisita(val razon: String) {
     PROMESA_SIN_FECHA("falta la fecha"),
 
     /**
-     * La fecha prometida ya pasó. Una promesa hacia atrás no difiere nada y
-     * envenena la medición de cumplimiento: nace vencida. Hoy SÍ es válido —
-     * es justo el segmento *hoy* de la Task 17.
+     * La fecha del compromiso ya pasó. Un compromiso hacia atrás no difiere nada
+     * y envenena la medición de cumplimiento: nace vencido. **Hoy SÍ es
+     * válido** — es justo el segmento *hoy* de la Task 17.
+     *
+     * Vale igual para la promesa y para la cita: es una sola regla sobre la
+     * fecha que el desenlace elegido lleve, no dos que puedan despegarse.
      */
-    PROMESA_EN_EL_PASADO("esa fecha ya pasó"),
+    COMPROMISO_EN_EL_PASADO("esa fecha ya pasó"),
+
+    /**
+     * La fecha del compromiso está más allá del horizonte
+     * ([ReglasDeLaVisita.HORIZONTE_DIAS]). No es un compromiso: es un año mal
+     * tecleado en el calendario.
+     *
+     * Importa por dinero y por espacio. Por dinero, porque una promesa a dos
+     * años no se puede cruzar contra ningún pago y ensucia la medición. Por
+     * espacio, porque la retención conserva la fila noventa días **después** de
+     * la fecha del compromiso: sin techo, un dedazo pina una visita en el
+     * teléfono durante décadas.
+     */
+    COMPROMISO_MUY_LEJANO("está demasiado lejos"),
 
     /**
      * Prometió cero o menos. `null` es legítimo ("dijo cuándo pero no cuánto");

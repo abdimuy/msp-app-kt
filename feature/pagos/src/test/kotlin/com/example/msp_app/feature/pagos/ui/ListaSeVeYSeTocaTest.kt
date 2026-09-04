@@ -92,16 +92,32 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **El chip "hoy" ya se pinta.** Estuvo apagado mientras nadie escribía
-     * `PROMESA_FECHA`/`CITA_FECHA`: habría marcado 0 para siempre y le habría
-     * enseñado al cobrador que la fila de filtros miente. La Task 19 hizo
-     * existir esa captura, así que el interruptor se encendió.
+     * El chip "hoy" **sigue sin pintarse**, y la razón no cambió con la Task 19:
+     * la captura que escribe `PROMESA_FECHA`/`CITA_FECHA` existe pero todavía no
+     * es alcanzable —nada navega al destino nuevo y `NewVisitDialog` no escribe
+     * esas columnas—, así que el chip marcaría 0 para siempre y le enseñaría al
+     * cobrador que la fila de filtros miente. Lo enciende la Task 21, junto con
+     * el punto de entrada.
+     *
+     * No esconde trabajo: una promesa sin fecha ya cae en "vencidos".
      */
     @Test
-    fun `los cuatro chips se pintan, hoy incluido`() {
-        pinta(clientes = ListaFixtures.rutaConPromesaDeHoy())
-        assertEquals(true, HOY_VISIBLE)
-        SegmentoDeCobranza.entries.forEach {
+    fun `el chip de hoy no se pinta mientras la captura no sea alcanzable`() {
+        pinta()
+        assertEquals(false, HOY_VISIBLE)
+        assertEquals(
+            0,
+            composeTestRule
+                .onAllNodesWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
+                .fetchSemanticsNodes()
+                .size
+        )
+        // Los otros tres sí están: se apaga un chip, no la fila.
+        listOf(
+            SegmentoDeCobranza.TODOS,
+            SegmentoDeCobranza.VENCIDOS,
+            SegmentoDeCobranza.SIN_VISITAR
+        ).forEach {
             composeTestRule
                 .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + it.name.lowercase())
                 .assertIsDisplayed()
@@ -109,11 +125,12 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * Y **cuenta de verdad**: la promesa de Esperanza cae hoy, así que el chip
-     * marca 1 en vez del 0 estructural que tenía antes.
+     * **El segmento sí cuenta**, aunque su chip esté apagado: la promesa de
+     * Esperanza cae hoy y el conteo la ve. Es lo que hace que encender el
+     * booleano en la Task 21 sea un cambio de una línea y no un rediseño.
      */
     @Test
-    fun `el chip de hoy cuenta la promesa que cae hoy`() {
+    fun `el segmento de hoy cuenta la promesa que cae hoy`() {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.rutaConPromesaDeHoy(),
             segmento = SegmentoDeCobranza.TODOS,

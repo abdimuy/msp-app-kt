@@ -28,9 +28,15 @@ private const val MILLIS_POR_DIA: Long = 86_400_000L
 /**
  * El calendario de "otro día".
  *
- * [minimo] apaga los días anteriores **en el propio calendario**, en vez de
- * dejar elegir una fecha que el CTA rechazaría después: un control que ofrece
- * algo y luego lo rechaza es la misma mentira que un botón vivo que no responde.
+ * [minimo] y [maximo] apagan los días fuera de rango **en el propio
+ * calendario**, en vez de dejar elegir una fecha que el CTA rechazaría después:
+ * un control que ofrece algo y luego lo rechaza es la misma mentira que un botón
+ * vivo que no responde. El tope de arriba no es cosmético — sin él, un año mal
+ * tecleado clava la fila en el teléfono durante décadas (ver
+ * `ReglasDeLaVisita.HORIZONTE_DIAS`).
+ *
+ * [SelectableDates.isSelectableYear] acota además el selector de año, que es
+ * justo por donde se llega a 2126 con dos toques.
  *
  * La conversión va por [LocalDate.toEpochDay] y no por una zona horaria: los
  * millis del `DatePicker` son medianoche UTC del día elegido, así que el día del
@@ -41,15 +47,21 @@ private const val MILLIS_POR_DIA: Long = 86_400_000L
 @Composable
 fun CalendarioDeVisita(
     inicial: LocalDate,
-    minimo: LocalDate?,
+    minimo: LocalDate,
+    maximo: LocalDate,
     onElegir: (LocalDate) -> Unit,
     onCerrar: () -> Unit
 ) {
     val estado = rememberDatePickerState(
         initialSelectedDateMillis = inicial.toEpochDay() * MILLIS_POR_DIA,
+        yearRange = minimo.year..maximo.year,
         selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                minimo == null || utcTimeMillis / MILLIS_POR_DIA >= minimo.toEpochDay()
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                val dia = utcTimeMillis / MILLIS_POR_DIA
+                return dia >= minimo.toEpochDay() && dia <= maximo.toEpochDay()
+            }
+
+            override fun isSelectableYear(year: Int): Boolean = year in minimo.year..maximo.year
         }
     )
     DatePickerDialog(

@@ -138,6 +138,26 @@ class VisitsLocalDataSource @Inject constructor(
         enqueuer.enqueue(visit.ID)
     }
 
+    /**
+     * Encola el envío de [visitId] — la SEGUNDA mitad de [saveVisitAndEnqueue],
+     * expuesta para el único caso en que las dos mitades no pueden ir juntas.
+     *
+     * `RegistroDeVisitaAdapter` (Task 19) envuelve el insert en una
+     * `db.withTransaction` junto con dos escrituras más (la reagenda legada y el
+     * enlace con la recomendación). Con el encolado DENTRO de esa transacción,
+     * un fallo posterior revertía la fila y dejaba agendado un trabajo que
+     * despertaría a buscar una visita inexistente. Con esto, el adaptador
+     * inserta dentro y encola inmediatamente después.
+     *
+     * **La propiedad de la Task 5 no se toca:** el encolado sigue ocurriendo en
+     * la misma llamada que la escritura, incondicionalmente y sin depender de
+     * que `UpdateLocationService` corra. Quien no necesite transacción sigue
+     * usando [saveVisitAndEnqueue], que es y sigue siendo el camino normal.
+     */
+    suspend fun enqueueUpload(visitId: String) {
+        enqueuer.enqueue(visitId)
+    }
+
     suspend fun updateTemporaryCollectionDate(saleId: Int, newDate: String) {
         saleDao.updateTemporaryCollectionDate(saleId, newDate)
     }

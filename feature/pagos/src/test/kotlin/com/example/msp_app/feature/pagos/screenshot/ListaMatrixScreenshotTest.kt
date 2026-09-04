@@ -59,22 +59,18 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         name = "pagos_lista_vacia_${tema(dark)}",
         dark = dark
     ) {
+        // Con `vencidos` y no con `hoy`: `hoy` no se pinta (ver `HOY_VISIBLE`),
+        // así que un golden con ese segmento activo no mostraría chip encendido
+        // y retrataría un estado que el cobrador no puede alcanzar.
         Lista(ListaDeClientesUiState(cargando = false, segmento = SegmentoDeCobranza.VENCIDOS))
     }
 
     private fun tema(dark: Boolean) = if (dark) "dark" else "light"
 
-    /**
-     * El mismo estado que produciría el ViewModel: proyectado, no armado a mano.
-     *
-     * Se usa la ruta **con la promesa que cae hoy** desde la Task 19: con
-     * `HOY_VISIBLE` encendido, el golden tiene que retratar el chip *hoy* con un
-     * conteo real, no con el 0 estructural que tenía cuando nadie escribía
-     * `PROMESA_FECHA`.
-     */
+    /** El mismo estado que produciría el ViewModel: proyectado, no armado a mano. */
     private fun estadoDeLaRuta(): ListaDeClientesUiState {
         val proyeccion = CarteraEnPantalla.proyectar(
-            clientes = ListaFixtures.rutaConPromesaDeHoy(),
+            clientes = ListaFixtures.ruta(),
             segmento = SegmentoDeCobranza.TODOS,
             query = "",
             hoy = ListaFixtures.HOY

@@ -35,7 +35,7 @@ class ReglasDeLaVisitaTest {
             montoPrometido = dinero("220")
         )
         assertEquals(
-            listOf(BloqueoDeLaVisita.PROMESA_EN_EL_PASADO),
+            listOf(BloqueoDeLaVisita.COMPROMISO_EN_EL_PASADO),
             ReglasDeLaVisita.bloqueosDe(captura, hoy)
         )
         assertFalse(ReglasDeLaVisita.sePuedeGuardar(captura, hoy))
@@ -110,7 +110,30 @@ class ReglasDeLaVisitaTest {
             montoPrometido = Money.ZERO
         )
         assertEquals(
-            listOf(BloqueoDeLaVisita.PROMESA_EN_EL_PASADO, BloqueoDeLaVisita.PROMESA_SIN_MONTO),
+            listOf(BloqueoDeLaVisita.COMPROMISO_EN_EL_PASADO, BloqueoDeLaVisita.PROMESA_SIN_MONTO),
+            ReglasDeLaVisita.bloqueosDe(captura, hoy)
+        )
+    }
+
+    /** El borde de arriba: **hoy + 365** pasa. */
+    @Test
+    fun `una promesa a un ano exacto si se puede guardar`() {
+        val captura = CapturaDeVisita(
+            resultado = ResultadoDeVisita.PROMETIO,
+            fechaPromesa = hoy.plusDays(ReglasDeLaVisita.HORIZONTE_DIAS)
+        )
+        assertTrue(ReglasDeLaVisita.bloqueosDe(captura, hoy).isEmpty())
+    }
+
+    /** Y **hoy + 366** no: un año mal tecleado no es un compromiso. */
+    @Test
+    fun `una promesa un dia mas alla del horizonte esta bloqueada`() {
+        val captura = CapturaDeVisita(
+            resultado = ResultadoDeVisita.PROMETIO,
+            fechaPromesa = hoy.plusDays(ReglasDeLaVisita.HORIZONTE_DIAS + 1)
+        )
+        assertEquals(
+            listOf(BloqueoDeLaVisita.COMPROMISO_MUY_LEJANO),
             ReglasDeLaVisita.bloqueosDe(captura, hoy)
         )
     }
@@ -139,6 +162,59 @@ class ReglasDeLaVisitaTest {
             listOf(BloqueoDeLaVisita.CITA_SIN_DIA),
             ReglasDeLaVisita.bloqueosDe(captura, hoy)
         )
+    }
+
+    /**
+     * **Una cita hacia atrás está bloqueada.** No es simetría por gusto: una
+     * cita fechada más allá de la ventana de retención se poda en la primera
+     * sincronización, o sea que se pierde justo el registro que esa ventana
+     * existe para conservar.
+     */
+    @Test
+    fun `una cita con dia pasado esta bloqueada`() {
+        val captura = CapturaDeVisita(
+            resultado = ResultadoDeVisita.CITA,
+            fechaCita = hoy.minusDays(1),
+            horaCita = LocalTime.of(16, 0)
+        )
+        assertEquals(
+            listOf(BloqueoDeLaVisita.COMPROMISO_EN_EL_PASADO),
+            ReglasDeLaVisita.bloqueosDe(captura, hoy)
+        )
+    }
+
+    /** El borde exacto de la cita: **hoy** sí — es el caso del mock. */
+    @Test
+    fun `una cita para hoy si se puede guardar`() {
+        val captura = CapturaDeVisita(
+            resultado = ResultadoDeVisita.CITA,
+            fechaCita = hoy,
+            horaCita = LocalTime.of(16, 0)
+        )
+        assertTrue(ReglasDeLaVisita.bloqueosDe(captura, hoy).isEmpty())
+    }
+
+    /** Y la cita también se topa por arriba, con el MISMO horizonte. */
+    @Test
+    fun `una cita mas alla del horizonte esta bloqueada`() {
+        val captura = CapturaDeVisita(
+            resultado = ResultadoDeVisita.CITA,
+            fechaCita = hoy.plusDays(ReglasDeLaVisita.HORIZONTE_DIAS + 1)
+        )
+        assertEquals(
+            listOf(BloqueoDeLaVisita.COMPROMISO_MUY_LEJANO),
+            ReglasDeLaVisita.bloqueosDe(captura, hoy)
+        )
+    }
+
+    /** Una cita a un año exacto pasa: los dos desenlaces usan la misma regla. */
+    @Test
+    fun `una cita a un ano exacto si se puede guardar`() {
+        val captura = CapturaDeVisita(
+            resultado = ResultadoDeVisita.CITA,
+            fechaCita = ReglasDeLaVisita.ultimoDiaValido(hoy)
+        )
+        assertTrue(ReglasDeLaVisita.bloqueosDe(captura, hoy).isEmpty())
     }
 
     // ─── el resto ────────────────────────────────────────────────────────────

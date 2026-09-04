@@ -220,7 +220,7 @@ class RegistrarVisitaTest {
             it.name == VisitasTelemetria.CODE_CAPTURA_BLOQUEADA_EN_APLICACION
         }
         assertEquals(
-            BloqueoDeLaVisita.PROMESA_EN_EL_PASADO.name,
+            BloqueoDeLaVisita.COMPROMISO_EN_EL_PASADO.name,
             evento.props[VisitasTelemetria.PROP_BLOQUEOS]
         )
     }

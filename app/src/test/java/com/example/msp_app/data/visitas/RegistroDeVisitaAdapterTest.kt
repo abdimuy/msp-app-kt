@@ -3,6 +3,7 @@ package com.example.msp_app.data.visitas
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitRecommendationEntity
 import com.example.msp_app.core.testing.RoomTestBase
@@ -23,6 +24,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -221,6 +223,81 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         )
     }
 
+    // ─── la cuenta a la que se ata la visita ─────────────────────────────────
+
+    /**
+     * **La venta que el cobrador eligió para la promesa es la cuenta de la
+     * visita.** Antes se escribía `visita.ventaId ?: 0`, y desde el detalle de
+     * CLIENTE eso era 0: la lectura lo traducía a `null` y el deriver mandaba la
+     * visita a `huerfanas` sin indexarla, así que la promesa se escribía y
+     * después desaparecía de la derivación. El chip "de cuál venta" ofrecía un
+     * efecto que no tenía.
+     */
+    @Test
+    fun `la venta elegida para la promesa es la cuenta de la visita`() = runTest {
+        adaptador.registrar(
+            visita(
+                // Se entró por el CLIENTE: sin cuenta abierta.
+                ventaId = null,
+                tipoVisita = Constants.PIDE_REAGENDAR,
+                promesa = PromesaEstructurada(VENTA_B, hoy.plusDays(3), null)
+            )
+        )
+
+        assertEquals(VENTA_B, db.visitDao().getVisitById(VISITA_ID).IMPTE_DOCTO_CC_ID)
+    }
+
+    /**
+     * Sin venta elegida y sin cuenta abierta, cae en la **primera cuenta del
+     * cliente** — la misma fila que ya dio la atribución. Lo que NO puede es
+     * quedar en 0: ese era el valor que la sacaba de la derivación.
+     */
+    @Test
+    fun `sin venta elegida ni cuenta abierta cae en la primera del cliente`() = runTest {
+        adaptador.registrar(visita(ventaId = null, tipoVisita = Constants.NO_SE_ENCONTRABA))
+
+        val guardada = db.visitDao().getVisitById(VISITA_ID)
+        assertNotEquals(
+            "nunca 0: ese valor la saca de la derivacion",
+            0,
+            guardada.IMPTE_DOCTO_CC_ID
+        )
+        assertEquals(VENTA_A, guardada.IMPTE_DOCTO_CC_ID)
+    }
+
+    /** La cuenta abierta gana cuando la promesa no eligió una venta en particular. */
+    @Test
+    fun `sin venta elegida gana la cuenta por la que se entro`() = runTest {
+        adaptador.registrar(
+            visita(
+                ventaId = VENTA_B,
+                tipoVisita = Constants.PIDE_REAGENDAR,
+                promesa = PromesaEstructurada(ventaId = null, hoy.plusDays(3), monto = null)
+            )
+        )
+
+        assertEquals(VENTA_B, db.visitDao().getVisitById(VISITA_ID).IMPTE_DOCTO_CC_ID)
+    }
+
+    /**
+     * `PROMESA_VENTA_ID` se sigue escribiendo aparte: distingue "la promesa fue
+     * sobre esta cuenta" de "la visita se abrió sobre esta otra".
+     */
+    @Test
+    fun `la promesa conserva su propia venta aunque la visita se abriera en otra`() = runTest {
+        adaptador.registrar(
+            visita(
+                ventaId = VENTA_A,
+                tipoVisita = Constants.PIDE_REAGENDAR,
+                promesa = PromesaEstructurada(VENTA_B, hoy.plusDays(3), null)
+            )
+        )
+
+        val guardada = db.visitDao().getVisitById(VISITA_ID)
+        assertEquals(VENTA_B, guardada.PROMESA_VENTA_ID)
+        assertEquals(VENTA_B, guardada.IMPTE_DOCTO_CC_ID)
+    }
+
     // ─── el par con la recomendación ─────────────────────────────────────────
 
     /**
@@ -312,6 +389,47 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         assertNull(runCatching { db.visitDao().getVisitById(VISITA_ID) }.getOrNull())
     }
 
+    /**
+     * **El `catch` del adaptador, contra una transacción de Room que de verdad
+     * revienta** (regla 4 de la norma de errores: la emisión se prueba, no se
+     * declara).
+     *
+     * El DAO de recomendaciones lanza dentro de `withTransaction`, así que la
+     * transacción se revierte entera: no queda visita, **no queda trabajo
+     * encolado** —esto es lo que arregló sacar el encolado de la transacción— y
+     * el error viaja con su código y con el NOMBRE de la clase de la excepción,
+     * nunca su texto.
+     */
+    @Test
+    fun `si la transaccion revienta no queda visita, ni encolado, y se reporta`() = runTest {
+        db.visitRecommendationDao().guardar(recomendacion())
+        val conDaoRoto = RegistroDeVisitaAdapter(
+            db = db,
+            saleDao = db.saleDao(),
+            visitas = VisitsLocalDataSource(db.visitDao(), db.saleDao(), encolador, clock),
+            recomendaciones = DaoQueRevienta(db.visitRecommendationDao()),
+            telemetry = telemetry,
+            clock = clock,
+            traerUsuario = { cobrador }
+        )
+
+        val resultado = conDaoRoto.registrar(visita(recomendacionId = REC_ID))
+
+        assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, resultado)
+        assertNull(
+            "la transaccion no puede dejar media visita",
+            runCatching { db.visitDao().getVisitById(VISITA_ID) }.getOrNull()
+        )
+        assertTrue(
+            "un trabajo encolado sin fila despertaria a buscar nada",
+            encolador.encoladas.isEmpty()
+        )
+        val evento = telemetry.recorded.single {
+            it.name == VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO
+        }
+        assertEquals("IllegalStateException", evento.props[VisitasTelemetria.PROP_EXCEPCION])
+    }
+
     /** La reagenda legada se conserva: la lista vieja sigue viendo lo mismo. */
     @Test
     fun `una promesa deja la fecha temporal de cobranza en la venta`() = runTest {
@@ -400,6 +518,17 @@ class RegistroDeVisitaAdapterTest : RoomTestBase() {
         AVAL_O_RESPONSABLE = "Rosa María Ramírez",
         FREC_PAGO = "SEMANAL"
     )
+
+    /**
+     * Fake a mano (sin MockK) que **revienta al ligar la recomendación**, que es
+     * la última escritura de la transacción. Delega lo demás en el DAO real.
+     */
+    private class DaoQueRevienta(
+        private val real: VisitRecommendationDao
+    ) : VisitRecommendationDao by real {
+        override suspend fun ligarConVisita(id: String, visitaId: String): Int =
+            throw IllegalStateException("room se cayo a media transaccion")
+    }
 
     /** Fake a mano (sin MockK): lista pública de llamadas. */
     private class EncoladorQueGraba : VisitsWorkEnqueuer {

@@ -1,8 +1,10 @@
 package com.example.msp_app.data.visitas
 
 import com.example.msp_app.core.common.cobranza.domain.CuentaDelPeriodo
+import com.example.msp_app.core.common.cobranza.domain.DerivacionPeriodo
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuentaDeriver
+import com.example.msp_app.core.common.cobranza.domain.IncidenciaCobranza
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.core.common.cobranza.domain.VisitaEnVentana
 import com.example.msp_app.core.common.money.Money
@@ -199,6 +201,72 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
         assertFalse(SegmentoDeCobranza.HOY.contiene(estado, despues))
     }
 
+    // ─── la promesa capturada desde el CLIENTE ───────────────────────────────
+
+    /**
+     * **Una promesa capturada desde el detalle de CLIENTE llega a la
+     * derivación.**
+     *
+     * Es el punto de entrada que la ruta sostiene a propósito ("el cobrador toca
+     * una puerta, no una venta") y era el que se rompía: la visita se escribía
+     * con `IMPTE_DOCTO_CC_ID = 0`, la lectura lo traducía a `null` y el deriver
+     * mandaba las visitas de alcance VENTA sin venta a `sueltas` —las contaba
+     * como `huerfanas` y **no las indexaba**—, así que `PROMETIO_PROXIMA`, que
+     * es de alcance VENTA, se escribía en Room y después desaparecía del
+     * semáforo.
+     */
+    @Test
+    fun `una promesa capturada desde el cliente llega al semaforo`() = runTest {
+        adaptador.registrar(
+            VisitaARegistrar(
+                visitaId = VISITA_ID,
+                clienteId = CLIENTE_ID,
+                // Sin cuenta abierta: se entró por el cliente.
+                ventaId = null,
+                tipoVisita = Constants.PIDE_REAGENDAR,
+                nota = null,
+                promesa = PromesaEstructurada(
+                    VENTA_ID,
+                    hoy.plusDays(3),
+                    Money.of(BigDecimal("220"))
+                )
+            )
+        )
+
+        val derivacion = derivar()
+        val estado = EstadoDelPeriodo.de(derivacion.porVenta.getValue(VENTA_ID))
+
+        assertEquals(EstadoCuenta.PROMETIO_PROXIMA, estado.estado)
+        assertEquals(TratoDelEstado.DIFERIDO, EstadoCuentaUi.tratoDe(estado))
+        assertEquals(hoy.plusDays(3), estado.fechaPromesa)
+    }
+
+    /**
+     * Y **no se reporta como huérfana**: la incidencia
+     * `cobranza_visita_sin_venta` existe para las visitas que no se pueden
+     * aplicar a nada, y esta sí se puede.
+     */
+    @Test
+    fun `esa promesa no cuenta como visita sin venta`() = runTest {
+        adaptador.registrar(
+            VisitaARegistrar(
+                visitaId = VISITA_ID,
+                clienteId = CLIENTE_ID,
+                ventaId = null,
+                tipoVisita = Constants.PIDE_REAGENDAR,
+                nota = null,
+                promesa = PromesaEstructurada(VENTA_ID, hoy.plusDays(3), null)
+            )
+        )
+
+        assertTrue(
+            "una promesa aplicable no es una huerfana",
+            derivar().incidencias.none {
+                it.code == IncidenciaCobranza.CODE_VISITA_SIN_VENTA
+            }
+        )
+    }
+
     // ─── el camino completo ──────────────────────────────────────────────────
 
     private suspend fun registrarPromesa(fecha: LocalDate, monto: Money?) {
@@ -243,16 +311,16 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
      * Lee lo que quedó escrito y lo deriva — el mismo camino que recorre la
      * lista del cobrador, sin un solo dato armado a mano.
      */
-    private suspend fun estadoDerivado(): EstadoDelPeriodo {
-        val visitas = lector.visitasDelCliente(CLIENTE_ID).map { it.aVisitaEnVentana() }
-        val derivacion = EstadoCuentaDeriver.derivar(
-            cuentas = listOf(CuentaDelPeriodo(VENTA_ID, CLIENTE_ID, BigDecimal("220"))),
-            pagos = emptyList(),
-            visitas = visitas,
-            ventana = VentanaCobro.desdeInicioSemana(inicioDeSemana, clock)
-        )
-        return EstadoDelPeriodo.de(derivacion.porVenta.getValue(VENTA_ID))
-    }
+    private suspend fun estadoDerivado(): EstadoDelPeriodo =
+        EstadoDelPeriodo.de(derivar().porVenta.getValue(VENTA_ID))
+
+    /** La derivación completa, incluidas sus incidencias. */
+    private suspend fun derivar(): DerivacionPeriodo = EstadoCuentaDeriver.derivar(
+        cuentas = listOf(CuentaDelPeriodo(VENTA_ID, CLIENTE_ID, BigDecimal("220"))),
+        pagos = emptyList(),
+        visitas = lector.visitasDelCliente(CLIENTE_ID).map { it.aVisitaEnVentana() },
+        ventana = VentanaCobro.desdeInicioSemana(inicioDeSemana, clock)
+    )
 
     private fun VisitaDelCliente.aVisitaEnVentana() = VisitaEnVentana(
         clienteId = clienteId,

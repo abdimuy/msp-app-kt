@@ -30,6 +30,7 @@ import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.DiasSugeridos
+import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.ui.components.AvisoDeAlcance
 import com.example.msp_app.feature.visitas.ui.components.BandaDeFallo
@@ -466,10 +467,13 @@ private fun DialogosDeLaVisita(state: RegistrarVisitaUiState, acciones: Acciones
         CalendarioDeVisita(
             inicial = (if (esPromesa) state.captura.fechaPromesa else state.captura.fechaCita)
                 ?: state.hoy,
-            // La promesa no admite un día que ya pasó, y el calendario lo dice
-            // apagando esos días en vez de dejar elegir algo que el CTA
-            // rechazaría después.
-            minimo = if (esPromesa) state.hoy else null,
+            // Los DOS topes, y los mismos para la promesa y para la cita: el
+            // calendario no ofrece lo que `ReglasDeLaVisita` rechazaría después.
+            // Antes la cita no llevaba mínimo y ninguna de las dos llevaba
+            // máximo, así que un día hacia atrás se podaba en la primera
+            // sincronización y un año mal tecleado clavaba la fila por décadas.
+            minimo = state.hoy,
+            maximo = ReglasDeLaVisita.ultimoDiaValido(state.hoy),
             onElegir = acciones.onDiaDelCalendario,
             onCerrar = acciones.onCerrarCalendario
         )

@@ -225,6 +225,34 @@ class RegistrarVisitaViewModelTest {
         assertTrue("nada debio escribirse", registroPort.registradas.isEmpty())
     }
 
+    /** El calendario no puede dejar caer una cita hacia atrás: el CTA la para. */
+    @Test
+    fun `una cita con dia pasado deja el CTA apagado y no escribe`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.CITA)
+        vm.onFechaCita(hoy.minusDays(1))
+
+        vm.guardar()
+        advanceUntilIdle()
+
+        assertEquals("esa fecha ya pasó", vm.state.value.razonDelBloqueo)
+        assertTrue("nada debio escribirse", registroPort.registradas.isEmpty())
+    }
+
+    /** Y tampoco un año mal tecleado, que es como se llega a 2126 con dos toques. */
+    @Test
+    fun `un compromiso mas alla del horizonte deja el CTA apagado`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.PROMETIO)
+
+        vm.onFechaPromesa(hoy.plusYears(2))
+
+        assertFalse(vm.state.value.sePuedeGuardar)
+        assertEquals("está demasiado lejos", vm.state.value.razonDelBloqueo)
+    }
+
     @Test
     fun `una cita sin dia deja el CTA apagado`() = runTest(testDispatcher) {
         val vm = viewModel()

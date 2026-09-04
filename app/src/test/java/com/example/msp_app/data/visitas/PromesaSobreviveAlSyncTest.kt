@@ -167,6 +167,31 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
     }
 
     /**
+     * **La promesa YA VENCIDA, dentro de la ventana, por el reloj de verdad.**
+     *
+     * Es el borde del registro de cumplimiento y el que junta las dos mitades
+     * que hasta ahora se probaban por separado: la poda se probaba con cortes
+     * literales al nivel del DAO, y la fecha pasada se probaba al nivel de la
+     * derivación. Aquí la promesa fue para hoy, el reloj avanza diez días —así
+     * que la promesa ya se pasó— y corre la poda **calculando el corte desde ese
+     * mismo reloj**. Tiene que seguir ahí: una promesa vencida es exactamente lo
+     * que hay que conservar para poder contestar "¿pagó lo que prometió?".
+     */
+    @Test
+    fun `una promesa ya vencida pero dentro de la ventana sobrevive a la poda real`() = runTest {
+        adaptador.registrar(visitaConPromesa(fecha = hoy))
+        db.visitDao().markSyncedByIds(listOf(VISITA_ID))
+
+        // Diez días después: la promesa ya venció, la ventana sigue abierta.
+        clock.setNow(Instant.parse("2026-09-11T15:00:00Z"))
+        visitas.deleteUploadedVisits()
+
+        val guardada = db.visitDao().getVisitById(VISITA_ID)
+        assertNotNull("una promesa vencida es la que hay que medir", guardada)
+        assertEquals("2026-09-01", guardada.PROMESA_FECHA)
+    }
+
+    /**
      * La promesa **pendiente de subir** también sobrevive — esa parte no
      * cambió, y sin ella la poda nueva podría estar cubriendo un defecto viejo.
      */
@@ -181,7 +206,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
 
     // ─── fixtures ────────────────────────────────────────────────────────────
 
-    private fun visitaConPromesa() = VisitaARegistrar(
+    private fun visitaConPromesa(fecha: LocalDate = hoy.plusDays(3)) = VisitaARegistrar(
         visitaId = VISITA_ID,
         clienteId = CLIENTE_ID,
         ventaId = VENTA_ID,
@@ -189,7 +214,7 @@ class PromesaSobreviveAlSyncTest : RoomTestBase() {
         nota = "el viernes que cobre mi esposo",
         promesa = PromesaEstructurada(
             ventaId = VENTA_ID,
-            fecha = hoy.plusDays(3),
+            fecha = fecha,
             monto = Money.of(BigDecimal("220"))
         )
     )

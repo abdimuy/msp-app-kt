@@ -6,6 +6,7 @@ import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
+import com.example.msp_app.core.database.entities.SaleWithProductsEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.Constants
@@ -73,7 +74,7 @@ class RegistroDeVisitaAdapter(
             venta == null -> ResultadoDelRegistro.CLIENTE_NO_ESTA_EN_EL_TELEFONO
             usuario == null || usuario.COBRADOR_ID == 0 -> ResultadoDelRegistro.SIN_COBRADOR
             else -> {
-                guardar(visita, venta.NOMBRE_COBRADOR, venta.ZONA_CLIENTE_ID, usuario.COBRADOR_ID)
+                guardar(visita, venta, usuario.COBRADOR_ID)
                 ResultadoDelRegistro.REGISTRADA
             }
         }
@@ -92,15 +93,35 @@ class RegistroDeVisitaAdapter(
         ResultadoDelRegistro.FALLO_EL_GUARDADO
     }
 
+    /**
+     * Escribe el hecho completo y **después** encola el envío.
+     *
+     * ## Por qué el encolado quedó FUERA de la transacción
+     *
+     * `VisitsLocalDataSource.saveVisitAndEnqueue` pega el insert y el encolado
+     * en una sola llamada, y esa es la propiedad que la Task 5 vino a
+     * garantizar: **el envío no depende de que `UpdateLocationService` corra**.
+     * Esa propiedad se conserva íntegra —el encolado sigue ocurriendo en la
+     * MISMA llamada, incondicionalmente y sin mirar la ubicación—, pero desde
+     * dentro de `withTransaction` tenía un defecto propio: si algo posterior
+     * lanzaba (el enlace de la recomendación, por ejemplo), la fila se revertía
+     * y el trabajo de WorkManager ya estaba agendado, así que el worker
+     * despertaba a buscar una visita que no existe.
+     *
+     * Por eso el insert y sus dos escrituras acompañantes van en la
+     * transacción, y el encolado va **inmediatamente después**, cuando ya se
+     * sabe que hay fila. No hay camino entre las dos líneas que pueda saltarse
+     * el encolado: cualquier fallo de la transacción sale por la excepción y
+     * nunca llega aquí.
+     */
     private suspend fun guardar(
         visita: VisitaARegistrar,
-        nombreCobrador: String,
-        zonaClienteId: Int,
+        venta: SaleWithProductsEntity,
         cobradorId: Int
     ) {
-        val entidad = entidadDe(visita, nombreCobrador, zonaClienteId, cobradorId)
+        val entidad = entidadDe(visita, venta, cobradorId)
         db.withTransaction {
-            visitas.saveVisitAndEnqueue(
+            visitas.insertVisitAndUpdateState(
                 saleId = entidad.IMPTE_DOCTO_CC_ID,
                 visit = entidad,
                 newState = VisitStatusMapper.map(entidad.TIPO_VISITA)
@@ -108,6 +129,7 @@ class RegistroDeVisitaAdapter(
             reagendarCobranzaLegada(entidad)
             ligarRecomendacion(visita)
         }
+        visitas.enqueueUpload(entidad.ID)
     }
 
     /**
@@ -123,13 +145,12 @@ class RegistroDeVisitaAdapter(
      */
     private fun entidadDe(
         visita: VisitaARegistrar,
-        nombreCobrador: String,
-        zonaClienteId: Int,
+        venta: SaleWithProductsEntity,
         cobradorId: Int
     ): VisitEntity = VisitEntity(
         ID = visita.visitaId,
         CLIENTE_ID = visita.clienteId,
-        COBRADOR = nombreCobrador,
+        COBRADOR = venta.NOMBRE_COBRADOR,
         COBRADOR_ID = cobradorId,
         FECHA = AppTime.toWireFormat(clock.now()),
         // El diálogo de hoy tampoco tiene selector de forma de cobro para las
@@ -139,8 +160,8 @@ class RegistroDeVisitaAdapter(
         LNG = visita.ubicacion?.lng ?: 0.0,
         NOTA = visita.nota,
         TIPO_VISITA = visita.tipoVisita,
-        ZONA_CLIENTE_ID = zonaClienteId,
-        IMPTE_DOCTO_CC_ID = visita.ventaId ?: SIN_VENTA,
+        ZONA_CLIENTE_ID = venta.ZONA_CLIENTE_ID,
+        IMPTE_DOCTO_CC_ID = cuentaDeLaVisita(visita, venta),
         GUARDADO_EN_MICROSIP = 0,
         PROMESA_VENTA_ID = visita.promesa?.ventaId,
         PROMESA_FECHA = visita.promesa?.let { AppTime.toWireDate(it.fecha) },
@@ -148,6 +169,52 @@ class RegistroDeVisitaAdapter(
         CITA_FECHA = visita.cita?.let { AppTime.toWireDate(it.fecha) },
         CITA_HORA = visita.cita?.hora?.let(HORA_DE_CITA::format)
     )
+
+    /**
+     * La cuenta a la que se ata la visita (`IMPTE_DOCTO_CC_ID`), en tres
+     * escalones y **nunca en 0**.
+     *
+     * ## El defecto que esto cierra
+     *
+     * Antes se escribía `visita.ventaId ?: 0`. La lectura traduce `0` a `null`
+     * (`RoomVisitasAdapter`), y `EstadoCuentaDeriver` manda una visita de
+     * alcance VENTA sin venta ligada a `sueltas` —la cuenta como `huerfanas` y
+     * **no la indexa**—. `PROMETIO_PROXIMA` es de alcance VENTA, así que una
+     * promesa capturada desde el detalle de CLIENTE (un punto de entrada que la
+     * ruta sostiene a propósito) se escribía en Room y después desaparecía de la
+     * derivación. Eso vacía "la promesa existe para poder consultarse" en uno de
+     * los dos caminos de entrada.
+     *
+     * ## Los tres escalones
+     *
+     * 1. **La venta que el cliente eligió para la promesa.** Si el cobrador tocó
+     *    "de cuál venta", esa es la cuenta de la visita — y con eso el chip deja
+     *    de ser un control que promete un efecto que no tenía.
+     * 2. **La cuenta por la que se entró**, cuando no hubo promesa (o la promesa
+     *    fue del cliente completo).
+     * 3. **La primera cuenta del cliente**, la misma fila que ya dio la
+     *    atribución (`COBRADOR`, `ZONA_CLIENTE_ID`), cuando se entró por el
+     *    cliente y no se eligió venta.
+     *
+     * ## Por qué NO choca con la regla de alcance de la Task 13
+     *
+     * El alcance no sale de esta columna: sale de `VisitScopeMapper`, sobre el
+     * literal y el día de la cita. Una visita de alcance CLIENTE ("no estaba",
+     * "cita") **ignora** este `saleId` y se propaga por `CLIENTE_ID`, así que
+     * darle una cuenta concreta no cambia ni una fila. Una de alcance VENTA solo
+     * mejora: antes `updateTotal(0, …)` no tocaba ninguna fila, ahora toca la
+     * que corresponde. Ninguna visita alcanza una venta de otro cliente: los
+     * tres escalones salen de `getByClientId(visita.clienteId)` o del argumento
+     * del propio destino.
+     *
+     * [VisitEntity.PROMESA_VENTA_ID] se sigue escribiendo aparte a propósito:
+     * distingue "la promesa fue sobre esta cuenta" de "la visita se abrió sobre
+     * esta cuenta", que coinciden casi siempre pero no son lo mismo.
+     */
+    private fun cuentaDeLaVisita(visita: VisitaARegistrar, venta: SaleWithProductsEntity): Int =
+        visita.promesa?.ventaId
+            ?: visita.ventaId
+            ?: venta.DOCTO_CC_ACR_ID
 
     /**
      * Mantiene `DIA_TEMPORAL_COBRANZA` como lo deja hoy `NewVisitDialog` cuando
@@ -161,7 +228,8 @@ class RegistroDeVisitaAdapter(
      */
     private suspend fun reagendarCobranzaLegada(entidad: VisitEntity) {
         val dia = entidad.PROMESA_FECHA ?: entidad.CITA_FECHA ?: return
-        if (entidad.IMPTE_DOCTO_CC_ID == SIN_VENTA) return
+        // Sin guarda por `IMPTE_DOCTO_CC_ID == 0`: `cuentaDeLaVisita` nunca
+        // devuelve 0, y una rama que no puede dispararse es ruido que envejece.
         saleDao.updateTemporaryCollectionDate(saleId = entidad.IMPTE_DOCTO_CC_ID, newDate = dia)
     }
 
@@ -186,9 +254,6 @@ class RegistroDeVisitaAdapter(
     }
 
     private companion object {
-        /** El centinela de "sin venta ligada" que ya usa el schema. */
-        const val SIN_VENTA: Int = 0
-
         /** De pesos con dos decimales a centavos enteros. Exacto, sin flotantes. */
         fun aCentavos(pesos: BigDecimal): Long =
             pesos.movePointRight(2).setScale(0, RoundingMode.HALF_UP).longValueExact()
