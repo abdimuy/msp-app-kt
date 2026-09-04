@@ -41,6 +41,22 @@ enum class RarezaDelAbono {
     MUY_ARRIBA_DE_LO_ESPERADO,
 
     /**
+     * Menos de lo esperado hoy. **El hermano de arriba, en la otra dirección.**
+     *
+     * Repone el aviso que `NewPaymentDialog` pintaba en rojo ("el pago es menor
+     * a la parcialidad acordada de $X") y que se perdió al retirarlo. Un abono
+     * corto es legítimo y frecuente —por eso es rareza y no bloqueo—, pero tiene
+     * que ser **deliberado**: es el único camino por el que una cuenta se atrasa
+     * sin que nadie lo diga en voz alta.
+     *
+     * La pantalla nueva pre-carga lo esperado en el teclado, pero eso **no**
+     * cubre este caso: `montoInicialDe` lo marca como sugerido y la primera
+     * tecla lo reemplaza entero, así que el cobrador que teclea un monto corto
+     * nunca vio la cifra que reemplazó. Éste es exactamente ese cobrador.
+     */
+    ABAJO_DE_LO_ESPERADO,
+
+    /**
      * No termina en 00 ni en 50. Se exenta cuando liquida la venta (== saldo) o
      * cuando es exactamente lo esperado hoy: esos dos montos son raros por
      * aritmética, no por error de dedo.
@@ -150,6 +166,14 @@ object SeguridadDelAbono {
     ): Set<RarezaDelAbono> = buildSet {
         if (esperadoHoy > Money.ZERO && monto.amount >= esperadoHoy.amount.multiply(CINCO)) {
             add(RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO)
+        }
+        // Estrictamente menor: pagar EXACTAMENTE lo esperado es cubrir la cuota,
+        // y eso no tiene nada de raro. `esperadoHoy == ZERO` significa "no se
+        // sabe qué toca" (sin ventana de cobro), y ahí no hay contra qué
+        // comparar: avisar sería inventar un esperado. El borde exacto
+        // (esperado pasa, un centavo menos no) lo prueba `SeguridadDelAbonoTest`.
+        if (esperadoHoy > Money.ZERO && monto < esperadoHoy) {
+            add(RarezaDelAbono.ABAJO_DE_LO_ESPERADO)
         }
         val redondo = monto.amount.remainder(CINCUENTA).signum() == 0
         val liquida = monto.amount.compareTo(saldo.amount) == 0

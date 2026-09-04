@@ -394,6 +394,24 @@ private fun BandasDeRareza(rarezas: Set<RarezaDelAbono>, importe: Money, esperad
             }
         }
 
+        RarezaDelAbono.ABAJO_DE_LO_ESPERADO in rarezas -> AlertaRoja(
+            titulo = "abono corto — verifica",
+            detalle = "es menor al pago esperado, la cuenta se queda debiendo la diferencia"
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)) {
+                Text(
+                    text = "esperado ${formatMoneyMxn(esperadoHoy.amount)}",
+                    style = MspTheme.type.captionStrong,
+                    color = colors.statusOverdue
+                )
+                Text(
+                    text = "este abono ${formatMoneyMxn(importe.amount)}",
+                    style = MspTheme.type.captionStrong,
+                    color = colors.statusOverdue
+                )
+            }
+        }
+
         RarezaDelAbono.NO_TERMINA_EN_CINCUENTA in rarezas -> AlertaRoja(
             titulo = "monto poco común — verifica",
             detalle = "no termina en 00 ni en 50, confirma que es correcto"

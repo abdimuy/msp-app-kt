@@ -194,6 +194,30 @@ object AbonoFixtures {
         }
 
     /**
+     * El paso dos de un **abono corto**: $150 sobre una venta que espera $220
+     * (Ruling AL, ronda 2 de arreglo). Repone el caso que `NewPaymentDialog`
+     * avisaba en rojo y que se perdió al retirarlo.
+     *
+     * $150 termina en 50 y no llega a 5x lo esperado, así que **la única**
+     * rareza encendida es [com.example.msp_app.feature.pagos.domain.RarezaDelAbono.ABAJO_DE_LO_ESPERADO]
+     * — lo que hace que la banda que se pinta sea inequívocamente la suya.
+     *
+     * **No es golden.** Los cuatro estados que sí lo son (`enBloqueo`,
+     * `enConfirmacion`, `enMontoRaro`, `enCaptura`) tienen montos iguales o
+     * mayores a lo esperado, así que la rareza nueva no mueve ninguna imagen.
+     */
+    fun enAbonoCorto(): RegistrarAbonoUiState =
+        conMonto(MontoCapturado(crudo = "150"), estadoSinTocar()).let { base ->
+            base.copy(
+                confirmacion = ConfirmacionPendiente(
+                    importe = base.monto.importe,
+                    metodo = base.metodo,
+                    veredicto = base.veredicto
+                )
+            )
+        }
+
+    /**
      * El final incómodo: la escritura no se pudo comprobar, el guard sigue
      * puesto y el CTA tiene que estar APAGADO, con la banda ofreciendo el
      * reintento real.

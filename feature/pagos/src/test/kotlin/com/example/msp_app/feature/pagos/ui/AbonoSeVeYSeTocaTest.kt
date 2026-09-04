@@ -283,6 +283,39 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         assertEquals(1, registros)
     }
 
+    /**
+     * **El aviso del abono corto, repuesto (Ruling AL).** `NewPaymentDialog`
+     * pintaba "el pago es menor a la parcialidad acordada de $X" y ese aviso se
+     * fue con él; la pantalla nueva no tenía nada equivalente.
+     *
+     * Se afirma la banda **y sus dos cifras**: sin ellas el cobrador ve que algo
+     * está raro pero no contra qué. Y se afirma que **sigue pudiendo registrar**
+     * — un abono corto es legítimo, el aviso solo lo vuelve deliberado.
+     *
+     * **Control de reversión (verificado, ver `task-21-fix-1-report.md`):**
+     * quitar el `if (esperadoHoy > Money.ZERO && monto < esperadoHoy)` de
+     * `SeguridadDelAbono.rarezasDe` pone este test en ROJO.
+     */
+    @Test
+    fun `un abono menor a lo esperado avisa, con las dos cifras, y aun asi registra`() {
+        pinta(AbonoFixtures.enAbonoCorto())
+        composeTestRule.onNodeWithTag(ALERTA_RARO_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("abono corto — verifica").assertIsDisplayed()
+        composeTestRule.onNodeWithText("esperado $220").assertIsDisplayed()
+        composeTestRule.onNodeWithText("este abono $150").assertIsDisplayed()
+        val avisoDeMontoAlto = composeTestRule
+            .onAllNodesWithText("monto inusual — verifica")
+            .fetchSemanticsNodes()
+        assertEquals(
+            "no es el aviso del monto ALTO: son direcciones opuestas",
+            0,
+            avisoDeMontoAlto.size
+        )
+        assertEquals("y no registra por sí solo", 0, registros)
+        composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
+        assertEquals("un abono corto es legítimo: avisa, no bloquea", 1, registros)
+    }
+
     @Test
     fun `el indicador dice que falta confirmar el monto raro`() {
         pinta(AbonoFixtures.enMontoRaro())

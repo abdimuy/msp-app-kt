@@ -115,6 +115,71 @@ class SeguridadDelAbonoTest {
         assertFalse(RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO in veredicto.rarezas)
     }
 
+    // --- El abono corto (Ruling AL, ronda 2 de arreglo) -----------------------
+
+    /**
+     * **El borde exacto.** Lo esperado justo NO es raro —cubrir la cuota es lo
+     * normal—; un centavo menos sí. Es el hermano de
+     * [RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO] en la otra dirección, y repone
+     * el aviso que `NewPaymentDialog` pintaba ("el pago es menor a la
+     * parcialidad acordada") y que se perdió al retirarlo.
+     */
+    @Test
+    fun `un centavo menos de lo esperado es corto, lo esperado exacto no`() {
+        assertTrue(RarezaDelAbono.ABAJO_DE_LO_ESPERADO in evaluar(dinero("219.99")).rarezas)
+        assertFalse(RarezaDelAbono.ABAJO_DE_LO_ESPERADO in evaluar(dinero("220")).rarezas)
+        assertFalse(RarezaDelAbono.ABAJO_DE_LO_ESPERADO in evaluar(dinero("220.01")).rarezas)
+    }
+
+    /**
+     * **Corto avisa, nunca bloquea.** Un abono parcial es legítimo y frecuente:
+     * el aviso existe para que sea deliberado, no para impedirlo. Si esta
+     * afirmación se pusiera roja, la rareza se habría convertido en bloqueo y el
+     * cobrador no podría cobrar lo que el cliente sí trae.
+     */
+    @Test
+    fun `el abono corto avisa pero NUNCA bloquea`() {
+        val veredicto = evaluar(dinero("150"))
+        assertTrue(RarezaDelAbono.ABAJO_DE_LO_ESPERADO in veredicto.rarezas)
+        assertTrue("una rareza NUNCA bloquea", veredicto.sePuedeRegistrar)
+        assertTrue(veredicto.esRaro)
+        assertTrue(veredicto.bloqueos.isEmpty())
+    }
+
+    /**
+     * Sin ventana de cobro no se sabe qué toca, y avisar "es menor a lo
+     * esperado" contra un `ZERO` sería inventar el esperado. Misma regla que
+     * [RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO], que ya la tenía.
+     */
+    @Test
+    fun `sin esperado conocido nadie es corto`() {
+        val veredicto = SeguridadDelAbono.evaluar(
+            monto = dinero("1"),
+            saldo = saldo,
+            esperadoHoy = Money.ZERO,
+            yaAbonoEstePeriodo = false
+        )
+        assertFalse(RarezaDelAbono.ABAJO_DE_LO_ESPERADO in veredicto.rarezas)
+    }
+
+    /**
+     * **Los dos avisos contra lo esperado son mutuamente excluyentes**, y no por
+     * casualidad: uno mira `>= 5x` y el otro `< 1x`. Sin esta afirmación, un
+     * cambio de umbral podría encender los dos a la vez y la hoja pintaría "es
+     * mucho mayor" sobre un abono corto.
+     */
+    @Test
+    fun `corto y muy arriba no pueden encenderse juntos`() {
+        listOf("0.01", "1", "219.99", "220", "220.01", "1099", "1100", "1450").forEach { pesos ->
+            val rarezas = evaluar(dinero(pesos)).rarezas
+            assertFalse(
+                "los dos avisos contra lo esperado en $pesos",
+                RarezaDelAbono.ABAJO_DE_LO_ESPERADO in rarezas &&
+                    RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO in rarezas
+            )
+        }
+    }
+
     @Test
     fun `un monto que no termina en 00 ni en 50 es raro`() {
         assertTrue(RarezaDelAbono.NO_TERMINA_EN_CINCUENTA in evaluar(dinero("317")).rarezas)
