@@ -1,6 +1,8 @@
 package com.example.msp_app.data.pagos
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RoomTestBase
@@ -45,6 +47,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     }
 
     private fun adaptador() = RegistroDeAbonoAdapter(
+        db = db,
         saleDao = db.saleDao(),
         pagos = pagos,
         telemetry = telemetria,
@@ -109,6 +112,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     @Test
     fun `un fallo se reporta con su codigo y sin PII`() = runTest {
         val roto = RegistroDeAbonoAdapter(
+            db = db,
             saleDao = db.saleDao(),
             pagos = pagos,
             telemetry = telemetria,
@@ -124,6 +128,96 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         }
         assertEquals("IllegalStateException", error.props[PagosTelemetria.PROP_EXCEPCION])
         assertFalse(error.props.values.any { it.contains("Victoria") })
+    }
+
+    // --- La transacción: o las dos escrituras, o ninguna ---------------------
+
+    /**
+     * **El hallazgo Critical, medido.**
+     *
+     * `PaymentsLocalDataSource` es una `class` común: el `@Transaction` de
+     * `insertPaymentAndUpdateSale` **no hace nada fuera de un `@Dao`**, así que
+     * sin `db.withTransaction` el insert del pago y el descuento del saldo son
+     * dos escrituras sueltas.
+     *
+     * Aquí `updateTotal` truena DESPUÉS de que el pago ya se insertó. Sin la
+     * transacción queda un **pago huérfano**: cobrado en el historial, con el
+     * saldo intacto. Y no es solo un renglón feo — el guard anti-duplicado de la
+     * pantalla se resuelve MIRANDO el historial, así que vería ese huérfano y
+     * daría el abono por registrado con el saldo nunca descontado.
+     *
+     * Con la transacción no queda nada, y el reintento con la misma clave
+     * descuenta **una sola vez**.
+     */
+    @Test
+    fun `si el saldo truena despues del insert, no queda pago huerfano y el reintento descuenta una vez`() =
+        runTest {
+            val fragil = RegistroDeAbonoAdapter(
+                db = db,
+                saleDao = db.saleDao(),
+                pagos = PaymentsLocalDataSource(
+                    db.paymentDao(),
+                    SaleDaoQueTruenaAlDescontar(db.saleDao())
+                ),
+                telemetry = telemetria,
+                clock = clock,
+                traerUsuario = { usuario }
+            )
+
+            assertEquals(
+                ResultadoDelAbono.FALLO_EL_GUARDADO,
+                fragil.registrar(abono(dinero("220")))
+            )
+            assertNull(
+                "la transaccion revirtio el insert: ningun pago huerfano",
+                pagos.getPaymentById(ABONO_ID)
+            )
+            assertEquals("y el saldo no se movio", 1450.0, saldo(), 1e-9)
+
+            // Reintento con la MISMA clave, ya sin el fallo.
+            assertEquals(ResultadoDelAbono.REGISTRADO, adaptador().registrar(abono(dinero("220"))))
+            assertEquals("descontado UNA sola vez", 1230.0, saldo(), 1e-9)
+            assertEquals(1, pagosDeLaVenta())
+        }
+
+    // --- El tercer cinturón: contra el saldo recién leído ---------------------
+
+    @Test
+    fun `el escritor bloquea un sobrepago aunque nadie lo haya filtrado antes`() = runTest {
+        // Este puerto es inyectable en todo el grafo: el bloqueo tiene que vivir
+        // tambien aqui, no solo en la pantalla y en el caso de uso.
+        val resultado = adaptador().registrar(abono(dinero("1451")))
+
+        assertEquals(ResultadoDelAbono.BLOQUEADO_POR_SEGURIDAD, resultado)
+        assertNull(pagos.getPaymentById(ABONO_ID))
+        assertEquals(1450.0, saldo(), 1e-9)
+        val error = telemetria.recorded.single {
+            it.type == TelemetryEventType.ERROR &&
+                it.name == PagosTelemetria.CODE_ABONO_BLOQUEADO_EN_ESCRITURA
+        }
+        assertEquals("EXCEDE_EL_SALDO", error.props[PagosTelemetria.PROP_BLOQUEOS])
+    }
+
+    @Test
+    fun `el saldo exacto sigue pasando por el escritor`() = runTest {
+        assertEquals(ResultadoDelAbono.REGISTRADO, adaptador().registrar(abono(dinero("1450"))))
+        assertEquals(0.0, saldo(), 1e-9)
+    }
+
+    @Test
+    fun `un saldo que se puso rancio bajo los pies se bloquea en la escritura`() = runTest {
+        // La pantalla cargo con saldo 1450 y aprobo 1000; para cuando llega la
+        // escritura la venta ya solo debe 500. Los dos cinturones de arriba
+        // miraban el saldo VIEJO; este mira el de la base.
+        db.saleDao().updateTotal(VENTA_ID, 950.0, EstadoCobranza.PAGADO)
+        assertEquals(500.0, saldo(), 1e-9)
+
+        assertEquals(
+            ResultadoDelAbono.BLOQUEADO_POR_SEGURIDAD,
+            adaptador().registrar(abono(dinero("1000")))
+        )
+        assertNull(pagos.getPaymentById(ABONO_ID))
+        assertEquals("el saldo no se movio", 500.0, saldo(), 1e-9)
     }
 
     /**
@@ -206,6 +300,18 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         AVAL_O_RESPONSABLE = "",
         FREC_PAGO = "SEMANAL"
     )
+
+    /**
+     * `SaleDao` real salvo por [updateTotal], que truena. Delegación de Kotlin:
+     * fakes escritos a mano, sin MockK ni Mockito.
+     */
+    private class SaleDaoQueTruenaAlDescontar(real: SaleDao) : SaleDao by real {
+        override suspend fun updateTotal(
+            saleId: Int,
+            amount: Double,
+            estadoCobranza: EstadoCobranza
+        ): Unit = error("updateTotal truena justo despues del insert")
+    }
 
     private companion object {
         const val VENTA_ID = 77188

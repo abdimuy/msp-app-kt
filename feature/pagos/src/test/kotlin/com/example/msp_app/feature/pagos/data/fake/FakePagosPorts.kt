@@ -78,8 +78,17 @@ class FakeVisitasPort : VisitasPort {
 
     val ventanasConsultadas: MutableList<VentanaCobro> = mutableListOf()
 
-    override suspend fun visitasDelCliente(clienteId: Int): List<VisitaDelCliente> =
-        visitas.filter { it.clienteId == clienteId }
+    /**
+     * Los clientes cuyas visitas se pidieron. Es una lista que GRABA, no la
+     * semilla de entrada: un test que afirmara sobre [visitas] estaría afirmando
+     * lo que él mismo puso.
+     */
+    val clientesConsultados: MutableList<Int> = mutableListOf()
+
+    override suspend fun visitasDelCliente(clienteId: Int): List<VisitaDelCliente> {
+        clientesConsultados += clienteId
+        return visitas.filter { it.clienteId == clienteId }
+    }
 
     override suspend fun visitasDelPeriodo(ventana: VentanaCobro): List<VisitaDelCliente> {
         ventanasConsultadas += ventana
@@ -132,8 +141,16 @@ class FakeRegistroDeAbonoPort : RegistroDeAbonoPort {
     /** Qué contesta el puerto. Se cambia para probar los caminos de fallo. */
     var resultado: ResultadoDelAbono = ResultadoDelAbono.REGISTRADO
 
+    /**
+     * Efecto lateral del intento de escritura, ANTES de contestar. Sirve para
+     * los dos casos en que el resultado y la realidad no coinciden: la
+     * escritura aterrizó pero se reportó un fallo, o la base dejó de responder.
+     */
+    var alRegistrar: (AbonoARegistrar) -> Unit = {}
+
     override suspend fun registrar(abono: AbonoARegistrar): ResultadoDelAbono {
         registrados += abono
+        alRegistrar(abono)
         return resultado
     }
 }

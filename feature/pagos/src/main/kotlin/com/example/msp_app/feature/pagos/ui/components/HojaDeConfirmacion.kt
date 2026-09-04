@@ -101,11 +101,17 @@ fun HojaDeConfirmacion(
     val colors = MspTheme.colors
     val raro = veredicto.esRaro
     Column(modifier = modifier.fillMaxSize()) {
-        // El velo es HERMANO de la hoja, no su padre. Un gesto de padre le gana
-        // a los `clickable` de sus descendientes —medido: el toque sobre
-        // "confirmar y registrar" no llegaba al botón—, así que la zona que
-        // cierra el paso dos es solo la franja oscurecida de arriba, y no
-        // envuelve a los botones que sí tienen que responder.
+        // EL VELO ES HERMANO DE LA HOJA, NO SU PADRE — y esa es la razón de
+        // que los botones de abajo se puedan tocar.
+        //
+        // Con el velo envolviendo la hoja, su `detectTapGestures` se quedaba
+        // con el toque destinado al botón. Medido, no supuesto: al tocar
+        // "confirmar y registrar" el contador de registros quedaba en 0 y el de
+        // "editar" (la acción del velo) subía a 1. Un gesto de padre le gana a
+        // los `clickable` de sus descendientes.
+        //
+        // Por eso la zona que cierra el paso dos es solo la franja oscurecida
+        // de arriba: no envuelve a nada que tenga que responder.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -117,10 +123,22 @@ fun HojaDeConfirmacion(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                // `background(color, shape)` y NO `clip(shape)`: un `clip`
-                // mete la hoja en una capa gráfica recortada, y el hit-test
-                // contra esa capa se come los toques de todo lo que vive
-                // adentro — medido: el botón de registrar no respondía.
+                // `background(color, shape)` en vez de `clip(shape) + background`.
+                // La hoja no desborda, así que el recorte no hace falta — y con
+                // ESTA forma sí estorba: medido sobre la estructura ya
+                // corregida (velo hermano), un `clip` de
+                // `RoundedCornerShape(topStart, topEnd)` deja el toque del botón
+                // en 0, y el mismo `clip` con una forma UNIFORME
+                // (`RoundedCornerShape(24.dp)`) lo deja en 1. La diferencia es
+                // el tipo de `Outline`: una forma uniforme da `Outline.Rounded`
+                // (contención analítica) y una de esquinas desiguales da
+                // `Outline.Generic`, un `Path`, contra el que el hit-test de la
+                // capa no acierta bajo Robolectric.
+                //
+                // No es el patrón `clip + clickable` de `MspPrimaryFieldButton`
+                // (16.dp uniforme, y el `clip` va en el MISMO nodo que el
+                // `clickable`), ni existe en las Tasks 16-17: todas sus formas
+                // son uniformes. Nadie tiene que salir a buscarlo.
                 .background(colors.surface, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 // Un `pointerInput` INERTE: no consume nada —así los botones de
                 // adentro siguen respondiendo— pero hace que la hoja sea

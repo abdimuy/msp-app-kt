@@ -26,7 +26,14 @@ enum class FalloDelAbono {
      * pantalla, no del cobrador; se dice igual para que no quede un botón que
      * no hace nada.
      */
-    BLOQUEADO
+    BLOQUEADO,
+
+    /**
+     * No se pudo comprobar si el abono quedó. **No es reintentable desde aquí**:
+     * el guard sigue puesto a propósito, y la duda se resuelve al volver a
+     * abrir la pantalla, mirando el historial.
+     */
+    NO_SE_PUDO_VERIFICAR
 }
 
 /**

@@ -1,6 +1,8 @@
 package com.example.msp_app.feature.pagos.ui
 
 import androidx.lifecycle.SavedStateHandle
+import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
+import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
@@ -330,11 +332,16 @@ class RegistrarAbonoViewModelTest {
         assertEquals(FalloDelAbono.NO_SE_PUDO_GUARDAR, vm.state.value.fallo)
         assertNull(vm.state.value.registrado)
         val error = telemetria.recorded.single {
-            it.type == TelemetryEventType.ERROR && it.name == PagosTelemetria.CODE_ABONO_NO_SE_GUARDO
+            it.type == TelemetryEventType.ERROR &&
+                it.name == PagosTelemetria.CODE_ABONO_NO_QUEDO_REGISTRADO
         }
         assertEquals(
             ResultadoDelAbono.FALLO_EL_GUARDADO.name,
             error.props[PagosTelemetria.PROP_RESULTADO]
+        )
+        assertTrue(
+            "la pantalla NO reusa el codigo del adaptador: una falla se cuenta una vez",
+            telemetria.recorded.none { it.name == PagosTelemetria.CODE_ABONO_NO_SE_GUARDO }
         )
 
         registroPort.resultado = ResultadoDelAbono.REGISTRADO
@@ -346,6 +353,73 @@ class RegistrarAbonoViewModelTest {
             "un reintento con la misma clave no puede volverse un segundo cobro",
             registroPort.registrados[0].abonoId,
             registroPort.registrados[1].abonoId
+        )
+    }
+
+    @Test
+    fun `un fallo cuyo abono SI aterrizo no libera el guard ni ofrece otro cobro`() = runTest(
+        testDispatcher
+    ) {
+        // El puerto reporta fallo, pero la escritura sí aterrizó (el resultado se
+        // perdió en el camino). Soltar el guard aquí sería ofrecer un SEGUNDO
+        // cobro por el mismo abono.
+        registroPort.resultado = ResultadoDelAbono.FALLO_EL_GUARDADO
+        registroPort.alRegistrar = { aterrizarEnRoom(it.abonoId) }
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+
+        assertEquals("la pantalla queda en su final", vm.abonoId, vm.state.value.registrado)
+        assertNull(vm.state.value.fallo)
+        assertFalse(vm.state.value.sePuedeRegistrar)
+        assertTrue(
+            telemetria.recorded.any {
+                it.type == TelemetryEventType.ERROR &&
+                    it.name == PagosTelemetria.CODE_ABONO_FALLO_PERO_SI_QUEDO
+            }
+        )
+
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+        assertEquals("y no se cobra de nuevo", 1, registroPort.registrados.size)
+    }
+
+    @Test
+    fun `si no se puede comprobar, el guard NO se libera`() = runTest(testDispatcher) {
+        // Nada se sabe: la relectura truena. Un "no se sabe" no es un "no quedó",
+        // y soltar el guard sobre esa suposición es el defecto entero.
+        registroPort.resultado = ResultadoDelAbono.FALLO_EL_GUARDADO
+        registroPort.alRegistrar = { ventasPort.falla = IllegalStateException("room caido") }
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+
+        assertEquals(FalloDelAbono.NO_SE_PUDO_VERIFICAR, vm.state.value.fallo)
+        assertNull(vm.state.value.registrado)
+        val sinVerificar = telemetria.recorded.single {
+            it.type == TelemetryEventType.ERROR &&
+                it.name == PagosTelemetria.CODE_ABONO_SIN_VERIFICAR
+        }
+        assertEquals(
+            "el error no se traga: viaja la clase de la excepcion",
+            "IllegalStateException",
+            sinVerificar.props[PagosTelemetria.PROP_EXCEPCION]
+        )
+        assertFalse(sinVerificar.props.values.any { it.contains("room caido") })
+
+        ventasPort.falla = null
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+        assertEquals(
+            "el guard sigue puesto: nadie cobra dos veces",
+            1,
+            registroPort.registrados.size
         )
     }
 
@@ -373,20 +447,50 @@ class RegistrarAbonoViewModelTest {
 
     // --- Rarezas y método ----------------------------------------------------
 
+    /**
+     * La regla de soberanía, con control positivo y negativo sobre la MISMA
+     * carga: una visita del periodo SÍ se lee y SÍ mueve el estado de la cuenta,
+     * y aun así **no** enciende la rareza de duplicado. Lo único que la enciende
+     * es dinero.
+     *
+     * (Antes esto afirmaba `visitasPort.visitas.isEmpty()` — la semilla del
+     * fake, cierta por construcción. No probaba nada.)
+     */
     @Test
     fun `la rareza de duplicado sale del dinero del periodo, no de una visita`() = runTest(
         testDispatcher
     ) {
-        pagosPort.pagos = listOf(AbonoFixtures.abonoDeEstaSemana())
-        val vm = viewModel()
-        advanceUntilIdle()
-        assertTrue(vm.state.value.venta!!.estado.abonoDelPeriodo > Money.ZERO)
-        assertTrue(RarezaDelAbono.YA_ABONO_ESTE_PERIODO in vm.state.value.veredicto.rarezas)
-        assertTrue("una rareza nunca bloquea", vm.state.value.sePuedeRegistrar)
-        assertTrue(
-            "ninguna visita se consultó para esto",
-            visitasPort.visitas.isEmpty()
+        // Hay visita en el periodo, y no hay dinero.
+        visitasPort.visitas = listOf(
+            PagosFixtures.visita(TipoVisitaCatalogo.NO_SE_ENCONTRABA)
         )
+        val sinDinero = viewModel()
+        advanceUntilIdle()
+
+        assertTrue(
+            "la visita SI se leyó: el puerto registró la consulta",
+            visitasPort.clientesConsultados.contains(PagosFixtures.CLIENTE_ID)
+        )
+        assertEquals(
+            "y SI movió el estado de la cuenta",
+            EstadoCuenta.NO_ESTABA,
+            sinDinero.state.value.venta!!.estado.estado
+        )
+        assertEquals(Money.ZERO, sinDinero.state.value.venta!!.estado.abonoDelPeriodo)
+        assertFalse(
+            "pero NO enciende el duplicado: eso lo decide el dinero",
+            RarezaDelAbono.YA_ABONO_ESTE_PERIODO in sinDinero.state.value.veredicto.rarezas
+        )
+
+        // Ahora el dinero, con la MISMA visita puesta.
+        pagosPort.pagos = listOf(AbonoFixtures.abonoDeEstaSemana())
+        val conDinero = viewModel()
+        advanceUntilIdle()
+        assertTrue(conDinero.state.value.venta!!.estado.abonoDelPeriodo > Money.ZERO)
+        assertTrue(
+            RarezaDelAbono.YA_ABONO_ESTE_PERIODO in conDinero.state.value.veredicto.rarezas
+        )
+        assertTrue("una rareza nunca bloquea", conDinero.state.value.sePuedeRegistrar)
     }
 
     @Test

@@ -177,6 +177,48 @@ class RegistrarAbonoViewModel @Inject constructor(
         }
     }
 
+    /**
+     * ¿El abono está en la base? La MISMA pregunta que hace [resolverGuard], y
+     * por la misma razón: el guard no se suelta sobre una suposición.
+     *
+     * Es TOTAL a propósito — un fallo de lectura no es un "no quedó", es un "no
+     * se sabe", y los dos llevan a decisiones opuestas sobre el guard.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // cualquier fallo de lectura es un "no se sabe", y se reporta con su clase.
+    private suspend fun verificar(): Verificacion = try {
+        val venta = withContext(io) { cargarDetalleVenta(ventaId) }
+        when {
+            venta == null -> noSeSupo(porque = "la venta ya no esta en el telefono")
+            estaEnElHistorial(venta) -> Verificacion.QUEDO
+            else -> Verificacion.NO_QUEDO
+        }
+    } catch (cancelada: CancellationException) {
+        throw cancelada
+    } catch (fallo: Throwable) {
+        // El error NO se traga: viaja el nombre de la clase de la excepción,
+        // nunca su texto (que puede arrastrar datos del cliente).
+        noSeSupo(
+            porque = "la relectura de la venta fallo",
+            excepcion = fallo.javaClass.simpleName
+        )
+    }
+
+    /**
+     * Registra que la comprobación no se pudo hacer y devuelve
+     * [Verificacion.NO_SE_PUDO_SABER]. El evento se emite AQUÍ, donde se conoce
+     * la causa, y no en el llamador — así hay un solo evento por hecho.
+     */
+    private fun noSeSupo(porque: String, excepcion: String? = null): Verificacion {
+        telemetry.error(
+            code = PagosTelemetria.CODE_ABONO_SIN_VERIFICAR,
+            message = "no se pudo comprobar si el abono quedo; el guard se conserva: $porque",
+            props = excepcion?.let { mapOf(PagosTelemetria.PROP_EXCEPCION to it) }.orEmpty()
+        )
+        return Verificacion.NO_SE_PUDO_SABER
+    }
+
     private suspend fun escribir(
         venta: DetalleVenta,
         confirmacion: ConfirmacionPendiente
@@ -189,31 +231,86 @@ class RegistrarAbonoViewModel @Inject constructor(
         )
     }
 
-    private fun aplicar(resultado: ResultadoDelAbono) {
-        val actual = mutableState.value
+    /**
+     * Cierra el registro.
+     *
+     * **El guard NO se libera por decreto.** Un resultado distinto de
+     * [ResultadoDelAbono.REGISTRADO] dice que el puerto no pudo confirmar, no
+     * que la base quedó limpia: el proceso puede haber muerto después del commit
+     * y antes de que nadie viera el resultado. Antes de soltar el guard se
+     * comprueba el hecho — es la misma regla de control positivo que aplica
+     * [resolverGuard] al entrar.
+     */
+    private suspend fun aplicar(resultado: ResultadoDelAbono) {
         if (resultado == ResultadoDelAbono.REGISTRADO) {
-            mutableState.value = actual.copy(
-                guardando = false,
-                confirmacion = null,
-                registrado = abonoId
-            )
+            terminarComoRegistrado()
             return
         }
-        // Nada quedó escrito: se libera el guard para que el reintento sea
-        // posible, y con la MISMA clave, así que un reintento que sí llegue al
-        // servidor no puede convertirse en un segundo cobro.
-        yaSeEncolo = false
+        when (verificar()) {
+            Verificacion.QUEDO -> {
+                // El puerto reportó fallo pero el dinero SÍ quedó. Soltar el
+                // guard aquí sería ofrecer un segundo cobro por el mismo abono.
+                telemetry.error(
+                    code = PagosTelemetria.CODE_ABONO_FALLO_PERO_SI_QUEDO,
+                    message = "el puerto reporto fallo pero el abono esta en el historial",
+                    props = mapOf(PagosTelemetria.PROP_RESULTADO to resultado.name)
+                )
+                terminarComoRegistrado()
+            }
+
+            Verificacion.NO_QUEDO -> {
+                // Comprobado: no hay abono. Se libera el guard y el reintento va
+                // con la MISMA clave, así que no puede volverse un segundo cobro.
+                yaSeEncolo = false
+                reportarQueNoQuedo(resultado)
+                terminarConFallo(falloDe(resultado))
+            }
+
+            Verificacion.NO_SE_PUDO_SABER -> {
+                // El guard SE QUEDA PUESTO. Al volver a entrar, `resolverGuard`
+                // resuelve la duda mirando el historial; soltarlo aquí sin saber
+                // es exactamente la suposición que este diseño evita. El evento
+                // de "no se pudo saber" ya lo emitió `verificar`, con su causa.
+                reportarQueNoQuedo(resultado)
+                terminarConFallo(FalloDelAbono.NO_SE_PUDO_VERIFICAR)
+            }
+        }
+    }
+
+    private fun terminarComoRegistrado() {
+        mutableState.value = mutableState.value.copy(
+            guardando = false,
+            confirmacion = null,
+            fallo = null,
+            registrado = abonoId
+        )
+    }
+
+    private fun terminarConFallo(fallo: FalloDelAbono) {
+        mutableState.value = mutableState.value.copy(
+            guardando = false,
+            confirmacion = null,
+            fallo = fallo
+        )
+    }
+
+    /**
+     * El evento de la PANTALLA. Lleva código propio y no el del adaptador
+     * ([PagosTelemetria.CODE_ABONO_NO_SE_GUARDO]): emitir los dos con el mismo
+     * código contaría una sola falla dos veces, y el conteo es justo la señal
+     * que la norma de errores existe para producir.
+     */
+    private fun reportarQueNoQuedo(resultado: ResultadoDelAbono) {
         telemetry.error(
-            code = PagosTelemetria.CODE_ABONO_NO_SE_GUARDO,
+            code = PagosTelemetria.CODE_ABONO_NO_QUEDO_REGISTRADO,
             message = "el abono no quedo registrado",
             props = mapOf(PagosTelemetria.PROP_RESULTADO to resultado.name)
         )
-        mutableState.value = actual.copy(
-            guardando = false,
-            confirmacion = null,
-            fallo = falloDe(resultado)
-        )
     }
+
+    /** ¿Está [abonoId] entre los abonos de la venta? */
+    private fun estaEnElHistorial(venta: DetalleVenta): Boolean =
+        venta.historial.meses.any { mes -> mes.pagos.any { it.pagoId == abonoId } }
 
     private fun falloDe(resultado: ResultadoDelAbono): FalloDelAbono = when (resultado) {
         ResultadoDelAbono.VENTA_NO_ESTA_EN_EL_TELEFONO -> FalloDelAbono.VENTA_NO_ESTA
@@ -274,8 +371,7 @@ class RegistrarAbonoViewModel @Inject constructor(
      */
     private fun resolverGuard(venta: DetalleVenta): String? {
         if (!yaSeEncolo) return null
-        val quedo = venta.historial.meses.any { mes -> mes.pagos.any { it.pagoId == abonoId } }
-        if (quedo) return abonoId
+        if (estaEnElHistorial(venta)) return abonoId
         yaSeEncolo = false
         telemetry.error(
             code = PagosTelemetria.CODE_ABONO_GUARD_SIN_ABONO,
@@ -299,6 +395,9 @@ class RegistrarAbonoViewModel @Inject constructor(
             )
         )
     }
+
+    /** El resultado de preguntarle a la base si el abono quedó. */
+    private enum class Verificacion { QUEDO, NO_QUEDO, NO_SE_PUDO_SABER }
 
     private companion object {
         const val PANTALLA = "pagos_registrar_abono"

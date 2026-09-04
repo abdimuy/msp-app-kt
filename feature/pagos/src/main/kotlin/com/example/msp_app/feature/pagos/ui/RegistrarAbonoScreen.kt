@@ -211,6 +211,7 @@ private fun MensajeDeFallo(fallo: FalloDelAbono?) {
         FalloDelAbono.SIN_COBRADOR -> "falta el cobrador, vuelve a entrar"
         FalloDelAbono.NO_SE_PUDO_GUARDAR -> "no se pudo guardar, intenta de nuevo"
         FalloDelAbono.BLOQUEADO -> "el monto no se puede registrar"
+        FalloDelAbono.NO_SE_PUDO_VERIFICAR -> "no se pudo confirmar, vuelve a abrir"
     }
     BandaDeBloqueo(mensaje = texto, modifier = Modifier.testTag(FALLO_DEL_ABONO_TAG))
 }

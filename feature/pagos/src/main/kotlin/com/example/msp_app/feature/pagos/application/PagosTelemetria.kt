@@ -71,11 +71,44 @@ object PagosTelemetria {
     const val CODE_ABONO_BLOQUEADO_EN_APLICACION: String = "pagos_abono_bloqueado_en_aplicacion"
 
     /**
-     * El abono no se pudo guardar. **Nada quedó escrito** (la escritura es una
-     * transacción), así que el guard anti-duplicado se libera y el cobrador
-     * puede reintentar con la MISMA clave de idempotencia.
+     * La ESCRITURA del abono falló, en el adaptador. Lo emite quien vio la
+     * excepción; el par pago + saldo va dentro de una transacción de Room, así
+     * que la base quedó como estaba.
      */
     const val CODE_ABONO_NO_SE_GUARDO: String = "pagos_abono_no_se_guardo"
+
+    /**
+     * El TERCER cinturón —el del punto de escritura— rechazó el monto contra el
+     * `SALDO_REST` recién leído. Distinto de
+     * [CODE_ABONO_BLOQUEADO_EN_APLICACION]: aquí el monto era válido cuando la
+     * pantalla lo dejó pasar y dejó de serlo antes de escribirse (saldo rancio),
+     * que es otro defecto y se diagnostica distinto.
+     */
+    const val CODE_ABONO_BLOQUEADO_EN_ESCRITURA: String = "pagos_abono_bloqueado_en_escritura"
+
+    /**
+     * El abono no quedó registrado, visto desde la PANTALLA. Es un evento
+     * distinto de [CODE_ABONO_NO_SE_GUARDO] y por eso lleva código propio:
+     * emitir los dos con el mismo código contaría una sola falla dos veces, y
+     * el conteo es justo la señal que la norma de errores existe para producir.
+     * Cubre además los finales que el adaptador nunca ve (sin cobrador, venta
+     * ausente, bloqueado).
+     */
+    const val CODE_ABONO_NO_QUEDO_REGISTRADO: String = "pagos_abono_no_quedo_registrado"
+
+    /**
+     * El puerto reportó un fallo pero el abono **sí** está en el historial: la
+     * escritura aterrizó y el resultado se perdió en el camino. La pantalla se
+     * queda en su final (no se vuelve a cobrar) y el desacuerdo se reporta,
+     * porque un puerto que miente sobre dinero tiene que verse.
+     */
+    const val CODE_ABONO_FALLO_PERO_SI_QUEDO: String = "pagos_abono_fallo_pero_si_quedo"
+
+    /**
+     * No se pudo comprobar si el abono quedó o no. **El guard NO se libera**:
+     * soltarlo sin saber es exactamente la suposición que este diseño evita.
+     */
+    const val CODE_ABONO_SIN_VERIFICAR: String = "pagos_abono_sin_verificar"
 
     /**
      * El destino de abono volvió con su guard anti-duplicado puesto pero el

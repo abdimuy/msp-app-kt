@@ -1,6 +1,7 @@
 package com.example.msp_app.di
 
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.telemetry.Telemetry
@@ -44,11 +45,13 @@ object PagosPortsModule {
      */
     @Provides
     fun provideRegistroDeAbonoPort(
+        db: AppDatabase,
         saleDao: SaleDao,
         paymentDao: PaymentDao,
         telemetry: Telemetry,
         clock: AppClock
     ): RegistroDeAbonoPort = RegistroDeAbonoAdapter(
+        db = db,
         saleDao = saleDao,
         pagos = PaymentsLocalDataSource(paymentDao, saleDao),
         telemetry = telemetry,

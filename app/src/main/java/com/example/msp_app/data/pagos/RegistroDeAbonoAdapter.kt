@@ -1,6 +1,9 @@
 package com.example.msp_app.data.pagos
 
+import androidx.room.withTransaction
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.telemetry.Telemetry
@@ -10,6 +13,7 @@ import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.toEntity
 import com.example.msp_app.data.models.sale.toDomain
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
+import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
@@ -25,10 +29,34 @@ import kotlinx.coroutines.tasks.await
  *
  * **No reimplementa la escritura de dinero.** El camino que ya corre en
  * producción es `PaymentFactory.fromSale` + `PaymentsLocalDataSource.
- * saveAndEnqueue`, que inserta el pago y baja el `SALDO_REST` de la venta en
- * **una sola transacción** (`insertPaymentAndUpdateSale`, `@Transaction`). Esta
+ * saveAndEnqueue`, que inserta el pago y baja el `SALDO_REST` de la venta. Esta
  * tarea lo CONSUME tal cual: reescribirlo sería tocar dinero que no vino a
  * tocar, y tenerlo dos veces garantizaría que las dos versiones se despeguen.
+ *
+ * ## Por qué el par va dentro de `db.withTransaction`
+ *
+ * `PaymentsLocalDataSource` es una `class` común, y el `@Transaction` que lleva
+ * `insertPaymentAndUpdateSale` **no hace nada fuera de un `@Dao`**: Room solo
+ * genera el envoltorio para métodos de un DAO. O sea que hoy el insert del pago
+ * y el descuento del saldo son dos escrituras sueltas.
+ *
+ * Sin transacción, un fallo entre las dos deja **un pago cobrado con el saldo
+ * intacto**: dinero que el historial cuenta y que la venta sigue debiendo. Y es
+ * peor de lo que suena, porque el guard anti-duplicado de la pantalla se
+ * resuelve mirando el historial — vería ese pago huérfano y daría el abono por
+ * registrado, con el saldo nunca descontado. Se envuelve con
+ * `db.withTransaction`, el mismo patrón que ya usan `CobranzaReconciler` y
+ * `CobranzaSyncManager`.
+ *
+ * ## El tercer cinturón vive aquí, contra el saldo recién leído
+ *
+ * Este puerto es un ESCRITOR DE DINERO inyectable en todo el grafo. Los dos
+ * cinturones de arriba (pantalla y caso de uso) se topan contra el saldo que el
+ * llamador traía cargado; si mañana otro consumidor inyecta este puerto, o si el
+ * saldo cambió entre la carga y el toque, ninguno de los dos ayuda. Por eso el
+ * adaptador vuelve a evaluar **con el `SALDO_REST` que acaba de leer de la base**
+ * y con la MISMA función que los otros dos ([SeguridadDelAbono.bloqueosDe]).
+ * Ningún camino escribe un sobrepago.
  *
  * ## El borde `Money` -> `Double`
  *
@@ -52,6 +80,7 @@ import kotlinx.coroutines.tasks.await
  * [traerUsuario] es inyectable **solo para test** (fakes-only, sin MockK).
  */
 class RegistroDeAbonoAdapter(
+    private val db: AppDatabase,
     private val saleDao: SaleDao,
     private val pagos: PaymentsLocalDataSource,
     private val telemetry: Telemetry,
@@ -68,6 +97,9 @@ class RegistroDeAbonoAdapter(
         when {
             venta == null -> ResultadoDelAbono.VENTA_NO_ESTA_EN_EL_TELEFONO
             usuario == null || usuario.COBRADOR_ID == 0 -> ResultadoDelAbono.SIN_COBRADOR
+            // Tercer cinturón: contra el saldo que acaba de leerse, no contra el
+            // que el llamador traía. Ver el KDoc de la clase.
+            sobrepasaElSaldo(abono, venta.SALDO_REST) -> ResultadoDelAbono.BLOQUEADO_POR_SEGURIDAD
             else -> {
                 guardar(abono, venta.toDomain(), usuario)
                 ResultadoDelAbono.REGISTRADO
@@ -98,12 +130,36 @@ class RegistroDeAbonoAdapter(
             id = abono.abonoId,
             fecha = currentPaymentTimestamp(clock)
         )
-        pagos.saveAndEnqueue(
-            payment = pago.toEntity(),
-            saleId = pago.DOCTO_CC_ACR_ID,
-            newAmount = pago.IMPORTE,
-            newEstadoCobranza = EstadoCobranza.PAGADO
+        // El insert del pago y el descuento del saldo, o los dos o ninguno.
+        db.withTransaction {
+            pagos.saveAndEnqueue(
+                payment = pago.toEntity(),
+                saleId = pago.DOCTO_CC_ACR_ID,
+                newAmount = pago.IMPORTE,
+                newEstadoCobranza = EstadoCobranza.PAGADO
+            )
+        }
+    }
+
+    /**
+     * ¿El monto excede el saldo REAL de la venta en este instante? El
+     * `SALDO_REST` cruza a [Money] aquí, en el borde, con `Money.of(Double)`
+     * (que usa `BigDecimal.valueOf`, nunca el constructor de `double`).
+     *
+     * Anti-PII: viajan los NOMBRES de los bloqueos, nunca el monto ni el saldo.
+     */
+    private fun sobrepasaElSaldo(abono: AbonoARegistrar, saldoRest: Double): Boolean {
+        val bloqueos = SeguridadDelAbono.bloqueosDe(
+            monto = abono.importe,
+            saldo = Money.of(saldoRest)
         )
+        if (bloqueos.isEmpty()) return false
+        telemetry.error(
+            code = PagosTelemetria.CODE_ABONO_BLOQUEADO_EN_ESCRITURA,
+            message = "el saldo real de la venta no admite este abono; nada se escribio",
+            props = mapOf(PagosTelemetria.PROP_BLOQUEOS to bloqueos.joinToString(",") { it.name })
+        )
+        return true
     }
 
     /**
