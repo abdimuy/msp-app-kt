@@ -53,31 +53,41 @@ class RoomVentasAdapter(
         saleDao.getAll().map { it.aDatosDeVenta() }
 }
 
-private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta = DatosDeVenta(
-    ventaId = DOCTO_CC_ACR_ID,
-    creditoId = DOCTO_CC_ID,
-    folio = FOLIO,
-    clienteId = CLIENTE_ID,
-    clienteNombre = CLIENTE,
-    telefono = TELEFONO,
-    direccion = listOf(CALLE, CIUDAD).filter { it.isNotBlank() }.joinToString(", "),
-    zona = ZONA_NOMBRE,
-    aval = AVAL_O_RESPONSABLE,
-    // No hay columna de teléfono del aval en el schema ni en el DTO de cobranza;
-    // ver el KDoc de `DetalleCliente.telefonoAval`. No se sustituye por TELEFONO,
-    // que es el del cliente.
-    telefonoAval = null,
-    notas = NOTAS,
-    descripcion = PRODUCTOS.orEmpty(),
-    fechaVenta = AppTime.parseWireFormatOrNull(FECHA)?.let(AppTime::toBusinessDate),
-    saldo = Money.of(SALDO_REST),
-    parcialidad = Money.of(BigDecimal.valueOf(PARCIALIDAD.toLong())),
-    frecuencia = FREC_PAGO.orEmpty().lowercase(),
-    abonosTotales = NUM_IMPORTES,
-    totalVenta = Money.of(PRECIO_TOTAL),
-    precioContado = Money.of(PRECIO_DE_CONTADO),
-    enganche = Money.of(ENGANCHE),
-    vendedor = listOf(VENDEDOR_1, VENDEDOR_2, VENDEDOR_3)
-        .firstOrNull { it.isNotBlank() }
-        .orEmpty()
-)
+private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta {
+    // Una sola lectura de `FECHA`: el instante crudo ordena y su fecha de negocio
+    // se muestra. Parsear dos veces abriría la puerta a que un día no coincidan.
+    val instante = AppTime.parseWireFormatOrNull(FECHA)
+    return DatosDeVenta(
+        ventaId = DOCTO_CC_ACR_ID,
+        creditoId = DOCTO_CC_ID,
+        folio = FOLIO,
+        clienteId = CLIENTE_ID,
+        clienteNombre = CLIENTE,
+        telefono = TELEFONO,
+        direccion = listOf(CALLE, CIUDAD).filter { it.isNotBlank() }.joinToString(", "),
+        // `ESTADO` es la entidad federativa. NO entra a `direccion` —eso cambiaría lo
+        // que pintan las pantallas de detalle— pero sí al texto que busca la lista,
+        // que es donde `SalesScreen.kt:68` lo usa.
+        entidad = ESTADO,
+        zona = ZONA_NOMBRE,
+        aval = AVAL_O_RESPONSABLE,
+        // No hay columna de teléfono del aval en el schema ni en el DTO de cobranza;
+        // ver el KDoc de `DetalleCliente.telefonoAval`. No se sustituye por TELEFONO,
+        // que es el del cliente.
+        telefonoAval = null,
+        notas = NOTAS,
+        descripcion = PRODUCTOS.orEmpty(),
+        fechaVenta = instante?.let(AppTime::toBusinessDate),
+        instanteDeVenta = instante,
+        saldo = Money.of(SALDO_REST),
+        parcialidad = Money.of(BigDecimal.valueOf(PARCIALIDAD.toLong())),
+        frecuencia = FREC_PAGO.orEmpty().lowercase(),
+        abonosTotales = NUM_IMPORTES,
+        totalVenta = Money.of(PRECIO_TOTAL),
+        precioContado = Money.of(PRECIO_DE_CONTADO),
+        enganche = Money.of(ENGANCHE),
+        vendedor = listOf(VENDEDOR_1, VENDEDOR_2, VENDEDOR_3)
+            .firstOrNull { it.isNotBlank() }
+            .orEmpty()
+    )
+}

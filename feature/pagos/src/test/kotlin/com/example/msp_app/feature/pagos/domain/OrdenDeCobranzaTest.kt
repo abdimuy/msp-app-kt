@@ -2,7 +2,7 @@ package com.example.msp_app.feature.pagos.domain
 
 import com.example.msp_app.core.common.money.Money
 import java.math.BigDecimal
-import java.time.LocalDate
+import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -20,13 +20,13 @@ class OrdenDeCobranzaTest {
 
     private fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
 
-    private val unDia = LocalDate.of(2026, 5, 4)
+    private val unDia = Instant.parse("2026-05-04T18:00:00Z")
 
-    private fun rango(saldo: String, fecha: LocalDate? = unDia) = OrdenDeCobranza.rangoDe(
+    private fun rango(saldo: String, fecha: Instant? = unDia) = OrdenDeCobranza.rangoDe(
         saldo = dinero(saldo),
         totalVenta = dinero("8400"),
         enganche = dinero("900"),
-        fechaVenta = fecha
+        instanteDeVenta = fecha
     )
 
     @Test
@@ -61,9 +61,19 @@ class OrdenDeCobranzaTest {
     }
 
     @Test
+    fun `dentro del mismo dia manda la venta de mas temprano`() {
+        val temprano = rango("7499", Instant.parse("2026-05-04T14:00:00Z"))
+        val tarde = rango("7499", Instant.parse("2026-05-04T22:00:00Z"))
+        assertEquals(
+            listOf(temprano, tarde),
+            listOf(tarde, temprano).sortedWith(OrdenDeCobranza.PRIMERO)
+        )
+    }
+
+    @Test
     fun `dentro del mismo grupo mandan las ventas mas viejas`() {
-        val vieja = rango("7499", LocalDate.of(2025, 1, 9))
-        val nueva = rango("7499", LocalDate.of(2026, 8, 30))
+        val vieja = rango("7499", Instant.parse("2025-01-09T18:00:00Z"))
+        val nueva = rango("7499", Instant.parse("2026-08-30T18:00:00Z"))
         assertEquals(
             listOf(vieja, nueva),
             listOf(nueva, vieja).sortedWith(OrdenDeCobranza.PRIMERO)
@@ -73,8 +83,8 @@ class OrdenDeCobranzaTest {
     @Test
     fun `la fecha manda despues del abono, nunca antes`() {
         // La vieja YA abonó; la nueva no ha abonado nada. Manda no haber abonado.
-        val viejaConAbono = rango("7499", LocalDate.of(2025, 1, 9))
-        val nuevaSinAbono = rango("7500", LocalDate.of(2026, 8, 30))
+        val viejaConAbono = rango("7499", Instant.parse("2025-01-09T18:00:00Z"))
+        val nuevaSinAbono = rango("7500", Instant.parse("2026-08-30T18:00:00Z"))
         assertEquals(
             listOf(nuevaSinAbono, viejaConAbono),
             listOf(viejaConAbono, nuevaSinAbono).sortedWith(OrdenDeCobranza.PRIMERO)
@@ -84,7 +94,7 @@ class OrdenDeCobranzaTest {
     @Test
     fun `una venta sin fecha legible cae al final de su grupo, no al principio`() {
         val sinFecha = rango("7499", fecha = null)
-        val conFecha = rango("7499", LocalDate.of(2026, 8, 30))
+        val conFecha = rango("7499", Instant.parse("2026-08-30T18:00:00Z"))
         assertEquals(
             listOf(conFecha, sinFecha),
             listOf(sinFecha, conFecha).sortedWith(OrdenDeCobranza.PRIMERO)
@@ -93,8 +103,8 @@ class OrdenDeCobranzaTest {
 
     @Test
     fun `el cliente hereda el rango de su venta mejor rankeada`() {
-        val yaAbono = rango("7499", LocalDate.of(2026, 8, 30))
-        val sinAbonos = rango("7500", LocalDate.of(2026, 8, 30))
+        val yaAbono = rango("7499", Instant.parse("2026-08-30T18:00:00Z"))
+        val sinAbonos = rango("7500", Instant.parse("2026-08-30T18:00:00Z"))
         assertEquals(sinAbonos, OrdenDeCobranza.mejorDe(listOf(yaAbono, sinAbonos)))
     }
 

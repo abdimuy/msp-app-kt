@@ -82,7 +82,9 @@ class DerivarEstadoDelPeriodo @Inject constructor(
         incidencias.forEach { incidencia ->
             telemetry.error(
                 code = incidencia.code,
-                message = "incidencia de derivacion de cobranza detectada al abrir el detalle",
+                // Ya no es solo "al abrir el detalle": desde la Task 17 la lista
+                // de clientes deriva la ruta completa y también reenvía por aquí.
+                message = "incidencia de derivacion de cobranza detectada al derivar el periodo",
                 props = mapOf(PagosTelemetria.PROP_OCURRENCIAS to incidencia.ocurrencias.toString())
             )
         }
@@ -114,5 +116,6 @@ private fun VisitaDelCliente.aVisitaEnVentana(): VisitaEnVentana = VisitaEnVenta
     fechaHora = fecha,
     fechaPromesa = fechaPromesa,
     montoPrometido = montoPrometido?.amount,
+    fechaCita = fechaCita,
     horaCita = horaCita
 )

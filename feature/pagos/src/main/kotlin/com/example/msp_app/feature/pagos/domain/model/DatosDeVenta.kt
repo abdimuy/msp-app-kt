@@ -21,6 +21,17 @@ data class DatosDeVenta(
     val clienteNombre: String,
     val telefono: String,
     val direccion: String,
+    /**
+     * `Sale.ESTADO` — la ENTIDAD federativa, no un estado de cobranza. Se llama
+     * así para que nadie la confunda con
+     * [com.example.msp_app.core.common.cobranza.domain.EstadoCuenta].
+     *
+     * Existe porque la búsqueda de la lista (Task 17) concatena los mismos SEIS
+     * campos que `SalesScreen.kt:68` —nombre, folio, calle, ciudad, estado,
+     * teléfono— y sin este el buscador nuevo encontraría menos que la pantalla
+     * que reemplaza.
+     */
+    val entidad: String,
     val zona: String,
     val aval: String,
     /** Teléfono del aval. `null` mientras no exista la columna — ver [DetalleCliente.telefonoAval]. */
@@ -28,6 +39,18 @@ data class DatosDeVenta(
     val notas: String,
     val descripcion: String,
     val fechaVenta: LocalDate?,
+    /**
+     * El instante crudo de `Sale.FECHA`, sin recortar a día.
+     *
+     * Es la SEGUNDA clave del orden de cobranza y existe para tener paridad
+     * exacta con `SalesScreen.kt:202`, que ordena por el texto completo de
+     * `FECHA` y por lo tanto separa dos ventas del mismo día por su hora.
+     * Ordenar por [fechaVenta] las empataba: una divergencia que nada forzaba,
+     * justo en lo único que había orden de copiar sin cambios.
+     *
+     * `null` cuando `FECHA` no se pudo leer — ver `OrdenDeCobranza`.
+     */
+    val instanteDeVenta: Instant?,
     val saldo: Money,
     val parcialidad: Money,
     val frecuencia: String,
@@ -60,5 +83,7 @@ data class VisitaDelCliente(
     val nota: String?,
     val fechaPromesa: LocalDate? = null,
     val montoPrometido: Money? = null,
+    /** El DÍA de la cita (`CITA_FECHA`). Sin él, [horaCita] no dice cuándo. */
+    val fechaCita: LocalDate? = null,
     val horaCita: LocalTime? = null
 )

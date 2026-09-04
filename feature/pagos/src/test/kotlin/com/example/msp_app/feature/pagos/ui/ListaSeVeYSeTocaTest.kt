@@ -16,6 +16,7 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.FILA_DE_CLIENTE_TAG
+import com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -86,10 +87,41 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
         )
     }
 
+    /**
+     * El chip "hoy" no se pinta mientras `HOY_VISIBLE` esté apagado: hoy
+     * `PROMESA_FECHA`/`CITA_FECHA` no las escribe nadie (Task 19), así que
+     * marcaría 0 para siempre y le enseñaría al cobrador que la fila de filtros
+     * miente. No esconde trabajo: una promesa sin fecha ya cae en "vencidos".
+     */
     @Test
-    fun `cada chip mide al menos 50dp de alto`() {
+    fun `el chip de hoy no se pinta mientras nadie escriba las fechas`() {
         pinta()
-        SegmentoDeCobranza.entries.forEach { segmento ->
+        assertEquals(false, HOY_VISIBLE)
+        assertEquals(
+            0,
+            composeTestRule
+                .onAllNodesWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
+                .fetchSemanticsNodes()
+                .size
+        )
+        // Los otros tres sí están: se apaga un chip, no la fila.
+        listOf(
+            SegmentoDeCobranza.TODOS,
+            SegmentoDeCobranza.VENCIDOS,
+            SegmentoDeCobranza.SIN_VISITAR
+        ).forEach {
+            composeTestRule
+                .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + it.name.lowercase())
+                .assertIsDisplayed()
+        }
+    }
+
+    @Test
+    fun `cada chip visible mide al menos 50dp de alto`() {
+        pinta()
+        SegmentoDeCobranza.entries.filter {
+            HOY_VISIBLE || it != SegmentoDeCobranza.HOY
+        }.forEach { segmento ->
             val bordes = composeTestRule
                 .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
                 .getUnclippedBoundsInRoot()

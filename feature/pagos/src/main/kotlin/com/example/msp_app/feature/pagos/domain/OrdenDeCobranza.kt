@@ -1,7 +1,7 @@
 package com.example.msp_app.feature.pagos.domain
 
 import com.example.msp_app.core.common.money.Money
-import java.time.LocalDate
+import java.time.Instant
 
 /**
  * La posición de UNA venta en el orden de cobranza. Dos campos, en el orden en
@@ -23,8 +23,18 @@ import java.time.LocalDate
 data class RangoDeCobranza(
     /** El saldo sigue siendo exactamente lo financiado: cero abonos. */
     val sinAbonos: Boolean,
-    /** `Sale.FECHA` ya parseada. `null` cuando no se pudo leer — ver [PRIMERO]. */
-    val fechaVenta: LocalDate?
+    /**
+     * El instante crudo de `Sale.FECHA`, **sin recortar a día**.
+     *
+     * Es la clave de desempate, y es un [Instant] y no un `LocalDate` por
+     * paridad exacta con `SalesScreen.kt:202`: aquella ordena por el texto
+     * completo de `FECHA`, así que dos ventas del mismo día quedan separadas por
+     * su hora. Con la fecha de negocio empataban, y ese empate no lo forzaba
+     * nada — el instante ya venía parseado en el adaptador.
+     *
+     * `null` cuando `FECHA` no se pudo leer — ver [PRIMERO].
+     */
+    val instanteDeVenta: Instant?
 )
 
 /**
@@ -33,8 +43,12 @@ data class RangoDeCobranza(
  *
  * ## Qué cambió al portarlo, y qué no
  *
- * El **predicado** es idéntico: `saldo == totalVenta - enganche`. Lo que cambia
- * es el tipo en el que se evalúa. La pantalla vieja lo hacía sobre `Double`
+ * Las DOS claves son las mismas y en el mismo sentido: primero quien no ha
+ * abonado nada, después la venta más vieja **por su instante**, no por su día
+ * (la paridad al minuto con `SalesScreen.kt:202` se restauró tras la revisión).
+ *
+ * El **predicado** es idéntico: `saldo == totalVenta - enganche`. Lo único que
+ * cambia es el tipo en el que se evalúa. La pantalla vieja lo hacía sobre `Double`
  * crudo de Room; aquí llega como [Money] porque la REGLA DE DINERO
  * (`global-constraints.md`) prohíbe que un `Double` cruce el adaptador, y
  * `RoomVentasAdapter` ya envuelve `SALDO_REST`/`PRECIO_TOTAL`/`ENGANCHE` con
@@ -53,8 +67,8 @@ data class RangoDeCobranza(
  *
  * ## Las fechas ilegibles van al final
  *
- * `Sale.FECHA` es texto y puede no parsearse; ahí [RangoDeCobranza.fechaVenta]
- * llega en `null`. Una venta sin fecha no puede ordenarse por fecha, así que
+ * `Sale.FECHA` es texto y puede no parsearse; ahí
+ * [RangoDeCobranza.instanteDeVenta] llega en `null`. Una venta sin fecha no puede ordenarse por fecha, así que
  * cae al final de su grupo ([PRIMERO] usa `nullsLast`) en vez de colarse al
  * principio como si fuera la más vieja de la ruta. **No es un silencio:**
  * `ReunirCartera` cuenta cuántas hubo y lo emite con
@@ -71,7 +85,7 @@ object OrdenDeCobranza {
      */
     val PRIMERO: Comparator<RangoDeCobranza> =
         compareByDescending<RangoDeCobranza> { it.sinAbonos }
-            .thenBy(nullsLast()) { it.fechaVenta }
+            .thenBy(nullsLast()) { it.instanteDeVenta }
 
     /**
      * El rango de una venta. [saldo] es lo que falta, [totalVenta] el precio
@@ -82,10 +96,10 @@ object OrdenDeCobranza {
         saldo: Money,
         totalVenta: Money,
         enganche: Money,
-        fechaVenta: LocalDate?
+        instanteDeVenta: Instant?
     ): RangoDeCobranza = RangoDeCobranza(
         sinAbonos = saldo == totalVenta - enganche,
-        fechaVenta = fechaVenta
+        instanteDeVenta = instanteDeVenta
     )
 
     /**

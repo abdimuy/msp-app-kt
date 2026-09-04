@@ -113,5 +113,5 @@ object CarteraEnPantalla {
      * Un cliente sin una sola venta no puede llegar a la lista —se agrupa desde
      * sus ventas— pero el tipo lo admite; va al final, nunca al principio.
      */
-    private val SIN_VENTAS = RangoDeCobranza(sinAbonos = false, fechaVenta = null)
+    private val SIN_VENTAS = RangoDeCobranza(sinAbonos = false, instanteDeVenta = null)
 }

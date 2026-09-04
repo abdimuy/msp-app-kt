@@ -91,6 +91,10 @@ private fun VisitEntity.aVisitaDelCliente(horaDe: (String?) -> LocalTime?): Visi
         tipoVisita = TIPO_VISITA,
         nota = NOTA?.takeIf { it.isNotBlank() },
         fechaPromesa = AppTime.parseWireDateOrNull(PROMESA_FECHA),
+        // `CITA_FECHA` existe desde la migración de la Task 26 y hasta ahora
+        // NADIE la leía: el modelo cargaba solo la hora. Sin el día, la lista
+        // no puede distinguir la cita de hoy de la del lunes pasado.
+        fechaCita = AppTime.parseWireDateOrNull(CITA_FECHA),
         montoPrometido = PROMESA_MONTO_CENTAVOS?.let { Money.of(BigDecimal.valueOf(it, CENTAVOS)) },
         horaCita = horaDe(CITA_HORA)
     )

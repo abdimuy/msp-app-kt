@@ -1,6 +1,8 @@
 package com.example.msp_app.feature.pagos.application
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
@@ -10,6 +12,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.ui.ListaFixtures
 import com.example.msp_app.feature.pagos.ui.PagosFixtures
+import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -71,6 +74,52 @@ class ReunirCarteraTest {
         assertTrue(victoria.textoBuscable.contains("v-5021"))
         assertTrue(victoria.textoBuscable.contains("v-5188"))
         assertTrue(victoria.textoBuscable.contains("victoria flores olmedo"))
+    }
+
+    /**
+     * `SalesScreen.kt:68` concatena SEIS campos y el sexto es `ESTADO`, la
+     * entidad federativa. Se quedó fuera en la primera versión: un buscador que
+     * encuentra menos que la pantalla que reemplaza es una regresión que el
+     * cobrador siente antes que nadie.
+     */
+    @Test
+    fun `el texto buscable trae la entidad, como la pantalla vieja`() = runTest {
+        ventasPort.ventas = ListaFixtures.datosDeLaRuta()
+        val victoria = reunir()().clientes.single { it.clienteId == ListaFixtures.VICTORIA }
+        assertTrue(victoria.textoBuscable.contains("puebla"))
+    }
+
+    /**
+     * **El reloj se lee UNA vez.** Con dos lecturas, una carga que cruza la
+     * medianoche cerraba la ventana el día N y calculaba `hoy` como N+1, así que
+     * los chips "hoy"/"vencidos" contestaban sobre un día distinto al que derivó
+     * los estados. El reloj de abajo avanza un minuto en cada llamada y cruza la
+     * medianoche justo entre las dos.
+     */
+    @Test
+    fun `la ventana y el hoy salen del mismo instante aunque cruce la medianoche`() = runTest {
+        val relojQueCruzaLaMedianoche = object : AppClock {
+            private var siguiente = Instant.parse("2026-09-02T05:59:30Z") // 23:59:30 CDMX
+            override fun now(): Instant {
+                val ahora = siguiente
+                siguiente = siguiente.plusSeconds(60)
+                return ahora
+            }
+        }
+        ventasPort.ventas = ListaFixtures.datosDeLaRuta()
+        val cartera = ReunirCartera(
+            ventasPort = ventasPort,
+            pagosPort = pagosPort,
+            visitasPort = visitasPort,
+            resolverVentanaDeCobro = ResolverVentanaDeCobro(
+                periodoPort,
+                relojQueCruzaLaMedianoche
+            ),
+            derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
+            telemetry = telemetria
+        )()
+        val finDeLaVentana = pagosPort.ventanasConsultadas.single().fin
+        assertEquals(AppTime.toBusinessDate(finDeLaVentana), cartera.hoy)
     }
 
     @Test

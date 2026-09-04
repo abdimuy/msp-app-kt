@@ -23,12 +23,14 @@ class SegmentoDeCobranzaTest {
     private fun estado(
         estado: EstadoCuenta,
         fechaPromesa: LocalDate? = null,
+        fechaCita: LocalDate? = null,
         horaCita: LocalTime? = null
     ) = EstadoDelPeriodo(
         estado = estado,
         abonoDelPeriodo = ListaFixtures.dinero("0"),
         parcialidad = ListaFixtures.dinero("350"),
         fechaPromesa = fechaPromesa,
+        fechaCita = fechaCita,
         horaCita = horaCita
     )
 
@@ -110,10 +112,59 @@ class SegmentoDeCobranzaTest {
     }
 
     @Test
-    fun `una cita con hora es trabajo de hoy`() {
+    fun `una cita de HOY con hora es trabajo de hoy`() {
         assertEquals(
             listOf(SegmentoDeCobranza.TODOS, SegmentoDeCobranza.HOY),
-            chipsDe(estado(EstadoCuenta.CITA_A_UNA_HORA, horaCita = LocalTime.of(17, 30)))
+            chipsDe(
+                estado(
+                    EstadoCuenta.CITA_A_UNA_HORA,
+                    fechaCita = hoyDePrueba,
+                    horaCita = LocalTime.of(17, 30)
+                )
+            )
+        )
+    }
+
+    /**
+     * El defecto que la revisión encontró antes de que Task 19 lo armara: la
+     * rama decía `this == HOY` a secas, así que la cita del lunes salía bajo
+     * "hoy" el jueves solo por caer dentro del periodo.
+     */
+    @Test
+    fun `una cita de otro dia del periodo NO es trabajo de hoy`() {
+        assertEquals(
+            listOf(SegmentoDeCobranza.TODOS, SegmentoDeCobranza.VENCIDOS),
+            chipsDe(
+                estado(
+                    EstadoCuenta.CITA_A_UNA_HORA,
+                    fechaCita = hoyDePrueba.minusDays(3),
+                    horaCita = LocalTime.of(16, 0)
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `una cita futura no cae en ningun chip de trabajo`() {
+        assertEquals(
+            listOf(SegmentoDeCobranza.TODOS),
+            chipsDe(
+                estado(
+                    EstadoCuenta.CITA_A_UNA_HORA,
+                    fechaCita = hoyDePrueba.plusDays(2),
+                    horaCita = LocalTime.of(16, 0)
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `una cita con hora pero SIN dia no cuenta como hoy`() {
+        assertFalse(
+            SegmentoDeCobranza.HOY.contiene(
+                estado(EstadoCuenta.CITA_A_UNA_HORA, horaCita = LocalTime.of(17, 30)),
+                hoyDePrueba
+            )
         )
     }
 
@@ -149,6 +200,10 @@ class SegmentoDeCobranzaTest {
             listOf(
                 estado(EstadoCuenta.PROMETIO_PROXIMA, fechaPromesa = hoyDePrueba),
                 estado(EstadoCuenta.PROMETIO_PROXIMA, fechaPromesa = hoyDePrueba.minusDays(1)),
-                estado(EstadoCuenta.CITA_A_UNA_HORA, horaCita = LocalTime.of(17, 30))
+                estado(
+                    EstadoCuenta.CITA_A_UNA_HORA,
+                    fechaCita = hoyDePrueba,
+                    horaCita = LocalTime.of(17, 30)
+                )
             )
 }

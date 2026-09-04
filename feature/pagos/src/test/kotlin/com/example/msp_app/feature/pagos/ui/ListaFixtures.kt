@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.ui
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.feature.pagos.domain.OrdenDeCobranza
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
@@ -31,6 +32,8 @@ object ListaFixtures {
 
     fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
 
+    private const val MEDIODIA_EN_SEGUNDOS = 12L * 60 * 60
+
     fun estado(
         estado: EstadoCuenta,
         parcialidad: Money = dinero("350"),
@@ -58,6 +61,9 @@ object ListaFixtures {
         fechaVenta: LocalDate?,
         estado: EstadoDelPeriodo
     ): VentaEnLista {
+        // El orden desempata por INSTANTE, no por día: se usa el mediodía de
+        // negocio de esa fecha, que es un instante real y ordena igual.
+        val instante = fechaVenta?.let { AppTime.startOfDay(it).plusSeconds(MEDIODIA_EN_SEGUNDOS) }
         val parcialidad = estado.parcialidad
         val plan = PlanDeAbonos.de(
             totalVenta = totalVenta,
@@ -80,7 +86,7 @@ object ListaFixtures {
                 saldo = saldo,
                 totalVenta = totalVenta,
                 enganche = enganche,
-                fechaVenta = fechaVenta
+                instanteDeVenta = instante
             )
         )
     }
@@ -233,12 +239,14 @@ object ListaFixtures {
         clienteNombre = nombre,
         telefono = "238 162 7597",
         direccion = "C. Hidalgo 214, Centro",
+        entidad = "Puebla",
         zona = "ruta 25 · centro",
         aval = "Rosa María Ramírez",
         telefonoAval = null,
         notas = "",
         descripcion = "Refrigerador Mabe 14'",
         fechaVenta = fecha?.let(LocalDate::parse),
+        instanteDeVenta = fecha?.let { AppTime.startOfDay(LocalDate.parse(it)) },
         saldo = dinero(saldo),
         parcialidad = dinero("350"),
         frecuencia = "semanal",

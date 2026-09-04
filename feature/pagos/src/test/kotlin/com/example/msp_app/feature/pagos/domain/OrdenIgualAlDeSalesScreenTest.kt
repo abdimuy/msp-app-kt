@@ -2,7 +2,6 @@ package com.example.msp_app.feature.pagos.domain
 
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
-import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -19,11 +18,11 @@ import org.junit.Test
  * ```
  *
  * Cada caso corre las dos ordenaciones sobre **los mismos datos** —la legada
- * sobre `Double`, la nueva sobre [Money] y `LocalDate`— y compara la secuencia
+ * sobre `Double`, la nueva sobre [Money] e `Instant`— y compara la secuencia
  * de folios resultante. Sin este test, "es el mismo orden" sería una
  * afirmación; con él es una medición.
  *
- * ## Las dos diferencias conocidas, cada una con su caso
+ * ## Las diferencias, cada una con su caso
  *
  * 1. **Aritmética decimal en vez de binaria.** La REGLA DE DINERO prohíbe que
  *    un `Double` cruce el adaptador, así que el predicado se evalúa sobre
@@ -32,11 +31,12 @@ import org.junit.Test
  *    centavos pueden discrepar, y el caso `centavos` documenta esa discrepancia
  *    en la dirección correcta: la resta binaria dice "ya abonó" de una venta
  *    que no ha recibido un peso.
- * 2. **La segunda clave es la FECHA de negocio, no el timestamp crudo.**
- *    `DatosDeVenta.fechaVenta` es un `LocalDate` (Task 16), así que dos ventas
- *    del MISMO día empatan y conservan el orden de la fuente en vez de
- *    ordenarse por hora. Se prueba explícitamente para que sea una decisión
- *    documentada y no una sorpresa.
+ * 2. ~~La segunda clave es la fecha de negocio~~ — **corregida tras la
+ *    revisión.** Empataba dos ventas del mismo día mientras la pantalla vieja
+ *    las ordena por hora, y esa divergencia no la forzaba nada: el instante
+ *    crudo ya venía parseado en el adaptador. Hoy `RangoDeCobranza` desempata
+ *    por `Instant` y la paridad es exacta, incluido el mismo día a distinta
+ *    hora. La que queda es la de arriba, y esa sí la fuerza la REGLA DE DINERO.
  */
 @Suppress(
     // El ÚNICO lugar del módulo donde un `Double` de dinero es correcto: este
@@ -82,11 +82,8 @@ class OrdenIgualAlDeSalesScreenTest {
         saldo = Money.of(fila.saldoRest),
         totalVenta = Money.of(fila.precioTotal),
         enganche = Money.of(fila.enganche),
-        fechaVenta = fechaDe(fila.fecha)
+        instanteDeVenta = AppTime.parseWireFormatOrNull(fila.fecha)
     )
-
-    private fun fechaDe(crudo: String): LocalDate? =
-        AppTime.parseWireFormatOrNull(crudo)?.let(AppTime::toBusinessDate)
 
     private fun fila(folio: String, saldo: Double, fecha: String) = FilaLegada(
         folio = folio,
@@ -130,17 +127,35 @@ class OrdenIgualAlDeSalesScreenTest {
         assertEquals(legado(enElBorde), portado(enElBorde))
     }
 
+    /**
+     * **Paridad al minuto, no solo al día.**
+     *
+     * La primera versión de esta tarea ordenaba por la FECHA de negocio, así que
+     * dos ventas del mismo día empataban mientras la pantalla vieja las separa
+     * por hora. Era una divergencia que nada forzaba —el instante crudo ya venía
+     * parseado en el adaptador— justo en lo único que había orden de copiar sin
+     * cambios. Hoy la clave de desempate es el `Instant` y las dos secuencias
+     * coinciden.
+     */
     @Test
-    fun `mismo dia a distinta hora, empate estable en vez de orden por hora`() {
+    fun `mismo dia a distinta hora, el mismo orden que la pantalla vieja`() {
         val mismoDia = listOf(
             fila("tarde", saldo = 2100.0, fecha = "2026-05-04T22:00:00Z"),
             fila("manana", saldo = 2100.0, fecha = "2026-05-04T14:00:00Z")
         )
-        // La legada ordena por el texto completo, así que la mañana va primero.
         assertEquals(listOf("manana", "tarde"), legado(mismoDia))
-        // La portada compara la FECHA de negocio: empatan y se queda el orden
-        // de la fuente. Es la diferencia documentada, no un descuido.
-        assertEquals(listOf("tarde", "manana"), portado(mismoDia))
+        assertEquals(legado(mismoDia), portado(mismoDia))
+    }
+
+    /** Y el mismo minuto: dos ventas a la misma hora empatan en las dos. */
+    @Test
+    fun `mismo instante, las dos conservan el orden de la fuente`() {
+        val aLaVez = listOf(
+            fila("primera", saldo = 2100.0, fecha = "2026-05-04T22:00:00Z"),
+            fila("segunda", saldo = 2100.0, fecha = "2026-05-04T22:00:00Z")
+        )
+        assertEquals(listOf("primera", "segunda"), legado(aLaVez))
+        assertEquals(legado(aLaVez), portado(aLaVez))
     }
 
     @Test

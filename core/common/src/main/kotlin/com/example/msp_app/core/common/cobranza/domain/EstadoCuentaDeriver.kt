@@ -160,6 +160,7 @@ object EstadoCuentaDeriver {
                 parcialidad = cuenta.parcialidad,
                 fechaPromesa = visita.fechaPromesa,
                 montoPrometido = visita.montoPrometido,
+                fechaCita = visita.fechaCita,
                 horaCita = visita.horaCita
             )
         }

@@ -31,6 +31,13 @@ data class EstadoDelPeriodo(
     val parcialidad: Money,
     val fechaPromesa: LocalDate? = null,
     val montoPrometido: Money? = null,
+    /**
+     * El DÍA de la cita. Viaja hasta la pantalla por la MISMA razón que
+     * [fechaPromesa]: los segmentos preguntan si algo cae HOY, y una cita sin
+     * día no puede contestar que sí. "Está dentro del periodo, luego es hoy"
+     * pondría la cita del lunes en la lista del jueves.
+     */
+    val fechaCita: LocalDate? = null,
     val horaCita: LocalTime? = null
 ) {
     companion object {
@@ -45,6 +52,7 @@ data class EstadoDelPeriodo(
             parcialidad = Money.of(resultado.parcialidad),
             fechaPromesa = resultado.fechaPromesa,
             montoPrometido = resultado.montoPrometido?.let(Money::of),
+            fechaCita = resultado.fechaCita,
             horaCita = resultado.horaCita
         )
 

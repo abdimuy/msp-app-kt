@@ -59,12 +59,17 @@ class ReunirCartera @Inject constructor(
 
     suspend operator fun invoke(): Cartera {
         val ventas = ventasPort.todasLasVentas()
-        val ventana = resolverVentanaDeCobro()
+        // UNA lectura del reloj para la ventana Y para "hoy". Con dos lecturas,
+        // una carga que cruza la medianoche emparejaba una ventana que cierra el
+        // día N con un `hoy` del día N+1, y los segmentos "hoy"/"vencidos"
+        // contestaban sobre un día distinto al que derivó los estados.
+        val periodo = resolverVentanaDeCobro.resolver()
+        val ventana = periodo.ventana
         val pagos = ventana?.let { pagosPort.pagosDelPeriodo(it) }.orEmpty()
         val visitas = ventana?.let { visitasPort.visitasDelPeriodo(it) }.orEmpty()
         val estados = derivarEstadoDelPeriodo(ventas, pagos, visitas, ventana)
         reportarVentasSinFecha(ventas)
-        return Cartera(clientes = agrupar(ventas, estados), hoy = resolverVentanaDeCobro.hoy())
+        return Cartera(clientes = agrupar(ventas, estados), hoy = periodo.hoy)
     }
 
     /**
@@ -101,12 +106,17 @@ class ReunirCartera @Inject constructor(
             saldoTotal = Money.sum(suyas.map { it.saldo }),
             ventas = suyas.map { it.aVentaEnLista(estados[it.ventaId]) },
             textoBuscable = BusquedaDeClientes.textoBuscable(
-                // Los MISMOS cinco datos que concatenaba `SalesScreen.kt:68`
-                // (nombre, folio, calle, ciudad, teléfono), salvo que los
-                // folios de TODAS sus ventas entran al mismo texto: buscar el
-                // folio de la segunda venta tiene que traer al cliente.
-                listOf(primera.clienteNombre, primera.direccion, primera.telefono) +
-                    suyas.map { it.folio }
+                // Los MISMOS SEIS datos que concatenaba `SalesScreen.kt:68`
+                // —nombre, folio, calle, ciudad, ESTADO (la entidad) y
+                // teléfono—, salvo que los folios de TODAS sus ventas entran al
+                // mismo texto: buscar el folio de la segunda venta tiene que
+                // traer al cliente. `direccion` ya trae calle y ciudad.
+                listOf(
+                    primera.clienteNombre,
+                    primera.direccion,
+                    primera.entidad,
+                    primera.telefono
+                ) + suyas.map { it.folio }
             )
         )
     }
@@ -143,6 +153,6 @@ private fun DatosDeVenta.aVentaEnLista(estado: EstadoDelPeriodo?): VentaEnLista 
         saldo = saldo,
         totalVenta = totalVenta,
         enganche = enganche,
-        fechaVenta = fechaVenta
+        instanteDeVenta = instanteDeVenta
     )
 )

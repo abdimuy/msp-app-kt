@@ -65,6 +65,13 @@ data class VisitaEnVentana(
     val fechaHora: Instant,
     val fechaPromesa: LocalDate? = null,
     val montoPrometido: BigDecimal? = null,
+    /**
+     * El DÍA de la cita (`CITA_FECHA`). Viaja junto a [horaCita] y no en su
+     * lugar: sin día, "quedaron de verse" no dice CUÁNDO, y una pantalla que
+     * asuma "dentro del periodo, luego es hoy" pondría la cita del lunes en la
+     * lista del jueves.
+     */
+    val fechaCita: LocalDate? = null,
     val horaCita: LocalTime? = null
 )
 
@@ -82,6 +89,8 @@ data class ResultadoEstadoCuenta(
     val parcialidad: BigDecimal,
     val fechaPromesa: LocalDate? = null,
     val montoPrometido: BigDecimal? = null,
+    /** El día de la cita — ver [VisitaEnVentana.fechaCita]. Hoy siempre `null`. */
+    val fechaCita: LocalDate? = null,
     val horaCita: LocalTime? = null
 )
 

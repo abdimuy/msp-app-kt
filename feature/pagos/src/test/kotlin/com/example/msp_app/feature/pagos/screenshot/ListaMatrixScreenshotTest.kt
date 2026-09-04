@@ -59,7 +59,10 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         name = "pagos_lista_vacia_${tema(dark)}",
         dark = dark
     ) {
-        Lista(ListaDeClientesUiState(cargando = false, segmento = SegmentoDeCobranza.HOY))
+        // Con `vencidos` y no con `hoy`: `hoy` ya no se pinta (ver `HOY_VISIBLE`),
+        // así que un golden con ese segmento activo no mostraría chip encendido
+        // y retrataría un estado que el cobrador no puede alcanzar.
+        Lista(ListaDeClientesUiState(cargando = false, segmento = SegmentoDeCobranza.VENCIDOS))
     }
 
     private fun tema(dark: Boolean) = if (dark) "dark" else "light"

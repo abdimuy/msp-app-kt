@@ -65,7 +65,7 @@ fun ChipsDeSegmento(
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SegmentoDeCobranza.entries.forEach { segmento ->
+        segmentosVisibles().forEach { segmento ->
             ChipDeSegmento(
                 segmento = segmento,
                 cuantos = conteos[segmento] ?: 0,
@@ -75,6 +75,34 @@ fun ChipsDeSegmento(
         }
     }
 }
+
+/**
+ * Los chips que se pintan hoy.
+ *
+ * ## Por qué "hoy" no está
+ *
+ * [SegmentoDeCobranza.HOY] solo puede contener cuentas con `PROMESA_FECHA` o
+ * `CITA_FECHA`, y **nadie escribe todavía esas columnas**: la captura
+ * estructurada la construye la Task 19. O sea que hoy el chip es
+ * estructuralmente incapaz de marcar otra cosa que 0.
+ *
+ * **Y no esconde trabajo:** una promesa sin fecha mapea al trato `REGRESAS` y
+ * por lo tanto a *vencidos*, así que no existe una
+ * cuenta que solo "hoy" sacaría a flote. Lo que sí hace un chip que dice
+ * "hoy 0" al lado de "vencidos 34" durante semanas es enseñarle al cobrador que
+ * la fila de filtros miente — y cuando deja de leer la fila, se pierden también
+ * los chips que sí sirven. Deshabilitarlo con un aviso sería peor: gasta un
+ * estado visual, en un teléfono a una mano y en la calle, para explicar una
+ * función que todavía no existe.
+ *
+ * **La Task 19 cambia este booleano y regraba los goldens.** No hay nada más
+ * que hacer: el segmento, sus ramas, sus tests y sus goldens ya están.
+ */
+private fun segmentosVisibles(): List<SegmentoDeCobranza> =
+    SegmentoDeCobranza.entries.filter { HOY_VISIBLE || it != SegmentoDeCobranza.HOY }
+
+/** El interruptor del párrafo de arriba. Lo enciende la Task 19. */
+const val HOY_VISIBLE: Boolean = false
 
 @Composable
 private fun ChipDeSegmento(
@@ -94,9 +122,10 @@ private fun ChipDeSegmento(
             .testTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
     ) {
         Row(
-            // Padding justo: con `md` los cuatro chips no caben en 360dp ni
-            // siquiera a escala NORMAL y el último quedaba cortado. Con `sm`
-            // caben; el alto tocable no depende de esto y sigue en 56dp.
+            // Padding justo: con `md`, los CUATRO chips (o sea con `HOY_VISIBLE`
+            // encendido) no caben en 360dp ni siquiera a escala NORMAL y el
+            // último quedaba cortado. Con `sm` caben; el alto tocable no depende
+            // de esto y sigue en 56dp.
             modifier = Modifier.padding(horizontal = MspTheme.spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)

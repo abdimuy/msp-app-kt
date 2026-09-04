@@ -55,7 +55,15 @@ enum class SegmentoDeCobranza(val etiqueta: String) {
      */
     VENCIDOS("vencidos"),
 
-    /** Cae hoy: la promesa es de hoy, o hay una cita a una hora acordada. */
+    /**
+     * Cae hoy: la promesa es para hoy, o hay una cita **de hoy** a una hora
+     * acordada.
+     *
+     * **Hoy no se pinta** — ver `HOY_VISIBLE` en `PiezasDeLaLista.kt`. El
+     * segmento existe entero (filtra, cuenta y está probado); lo único apagado
+     * es su chip, porque `PROMESA_FECHA`/`CITA_FECHA` todavía no las escribe
+     * nadie y el chip marcaría 0 para siempre.
+     */
     HOY("hoy"),
 
     /** Nadie la ha trabajado esta semana. */
@@ -85,11 +93,18 @@ enum class SegmentoDeCobranza(val etiqueta: String) {
                 else -> false
             }
 
-            // Una cita trae hora acordada pero no fecha propia: solo se deriva
-            // de una visita DENTRO del periodo, así que es trabajo de hoy. No
-            // se declara vencida porque no hay dato que sostenga que ya pasó, y
-            // afirmarlo sería el mismo defecto que la promesa sin fecha.
-            TratoDelEstado.CITA -> this == HOY
+            // La MISMA forma que la promesa, y por la misma razón. Antes esta
+            // rama decía `this == HOY` a secas: daba por hecho que toda cita
+            // dentro del periodo era de hoy, así que la cita del lunes a las
+            // 4pm habría salido bajo "hoy" el jueves. El día existe
+            // (`CITA_FECHA`, migración de la Task 26) y ahora se lee; sin día
+            // la cita no cae en ningún chip de trabajo, porque nada sostiene
+            // que sea de hoy ni que ya haya pasado.
+            TratoDelEstado.CITA -> when (this) {
+                VENCIDOS -> estado.fechaCita?.isBefore(hoy) == true
+                HOY -> estado.fechaCita == hoy
+                else -> false
+            }
 
             TratoDelEstado.SIN_TRABAJAR -> this == SIN_VISITAR
 
