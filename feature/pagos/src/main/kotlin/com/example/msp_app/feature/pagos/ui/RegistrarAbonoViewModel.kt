@@ -126,7 +126,9 @@ class RegistrarAbonoViewModel @Inject constructor(
 
     fun onMetodo(metodo: MetodoDeCobro) {
         val actual = mutableState.value
-        if (actual.registrado != null || actual.guardando) return
+        // Misma guarda que el teclado: con el cerrojo puesto nada de esto puede
+        // terminar en un registro.
+        if (!actual.sePuedeCapturar) return
         mutableState.value = actual.copy(metodo = metodo)
     }
 
@@ -289,7 +291,10 @@ class RegistrarAbonoViewModel @Inject constructor(
                 // NO se emite nada aquí: `verificar` ya reportó el hecho con su
                 // causa. Decir además "no quedó registrado" sería afirmar lo
                 // que se acaba de declarar incognoscible.
-                terminarConFallo(FalloDelAbono.NO_SE_PUDO_VERIFICAR)
+                terminarConFallo(
+                    fallo = FalloDelAbono.NO_SE_PUDO_VERIFICAR,
+                    verificacionPendiente = true
+                )
             }
         }
     }
@@ -299,15 +304,22 @@ class RegistrarAbonoViewModel @Inject constructor(
             guardando = false,
             confirmacion = null,
             fallo = null,
-            registrado = abonoId
+            registrado = abonoId,
+            // La duda se acabó: el abono está.
+            verificacionPendiente = false
         )
     }
 
-    private fun terminarConFallo(fallo: FalloDelAbono) {
+    /**
+     * [verificacionPendiente] echa el cerrojo: apaga el CTA, apaga la captura y
+     * enciende "volver a revisar". Es lo ÚNICO que lo pone.
+     */
+    private fun terminarConFallo(fallo: FalloDelAbono, verificacionPendiente: Boolean = false) {
         mutableState.value = mutableState.value.copy(
             guardando = false,
             confirmacion = null,
-            fallo = fallo
+            fallo = fallo,
+            verificacionPendiente = verificacionPendiente
         )
     }
 
@@ -336,10 +348,16 @@ class RegistrarAbonoViewModel @Inject constructor(
         else -> FalloDelAbono.NO_SE_PUDO_GUARDAR
     }
 
+    /**
+     * Edita el monto. La guarda es [RegistrarAbonoUiState.sePuedeCapturar], que
+     * incluye el cerrojo de la verificación pendiente: sin ella, teclear un
+     * dígito limpiaba `fallo` —borrando la banda Y su botón— y devolvía el CTA a
+     * la vida con el guard puesto, o sea el botón mudo otra vez, por la puerta
+     * de al lado. Aquí no se teclea lo que no puede terminar en un registro.
+     */
     private fun editar(cambio: (MontoCapturado) -> MontoCapturado) {
         val actual = mutableState.value
-        // Un abono ya registrado —o uno en vuelo— no se sigue editando.
-        if (actual.registrado != null || actual.guardando || actual.confirmacion != null) return
+        if (!actual.sePuedeCapturar) return
         mutableState.value = conVeredicto(actual.copy(monto = cambio(actual.monto), fallo = null))
     }
 

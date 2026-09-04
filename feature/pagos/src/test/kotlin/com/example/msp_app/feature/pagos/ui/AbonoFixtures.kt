@@ -198,8 +198,10 @@ object AbonoFixtures {
      * puesto y el CTA tiene que estar APAGADO, con la banda ofreciendo el
      * reintento real.
      */
-    fun enDudaDeVerificacion(): RegistrarAbonoUiState =
-        enCaptura().copy(fallo = FalloDelAbono.NO_SE_PUDO_VERIFICAR)
+    fun enDudaDeVerificacion(): RegistrarAbonoUiState = enCaptura().copy(
+        fallo = FalloDelAbono.NO_SE_PUDO_VERIFICAR,
+        verificacionPendiente = true
+    )
 
     private fun conMonto(monto: MontoCapturado, estado: EstadoDelPeriodo): RegistrarAbonoUiState {
         val venta = detalle(estado)

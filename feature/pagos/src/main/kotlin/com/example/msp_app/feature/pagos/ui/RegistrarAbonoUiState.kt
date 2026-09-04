@@ -74,7 +74,21 @@ data class RegistrarAbonoUiState(
     val confirmacion: ConfirmacionPendiente? = null,
     val guardando: Boolean = false,
     val registrado: String? = null,
-    val fallo: FalloDelAbono? = null
+    val fallo: FalloDelAbono? = null,
+    /**
+     * El **cerrojo** de la verificación pendiente: la escritura no se pudo
+     * comprobar y el guard anti-duplicado sigue puesto.
+     *
+     * Es un campo propio y NO se deduce de [fallo] a propósito. Cuando el
+     * cerrojo vivía en `fallo`, ese campo pasó de "un mensaje que se pinta" a
+     * "una entrada de si el CTA está vivo", y sus escritores no se enteraron:
+     * teclear un dígito limpiaba `fallo` y devolvía el botón a la vida, con el
+     * guard todavía puesto — el mismo botón mudo que esa gate vino a cerrar,
+     * por una puerta lateral. Separarlos devuelve a `fallo` su único trabajo
+     * (decir qué pasó) y deja el cerrojo donde nadie lo abre de pasada: solo lo
+     * pone la rama que no pudo comprobar, y solo lo quita una recarga.
+     */
+    val verificacionPendiente: Boolean = false
 ) {
     /**
      * ¿El CTA puede dispararse? Solo con venta cargada, veredicto limpio, nada
@@ -93,8 +107,17 @@ data class RegistrarAbonoUiState(
             veredicto.sePuedeRegistrar &&
             !guardando &&
             registrado == null &&
-            fallo != FalloDelAbono.NO_SE_PUDO_VERIFICAR
+            !verificacionPendiente
 
     /** ¿La banda de fallo ofrece volver a revisar? Solo la duda se resuelve así. */
-    val sePuedeRevisar: Boolean get() = fallo == FalloDelAbono.NO_SE_PUDO_VERIFICAR
+    val sePuedeRevisar: Boolean get() = verificacionPendiente
+
+    /**
+     * ¿Se puede seguir capturando? Con el cerrojo puesto, no: nada de lo que se
+     * teclee puede terminar en un registro hasta que la duda se resuelva, y un
+     * teclado que acepta lo que no lleva a ningún lado es la misma mentira que
+     * un botón que no hace nada.
+     */
+    val sePuedeCapturar: Boolean
+        get() = registrado == null && !guardando && confirmacion == null && !verificacionPendiente
 }
