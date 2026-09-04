@@ -30,9 +30,26 @@ class RoomPagosAdapter(
     private val telemetry: Telemetry
 ) : PagosPort {
 
-    override suspend fun pagosDe(ventaId: Int): List<PagoDelHistorial> {
-        val delaCobranza = paymentDao.getPaymentsBySaleId(ventaId)
-            .filter { it.FORMA_COBRO_ID in VentanaCobro.FORMAS_COBRO_COBRANZA }
+    override suspend fun pagosDe(ventaId: Int): List<PagoDelHistorial> =
+        aHistorial(paymentDao.getPaymentsBySaleId(ventaId))
+
+    /**
+     * Los abonos de TODA la ruta dentro de la ventana, en UNA consulta — la
+     * lista de clientes (Task 17) deriva el periodo de cientos de ventas y una
+     * lectura por venta serían cientos de viajes a Room.
+     *
+     * `getPaymentsByDate` ya trae dentro el mismo `FORMA_COBRO_ID IN (157, 158,
+     * 52569)`; [aHistorial] lo vuelve a aplicar a propósito, para que la
+     * invariante "solo cobranza real, nunca condonación" viva en este adaptador
+     * y no dependa de que una `@Query` de otro módulo no cambie.
+     */
+    override suspend fun pagosDelPeriodo(ventana: VentanaCobro): List<PagoDelHistorial> {
+        val (desde, hasta) = RangoDeConsulta.de(ventana)
+        return aHistorial(paymentDao.getPaymentsByDate(desde, hasta))
+    }
+
+    private fun aHistorial(crudos: List<PaymentEntity>): List<PagoDelHistorial> {
+        val delaCobranza = crudos.filter { it.FORMA_COBRO_ID in VentanaCobro.FORMAS_COBRO_COBRANZA }
         val legibles = delaCobranza.mapNotNull { it.aPagoDelHistorial() }
         reportarLosQueSeCayeron(delaCobranza.size - legibles.size)
         return legibles.sortedByDescending { it.fecha }

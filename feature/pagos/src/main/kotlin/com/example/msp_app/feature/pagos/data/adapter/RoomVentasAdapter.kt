@@ -42,6 +42,15 @@ class RoomVentasAdapter(
         val cabecera = saleDao.getById(ventaId) ?: return null
         return ventasDelCliente(cabecera.CLIENTE_ID).firstOrNull { it.ventaId == ventaId }
     }
+
+    /**
+     * La ruta completa, sobre [SaleDao.getAll] — la MISMA proyección
+     * (`GROUP BY DOCTO_CC_ID`, una fila por venta con sus artículos
+     * concatenados) que ya usa la lectura por cliente, y el MISMO conjunto que
+     * lee hoy la pantalla que esta lista reemplaza.
+     */
+    override suspend fun todasLasVentas(): List<DatosDeVenta> =
+        saleDao.getAll().map { it.aDatosDeVenta() }
 }
 
 private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta = DatosDeVenta(

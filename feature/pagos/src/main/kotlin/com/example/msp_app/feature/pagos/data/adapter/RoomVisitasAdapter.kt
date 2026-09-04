@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.data.adapter
 
+import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.visit.VisitDao
@@ -40,6 +41,19 @@ class RoomVisitasAdapter(
         visitDao.getVisitsByClienteId(clienteId)
             .mapNotNull { it.aVisitaDelCliente(::horaDe) }
             .sortedByDescending { it.fecha }
+
+    /**
+     * Las visitas de TODA la ruta dentro de la ventana, en UNA consulta — el
+     * par de `PagosPort.pagosDelPeriodo` y por la misma razón: la lista de
+     * clientes (Task 17) deriva el periodo de todos los clientes a la vez, y
+     * una lectura por cliente serían cientos de viajes a Room.
+     */
+    override suspend fun visitasDelPeriodo(ventana: VentanaCobro): List<VisitaDelCliente> {
+        val (desde, hasta) = RangoDeConsulta.de(ventana)
+        return visitDao.getVisitsByDate(desde, hasta)
+            .mapNotNull { it.aVisitaDelCliente(::horaDe) }
+            .sortedByDescending { it.fecha }
+    }
 
     /**
      * `HH:mm` de la zona de negocio. Una hora impresentable se degrada a `null`

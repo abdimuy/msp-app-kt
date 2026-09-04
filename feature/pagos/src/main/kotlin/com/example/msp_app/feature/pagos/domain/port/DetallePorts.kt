@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.domain.port
 
+import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
@@ -25,6 +26,17 @@ interface VentasPort {
 
     /** La venta [ventaId] (`DOCTO_CC_ACR_ID`), o `null` si el teléfono no la tiene. */
     suspend fun venta(ventaId: Int): DatosDeVenta?
+
+    /**
+     * TODAS las ventas que el teléfono tiene — la fuente de la lista de
+     * clientes (Task 17).
+     *
+     * Sin filtro de saldo, exactamente el mismo conjunto que la pantalla que
+     * reemplaza: `SalesViewModel.getLocalSales()` lee `SaleDao.observeAll()`,
+     * que tampoco filtra. Cambiar el conjunto al portar la lista sería cambiar
+     * qué puertas ve el cobrador, y eso no es lo que esta tarea vino a hacer.
+     */
+    suspend fun todasLasVentas(): List<DatosDeVenta>
 }
 
 /** Historial de abonos de una venta. */
@@ -36,6 +48,16 @@ interface PagosPort {
      * lógica no se toca (fuera de alcance del plan).
      */
     suspend fun pagosDe(ventaId: Int): List<PagoDelHistorial>
+
+    /**
+     * Los abonos COBRADOS de TODAS las ventas dentro de [ventana].
+     *
+     * Es lo que necesita la lista de clientes para derivar el periodo de la
+     * ruta entera: una sola lectura acotada por fecha, y no una por venta. El
+     * recorte por ventana es legítimo porque `EstadoCuentaDeriver` solo mira
+     * los pagos del periodo — fuera de él no cambian ningún estado.
+     */
+    suspend fun pagosDelPeriodo(ventana: VentanaCobro): List<PagoDelHistorial>
 }
 
 /** Bitácora de visitas de un cliente. */
@@ -43,6 +65,13 @@ interface VisitasPort {
 
     /** Las visitas de [clienteId], de la más reciente a la más vieja. */
     suspend fun visitasDelCliente(clienteId: Int): List<VisitaDelCliente>
+
+    /**
+     * Las visitas de TODOS los clientes dentro de [ventana] — el par del
+     * [PagosPort.pagosDelPeriodo] de arriba, y por la misma razón: el deriver
+     * descarta las visitas fuera del periodo.
+     */
+    suspend fun visitasDelPeriodo(ventana: VentanaCobro): List<VisitaDelCliente>
 }
 
 /** La garantía abierta de una venta. */

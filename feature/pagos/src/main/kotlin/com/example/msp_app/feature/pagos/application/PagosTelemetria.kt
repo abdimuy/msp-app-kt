@@ -49,6 +49,19 @@ object PagosTelemetria {
      */
     const val CODE_LIQUIDACION_VIGENCIA_ILEGIBLE: String = "pagos_liquidacion_vigencia_ilegible"
 
+    /**
+     * `Sale.FECHA` no se pudo leer, así que la venta no tiene fecha con la cual
+     * ordenarse y cae al final de su grupo en la lista de cobranza.
+     *
+     * No es un `catch` (`parseWireFormatOrNull` devuelve `null` por contrato),
+     * pero **mueve de lugar una puerta en el día del cobrador**, que es
+     * exactamente el tipo de cambio que no puede ocurrir sin señal.
+     */
+    const val CODE_VENTA_SIN_FECHA_LEGIBLE: String = "pagos_venta_sin_fecha_legible"
+
+    /** Falló la carga de la lista de clientes. Ningún dato de cliente se emite. */
+    const val CODE_LISTA_CLIENTES_FALLO: String = "pagos_lista_clientes_fallo"
+
     /** Clave estática de `props` con el conteo de ocurrencias de una incidencia. */
     const val PROP_OCURRENCIAS: String = "ocurrencias"
 

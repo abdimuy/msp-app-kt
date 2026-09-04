@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.data.fake
 
+import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
@@ -36,6 +37,16 @@ class FakeVentasPort : VentasPort {
         falla?.let { throw it }
         return ventas.firstOrNull { it.ventaId == ventaId }
     }
+
+    /** Cuántas veces se pidió la ruta completa — lo afirma el test de "una vez por carga". */
+    var lecturasDeTodas: Int = 0
+        private set
+
+    override suspend fun todasLasVentas(): List<DatosDeVenta> {
+        falla?.let { throw it }
+        lecturasDeTodas += 1
+        return ventas
+    }
 }
 
 class FakePagosPort : PagosPort {
@@ -44,9 +55,17 @@ class FakePagosPort : PagosPort {
 
     val ventasConsultadas: MutableList<Int> = mutableListOf()
 
+    val ventanasConsultadas: MutableList<VentanaCobro> = mutableListOf()
+
     override suspend fun pagosDe(ventaId: Int): List<PagoDelHistorial> {
         ventasConsultadas += ventaId
         return pagos.filter { it.ventaId == ventaId }
+    }
+
+    /** Filtra por la ventana igual que el adaptador Room, para que el fake no mienta. */
+    override suspend fun pagosDelPeriodo(ventana: VentanaCobro): List<PagoDelHistorial> {
+        ventanasConsultadas += ventana
+        return pagos.filter { ventana.contiene(it.fecha) }
     }
 }
 
@@ -54,8 +73,15 @@ class FakeVisitasPort : VisitasPort {
 
     var visitas: List<VisitaDelCliente> = emptyList()
 
+    val ventanasConsultadas: MutableList<VentanaCobro> = mutableListOf()
+
     override suspend fun visitasDelCliente(clienteId: Int): List<VisitaDelCliente> =
         visitas.filter { it.clienteId == clienteId }
+
+    override suspend fun visitasDelPeriodo(ventana: VentanaCobro): List<VisitaDelCliente> {
+        ventanasConsultadas += ventana
+        return visitas.filter { ventana.contiene(it.fecha) }
+    }
 }
 
 class FakeLiquidacionPort : LiquidacionPort {

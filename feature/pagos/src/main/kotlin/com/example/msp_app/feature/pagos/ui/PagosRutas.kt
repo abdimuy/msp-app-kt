@@ -31,6 +31,12 @@ object PagosRutas {
     /** Argumento `DOCTO_CC_ACR_ID` del detalle de venta. */
     const val ARG_VENTA_ID: String = "ventaId"
 
+    /**
+     * La lista de cobranza por cliente (Task 17) — el reemplazo de las dos
+     * listas de hoy. Sin argumentos: es la ruta del cobrador completa.
+     */
+    const val LISTA_CLIENTES: String = "pagos/clientes"
+
     /** Detalle de cliente. Desde la lista y el mapa se entra por aquí (Task 21). */
     const val DETALLE_CLIENTE: String = "pagos/cliente/{$ARG_CLIENTE_ID}"
 
@@ -83,6 +89,30 @@ fun NavGraphBuilder.destinosDePagos(
             onRegistrarVisita = onRegistrarVisita,
             onMasAcciones = onMasAcciones,
             onVerGarantia = onVerGarantia
+        )
+    }
+}
+
+/**
+ * Registra la lista de clientes (Task 17) en el grafo de navegación.
+ *
+ * Va **aparte** de [destinosDePagos] y no dentro: sumarle un séptimo callback a
+ * aquella función la pondría exactamente en el umbral de `LongParameterList`
+ * (7) que detekt aplica a este módulo, y una lista de siete lambdas sueltas ya
+ * es difícil de leer en la llamada. Son dos registros cohesivos en vez de uno
+ * largo; la Task 21, que cablea los puntos de entrada, llama a los dos.
+ */
+fun NavGraphBuilder.destinoDeListaDeClientes(
+    onAtras: () -> Unit,
+    onAbrirCliente: (Int) -> Unit,
+    onAbrirVenta: (Int) -> Unit
+) {
+    composable(route = PagosRutas.LISTA_CLIENTES) {
+        ListaDeClientesScreen(
+            viewModel = hiltViewModel(),
+            onAtras = onAtras,
+            onAbrirCliente = onAbrirCliente,
+            onAbrirVenta = onAbrirVenta
         )
     }
 }
