@@ -1,5 +1,6 @@
 package com.example.msp_app.di
 
+import android.content.Context
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.payment.PaymentDao
@@ -13,9 +14,11 @@ import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
+import com.example.msp_app.services.pedirUbicacionDelPago
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 
 /**
@@ -42,9 +45,16 @@ object PagosPortsModule {
     /**
      * La escritura del abono (Task 18). SIN `@Singleton`: resuelve el usuario
      * autenticado vigente en cada registro, así que sostiene sesión.
+     *
+     * `pedirUbicacion` es el ÚNICO lugar donde el camino nuevo del abono toca
+     * `android.content.Intent`: el adaptador recibe una lambda y por eso se
+     * prueba con un fake, sin arrancar un servicio real. Ver el KDoc de
+     * [RegistroDeAbonoAdapter] para por qué se eligió el servicio y no la
+     * captura inline por puerto.
      */
     @Provides
     fun provideRegistroDeAbonoPort(
+        @ApplicationContext context: Context,
         db: AppDatabase,
         saleDao: SaleDao,
         paymentDao: PaymentDao,
@@ -55,6 +65,7 @@ object PagosPortsModule {
         saleDao = saleDao,
         pagos = PaymentsLocalDataSource(paymentDao, saleDao),
         telemetry = telemetry,
-        clock = clock
+        clock = clock,
+        pedirUbicacion = { pagoId -> pedirUbicacionDelPago(context, pagoId) }
     )
 }

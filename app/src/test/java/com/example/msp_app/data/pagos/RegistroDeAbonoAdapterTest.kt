@@ -19,6 +19,7 @@ import java.time.Instant
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -40,6 +41,12 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
 
     private var usuario: User? = COBRADOR
 
+    /** Los `Payment.ID` con los que se pidio la ubicacion, en orden. */
+    private val ubicacionesPedidas = mutableListOf<String>()
+
+    /** Lo que hace la lambda de ubicacion. Por defecto, grabar y volver. */
+    private var alPedirUbicacion: (String) -> Unit = { ubicacionesPedidas += it }
+
     @Before
     fun setUpAdaptador() = runTest {
         pagos = PaymentsLocalDataSource(db.paymentDao(), db.saleDao())
@@ -52,7 +59,8 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         pagos = pagos,
         telemetry = telemetria,
         clock = clock,
-        traerUsuario = { usuario }
+        traerUsuario = { usuario },
+        pedirUbicacion = { alPedirUbicacion(it) }
     )
 
     @Test
@@ -117,7 +125,8 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             pagos = pagos,
             telemetry = telemetria,
             clock = clock,
-            traerUsuario = { error("firestore caido cobrando a Victoria Flores") }
+            traerUsuario = { error("firestore caido cobrando a Victoria Flores") },
+            pedirUbicacion = { ubicacionesPedidas += it }
         )
 
         assertEquals(ResultadoDelAbono.FALLO_EL_GUARDADO, roto.registrar(abono(dinero("220"))))
@@ -161,7 +170,8 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
                 ),
                 telemetry = telemetria,
                 clock = clock,
-                traerUsuario = { usuario }
+                traerUsuario = { usuario },
+                pedirUbicacion = { ubicacionesPedidas += it }
             )
 
             assertEquals(
@@ -245,6 +255,120 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         )
     }
 
+    // --- La ubicación: se pide, y jamás decide -------------------------------
+
+    /**
+     * **El hallazgo #2 de la ronda 1, medido.**
+     *
+     * `PaymentFactory` deja `LAT`/`LNG` en `0.0` y el mapa del día descarta
+     * exactamente ese punto (`RouteMapScreen`: `lat != 0.0 || lng != 0.0`), así
+     * que sin esta llamada **todo abono del camino nuevo era invisible en el
+     * mapa**. El legado sí la hacía (`NewPaymentDialog` arrancaba
+     * `UpdateLocationService`); el camino que la Task 21 volvió principal, no.
+     *
+     * **Control de reversión:** borrar `pedirUbicacionDelAbono(abono.abonoId)`
+     * de `RegistroDeAbonoAdapter.registrar` pone este test en ROJO.
+     */
+    @Test
+    fun `un abono registrado pide su ubicacion`() = runTest {
+        assertEquals(ResultadoDelAbono.REGISTRADO, adaptador().registrar(abono(dinero("220"))))
+        assertEquals(listOf(ABONO_ID), ubicacionesPedidas)
+    }
+
+    /**
+     * **El id que viaja es el del PAGO, no el de la venta ni el del cliente.**
+     *
+     * `UpdateLocationService` mete ese id en `PaymentDao.updateLocation`, que
+     * filtra `Payment.id`. Este plan ya cazó seis defectos de la familia "un id
+     * donde iba el otro", y sin esta afirmación mandar `ventaId` habría dejado
+     * el mapa igual de vacío y todos los demás tests en verde.
+     */
+    @Test
+    fun `el id que viaja es el del pago, no el de la venta`() = runTest {
+        adaptador().registrar(abono(dinero("220")))
+
+        val pedido = ubicacionesPedidas.single()
+        assertEquals(pagos.getPaymentById(ABONO_ID)!!.ID, pedido)
+        assertNotEquals(VENTA_ID.toString(), pedido)
+        assertNotEquals(CLIENTE_ID.toString(), pedido)
+    }
+
+    /**
+     * **La ubicación nunca bloquea el dinero.** Arrancar un servicio de primer
+     * plano puede lanzar (Android 12+ lo rechaza con la app en segundo plano).
+     * El abono ya está escrito cuando eso pasa: devolver `FALLO_EL_GUARDADO`
+     * haría que la pantalla ofreciera reintentar un cobro que ya ocurrió.
+     *
+     * **Control de reversión:** quitar el `try/catch` de
+     * `pedirUbicacionDelAbono` propaga la excepción al `catch` general y el
+     * resultado se vuelve `FALLO_EL_GUARDADO` — este test se pone ROJO.
+     */
+    @Test
+    fun `si arrancar la ubicacion falla, el abono sigue registrado y se reporta`() = runTest {
+        alPedirUbicacion = { error("startForegroundService rechazado para Victoria Flores") }
+
+        assertEquals(ResultadoDelAbono.REGISTRADO, adaptador().registrar(abono(dinero("220"))))
+        assertEquals("el pago quedo escrito", 220.0, pagos.getPaymentById(ABONO_ID)!!.IMPORTE, 0.0)
+        assertEquals("y el saldo bajo", 1230.0, saldo(), 1e-9)
+
+        val error = telemetria.recorded.single {
+            it.type == TelemetryEventType.ERROR &&
+                it.name == PagosTelemetria.CODE_ABONO_SIN_UBICACION
+        }
+        assertEquals("IllegalStateException", error.props[PagosTelemetria.PROP_EXCEPCION])
+        // Anti-PII: el texto libre de la excepción no viaja (`props` incluye
+        // ya el `message`, así que esta sola afirmación cubre los dos).
+        assertFalse(error.props.values.any { it.contains("Victoria") })
+    }
+
+    @Test
+    fun `un abono que NO se registro no pide ubicacion`() = runTest {
+        usuario = null
+        adaptador().registrar(abono(dinero("220")))
+        assertTrue("sin cobrador no hay pago que ubicar", ubicacionesPedidas.isEmpty())
+
+        usuario = COBRADOR
+        adaptador().registrar(abono(dinero("1451")))
+        assertTrue("un sobrepago bloqueado tampoco", ubicacionesPedidas.isEmpty())
+
+        adaptador().registrar(abono(dinero("220")).copy(ventaId = 999))
+        assertTrue("ni una venta que el telefono no tiene", ubicacionesPedidas.isEmpty())
+    }
+
+    /**
+     * **Control positivo del test de arriba.** El mismo montaje, con el abono
+     * pasando de verdad, SÍ graba una petición: el vacío de arriba es una
+     * ausencia medida, no una lambda que nunca se cableó.
+     */
+    @Test
+    fun `control positivo, el mismo montaje si graba cuando el abono pasa`() = runTest {
+        adaptador().registrar(abono(dinero("220")))
+        assertEquals(1, ubicacionesPedidas.size)
+    }
+
+    /**
+     * Una transacción revertida no puede pedir ubicación de un pago que no
+     * existe: se pide DESPUÉS del commit, no antes.
+     */
+    @Test
+    fun `si la transaccion se revierte no se pide ubicacion`() = runTest {
+        val fragil = RegistroDeAbonoAdapter(
+            db = db,
+            saleDao = db.saleDao(),
+            pagos = PaymentsLocalDataSource(
+                db.paymentDao(),
+                SaleDaoQueTruenaAlDescontar(db.saleDao())
+            ),
+            telemetry = telemetria,
+            clock = clock,
+            traerUsuario = { usuario },
+            pedirUbicacion = { ubicacionesPedidas += it }
+        )
+
+        assertEquals(ResultadoDelAbono.FALLO_EL_GUARDADO, fragil.registrar(abono(dinero("220"))))
+        assertTrue(ubicacionesPedidas.isEmpty())
+    }
+
     // --- Plomería ------------------------------------------------------------
 
     private suspend fun saldo(): Double = db.saleDao().getById(VENTA_ID)!!.SALDO_REST
@@ -315,6 +439,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
 
     private companion object {
         const val VENTA_ID = 77188
+        const val CLIENTE_ID = 5021
         const val ABONO_ID = "abono-de-prueba-0001"
 
         val COBRADOR = User(

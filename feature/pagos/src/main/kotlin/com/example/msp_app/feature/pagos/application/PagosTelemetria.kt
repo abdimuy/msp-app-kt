@@ -124,6 +124,20 @@ object PagosTelemetria {
     const val CODE_ABONO_VENTA_FALLO: String = "pagos_abono_venta_fallo"
 
     /**
+     * El abono quedó escrito pero **no se pudo pedir la ubicación**: arrancar
+     * `UpdateLocationService` falló (Android 12+ rechaza un
+     * `startForegroundService` con la app en segundo plano, y el sistema puede
+     * negarlo por otras razones).
+     *
+     * El dinero NO se toca: el abono ya está en la base y el resultado sigue
+     * siendo [com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono.REGISTRADO].
+     * Lo que se pierde es `LAT`/`LNG`, y con ellas el punto del abono en el mapa
+     * del día — una pérdida silenciosa sería justo lo que la NORMA DE ERRORES
+     * prohíbe, así que lleva código propio y grepeable.
+     */
+    const val CODE_ABONO_SIN_UBICACION: String = "pagos_abono_sin_ubicacion"
+
+    /**
      * La ruta del ticket de pago apunta a un abono que el teléfono no tiene (o a
      * una condonación, que no sale por el puerto de cobranza). El id NO se
      * emite. Es una ruta rota, no una condición normal, y por eso se reporta.

@@ -68,17 +68,43 @@ import kotlinx.coroutines.tasks.await
  * pueda arrastrar el error binario del flotante. Del otro lado de esta línea no
  * hay un solo `Double` de dinero.
  *
- * ## Por qué no arranca `UpdateLocationService`
+ * ## La ubicación: se pide DESPUÉS de escribir, y nunca decide nada
  *
- * `NewPaymentDialog` sí lo arranca para parchar `LAT`/`LNG` después. Ese
- * servicio está listado como defecto conocido del plan (§8.1: sin `try/catch`,
- * revienta con `SecurityException`) y además es el que sostiene el encolado de
- * las visitas (§8.2). Colgar de él el camino nuevo del abono metería
- * exactamente el acoplamiento que esta pantalla existe para no tener: **el pago
- * sigue soberano**. La ubicación se cablea cuando la Task 21 conecte los puntos
- * de entrada y ese defecto esté arreglado; se reporta, no se arrastra.
+ * `PaymentFactory` deja `LAT`/`LNG` en `0.0`, y el mapa del día descarta
+ * justamente ese punto (`RouteMapScreen`: `lat != 0.0 || lng != 0.0`). Sin este
+ * paso, **todo abono tomado por la pantalla nueva sería invisible en el mapa**.
  *
- * [traerUsuario] es inyectable **solo para test** (fakes-only, sin MockK).
+ * El mecanismo es el MISMO que usaba `NewPaymentDialog`
+ * (`pedirUbicacionDelPago` -> `UpdateLocationService`), y se eligió sobre la
+ * captura inline por puerto —lo que hace `RegistrarVisita`— por dos razones
+ * medibles, no de gusto:
+ *
+ * 1. **No retrasa el guardado, ni el regreso.** El servicio corre por su
+ *    cuenta; pedirle la ubicación es una llamada que vuelve de inmediato. Un
+ *    puerto inline tendría que esperar el fix del GPS **dentro** de la
+ *    corrutina del abono, o sea entre el toque y el ticket.
+ * 2. **Es también el único encolado inmediato del abono.**
+ *    `PaymentsLocalDataSource.saveAndEnqueue` no encola nada pese al nombre; el
+ *    `enqueuePendingPaymentsWorker` del pago vive dentro de
+ *    `UpdateLocationHandler`. Con el puerto inline, retirar `NewPaymentDialog`
+ *    habría dejado el abono esperando al barrido de
+ *    `PaymentsPendingSynchronizer` en vez de subir enseguida.
+ *
+ * Las dos objeciones que este KDoc traía contra el servicio **ya no existen**:
+ * la `SecurityException` sin `try/catch` (§8.1) la arregló la Task 3 en
+ * `UpdateLocationHandler`, y el encolado de visitas colgado del servicio (§8.2)
+ * lo cortó la Task 5 — hoy la rama de visita de ese handler no encola nada.
+ *
+ * **El orden importa:** se pide *después* de que la transacción commiteó y
+ * *fuera* de ella, y su fallo se atrapa entero. Arrancar un servicio puede
+ * lanzar (Android 12+ rechaza `startForegroundService` en segundo plano) y un
+ * abono ya escrito no puede volverse `FALLO_EL_GUARDADO` porque el GPS no se
+ * dejó: se emite [PagosTelemetria.CODE_ABONO_SIN_UBICACION] y el resultado
+ * sigue siendo `REGISTRADO`. Misma regla que la foto — **el dinero se guarda
+ * aunque no haya GPS, señal ni permiso**.
+ *
+ * [traerUsuario] y [pedirUbicacion] son inyectables **solo para test**
+ * (fakes-only, sin MockK): ningún test unitario arranca un servicio real.
  */
 class RegistroDeAbonoAdapter(
     private val db: AppDatabase,
@@ -86,7 +112,8 @@ class RegistroDeAbonoAdapter(
     private val pagos: PaymentsLocalDataSource,
     private val telemetry: Telemetry,
     private val clock: AppClock = AppClock.System,
-    private val traerUsuario: suspend () -> User? = ::usuarioAutenticado
+    private val traerUsuario: suspend () -> User? = ::usuarioAutenticado,
+    private val pedirUbicacion: (pagoId: String) -> Unit
 ) : RegistroDeAbonoPort {
 
     @Suppress(
@@ -103,6 +130,9 @@ class RegistroDeAbonoAdapter(
             sobrepasaElSaldo(abono, venta.SALDO_REST) -> ResultadoDelAbono.BLOQUEADO_POR_SEGURIDAD
             else -> {
                 guardar(abono, venta.toDomain(), usuario)
+                // Fuera de la transacción y DESPUÉS del commit: el dinero ya
+                // está escrito y nada de lo que pase aquí puede deshacerlo.
+                pedirUbicacionDelAbono(abono.abonoId)
                 ResultadoDelAbono.REGISTRADO
             }
         }
@@ -143,6 +173,35 @@ class RegistroDeAbonoAdapter(
                 saleId = pago.DOCTO_CC_ACR_ID,
                 newAmount = pago.IMPORTE,
                 newEstadoCobranza = EstadoCobranza.PAGADO
+            )
+        }
+    }
+
+    /**
+     * Pide la ubicación del abono recién escrito. **Total: no propaga nada.**
+     *
+     * El id que viaja es el `Payment.ID` (`AbonoARegistrar.abonoId`), que es lo
+     * que `PaymentDao.updateLocation` filtra — no el `DOCTO_CC_ACR_ID` de la
+     * venta ni el `CLIENTE_ID`.
+     *
+     * Un fallo aquí no puede cambiar el resultado del registro: el abono ya
+     * está en la base y devolver `FALLO_EL_GUARDADO` haría que la pantalla
+     * ofreciera reintentar un cobro que ya ocurrió. Se reporta y se sigue.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // arrancar un servicio puede fallar de varias formas; ninguna toca el dinero.
+    private fun pedirUbicacionDelAbono(pagoId: String) {
+        try {
+            pedirUbicacion(pagoId)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            // Anti-PII: el nombre de la clase de la excepción, nunca su texto.
+            telemetry.error(
+                code = PagosTelemetria.CODE_ABONO_SIN_UBICACION,
+                message = "no se pudo pedir la ubicacion del abono; el abono si quedo escrito",
+                props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
             )
         }
     }
