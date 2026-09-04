@@ -450,10 +450,23 @@ private fun AlertaRoja(titulo: String, detalle: String, extra: (@Composable () -
  * **El abono corto, en ámbar y no en rojo** (Ruling AM, ronda 3 de arreglo).
  *
  * Repone el aviso que `NewPaymentDialog` pintaba y que se perdió al retirarlo,
- * pero en el tono que le toca: `statusPartial` es el token con el que el resto
- * de la app ya pinta `EstadoCuenta.ABONO_PARCIAL`, o sea este mismo desenlace.
- * Cobrar menos de la cuota es normal y frecuente; lo que el aviso compra es que
- * sea **deliberado**, no que parezca un accidente.
+ * pero en el tono que le toca. Cobrar menos de la cuota es normal y frecuente;
+ * lo que el aviso compra es que sea **deliberado**, no que parezca un accidente.
+ *
+ * ## El color: el mismo ámbar que el duplicado, y a propósito (Ruling AN)
+ *
+ * Es `MspTheme.colors.statusPartial`, el MISMO token que usa [BandaDeDuplicado].
+ *
+ * **Ojo con el nombre, que engaña:** pese a llamarse `statusPartial`, ese token
+ * NO es el de `EstadoCuenta.ABONO_PARCIAL` — `EstadoCuentaUi.contenidoDe` pinta
+ * `PARCIAL` con `statusTeal`, y `statusPartial` es en realidad el de `REGRESAS`.
+ * Una versión anterior de este KDoc afirmaba la coherencia contraria y era
+ * falsa; queda escrito aquí para que nadie la vuelva a deducir del nombre.
+ *
+ * Compartir color con el duplicado **no borra** la distinción que el Ruling AM
+ * buscaba, porque esa distinción no vive en el color de la banda: vive en la
+ * **escalada** — cifra roja y CTA `Danger` para lo anómalo, hoja normal para
+ * esto. Inventar un token nuevo sería trabajo de diseño que nadie pidió.
  *
  * Lleva las **dos cifras** porque sin ellas el cobrador ve que algo falta pero
  * no contra qué: "esperado $220 · este abono $150" es la frase entera.

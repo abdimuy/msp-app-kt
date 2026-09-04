@@ -16,9 +16,21 @@ import org.junit.Test
  * nivel que un usuario pueda elegir y no se replica (ver el KDoc de
  * [PagosScreenshotTest]).
  *
- * Son doce goldens: los tres estados que solo dependen del tema van en NORMAL,
- * y la captura —la pantalla donde el cobrador pasa el tiempo y donde el texto
- * grande aprieta de verdad— recorre la matriz completa.
+ * Los tres estados que solo dependen del tema van en NORMAL; la captura —la
+ * pantalla donde el cobrador pasa el tiempo y donde el texto grande aprieta de
+ * verdad— recorre la matriz completa.
+ *
+ * ## El abono corto también recorre la matriz completa (ronda 4 de arreglo)
+ *
+ * `BandaDeAbonoCorto` entró en la ronda 3 y quedó sin un solo pixel de
+ * cobertura: **ninguno** de los cuatro estados de arriba baja de `esperadoHoy`,
+ * así que la banda solo estaba verificada por aserciones de Robolectric. Es una
+ * pantalla de dinero y el contrato de tests del plan pide la matriz.
+ *
+ * Va con las tres escalas y no solo en NORMAL —a diferencia de sus hermanos de
+ * estado— porque es la banda con **dos líneas de texto y dos cifras dentro**, o
+ * sea la que más aprieta cuando la fuente crece. Probarla solo en 1.0 sería
+ * probarla donde no puede fallar.
  */
 class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
 
@@ -58,12 +70,39 @@ class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
     @Test
     fun `monto raro dark`() = estado("monto_raro", AbonoFixtures.enMontoRaro(), dark = true)
 
+    @Test
+    fun `abono corto light normal`() = abonoCorto(dark = false, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `abono corto light grande`() = abonoCorto(dark = false, nivel = FontSizeLevel.GRANDE)
+
+    @Test
+    fun `abono corto light muy grande`() =
+        abonoCorto(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `abono corto dark normal`() = abonoCorto(dark = true, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `abono corto dark grande`() = abonoCorto(dark = true, nivel = FontSizeLevel.GRANDE)
+
+    @Test
+    fun `abono corto dark muy grande`() = abonoCorto(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
+
     private fun captura(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_abono_captura_${tema(dark)}_${sufijoDe(nivel)}",
         dark = dark,
         nivel = nivel
     ) {
         Abono(AbonoFixtures.enCaptura())
+    }
+
+    private fun abonoCorto(dark: Boolean, nivel: FontSizeLevel) = capture(
+        name = "pagos_abono_corto_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Abono(AbonoFixtures.enAbonoCorto())
     }
 
     private fun estado(nombre: String, state: RegistrarAbonoUiState, dark: Boolean) = capture(

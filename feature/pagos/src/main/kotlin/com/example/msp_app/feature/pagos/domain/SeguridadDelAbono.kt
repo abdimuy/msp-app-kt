@@ -78,10 +78,9 @@ enum class RarezaDelAbono(val escalaLaHoja: Boolean) {
      * nunca vio la cifra que reemplazó. Éste es exactamente ese cobrador.
      *
      * **No escala la hoja** (Ruling AM): un abono parcial es un desenlace que el
-     * dominio ya trata como normal. Se dice en ámbar —el mismo tono de
-     * `EstadoCuenta.ABONO_PARCIAL`— y el CTA sigue siendo "confirmar y
-     * registrar". Es la única rareza de este tono junto con... ninguna otra: las
-     * demás sí son anómalas.
+     * dominio ya trata como normal —`EstadoCuenta` distingue *Pagó* de *Abonó
+     * parcial*—, y el CTA sigue siendo "confirmar y registrar". Es hoy la única
+     * rareza de este tono; las demás sí son anómalas.
      */
     ABAJO_DE_LO_ESPERADO(escalaLaHoja = false),
 
