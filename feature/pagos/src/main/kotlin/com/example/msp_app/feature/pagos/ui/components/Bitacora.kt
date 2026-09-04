@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -15,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
@@ -96,17 +98,36 @@ fun FilaDeContacto(contacto: ContactoDeCobranza, modifier: Modifier = Modifier) 
     }
 }
 
-/** El "ver los N contactos" / "ver los N abonos" del mock (`.allof`). */
+/**
+ * El "ver los N contactos" / "ver los N abonos" del mock (`.allof`).
+ *
+ * [ALTO_TOCABLE] es piso, no relleno: con el padding solo, la fila medía ~48dp
+ * a `FontSizeLevel.NORMAL` —debajo del piso de 50px del plan— porque el texto
+ * es `captionStrong`. Un `heightIn` lo garantiza a cualquier escala de fuente,
+ * que es lo que el padding no puede prometer.
+ */
 @Composable
-fun VerTodos(texto: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun VerTodos(
+    texto: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = MspTheme.colors.surface
+) {
     androidx.compose.material3.Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = ALTO_TOCABLE),
         shape = MspTheme.shapes.control,
-        color = MspTheme.colors.surface
+        // [color] existe para cuando la fila va DENTRO de una tarjeta: `surface`
+        // sobre `surface` es un borde invisible y la fila deja de leerse como
+        // tocable. Quien la anide pasa `surface2`.
+        color = color
     ) {
         Box(
-            modifier = Modifier.padding(MspTheme.spacing.md),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(MspTheme.spacing.md),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -117,3 +138,10 @@ fun VerTodos(texto: String, onClick: () -> Unit, modifier: Modifier = Modifier) 
         }
     }
 }
+
+/**
+ * Piso de alto de cualquier fila tocable de estas pantallas. El plan pide
+ * >=50px; `MspSpacing.touchTarget` ya defiende el acuerdo por el extremo alto
+ * (56dp) y es el mismo valor que usan los botones del dock.
+ */
+private val ALTO_TOCABLE = 56.dp

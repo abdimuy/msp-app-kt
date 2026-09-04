@@ -56,7 +56,8 @@ fun NavGraphBuilder.destinosDePagos(
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int) -> Unit,
-    onMasAcciones: () -> Unit
+    onMasAcciones: () -> Unit,
+    onVerGarantia: (String) -> Unit
 ) {
     composable(
         route = PagosRutas.DETALLE_CLIENTE,
@@ -80,7 +81,8 @@ fun NavGraphBuilder.destinosDePagos(
             onAtras = onAtras,
             onRegistrarAbono = onRegistrarAbono,
             onRegistrarVisita = onRegistrarVisita,
-            onMasAcciones = onMasAcciones
+            onMasAcciones = onMasAcciones,
+            onVerGarantia = onVerGarantia
         )
     }
 }

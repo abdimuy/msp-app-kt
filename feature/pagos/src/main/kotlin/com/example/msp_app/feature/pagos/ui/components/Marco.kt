@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,7 +26,12 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 /** `testTag` del botón "atrás". */
 const val ATRAS_TAG: String = "pagos_atras"
 
-/** `testTag` del "⋯" — donde vive la condonación, cuya lógica NO se toca. */
+/**
+ * `testTag` del "⋯" del dock — donde vive la condonación, cuya lógica NO se
+ * toca. Lo lleva **un solo nodo** en toda la pantalla: dos nodos con el mismo
+ * tag hacen que `onNodeWithTag` truene por ambigüedad, y además la condonación
+ * es dinero y no debe tener dos puertas.
+ */
 const val MAS_ACCIONES_TAG: String = "pagos_mas_acciones"
 
 /** `testTag` del CTA primario del dock. */
@@ -39,9 +43,20 @@ const val CTA_VISITA_TAG: String = "pagos_cta_visita"
 /** Alto mínimo tocable. El plan pide >=50px; el design system ya pide 56dp. */
 private val TOQUE = 56.dp
 
-/** La fila de navegación del mock (`.nav`): atrás a la izquierda, "⋯" a la derecha. */
+/**
+ * La fila de navegación del mock (`.nav`): solo "atrás".
+ *
+ * **No lleva "⋯".** El `.nav` del mock trae atrás/ojo/menú, no el "⋯" — ese vive
+ * en el dock y en ningún otro lugar. Tenerlo aquí también hacía dos puertas a la
+ * condonación, que el diseño no tiene, y ponía el mismo `testTag` en dos nodos
+ * compuestos a la vez (`onNodeWithTag` truena por ambigüedad).
+ *
+ * El ojo de privacidad y el menú del mock no se cablean aquí: el primero es una
+ * preferencia global que hoy vive en el reporte de cobranza y el segundo es
+ * navegación de la app, ninguno propiedad de esta pantalla.
+ */
 @Composable
-fun BarraDeDetalle(onAtras: () -> Unit, onMasAcciones: () -> Unit, modifier: Modifier = Modifier) {
+fun BarraDeDetalle(onAtras: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -55,12 +70,6 @@ fun BarraDeDetalle(onAtras: () -> Unit, onMasAcciones: () -> Unit, modifier: Mod
             modifier = Modifier.testTag(ATRAS_TAG)
         )
         Box(modifier = Modifier.weight(1f))
-        BotonCircular(
-            icono = Icons.Filled.MoreVert,
-            descripcion = "más acciones",
-            onClick = onMasAcciones,
-            modifier = Modifier.testTag(MAS_ACCIONES_TAG)
-        )
     }
 }
 

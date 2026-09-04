@@ -3,16 +3,20 @@ package com.example.msp_app.feature.pagos.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
+import com.example.msp_app.feature.pagos.ui.components.TARJETA_DE_GARANTIA_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -71,8 +75,30 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
             onRegistrarVisita = {},
             onMasAcciones = {},
             onUsarLiquidacion = {},
-            onVerAbonos = {}
+            onVerAbonos = {},
+            onVerGarantia = {}
         )
+    }
+
+    @Test
+    fun `las filas tocables respetan el piso de 50px del plan`() {
+        ventaA(FontSizeLevel.NORMAL)
+        val fila = bordesDe("ver los 6 abonos")
+        assertTrue(
+            "la fila mide " + (fila.bottom - fila.top) + ", bajo el piso de " + PISO_TOCABLE,
+            (fila.bottom - fila.top) >= PISO_TOCABLE
+        )
+    }
+
+    /**
+     * `testTag` de la tarjeta de garantía: la sección existe y se pinta debajo
+     * de los productos, con el mock como referencia.
+     */
+    @Test
+    fun `la garantia de la venta se pinta`() {
+        ventaA(FontSizeLevel.NORMAL)
+        composeTestRule.onNodeWithTag(TARJETA_DE_GARANTIA_TAG).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("notificada").performScrollTo().assertIsDisplayed()
     }
 
     private fun bordesDe(etiqueta: String): DpRect =
@@ -118,5 +144,14 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
         )
         assertEquals(abonos.left, parcialidad.left)
         assertEquals(abonos.left, frecuencia.left)
+    }
+
+    private companion object {
+        /**
+         * El piso de toque del plan: ">=50px". Se mide sobre el alto real del
+         * nodo, que en este entorno SÍ es determinista (es una restricción de
+         * layout, no una medición de texto — ver el KDoc de arriba).
+         */
+        val PISO_TOCABLE = 50.dp
     }
 }

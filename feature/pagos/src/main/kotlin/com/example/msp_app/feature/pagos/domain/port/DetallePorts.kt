@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.domain.port
 
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
+import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
@@ -42,6 +43,17 @@ interface VisitasPort {
 
     /** Las visitas de [clienteId], de la más reciente a la más vieja. */
     suspend fun visitasDelCliente(clienteId: Int): List<VisitaDelCliente>
+}
+
+/** La garantía abierta de una venta. */
+interface GarantiasPort {
+
+    /**
+     * La garantía ligada al crédito [creditoId] (`DOCTO_CC_ID`), o `null` si esa
+     * venta no tiene ninguna. Solo lectura sobre la tabla `garantias`, que ya
+     * existe: esta tarea no toca la lógica de garantías.
+     */
+    suspend fun garantiaDe(creditoId: Int): GarantiaDeLaVenta?
 }
 
 /**

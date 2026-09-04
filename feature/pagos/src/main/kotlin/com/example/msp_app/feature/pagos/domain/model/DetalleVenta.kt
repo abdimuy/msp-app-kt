@@ -33,7 +33,8 @@ data class DetalleVenta(
     val estado: EstadoDelPeriodo,
     val productos: List<ProductoDeVenta>,
     val historial: HistorialDePagos,
-    val liquidacion: Liquidacion?
+    val liquidacion: Liquidacion?,
+    val garantia: GarantiaDeLaVenta?
 )
 
 /** Una línea de la sección "productos". */

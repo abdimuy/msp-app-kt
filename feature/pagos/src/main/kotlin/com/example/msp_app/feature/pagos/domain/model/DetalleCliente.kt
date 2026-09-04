@@ -27,6 +27,19 @@ data class DetalleCliente(
     val direccion: String,
     val zona: String,
     val aval: String,
+    /**
+     * A quién llama el cobrador cuando el cliente no contesta.
+     *
+     * **`null` hoy, siempre, y no es un olvido:** no existe la columna. `sales`
+     * trae `AVAL_O_RESPONSABLE` (el nombre) y `TELEFONO` (el del CLIENTE), y el
+     * DTO de cobranza (`VentaDto.aval_o_responsable`) tampoco trae teléfono —
+     * verificado con `grep -rn "AVAL\|aval"` sobre `:core:database` y sobre
+     * `data/api/services/cobranza`, que es la misma consulta que SÍ encontró el
+     * nombre. La fila no se pinta mientras el dato no exista, en vez de
+     * rellenarla con el teléfono del cliente, que ya está en el encabezado y no
+     * es a quien se llama.
+     */
+    val telefonoAval: String?,
     val saldoTotal: Money,
     val ventas: List<VentaDelCliente>,
     val contactos: List<ContactoDeCobranza>,

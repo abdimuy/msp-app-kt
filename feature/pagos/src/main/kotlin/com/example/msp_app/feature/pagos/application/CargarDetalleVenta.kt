@@ -10,6 +10,7 @@ import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.HistorialDePagos
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
+import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import javax.inject.Inject
 
@@ -21,6 +22,7 @@ import javax.inject.Inject
  */
 class CargarDetalleVenta @Inject constructor(
     private val ventasPort: VentasPort,
+    private val garantiasPort: GarantiasPort,
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
     private val clock: AppClock
 ) {
@@ -74,7 +76,8 @@ class CargarDetalleVenta @Inject constructor(
                 meses = RielDePagos.de(pagos),
                 totalPagos = pagos.size
             ),
-            liquidacion = cobranza.liquidaciones[ventaId]
+            liquidacion = cobranza.liquidaciones[ventaId],
+            garantia = garantiasPort.garantiaDe(venta.creditoId)
         )
     }
 

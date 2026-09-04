@@ -127,6 +127,7 @@ private fun Venta(detalle: com.example.msp_app.feature.pagos.domain.model.Detall
         onRegistrarVisita = {},
         onMasAcciones = {},
         onUsarLiquidacion = {},
-        onVerAbonos = {}
+        onVerAbonos = {},
+        onVerGarantia = {}
     )
 }

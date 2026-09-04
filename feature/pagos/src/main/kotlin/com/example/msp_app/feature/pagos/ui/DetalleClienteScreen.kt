@@ -110,7 +110,6 @@ fun DetalleClienteContent(
                     detalle = detalle,
                     onAtras = onAtras,
                     onAbrirVenta = onAbrirVenta,
-                    onMasAcciones = onMasAcciones,
                     onUsarLiquidacion = onUsarLiquidacion,
                     onVerContactos = onVerContactos
                 )
@@ -132,7 +131,6 @@ private fun CuerpoDelCliente(
     detalle: DetalleCliente,
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
-    onMasAcciones: () -> Unit,
     onUsarLiquidacion: () -> Unit,
     onVerContactos: () -> Unit
 ) {
@@ -142,7 +140,7 @@ private fun CuerpoDelCliente(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.md)
     ) {
-        BarraDeDetalle(onAtras = onAtras, onMasAcciones = onMasAcciones)
+        BarraDeDetalle(onAtras = onAtras)
         EncabezadoDelCliente(detalle)
         Spacer(Modifier.height(MspTheme.spacing.md))
         TarjetaDeSaldo(
@@ -191,7 +189,12 @@ private fun CuerpoDelCliente(
         LabelDeSeccion("datos del cliente")
         FilaClaveValor("zona", detalle.zona)
         FilaClaveValor("aval o responsable", detalle.aval)
-        FilaClaveValor("teléfono", detalle.telefono)
+        // El mock pide el teléfono DEL AVAL, no el del cliente: ese ya está en el
+        // encabezado, y a quien el cobrador llama cuando el cliente no contesta es
+        // al aval. Se pinta solo cuando el dato existe (hoy no existe la columna,
+        // ver `DetalleCliente.telefonoAval`); una fila permanentemente en "—" es
+        // el mismo ruido que se quitó del chip de saldo.
+        detalle.telefonoAval?.let { FilaClaveValor("teléfono del aval", it) }
         FilaClaveValor("dirección", detalle.direccion)
         Spacer(Modifier.height(MspTheme.spacing.lg))
     }

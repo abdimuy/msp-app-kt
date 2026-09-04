@@ -93,6 +93,21 @@ data class EstadoVisual(
  * Cuando la Task 19 capture la promesa estructurada, una promesa con fecha
  * empezará a existir de verdad y caerá sola en [TratoDelEstado.DIFERIDO] sin
  * tocar una línea de aquí.
+ *
+ * ## La MISMA regla, una rama más allá: [EstadoCuenta.CITA_A_UNA_HORA]
+ *
+ * Una cita sin hora tiene exactamente la misma forma que una promesa sin
+ * fecha: "quedaron de verse" saca la cuenta del trabajo de la semana, y sin
+ * hora no hay nada a qué sujetar al cliente. Un estado que se llama *cita a una
+ * hora* y llega sin hora no es una cita — es un pendiente.
+ *
+ * Hoy ese estado es inalcanzable (ningún literal de `TIPO_VISITA` mapea a él,
+ * ver `EstadoCuenta`), pero la Task 19 lo **arma**: captura la cita
+ * estructurada y las columnas `CITA_FECHA`/`CITA_HORA` ya existen desde la
+ * migración de la Task 26, con `CITA_HORA` **nullable** justamente porque el
+ * mock contempla "otro día sin hora". Dejar la rama sin guarda sería plantar el
+ * defecto que esta tarea acaba de quitar del lado de la promesa, con fecha de
+ * activación conocida.
  */
 object EstadoCuentaUi {
 
@@ -108,7 +123,9 @@ object EstadoCuentaUi {
         EstadoCuenta.PROMETIO_PROXIMA ->
             if (estado.fechaPromesa == null) TratoDelEstado.REGRESAS else TratoDelEstado.DIFERIDO
         EstadoCuenta.SE_NEGO -> TratoDelEstado.ESCALAR
-        EstadoCuenta.CITA_A_UNA_HORA -> TratoDelEstado.CITA
+        // La MISMA guarda que la promesa: sin hora no hay cita que sostenga la espera.
+        EstadoCuenta.CITA_A_UNA_HORA ->
+            if (estado.horaCita == null) TratoDelEstado.REGRESAS else TratoDelEstado.CITA
         EstadoCuenta.NO_ESTABA -> TratoDelEstado.NADIE
         EstadoCuenta.SIN_TOCAR -> TratoDelEstado.SIN_TRABAJAR
     }
@@ -117,6 +134,9 @@ object EstadoCuentaUi {
      * ¿La cuenta sigue pidiendo trabajo esta semana? Solo [TratoDelEstado.PAGADO]
      * (ya cobró), [TratoDelEstado.DIFERIDO] (hay fecha) y [TratoDelEstado.CITA]
      * (hay hora acordada) dicen que no.
+     *
+     * Los tres "no" descansan en un dato que existe: dinero cobrado, una fecha,
+     * una hora. Ninguno se alcanza por la sola presencia de un estado.
      */
     fun requiereAtencion(trato: TratoDelEstado): Boolean = when (trato) {
         TratoDelEstado.PAGADO, TratoDelEstado.DIFERIDO, TratoDelEstado.CITA -> false
@@ -127,11 +147,15 @@ object EstadoCuentaUi {
     fun etiquetaDe(estado: EstadoDelPeriodo): String = when (tratoDe(estado)) {
         TratoDelEstado.PAGADO -> "pagó esta semana"
         TratoDelEstado.PARCIAL -> "abonó parcial"
-        TratoDelEstado.REGRESAS ->
-            if (estado.estado == EstadoCuenta.PROMETIO_PROXIMA) "prometió sin fecha" else "visité, vuelvo"
+        TratoDelEstado.REGRESAS -> when (estado.estado) {
+            EstadoCuenta.PROMETIO_PROXIMA -> "prometió sin fecha"
+            EstadoCuenta.CITA_A_UNA_HORA -> "cita sin hora"
+            else -> "visité, vuelvo"
+        }
         TratoDelEstado.DIFERIDO -> "prometió el " + DIA_Y_MES.format(estado.fechaPromesa)
         TratoDelEstado.ESCALAR -> "se negó"
-        TratoDelEstado.CITA -> estado.horaCita?.let { "cita " + HORA.format(it) } ?: "cita sin hora"
+        // Aquí `horaCita` ya no puede ser null: sin hora, `tratoDe` mandó a REGRESAS.
+        TratoDelEstado.CITA -> "cita " + HORA.format(estado.horaCita)
         TratoDelEstado.NADIE -> "no estaba"
         TratoDelEstado.SIN_TRABAJAR -> "sin trabajar"
     }
@@ -140,8 +164,11 @@ object EstadoCuentaUi {
     fun detalleDe(estado: EstadoDelPeriodo): String = when (tratoDe(estado)) {
         TratoDelEstado.PAGADO -> "no hace falta volver"
         TratoDelEstado.PARCIAL -> "falta por confirmar"
-        TratoDelEstado.REGRESAS ->
-            if (estado.estado == EstadoCuenta.PROMETIO_PROXIMA) "sin fecha, regresas" else "regresas esta semana"
+        TratoDelEstado.REGRESAS -> when (estado.estado) {
+            EstadoCuenta.PROMETIO_PROXIMA -> "sin fecha, regresas"
+            EstadoCuenta.CITA_A_UNA_HORA -> "sin hora, regresas"
+            else -> "regresas esta semana"
+        }
         TratoDelEstado.DIFERIDO -> "no cae esta semana"
         TratoDelEstado.ESCALAR -> "escalar esta cuenta"
         TratoDelEstado.CITA -> "quedaron de verse"
@@ -158,8 +185,10 @@ object EstadoCuentaUi {
     fun iconoDe(estado: EstadoDelPeriodo): ImageVector = when (tratoDe(estado)) {
         TratoDelEstado.PAGADO -> PagosIconos.Pago
         TratoDelEstado.PARCIAL -> PagosIconos.Parcial
-        TratoDelEstado.REGRESAS ->
-            if (estado.estado == EstadoCuenta.PROMETIO_PROXIMA) PagosIconos.PromesaSinFecha else PagosIconos.Vuelvo
+        TratoDelEstado.REGRESAS -> when (estado.estado) {
+            EstadoCuenta.PROMETIO_PROXIMA, EstadoCuenta.CITA_A_UNA_HORA -> PagosIconos.SinDatoQueLoSostenga
+            else -> PagosIconos.Vuelvo
+        }
         TratoDelEstado.DIFERIDO -> PagosIconos.Prometio
         TratoDelEstado.ESCALAR -> PagosIconos.Negado
         TratoDelEstado.CITA -> PagosIconos.Cita

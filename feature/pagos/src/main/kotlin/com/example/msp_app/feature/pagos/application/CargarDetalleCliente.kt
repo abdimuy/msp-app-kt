@@ -37,6 +37,7 @@ class CargarDetalleCliente @Inject constructor(
             direccion = primera.direccion,
             zona = primera.zona,
             aval = primera.aval,
+            telefonoAval = primera.telefonoAval,
             saldoTotal = Money.sum(cobranza.ventas.map { it.saldo }),
             ventas = cobranza.ventas.map { it.aVentaDelCliente(cobranza.estados[it.ventaId]) },
             contactos = contactos.take(CONTACTOS_VISIBLES),

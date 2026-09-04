@@ -54,6 +54,10 @@ private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta = DatosDeVenta(
     direccion = listOf(CALLE, CIUDAD).filter { it.isNotBlank() }.joinToString(", "),
     zona = ZONA_NOMBRE,
     aval = AVAL_O_RESPONSABLE,
+    // No hay columna de teléfono del aval en el schema ni en el DTO de cobranza;
+    // ver el KDoc de `DetalleCliente.telefonoAval`. No se sustituye por TELEFONO,
+    // que es el del cliente.
+    telefonoAval = null,
     notas = NOTAS,
     descripcion = PRODUCTOS.orEmpty(),
     fechaVenta = AppTime.parseWireFormatOrNull(FECHA)?.let(AppTime::toBusinessDate),

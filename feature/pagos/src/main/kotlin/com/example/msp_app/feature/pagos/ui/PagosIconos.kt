@@ -46,10 +46,13 @@ internal object PagosIconos {
     val Prometio: ImageVector = Icons.Filled.DateRange
 
     /**
-     * Prometió SIN fecha → advertencia. No es el calendario a propósito: una
-     * promesa sin fecha no es una cita, es un pendiente.
+     * Prometió sin fecha, o quedaron de verse sin hora → advertencia.
+     *
+     * No es el calendario ni el reloj a propósito: un compromiso al que le
+     * falta el dato que lo sostiene no es un compromiso, es un pendiente — y
+     * tiene que verse distinto de los dos estados que sí lo tienen.
      */
-    val PromesaSinFecha: ImageVector = Icons.Filled.Warning
+    val SinDatoQueLoSostenga: ImageVector = Icons.Filled.Warning
 
     /** Se negó → tache. De `material-icons-core`. */
     val Negado: ImageVector = Icons.Filled.Clear

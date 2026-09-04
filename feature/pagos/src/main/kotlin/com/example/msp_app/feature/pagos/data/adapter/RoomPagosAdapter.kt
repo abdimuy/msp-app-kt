@@ -5,6 +5,8 @@ import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
@@ -24,21 +26,40 @@ import com.example.msp_app.feature.pagos.domain.port.PagosPort
  * `Money.of(Double)` (que usa `BigDecimal.valueOf`, nunca `BigDecimal(double)`).
  */
 class RoomPagosAdapter(
-    private val paymentDao: PaymentDao
+    private val paymentDao: PaymentDao,
+    private val telemetry: Telemetry
 ) : PagosPort {
 
-    override suspend fun pagosDe(ventaId: Int): List<PagoDelHistorial> =
-        paymentDao.getPaymentsBySaleId(ventaId)
+    override suspend fun pagosDe(ventaId: Int): List<PagoDelHistorial> {
+        val delaCobranza = paymentDao.getPaymentsBySaleId(ventaId)
             .filter { it.FORMA_COBRO_ID in VentanaCobro.FORMAS_COBRO_COBRANZA }
-            .mapNotNull { it.aPagoDelHistorial() }
-            .sortedByDescending { it.fecha }
+        val legibles = delaCobranza.mapNotNull { it.aPagoDelHistorial() }
+        reportarLosQueSeCayeron(delaCobranza.size - legibles.size)
+        return legibles.sortedByDescending { it.fecha }
+    }
+
+    /**
+     * Un abono que se cae del historial **se cae también del subtotal del mes**
+     * en el riel: es dinero desapareciendo de una pantalla de dinero, aunque no
+     * haya un `catch` de por medio. Se reporta con conteo, sin PII — ni el id
+     * del pago, ni la venta, ni el importe, ni la fecha cruda.
+     */
+    private fun reportarLosQueSeCayeron(cuantos: Int) {
+        if (cuantos <= 0) return
+        telemetry.error(
+            code = PagosTelemetria.CODE_ABONO_SIN_FECHA_LEGIBLE,
+            message = "FECHA_HORA_PAGO no se pudo parsear; el abono no entra al historial ni al subtotal del mes",
+            props = mapOf(PagosTelemetria.PROP_OCURRENCIAS to cuantos.toString())
+        )
+    }
 }
 
 /**
  * Un pago con `FECHA_HORA_PAGO` impresentable se descarta del historial en vez
  * de aterrizar en una fecha inventada: el riel agrupa por mes y un pago con
  * fecha falsa se pintaría en el mes equivocado, que es peor que no pintarlo.
- * No hay `catch` aquí — `parseWireFormatOrNull` devuelve `null` por contrato.
+ * No hay `catch` aquí —`parseWireFormatOrNull` devuelve `null` por contrato—
+ * pero el descarte NO es silencioso: lo cuenta y lo emite [RoomPagosAdapter].
  */
 private fun PaymentEntity.aPagoDelHistorial(): PagoDelHistorial? {
     val fecha = AppTime.parseWireFormatOrNull(FECHA_HORA_PAGO) ?: return null

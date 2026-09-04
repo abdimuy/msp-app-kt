@@ -34,6 +34,7 @@ import com.example.msp_app.feature.pagos.ui.components.RielDeMeses
 import com.example.msp_app.feature.pagos.ui.components.RitmoDeSemanas
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
 import com.example.msp_app.feature.pagos.ui.components.Tarjeta
+import com.example.msp_app.feature.pagos.ui.components.TarjetaDeGarantia
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeLiquidacion
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeSaldo
 import com.example.msp_app.feature.pagos.ui.components.TresDatos
@@ -56,6 +57,7 @@ fun DetalleVentaScreen(
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int) -> Unit,
     onMasAcciones: () -> Unit,
+    onVerGarantia: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -67,6 +69,7 @@ fun DetalleVentaScreen(
         onMasAcciones = onMasAcciones,
         onUsarLiquidacion = { onRegistrarAbono(viewModel.ventaId) },
         onVerAbonos = onMasAcciones,
+        onVerGarantia = onVerGarantia,
         modifier = modifier
     )
 }
@@ -87,6 +90,7 @@ fun DetalleVentaContent(
     onMasAcciones: () -> Unit,
     onUsarLiquidacion: () -> Unit,
     onVerAbonos: () -> Unit,
+    onVerGarantia: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -102,9 +106,9 @@ fun DetalleVentaContent(
                 else -> CuerpoDeLaVenta(
                     detalle = detalle,
                     onAtras = onAtras,
-                    onMasAcciones = onMasAcciones,
                     onUsarLiquidacion = onUsarLiquidacion,
-                    onVerAbonos = onVerAbonos
+                    onVerAbonos = onVerAbonos,
+                    onVerGarantia = onVerGarantia
                 )
             }
         }
@@ -123,9 +127,9 @@ fun DetalleVentaContent(
 private fun CuerpoDeLaVenta(
     detalle: DetalleVenta,
     onAtras: () -> Unit,
-    onMasAcciones: () -> Unit,
     onUsarLiquidacion: () -> Unit,
-    onVerAbonos: () -> Unit
+    onVerAbonos: () -> Unit,
+    onVerGarantia: (String) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -133,7 +137,7 @@ private fun CuerpoDeLaVenta(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.md)
     ) {
-        BarraDeDetalle(onAtras = onAtras, onMasAcciones = onMasAcciones)
+        BarraDeDetalle(onAtras = onAtras)
         Row(
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
@@ -207,6 +211,11 @@ private fun CuerpoDeLaVenta(
                     valor = producto.importe?.let { formatMoneyMxn(it.amount) } ?: SIN_DATO
                 )
             }
+        }
+
+        detalle.garantia?.let { garantia ->
+            LabelDeSeccion("garantía")
+            TarjetaDeGarantia(garantia = garantia, onVerGarantia = onVerGarantia)
         }
 
         LabelDeSeccion("datos de la venta")

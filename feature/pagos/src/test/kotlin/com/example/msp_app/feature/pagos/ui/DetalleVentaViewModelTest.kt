@@ -9,6 +9,7 @@ import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
@@ -41,6 +42,7 @@ class DetalleVentaViewModelTest {
     private val pagosPort = FakePagosPort()
     private val visitasPort = FakeVisitasPort()
     private val liquidacionPort = FakeLiquidacionPort()
+    private val garantiasPort = FakeGarantiasPort()
     private val periodoPort = FakePeriodoDeCobroPort()
 
     @Before
@@ -59,6 +61,7 @@ class DetalleVentaViewModelTest {
         savedStateHandle = SavedStateHandle(mapOf(PagosRutas.ARG_VENTA_ID to ventaId)),
         cargarDetalleVenta = CargarDetalleVenta(
             ventasPort = ventasPort,
+            garantiasPort = garantiasPort,
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,

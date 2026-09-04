@@ -32,6 +32,23 @@ object PagosTelemetria {
      */
     const val CODE_CITA_HORA_INVALIDA: String = "pagos_cita_hora_invalida"
 
+    /**
+     * Un abono con `FECHA_HORA_PAGO` impresentable. **Se cae del historial**, y
+     * con él del subtotal del mes en el riel — o sea, desaparece dinero de una
+     * pantalla de dinero. No es un `catch` (`parseWireFormatOrNull` devuelve
+     * `null` por contrato) pero es exactamente lo que la NORMA DE ERRORES
+     * existe para que no pase en silencio.
+     */
+    const val CODE_ABONO_SIN_FECHA_LEGIBLE: String = "pagos_abono_sin_fecha_legible"
+
+    /**
+     * La fecha de vigencia que devolvió el cálculo de liquidación no se pudo
+     * leer. La cifra se conserva (es lo que el cobrador va a cobrar); lo que se
+     * pierde es el "vigente hasta". Se emite porque una liquidación sin
+     * vigencia visible es una oferta sin caducidad, y eso es dinero.
+     */
+    const val CODE_LIQUIDACION_VIGENCIA_ILEGIBLE: String = "pagos_liquidacion_vigencia_ilegible"
+
     /** Clave estática de `props` con el conteo de ocurrencias de una incidencia. */
     const val PROP_OCURRENCIAS: String = "ocurrencias"
 

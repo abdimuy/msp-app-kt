@@ -10,7 +10,9 @@ import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
+import com.example.msp_app.feature.pagos.domain.model.EstadoDeGarantia
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
+import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.HistorialDePagos
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
@@ -125,6 +127,15 @@ object PagosFixtures {
         )
     }
 
+    /** La garantía del mock: refrigerador reportado el 18 de agosto, notificada. */
+    fun garantiaDeLaVenta(): GarantiaDeLaVenta = GarantiaDeLaVenta(
+        garantiaId = "GAR-2026-0188",
+        producto = "Refrigerador Mabe 14'",
+        reportadaEl = LocalDate.of(2026, 8, 18),
+        falla = "No enfría en el congelador",
+        estado = EstadoDeGarantia.NOTIFICADA
+    )
+
     fun liquidacionDeLaVenta(): Liquidacion = Liquidacion(
         monto = dinero("1290"),
         vigenteHasta = LocalDate.of(2026, 9, 6),
@@ -147,6 +158,7 @@ object PagosFixtures {
         direccion = "C. Hidalgo 214, Centro",
         zona = "ruta 25 · centro",
         aval = "Rosa María Ramírez",
+        telefonoAval = "238 118 4402",
         saldoTotal = dinero("3550"),
         ventas = listOf(
             venta(
@@ -246,7 +258,8 @@ object PagosFixtures {
             estado = estado,
             productos = listOf(ProductoDeVenta("Refrigerador Mabe 14'", total)),
             historial = historial(),
-            liquidacion = liquidacionDeLaVenta()
+            liquidacion = liquidacionDeLaVenta(),
+            garantia = garantiaDeLaVenta()
         )
     }
 
@@ -282,6 +295,7 @@ object PagosFixtures {
         direccion = "C. Hidalgo 214, Centro",
         zona = "ruta 25 · centro",
         aval = "Rosa María Ramírez",
+        telefonoAval = "238 118 4402",
         notas = "Trabaja de noche — antes de las 10 am",
         descripcion = descripcion,
         fechaVenta = LocalDate.of(2026, 5, 4),

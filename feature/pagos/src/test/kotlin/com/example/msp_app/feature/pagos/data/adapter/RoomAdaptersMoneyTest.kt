@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.data.adapter
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.database.entities.SaleEntity
@@ -9,8 +10,10 @@ import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
+import com.example.msp_app.feature.pagos.domain.model.EstadoDeGarantia
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -39,8 +42,9 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
 
     private val telemetria = RecordingTelemetry()
     private val ventas by lazy { RoomVentasAdapter(db.saleDao()) }
-    private val pagos by lazy { RoomPagosAdapter(db.paymentDao()) }
+    private val pagos by lazy { RoomPagosAdapter(db.paymentDao(), telemetria) }
     private val visitas by lazy { RoomVisitasAdapter(db.visitDao(), telemetria) }
+    private val garantias by lazy { RoomGarantiasAdapter(db.guaranteeDao()) }
 
     // `restante`/`bruto`: son los `Double` crudos del schema inmutable. Los nombres
     // evitan a propósito el vocabulario de dinero que `NoDoubleForMoney` vigila —
@@ -165,6 +169,83 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
             setOf(MetodoDeCobro.EFECTIVO, MetodoDeCobro.TRANSFERENCIA),
             historial.map { it.metodo }.toSet()
         )
+    }
+
+    @Test
+    fun `un abono con fecha ilegible se cae del historial pero NO en silencio`() = runTest {
+        db.saleDao().insertAll(listOf(venta()))
+        db.paymentDao().saveAll(
+            listOf(
+                pago("p1", EFECTIVO, 350.0),
+                pago("p2", EFECTIVO, 700.0).copy(FECHA_HORA_PAGO = "el martes pasado")
+            )
+        )
+        val historial = pagos.pagosDe(VENTA)
+        assertEquals(1, historial.size)
+        val error = telemetria.recorded.single {
+            it.type == TelemetryEventType.ERROR && it.name == PagosTelemetria.CODE_ABONO_SIN_FECHA_LEGIBLE
+        }
+        assertEquals("1", error.props[PagosTelemetria.PROP_OCURRENCIAS])
+        // Anti-PII: ni el id del pago, ni el importe, ni la fecha cruda viajan.
+        val texto = error.name + error.props.entries.joinToString { it.key + it.value }
+        assertTrue(
+            texto,
+            !texto.contains("p2") && !texto.contains("700") && !texto.contains("martes")
+        )
+    }
+
+    @Test
+    fun `sin abonos ilegibles no se emite nada`() = runTest {
+        db.saleDao().insertAll(listOf(venta()))
+        db.paymentDao().saveAll(listOf(pago("p1", EFECTIVO, 350.0)))
+        assertEquals(1, pagos.pagosDe(VENTA).size)
+        assertTrue(telemetria.recorded.none { it.type == TelemetryEventType.ERROR })
+    }
+
+    @Test
+    fun `la garantia de la venta se lee por DOCTO_CC_ID`() = runTest {
+        db.guaranteeDao().insertGuarantees(
+            GuaranteeEntity(
+                EXTERNAL_ID = "GAR-2026-0188",
+                DOCTO_CC_ID = CREDITO,
+                ESTADO = "NOTIFICADO",
+                DESCRIPCION_FALLA = "No enfria en el congelador",
+                OBSERVACIONES = null,
+                UPLOADED = 1,
+                FECHA_SOLICITUD = "2026-08-18T17:00:00Z",
+                NOMBRE_CLIENTE = "Victoria Flores Olmedo",
+                NOMBRE_PRODUCTO = "Refrigerador Mabe 14'"
+            )
+        )
+        val garantia = garantias.garantiaDe(CREDITO)!!
+        assertEquals("GAR-2026-0188", garantia.garantiaId)
+        assertEquals("Refrigerador Mabe 14'", garantia.producto)
+        assertEquals(LocalDate.of(2026, 8, 18), garantia.reportadaEl)
+        assertEquals(EstadoDeGarantia.NOTIFICADA, garantia.estado)
+        // Una venta sin garantia no inventa una.
+        assertNull(garantias.garantiaDe(CREDITO + 1))
+    }
+
+    @Test
+    fun `una garantia sin nombre de producto cae a la descripcion de la falla`() = runTest {
+        db.guaranteeDao().insertGuarantees(
+            GuaranteeEntity(
+                EXTERNAL_ID = "GAR-2026-0199",
+                DOCTO_CC_ID = CREDITO,
+                ESTADO = "OTRA_COSA",
+                DESCRIPCION_FALLA = "No enfria en el congelador",
+                OBSERVACIONES = null,
+                UPLOADED = 1,
+                FECHA_SOLICITUD = "no es una fecha",
+                NOMBRE_CLIENTE = null,
+                NOMBRE_PRODUCTO = null
+            )
+        )
+        val garantia = garantias.garantiaDe(CREDITO)!!
+        assertEquals("No enfria en el congelador", garantia.producto)
+        assertNull(garantia.reportadaEl)
+        // Un estado fuera del catalogo se muestra, no se esconde.
+        assertEquals(EstadoDeGarantia.DESCONOCIDO, garantia.estado)
     }
 
     @Test

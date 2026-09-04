@@ -1,9 +1,11 @@
 package com.example.msp_app.feature.pagos.data.fake
 
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
+import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
+import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
@@ -61,6 +63,18 @@ class FakeLiquidacionPort : LiquidacionPort {
     var liquidaciones: Map<Int, Liquidacion> = emptyMap()
 
     override suspend fun liquidacionDe(ventaId: Int): Liquidacion? = liquidaciones[ventaId]
+}
+
+class FakeGarantiasPort : GarantiasPort {
+
+    var garantias: Map<Int, GarantiaDeLaVenta> = emptyMap()
+
+    val creditosConsultados: MutableList<Int> = mutableListOf()
+
+    override suspend fun garantiaDe(creditoId: Int): GarantiaDeLaVenta? {
+        creditosConsultados += creditoId
+        return garantias[creditoId]
+    }
 }
 
 class FakePeriodoDeCobroPort : PeriodoDeCobroPort {

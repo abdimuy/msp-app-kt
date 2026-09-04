@@ -3,7 +3,9 @@ package com.example.msp_app.data.pagos
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
+import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
@@ -12,6 +14,7 @@ import com.example.msp_app.features.sales.domain.models.calculatePaymentResult
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.util.Locale
 
 /**
@@ -34,7 +37,8 @@ import java.util.Locale
  * deuda por cero pesos.
  */
 class SettlementLiquidacionAdapter(
-    private val saleDao: SaleDao
+    private val saleDao: SaleDao,
+    private val telemetry: Telemetry
 ) : LiquidacionPort {
 
     override suspend fun liquidacionDe(ventaId: Int): Liquidacion? {
@@ -69,9 +73,30 @@ class SettlementLiquidacionAdapter(
         return DIA_MES_ANIO.format(fecha)
     }
 
-    private fun vigenciaDe(texto: String): LocalDate? = runCatching {
+    /**
+     * La fecha de vigencia del cálculo. Si no se puede leer, la liquidación se
+     * conserva **sin** vigencia —la cifra es lo que el cobrador va a cobrar y no
+     * se tira— pero el fallo NO se traga: se emite
+     * [PagosTelemetria.CODE_LIQUIDACION_VIGENCIA_ILEGIBLE].
+     *
+     * Esta clase es código NUEVO, así que la exención de `:app` como legacy no
+     * la cubre: la NORMA DE ERRORES vincula a toda arquitectura nueva sin
+     * importar en qué módulo aterrice el archivo. Anti-PII: viaja el nombre de
+     * la clase de la excepción, nunca el texto crudo.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // `LocalDate.parse` lanza DateTimeParseException; se acota abajo.
+    private fun vigenciaDe(texto: String): LocalDate? = try {
         LocalDate.parse(texto, DIA_MES_ANIO)
-    }.getOrNull()
+    } catch (ilegible: DateTimeParseException) {
+        telemetry.error(
+            code = PagosTelemetria.CODE_LIQUIDACION_VIGENCIA_ILEGIBLE,
+            message = "validUntil del calculo de liquidacion no coincide con dd/MM/yyyy",
+            props = mapOf(PagosTelemetria.PROP_EXCEPCION to ilegible.javaClass.simpleName)
+        )
+        null
+    }
 
     private companion object {
         val DIA_MES_ANIO: DateTimeFormatter =

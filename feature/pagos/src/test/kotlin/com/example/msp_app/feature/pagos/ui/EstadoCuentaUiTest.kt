@@ -79,6 +79,58 @@ class EstadoCuentaUiTest {
         assertEquals(TratoDelEstado.REGRESAS, EstadoCuentaUi.tratoDe(delPeriodo))
     }
 
+    // ── La MISMA regla, una rama más allá: la cita sin hora ────────────────────────────────
+
+    private fun cita(hora: LocalTime?) = EstadoDelPeriodo(
+        estado = EstadoCuenta.CITA_A_UNA_HORA,
+        abonoDelPeriodo = Money.ZERO,
+        parcialidad = Money.of(BigDecimal("220")),
+        horaCita = hora
+    )
+
+    @Test
+    fun `cita sin hora no saca la cuenta del trabajo de la semana`() {
+        assertEquals(TratoDelEstado.REGRESAS, EstadoCuentaUi.tratoDe(cita(null)))
+        assertTrue(EstadoCuentaUi.requiereAtencion(EstadoCuentaUi.tratoDe(cita(null))))
+    }
+
+    @Test
+    fun `cita sin hora se nombra como pendiente, no como cita cerrada`() {
+        assertEquals("cita sin hora", EstadoCuentaUi.etiquetaDe(cita(null)))
+        assertEquals("sin hora, regresas", EstadoCuentaUi.detalleDe(cita(null)))
+        assertFalse(EstadoCuentaUi.detalleDe(cita(null)).contains("quedaron"))
+    }
+
+    @Test
+    fun `cita CON hora si es una cita y muestra la hora`() {
+        val conHora = cita(LocalTime.of(16, 30))
+        assertEquals(TratoDelEstado.CITA, EstadoCuentaUi.tratoDe(conHora))
+        assertFalse(EstadoCuentaUi.requiereAtencion(TratoDelEstado.CITA))
+        assertEquals("cita 16:30", EstadoCuentaUi.etiquetaDe(conHora))
+        assertEquals("quedaron de verse", EstadoCuentaUi.detalleDe(conHora))
+    }
+
+    @Test
+    fun `los dos compromisos sin su dato comparten tratamiento y no se confunden con los que si lo tienen`() {
+        // Misma forma: sin el dato que lo sostiene, el compromiso es un pendiente.
+        assertEquals(EstadoCuentaUi.tratoDe(promesa(null)), EstadoCuentaUi.tratoDe(cita(null)))
+        assertEquals(EstadoCuentaUi.iconoDe(promesa(null)), EstadoCuentaUi.iconoDe(cita(null)))
+        // Y ninguno comparte ícono con su versión completa.
+        assertNotEquals(
+            EstadoCuentaUi.iconoDe(cita(null)),
+            EstadoCuentaUi.iconoDe(cita(LocalTime.of(16, 30)))
+        )
+        assertNotEquals(
+            EstadoCuentaUi.iconoDe(promesa(null)),
+            EstadoCuentaUi.iconoDe(promesa(LocalDate.of(2026, 9, 15)))
+        )
+        // Pero SÍ se distinguen entre sí por texto — el color/ícono no es el único portador.
+        assertNotEquals(
+            EstadoCuentaUi.etiquetaDe(promesa(null)),
+            EstadoCuentaUi.etiquetaDe(cita(null))
+        )
+    }
+
     @Test
     fun `los ocho estados del catalogo tienen trato, etiqueta, detalle e icono`() {
         EstadoCuenta.entries.forEach { estado ->

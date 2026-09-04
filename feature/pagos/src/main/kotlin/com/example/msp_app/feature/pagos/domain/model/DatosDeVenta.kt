@@ -23,6 +23,8 @@ data class DatosDeVenta(
     val direccion: String,
     val zona: String,
     val aval: String,
+    /** Teléfono del aval. `null` mientras no exista la columna — ver [DetalleCliente.telefonoAval]. */
+    val telefonoAval: String?,
     val notas: String,
     val descripcion: String,
     val fechaVenta: LocalDate?,
