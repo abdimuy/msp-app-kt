@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.domain
 
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
+import com.example.msp_app.feature.pagos.domain.model.PesoDeLaSenal
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import java.time.LocalTime
 import org.junit.Assert.assertEquals
@@ -33,6 +34,8 @@ class CatalogoDeLaFichaTest {
      * fichas guardadas. Este test tiene que fallar cuando eso pase.
      */
     private val literales = listOf(
+        "NO_IR_SOLO",
+        "HAY_PERRO",
         "ESTA_EN_LA_MANANA",
         "ESTA_EN_LA_TARDE",
         "ESTA_EN_LA_NOCHE",
@@ -40,6 +43,8 @@ class CatalogoDeLaFichaTest {
     )
 
     private val etiquetas = mapOf(
+        SenalDeFicha.NO_IR_SOLO to "no ir solo",
+        SenalDeFicha.HAY_PERRO to "hay perro",
         SenalDeFicha.ESTA_EN_LA_MANANA to "está en la mañana",
         SenalDeFicha.ESTA_EN_LA_TARDE to "está en la tarde",
         SenalDeFicha.ESTA_EN_LA_NOCHE to "está en la noche",
@@ -47,8 +52,66 @@ class CatalogoDeLaFichaTest {
     )
 
     @Test
-    fun `el catalogo nace corto - cuatro valores y estos literales`() {
+    fun `el catalogo nace corto - seis valores y estos literales`() {
         assertEquals(literales, SenalDeFicha.entries.map { it.name })
+    }
+
+    // --- El peso: la segunda compuerta, y la que sí tiene consumidor hoy -----
+
+    @Test
+    fun `solo las advertencias pesan como advertencia`() {
+        assertEquals(
+            listOf(SenalDeFicha.NO_IR_SOLO, SenalDeFicha.HAY_PERRO),
+            SenalDeFicha.entries.filter { it.peso == PesoDeLaSenal.ADVIERTE }
+        )
+    }
+
+    @Test
+    fun `ninguna advertencia declara ventana, y ninguna ventana advierte`() {
+        // Son ejes distintos: una advertencia no dice nada de la hora, y una
+        // señal de horario no es un riesgo. Cruzarlos sería un valor confuso.
+        SenalDeFicha.entries.forEach { senal ->
+            if (senal.peso == PesoDeLaSenal.ADVIERTE) {
+                assertNull("$senal no puede hablar de la hora", senal.ventana)
+            }
+            if (senal.ventana != null) {
+                assertEquals(PesoDeLaSenal.INFORMA, senal.peso)
+            }
+        }
+    }
+
+    @Test
+    fun `el orden de pantalla pone las advertencias primero y no pierde ninguna`() {
+        val orden = SenalDeFicha.EN_ORDEN_DE_PANTALLA
+        assertEquals(SenalDeFicha.entries.toSet(), orden.toSet())
+        assertEquals(SenalDeFicha.entries.size, orden.size)
+        val primeras = orden.takeWhile { it.peso == PesoDeLaSenal.ADVIERTE }
+        assertEquals(2, primeras.size)
+        assertTrue(
+            "despues de las advertencias no puede volver a haber una",
+            orden.drop(primeras.size).none { it.peso == PesoDeLaSenal.ADVIERTE }
+        )
+    }
+
+    @Test
+    fun `la ficha expone sus advertencias primero y solo las marcadas`() {
+        val ficha = FichaDelCliente(
+            senales = setOf(
+                SenalDeFicha.ESTA_EN_LA_NOCHE,
+                SenalDeFicha.HAY_PERRO,
+                SenalDeFicha.ATIENDE_OTRA_PERSONA
+            )
+        )
+        assertEquals(listOf(SenalDeFicha.HAY_PERRO), ficha.advertencias)
+        assertEquals(SenalDeFicha.HAY_PERRO, ficha.enOrden.first())
+        assertEquals(3, ficha.enOrden.size)
+    }
+
+    @Test
+    fun `una ficha sin advertencias no inventa ninguna`() {
+        val ficha = FichaDelCliente(senales = setOf(SenalDeFicha.ESTA_EN_LA_TARDE))
+        assertTrue(ficha.advertencias.isEmpty())
+        assertTrue(FichaDelCliente().advertencias.isEmpty())
     }
 
     @Test

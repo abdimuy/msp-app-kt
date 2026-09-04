@@ -6,9 +6,14 @@ import androidx.room.Entity
  * El **catálogo cerrado** de la ficha del cliente: una fila por señal
  * marcada (horario en que se le encuentra, quién atiende, advertencias).
  *
- * Es lo único de la ficha que puede alimentar el BTTC, porque se puede contar
- * y filtrar; la mitad libre vive en [ClientProfileEntity] y no se mezcla con
- * esta (§5).
+ * Es lo único de la ficha que **lee código**, porque se puede contar y filtrar;
+ * la mitad libre vive en [ClientProfileEntity] y no se mezcla con esta (§5).
+ *
+ * Hoy quien la lee es **la pantalla** (`SenalDeFicha.peso` decide el color del
+ * chip y qué sube a la barra de navegación). El conteo por ventana horaria del
+ * plan —el BTTC— **todavía no está escrito**, ni en esta app ni en `msp-api`:
+ * esta tabla existe para que el día que se escriba encuentre el dato ya
+ * estructurado, no porque exista un consumidor hoy.
  *
  * ## Cardinalidad: 0..N por cliente, sin repetidos
  *
@@ -33,6 +38,13 @@ import androidx.room.Entity
 data class ClientProfileSignalEntity(
     val CLIENTE_ID: Int,
     val SENAL: String,
-    /** Cuándo se marcó, formato de cable de `AppTime`. */
+    /**
+     * **Desde cuándo se sabe esto**, en formato de cable de `AppTime`.
+     *
+     * No es "cuándo se guardó la ficha por última vez": es la fecha en que ESTA
+     * señal se marcó, y no se reescribe mientras siga marcada. Es lo que
+     * permite preguntar *"lo del perro, ¿es de esta semana o de hace dos
+     * años?"*. Ver `ClientProfileDao.guardar`.
+     */
     val ACTUALIZADA_EN: String
 )

@@ -222,6 +222,11 @@ object PagosFixtures {
         actualizada = Instant.parse("2026-08-24T17:00:00Z")
     )
 
+    /** La misma ficha, con la advertencia que tiene que verse sin desplazar. */
+    fun fichaConAdvertencia(): FichaDelCliente = fichaDelCliente().let {
+        it.copy(senales = it.senales + SenalDeFicha.HAY_PERRO)
+    }
+
     private fun venta(
         ventaId: Int,
         folio: String,

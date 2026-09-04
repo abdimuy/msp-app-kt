@@ -54,9 +54,27 @@ private val TOQUE = 56.dp
  * El ojo de privacidad y el menú del mock no se cablean aquí: el primero es una
  * preferencia global que hoy vive en el reporte de cobranza y el segundo es
  * navegación de la app, ninguno propiedad de esta pantalla.
+ *
+ * ## El hueco de la derecha es una sede de cero dp verticales
+ *
+ * Esta fila mide 56dp por el botón redondo y **le sobran ~280dp de ancho**. Es
+ * el mismo hallazgo con el que la Task 22 colgó la cámara de la fila del método
+ * de cobro: un afordante que viaja con una fila que ya existía **no cuesta un
+ * solo dp de alto**, y en esta pantalla el alto es lo escaso — abajo está el
+ * dinero, que es por lo que el cobrador la abrió.
+ *
+ * [accion] es opcional a propósito: el detalle de VENTA la deja en `null` y su
+ * barra queda exactamente como estaba (sus goldens no se mueven, y ése es el
+ * control positivo de que este cambio solo toca la pantalla de cliente).
+ * Cualquier cosa que se cuelgue aquí debe respetar `maxLines = 1`: dos
+ * renglones harían crecer la fila y el afordante dejaría de ser gratis.
  */
 @Composable
-fun BarraDeDetalle(onAtras: () -> Unit, modifier: Modifier = Modifier) {
+fun BarraDeDetalle(
+    onAtras: () -> Unit,
+    modifier: Modifier = Modifier,
+    accion: (@Composable () -> Unit)? = null
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -69,7 +87,14 @@ fun BarraDeDetalle(onAtras: () -> Unit, modifier: Modifier = Modifier) {
             onClick = onAtras,
             modifier = Modifier.testTag(ATRAS_TAG)
         )
-        Box(modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = MspTheme.spacing.sm),
+            contentAlignment = Alignment.CenterEnd
+        ) {
+            accion?.invoke()
+        }
     }
 }
 

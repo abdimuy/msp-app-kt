@@ -12,6 +12,13 @@ import org.junit.Test
  * El borde del tope se prueba en los tres puntos que importan —`NOTA_MAX - 1`,
  * `NOTA_MAX`, `NOTA_MAX + 1`— y no solo "un texto largo": un `>` puesto donde
  * iba un `>=` sobrevive a un test que solo prueba 10 000 caracteres.
+ *
+ * **El corte de emoji NO se prueba aquí y esa ausencia es deliberada.** Se
+ * probaba, y la prueba no valía nada: la pantalla cortaba antes con su propio
+ * `take(500)`, así que la guarda de pares suplentes **no tenía ningún camino
+ * real que la alcanzara** y su test pasaba con el defecto puesto. Ahora el
+ * recorte es uno solo ([FichaDelCliente.recorta]) y quien lo prueba es
+ * `LaFichaSeVeYSeTocaTest`, **tecleando en el campo de verdad**.
  */
 class NotaDeLaFichaTest {
 
@@ -57,21 +64,18 @@ class NotaDeLaFichaTest {
     }
 
     @Test
-    fun `el corte no parte un emoji a la mitad`() {
-        // Un carácter que ocupa DOS `Char` (par suplente). Con el corte crudo,
-        // el último quedaría partido y ninguna fuente lo puede pintar.
-        val perro = "🐕"
-        val texto = "a".repeat(tope - 1) + perro
-        val limpia = requireNotNull(FichaDelCliente.limpia(texto))
-        assertEquals(tope - 1, limpia.length)
-        assertEquals("a".repeat(tope - 1), limpia)
-    }
-
-    @Test
     fun `un emoji que si cabe entero se conserva`() {
         val perro = "🐕"
         val texto = "a".repeat(tope - 2) + perro
         assertEquals(texto, FichaDelCliente.limpia(texto))
+        assertEquals(texto, FichaDelCliente.recorta(texto))
+    }
+
+    @Test
+    fun `recorta y limpia usan el MISMO corte - no hay dos reglas`() {
+        val perro = "🐕"
+        val texto = "a".repeat(tope - 1) + perro
+        assertEquals(FichaDelCliente.recorta(texto), FichaDelCliente.limpia(texto))
     }
 
     @Test

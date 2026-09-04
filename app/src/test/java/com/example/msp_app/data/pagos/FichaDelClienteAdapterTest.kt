@@ -244,6 +244,36 @@ class FichaDelClienteAdapterTest : RoomTestBase() {
         )
     }
 
+    @Test
+    fun `una senal que ya estaba conserva su fecha - la ficha dice DESDE CUANDO`() = runTest {
+        val adaptador = adaptador()
+        adaptador.guardar(victoria, FichaDelCliente(senales = setOf(SenalDeFicha.HAY_PERRO)))
+        val primera = db.clientProfileDao().senalesDe(victoria).single().ACTUALIZADA_EN
+
+        clock.advanceDays(200)
+        adaptador.guardar(
+            victoria,
+            FichaDelCliente(
+                senales = setOf(SenalDeFicha.HAY_PERRO, SenalDeFicha.ESTA_EN_LA_NOCHE),
+                nota = "y muerde"
+            )
+        )
+
+        val fechas = db.clientProfileDao().senalesDe(victoria)
+            .associate { it.SENAL to it.ACTUALIZADA_EN }
+        assertEquals("lo del perro se sabe desde antes", primera, fechas["HAY_PERRO"])
+        assertEquals(
+            "la señal nueva sí estrena fecha",
+            AppTime.toWireFormat(clock.now()),
+            fechas["ESTA_EN_LA_NOCHE"]
+        )
+        assertEquals(
+            "la NOTA sí es última edición",
+            AppTime.toWireFormat(clock.now()),
+            db.clientProfileDao().fichaDe(victoria)?.ACTUALIZADA_EN
+        )
+    }
+
     // --- La atribución: nullable a propósito ---------------------------------
 
     @Test

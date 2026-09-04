@@ -71,6 +71,54 @@ class FichaMatrixScreenshotTest : PagosScreenshotTest() {
         sufijo = "ilegible"
     )
 
+    /**
+     * **La advertencia, arriba y sin desplazar.** Es el golden que prueba que
+     * *"hay perro"* le llega al cobrador antes de que abra el portón: la
+     * pastilla de la barra, en color de peligro, en lo único de la pantalla que
+     * se ve siempre. Las dos escalas extremas porque a 2.0 es donde la barra
+     * aprieta y donde la pastilla tiene que seguir cabiendo en un renglón.
+     */
+    @Test
+    fun `cliente con advertencia light normal`() =
+        advertencia(dark = false, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `cliente con advertencia light muy grande`() =
+        advertencia(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `cliente con advertencia dark normal`() =
+        advertencia(dark = true, nivel = FontSizeLevel.NORMAL)
+
+    @Test
+    fun `cliente con advertencia dark muy grande`() =
+        advertencia(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
+
+    /** La hoja con la advertencia entre sus chips, en su color de peligro. */
+    @Test
+    fun `hoja con advertencia light`() = capture(
+        name = "pagos_ficha_hoja_advertencia_light",
+        dark = false
+    ) {
+        HojaConAdvertencia()
+    }
+
+    @Test
+    fun `hoja con advertencia dark`() = capture(
+        name = "pagos_ficha_hoja_advertencia_dark",
+        dark = true
+    ) {
+        HojaConAdvertencia()
+    }
+
+    private fun advertencia(dark: Boolean, nivel: FontSizeLevel) = capture(
+        name = "pagos_ficha_advertencia_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Cliente(PagosFixtures.fichaConAdvertencia())
+    }
+
     private fun hoja(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_ficha_hoja_${tema(dark)}_${sufijoDe(nivel)}",
         dark = dark,
@@ -103,6 +151,19 @@ private fun Hoja(fallo: Boolean) {
         nota = "atiende la suegra, doña Remedios.\ncasa azul, portón negro.",
         guardando = false,
         fallo = fallo,
+        onSenal = {},
+        onNota = {},
+        onGuardar = {}
+    )
+}
+
+@Composable
+private fun HojaConAdvertencia() {
+    CuerpoDeLaFicha(
+        senales = setOf(SenalDeFicha.HAY_PERRO, SenalDeFicha.ESTA_EN_LA_NOCHE),
+        nota = "el perro está suelto en el patio, hay que llamar desde la banqueta.",
+        guardando = false,
+        fallo = false,
         onSenal = {},
         onNota = {},
         onGuardar = {}

@@ -5,7 +5,7 @@ import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 /**
  * La etiqueta en español de cada señal del catálogo cerrado.
  *
- * **`when` exhaustivo, sin `else`, a propósito** — es la mitad visible del
+ * **`when` exhaustivo, sin `else`, a propósito** — es la compuerta visible del
  * guardrail que el plan pidió copiar de kollect (`SignalLabels`): agregar un
  * valor a [SenalDeFicha] **no compila** hasta que pasa por aquí, así que una
  * señal no puede llegar a la pantalla sin nombre. Un `else -> senal.name`
@@ -18,6 +18,8 @@ import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
  * usuario de este plan.
  */
 fun etiquetaDe(senal: SenalDeFicha): String = when (senal) {
+    SenalDeFicha.NO_IR_SOLO -> "no ir solo"
+    SenalDeFicha.HAY_PERRO -> "hay perro"
     SenalDeFicha.ESTA_EN_LA_MANANA -> "está en la mañana"
     SenalDeFicha.ESTA_EN_LA_TARDE -> "está en la tarde"
     SenalDeFicha.ESTA_EN_LA_NOCHE -> "está en la noche"

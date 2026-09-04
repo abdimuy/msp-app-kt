@@ -28,6 +28,7 @@ import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
+import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
@@ -224,7 +225,12 @@ private fun CuerpoDelCliente(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.md)
     ) {
-        BarraDeDetalle(onAtras = onAtras)
+        BarraDeDetalle(
+            onAtras = onAtras,
+            accion = {
+                AfordanteDeLaFicha(ficha = detalle.ficha, onEditar = onEditarFicha)
+            }
+        )
         EncabezadoDelCliente(detalle)
         Spacer(Modifier.height(MspTheme.spacing.md))
         TarjetaDeSaldo(
@@ -236,16 +242,6 @@ private fun CuerpoDelCliente(
             Spacer(Modifier.height(MspTheme.spacing.sm))
             Aviso(aviso)
         }
-
-        // La ficha va ARRIBA de "sus ventas": es lo que se lee ANTES de tocar
-        // la puerta. Su posición se mide en `LaFichaSeVeYSeTocaTest`, no se
-        // supone — la Task 22 descubrió tarde que su sección caía debajo de la
-        // línea de flotación.
-        SeccionDeLaFicha(
-            ficha = detalle.ficha,
-            notaDeLaVenta = detalle.notaDeLaVenta,
-            onEditar = onEditarFicha
-        )
 
         LabelDeSeccion("sus ventas")
         detalle.ventas.forEach { venta ->
@@ -268,6 +264,17 @@ private fun CuerpoDelCliente(
             Spacer(Modifier.height(MspTheme.spacing.sm))
             VerTodos("ver los ${detalle.totalContactos} contactos", onVerContactos)
         }
+
+        // La ficha vive AL FONDO, en el mismo lugar donde la Task 16 puso su
+        // antecesora: así no empuja un solo dp de lo que está arriba, que es
+        // el dinero — por lo que el cobrador abrió esta pantalla.
+        // `LaFichaSeVeYSeTocaTest` lo mide. Lo que sí sube, y gratis, es el
+        // afordante de la barra: ahí es donde una advertencia grita.
+        SeccionDeLaFicha(
+            ficha = detalle.ficha,
+            notaDeLaVenta = detalle.notaDeLaVenta,
+            onEditar = onEditarFicha
+        )
 
         LabelDeSeccion("datos del cliente")
         FilaClaveValor("zona", detalle.zona)

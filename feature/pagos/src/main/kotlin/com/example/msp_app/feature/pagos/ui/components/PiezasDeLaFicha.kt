@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -30,20 +30,39 @@ import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.etiquetaDe
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
+import com.example.msp_app.feature.pagos.domain.model.PesoDeLaSenal
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import java.time.format.DateTimeFormatter
 
 /** `testTag` de la tarjeta de la ficha — la sección "lo que hay que saber". */
 const val TARJETA_DE_LA_FICHA_TAG: String = "pagos_ficha_tarjeta"
 
-/** `testTag` del afordante que abre la hoja de edición. */
+/** `testTag` del afordante de la barra superior, que abre la hoja de edición. */
 const val EDITAR_FICHA_TAG: String = "pagos_ficha_editar"
+
+/**
+ * `testTag` del TEXTO del afordante — lo que la pastilla está diciendo.
+ *
+ * Aparte del de la pastilla porque cuando ésta no es tocable (ficha ilegible)
+ * el `Surface` no fusiona a su hijo, y el mismo texto de una advertencia
+ * aparece a la vez aquí y en el chip de la tarjeta.
+ */
+const val AFORDANTE_TEXTO_TAG: String = "pagos_ficha_afordante_texto"
 
 /** `testTag` del campo de nota libre dentro de la hoja. */
 const val NOTA_DE_LA_FICHA_TAG: String = "pagos_ficha_nota"
 
-/** Prefijo del `testTag` de cada chip del catálogo, más el ordinal de la señal. */
+/** Prefijo del `testTag` de cada chip del catálogo en la HOJA, más el ordinal. */
 const val SENAL_TAG: String = "pagos_ficha_senal_"
+
+/**
+ * Prefijo del `testTag` de cada chip en la TARJETA, más el ordinal.
+ *
+ * Distinto del de la hoja a propósito: dos nodos con el mismo tag hacen que
+ * `onNodeWithTag` truene por ambigüedad, y la etiqueta de una señal marcada
+ * aparece a la vez en la pastilla de la barra y en la tarjeta.
+ */
+const val CHIP_DE_FICHA_TAG: String = "pagos_ficha_chip_"
 
 /** `testTag` del CTA que guarda la ficha. */
 const val GUARDAR_FICHA_TAG: String = "pagos_ficha_guardar"
@@ -55,24 +74,130 @@ const val GUARDAR_FICHA_TAG: String = "pagos_ficha_guardar"
 private val TOQUE = 56.dp
 
 /**
+ * **El afordante de la ficha, en la barra superior.** Cuesta **cero dp
+ * verticales**: la barra ya existía, mide 56dp por su botón de atrás, y le
+ * sobra el ancho.
+ *
+ * ## Por qué aquí y no como sección arriba de "sus ventas"
+ *
+ * Porque ahí **tapaba el dinero**. La primera versión puso la tarjeta completa
+ * entre el saldo y "sus ventas" y a escala 2.0 no quedaba ni una venta visible
+ * sin desplazar; el golden `promesa_sin_fecha` perdió de vista justo el renglón
+ * que existe para proteger. El dinero es **por lo que el cobrador abre esta
+ * pantalla**; un dato de conocimiento no puede taparlo. Que la ficha sea menos
+ * prominente es aceptable — que el saldo no se vea, no.
+ *
+ * La salida es la misma de la Task 22 con la cámara: colgar el afordante de una
+ * fila que ya estaba. Y como cuesta cero, **agregar señales al catálogo no
+ * vuelve a empujar nada**: esta pastilla es de una sola línea, siempre.
+ *
+ * ## Y una advertencia sí grita
+ *
+ * Si hay una señal [PesoDeLaSenal.ADVIERTE] marcada, la pastilla la pinta con
+ * su etiqueta, en color de peligro, **en lo único de la pantalla que se ve
+ * siempre sin desplazar**. Ésa es la diferencia entre una advertencia y un dato:
+ * *"hay perro"* tiene que llegarle al cobrador antes de que abra el portón, no
+ * después de que baje cuatro secciones.
+ *
+ * Con [ficha] en `null` —no se pudo leer— la pastilla se pinta apagada y **no
+ * es tocable**: abrir el editor sobre una lectura fallida invitaría a guardar
+ * una ficha en blanco encima de la buena.
+ */
+@Composable
+fun AfordanteDeLaFicha(
+    ficha: FichaDelCliente?,
+    onEditar: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MspTheme.colors
+    val advertencia = ficha?.advertencias?.firstOrNull()
+    val texto = when {
+        ficha == null -> "ficha ilegible"
+        advertencia != null -> etiquetaDe(advertencia)
+        ficha.vacia -> "anotar ficha"
+        else -> "ver ficha"
+    }
+    val contenido = when {
+        ficha == null -> colors.onSurfaceMuted
+        advertencia != null -> colors.danger
+        else -> colors.brand
+    }
+    val fondo = when {
+        ficha == null -> colors.surface
+        advertencia != null -> colors.dangerTint
+        else -> colors.brandTint
+    }
+    Pastilla(
+        texto = texto,
+        contenido = contenido,
+        fondo = fondo,
+        onClick = if (ficha == null) null else onEditar,
+        modifier = modifier.testTag(EDITAR_FICHA_TAG)
+    )
+}
+
+/**
+ * La pastilla de la barra. `maxLines = 1` y elipsis **no son cosmética**: dos
+ * renglones harían crecer la fila de navegación y el afordante dejaría de
+ * costar cero dp, que es la única razón por la que vive ahí.
+ */
+@Composable
+private fun Pastilla(
+    texto: String,
+    contenido: Color,
+    fondo: Color,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    val cuerpo: @Composable () -> Unit = {
+        Box(
+            modifier = Modifier.padding(horizontal = MspTheme.spacing.md),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = texto,
+                style = MspTheme.type.captionStrong,
+                color = contenido,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag(AFORDANTE_TEXTO_TAG)
+            )
+        }
+    }
+    if (onClick == null) {
+        Surface(
+            modifier = modifier.heightIn(min = TOQUE),
+            shape = MspTheme.shapes.chip,
+            color = fondo,
+            content = cuerpo
+        )
+    } else {
+        Surface(
+            onClick = onClick,
+            modifier = modifier
+                .heightIn(min = TOQUE)
+                .widthIn(min = TOQUE),
+            shape = MspTheme.shapes.chip,
+            color = fondo,
+            content = cuerpo
+        )
+    }
+}
+
+/**
  * La sección **"lo que hay que saber"**: el catálogo cerrado y la nota libre.
  *
- * ## Dónde cae, y por qué se midió antes de decidirlo
+ * ## Dónde cae, medido
  *
- * Va **arriba de "sus ventas"**, no al final de la pantalla. La ficha es lo que
- * se lee **antes** de tocar la puerta —*"está en la noche"*, *"atiende otra
- * persona"*—, así que enterarse después de bajar por el saldo, las ventas, la
- * liquidación y la bitácora es enterarse tarde. La Task 22 descubrió tarde que
- * su sección quedaba debajo de la línea de flotación; aquí la posición se
- * **mide** en `LaFichaSeVeYSeTocaTest`, no se supone.
+ * Va **al fondo, entre "últimos contactos" y "datos del cliente"** — el mismo
+ * lugar donde la Task 16 puso su antecesora, así que **no empuja un solo dp**
+ * de lo que estaba arriba. `LaFichaSeVeYSeTocaTest` lo mide: el tope de "sus
+ * ventas" es idéntico con la ficha llena, vacía o ilegible, y la primera venta
+ * se ve sin desplazar en las tres escalas.
  *
- * ## El afordante de edición no estrena renglón
- *
- * Abrir el editor cuelga de dos cosas que **ya existían**: la fila del rótulo
- * de sección —que crece del ~38dp que ya medía al piso tocable de 56dp, no los
- * ~64dp que costaría un botón propio con su separación— y **la tarjeta
- * completa**, que es el blanco grande y no agrega nada. Es la salida que la
- * Task 22 encontró para la cámara: el afordante viaja con algo que ya estaba.
+ * Lo que sí se ve arriba —sin costar alto— es [AfordanteDeLaFicha], y con él
+ * la advertencia, que es lo único de la ficha que no puede esperar a que el
+ * cobrador baje.
  *
  * ## Los tres estados, que no se aplanan
  *
@@ -80,7 +205,7 @@ private val TOQUE = 56.dp
  *   una ficha en blanco editable sobre una lectura fallida invita a escribir
  *   encima de lo que sí estaba guardado.
  * - [ficha] vacía — no hay nada anotado. Se invita a anotar.
- * - [ficha] con contenido — se pinta.
+ * - [ficha] con contenido — se pinta, advertencias primero.
  *
  * [notaDeLaVenta] es OTRA cosa y por eso se pinta aparte, con su propia
  * etiqueta: viene del servidor en `sales.NOTAS`, se reescribe en cada
@@ -94,11 +219,7 @@ fun SeccionDeLaFicha(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        RotuloConAccion(
-            rotulo = "lo que hay que saber",
-            accion = if (ficha == null) null else if (ficha.vacia) "anotar" else "editar",
-            onAccion = onEditar
-        )
+        LabelDeSeccion("lo que hay que saber")
         Tarjeta(
             modifier = Modifier.testTag(TARJETA_DE_LA_FICHA_TAG),
             onClick = if (ficha == null) null else onEditar
@@ -119,7 +240,7 @@ fun SeccionDeLaFicha(
 
                     else -> {
                         if (ficha.senales.isNotEmpty()) {
-                            FilaDeSenales(ficha.senales)
+                            FilaDeSenales(ficha.enOrden)
                         }
                         ficha.nota?.let {
                             Text(
@@ -128,9 +249,10 @@ fun SeccionDeLaFicha(
                                 color = MspTheme.colors.onSurface,
                                 // La tarjeta muestra un asomo, no la nota
                                 // entera: con el tope de 500 caracteres una
-                                // nota larga son ~diez renglones y empujaría
-                                // "sus ventas" fuera de pantalla. El texto
-                                // completo vive en el editor, a un toque.
+                                // nota larga son ~diez renglones. El texto
+                                // completo vive en el editor, a un toque. NADA
+                                // que deba gritar vive aquí: las advertencias
+                                // son chips y suben a la barra superior.
                                 maxLines = RENGLONES_DE_ASOMO,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -166,68 +288,22 @@ fun SeccionDeLaFicha(
     }
 }
 
-/**
- * El rótulo de sección con su afordante a la derecha, en el MISMO renglón.
- *
- * Mismo tipo y color que [LabelDeSeccion] —es el mismo rótulo— pero la fila
- * entera es tocable y respeta el piso de 56dp. Con [accion] en `null` no hay
- * nada que tocar y la fila vuelve a ser un rótulo y nada más.
- */
-@Composable
-private fun RotuloConAccion(rotulo: String, accion: String?, onAccion: () -> Unit) {
-    val contenido: @Composable () -> Unit = {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = MspTheme.spacing.md, bottom = MspTheme.spacing.sm),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = rotulo,
-                style = MspTheme.type.overline,
-                color = MspTheme.colors.onSurfaceMuted,
-                modifier = Modifier.weight(1f)
-            )
-            accion?.let {
-                Text(
-                    text = it,
-                    style = MspTheme.type.captionStrong,
-                    color = MspTheme.colors.brand,
-                    modifier = Modifier.testTag(EDITAR_FICHA_TAG)
-                )
-            }
-        }
-    }
-    if (accion == null) {
-        contenido()
-    } else {
-        Surface(
-            onClick = onAccion,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = TOQUE),
-            color = MspTheme.colors.background
-        ) { contenido() }
-    }
-}
-
 /** Los chips de las señales marcadas, en modo lectura. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FilaDeSenales(senales: Set<SenalDeFicha>) {
+private fun FilaDeSenales(senales: List<SenalDeFicha>) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
-        // Se recorre el CATÁLOGO y no el conjunto: así el orden de los chips es
-        // el del enum —estable entre corridas y entre clientes— y no el de
-        // iteración de un `Set`, que no promete ninguno.
-        SenalDeFicha.entries.filter { it in senales }.forEach { senal ->
+        senales.forEach { senal ->
             Surface(
-                modifier = Modifier.heightIn(min = MspTheme.spacing.lg + MspTheme.spacing.sm),
+                modifier = Modifier
+                    .heightIn(min = MspTheme.spacing.lg + MspTheme.spacing.sm)
+                    .testTag(CHIP_DE_FICHA_TAG + senal.ordinal),
                 shape = MspTheme.shapes.chip,
-                color = MspTheme.colors.brandTint
+                color = fondoDe(senal)
             ) {
                 Box(
                     modifier = Modifier.padding(
@@ -239,12 +315,25 @@ private fun FilaDeSenales(senales: Set<SenalDeFicha>) {
                     Text(
                         text = etiquetaDe(senal),
                         style = MspTheme.type.chipLabel,
-                        color = MspTheme.colors.brand
+                        color = contenidoDe(senal)
                     )
                 }
             }
         }
     }
+}
+
+/** El color del contenido de una señal — lo decide su [SenalDeFicha.peso]. */
+@Composable
+private fun contenidoDe(senal: SenalDeFicha): Color =
+    if (senal.peso == PesoDeLaSenal.ADVIERTE) MspTheme.colors.danger else MspTheme.colors.brand
+
+/** El fondo de una señal — lo decide su [SenalDeFicha.peso]. */
+@Composable
+private fun fondoDe(senal: SenalDeFicha): Color = if (senal.peso == PesoDeLaSenal.ADVIERTE) {
+    MspTheme.colors.dangerTint
+} else {
+    MspTheme.colors.brandTint
 }
 
 /**
@@ -278,8 +367,12 @@ fun CuerpoDeLaFicha(
             style = MspTheme.type.cardTitle,
             color = MspTheme.colors.onSurface
         )
+        // "la app" y no "la máquina": el conteo por ventana horaria todavía no
+        // existe, y prometerle al cobrador un lector que no está escrito es la
+        // misma falsedad que un KDoc inventado. Lo que SÍ lee estas señales hoy
+        // es la pantalla — la pastilla de la barra y el color del chip.
         Text(
-            text = "esto lo lee la máquina",
+            text = "esto lo lee la app",
             style = MspTheme.type.caption,
             color = MspTheme.colors.onSurfaceMuted
         )
@@ -303,11 +396,11 @@ fun CuerpoDeLaFicha(
 }
 
 /**
- * El catálogo cerrado, entero y siempre visible.
+ * El catálogo cerrado, entero y siempre visible, **advertencias primero**.
  *
  * Se pintan **todos** los valores y no solo los marcados: un catálogo cerrado
- * de cuatro cabe completo en pantalla, y verlo completo es lo que hace que
- * marcar sea elegir de una lista corta en vez de recordar qué existía.
+ * de seis cabe completo en la hoja, y verlo completo es lo que hace que marcar
+ * sea elegir de una lista corta en vez de recordar qué existía.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -321,8 +414,9 @@ private fun CatalogoDeSenales(
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
-        SenalDeFicha.entries.forEach { senal ->
+        SenalDeFicha.EN_ORDEN_DE_PANTALLA.forEach { senal ->
             val marcada = senal in senales
+            val acento = contenidoDe(senal)
             Surface(
                 onClick = { onSenal(senal) },
                 enabled = habilitado,
@@ -331,11 +425,11 @@ private fun CatalogoDeSenales(
                     .widthIn(min = TOQUE)
                     .testTag(SENAL_TAG + senal.ordinal),
                 shape = MspTheme.shapes.chip,
-                color = if (marcada) MspTheme.colors.brandTint else MspTheme.colors.surface2,
+                color = if (marcada) fondoDe(senal) else MspTheme.colors.surface2,
                 // El anillo del chip elegido. No es adorno: el fondo tint y el
                 // `surface2` se parecen demasiado en oscuro, y el color solo
                 // nunca puede ser el portador del significado.
-                border = if (marcada) BorderStroke(1.5.dp, MspTheme.colors.brand) else null
+                border = if (marcada) BorderStroke(1.5.dp, acento) else null
             ) {
                 Box(
                     modifier = Modifier.padding(horizontal = MspTheme.spacing.sm),
@@ -345,7 +439,7 @@ private fun CatalogoDeSenales(
                         text = etiquetaDe(senal),
                         style = MspTheme.type.chipLabel,
                         color = when {
-                            marcada -> MspTheme.colors.brand
+                            marcada -> acento
                             habilitado -> MspTheme.colors.onSurface
                             else -> MspTheme.colors.onSurfaceMuted
                         },
@@ -360,10 +454,15 @@ private fun CatalogoDeSenales(
 /**
  * La nota libre, con su contador.
  *
+ * **El recorte lo hace el dominio**, no este campo:
+ * [FichaDelCliente.recorta] es la única forma de cortar la nota en todo el
+ * código. Un `take(NOTA_MAX)` local aquí fue exactamente el defecto — dejaba la
+ * guarda de pares suplentes del dominio sin ningún camino real que la
+ * alcanzara, y su prueba pasaba con el error puesto.
+ *
  * El contador aparece **solo cuando queda poco** (los últimos 50 caracteres):
  * un "0/500" permanente es ruido en una pantalla que ya está llena, y el dato
- * solo importa cerca del tope. El corte duro lo hace
- * [FichaDelCliente.limpia] en el dominio; aquí se avisa antes de llegar.
+ * solo importa cerca del tope.
  */
 @Composable
 private fun CampoDeLaNota(nota: String, habilitado: Boolean, onCambio: (String) -> Unit) {
@@ -377,7 +476,7 @@ private fun CampoDeLaNota(nota: String, habilitado: Boolean, onCambio: (String) 
         Column(modifier = Modifier.padding(MspTheme.spacing.sm)) {
             BasicTextField(
                 value = nota,
-                onValueChange = { onCambio(it.take(FichaDelCliente.NOTA_MAX)) },
+                onValueChange = { onCambio(FichaDelCliente.recorta(it)) },
                 enabled = habilitado,
                 textStyle = LocalTextStyle.current
                     .merge(MspTheme.type.body)

@@ -194,7 +194,13 @@ class ClientProfileDaoTest : RobolectricTestBase() {
         dao.guardar(
             ficha = nota(victoria, "hay perro"),
             aMarcar = listOf(senal(victoria, "ESTA_EN_LA_NOCHE")),
-            aDesmarcar = listOf("ESTA_EN_LA_MANANA", "ESTA_EN_LA_TARDE", "ATIENDE_OTRA_PERSONA")
+            aDesmarcar = listOf(
+                "ESTA_EN_LA_MANANA",
+                "ESTA_EN_LA_TARDE",
+                "ATIENDE_OTRA_PERSONA",
+                "HAY_PERRO",
+                "NO_IR_SOLO"
+            )
         )
         assertEquals(
             listOf("ESTA_EN_LA_NOCHE", "SE_MUDO_DE_CASA"),
@@ -232,6 +238,94 @@ class ClientProfileDaoTest : RobolectricTestBase() {
             listOf("ATIENDE_OTRA_PERSONA", "ESTA_EN_LA_MANANA", "ESTA_EN_LA_TARDE"),
             dao.senalesDe(victoria).map { it.SENAL }
         )
+    }
+
+    // --- Desde cuándo se sabe cada señal -------------------------------------
+
+    /**
+     * `ACTUALIZADA_EN` de una señal significa **desde cuándo se sabe eso**.
+     * Reescribirla en cada guardado la volvía inútil justo para esa pregunta:
+     * *"lo del perro, ¿es de esta semana o de hace dos años?"*.
+     */
+    @Test
+    fun `una senal que ya estaba conserva su fecha al volver a guardar`() = runTest {
+        val viejo = "2025-01-15T18:00:00Z"
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, "hay perro", viejo, 77),
+            aMarcar = listOf(ClientProfileSignalEntity(victoria, "HAY_PERRO", viejo)),
+            aDesmarcar = emptyList()
+        )
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, "hay perro y muerde", ahora, 77),
+            aMarcar = listOf(ClientProfileSignalEntity(victoria, "HAY_PERRO", ahora)),
+            aDesmarcar = emptyList()
+        )
+        assertEquals(viejo, dao.senalesDe(victoria).single().ACTUALIZADA_EN)
+        assertEquals(
+            "la NOTA sí es 'última edición' y sí se reescribe",
+            ahora,
+            dao.fichaDe(victoria)?.ACTUALIZADA_EN
+        )
+    }
+
+    @Test
+    fun `control positivo - una senal NUEVA si estrena la fecha de hoy`() = runTest {
+        val viejo = "2025-01-15T18:00:00Z"
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, null, viejo, 77),
+            aMarcar = listOf(ClientProfileSignalEntity(victoria, "HAY_PERRO", viejo)),
+            aDesmarcar = emptyList()
+        )
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, null, ahora, 77),
+            aMarcar = listOf(
+                ClientProfileSignalEntity(victoria, "HAY_PERRO", ahora),
+                ClientProfileSignalEntity(victoria, "NO_IR_SOLO", ahora)
+            ),
+            aDesmarcar = emptyList()
+        )
+        assertEquals(
+            mapOf("HAY_PERRO" to viejo, "NO_IR_SOLO" to ahora),
+            dao.senalesDe(victoria).associate { it.SENAL to it.ACTUALIZADA_EN }
+        )
+    }
+
+    @Test
+    fun `desmarcar y volver a marcar SI resetea la fecha - dejo de saberse`() = runTest {
+        val viejo = "2025-01-15T18:00:00Z"
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, null, viejo, 77),
+            aMarcar = listOf(ClientProfileSignalEntity(victoria, "HAY_PERRO", viejo)),
+            aDesmarcar = emptyList()
+        )
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, null, ahora, 77),
+            aMarcar = emptyList(),
+            aDesmarcar = listOf("HAY_PERRO")
+        )
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, null, ahora, 77),
+            aMarcar = listOf(ClientProfileSignalEntity(victoria, "HAY_PERRO", ahora)),
+            aDesmarcar = emptyList()
+        )
+        assertEquals(ahora, dao.senalesDe(victoria).single().ACTUALIZADA_EN)
+    }
+
+    @Test
+    fun `la fecha de un cliente no contagia a la del otro`() = runTest {
+        val viejo = "2025-01-15T18:00:00Z"
+        dao.guardar(
+            ficha = ClientProfileEntity(victoria, null, viejo, 77),
+            aMarcar = listOf(ClientProfileSignalEntity(victoria, "HAY_PERRO", viejo)),
+            aDesmarcar = emptyList()
+        )
+        dao.guardar(
+            ficha = ClientProfileEntity(ramon, null, ahora, 77),
+            aMarcar = listOf(ClientProfileSignalEntity(ramon, "HAY_PERRO", ahora)),
+            aDesmarcar = emptyList()
+        )
+        assertEquals(viejo, dao.senalesDe(victoria).single().ACTUALIZADA_EN)
+        assertEquals(ahora, dao.senalesDe(ramon).single().ACTUALIZADA_EN)
     }
 
     @Test

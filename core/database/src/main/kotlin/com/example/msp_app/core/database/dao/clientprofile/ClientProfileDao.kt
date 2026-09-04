@@ -83,6 +83,20 @@ interface ClientProfileDao {
      * como texto. Quien llama pasa exactamente los literales que quiere quitar,
      * y una fila desconocida sobrevive porque nadie la nombró.
      *
+     * ## Una señal que ya estaba NO se reescribe
+     *
+     * `ClientProfileSignalEntity.ACTUALIZADA_EN` significa **desde cuándo se
+     * sabe esto**, y ésa es la única pregunta que hace útil la fecha de una
+     * señal: *"lo del perro, ¿es de esta semana o de hace dos años?"*. Insertar
+     * con `REPLACE` todas las marcadas en cada guardado le estampaba la fecha de
+     * hoy a una señal de hace un año — la volvía inútil justo para lo que
+     * existe. Así que solo se insertan **las nuevas**; el resto conserva su
+     * fecha. Desmarcar y volver a marcar SÍ resetea, y es correcto: en el medio
+     * dejó de saberse.
+     *
+     * La lectura de las ya marcadas ocurre **dentro** de la transacción, así que
+     * no hay ventana entre leer y escribir.
+     *
      * `@Transaction` es anotación de método: no altera el schema (v30) ni el
      * `identityHash`.
      */
@@ -94,8 +108,10 @@ interface ClientProfileDao {
     ) {
         guardarNota(ficha)
         aDesmarcar.forEach { desmarcar(ficha.CLIENTE_ID, it) }
-        if (aMarcar.isNotEmpty()) {
-            marcar(aMarcar)
+        val yaMarcadas = senalesDe(ficha.CLIENTE_ID).map { it.SENAL }.toSet()
+        val nuevas = aMarcar.filterNot { it.SENAL in yaMarcadas }
+        if (nuevas.isNotEmpty()) {
+            marcar(nuevas)
         }
     }
 }

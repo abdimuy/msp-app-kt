@@ -21,8 +21,9 @@ import androidx.room.PrimaryKey
  * ## Por qué es una tabla aparte de [ClientProfileSignalEntity]
  *
  * Son **dos campos con trabajos distintos** (§5): el catálogo cerrado es lo
- * único que puede alimentar el BTTC porque se puede contar y consultar; la
- * nota libre es para el humano y no se consulta. Juntarlos en un solo campo
+ * único que puede leer código, porque se puede contar y consultar; la nota
+ * libre es para el humano y no se consulta. (Quién lo lee HOY y qué falta
+ * todavía por escribirse está en el KDoc de [ClientProfileSignalEntity].) Juntarlos en un solo campo
  * reproduciría el defecto que este plan vino a arreglar. Además la
  * cardinalidad difiere: la nota es 0..1 por cliente (una columna), las
  * señales son 0..N (filas).

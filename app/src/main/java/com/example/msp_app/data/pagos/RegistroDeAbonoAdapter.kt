@@ -11,6 +11,7 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.data.auth.usuarioAutenticado
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.toEntity
@@ -22,10 +23,7 @@ import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import com.example.msp_app.features.payments.newpayment.PaymentFactory
 import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.tasks.await
 
 /**
  * Implementación real de [RegistroDeAbonoPort], provista desde el composition
@@ -316,26 +314,4 @@ class RegistroDeAbonoAdapter(
 
         else -> Constants.PAGO_EN_EFECTIVO_ID
     }
-}
-
-/**
- * El usuario autenticado desde Firestore (`users` where `EMAIL == email`) — la
- * MISMA resolución que usan [com.example.msp_app.features.auth.viewModels.AuthViewModel]
- * y `FirebaseUserCycleAdapter`, como lectura suspend one-shot. Su `COBRADOR_ID`
- * es a quién se le atribuye el abono: al que está parado frente al cliente, no
- * al cobrador de la venta (contrato de atribución de `PaymentFactory`).
- *
- * `internal` y no `private` porque [FichaDelClienteAdapter], en este mismo
- * paquete, necesita la MISMA resolución: una tercera copia del bloque sería una
- * tercera cosa que puede despegarse de las otras dos.
- */
-internal suspend fun usuarioAutenticado(): User? {
-    val email = FirebaseAuth.getInstance().currentUser?.email ?: return null
-    val snapshot = FirebaseFirestore.getInstance()
-        .collection(Constants.USERS_COLLECTION)
-        .whereEqualTo("EMAIL", email)
-        .get()
-        .await()
-    val doc = snapshot.documents.firstOrNull() ?: return null
-    return doc.toObject(User::class.java)?.copy(ID = doc.id)
 }

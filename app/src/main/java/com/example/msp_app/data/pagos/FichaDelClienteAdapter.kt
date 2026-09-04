@@ -6,6 +6,7 @@ import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.entities.ClientProfileEntity
 import com.example.msp_app.core.database.entities.ClientProfileSignalEntity
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.data.auth.usuarioAutenticado
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
@@ -21,6 +22,11 @@ import kotlinx.coroutines.CancellationException
  * contra Firestore y esa resolución solo existe aquí (precedente
  * `LiquidacionPort` → `SettlementLiquidacionAdapter`). El puerto se queda en el
  * feature.
+ *
+ * La resolución del usuario se toma de `data/auth/UsuarioAutenticado.kt`, un
+ * sitio neutral: **la ficha no depende del adaptador del abono ni al revés**.
+ * El pago es soberano para que nada pueda volverlo frágil, y una dependencia de
+ * compilación en esa dirección alcanza para romper esa promesa.
  *
  * ## No saber quién edita NUNCA impide guardar
  *
