@@ -23,8 +23,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *    `PROMESA_MONTO_CENTAVOS` en `Visit`). Columnas y no tabla hija: una
  *    visita produce a lo más UNA promesa, y el dominio ya en verde
  *    (`VisitaEnVentana`, `EstadoCuentaDeriver`) la lee en singular. El monto va
- *    en **centavos enteros** — `Long`, jamás `Double`/`Float`: es dinero
- *    (`NoDoubleForMoney`).
+ *    en **centavos enteros** — `Long`, jamás `Double`/`Float`: es dinero. Es
+ *    una convención que este módulo sigue, no una compuerta activa aquí: la
+ *    regla `NoDoubleForMoney` solo aplica a `:core:common` (ver el KDoc del
+ *    campo en `VisitEntity`).
  * 2. **Cita con hora** (`CITA_FECHA`, `CITA_HORA` en `Visit`). Dos columnas
  *    porque el mock tiene tres casos: hoy con hora, otro día con hora, y otro
  *    día sin hora.
@@ -37,7 +39,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *    Tablas hijas 0..N, no una columna: el servidor declara *"0..N
  *    comprobantes"*. La PK es el UUID que el teléfono genera y manda como
  *    `id_<n>` en el multipart — sin esa columna el contrato de la Task 9 no se
- *    puede satisfacer y el reintento deja de ser idempotente.
+ *    puede satisfacer y el reintento deja de ser idempotente. El padre se
+ *    referencia SIN llave foránea: ver `createImageTables`.
  * 6. **Ficha del cliente** (`cliente_ficha` + `cliente_ficha_senales`). El
  *    catálogo cerrado y la nota libre son dos campos con trabajos distintos y
  *    dos cardinalidades distintas (0..N contra 0..1), así que son dos tablas.
@@ -79,15 +82,24 @@ val MIGRATION_29_30 = object : Migration(29, 30) {
      * estas entidades (copiado del `30.json` exportado), para que
      * `runMigrationsAndValidate` compare contra el esquema real y no contra
      * una paráfrasis.
+     *
+     * **Sin llave foránea, a propósito.** `VISITA_ID` y `PAGO_ID` son
+     * referencias sueltas: una FK con `ON DELETE CASCADE` borraría
+     * comprobantes en silencio durante la operación normal —
+     * `CobranzaSyncManager.mergePagos` re-llavea el pago capturado
+     * (`PaymentDao.deleteByIDs`), `PaymentsLocalDataSource.saveAll` corre
+     * `deleteUploaded()` antes de reinsertar, y `VisitDao.insertVisit` usa
+     * `INSERT OR REPLACE`, que borra la fila antes de reponerla. Una fila
+     * huérfana es visible y limpiable; una foto borrada en silencio no se
+     * recupera. Ver el KDoc de `VisitImageEntity`/`PaymentImageEntity` para
+     * quién limpia.
      */
     private fun createImageTables(db: SupportSQLiteDatabase) {
         db.execSQL(
             "CREATE TABLE IF NOT EXISTS `visita_imagenes` (" +
                 "`ID` TEXT NOT NULL, `VISITA_ID` TEXT NOT NULL, `URI` TEXT NOT NULL, " +
                 "`MIME` TEXT NOT NULL, `DESCRIPCION` TEXT, `ORDEN` INTEGER NOT NULL, " +
-                "`CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`), " +
-                "FOREIGN KEY(`VISITA_ID`) REFERENCES `Visit`(`ID`) " +
-                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                "`CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`))"
         )
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS `index_visita_imagenes_VISITA_ID` " +
@@ -101,9 +113,7 @@ val MIGRATION_29_30 = object : Migration(29, 30) {
             "CREATE TABLE IF NOT EXISTS `pago_imagenes` (" +
                 "`ID` TEXT NOT NULL, `PAGO_ID` TEXT NOT NULL, `URI` TEXT NOT NULL, " +
                 "`MIME` TEXT NOT NULL, `DESCRIPCION` TEXT, `ORDEN` INTEGER NOT NULL, " +
-                "`CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`), " +
-                "FOREIGN KEY(`PAGO_ID`) REFERENCES `Payment`(`ID`) " +
-                "ON UPDATE NO ACTION ON DELETE CASCADE )"
+                "`CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`))"
         )
         db.execSQL(
             "CREATE INDEX IF NOT EXISTS `index_pago_imagenes_PAGO_ID` " +

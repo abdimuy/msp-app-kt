@@ -66,9 +66,14 @@ data class VisitEntity(
     @ColumnInfo(name = "PROMESA_FECHA") val PROMESA_FECHA: String? = null,
     /**
      * Monto prometido en **centavos** enteros. `Long`, nunca `Double`/`Float`:
-     * es dinero y `0.1 + 0.2 != 0.3` (regla `NoDoubleForMoney`). El adaptador
-     * lo cruza a `BigDecimal.valueOf(centavos, 2)` para
-     * `VisitaEnVentana.montoPrometido`, exacto y sin puente por flotante.
+     * es dinero y `0.1 + 0.2 != 0.3`. Ojo: es una **convención que este módulo
+     * sigue**, no una compuerta que lo obligue — la regla `NoDoubleForMoney`
+     * solo está aplicada a `:core:common`, y no puede activarse aquí porque
+     * `PaymentEntity.IMPORTE` es un `Double` preexistente que la regla de
+     * inmutabilidad prohíbe cambiar. `Long` (centavos) es una de las tres
+     * formas que esa regla nombra como correctas. El adaptador lo cruza a
+     * `BigDecimal.valueOf(centavos, 2)` para `VisitaEnVentana.montoPrometido`,
+     * exacto y sin puente por flotante.
      *
      * `NULL` = prometió una fecha pero no un monto — un caso real de campo, no
      * un cero: cero significaría "prometió no pagar".

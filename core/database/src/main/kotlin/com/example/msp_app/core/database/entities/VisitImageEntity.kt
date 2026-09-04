@@ -1,7 +1,6 @@
 package com.example.msp_app.core.database.entities
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -32,22 +31,41 @@ import androidx.room.PrimaryKey
  * orden. [SUBIDA_EN] queda en `NULL` hasta que el servidor confirma la
  * imagen; es lo que permite después borrar el archivo local sin adivinar.
  *
- * FK a `Visit` con `ON DELETE CASCADE`, igual que [LocalSaleImageEntity]
- * sobre `local_sale`: cuando `VisitDao.deleteUploadedVisits` poda una visita
- * ya confirmada, sus filas de imagen se van con ella en vez de quedar
- * apuntando a un padre inexistente. La poda solo alcanza visitas con
- * `GUARDADO_EN_MICROSIP = 1`, es decir, ya subidas con sus fotos.
+ * ## [VISITA_ID] es una referencia SUELTA — sin llave foránea, a propósito
+ *
+ * La versión anterior de esta tabla colgaba una FK de `Visit(ID)` con
+ * `ON DELETE CASCADE`, y eso borraba fotos en silencio. `VisitDao.insertVisit`
+ * usa `OnConflictStrategy.REPLACE`, y un `INSERT OR REPLACE` **borra la fila
+ * antes de reinsertarla**: la cascada se dispara y se lleva los comprobantes
+ * de una visita que el usuario acaba de volver a guardar. Hoy está latente
+ * —ningún flujo reinserta una visita existente— pero las Tasks 19 y 23
+ * agregan exactamente eso: un camino de guardado que además adjunta fotos.
+ * Es el mismo razonamiento que dejó a [VisitRecommendationEntity] sin FK.
+ *
+ * **El trade es deliberado:** sin FK puede quedar una fila huérfana (un
+ * comprobante cuya visita ya no está). Una fila huérfana es **visible y
+ * limpiable** por el código que sabe cuándo el archivo puede irse; una foto
+ * borrada en silencio no se recupera. Quitar una FK en SQLite obliga a
+ * **recrear la tabla** —una migración no aditiva, que este plan prohíbe—, así
+ * que la decisión se toma aquí o no se toma.
+ *
+ * **Quién limpia:** el camino de subida de la **Task 23**. Es el único que
+ * sabe que el servidor ya confirmó la imagen (stampa [SUBIDA_EN]) y que por
+ * tanto el archivo local puede borrarse junto con su fila. Como barrido de
+ * respaldo, esa misma tarea debe poder borrar las filas cuyo `VISITA_ID` ya
+ * no exista en `Visit`.
+ *
+ * **Constraint que la Task 23 debe honrar:** una visita solo puede podarse
+ * (`VisitDao.deleteUploadedVisits`, `GUARDADO_EN_MICROSIP = 1`) cuando sus
+ * comprobantes ya subieron. Eso se cumple *si y solo si* las fotos viajan en
+ * el MISMO request que la visita. No es un hecho garantizado por el esquema:
+ * bajo la convivencia JSON obligatoria (Ruling E) una visita puede quedar
+ * confirmada por `GET /v2/visitas/by-ids` con fotos todavía pendientes. La
+ * Task 23 tiene que impedir que se marque como subida una visita con
+ * comprobantes sin [SUBIDA_EN].
  */
 @Entity(
     tableName = "visita_imagenes",
-    foreignKeys = [
-        ForeignKey(
-            entity = VisitEntity::class,
-            parentColumns = ["ID"],
-            childColumns = ["VISITA_ID"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index(value = ["VISITA_ID"]),
         Index(value = ["SUBIDA_EN"])
@@ -56,6 +74,7 @@ import androidx.room.PrimaryKey
 data class VisitImageEntity(
     /** UUID generado en el teléfono. Viaja como `id_<n>` en el multipart. */
     @PrimaryKey val ID: String,
+    /** `Visit.ID`. Referencia suelta: ver el KDoc de la clase. */
     val VISITA_ID: String,
     /** `content://` o ruta del archivo local ya comprimido. */
     val URI: String,

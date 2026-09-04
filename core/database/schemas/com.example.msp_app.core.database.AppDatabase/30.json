@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 30,
-    "identityHash": "b238515897a3c0106373ec4de0b0d0ee",
+    "identityHash": "df9c8a9ebf8a1f42e17dc3ca2530b9ef",
     "entities": [
       {
         "tableName": "sales",
@@ -1682,7 +1682,7 @@
       },
       {
         "tableName": "visita_imagenes",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `VISITA_ID` TEXT NOT NULL, `URI` TEXT NOT NULL, `MIME` TEXT NOT NULL, `DESCRIPCION` TEXT, `ORDEN` INTEGER NOT NULL, `CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`), FOREIGN KEY(`VISITA_ID`) REFERENCES `Visit`(`ID`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `VISITA_ID` TEXT NOT NULL, `URI` TEXT NOT NULL, `MIME` TEXT NOT NULL, `DESCRIPCION` TEXT, `ORDEN` INTEGER NOT NULL, `CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`))",
         "fields": [
           {
             "fieldPath": "ID",
@@ -1759,23 +1759,11 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_visita_imagenes_SUBIDA_EN` ON `${TABLE_NAME}` (`SUBIDA_EN`)"
           }
         ],
-        "foreignKeys": [
-          {
-            "table": "Visit",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "VISITA_ID"
-            ],
-            "referencedColumns": [
-              "ID"
-            ]
-          }
-        ]
+        "foreignKeys": []
       },
       {
         "tableName": "pago_imagenes",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `PAGO_ID` TEXT NOT NULL, `URI` TEXT NOT NULL, `MIME` TEXT NOT NULL, `DESCRIPCION` TEXT, `ORDEN` INTEGER NOT NULL, `CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`), FOREIGN KEY(`PAGO_ID`) REFERENCES `Payment`(`ID`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`ID` TEXT NOT NULL, `PAGO_ID` TEXT NOT NULL, `URI` TEXT NOT NULL, `MIME` TEXT NOT NULL, `DESCRIPCION` TEXT, `ORDEN` INTEGER NOT NULL, `CREADA_EN` TEXT NOT NULL, `SUBIDA_EN` TEXT, PRIMARY KEY(`ID`))",
         "fields": [
           {
             "fieldPath": "ID",
@@ -1852,19 +1840,7 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_pago_imagenes_SUBIDA_EN` ON `${TABLE_NAME}` (`SUBIDA_EN`)"
           }
         ],
-        "foreignKeys": [
-          {
-            "table": "Payment",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "PAGO_ID"
-            ],
-            "referencedColumns": [
-              "ID"
-            ]
-          }
-        ]
+        "foreignKeys": []
       },
       {
         "tableName": "visita_recomendaciones",
@@ -2049,7 +2025,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b238515897a3c0106373ec4de0b0d0ee')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'df9c8a9ebf8a1f42e17dc3ca2530b9ef')"
     ]
   }
 }

@@ -28,6 +28,8 @@ private const val VISITA_NUEVA_ID = "b3d9a6c4-5f21-4c73-8f10-2a6d3e9b4c12"
 private const val VISITA_NOTA = "La cita ha sido reagendada para el 12 de septiembre"
 private const val VISITA_FORMA_VIEJA_ID = "b3d9a6c4-5f21-4c73-8f10-2a6d3e9b4c13"
 private const val VISITA_CON_PROMESA_ID = "b3d9a6c4-5f21-4c73-8f10-2a6d3e9b4c14"
+private const val PAGO_IMAGEN_ID = "33333333-3333-4333-8333-333333333333"
+private const val VISITA_IMAGEN_ID = "11111111-1111-4111-8111-111111111111"
 
 /**
  * Migración 29→30 (Task 26, la ÚNICA migración del plan `pagos-y-visitas`)
@@ -336,7 +338,7 @@ class Migration29to30Test : RobolectricTestBase() {
             INSERT INTO visita_imagenes
                 (ID, VISITA_ID, URI, MIME, DESCRIPCION, ORDEN, CREADA_EN, SUBIDA_EN)
             VALUES
-                ('11111111-1111-4111-8111-111111111111', '$VISITA_NUEVA_ID',
+                ('$VISITA_IMAGEN_ID', '$VISITA_NUEVA_ID',
                  'content://msp/visita/1.jpg', 'image/jpeg', 'fachada', 0,
                  '2026-08-28T18:21:00Z', NULL),
                 ('22222222-2222-4222-8222-222222222222', '$VISITA_NUEVA_ID',
@@ -362,7 +364,7 @@ class Migration29to30Test : RobolectricTestBase() {
             assertTrue(cursor.moveToFirst())
             assertEquals(
                 "la PK es el UUID que el teléfono manda como id_<n>",
-                "11111111-1111-4111-8111-111111111111",
+                VISITA_IMAGEN_ID,
                 cursor.getString(0)
             )
             assertEquals(0, cursor.getInt(1))
@@ -386,23 +388,154 @@ class Migration29to30Test : RobolectricTestBase() {
             assertEquals("cero comprobantes también es válido", 0, cursor.getInt(0))
         }
 
-        assertForeignKey(migrated, "visita_imagenes", "Visit", "VISITA_ID")
-        assertForeignKey(migrated, "pago_imagenes", "Payment", "PAGO_ID")
+        assertSinLlaveForanea(migrated, "visita_imagenes")
+        assertSinLlaveForanea(migrated, "pago_imagenes")
         migrated.close()
     }
 
-    private fun assertForeignKey(
-        db: SupportSQLiteDatabase,
-        table: String,
-        parent: String,
-        column: String
-    ) {
+    /**
+     * Las dos tablas de comprobantes referencian a su padre SIN llave foránea.
+     * Con `ON DELETE CASCADE` la operación normal borraría fotos en silencio
+     * (ver [el pago re-llaveado por el sync no puede llevarse su comprobante] y
+     * [reinsertar una visita con INSERT OR REPLACE no puede borrar sus fotos]).
+     */
+    private fun assertSinLlaveForanea(db: SupportSQLiteDatabase, table: String) {
         db.query("PRAGMA foreign_key_list($table)").use { cursor ->
-            assertTrue("$table debe declarar su FK", cursor.moveToFirst())
-            assertEquals(parent, cursor.getString(cursor.getColumnIndexOrThrow("table")))
-            assertEquals(column, cursor.getString(cursor.getColumnIndexOrThrow("from")))
-            assertEquals("CASCADE", cursor.getString(cursor.getColumnIndexOrThrow("on_delete")))
+            assertEquals(
+                "$table no debe declarar FK: un CASCADE borraria comprobantes en silencio",
+                0,
+                cursor.count
+            )
         }
+    }
+
+    private fun insertPagoImagen(db: SupportSQLiteDatabase, id: String, pagoId: String) {
+        db.execSQL(
+            """
+            INSERT INTO pago_imagenes
+                (ID, PAGO_ID, URI, MIME, DESCRIPCION, ORDEN, CREADA_EN, SUBIDA_EN)
+            VALUES ('$id', '$pagoId', 'content://msp/pago/1.jpg', 'image/jpeg',
+                    'recibo', 0, '2026-08-28T16:46:00Z', NULL)
+            """.trimIndent()
+        )
+    }
+
+    /**
+     * El pago capturado en el teléfono se borra y se vuelve a crear con otra
+     * llave como parte de la RUTINA: `CobranzaSyncManager.mergePagos` llama a
+     * `PaymentDao.deleteByIDs` en cuanto el servidor devuelve el
+     * `pago_recibido_id` del gemelo UUID, y reinserta la fila canónica bajo el
+     * `IMPTE_DOCTO_CC_ID` numérico. Con una FK `ON DELETE CASCADE`, el
+     * comprobante que todavía no termina de subir moriría ahí — sin error y
+     * sin rastro, en el tick de 30 s.
+     */
+    @Test
+    fun `el pago re-llaveado por el sync no puede llevarse su comprobante`() {
+        val migrated = migrate()
+        // Enforcement de FK ENCENDIDO a proposito: es como corre produccion
+        // (Room lo activa) y es lo que hace que esta prueba se ponga roja si
+        // alguien vuelve a colgar un ON DELETE CASCADE de esta tabla.
+        migrated.setForeignKeyConstraintsEnabled(true)
+        insertPagoImagen(migrated, PAGO_IMAGEN_ID, PAGO_SIN_SUBIR_ID)
+
+        // Exactamente lo que hace mergePagos: borrar el gemelo UUID...
+        migrated.execSQL("DELETE FROM Payment WHERE ID = ?", arrayOf(PAGO_SIN_SUBIR_ID))
+        // ...y reinsertar la fila canónica con la llave numérica.
+        migrated.execSQL(
+            """
+            INSERT INTO Payment (
+                ID, COBRADOR, DOCTO_CC_ACR_ID, DOCTO_CC_ID, FECHA_HORA_PAGO,
+                GUARDADO_EN_MICROSIP, IMPORTE, LAT, LNG, CLIENTE_ID,
+                COBRADOR_ID, FORMA_COBRO_ID, ZONA_CLIENTE_ID, NOMBRE_CLIENTE,
+                PAGO_RECIBIDO_ID
+            ) VALUES (
+                '15808629', 'Efrain Dominguez Reyes', 48213, 91027,
+                '2026-08-28T16:45:00Z', 1, $PAGO_SIN_SUBIR_IMPORTE, 19.043415, -98.198234,
+                30144, 7, 157, 21, 'Araceli Jimenez Cortes',
+                'c0ffee00-0000-4000-8000-000000000002'
+            )
+            """.trimIndent()
+        )
+
+        migrated.query(
+            "SELECT PAGO_ID, URI, SUBIDA_EN FROM pago_imagenes WHERE ID = ?",
+            arrayOf(PAGO_IMAGEN_ID)
+        ).use { cursor ->
+            assertTrue(
+                "el comprobante debe sobrevivir al re-llaveado del pago: una FK " +
+                    "CASCADE lo borraria en silencio en el tick del sync",
+                cursor.moveToFirst()
+            )
+            assertEquals(PAGO_SIN_SUBIR_ID, cursor.getString(0))
+            assertEquals("content://msp/pago/1.jpg", cursor.getString(1))
+            assertTrue("y sigue marcado como no subido", cursor.isNull(2))
+        }
+        migrated.close()
+    }
+
+    /**
+     * `VisitDao.insertVisit` usa `OnConflictStrategy.REPLACE`, y un
+     * `INSERT OR REPLACE` **borra la fila antes de reponerla**: con una FK
+     * `ON DELETE CASCADE` volver a guardar una visita se llevaría sus propias
+     * fotos. Hoy ningún flujo reinserta una visita existente; las Tasks 19 y
+     * 23 agregan exactamente eso.
+     */
+    @Test
+    fun `reinsertar una visita con INSERT OR REPLACE no puede borrar sus fotos`() {
+        val migrated = migrate()
+        // Enforcement de FK ENCENDIDO a proposito: es como corre produccion
+        // (Room lo activa) y es lo que hace que esta prueba se ponga roja si
+        // alguien vuelve a colgar un ON DELETE CASCADE de esta tabla.
+        migrated.setForeignKeyConstraintsEnabled(true)
+        migrated.execSQL(
+            """
+            INSERT INTO visita_imagenes
+                (ID, VISITA_ID, URI, MIME, DESCRIPCION, ORDEN, CREADA_EN, SUBIDA_EN)
+            VALUES ('$VISITA_IMAGEN_ID', '$VISITA_NUEVA_ID',
+                    'content://msp/visita/1.jpg', 'image/jpeg', 'fachada', 0,
+                    '2026-08-28T18:21:00Z', NULL)
+            """.trimIndent()
+        )
+
+        // La misma visita, guardada otra vez: es lo que hace insertVisit.
+        migrated.execSQL(
+            """
+            INSERT OR REPLACE INTO Visit (
+                ID, CLIENTE_ID, COBRADOR, COBRADOR_ID, FECHA, FORMA_COBRO_ID,
+                LAT, LNG, NOTA, TIPO_VISITA, ZONA_CLIENTE_ID,
+                IMPTE_DOCTO_CC_ID, GUARDADO_EN_MICROSIP
+            ) VALUES (
+                '$VISITA_NUEVA_ID', 30190, 'Efrain Dominguez Reyes', 7,
+                '2026-08-28T18:20:00Z', 157, 19.041000, -98.196000,
+                'Se corrigio la nota', 'NO_SE_ENCONTRABA', 21, 91028, 0
+            )
+            """.trimIndent()
+        )
+
+        migrated.query(
+            "SELECT VISITA_ID, URI FROM visita_imagenes WHERE ID = ?",
+            arrayOf(VISITA_IMAGEN_ID)
+        ).use { cursor ->
+            assertTrue(
+                "la foto debe sobrevivir a volver a guardar la visita: un " +
+                    "INSERT OR REPLACE borra la fila primero y disparaba la cascada",
+                cursor.moveToFirst()
+            )
+            assertEquals(VISITA_NUEVA_ID, cursor.getString(0))
+            assertEquals("content://msp/visita/1.jpg", cursor.getString(1))
+        }
+        migrated.query(
+            "SELECT NOTA FROM Visit WHERE ID = ?",
+            arrayOf(VISITA_NUEVA_ID)
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(
+                "y la visita quedo con su version nueva",
+                "Se corrigio la nota",
+                cursor.getString(0)
+            )
+        }
+        migrated.close()
     }
 
     @Test

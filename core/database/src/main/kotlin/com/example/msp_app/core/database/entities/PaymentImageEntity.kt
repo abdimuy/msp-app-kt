@@ -1,7 +1,6 @@
 package com.example.msp_app.core.database.entities
 
 import androidx.room.Entity
-import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -16,26 +15,47 @@ import androidx.room.PrimaryKey
  *
  * ## Por qué DOS tablas de imagen y no una polimórfica
  *
- * Una sola tabla con `(TIPO, PADRE_ID)` no puede llevar llave foránea real —
- * el padre depende del valor de una columna — y las dos convenciones de
- * storage key del servidor son distintas. El repo ya resolvió esto igual:
- * `garantia_imagenes` y `sale_image` son tablas separadas, una por padre. Dos
- * tablas cuestan un `CREATE TABLE` extra y compran integridad referencial y
- * un índice por padre.
+ * Una sola tabla con `(TIPO, PADRE_ID)` no puede llevar una referencia tipada
+ * por padre —el padre dependería del valor de una columna— y las dos
+ * convenciones de storage key del servidor son distintas. El repo ya resolvió
+ * esto igual: `garantia_imagenes` y `sale_image` son tablas separadas, una por
+ * padre.
+ *
+ * ## [PAGO_ID] es una referencia SUELTA — sin llave foránea, a propósito
+ *
+ * Una FK a `Payment(ID)` con `ON DELETE CASCADE` **borraría comprobantes
+ * durante la sincronización normal**, sin error y sin rastro. La fila de un
+ * pago capturado en el teléfono se borra y se vuelve a crear con otra llave
+ * como parte de la rutina:
+ *
+ * - `CobranzaSyncManager.mergePagos` llama a `PaymentDao.deleteByIDs` en
+ *   cuanto el servidor devuelve el `pago_recibido_id` del gemelo UUID, y
+ *   reinserta la fila canónica bajo el `IMPTE_DOCTO_CC_ID` numérico. Un
+ *   comprobante cuya subida no hubiera terminado cuando cae el tick de 30 s
+ *   se perdería.
+ * - `PaymentsLocalDataSource.saveAll` corre `PaymentDao.deleteUploaded()`
+ *   antes de reinsertar en cada sincronización del catálogo: se llevaría
+ *   también el registro de [SUBIDA_EN], que es lo que decide cuándo el
+ *   archivo local puede borrarse, dejando archivos huérfanos sin registro.
+ *
+ * **El trade es deliberado**, y es el mismo de [VisitImageEntity]: una fila
+ * huérfana es visible y limpiable; una foto borrada en silencio no se
+ * recupera. Y quitar una FK en SQLite obliga a **recrear la tabla** —una
+ * migración no aditiva, prohibida por este plan—, así que se decide aquí.
+ *
+ * **Quién limpia:** el camino de subida de la **Task 22**, el único que sabe
+ * que el servidor confirmó la imagen (stampa [SUBIDA_EN]) y que el archivo
+ * local puede irse con su fila. Como barrido de respaldo, esa misma tarea
+ * debe poder borrar las filas cuyo `PAGO_ID` ya no exista en `Payment` — con
+ * el cuidado de no confundir "el pago fue re-llavado por el sync" con "el
+ * pago se fue": el re-llavado es rutina, así que el barrido debe correr por
+ * antigüedad y no en el mismo tick del merge.
  *
  * `Payment` NO recibe ninguna columna nueva en esta migración: la tabla del
  * dinero se queda exactamente como está.
  */
 @Entity(
     tableName = "pago_imagenes",
-    foreignKeys = [
-        ForeignKey(
-            entity = PaymentEntity::class,
-            parentColumns = ["ID"],
-            childColumns = ["PAGO_ID"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ],
     indices = [
         Index(value = ["PAGO_ID"]),
         Index(value = ["SUBIDA_EN"])
@@ -44,6 +64,7 @@ import androidx.room.PrimaryKey
 data class PaymentImageEntity(
     /** UUID generado en el teléfono. Viaja como `id_<n>` en el multipart. */
     @PrimaryKey val ID: String,
+    /** `Payment.ID`. Referencia suelta: ver el KDoc de la clase. */
     val PAGO_ID: String,
     /** `content://` o ruta del archivo local ya comprimido. */
     val URI: String,
