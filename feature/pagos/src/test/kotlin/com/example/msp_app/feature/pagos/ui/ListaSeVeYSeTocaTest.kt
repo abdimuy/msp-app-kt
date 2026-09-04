@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -92,36 +93,50 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * El chip "hoy" **sigue sin pintarse**, y la razón no cambió con la Task 19:
-     * la captura que escribe `PROMESA_FECHA`/`CITA_FECHA` existe pero todavía no
-     * es alcanzable —nada navega al destino nuevo y `NewVisitDialog` no escribe
-     * esas columnas—, así que el chip marcaría 0 para siempre y le enseñaría al
-     * cobrador que la fila de filtros miente. Lo enciende la Task 21, junto con
-     * el punto de entrada.
+     * **El chip "hoy" ya se pinta, y cuenta compromisos reales.**
      *
-     * No esconde trabajo: una promesa sin fecha ya cae en "vencidos".
+     * Lo que cambió no es el chip: es que la captura estructurada de la Task 19
+     * —la única que escribe `PROMESA_FECHA`/`CITA_FECHA`— quedó **alcanzable**
+     * con el cableado de la Task 21, y el `NewVisitDialog`, que metía la fecha
+     * dentro del texto libre de `NOTA` y no llenaba ninguna de las dos columnas,
+     * quedó retirado. Por eso el interruptor se mueve aquí y no antes.
+     *
+     * La ruta de prueba trae la promesa de Esperanza que cae hoy, y el chip
+     * marca **1**. Su control positivo vive en el test de abajo: la MISMA
+     * proyección sobre la ruta sin promesas marca **0**, así que este 1 lo
+     * produce el dato y no una cuenta que siempre da uno.
      */
     @Test
-    fun `el chip de hoy no se pinta mientras la captura no sea alcanzable`() {
-        pinta()
-        assertEquals(false, HOY_VISIBLE)
-        assertEquals(
-            0,
-            composeTestRule
-                .onAllNodesWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
-                .fetchSemanticsNodes()
-                .size
-        )
-        // Los otros tres sí están: se apaga un chip, no la fila.
-        listOf(
-            SegmentoDeCobranza.TODOS,
-            SegmentoDeCobranza.VENCIDOS,
-            SegmentoDeCobranza.SIN_VISITAR
-        ).forEach {
+    fun `el chip de hoy se pinta y cuenta el compromiso que cae hoy`() {
+        pinta(clientes = ListaFixtures.rutaConPromesaDeHoy())
+        assertEquals(true, HOY_VISIBLE)
+        composeTestRule
+            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
+            .assertIsDisplayed()
+        // Los CUATRO chips están, y el de hoy trae su conteo al lado.
+        SegmentoDeCobranza.entries.forEach {
             composeTestRule
                 .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + it.name.lowercase())
                 .assertIsDisplayed()
         }
+        // El conteo va DENTRO del chip: la semántica del `Surface` clickeable
+        // fusiona sus textos, así que se afirma sobre el nodo del chip.
+        composeTestRule
+            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
+            .assertTextContains("1")
+    }
+
+    /**
+     * **Control positivo del chip encendido.** Sin ningún compromiso de hoy el
+     * mismo chip se pinta con **0**: la cifra del test de arriba sale del dato.
+     * Si este test viera un 1, el de arriba no probaría nada.
+     */
+    @Test
+    fun `sin compromisos de hoy el chip de hoy marca cero`() {
+        pinta(clientes = ListaFixtures.ruta())
+        composeTestRule
+            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
+            .assertTextContains("0")
     }
 
     /**

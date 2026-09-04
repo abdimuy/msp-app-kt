@@ -48,30 +48,67 @@ const val AVISO_DE_CUENTAS_TAG: String = "pagos_aviso_cuentas"
 
 private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", BUSINESS_LOCALE)
 
-/** El destino: conecta el ViewModel con el contenido puro. */
+/**
+ * El destino: conecta el ViewModel con el contenido puro.
+ *
+ * ## La cuenta que encabeza "sus ventas" (arreglo de la Task 21)
+ *
+ * Antes esta función pasaba el **`clienteId`** a `onRegistrarAbono`. El destino
+ * del abono es `pagos/abono/{ventaId}`, así que ese id aterrizaba en el lugar de
+ * un `DOCTO_CC_ACR_ID` y la pantalla del dinero abría una venta que no era la
+ * del cliente —o ninguna—. Un cliente no tiene saldo que cobrar: lo tienen sus
+ * cuentas.
+ *
+ * La cuenta elegida es **la primera de `detalle.ventas`**, que es exactamente la
+ * fila de arriba de "sus ventas" en la pantalla que el cobrador está mirando —
+ * no una elección escondida— y la misma que `CargarDetalleCliente` ya usa como
+ * representante del cliente (nombre, teléfono, zona, aval). La pantalla del
+ * abono encabeza con el folio, el producto y el saldo de esa venta, así que un
+ * cliente con varias cuentas ve cuál es antes de teclear un peso.
+ *
+ * `null` no es alcanzable en producción: el dock solo se pinta con `detalle`
+ * cargado, y `CargarDetalleCliente` devuelve `null` cuando el cliente no tiene
+ * ni una venta. El `?.let` está por totalidad, no por un caso vivo.
+ */
 @Composable
 fun DetalleClienteScreen(
     viewModel: DetalleClienteViewModel,
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: (Int) -> Unit,
-    onRegistrarVisita: (Int) -> Unit,
-    onMasAcciones: () -> Unit,
+    onRegistrarVisita: (Int, Int?) -> Unit,
+    onMasAcciones: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val cuenta = cuentaQueEncabeza(state)
     DetalleClienteContent(
         state = state,
         onAtras = onAtras,
         onAbrirVenta = onAbrirVenta,
-        onRegistrarAbono = { onRegistrarAbono(viewModel.clienteId) },
-        onRegistrarVisita = { onRegistrarVisita(viewModel.clienteId) },
-        onMasAcciones = onMasAcciones,
-        onUsarLiquidacion = { onRegistrarAbono(viewModel.clienteId) },
-        onVerContactos = onMasAcciones,
+        onRegistrarAbono = { cuenta?.let(onRegistrarAbono) },
+        onRegistrarVisita = { onRegistrarVisita(viewModel.clienteId, null) },
+        onMasAcciones = { cuenta?.let(onMasAcciones) },
+        onUsarLiquidacion = { cuenta?.let(onRegistrarAbono) },
+        onVerContactos = { cuenta?.let(onMasAcciones) },
         modifier = modifier
     )
 }
+
+/**
+ * La cuenta a la que apunta el dock del cliente: **la primera de "sus ventas"**,
+ * o sea la fila de arriba de la lista que el cobrador está mirando.
+ *
+ * Devuelve un `DOCTO_CC_ACR_ID`, **nunca** un `CLIENTE_ID`. Esa confusión era el
+ * defecto: `pagos/abono/{ventaId}` recibía el id del cliente y la pantalla del
+ * dinero abría una cuenta que no era la suya —o ninguna—. Un cliente no tiene
+ * saldo que cobrar; lo tienen sus cuentas.
+ *
+ * `null` solo cuando todavía no hay detalle cargado, y en ese estado el dock ni
+ * se pinta.
+ */
+internal fun cuentaQueEncabeza(state: DetalleClienteUiState): Int? =
+    state.detalle?.ventas?.firstOrNull()?.ventaId
 
 /**
  * El detalle de cliente. **El nombre del cliente es el título** y sus ventas

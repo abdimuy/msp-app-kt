@@ -20,6 +20,11 @@ import org.junit.Test
  * El fixture es la ruta con **Victoria y sus dos cuentas**: es el caso que la
  * lista vieja pintaba como dos personas distintas, así que el golden es también
  * la prueba visual de que ahora es una sola puerta.
+ *
+ * Desde la Task 21 la ruta lleva además **la promesa de Esperanza que cae hoy**,
+ * porque el chip *hoy* ya se pinta (`HOY_VISIBLE`) y un golden con ese chip en 0
+ * retrataría precisamente el estado que se decidió no shipear: una fila de
+ * filtros con un chip que nunca marca nada.
  */
 class ListaMatrixScreenshotTest : PagosScreenshotTest() {
 
@@ -59,9 +64,8 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         name = "pagos_lista_vacia_${tema(dark)}",
         dark = dark
     ) {
-        // Con `vencidos` y no con `hoy`: `hoy` no se pinta (ver `HOY_VISIBLE`),
-        // así que un golden con ese segmento activo no mostraría chip encendido
-        // y retrataría un estado que el cobrador no puede alcanzar.
+        // Con `vencidos`: el estado vacío se retrata con un chip que el cobrador
+        // usa todos los días, no con el que acaba de encenderse.
         Lista(ListaDeClientesUiState(cargando = false, segmento = SegmentoDeCobranza.VENCIDOS))
     }
 
@@ -70,7 +74,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
     /** El mismo estado que produciría el ViewModel: proyectado, no armado a mano. */
     private fun estadoDeLaRuta(): ListaDeClientesUiState {
         val proyeccion = CarteraEnPantalla.proyectar(
-            clientes = ListaFixtures.ruta(),
+            clientes = ListaFixtures.rutaConPromesaDeHoy(),
             segmento = SegmentoDeCobranza.TODOS,
             query = "",
             hoy = ListaFixtures.HOY

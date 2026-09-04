@@ -77,39 +77,36 @@ fun ChipsDeSegmento(
 }
 
 /**
- * Los chips que se pintan hoy.
+ * Los chips que se pintan hoy — **los cuatro, desde la Task 21**.
  *
- * ## Por qué "hoy" no está
+ * ## Por qué "hoy" ya está
  *
  * [SegmentoDeCobranza.HOY] solo puede contener cuentas con `PROMESA_FECHA` o
- * `CITA_FECHA`. La Task 19 construyó la captura estructurada que las escribe,
- * pero **todavía no hay camino que llegue a ella**: nada navega al destino
- * `visitas/registrar` y el diálogo que sí corre hoy (`NewVisitDialog` +
- * `VisitFactory`) no escribe ninguna de las dos columnas. O sea que el chip
- * sigue siendo estructuralmente incapaz de marcar otra cosa que 0.
+ * `CITA_FECHA`. La Task 19 construyó la captura estructurada que las escribe y
+ * la **Task 21 la volvió alcanzable**: el dock de las dos pantallas de detalle
+ * navega a `visitas/registrar`, y el `NewVisitDialog` —que escribía la fecha
+ * dentro del texto libre de `NOTA` y por lo tanto no llenaba ninguna de las dos
+ * columnas— quedó retirado en la misma tarea. Con eso el chip deja de ser
+ * estructuralmente incapaz de marcar otra cosa que 0.
  *
- * **Y no esconde trabajo:** una promesa sin fecha mapea al trato `REGRESAS` y
- * por lo tanto a *vencidos*, así que no existe una
- * cuenta que solo "hoy" sacaría a flote. Lo que sí hace un chip que dice
- * "hoy 0" al lado de "vencidos 34" durante semanas es enseñarle al cobrador que
- * la fila de filtros miente — y cuando deja de leer la fila, se pierden también
- * los chips que sí sirven. Deshabilitarlo con un aviso sería peor: gasta un
- * estado visual, en un teléfono a una mano y en la calle, para explicar una
- * función que todavía no existe.
- *
- * **La Task 21 cambia este booleano y regraba los goldens**, en el mismo
- * movimiento con el que cablea el punto de entrada a la captura — que es cuando
- * el dato se vuelve alcanzable de verdad. No hay nada más que hacer: el
- * segmento, sus ramas, sus tests y sus goldens ya están.
+ * Encenderlo antes habría sido peor que no tenerlo: un chip que dice "hoy 0" al
+ * lado de "vencidos 34" durante semanas le enseña al cobrador que la fila de
+ * filtros miente, y cuando deja de leer la fila se pierden también los chips que
+ * sí sirven. Por eso el interruptor se movió el día en que el dato se volvió
+ * alcanzable, y no antes.
  */
 private fun segmentosVisibles(): List<SegmentoDeCobranza> =
     SegmentoDeCobranza.entries.filter { HOY_VISIBLE || it != SegmentoDeCobranza.HOY }
 
 /**
- * El interruptor del párrafo de arriba. Lo enciende la **Task 21**, junto con el
- * punto de entrada que hace alcanzable la captura de la Task 19.
+ * El interruptor del párrafo de arriba. Lo encendió la **Task 21**, junto con el
+ * punto de entrada que hizo alcanzable la captura de la Task 19.
+ *
+ * Se conserva como constante en vez de borrarse porque es el único lugar donde
+ * el chip se apaga sin tocar el enum, sus ramas ni sus goldens — y porque el
+ * test que lo afirma es lo que ata "el chip se pinta" a "el dato es alcanzable".
  */
-const val HOY_VISIBLE: Boolean = false
+const val HOY_VISIBLE: Boolean = true
 
 @Composable
 private fun ChipDeSegmento(

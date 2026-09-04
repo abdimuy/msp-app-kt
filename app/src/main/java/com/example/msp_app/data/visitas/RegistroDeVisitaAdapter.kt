@@ -176,9 +176,9 @@ class RegistroDeVisitaAdapter(
     /**
      * Arma la fila. **Nada estructurado se serializa en [VisitEntity.NOTA]**: la
      * fecha va a `PROMESA_FECHA`, el monto a `PROMESA_MONTO_CENTAVOS` y la hora
-     * a `CITA_HORA`. Meterlas en la nota —como hace hoy `NewVisitDialog` con
-     * "La cita ha sido reagendada para el …"— es el defecto que este plan vino a
-     * arreglar.
+     * a `CITA_HORA`. Meterlas en la nota —como hacía el `NewVisitDialog` con
+     * "La cita ha sido reagendada para el …", retirado en la Task 21— es el
+     * defecto que este plan vino a arreglar.
      *
      * `LAT`/`LNG` en cero cuando no hubo ubicación, exactamente como ya hace
      * `VisitFactory` mientras `UpdateLocationService` parcha las columnas
@@ -260,14 +260,17 @@ class RegistroDeVisitaAdapter(
             ?: venta.DOCTO_CC_ACR_ID
 
     /**
-     * Mantiene `DIA_TEMPORAL_COBRANZA` como lo deja hoy `NewVisitDialog` cuando
-     * el cliente pide reagendar.
+     * Mantiene `DIA_TEMPORAL_COBRANZA` como lo dejaba el `NewVisitDialog` cuando
+     * el cliente pedía reagendar.
      *
      * No es una segunda fuente de verdad: la derivación del periodo **no** lee
-     * esa columna (lee `PROMESA_FECHA`/`CITA_FECHA`). Se sigue escribiendo
-     * porque la pantalla de ventas legada sí la lee, y mientras las dos convivan
-     * una visita capturada aquí no debe verse distinta de una capturada allá.
-     * Cuando la lista legada se retire, esta línea se va con ella.
+     * esa columna (lee `PROMESA_FECHA`/`CITA_FECHA`). La Task 21 retiró la lista
+     * legada que sí la pintaba, pero la línea **se queda**: la columna sigue
+     * viajando en el modelo, `CobranzaSyncManager` la preserva a propósito en
+     * cada merge incremental (`DIA_TEMPORAL_COBRANZA = existing.…`) y dejar de
+     * escribirla haría que una visita capturada hoy se viera distinta de las que
+     * ya están en los teléfonos. Retirarla es una limpieza con su propia
+     * verificación, no un efecto colateral de mover un botón.
      */
     private suspend fun reagendarCobranzaLegada(entidad: VisitEntity) {
         val dia = entidad.PROMESA_FECHA ?: entidad.CITA_FECHA ?: return

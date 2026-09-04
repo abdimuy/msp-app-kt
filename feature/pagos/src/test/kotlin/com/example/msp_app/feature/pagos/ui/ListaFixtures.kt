@@ -223,7 +223,8 @@ object ListaFixtures {
 
     /**
      * La ruta **con una promesa que cae hoy** — la que necesita el chip *hoy*,
-     * encendido desde la Task 19 (`HOY_VISIBLE`).
+     * encendido en la Task 21 (`HOY_VISIBLE`) cuando la captura estructurada de
+     * la Task 19 se volvió alcanzable.
      */
     fun rutaConPromesaDeHoy(): List<ClienteEnLista> = ruta() + esperanza()
 

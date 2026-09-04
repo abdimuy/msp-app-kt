@@ -10,7 +10,7 @@ import com.example.msp_app.data.models.sale.toSale
 import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
 import com.example.msp_app.features.sales.components.primarysaleitem.PrimarySaleItem
 import com.example.msp_app.features.sales.components.secondarysaleitem.SecondarySaleItem
-import com.example.msp_app.features.visit.components.NewVisitDialog
+import com.example.msp_app.navigation.DestinosDeCobranza
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
@@ -19,6 +19,21 @@ enum class SaleItemVariant {
     SECONDARY
 }
 
+/**
+ * La tarjeta de una venta dentro de una lista.
+ *
+ * ## "Agregar visita" ya no abre un diálogo (Task 21)
+ *
+ * El `NewVisitDialog` quedó **retirado**: escribía la fecha de la cita dentro
+ * del texto libre de `NOTA`, así que "pidió reagendar" derivaba a `REGRESAS` y
+ * caía en *vencidos*, mientras el mismo hecho capturado en la pantalla nueva
+ * deriva a `DIFERIDO` y cae en *hoy*. El mismo hecho de campo en dos cubetas
+ * distintas según qué UI abrió el cobrador.
+ *
+ * Ahora la acción **navega** al destino de la Task 19
+ * (`visitas/registrar/{clienteId}?ventaId=…`), que escribe `PROMESA_FECHA`,
+ * `PROMESA_MONTO_CENTAVOS` y `CITA_HORA` en columnas reales.
+ */
 @Composable
 fun SaleItem(
     sale: SaleWithProducts,
@@ -32,12 +47,11 @@ fun SaleItem(
     val dateFormatted = parsedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
     fun onAgregarVisita() {
-        // Implementar la lógica para agregar una visita
+        navController.navigate(DestinosDeCobranza.visitaDeUnaVenta(sale))
     }
 
     val menuExpanded = remember { mutableStateOf(false) }
     val showPaymentDialog = remember { mutableStateOf(false) }
-    val showVisitDialog = remember { mutableStateOf(false) }
 
     val openMenu: () -> Unit = { menuExpanded.value = true }
     val closeMenu: () -> Unit = { menuExpanded.value = false }
@@ -45,8 +59,12 @@ fun SaleItem(
     val openPaymentDialog: () -> Unit = { showPaymentDialog.value = true }
     val closePaymentDialog: () -> Unit = { showPaymentDialog.value = false }
 
-    val openVisitDialog: () -> Unit = { showVisitDialog.value = true }
-    val closeVisitDialog: () -> Unit = { showVisitDialog.value = false }
+    // La "apertura del diálogo de visita" es ahora la navegación al destino de
+    // la Task 19. El cierre queda en no-op: la pantalla se cierra sola al
+    // volver, y `Primary`/`SecondarySaleItem` siguen recibiendo el mismo par sin
+    // que haya que tocarlos.
+    val openVisitDialog: () -> Unit = { onAgregarVisita() }
+    val closeVisitDialog: () -> Unit = {}
 
     when (variant) {
         SaleItemVariant.DEFAULT -> {
@@ -93,15 +111,6 @@ fun SaleItem(
             onDismissRequest = { showPaymentDialog.value = false },
             sale = sale.toSale(),
             suggestedPayment = sale.PARCIALIDAD,
-            navController = navController
-        )
-    }
-
-    if (showVisitDialog.value) {
-        NewVisitDialog(
-            show = true,
-            onDismissRequest = { showVisitDialog.value = false },
-            sale = sale.toSale(),
             navController = navController
         )
     }

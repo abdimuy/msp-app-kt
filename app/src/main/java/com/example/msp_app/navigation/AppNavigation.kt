@@ -65,7 +65,6 @@ import com.example.msp_app.features.sales.screens.SaleDescriptionScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
-import com.example.msp_app.features.sales.screens.SalesScreen
 import com.example.msp_app.features.sales.screens.UnifiedSalesScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
@@ -73,7 +72,6 @@ import com.example.msp_app.features.transfers.presentation.detail.TransferDetail
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
 import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
 import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
-import com.example.msp_app.features.visit.screens.VisitTicketScreen
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 
@@ -82,7 +80,16 @@ sealed class Screen(val route: String) {
     object NoModules : Screen("no_modules")
     object Login : Screen("login")
     object Home : Screen("home")
-    object Sales : Screen("sales")
+
+    /**
+     * El detalle de venta **legado**.
+     *
+     * Desde la Task 21 ya no es la puerta de ninguna lista: se llega por el "⋯"
+     * de las pantallas de detalle nuevas, que es donde vive la **condonación**
+     * —cuya lógica este plan declaró intacta— junto con el mapa de la venta, los
+     * productos, la garantía y el historial completo. El argumento es el
+     * `DOCTO_CC_ACR_ID`, que es lo que `SaleDao.getById` filtra.
+     */
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sales/sale_details/$saleId"
     }
@@ -100,10 +107,6 @@ sealed class Screen(val route: String) {
 
     object PaymentTicket : Screen("payment_ticket/{paymentId}") {
         fun createRoute(paymentId: String) = "payment_ticket/$paymentId"
-    }
-
-    object VisitTicket : Screen("visit_ticket/{saleId}") {
-        fun createRoute(saleId: String) = "visit_ticket/$saleId"
     }
 
     object Guarantee : Screen("guarantee/{saleId}") {
@@ -423,10 +426,6 @@ fun AppNavigation() {
                 HomeScreen(navController = navController)
             }
 
-            composable(Screen.Sales.route) {
-                SalesScreen(navController = navController)
-            }
-
             composable(Screen.SaleDetails.route) { backStackEntry ->
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
@@ -435,10 +434,9 @@ fun AppNavigation() {
                         navController = navController
                     )
                 } else {
-                    // Handle the case where saleId is null, maybe show an error or navigate back
-                    navController.navigate(Screen.Sales.route) {
-                        popUpTo(Screen.Sales.route) { inclusive = true }
-                    }
+                    // Sin argumento no hay venta que pintar: se vuelve por donde
+                    // se entró en vez de mandar a una lista que ya no existe.
+                    navController.popBackStack()
                 }
             }
 
@@ -494,14 +492,6 @@ fun AppNavigation() {
                         paymentId = paymentId,
                         navController = navController
                     )
-                }
-            }
-
-            composable(Screen.VisitTicket.route) { backStackEntry ->
-                val saleIdString = backStackEntry.arguments?.getString("saleId")
-                val saleId = saleIdString?.toIntOrNull()
-                if (saleId != null) {
-                    VisitTicketScreen(saleId = saleId, navController = navController)
                 }
             }
 
@@ -630,6 +620,12 @@ fun AppNavigation() {
                     viewModel = viewModel
                 )
             }
+
+            // Cobranza y visitas (Tasks 16-20), cableadas por la Task 21.
+            // El grafo vive en `DestinosDeCobranzaGraph.kt` para que un test
+            // pueda montarlo con un `TestNavHostController` y afirmar destino y
+            // argumentos sobre EL MISMO código que corre en la app.
+            destinosDeCobranza(navController)
 
             // Pantalla de Configuración (Task 3, spec
             // 2026-08-10-configuracion-tamano-letra-design.md). Se apila sobre la pantalla

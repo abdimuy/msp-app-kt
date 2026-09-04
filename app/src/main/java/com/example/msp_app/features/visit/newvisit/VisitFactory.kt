@@ -6,7 +6,7 @@ import com.example.msp_app.data.models.visit.Visit
 
 /**
  * Builds the [Visit] a cobrador registers against a [Sale]. Extracted from
- * `NewVisitDialog.handleSaveVisit()` as a pure, behavior-preserving refactor
+ * `NewVisitDialog.handleSaveVisit()` (retired in Task 21) as a pure, behavior-preserving refactor
  * so the attribution mapping can be characterization-tested without a
  * Compose/Robolectric harness — mirrors
  * [com.example.msp_app.features.payments.newpayment.PaymentFactory].
@@ -29,6 +29,16 @@ import com.example.msp_app.data.models.visit.Visit
  *    background.
  *  - `GUARDADO_EN_MICROSIP` starts 0 — the visita is pending until the
  *    sync/upload pipeline confirms it against Microsip.
+ */
+/*
+ * Task 21: con `NewVisitDialog` retirado, este objeto ya no tiene llamadores en
+ * producción — la escritura vive ahora en `RegistroDeVisitaAdapter`. Se conserva
+ * porque `VisitFactoryTest` y `VisitsLocalDataSourceTest` lo usan como
+ * **caracterización del contrato de atribución** (`COBRADOR`/`ZONA_CLIENTE_ID`
+ * de la venta, `COBRADOR_ID` del usuario, `IMPTE_DOCTO_CC_ID = DOCTO_CC_ACR_ID`),
+ * que es exactamente el contrato que el adaptador nuevo reproduce. Borrarlo
+ * borraría la única prueba de que los dos caminos escriben lo mismo, justo en
+ * el campo que ya costó un defecto de producción (commit `721c5551`).
  */
 object VisitFactory {
     fun fromSale(

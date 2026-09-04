@@ -42,6 +42,7 @@ import com.example.msp_app.R
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
+import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 
@@ -138,14 +139,23 @@ fun DrawerContainer(
                                 }
                             )
 
+                            // "Clientes" ahora abre la lista POR CLIENTE de la
+                            // Task 17 (`pagos/clientes`), que reemplazó a
+                            // `SalesScreen` —la de tres pestañas, una fila por
+                            // VENTA, donde un cliente con dos muebles aparecía
+                            // dos veces como si fueran dos personas—. El
+                            // `popUpTo(home)` deja Home abajo en la pila: la
+                            // lista nueva lleva "atrás" en vez de hamburguesa,
+                            // así que el drawer sigue a un toque de distancia.
                             NavigationDrawerItem(
                                 label = { Text("Clientes") },
                                 selected = false,
                                 onClick = {
                                     scope.launch {
                                         drawerState.close()
-                                        navController.navigate("sales") {
-                                            popUpTo("sales") { inclusive = true }
+                                        navController.navigate(PagosRutas.LISTA_CLIENTES) {
+                                            popUpTo("home")
+                                            launchSingleTop = true
                                         }
                                     }
                                 }

@@ -30,15 +30,28 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.forgiveness.components.NewForgivenessDialog
 import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
-import com.example.msp_app.features.visit.components.NewVisitDialog
+import com.example.msp_app.navigation.DestinosDeCobranza
 
+/**
+ * El bloque de acciones del detalle de venta legado.
+ *
+ * ## "Agregar Visita" navega, ya no abre un diálogo (Task 21)
+ *
+ * El `NewVisitDialog` quedó retirado: embebía la fecha de la cita en el texto
+ * libre de `NOTA`, y por eso el mismo hecho de campo ("pidió reagendar") caía en
+ * *vencidos* por esta puerta y en *hoy* por la pantalla nueva. El botón lleva
+ * ahora al destino de la Task 19, que escribe la promesa y la cita en columnas
+ * reales.
+ *
+ * **La condonación no se toca**: sigue siendo el mismo `NewForgivenessDialog`
+ * con la misma lógica, y este bloque sigue siendo su única puerta.
+ */
 @Composable
 fun SaleActionSection(sale: Sale, navController: NavController) {
     val viewModel: PaymentsViewModel = viewModel()
     val paymentsBySaleIdState by viewModel.paymentsBySaleIdState.collectAsState()
 
     var open by remember { mutableStateOf(false) }
-    var openVisitDialog by remember { mutableStateOf(false) }
     var openForgivenessDialog by remember { mutableStateOf(false) }
 
     val paymentAmounts: List<Int> = if (paymentsBySaleIdState is ResultState.Success) {
@@ -60,12 +73,6 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
         show = openForgivenessDialog,
         onDismissRequest = { openForgivenessDialog = false },
         sale,
-        navController = navController
-    )
-    NewVisitDialog(
-        show = openVisitDialog,
-        onDismissRequest = { openVisitDialog = false },
-        sale = sale,
         navController = navController
     )
 
@@ -115,7 +122,9 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
             }
 
             Button(
-                onClick = { openVisitDialog = true },
+                onClick = {
+                    navController.navigate(DestinosDeCobranza.visitaDeUnaVenta(sale))
+                },
                 modifier = Modifier
                     .weight(1f)
                     .height(56.dp),

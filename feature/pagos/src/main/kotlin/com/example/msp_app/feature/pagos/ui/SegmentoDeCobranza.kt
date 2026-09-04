@@ -59,11 +59,12 @@ enum class SegmentoDeCobranza(val etiqueta: String) {
      * Cae hoy: la promesa es para hoy, o hay una cita **de hoy** a una hora
      * acordada.
      *
-     * **Hoy no se pinta** — ver `HOY_VISIBLE` en `PiezasDeLaLista.kt`. El
-     * segmento existe entero (filtra, cuenta y está probado); lo único apagado
-     * es su chip, porque la captura que escribe `PROMESA_FECHA`/`CITA_FECHA`
-     * (Task 19) todavía no es alcanzable desde ninguna pantalla y el chip
-     * marcaría 0 para siempre. Lo enciende la Task 21.
+     * **Su chip se pinta desde la Task 21** — ver `HOY_VISIBLE` en
+     * `PiezasDeLaLista.kt`. El segmento siempre existió entero (filtra, cuenta y
+     * está probado); lo que faltaba era que la captura que escribe
+     * `PROMESA_FECHA`/`CITA_FECHA` (Task 19) fuera alcanzable, y eso lo cerró la
+     * Task 21 al cablear el dock de las pantallas de detalle y retirar el
+     * `NewVisitDialog`.
      */
     HOY("hoy"),
 

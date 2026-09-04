@@ -55,7 +55,7 @@ private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", 
 @Composable
 fun TarjetaDeGarantia(
     garantia: GarantiaDeLaVenta,
-    onVerGarantia: (String) -> Unit,
+    onVerGarantia: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Tarjeta(modifier = modifier.testTag(TARJETA_DE_GARANTIA_TAG)) {
@@ -115,7 +115,7 @@ fun TarjetaDeGarantia(
             Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
             VerTodos(
                 texto = "ver la garantía",
-                onClick = { onVerGarantia(garantia.garantiaId) },
+                onClick = onVerGarantia,
                 color = MspTheme.colors.surface2
             )
         }

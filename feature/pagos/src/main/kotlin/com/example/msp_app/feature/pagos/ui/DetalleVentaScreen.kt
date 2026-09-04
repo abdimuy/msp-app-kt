@@ -55,21 +55,30 @@ fun DetalleVentaScreen(
     viewModel: DetalleVentaViewModel,
     onAtras: () -> Unit,
     onRegistrarAbono: (Int) -> Unit,
-    onRegistrarVisita: (Int) -> Unit,
-    onMasAcciones: () -> Unit,
-    onVerGarantia: (String) -> Unit,
+    onRegistrarVisita: (Int, Int?) -> Unit,
+    onMasAcciones: (Int) -> Unit,
+    onVerGarantia: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val detalle = state.detalle
     DetalleVentaContent(
         state = state,
         onAtras = onAtras,
         onRegistrarAbono = { onRegistrarAbono(viewModel.ventaId) },
-        onRegistrarVisita = { onRegistrarVisita(viewModel.ventaId) },
-        onMasAcciones = onMasAcciones,
+        // La visita se registra sobre la PUERTA, con esta cuenta como contexto:
+        // el `clienteId` sale del detalle ya cargado, que es el único lugar del
+        // módulo que lo conoce sin volver a leer Room.
+        onRegistrarVisita = {
+            detalle?.let { onRegistrarVisita(it.clienteId, viewModel.ventaId) }
+        },
+        onMasAcciones = { onMasAcciones(viewModel.ventaId) },
         onUsarLiquidacion = { onRegistrarAbono(viewModel.ventaId) },
-        onVerAbonos = onMasAcciones,
-        onVerGarantia = onVerGarantia,
+        onVerAbonos = { onMasAcciones(viewModel.ventaId) },
+        // El flujo de garantías de `:app` está indexado por VENTA
+        // (`getGuaranteeSaleById(DOCTO_CC_ID)`), no por el `EXTERNAL_ID` de la
+        // garantía: se manda el crédito, que es la llave que ese flujo entiende.
+        onVerGarantia = { detalle?.let { onVerGarantia(it.creditoId) } },
         modifier = modifier
     )
 }
@@ -90,7 +99,7 @@ fun DetalleVentaContent(
     onMasAcciones: () -> Unit,
     onUsarLiquidacion: () -> Unit,
     onVerAbonos: () -> Unit,
-    onVerGarantia: (String) -> Unit,
+    onVerGarantia: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -129,7 +138,7 @@ private fun CuerpoDeLaVenta(
     onAtras: () -> Unit,
     onUsarLiquidacion: () -> Unit,
     onVerAbonos: () -> Unit,
-    onVerGarantia: (String) -> Unit
+    onVerGarantia: () -> Unit
 ) {
     Column(
         modifier = Modifier

@@ -82,14 +82,33 @@ object PagosRutas {
  * Se expone como extensión de [NavGraphBuilder] para que `:app` cablee el grafo
  * sin conocer los ViewModels ni los Composables internos del feature — el mismo
  * reparto que ya usa el resto de la app.
+ *
+ * ## Por qué los callbacks llevan el id que llevan (Task 21)
+ *
+ * Los dos destinos comparten esta función, así que un callback que significara
+ * una cosa desde el cliente y otra desde la venta sería imposible de cablear en
+ * `:app`: ahí no se sabe por cuál de los dos entró la llamada. Por eso:
+ *
+ * - [onRegistrarAbono] recibe **siempre un `ventaId`**. El abono es de una
+ *   cuenta, nunca de una persona: `pagos/abono/{ventaId}` no tiene forma de
+ *   cobrarle "al cliente". Desde el detalle de cliente lo resuelve
+ *   [DetalleClienteScreen] con la cuenta que encabeza "sus ventas".
+ * - [onRegistrarVisita] recibe **`clienteId` y `ventaId`**, el segundo nulo
+ *   cuando se entró por el cliente: se visita una puerta, y la cuenta abierta
+ *   es contexto opcional (`VisitasRutas.SIN_VENTA`).
+ * - [onMasAcciones] recibe el `ventaId` de la cuenta cuyo "⋯" se abrió: ahí
+ *   vive la condonación, que es dinero de UNA cuenta.
+ * - [onVerGarantia] recibe el `DOCTO_CC_ID` de la venta —no el id de la
+ *   garantía—, porque el flujo de garantías de `:app` está indexado por venta
+ *   (`GuaranteesViewModel.getGuaranteeSaleById`), no por `EXTERNAL_ID`.
  */
 fun NavGraphBuilder.destinosDePagos(
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: (Int) -> Unit,
-    onRegistrarVisita: (Int) -> Unit,
-    onMasAcciones: () -> Unit,
-    onVerGarantia: (String) -> Unit
+    onRegistrarVisita: (Int, Int?) -> Unit,
+    onMasAcciones: (Int) -> Unit,
+    onVerGarantia: (Int) -> Unit
 ) {
     composable(
         route = PagosRutas.DETALLE_CLIENTE,
