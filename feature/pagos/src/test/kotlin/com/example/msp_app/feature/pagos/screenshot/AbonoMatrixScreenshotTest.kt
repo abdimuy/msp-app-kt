@@ -88,6 +88,7 @@ private fun Abono(state: RegistrarAbonoUiState) {
         onSugerido = {},
         onRegistrar = {},
         onConfirmar = {},
-        onEditar = {}
+        onEditar = {},
+        onRevisar = {}
     )
 }

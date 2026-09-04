@@ -78,8 +78,23 @@ data class RegistrarAbonoUiState(
 ) {
     /**
      * ¿El CTA puede dispararse? Solo con venta cargada, veredicto limpio, nada
-     * en vuelo y nada ya registrado. Es la ÚNICA fuente del `enabled` del botón.
+     * en vuelo, nada ya registrado y **sin una verificación pendiente**. Es la
+     * ÚNICA fuente del `enabled` del botón.
+     *
+     * La última condición existe porque el guard sobrevive a
+     * [FalloDelAbono.NO_SE_PUDO_VERIFICAR] a propósito: sin ella el botón queda
+     * vivo, abre la hoja y `confirmar()` no hace nada — un botón que calla es
+     * como un cobrador decide que la app está rota. Aquí se apaga, y la salida
+     * es el reintento REAL de la banda, que vuelve a cargar y resuelve la duda
+     * mirando el historial.
      */
     val sePuedeRegistrar: Boolean
-        get() = venta != null && veredicto.sePuedeRegistrar && !guardando && registrado == null
+        get() = venta != null &&
+            veredicto.sePuedeRegistrar &&
+            !guardando &&
+            registrado == null &&
+            fallo != FalloDelAbono.NO_SE_PUDO_VERIFICAR
+
+    /** ¿La banda de fallo ofrece volver a revisar? Solo la duda se resuelve así. */
+    val sePuedeRevisar: Boolean get() = fallo == FalloDelAbono.NO_SE_PUDO_VERIFICAR
 }

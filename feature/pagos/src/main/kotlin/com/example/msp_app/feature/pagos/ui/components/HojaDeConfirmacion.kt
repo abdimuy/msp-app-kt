@@ -125,20 +125,33 @@ fun HojaDeConfirmacion(
                 .fillMaxWidth()
                 // `background(color, shape)` en vez de `clip(shape) + background`.
                 // La hoja no desborda, así que el recorte no hace falta — y con
-                // ESTA forma sí estorba: medido sobre la estructura ya
-                // corregida (velo hermano), un `clip` de
+                // ESTA forma sí estorba: medido sobre la estructura ya corregida
+                // (velo hermano), un `clip` de
                 // `RoundedCornerShape(topStart, topEnd)` deja el toque del botón
                 // en 0, y el mismo `clip` con una forma UNIFORME
-                // (`RoundedCornerShape(24.dp)`) lo deja en 1. La diferencia es
-                // el tipo de `Outline`: una forma uniforme da `Outline.Rounded`
-                // (contención analítica) y una de esquinas desiguales da
-                // `Outline.Generic`, un `Path`, contra el que el hit-test de la
-                // capa no acierta bajo Robolectric.
+                // (`RoundedCornerShape(24.dp)`) lo deja en 1.
                 //
-                // No es el patrón `clip + clickable` de `MspPrimaryFieldButton`
-                // (16.dp uniforme, y el `clip` va en el MISMO nodo que el
-                // `clickable`), ni existe en las Tasks 16-17: todas sus formas
-                // son uniformes. Nadie tiene que salir a buscarlo.
+                // El mecanismo NO es el tipo de `Outline`: `RoundedCornerShape`
+                // nunca produce `Outline.Generic`, solo `Rectangle` o `Rounded`.
+                // El que decide vive DENTRO de `Outline.Rounded`: `isInRoundedRect`
+                // corre `cornersFit`, y cuando las esquinas no encajan cae a
+                // `isInPath` -> `Path.op`, que es la parte frágil sin gráficos
+                // nativos. Esquinas uniformes -> contención analítica, el toque
+                // vive; `topStart`/`topEnd` -> `Path.op`, el toque muere bajo
+                // Robolectric.
+                //
+                // No es el patrón `clip + clickable` de `MspPrimaryFieldButton`:
+                // ahí el `clip` va en el MISMO nodo que el `clickable` y la forma
+                // es uniforme (16.dp).
+                //
+                // Alcance, con honestidad: que `MspShapes` sea todo uniforme no
+                // basta como garantía, porque las formas declaradas en un archivo
+                // no pasan por ahí. Hay una: `ReportSheets.kt:30`
+                // (`RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)`), que va
+                // como `shape` de un `ModalBottomSheet` — y es inofensiva porque
+                // esa hoja **no tiene descendientes clickables**, no porque la
+                // forma sea segura. Eso es lo que hay que comprobar si aparece
+                // otra.
                 .background(colors.surface, RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 // Un `pointerInput` INERTE: no consume nada —así los botones de
                 // adentro siguen respondiendo— pero hace que la hoja sea

@@ -401,6 +401,17 @@ class RegistrarAbonoViewModelTest {
 
         assertEquals(FalloDelAbono.NO_SE_PUDO_VERIFICAR, vm.state.value.fallo)
         assertNull(vm.state.value.registrado)
+        // El CTA se APAGA: un botón vivo que no hace nada es como un cobrador
+        // decide que la app está rota. La salida es el reintento de la banda.
+        assertFalse("el CTA no puede quedar vivo y mudo", vm.state.value.sePuedeRegistrar)
+        assertTrue("y la banda ofrece volver a revisar", vm.state.value.sePuedeRevisar)
+        // Y NO se afirma lo que se acaba de declarar incognoscible.
+        assertTrue(
+            "no se dice 'no quedo registrado' despues de concluir que no se sabe",
+            telemetria.recorded.none {
+                it.name == PagosTelemetria.CODE_ABONO_NO_QUEDO_REGISTRADO
+            }
+        )
         val sinVerificar = telemetria.recorded.single {
             it.type == TelemetryEventType.ERROR &&
                 it.name == PagosTelemetria.CODE_ABONO_SIN_VERIFICAR
@@ -421,6 +432,87 @@ class RegistrarAbonoViewModelTest {
             1,
             registroPort.registrados.size
         )
+    }
+
+    @Test
+    fun `el unico evento de la duda es el suyo, con su causa y su resultado`() = runTest(
+        testDispatcher
+    ) {
+        registroPort.resultado = ResultadoDelAbono.FALLO_EL_GUARDADO
+        registroPort.alRegistrar = { ventasPort.falla = IllegalStateException("room caido") }
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+
+        val evento = telemetria.recorded.single {
+            it.type == TelemetryEventType.ERROR &&
+                it.name == PagosTelemetria.CODE_ABONO_SIN_VERIFICAR
+        }
+        assertEquals(
+            ResultadoDelAbono.FALLO_EL_GUARDADO.name,
+            evento.props[PagosTelemetria.PROP_RESULTADO]
+        )
+        assertEquals("IllegalStateException", evento.props[PagosTelemetria.PROP_EXCEPCION])
+        assertEquals(
+            "una sola falla, un solo evento",
+            1,
+            telemetria.recorded.count { it.type == TelemetryEventType.ERROR }
+        )
+    }
+
+    @Test
+    fun `volver a revisar resuelve la duda sin salir de la pantalla`() = runTest(testDispatcher) {
+        // El reintento REAL: `cargar()` vuelve a leer y `resolverGuard` contesta
+        // la pregunta mirando el historial. Aquí el abono SÍ había aterrizado.
+        registroPort.resultado = ResultadoDelAbono.FALLO_EL_GUARDADO
+        registroPort.alRegistrar = {
+            aterrizarEnRoom(it.abonoId)
+            ventasPort.falla = IllegalStateException("room caido")
+        }
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+        assertEquals(FalloDelAbono.NO_SE_PUDO_VERIFICAR, vm.state.value.fallo)
+        assertFalse(vm.state.value.sePuedeRegistrar)
+
+        // La banda es tocable y hace algo de verdad.
+        ventasPort.falla = null
+        vm.cargar()
+        advanceUntilIdle()
+
+        assertEquals("la duda se resolvio: el abono estaba", vm.abonoId, vm.state.value.registrado)
+        assertNull(vm.state.value.fallo)
+        assertEquals("y no se cobro de nuevo", 1, registroPort.registrados.size)
+    }
+
+    @Test
+    fun `volver a revisar tambien libera el guard cuando el abono NO estaba`() = runTest(
+        testDispatcher
+    ) {
+        registroPort.resultado = ResultadoDelAbono.FALLO_EL_GUARDADO
+        registroPort.alRegistrar = { ventasPort.falla = IllegalStateException("room caido") }
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+
+        ventasPort.falla = null
+        vm.cargar()
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.registrado)
+        assertTrue("el cobrador puede capturar de nuevo", vm.state.value.sePuedeRegistrar)
+        registroPort.resultado = ResultadoDelAbono.REGISTRADO
+        registroPort.alRegistrar = {}
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+        assertEquals(vm.abonoId, vm.state.value.registrado)
     }
 
     @Test

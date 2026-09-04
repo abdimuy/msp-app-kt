@@ -66,6 +66,7 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     private var confirmaciones = 0
     private var registros = 0
     private var ediciones = 0
+    private var revisiones = 0
     private val digitos = mutableListOf<Int>()
     private val metodos = mutableListOf<MetodoDeCobro>()
     private val sugeridosTocados = mutableListOf<Money>()
@@ -190,6 +191,31 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText(
             "el abono excede el saldo · máximo $1,450"
         ).assertIsDisplayed()
+    }
+
+    // --- La duda: CTA apagado y un reintento que sí hace algo ----------------
+
+    @Test
+    fun `con la verificacion pendiente el CTA no abre nada y la banda ofrece revisar`() {
+        pinta(AbonoFixtures.enDudaDeVerificacion())
+        composeTestRule.onNodeWithTag(FALLO_DEL_ABONO_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(CTA_ABONO_TAG).performClick()
+        assertEquals("el CTA no puede quedar vivo y mudo", 0, confirmaciones)
+        // Y hay salida sin abandonar la pantalla.
+        composeTestRule.onNodeWithTag(REVISAR_DE_NUEVO_TAG).performClick()
+        assertEquals(1, revisiones)
+        assertTocable(REVISAR_DE_NUEVO_TAG, "volver a revisar")
+    }
+
+    @Test
+    fun `control positivo - sin duda no se pinta el reintento y el CTA si abre`() {
+        pinta(AbonoFixtures.enCaptura())
+        assertEquals(
+            0,
+            composeTestRule.onAllNodesWithTag(REVISAR_DE_NUEVO_TAG).fetchSemanticsNodes().size
+        )
+        composeTestRule.onNodeWithTag(CTA_ABONO_TAG).performClick()
+        assertEquals(1, confirmaciones)
     }
 
     // --- El paso dos ----------------------------------------------------------
@@ -334,7 +360,8 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
             onSugerido = { sugeridosTocados += it },
             onRegistrar = { confirmaciones += 1 },
             onConfirmar = { registros += 1 },
-            onEditar = { ediciones += 1 }
+            onEditar = { ediciones += 1 },
+            onRevisar = { revisiones += 1 }
         )
     }
 

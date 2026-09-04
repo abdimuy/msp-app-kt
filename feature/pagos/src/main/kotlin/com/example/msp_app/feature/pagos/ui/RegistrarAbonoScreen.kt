@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
+import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.BloqueoDelAbono
@@ -42,6 +43,9 @@ const val CTA_ABONO_TAG: String = "pagos_abono_cta"
 
 /** `testTag` de la banda que dice por qué el abono no quedó. */
 const val FALLO_DEL_ABONO_TAG: String = "pagos_abono_fallo"
+
+/** `testTag` del reintento REAL: vuelve a cargar y resuelve la verificación pendiente. */
+const val REVISAR_DE_NUEVO_TAG: String = "pagos_abono_revisar"
 
 /**
  * El destino: conecta el ViewModel con el contenido puro.
@@ -69,6 +73,7 @@ fun RegistrarAbonoScreen(
         onRegistrar = viewModel::pedirConfirmacion,
         onConfirmar = viewModel::confirmar,
         onEditar = viewModel::descartarConfirmacion,
+        onRevisar = viewModel::cargar,
         modifier = modifier
     )
     val registrado = state.registrado
@@ -103,6 +108,7 @@ fun RegistrarAbonoContent(
     onRegistrar: () -> Unit,
     onConfirmar: () -> Unit,
     onEditar: () -> Unit,
+    onRevisar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -124,7 +130,8 @@ fun RegistrarAbonoContent(
                         onPunto = onPunto,
                         onBorrar = onBorrar,
                         onMetodo = onMetodo,
-                        onSugerido = onSugerido
+                        onSugerido = onSugerido,
+                        onRevisar = onRevisar
                     )
                 }
             }
@@ -158,7 +165,8 @@ private fun CuerpoDelAbono(
     onPunto: () -> Unit,
     onBorrar: () -> Unit,
     onMetodo: (MetodoDeCobro) -> Unit,
-    onSugerido: (Money) -> Unit
+    onSugerido: (Money) -> Unit,
+    onRevisar: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -178,7 +186,7 @@ private fun CuerpoDelAbono(
         )
         MensajeDeBloqueo(state = state, venta = venta)
         if (state.registrado != null) BandaDeRegistrado()
-        MensajeDeFallo(state.fallo)
+        MensajeDeFallo(state = state, onRevisar = onRevisar)
         ChipsSugeridos(sugeridos = state.sugeridos, onSugerido = onSugerido)
         SelectorDeMetodo(seleccionado = state.metodo, onMetodo = onMetodo)
         TecladoDeMontos(onDigito = onDigito, onPunto = onPunto, onBorrar = onBorrar)
@@ -203,17 +211,35 @@ private fun MensajeDeBloqueo(state: RegistrarAbonoUiState, venta: DetalleVenta) 
     BandaDeBloqueo(mensaje = mensaje)
 }
 
+/**
+ * Por qué el abono no quedó.
+ *
+ * [FalloDelAbono.NO_SE_PUDO_VERIFICAR] es el único que trae **acción**: ahí el
+ * guard sigue puesto a propósito y el CTA está apagado, así que sin este botón
+ * la única salida sería salirse de la pantalla. Volver a cargar es el reintento
+ * de verdad — es lo que resuelve la duda, mirando el historial.
+ */
 @Composable
-private fun MensajeDeFallo(fallo: FalloDelAbono?) {
-    if (fallo == null) return
+private fun MensajeDeFallo(state: RegistrarAbonoUiState, onRevisar: () -> Unit) {
+    val fallo = state.fallo ?: return
     val texto = when (fallo) {
         FalloDelAbono.VENTA_NO_ESTA -> "la venta ya no está en el teléfono"
         FalloDelAbono.SIN_COBRADOR -> "falta el cobrador, vuelve a entrar"
         FalloDelAbono.NO_SE_PUDO_GUARDAR -> "no se pudo guardar, intenta de nuevo"
         FalloDelAbono.BLOQUEADO -> "el monto no se puede registrar"
-        FalloDelAbono.NO_SE_PUDO_VERIFICAR -> "no se pudo confirmar, vuelve a abrir"
+        FalloDelAbono.NO_SE_PUDO_VERIFICAR -> "no se pudo confirmar, revisa de nuevo"
     }
     BandaDeBloqueo(mensaje = texto, modifier = Modifier.testTag(FALLO_DEL_ABONO_TAG))
+    if (state.sePuedeRevisar) {
+        MspPrimaryFieldButton(
+            text = "volver a revisar",
+            onClick = onRevisar,
+            variant = PrimaryFieldButtonVariant.Ghost,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(REVISAR_DE_NUEVO_TAG)
+        )
+    }
 }
 
 /**

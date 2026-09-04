@@ -187,10 +187,10 @@ class RegistrarAbonoViewModel @Inject constructor(
     @Suppress(
         "TooGenericExceptionCaught"
     ) // cualquier fallo de lectura es un "no se sabe", y se reporta con su clase.
-    private suspend fun verificar(): Verificacion = try {
+    private suspend fun verificar(resultado: ResultadoDelAbono): Verificacion = try {
         val venta = withContext(io) { cargarDetalleVenta(ventaId) }
         when {
-            venta == null -> noSeSupo(porque = "la venta ya no esta en el telefono")
+            venta == null -> noSeSupo(resultado, porque = "la venta ya no esta en el telefono")
             estaEnElHistorial(venta) -> Verificacion.QUEDO
             else -> Verificacion.NO_QUEDO
         }
@@ -200,6 +200,7 @@ class RegistrarAbonoViewModel @Inject constructor(
         // El error NO se traga: viaja el nombre de la clase de la excepción,
         // nunca su texto (que puede arrastrar datos del cliente).
         noSeSupo(
+            resultado = resultado,
             porque = "la relectura de la venta fallo",
             excepcion = fallo.javaClass.simpleName
         )
@@ -207,14 +208,26 @@ class RegistrarAbonoViewModel @Inject constructor(
 
     /**
      * Registra que la comprobación no se pudo hacer y devuelve
-     * [Verificacion.NO_SE_PUDO_SABER]. El evento se emite AQUÍ, donde se conoce
-     * la causa, y no en el llamador — así hay un solo evento por hecho.
+     * [Verificacion.NO_SE_PUDO_SABER].
+     *
+     * **Este es el ÚNICO evento de esta rama.** El llamador no emite además
+     * `pagos_abono_no_quedo_registrado`: sería afirmar que el abono no quedó
+     * justo después de concluir que no se puede saber — una falsedad en la
+     * bitácora, y un segundo evento para una sola falla. Un registro que miente
+     * es peor que el silencio.
      */
-    private fun noSeSupo(porque: String, excepcion: String? = null): Verificacion {
+    private fun noSeSupo(
+        resultado: ResultadoDelAbono,
+        porque: String,
+        excepcion: String? = null
+    ): Verificacion {
         telemetry.error(
             code = PagosTelemetria.CODE_ABONO_SIN_VERIFICAR,
             message = "no se pudo comprobar si el abono quedo; el guard se conserva: $porque",
-            props = excepcion?.let { mapOf(PagosTelemetria.PROP_EXCEPCION to it) }.orEmpty()
+            props = buildMap {
+                put(PagosTelemetria.PROP_RESULTADO, resultado.name)
+                excepcion?.let { put(PagosTelemetria.PROP_EXCEPCION, it) }
+            }
         )
         return Verificacion.NO_SE_PUDO_SABER
     }
@@ -246,7 +259,7 @@ class RegistrarAbonoViewModel @Inject constructor(
             terminarComoRegistrado()
             return
         }
-        when (verificar()) {
+        when (verificar(resultado)) {
             Verificacion.QUEDO -> {
                 // El puerto reportó fallo pero el dinero SÍ quedó. Soltar el
                 // guard aquí sería ofrecer un segundo cobro por el mismo abono.
@@ -267,11 +280,15 @@ class RegistrarAbonoViewModel @Inject constructor(
             }
 
             Verificacion.NO_SE_PUDO_SABER -> {
-                // El guard SE QUEDA PUESTO. Al volver a entrar, `resolverGuard`
-                // resuelve la duda mirando el historial; soltarlo aquí sin saber
-                // es exactamente la suposición que este diseño evita. El evento
-                // de "no se pudo saber" ya lo emitió `verificar`, con su causa.
-                reportarQueNoQuedo(resultado)
+                // El guard SE QUEDA PUESTO. Soltarlo sin saber es la suposición
+                // que este diseño evita; la duda la resuelve `resolverGuard` en
+                // la siguiente carga, mirando el historial — y por eso la banda
+                // ofrece [cargar] como reintento REAL, en vez de dejar vivo un
+                // CTA que no haría nada.
+                //
+                // NO se emite nada aquí: `verificar` ya reportó el hecho con su
+                // causa. Decir además "no quedó registrado" sería afirmar lo
+                // que se acaba de declarar incognoscible.
                 terminarConFallo(FalloDelAbono.NO_SE_PUDO_VERIFICAR)
             }
         }

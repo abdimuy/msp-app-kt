@@ -21,6 +21,7 @@ import com.example.msp_app.features.payments.newpayment.PaymentFactory
 import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.tasks.await
 
 /**
@@ -105,6 +106,11 @@ class RegistroDeAbonoAdapter(
                 ResultadoDelAbono.REGISTRADO
             }
         }
+    } catch (cancelada: CancellationException) {
+        // Se relanza ANTES del catch general, igual que hacen `verificar` y
+        // `leer` en el ViewModel: una cancelación no es un fallo de escritura, y
+        // tragársela ahora que hay una transacción adentro sería peor todavía.
+        throw cancelada
     } catch (fallo: Throwable) {
         // Anti-PII: viaja el nombre de la clase de la excepción, nunca su texto
         // (que puede arrastrar datos del cliente) ni el monto.
