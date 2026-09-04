@@ -3,7 +3,9 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.OrdenDeCobranza
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
+import com.example.msp_app.feature.pagos.domain.RangoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
@@ -21,6 +23,38 @@ import javax.inject.Inject
  * Devuelve `null` cuando el teléfono no tiene ninguna venta de ese cliente —
  * no hay pantalla que pintar y el ViewModel lo dice, en vez de mostrar un
  * cascarón vacío que parece un cliente sin deuda.
+ *
+ * ## El orden de "sus ventas" es determinista, y por eso el dock también
+ *
+ * `RoomVentasAdapter.ventasDelCliente` sale de `SaleDao.getByClientId`, que
+ * agrupa por `sales.DOCTO_CC_ID` y **no lleva `ORDER BY`**; nada entre el DAO y
+ * la UI la ordenaba. En la práctica SQLite suele emitir en orden ascendente de
+ * la llave del grupo, pero nada lo garantiza: ni el plan de consulta, ni otra
+ * versión del motor, ni la misma base después de un `VACUUM`.
+ *
+ * Eso no era cosmético. La primera de esta lista es **dos cosas a la vez**: el
+ * representante del cliente (nombre, teléfono, dirección, zona, aval, ficha) y
+ * —vía `cuentaQueEncabeza`— **la cuenta a la que apunta el botón de dinero del
+ * dock**. Sin orden, la cuenta que se cobra podía cambiar entre dos corridas
+ * sin que cambiara un solo dato.
+ *
+ * Por eso se ordena **aquí, en el caso de uso**, y no en el dock ni en el DAO:
+ * lo que se pinta en "sus ventas" y a dónde va el botón salen de la MISMA lista
+ * ya ordenada, o sea que coinciden **por construcción** y no por coincidencia.
+ * `SaleDao.getByClientId` no se toca porque `:feature:pagos` y
+ * `:feature:visitas` también la consumen sin orden y un `ORDER BY` movería a
+ * llamadores ajenos — el mismo razonamiento por el que la Task 19 puso su
+ * desempate en `RegistroDeVisitaAdapter`.
+ *
+ * El criterio es [OrdenDeCobranza.PRIMERO] —el mismo con el que la lista de la
+ * Task 17 ordena la ruta del día, así que la fila de arriba aquí es la que ese
+ * orden ya considera primera— rematado con `ventaId` ascendente. Ese remate es
+ * lo que lo vuelve **total**: dos ventas del mismo cliente empatan de verdad en
+ * las dos claves de `PRIMERO` (mismo instante de venta, las dos sin abonos), y
+ * `DOCTO_CC_ACR_ID` es `@PrimaryKey` —único y estable entre dispositivos y
+ * corridas—, así que no queda empate posible. Es el mismo último eslabón que
+ * eligieron `RegistroDeVisitaAdapter` (`minByOrNull { it.DOCTO_CC_ACR_ID }`) y
+ * `CarteraEnPantalla` (`.thenBy { it.clienteId }`).
  */
 class CargarDetalleCliente @Inject constructor(
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente
@@ -28,7 +62,10 @@ class CargarDetalleCliente @Inject constructor(
 
     suspend operator fun invoke(clienteId: Int): DetalleCliente? {
         val cobranza = reunirCobranzaDelCliente(clienteId)
-        val primera = cobranza.ventas.firstOrNull() ?: return null
+        // ORDEN PRIMERO: todo lo de abajo —el representante del cliente y la
+        // lista pintada— sale de esta misma lista ya ordenada.
+        val ventas = cobranza.ventas.sortedWith(ORDEN_DE_SUS_VENTAS)
+        val primera = ventas.firstOrNull() ?: return null
         val contactos = bitacora(cobranza.visitas, cobranza.pagos)
         return DetalleCliente(
             clienteId = clienteId,
@@ -38,8 +75,8 @@ class CargarDetalleCliente @Inject constructor(
             zona = primera.zona,
             aval = primera.aval,
             telefonoAval = primera.telefonoAval,
-            saldoTotal = Money.sum(cobranza.ventas.map { it.saldo }),
-            ventas = cobranza.ventas.map { it.aVentaDelCliente(cobranza.estados[it.ventaId]) },
+            saldoTotal = Money.sum(ventas.map { it.saldo }),
+            ventas = ventas.map { it.aVentaDelCliente(cobranza.estados[it.ventaId]) },
             contactos = contactos.take(CONTACTOS_VISIBLES),
             totalContactos = contactos.size,
             ficha = primera.notas.takeIf { it.isNotBlank() },
@@ -89,6 +126,20 @@ class CargarDetalleCliente @Inject constructor(
     }
 
     private companion object {
+        /**
+         * El orden de "sus ventas". **Total y único** — ver el KDoc de la clase
+         * para por qué vive aquí y no en el DAO ni en el dock.
+         */
+        val ORDEN_DE_SUS_VENTAS: Comparator<DatosDeVenta> =
+            compareBy<DatosDeVenta, RangoDeCobranza>(OrdenDeCobranza.PRIMERO) {
+                OrdenDeCobranza.rangoDe(
+                    saldo = it.saldo,
+                    totalVenta = it.totalVenta,
+                    enganche = it.enganche,
+                    instanteDeVenta = it.instanteDeVenta
+                )
+            }.thenBy { it.ventaId }
+
         /** Cuántos contactos se pintan antes del "ver los N contactos" del mock. */
         const val CONTACTOS_VISIBLES = 3
 

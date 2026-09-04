@@ -104,6 +104,15 @@ fun DetalleClienteScreen(
  * dinero abría una cuenta que no era la suya —o ninguna—. Un cliente no tiene
  * saldo que cobrar; lo tienen sus cuentas.
  *
+ * **"La primera" es una cuenta concreta, no la que tocó.** El orden de esa lista
+ * lo fija
+ * [com.example.msp_app.feature.pagos.application.CargarDetalleCliente] con un
+ * desempate total antes de emitir, así que lo que se pinta arriba y lo que se
+ * cobra son la misma cuenta **por construcción**. Este `firstOrNull` no elige
+ * nada: lee la decisión que el caso de uso ya tomó. Que el orden aquí fuera el
+ * azar de `SaleDao.getByClientId` —que agrupa sin `ORDER BY`— era el defecto que
+ * la ronda 1 de arreglo cerró.
+ *
  * `null` solo cuando todavía no hay detalle cargado, y en ese estado el dock ni
  * se pinta.
  */
