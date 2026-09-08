@@ -174,18 +174,15 @@ class SaleIdSpacesCallSitesTest {
             archivos.keys.any { it.endsWith("features/sales/SaleIdSpaces.kt") }
         )
 
+        val vistas = Exenciones()
         val violaciones = archivos.flatMap { (ruta, texto) ->
-            if (ruta in ARCHIVOS_EXENTOS) {
-                emptyList<String>()
-            } else {
-                texto.lineSequence().mapIndexedNotNull { indice, linea ->
-                    val codigo = linea.trim()
-                    if (codigo.startsWith("*") || codigo.startsWith("//")) return@mapIndexedNotNull null
-                    if (!LECTURA_CRUDA.containsMatchIn(codigo)) return@mapIndexedNotNull null
-                    if (COMPARACION.containsMatchIn(codigo)) return@mapIndexedNotNull null
-                    if (LINEAS_EXENTAS[ruta]?.contains(codigo) == true) return@mapIndexedNotNull null
-                    "$ruta:${indice + 1}: $codigo"
-                }.toList()
+            texto.lines().mapIndexedNotNull { indice, linea ->
+                val codigo = linea.trim()
+                if (codigo.startsWith("*") || codigo.startsWith("//")) return@mapIndexedNotNull null
+                if (!LECTURA_CRUDA.containsMatchIn(codigo)) return@mapIndexedNotNull null
+                if (COMPARACION.containsMatchIn(codigo)) return@mapIndexedNotNull null
+                if (vistas.exento(ruta, codigo)) return@mapIndexedNotNull null
+                "$ruta:${indice + 1}: $codigo"
             }
         }.sorted()
 
@@ -199,6 +196,25 @@ class SaleIdSpacesCallSitesTest {
             emptyList<String>(),
             violaciones
         )
+    }
+
+    /**
+     * Cuenta las exenciones consumidas: [LINEAS_EXENTAS] no dice sólo QUÉ línea se exime,
+     * dice **cuántas veces**. Sin el conteo, una segunda línea de texto idéntico en el mismo
+     * archivo quedaba exenta gratis, y una exención por línea se volvía una por archivo — que
+     * es exactamente la regla ablandada que la ronda 1 de revisión señaló.
+     */
+    private class Exenciones {
+        private val consumidas = mutableMapOf<Pair<String, String>, Int>()
+
+        fun exento(ruta: String, codigo: String): Boolean {
+            val permitidas = LINEAS_EXENTAS[ruta]?.get(codigo) ?: return false
+            val clave = ruta to codigo
+            val usadas = consumidas.getOrDefault(clave, 0)
+            if (usadas >= permitidas) return false
+            consumidas[clave] = usadas + 1
+            return true
+        }
     }
 
     /** Todo `.kt` de producción de todos los módulos declarados en `settings.gradle.kts`. */
@@ -242,22 +258,31 @@ class SaleIdSpacesCallSitesTest {
             Regex("""\.DOCTO_CC_(?:ACR_)?ID\s*(==|!=|\?:)|(==|!=)\s*\w+\.DOCTO_CC_(?:ACR_)?ID""")
 
         /**
-         * Los dos archivos que **son** la fuente de verdad de esta familia, y por eso leen los
-         * campos crudos: cualquier otro lugar tiene que pasar por ellos.
-         */
-        val ARCHIVOS_EXENTOS = setOf(
-            "app/src/main/java/com/example/msp_app/features/sales/SaleIdSpaces.kt",
-            // El `SaleIdSpaces` de la NAVEGACIÓN: una sola función por destino, cada una con la
-            // columna que usa escrita en su KDoc, y `DestinosDeCobranzaTest` afirma destino Y
-            // argumento. Es el mismo patrón, no una excepción a él.
-            "app/src/main/java/com/example/msp_app/navigation/DestinosDeCobranza.kt"
-        )
-
-        /**
          * Líneas exentas, por contenido exacto y con su razón. Por contenido y no por archivo a
          * propósito: una SEGUNDA lectura cruda en el mismo archivo sigue fallando.
          */
-        val LINEAS_EXENTAS: Map<String, Set<String>> = mapOf(
+        val LINEAS_EXENTAS: Map<String, Map<String, Int>> = mapOf(
+            // ── LA MISMA DEUDA, TRES VECES ────────────────────────────────────────────
+            // Las tres líneas de abajo son **un solo defecto** repetido: entregan
+            // `Payment.DOCTO_CC_ACR_ID` —que es el **cargo**, = `sales.DOCTO_CC_ID`— a un
+            // consumidor que resuelve la venta por su **PK** (`SaleDao.getById`, detrás de
+            // `loadSaleDetails` y de la ruta `pagos/venta/{ventaId}`). Hoy no rompen nada
+            // porque las dos columnas de `sales` llevan siempre el mismo número, probado por
+            // construcción en el KDoc de `SaleIdSpaces`. El arreglo honesto es resolver por
+            // crédito, como hizo el Arreglo A con la garantía, y eso cambia la consulta de
+            // pantallas del camino del dinero: merece su tarea.
+            //
+            // Van por LÍNEA y no por archivo. La ronda 1 de revisión encontró que
+            // `DestinosDeCobranza` estaba exento ENTERO —seis líneas tapadas de un saque,
+            // de las cuales solo estas dos eran deuda— y que eso ablandaba la regla que este
+            // arreglo defiende. Las otras cuatro pasaron a `SaleIdSpaces.forSaleRow`, que es
+            // lo que había que hacer con ellas.
+            "app/src/main/java/com/example/msp_app/navigation/DestinosDeCobranza.kt" to mapOf(
+                "fun ventaDeUnPago(payment: Payment): String = " +
+                    "PagosRutas.detalleVenta(payment.DOCTO_CC_ACR_ID)" to 1,
+                "fun ventaDeUnRecibo(payment: Payment): String = " +
+                    "PagosRutas.detalleVenta(payment.DOCTO_CC_ACR_ID)" to 1
+            ),
             // DEUDA REAL, no una excepción cómoda — y va al reporte del Arreglo B.
             // `loadSaleDetails` resuelve con `SaleDao.getById`, que filtra la **PK**
             // (`sales.DOCTO_CC_ACR_ID`); lo que el recibo tiene en la mano es
@@ -270,7 +295,7 @@ class SaleIdSpacesCallSitesTest {
             // venta" a un cargo sería escribir en `SaleIdSpaces` la confusión que existe para
             // impedir.
             "app/src/main/java/com/example/msp_app/features/payments/screens/PaymentTicketScreen.kt" to
-                setOf("saleViewModel.loadSaleDetails(payment.DOCTO_CC_ACR_ID)")
+                mapOf("saleViewModel.loadSaleDetails(payment.DOCTO_CC_ACR_ID)" to 1)
         )
     }
 

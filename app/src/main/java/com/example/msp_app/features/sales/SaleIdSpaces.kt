@@ -127,9 +127,22 @@ object SaleIdSpaces {
      * resuelve su argumento con `getById`.
      *
      * Toma la proyección con productos porque es la que devuelve `SaleDao.getByClientId` y la
-     * que pinta "otras ventas del cliente", que es el único llamador. **No hay sobrecarga para
-     * [Sale]:** existía y no tenía llamador de producción, así que era API muerta con un test
-     * que no cubría ningún camino vivo. Si algún día hace falta, se agrega con su call site.
+     * que pinta "otras ventas del cliente".
      */
     fun forSaleRow(sale: SaleWithProducts): Int = sale.DOCTO_CC_ACR_ID
+
+    /**
+     * La misma PK, desde la venta ya cargada.
+     *
+     * El Arreglo A borró esta sobrecarga por API muerta y dejó escrito el
+     * criterio para reponerla: *"si algún día hace falta, se agrega con su call
+     * site"*. Ahora hace falta y tiene dos: `DestinosDeCobranza.abonoDeUnaVenta`
+     * y `.visitaDeUnaVenta`, que direccionan `pagos/abono/{ventaId}` y
+     * `visitas/registrar/{clienteId}?ventaId=` — las dos rutas resuelven por la
+     * PK de `sales`, y del lado de visitas lo confirma el adaptador que llena el
+     * contexto (`RoomContextoDeVisitaAdapter:43`, `ventaId = it.DOCTO_CC_ACR_ID`)
+     * y el que escribe la fila (`VisitFactory:63`,
+     * `IMPTE_DOCTO_CC_ID = sale.DOCTO_CC_ACR_ID`).
+     */
+    fun forSaleRow(sale: Sale): Int = sale.DOCTO_CC_ACR_ID
 }

@@ -157,13 +157,14 @@ class WorkEnqueuePolicyGuardTest {
             encoladores.keys.any { it.endsWith("workmanager/WorkManagerUtils.kt") }
         )
 
+        val vistas = Exenciones()
         val violaciones = encoladores.flatMap { (ruta, texto) ->
             texto.lineSequence().mapIndexedNotNull { indice, linea ->
                 val codigo = linea.trim()
                 if (codigo.startsWith("*") || codigo.startsWith("//")) return@mapIndexedNotNull null
                 val politica = POLITICAS_PROHIBIDAS.firstOrNull { codigo.contains(it) }
                     ?: return@mapIndexedNotNull null
-                if (POLITICAS_PERMITIDAS[ruta]?.contains(codigo) == true) return@mapIndexedNotNull null
+                if (vistas.exento(ruta, codigo)) return@mapIndexedNotNull null
                 "$ruta:${indice + 1}: `$politica`"
             }
         }.sorted()
@@ -182,11 +183,110 @@ class WorkEnqueuePolicyGuardTest {
     }
 
     /**
-     * Todo archivo de producción, en cualquier módulo del build, que encole
-     * trabajo único. El conjunto de módulos sale de `settings.gradle.kts` — el
+     * El medio agujero que el barrido de constantes no ve: un **booleano** que
+     * elige la política.
+     *
+     * `OfflineSyncManager.enqueue(..., replaceExisting: Boolean)` resuelve
+     * `REPLACE` o `KEEP` según ese parámetro. La constante prohibida vive en el
+     * encolador —y ahí está allowlistada con su razón—, pero **la decisión se
+     * toma en el call site**, en un archivo que ni siquiera menciona
+     * `enqueueUniqueWork`. O sea que un `replaceExisting = true` nuevo, en
+     * cualquier módulo, entraba sin que nada chillara. Lo señaló la revisión de
+     * la ronda 1, y tenía razón: sin esto, la razón escrita en la allowlist
+     * ("su único llamador que lo pone en true es este") era una afirmación que
+     * la compuerta no hacía cumplir.
+     *
+     * Los nombres de los selectores **se descubren**: se busca, dentro de los
+     * archivos que encolan trabajo único, el identificador del `if` que elige
+     * una política prohibida. No hay lista de nombres escrita a mano.
+     */
+    @Test
+    fun `ningun call site pide una politica distinta de KEEP por un booleano`() {
+        val selectores = selectoresDePolitica(archivosQueEncolanTrabajoUnico())
+
+        assertTrue(
+            "no se descubrió ningún selector booleano de política. Si el encolador dejó de " +
+                "elegir la política con un booleano, borrá este test; si sigue haciéndolo, el " +
+                "descubrimiento está roto y el verde de abajo no vale.",
+            selectores.isNotEmpty()
+        )
+
+        val vistas = Exenciones()
+        val violaciones = fuentesDeProduccion { true }.flatMap { (ruta, texto) ->
+            texto.lines().mapIndexedNotNull { indice, linea ->
+                val codigo = linea.trim()
+                if (codigo.startsWith("*") || codigo.startsWith("//")) return@mapIndexedNotNull null
+                val selector = selectores.firstOrNull {
+                    Regex("""\b$it\s*=\s*true\b""").containsMatchIn(codigo)
+                } ?: return@mapIndexedNotNull null
+                if (vistas.exento(ruta, codigo)) return@mapIndexedNotNull null
+                "$ruta:${indice + 1}: `$selector = true`"
+            }
+        }.sorted()
+
+        assertEquals(
+            "Estos call sites piden una política distinta de KEEP por booleano: $violaciones.\n" +
+                "Es el mismo REPLACE del barrido de constantes, tomado un archivo más arriba. " +
+                "Si el caso es legítimo, agregá la línea exacta a `POLITICAS_PERMITIDAS` CON su " +
+                "razón escrita.",
+            emptyList<String>(),
+            violaciones
+        )
+    }
+
+    /**
+     * Cuenta las exenciones consumidas, para que una allowlist **por línea** no
+     * se convierta en una allowlist por archivo.
+     *
+     * `POLITICAS_PERMITIDAS` no dice sólo QUÉ línea se exime: dice **cuántas
+     * veces**. Sin el conteo, una segunda línea con el texto idéntico en el
+     * mismo archivo quedaba exenta gratis — lo comprobé sembrando un segundo
+     * `replaceExisting = true` en `LocalSaleSyncExtensions` y viendo la
+     * compuerta verde. Con el conteo, la exención cubre la ocurrencia declarada
+     * y ni una más.
+     */
+    private class Exenciones {
+        private val consumidas = mutableMapOf<Pair<String, String>, Int>()
+
+        fun exento(ruta: String, codigo: String): Boolean {
+            val permitidas = POLITICAS_PERMITIDAS[ruta]?.get(codigo) ?: return false
+            val clave = ruta to codigo
+            val usadas = consumidas.getOrDefault(clave, 0)
+            if (usadas >= permitidas) return false
+            consumidas[clave] = usadas + 1
+            return true
+        }
+    }
+
+    /**
+     * Los identificadores booleanos que, dentro de un archivo que encola trabajo
+     * único, deciden una política prohibida. Se toma el `if (<ident>)` que abre
+     * como mucho tres líneas antes de la constante.
+     */
+    private fun selectoresDePolitica(encoladores: Map<String, String>): Set<String> {
+        val encontrados = mutableSetOf<String>()
+        encoladores.values.forEach { texto ->
+            val lineas = texto.lines()
+            lineas.forEachIndexed { indice, linea ->
+                val codigo = linea.trim()
+                if (codigo.startsWith("*") || codigo.startsWith("//")) return@forEachIndexed
+                if (POLITICAS_PROHIBIDAS.none { codigo.contains(it) }) return@forEachIndexed
+                for (atras in indice downTo maxOf(0, indice - 3)) {
+                    val condicion = CONDICION_IF.find(lineas[atras]) ?: continue
+                    encontrados += condicion.groupValues[1]
+                    break
+                }
+            }
+        }
+        return encontrados
+    }
+
+    /**
+     * Todo archivo de producción, en cualquier módulo del build, que cumpla
+     * [filtro]. El conjunto de módulos sale de `settings.gradle.kts` — el
      * archivo que los define — y no de una lista acá.
      */
-    private fun archivosQueEncolanTrabajoUnico(): Map<String, String> {
+    private fun fuentesDeProduccion(filtro: (String) -> Boolean): Map<String, String> {
         val raiz = raizDelRepoDeWorkManager()
         val rutas = INCLUDE_MODULO.findAll(File(raiz, "settings.gradle.kts").readText())
             .map { it.groupValues[1].trim(':').replace(':', '/') }
@@ -201,15 +301,21 @@ class WorkEnqueuePolicyGuardTest {
                 srcMain.walkTopDown()
                     .filter { it.isFile && it.extension == "kt" }
                     .map { it.relativeTo(raiz).invariantSeparatorsPath to it.readText() }
-                    .filter { (_, texto) -> ENCOLA_UNICO.containsMatchIn(texto) }
+                    .filter { (_, texto) -> filtro(texto) }
                     .toList()
             }
         }.toMap()
     }
 
+    private fun archivosQueEncolanTrabajoUnico(): Map<String, String> =
+        fuentesDeProduccion { ENCOLA_UNICO.containsMatchIn(it) }
+
     private companion object {
         val INCLUDE_MODULO = Regex("""include\("(:[^"]+)"\)""")
         val ENCOLA_UNICO = Regex("""enqueueUnique(Periodic)?Work\(""")
+
+        /** `if (replaceExisting) {` — el identificador que decide la política. */
+        val CONDICION_IF = Regex("""\bif\s*\(\s*(\w+)\s*\)""")
 
         /**
          * Toda política que NO conserva el trabajo vivo. `UPDATE` entra porque
@@ -229,7 +335,7 @@ class WorkEnqueuePolicyGuardTest {
          * les aplica. Se permiten por **línea exacta**, no por archivo: una
          * segunda política distinta en el mismo archivo sigue fallando.
          */
-        val POLITICAS_PERMITIDAS: Map<String, Set<String>> = mapOf(
+        val POLITICAS_PERMITIDAS: Map<String, Map<String, Int>> = mapOf(
             // `:core:appgate` descarga el APK de actualización. Acá REPLACE es
             // la decisión correcta y está documentada en el propio scheduler: un
             // toque explícito del usuario debe pisar la descarga automática, y
@@ -237,21 +343,31 @@ class WorkEnqueuePolicyGuardTest {
             // dejar a la flota bajando un APK que ya no sirve. No hay dinero en
             // vuelo: lo que se cancela es una descarga reintentable.
             "core/appgate/src/main/kotlin/com/example/msp_app/core/appgate/download/UpdateDownloadScheduler.kt" to
-                setOf(
-                    "enqueue(update, automatic = false, policy = ExistingWorkPolicy.REPLACE)",
-                    "ExistingWorkPolicy.REPLACE"
+                mapOf(
+                    "enqueue(update, automatic = false, policy = ExistingWorkPolicy.REPLACE)" to 1,
+                    "ExistingWorkPolicy.REPLACE" to 1
                 ),
             // LEGACY `:app`, y es DEUDA REAL, no una excepción cómoda. El
             // `OfflineSyncManager` es el encolador anterior a la política del
-            // plan y expone `replaceExisting`; su único llamador que lo pone en
-            // `true` es el re-sync de una venta local
-            // (`LocalSaleSyncExtensions.kt:76`). Cambiarlo es un cambio de
-            // comportamiento en el camino del dinero de ventas, fuera del
-            // alcance del Arreglo B — queda anotado acá para que el próximo que
-            // lo lea sepa que está pendiente, en vez de invisible.
-            "app/src/main/java/com/example/msp_app/core/sync/OfflineSyncManager.kt" to setOf(
-                "ExistingWorkPolicy.REPLACE"
-            )
+            // plan y elige `REPLACE` o `KEEP` con su parámetro `replaceExisting`.
+            //
+            // La razón que estaba escrita acá era FALSA y la revisión de la ronda
+            // 1 la encontró: decía que el único llamador con `true` era el re-sync
+            // de una venta local, y había un segundo — `enqueueBatch`, que lo
+            // clavaba en `true` para todo un lote. Estaba muerto (cero llamadores)
+            // así que se borró, y la afirmación pasó a ser cierta. Y que siga
+            // siéndolo ya no depende de que alguien relea este comentario: lo hace
+            // cumplir `ningun call site pide una politica distinta de KEEP por un
+            // booleano`.
+            "app/src/main/java/com/example/msp_app/core/sync/OfflineSyncManager.kt" to mapOf(
+                "ExistingWorkPolicy.REPLACE" to 1
+            ),
+            // El ÚNICO llamador vivo que pide REPLACE: re-sincroniza una venta
+            // local ya encolada. Cambiarlo es un cambio de comportamiento en el
+            // camino del dinero de ventas, fuera del alcance del Arreglo B —
+            // anotado en vez de invisible.
+            "app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt" to
+                mapOf("replaceExisting = true" to 1)
         )
 
         fun raizDelRepoDeWorkManager(): File {

@@ -5,6 +5,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
+import com.example.msp_app.features.sales.SaleIdSpaces
 
 /**
  * **La regla del origen, hecha código** (Task 21).
@@ -67,20 +68,21 @@ object DestinosDeCobranza {
      * `SaleDao.getById` filtra: el `DOCTO_CC_ID` del crédito abriría otra venta
      * o ninguna, que es el defecto del commit `721c5551` del lado del cobro.
      */
-    fun abonoDeUnaVenta(sale: Sale): String = PagosRutas.registrarAbono(sale.DOCTO_CC_ACR_ID)
+    fun abonoDeUnaVenta(sale: Sale): String =
+        PagosRutas.registrarAbono(SaleIdSpaces.forSaleRow(sale))
 
     /** Igual que la anterior, para la tarjeta de venta de las listas. */
     fun abonoDeUnaVenta(sale: SaleWithProducts): String =
-        PagosRutas.registrarAbono(sale.DOCTO_CC_ACR_ID)
+        PagosRutas.registrarAbono(SaleIdSpaces.forSaleRow(sale))
 
     /**
      * Registrar visita desde una venta abierta: se visita la **puerta**
      * (`CLIENTE_ID`) con esa cuenta como contexto (`DOCTO_CC_ACR_ID`).
      */
     fun visitaDeUnaVenta(sale: Sale): String =
-        VisitasRutas.registrar(clienteId = sale.CLIENTE_ID, ventaId = sale.DOCTO_CC_ACR_ID)
+        VisitasRutas.registrar(clienteId = sale.CLIENTE_ID, ventaId = SaleIdSpaces.forSaleRow(sale))
 
     /** Igual que la anterior, para la tarjeta de venta de las listas. */
     fun visitaDeUnaVenta(sale: SaleWithProducts): String =
-        VisitasRutas.registrar(clienteId = sale.CLIENTE_ID, ventaId = sale.DOCTO_CC_ACR_ID)
+        VisitasRutas.registrar(clienteId = sale.CLIENTE_ID, ventaId = SaleIdSpaces.forSaleRow(sale))
 }

@@ -84,38 +84,13 @@ object OfflineSyncManager {
         return builder.build()
     }
 
-    /**
-     * Encola múltiples operaciones de sincronización del mismo tipo.
-     *
-     * @param W Tipo del Worker
-     * @param context Context de Android
-     * @param config Configuración de sincronización
-     * @param entityIds Lista de IDs de entidades a sincronizar
-     * @param operation Tipo de operación
-     * @param additionalDataProvider Función que provee datos adicionales por entidad
-     */
-    inline fun <reified W : BaseSyncWorker<*, *>> enqueueBatch(
-        context: Context,
-        config: SyncConfig,
-        entityIds: List<String>,
-        operation: SyncOperation,
-        crossinline additionalDataProvider: (String) -> Map<String, String> = { emptyMap() }
-    ) {
-        entityIds.forEach { entityId ->
-            enqueue<W>(
-                context = context,
-                config = config,
-                entityId = entityId,
-                operation = SyncOperation.fromString(
-                    operation.toTypeString(),
-                    entityId,
-                    config.entityType
-                ),
-                additionalData = additionalDataProvider(entityId),
-                replaceExisting = true
-            )
-        }
-    }
+    // `enqueueBatch` vivía acá y se borró en el Arreglo B (ronda 1). Encolaba en
+    // lote con `replaceExisting = true` clavado —o sea `ExistingWorkPolicy.REPLACE`
+    // para cada entidad del lote— y **no tenía un solo llamador**. Era código
+    // muerto que solo podía hacer daño el día que alguien lo estrenara, en el
+    // mismo encolador que ya sirve al re-sync de ventas locales. Se borra en vez
+    // de documentarse, igual que el `replace: Boolean` muerto de
+    // `enqueueCobranzaReconcileNowWorker`.
 
     /**
      * Cancela una operación pendiente.
