@@ -57,6 +57,8 @@ class SaleIdSpacesCallSitesTest {
             "NewForgivenessDialog.kt"
     private val detalle =
         "src/main/java/com/example/msp_app/features/sales/screens/SaleDetailsScreen.kt"
+    private val garantia =
+        "src/main/java/com/example/msp_app/features/guarantees/screens/GuaranteesScreen.kt"
 
     @Test
     fun `el historial de pagos del detalle legado pide el id por SaleIdSpaces`() {
@@ -125,6 +127,20 @@ class SaleIdSpacesCallSitesTest {
         assertTrue(
             "volvió a navegarse con saleItem.DOCTO_CC_ID, que no es lo que getById filtra",
             !fuente.contains("saleId = saleItem.DOCTO_CC_ID")
+        )
+    }
+
+    @Test
+    fun `la pantalla de garantia resuelve la venta por el credito`() {
+        val fuente = leer(garantia)
+        exigir(
+            fuente,
+            "GuaranteesScreen:108 (venta de la garantía)",
+            "saleViewModel.loadSaleDetailsByCreditId(saleId)"
+        )
+        assertTrue(
+            "volvió a resolverse con getById, que filtra la PK y no el crédito",
+            !fuente.contains("saleViewModel.loadSaleDetails(saleId)")
         )
     }
 }

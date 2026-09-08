@@ -29,20 +29,38 @@ import com.example.msp_app.data.models.sale.SaleWithProducts
  * El DTO lo dice con todas sus letras: `docto_cc_acr_id` = *"ID del cargo acreditado
  * (= MSP_SALDOS_VENTAS.DOCTO_CC_ID)"* (`internal/cobranza/infra/cobranzahttp/dto_pagos.go`).
  *
- * En Room la tabla `sales` arrastra **dos** columnas, y el único escritor vivo
- * (`VentaDto.toEntity()`, usado por `CobranzaSyncManager.mergeVentas` y por
- * `CobranzaReconciler`) las llena **con el mismo campo del DTO**:
+ * En Room la tabla `sales` arrastra **dos** columnas, y **las dos llevan siempre el mismo
+ * número**. No es una coincidencia del estado actual: es así por construcción, medido en los
+ * cuatro escritores que existen y en los dos backends.
+ *
+ * Los cuatro escritores de `sales`: `CobranzaSyncManager.mergeVentas` y
+ * `CobranzaReconciler.reconcileSaldosViaIds` escriben por `VentaDto.toEntity()`, que llena las
+ * dos columnas **con el mismo campo del DTO**; `AuthViewModel` y `SalesLocalDataSource.replaceAll`
+ * reescriben filas que ya estaban, preservando las dos.
  *
  * ```kotlin
+ * // app/.../data/api/services/cobranza/VentaDto.kt
  * DOCTO_CC_ACR_ID = docto_cc_id,
  * DOCTO_CC_ID     = docto_cc_id,
  * ```
+ *
+ * Y el backend Node de antes del cutover, que es el único que alguna vez pudo dejar filas
+ * distintas, tampoco podía: su consulta de ventas proyecta las dos columnas pero las trae de
+ * un `INNER JOIN DOCTOS_CC ON DOCTOS_CC.DOCTO_CC_ID = M.DOCTO_CC_ACR_ID`
+ * (`sys_msp_backend/src/components/ventas/queries.ts:514`, y las 7 variantes de ese archivo
+ * llevan el mismo join). Eran iguales **por construcción SQL**. **Una fila legada con las dos
+ * columnas divergentes es imposible**, y no hay nada que averiguar sobre eso.
  *
  * O sea: `sales.DOCTO_CC_ACR_ID` es la **PK de Room** (nombre heredado, no un segundo
  * espacio de numeración) y `sales.DOCTO_CC_ID` es **el id del cargo**, que es el que casa
  * con `Payment.DOCTO_CC_ACR_ID`. `Payment.DOCTO_CC_ID` sí es otro espacio: es el documento
  * del **abono** en Microsip (0 hasta que el pago se aplica — ver
  * `PaymentDao.updateDoctoCcId`), y nunca identifica una venta.
+ *
+ * **Entonces, ¿para qué sirve elegir bien si los números coinciden?** Para que el código diga
+ * la verdad. Este archivo existe porque once defectos de esta rama salieron de leer el nombre
+ * de una variable en vez del `WHERE` de la consulta, y una línea que nombra la columna
+ * equivocada es la próxima trampa aunque hoy devuelva la fila correcta.
  *
  * Las funciones de abajo están nombradas por **el consumidor**, no por el id, justamente
  * para que nadie las elija por parecido de nombre.
@@ -54,10 +72,10 @@ object SaleIdSpaces {
      * venta: `PaymentDao.getPaymentsBySaleId`, `getSuggestedAmountsBySaleId`,
      * `countPagosDesde`, `deleteByDoctoCcAcrId`.
      *
-     * Es `sales.DOCTO_CC_ID`, por el join del backend citado arriba. **No** es la PK de
-     * Room: cambiarlo a `DOCTO_CC_ACR_ID` hoy no rompe nada porque el sync escribe el mismo
-     * número en las dos columnas, pero contradice el contrato del servidor, que es lo único
-     * que sigue siendo cierto si algún día dejan de coincidir.
+     * Es `sales.DOCTO_CC_ID`, por el join del backend citado arriba. **No** es la PK de Room.
+     * Cambiarlo a `DOCTO_CC_ACR_ID` no rompe ninguna fila —los dos números coinciden siempre—
+     * pero deja escrito un nombre de columna que contradice el contrato del servidor, que es
+     * justo el error del que salieron los once defectos de esta familia.
      */
     fun forSalePayments(sale: Sale): Int = sale.DOCTO_CC_ID
 
@@ -75,13 +93,11 @@ object SaleIdSpaces {
      * El id para lo que direcciona **la fila de `sales` por su PK** — `SaleDao.getById`,
      * `updateTotal`, `updateTemporaryCollectionDate`, y la ruta `Screen.SaleDetails`, que
      * resuelve su argumento con `getById`.
-     */
-    fun forSaleRow(sale: Sale): Int = sale.DOCTO_CC_ACR_ID
-
-    /**
-     * [forSaleRow] para la proyección con productos, que es la que devuelve
-     * `SaleDao.getByClientId` y la que pinta "otras ventas del cliente". Es la MISMA columna;
-     * la sobrecarga existe para no obligar a la pantalla a mapear a [Sale] solo para navegar.
+     *
+     * Toma la proyección con productos porque es la que devuelve `SaleDao.getByClientId` y la
+     * que pinta "otras ventas del cliente", que es el único llamador. **No hay sobrecarga para
+     * [Sale]:** existía y no tenía llamador de producción, así que era API muerta con un test
+     * que no cubría ningún camino vivo. Si algún día hace falta, se agrega con su call site.
      */
     fun forSaleRow(sale: SaleWithProducts): Int = sale.DOCTO_CC_ACR_ID
 }

@@ -422,8 +422,19 @@ interface SaleDao {
     suspend fun getActiveIdsByZona(zonaId: Int): List<Int>
 
     /**
-     * Bulk delete por PK. Idempotente: si una de las PK no existe, simplemente
-     * no la borra. Usado por CobranzaReconciler para evictar phantoms.
+     * Bulk delete **por `DOCTO_CC_ID`, que NO es la PK de esta tabla** — la PK es
+     * `DOCTO_CC_ACR_ID`. Lo aclara este KDoc porque decía "delete por PK" y esa frase es
+     * exactamente la que induce la familia de defectos de identificador de este plan:
+     * manda a buscar el id equivocado, y aquí está encima de un `DELETE`.
+     *
+     * La columna es la correcta: los ids que llegan vienen de `getActiveIdsByZona`, que
+     * proyecta `DOCTO_CC_ID`, y del `/ids` del servidor, cuya venta tiene una sola columna
+     * de id (`MSP_SALDOS_VENTAS.DOCTO_CC_ID`). Hoy además da igual —el único escritor de
+     * `sales` pone el mismo número en las dos columnas—, pero el KDoc tiene que nombrar la
+     * columna que el `WHERE` usa, no la que suena a llave.
+     *
+     * Idempotente: si uno de los ids no existe, simplemente no borra esa fila. Usado por
+     * `CobranzaReconciler` para evictar phantoms.
      */
     @Query("DELETE FROM sales WHERE DOCTO_CC_ID IN (:doctoCcIds)")
     suspend fun deleteByDoctoCcIds(doctoCcIds: List<Int>)

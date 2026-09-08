@@ -3,12 +3,13 @@ package com.example.msp_app.features.sales
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
-import com.example.msp_app.core.database.entities.OverduePaymentsEntity
+import com.example.msp_app.core.database.entities.GuaranteeEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.toDomain
+import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -52,7 +53,21 @@ class SaleIdSpacesRoomContractTest : RoomTestBase() {
 
         /** `Payment.DOCTO_CC_ID` — el documento del ABONO en Microsip. Nunca identifica una venta. */
         const val DOCUMENTO_DEL_ABONO = 70155
+
+        const val CLIENTE = 30144
     }
+
+    private fun garantia() = GuaranteeEntity(
+        EXTERNAL_ID = "gar-48213",
+        DOCTO_CC_ID = CARGO,
+        ESTADO = "SOLICITADA",
+        DESCRIPCION_FALLA = "El refrigerador no enfría",
+        OBSERVACIONES = null,
+        UPLOADED = 0,
+        FECHA_SOLICITUD = "2026-06-10T12:00:00Z",
+        NOMBRE_CLIENTE = "Guadalupe Hernández Soto",
+        NOMBRE_PRODUCTO = "Refrigerador 11 pies"
+    )
 
     private fun saleEntity() = SaleEntity(
         DOCTO_CC_ACR_ID = PK_DE_LA_VENTA,
@@ -195,19 +210,87 @@ class SaleIdSpacesRoomContractTest : RoomTestBase() {
     /**
      * Sitio **SaleDetailsScreen.kt:239** — "otras ventas del cliente" navega a
      * `Screen.SaleDetails`, cuyo argumento resuelve `SaleDao.getById`, que filtra la PK.
+     *
+     * El id sale de la MISMA proyección que pinta esa lista (`SaleDao.getByClientId` →
+     * `SaleWithProductsEntity`), que es la única forma en que la pantalla tiene la venta a
+     * mano. `SaleIdSpaces` no tiene sobrecarga para `Sale` justamente porque no hay call site
+     * que la use.
      */
     @Test
     fun `la fila de la venta se pide con la PK, no con el cargo`() = runTest {
         seed()
         val dao = db.saleDao()
 
-        val id = SaleIdSpaces.forSaleRow(sale())
+        val fila = dao.getByClientId(CLIENTE).single()
+        val id = SaleIdSpaces.forSaleRow(fila.toDomain())
 
         assertEquals(PK_DE_LA_VENTA, id)
         assertNotEquals("y NO el cargo", CARGO, id)
 
         assertNotNull("con la PK sale la venta", dao.getById(id))
         assertNull("con el cargo no sale ninguna", dao.getById(CARGO))
+    }
+
+    /**
+     * **GuaranteeScreen** — la ruta `guarantee/{saleId}` trae el id del CRÉDITO, porque eso es
+     * lo que la garantía necesita (`garantias.DOCTO_CC_ID`). La pantalla resolvía la venta con
+     * `getById`, que filtra la PK: pedía por la columna que no era.
+     *
+     * El test afirma las dos mitades a la vez, que es lo que impide el "arreglo" tentador de
+     * cambiar el argumento de la ruta: con el id del crédito **la garantía Y la venta** salen
+     * las dos; con la PK sale la venta y **se pierde la garantía**, que es la pantalla entera.
+     */
+    @Test
+    fun `la pantalla de garantia resuelve garantia Y venta con el id del credito`() = runTest {
+        seed()
+        db.guaranteeDao().insertAllGuarantees(listOf(garantia()))
+
+        assertNotNull(
+            "con el crédito sale la garantía",
+            db.guaranteeDao().getGuaranteeByDoctoCcId(CARGO)
+        )
+        assertNotNull(
+            "y con el crédito también sale la venta — por findByDoctoCcId, no por getById",
+            db.saleDao().findByDoctoCcId(CARGO)
+        )
+
+        assertNull(
+            "cambiar el argumento a la PK rompería la garantía, que es la razón de la pantalla",
+            db.guaranteeDao().getGuaranteeByDoctoCcId(PK_DE_LA_VENTA)
+        )
+        assertNull(
+            "y `getById` con el crédito no encuentra la venta: ése era el defecto",
+            db.saleDao().getById(CARGO)
+        )
+    }
+
+    /** El mismo recorrido, por el ViewModel real que usa `GuaranteeScreen`. */
+    @Test
+    fun `SaleDetailsViewModel carga la venta por credito y no por PK`() = runTest {
+        seed()
+        val viewModel = SaleDetailsViewModel(ApplicationProvider.getApplicationContext())
+
+        viewModel.saleState.test {
+            assertTrue("el estado arranca en Idle", awaitItem() is ResultState.Idle)
+
+            viewModel.loadSaleDetailsByCreditId(CARGO)
+            val porCredito = esperarResuelto(this)
+            assertTrue("estado por crédito: $porCredito", porCredito is ResultState.Success)
+            assertEquals(
+                "y es la venta de este crédito",
+                PK_DE_LA_VENTA,
+                (porCredito as ResultState.Success).data?.DOCTO_CC_ACR_ID
+            )
+
+            viewModel.loadSaleDetails(CARGO)
+            val porPk = esperarResuelto(this)
+            assertTrue(
+                "con `getById` el crédito no encuentra nada — el defecto que esto cierra",
+                porPk is ResultState.Error
+            )
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     /**
@@ -254,9 +337,9 @@ class SaleIdSpacesRoomContractTest : RoomTestBase() {
             }
         }
 
-    private suspend fun esperarResuelto(
-        turbine: ReceiveTurbine<ResultState<OverduePaymentsEntity?>>
-    ): ResultState<OverduePaymentsEntity?> {
+    private suspend fun <T> esperarResuelto(
+        turbine: ReceiveTurbine<ResultState<T>>
+    ): ResultState<T> {
         var emision = turbine.awaitItem()
         var intentos = 0
         while (emision is ResultState.Loading && intentos < MAX_EMISIONES) {

@@ -102,15 +102,14 @@ sealed class Screen(val route: String) {
      * la PK. Ese archivo tiene el mapeo completo de qué id pide cada consumidor,
      * medido contra la columna por la que filtra cada consulta.
      *
-     * **Queda un llamador legado que le manda otro id:** `GuaranteesScreen.kt:108`
-     * — `saleViewModel.loadSaleDetails(saleId)` con un `saleId` que la ruta
-     * `guarantee/{saleId}` trae como `DOCTO_CC_ID` (las garantías están indexadas
-     * por crédito). Aterriza igual en `SaleDao.getById`, que filtra la PK. Hoy no
-     * se nota porque el único escritor vivo de `sales` (`VentaDto.toEntity`) pone
-     * el MISMO número en las dos columnas, pero el llamador sigue pidiendo por la
-     * columna que no es. Es de `:app` legado y va al triage final, no se arregla
-     * de paso: resolverlo bien es `SaleDao.findByDoctoCcId`, no un cambio de
-     * argumento.
+     * **Ya no queda ningún llamador mandando otro id.** El último era
+     * `GuaranteesScreen.kt:108`, que resolvía con `SaleDao.getById` (la PK) un
+     * `saleId` que la ruta `guarantee/{saleId}` trae como `DOCTO_CC_ID` — las
+     * garantías están indexadas por crédito. Se arregló donde correspondía, en la
+     * consulta (`SaleDetailsViewModel.loadSaleDetailsByCreditId` →
+     * `SaleDao.findByDoctoCcId`) y no en el argumento: ese argumento es el que la
+     * garantía necesita, y cambiarlo habría arreglado la venta rompiendo la
+     * garantía.
      */
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sales/sale_details/$saleId"
