@@ -24,6 +24,11 @@ import java.io.File
  */
 internal class EscanerDeFuentes {
 
+    private companion object {
+        /** `include(":core:common")` de `settings.gradle.kts`. */
+        val INCLUDE = Regex("""include\("(:[^"]+)"\)""")
+    }
+
     /**
      * La raíz del repo. El directorio de trabajo de un test de Gradle es el del
      * módulo (`<repo>/app`), y el `?:` cubre correr la clase desde la raíz.
@@ -32,17 +37,31 @@ internal class EscanerDeFuentes {
         if (File("src/main/java").isDirectory) File("..") else File(".")
 
     /**
-     * Las fuentes de producción: `:app` en `java/`, y cada `:feature:*` /
-     * `:core:*` en `kotlin/`. Se listan por glob y no a mano para que un módulo
-     * nuevo entre solo — una lista escrita a mano envejece hasta volver a dejar
-     * un hueco, que es el defecto que esta clase vino a cerrar.
+     * Las fuentes de producción de **todos** los módulos del build.
+     *
+     * La versión anterior recorría los grupos `feature` y `core` por glob, y eso
+     * era mejor que una lista de módulos pero seguía siendo una lista: la de los
+     * **grupos**. Dejaba fuera `build-tools/detekt-rules` —que también tiene
+     * código de producción, las reglas de detekt— y habría dejado fuera
+     * cualquier grupo nuevo. El Arreglo B lo encontró contando listas escritas a
+     * mano: era la décima.
+     *
+     * Ahora los módulos salen de `settings.gradle.kts`, el archivo que los
+     * define, y de cada uno se toman las dos convenciones de `src/main` que el
+     * repo usa (`java/` en `:app`, `kotlin/` en el resto). Un módulo nuevo —o un
+     * grupo nuevo— entra el día que entra al build.
      */
     val raices: List<File> = buildList {
-        add(File(raiz, "app/src/main/java"))
-        listOf("feature", "core").forEach { grupo ->
-            File(raiz, grupo).listFiles()?.sortedBy { it.name }?.forEach { modulo ->
-                add(File(modulo, "src/main/kotlin"))
-            }
+        val settings = File(raiz, "settings.gradle.kts").readText()
+        val modulos = INCLUDE.findAll(settings)
+            .map { it.groupValues[1].trim(':').replace(':', '/') }
+            .toList()
+        check(modulos.isNotEmpty()) {
+            "no se leyó ningún include(...) de settings.gradle.kts: el escáner no miraría nada"
+        }
+        modulos.sorted().forEach { modulo ->
+            add(File(raiz, "$modulo/src/main/java"))
+            add(File(raiz, "$modulo/src/main/kotlin"))
         }
     }.filter { it.isDirectory }
 

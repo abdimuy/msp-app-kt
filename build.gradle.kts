@@ -429,10 +429,45 @@ val prePushTaskFamilies: List<List<String>> = listOf(
     listOf("ktlintCheck"),
     listOf("testDevlocalDebugUnitTest", "testDebugUnitTest", "test"),
     listOf("detekt"),
-    listOf("koverVerifyDebug", "koverVerify"),
     listOf("verifyRoborazziDebug"),
     listOf("assembleDevlocalDebug")
 )
+
+/**
+ * Los marcadores de que las pruebas del módulo NO sobreviven la variante
+ * `release`.
+ *
+ * La familia de kover no puede resolverse por orden fijo, y la ronda 2 lo
+ * probó: poner `koverVerifyDebug` primero degradó `:core:common` y
+ * `:core:upload`, que la lista vieja corría con el agregado `koverVerify`
+ * —más estricto, cubre TODAS las variantes— porque sus pruebas son JVM plano.
+ * Elegir siempre `Debug` sacó `testReleaseUnitTest` del grafo entero sin que
+ * nadie lo pidiera.
+ *
+ * Lo que decide es un hecho del módulo, no su nombre: si sus pruebas usan
+ * Robolectric (o Roborazzi, o `createComposeRule`, que lo arrastra), la
+ * variante `release` minificada revienta en TODAS con
+ * `RoboMonitoringInstrumentation`, y ahí el agregado no sirve. Ese hecho se
+ * **descubre** leyendo `src/test`, así que un módulo que mañana adopte
+ * Robolectric cambia de tarea solo, y uno que lo abandone recupera el agregado.
+ */
+val marcadoresDeRobolectric = listOf("Robolectric", "robolectric", "Roborazzi", "roborazzi", "createComposeRule")
+
+/** ¿Las pruebas de [proyecto] arrastran Robolectric? */
+fun usaRobolectric(proyecto: Project): Boolean {
+    val pruebas = File(proyecto.projectDir, "src/test")
+    if (!pruebas.isDirectory) return false
+    return pruebas.walkTopDown()
+        .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
+        .any { archivo -> marcadoresDeRobolectric.any { archivo.readText().contains(it) } }
+}
+
+/** La tarea de cobertura que le toca a [proyecto]: el agregado si puede, `Debug` si no. */
+fun tareaDeCoberturaDe(proyecto: Project): String? {
+    val nombres = proyecto.tasks.names
+    val preferida = if (usaRobolectric(proyecto)) "koverVerifyDebug" else "koverVerify"
+    return listOf(preferida, "koverVerifyDebug", "koverVerify").firstOrNull { it in nombres }
+}
 
 /** Nombres de la familia de kover: lo que NO es una regla acotada con nombre propio. */
 val koverBaseTaskNames = setOf(
@@ -482,6 +517,24 @@ val prePushTaskAllowlist: Map<String, String> = mapOf(
         "sin línea base de cobertura fijada (decisión de su Task 8); sus pruebas sí entran"
 )
 
+/**
+ * Las compuertas que viven en la RAÍZ, no en un módulo.
+ *
+ * `subprojects` no ve al proyecto raíz, y esa omisión costó caro: la primera
+ * versión del descubrimiento sacó `checkNoLegacyDateApi` del pre-push —el
+ * guardarraíl estrella de este mismo arreglo— y sobrevivió solo en CI. Nadie lo
+ * buscó; lo encontró la comparación contra la base congelada.
+ *
+ * Se descubren por **grupo**: toda tarea de la raíz en `verification`, menos la
+ * propia `prePushCheck` (dependería de sí misma). Una compuerta de raíz nueva
+ * entra sola con solo declarar `group = "verification"`, que es lo que ya hacen
+ * todas.
+ */
+fun tareasDeGateDeLaRaiz(): List<String> = rootProject.tasks
+    .matching { it.group == "verification" && it.name != "prePushCheck" }
+    .map { it.name }
+    .sorted()
+
 /** Lo que cada módulo aportó, para el control positivo del propio descubrimiento. */
 val prePushAportes = linkedMapOf<String, List<String>>()
 
@@ -507,6 +560,9 @@ fun tareasDeGateDe(proyecto: Project): List<String> {
         if ("$modulo:$elegida" in prePushTaskAllowlist) return@forEach
         aportadas += elegida
     }
+    tareaDeCoberturaDe(proyecto)
+        ?.takeUnless { "$modulo:$it" in prePushTaskAllowlist }
+        ?.let { aportadas += it }
     // Reglas de cobertura acotadas por paquete, con nombre propio.
     nombres
         .filter { it.startsWith("koverVerify") && it !in koverBaseTaskNames }
@@ -515,7 +571,90 @@ fun tareasDeGateDe(proyecto: Project): List<String> {
         .forEach { aportadas += it }
 
     prePushAportes[modulo] = aportadas
+    aportadas.forEach { prePushDescubiertas += "$modulo:$it" }
     return aportadas
+}
+
+/**
+ * Bajas declaradas respecto de [prePushBaselineFile], con su razón.
+ *
+ * **Vacío.** Las tres tareas que la ronda 1 perdió en silencio se recuperaron:
+ * no había ninguna baja legítima, sólo un descubrimiento incompleto.
+ */
+val prePushBaselineBajas: Map<String, String> = emptyMap()
+
+/**
+ * Piso de tamaño de la base congelada: las 68 entradas que tenía el
+ * `dependsOn` escrito a mano de `d2073787`. Vaciar el archivo o recortarlo es
+ * la forma obvia de ablandar esta red, así que el tamaño también se afirma.
+ */
+val MINIMO_DE_LA_BASE = 68
+
+/** La base congelada del Ruling BB. Ver el encabezado del propio archivo. */
+val prePushBaselineFile: File = file("gradle/prepush-baseline.txt")
+
+/** Lo que el descubrimiento entregó de verdad, en la forma canónica de la base. */
+val prePushDescubiertas: MutableSet<String> = linkedSetOf()
+
+/**
+ * Ruling BB — el control de NO-REGRESIÓN sobre la propia compuerta.
+ *
+ * Descubrir no basta: el conjunto descubierto puede ser **distinto** del que
+ * había, y como la lista ya no existe, no queda nada contra qué comparar. La
+ * ronda 1 perdió tres tareas así, en silencio, y una era `checkNoLegacyDateApi`.
+ *
+ * Esto exige que lo descubierto **contenga** la base congelada. Ganar tareas es
+ * el objetivo y no se toca; perder una hay que escribirla en
+ * [prePushBaselineBajas] con su motivo.
+ */
+fun Task.verificarLaBaseCongelada() {
+    // Control positivo del control: una base vacía o ausente convertiría la
+    // comprobación de abajo en un `emptySet - x = emptySet`, o sea un verde que
+    // no mide nada. Es el defecto que este arreglo persigue; no puede vivir
+    // dentro de la red que lo atrapa.
+    if (!prePushBaselineFile.isFile) {
+        throw GradleException(
+            "prePushCheck: falta ${prePushBaselineFile.path}, la base congelada del Ruling BB. " +
+                "Sin ella el control de no-regresión no compara contra nada."
+        )
+    }
+    val base = prePushBaselineFile.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .toSet()
+    if (base.size < MINIMO_DE_LA_BASE) {
+        throw GradleException(
+            "prePushCheck: la base congelada tiene ${base.size} entradas, menos que el mínimo " +
+                "de $MINIMO_DE_LA_BASE. O se vació por accidente, o alguien la recortó para " +
+                "que el gate pasara — que es la forma de ablandar esta red."
+        )
+    }
+
+    val faltantes = (base - prePushDescubiertas - prePushBaselineBajas.keys).sorted()
+    if (faltantes.isNotEmpty()) {
+        throw GradleException(
+            "prePushCheck: el descubrimiento PERDIÓ tareas que la compuerta escrita a mano sí " +
+                "corría: $faltantes.\n" +
+                "Cambiar una lista por un descubrimiento no es gratis: el conjunto nuevo puede " +
+                "ser distinto sin que nadie lo note. Recuperalas, o declaralas en " +
+                "`prePushBaselineBajas` CON su razón."
+        )
+    }
+
+    val bajasVivas = prePushBaselineBajas.keys.filter { it in prePushDescubiertas }.sorted()
+    if (bajasVivas.isNotEmpty()) {
+        throw GradleException(
+            "prePushCheck: estas entradas de `prePushBaselineBajas` describen tareas que HOY sí " +
+                "se descubren: $bajasVivas. Bórralas — una baja declarada que ya no ocurre es " +
+                "una excusa escrita para algo que no pasa."
+        )
+    }
+
+    val ganadas = (prePushDescubiertas - base).sorted()
+    logger.lifecycle(
+        "prePushCheck: base congelada ${base.size}/${base.size} cubierta" +
+            if (ganadas.isEmpty()) "" else ", ${ganadas.size} tareas ganadas: $ganadas"
+    )
 }
 
 val prePushCheck = tasks.register("prePushCheck") {
@@ -530,7 +669,15 @@ val prePushCheck = tasks.register("prePushCheck") {
     // forma de ver las tareas por variante (ver KDoc de `tareasDeGateDe`).
     dependsOn(
         Callable {
-            modulosDelBuild.flatMap { sub -> tareasDeGateDe(sub).map { "${sub.path}:$it" } }
+            val deLaRaiz = tareasDeGateDeLaRaiz()
+            prePushAportes[":"] = deLaRaiz
+            deLaRaiz.forEach { prePushDescubiertas += ":$it" }
+            // El build incluido no es un subproyecto: se referencia explícito
+            // arriba y se registra acá para que la base congelada lo cubra.
+            prePushDescubiertas += "build-logic:ktlintCheck"
+            val deLosModulos = modulosDelBuild
+                .flatMap { sub -> tareasDeGateDe(sub).map { "${sub.path}:$it" } }
+            deLaRaiz.map { ":$it" } + deLosModulos
         }
     )
 
@@ -544,6 +691,8 @@ val prePushCheck = tasks.register("prePushCheck") {
         if (esperados.isEmpty()) {
             throw GradleException("prePushCheck: el descubrimiento no encontró NINGÚN módulo.")
         }
+        verificarLaBaseCongelada()
+
         val sinAporte = esperados.filterNot { prePushAportes[it].orEmpty().isNotEmpty() }
         if (sinAporte.isNotEmpty()) {
             throw GradleException(
@@ -572,8 +721,9 @@ val prePushCheck = tasks.register("prePushCheck") {
             )
         }
         logger.lifecycle(
-            "prePushCheck: ${esperados.size} módulos, " +
-                "${prePushAportes.values.sumOf { it.size }} tareas descubiertas"
+            "prePushCheck: ${esperados.size} módulos + la raíz, " +
+                "${prePushAportes.values.sumOf { it.size }} tareas descubiertas " +
+                "(+ build-logic:ktlintCheck)"
         )
         prePushAportes.toSortedMap().forEach { (modulo, tareas) ->
             logger.lifecycle("  $modulo → ${tareas.joinToString(", ")}")

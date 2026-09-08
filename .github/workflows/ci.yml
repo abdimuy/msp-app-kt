@@ -138,13 +138,22 @@ jobs:
       - name: prePushCheck (el gate local completo)
         run: ./gradlew --build-cache --parallel --stacktrace --continue prePushCheck
 
-      # `:feature:configuracion` NO esta en `prePushCheck` (revisar la lista de
-      # `dependsOn` en `build.gradle.kts`: aparecen todos los `:core:*`, el
-      # piloto `:feature:collectionReport` y `:build-tools:detekt-rules`, pero
-      # este modulo se quedo fuera). Sus tareas SI pasan hoy, asi que CI las
-      # corre explicitamente en vez de dejar el modulo sin compuerta. Cuando se
-      # agreguen a `prePushCheck` este paso se vuelve redundante y se puede
-      # borrar -- mientras tanto, borrarlo seria bajar una compuerta.
+      # ESTE COMENTARIO ERA FALSO y el Arreglo B (ronda 2) lo corrige en vez de
+      # borrarlo, para que quede el rastro. Decia que `:feature:configuracion` NO
+      # esta en `prePushCheck` y mandaba a "revisar la lista de dependsOn": esa
+      # lista ya no existe (la compuerta descubre sus modulos desde Gradle) y el
+      # modulo entra desde el "HUECO CERRADO (2026-08-16)", o sea que la
+      # afirmacion llevaba meses siendo falsa. Verificado:
+      #     ./gradlew prePushCheck
+      #     :feature:configuracion -> ktlintCheck, testDebugUnitTest, detekt,
+      #                               koverVerifyDebug
+      # las cuatro tareas que este paso repite.
+      #
+      # O sea que el paso es REDUNDANTE, no una compuerta extra. No se borra
+      # aqui porque tocar el workflow de CI es infraestructura de despliegue y
+      # lo decide su dueno; queda documentado, que es lo que faltaba: un paso
+      # justificado por un comentario falso es la undecima lista escrita a mano
+      # de este plan sostenida por una razon que nadie volvio a medir.
       - name: Modulos fuera de prePushCheck (:feature:configuracion)
         if: ${{ !cancelled() }}
         run: |

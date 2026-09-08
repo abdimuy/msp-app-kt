@@ -123,6 +123,25 @@ class RetiroDelDialogoDeVisitaTest {
     }
 
     /**
+     * **Control positivo del ALCANCE del escáner** (Arreglo B, ronda 2).
+     *
+     * Los controles de arriba prueban que el escáner lee *algo*; éste prueba que
+     * lee **todo el build**. Hasta la ronda 2 [EscanerDeFuentes] recorría los
+     * grupos `feature` y `core` escritos a mano, así que `:build-tools:detekt-rules`
+     * —que tiene código de producción: las reglas de detekt— quedaba fuera, y un
+     * sobreviviente ahí habría dado un cero mentiroso. `MoneyRuleSetProvider` vive
+     * SÓLO en ese módulo, así que encontrarlo prueba que el barrido llega.
+     */
+    @Test
+    fun `control positivo, el escaner alcanza build-tools y no solo core y feature`() {
+        val enBuildTools = archivosQueMencionan("MoneyRuleSetProvider")
+        assertTrue(
+            "el escáner no llegó a :build-tools:detekt-rules — su cero no vale para ese módulo",
+            enBuildTools.any { it.contains("build-tools/detekt-rules") }
+        )
+    }
+
+    /**
      * **El botón de "enviar pendientes" no se tocó.** El brief lo protege: una
      * visita pendiente todavía bloquea "INICIALIZAR SEMANA"
      * (`AuthViewModel.kt`), así que quitarlo antes de verificar el reconciliador
