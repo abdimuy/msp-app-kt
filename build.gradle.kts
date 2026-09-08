@@ -434,47 +434,43 @@ val prePushTaskFamilies: List<List<String>> = listOf(
 )
 
 /**
- * Los marcadores de que las pruebas del módulo NO sobreviven la variante
- * `release`.
+ * Las verificaciones de cobertura del módulo: **todas**, no una elegida.
  *
- * La familia de kover no puede resolverse por orden fijo, y la ronda 2 lo
- * probó: poner `koverVerifyDebug` primero degradó `:core:common` y
- * `:core:upload`, que la lista vieja corría con el agregado `koverVerify`
- * —más estricto, cubre TODAS las variantes— porque sus pruebas son JVM plano.
- * Elegir siempre `Debug` sacó `testReleaseUnitTest` del grafo entero sin que
- * nadie lo pidiera.
+ * ## La razón que estaba escrita acá era falsa
  *
- * Lo que decide es un hecho del módulo, no su nombre: si sus pruebas usan
- * Robolectric (o Roborazzi, o `createComposeRule`, que lo arrastra), la
- * variante `release` minificada revienta en TODAS con
- * `RoboMonitoringInstrumentation`, y ahí el agregado no sirve. Ese hecho se
- * **descubre** leyendo `src/test`, así que un módulo que mañana adopte
- * Robolectric cambia de tarea solo, y uno que lo abandone recupera el agregado.
+ * Decía que el agregado `koverVerify` arrastra `testReleaseUnitTest` y que
+ * Robolectric revienta bajo la variante `release` minificada, así que hacía
+ * falta un criterio —leer `src/test` buscando Robolectric— para elegir entre el
+ * agregado y `koverVerifyDebug`. **`testReleaseUnitTest` no existe en este
+ * build:** `AndroidLibraryConventionPlugin` apaga los unit tests de `release`
+ * en todos los módulos (`variant.enableUnitTest = variant.buildType !=
+ * "release"`). El criterio funcionaba —reproducía la lista vieja— pero su
+ * justificación era falsa, y una razón falsa que sostiene una decisión correcta
+ * es peor que ninguna: la próxima persona la usa para decidir otra cosa.
+ *
+ * Medido en vez de razonado: `./gradlew :core:designsystem:koverVerify` —el
+ * módulo más cargado de Robolectric/Roborazzi del repo— **pasa**. Lo único que
+ * agrega el agregado es compilar la variante `release` y fusionar su artefacto,
+ * vacío de cobertura porque ahí no corre un test. O sea que **no hay ningún
+ * hecho técnico** que distinga a `:core:common` y `:core:upload` del resto: la
+ * elección de la lista vieja era histórica, no técnica.
+ *
+ * Así que no se elige. Se toman **todas** las tareas `koverVerify*` del módulo
+ * —el agregado, la de `debug`, y las reglas acotadas por paquete que
+ * `:core:database` registra con nombre propio—, que es estrictamente más
+ * verificación que cualquiera por separado y no exige una decisión por módulo
+ * que nadie puede justificar hoy. Se excluyen las de `release` porque ahí no
+ * corre un solo test: verificar cobertura sobre una variante sin pruebas mide
+ * cero y no significa nada.
+ *
+ * Esto además borra la inconsistencia que señaló la revisión: la función que
+ * leía `src/test` para decidir contaba menciones **dentro de comentarios**,
+ * mientras `EscanerDeFuentes` las descarta a propósito. Ya no hay dos criterios
+ * porque ya no hay lectura.
  */
-val marcadoresDeRobolectric = listOf("Robolectric", "robolectric", "Roborazzi", "roborazzi", "createComposeRule")
-
-/** ¿Las pruebas de [proyecto] arrastran Robolectric? */
-fun usaRobolectric(proyecto: Project): Boolean {
-    val pruebas = File(proyecto.projectDir, "src/test")
-    if (!pruebas.isDirectory) return false
-    return pruebas.walkTopDown()
-        .filter { it.isFile && (it.extension == "kt" || it.extension == "java") }
-        .any { archivo -> marcadoresDeRobolectric.any { archivo.readText().contains(it) } }
-}
-
-/** La tarea de cobertura que le toca a [proyecto]: el agregado si puede, `Debug` si no. */
-fun tareaDeCoberturaDe(proyecto: Project): String? {
-    val nombres = proyecto.tasks.names
-    val preferida = if (usaRobolectric(proyecto)) "koverVerifyDebug" else "koverVerify"
-    return listOf(preferida, "koverVerifyDebug", "koverVerify").firstOrNull { it in nombres }
-}
-
-/** Nombres de la familia de kover: lo que NO es una regla acotada con nombre propio. */
-val koverBaseTaskNames = setOf(
-    "koverVerify", "koverVerifyDebug", "koverVerifyRelease",
-    "koverVerifyDevlocalDebug", "koverVerifyDevserverDebug", "koverVerifyProdDebug",
-    "koverVerifyDevlocalRelease", "koverVerifyDevserverRelease", "koverVerifyProdRelease"
-)
+fun tareasDeCoberturaDe(proyecto: Project): List<String> = proyecto.tasks.names
+    .filter { it.startsWith("koverVerify") && !it.endsWith("Release") }
+    .sorted()
 
 /**
  * Módulos exentos del gate, con la razón por la que lo están. **Vacío**, y esa
@@ -513,26 +509,62 @@ val prePushTaskAllowlist: Map<String, String> = mapOf(
     // `RetrofitClientFactoryTest`, `ConnectivityMonitorTest`) SÍ corren en el
     // gate por la familia de pruebas; lo que no corre es un umbral que nadie
     // fijó todavía.
+    ":core:network:koverVerify" to
+        "sin línea base de cobertura fijada (decisión de su Task 8); sus pruebas sí entran",
     ":core:network:koverVerifyDebug" to
         "sin línea base de cobertura fijada (decisión de su Task 8); sus pruebas sí entran"
 )
 
 /**
- * Las compuertas que viven en la RAÍZ, no en un módulo.
+ * Los nombres de tarea que **este repo** registra en sus propios scripts.
  *
- * `subprojects` no ve al proyecto raíz, y esa omisión costó caro: la primera
- * versión del descubrimiento sacó `checkNoLegacyDateApi` del pre-push —el
- * guardarraíl estrella de este mismo arreglo— y sobrevivió solo en CI. Nadie lo
- * buscó; lo encontró la comparación contra la base congelada.
- *
- * Se descubren por **grupo**: toda tarea de la raíz en `verification`, menos la
- * propia `prePushCheck` (dependería de sí misma). Una compuerta de raíz nueva
- * entra sola con solo declarar `group = "verification"`, que es lo que ya hacen
- * todas.
+ * Se leen de todos los `*.gradle.kts` del build y de las fuentes de
+ * `build-logic` (los convention plugins registran tareas dentro de los módulos
+ * que los aplican). No es una lista de nombres: es el conjunto de lo que
+ * `tasks.register(...)`/`tasks.create(...)` menciona, descubierto del texto que
+ * lo declara.
  */
-fun tareasDeGateDeLaRaiz(): List<String> = rootProject.tasks
-    .matching { it.group == "verification" && it.name != "prePushCheck" }
-    .map { it.name }
+val tareasRegistradasPorElRepo: Set<String> by lazy {
+    val patron = Regex("""tasks\.(?:register|create)(?:<[^>]*>)?\(\s*"([^"]+)"""")
+    val fuentes = buildList {
+        add(File(rootDir, "build.gradle.kts"))
+        subprojects.forEach { add(File(it.projectDir, "build.gradle.kts")) }
+        File(rootDir, "build-logic/src/main/kotlin").walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .forEach { add(it) }
+    }.filter { it.isFile }
+    check(fuentes.isNotEmpty()) { "no se leyó ningún script del build" }
+    fuentes.flatMap { archivo -> patron.findAll(archivo.readText()).map { it.groupValues[1] } }.toSet()
+}
+
+/**
+ * Las compuertas propias de [proyecto], descubiertas **por grupo**.
+ *
+ * ## Ruling BC — la misma regla, de los dos lados de `subprojects`
+ *
+ * La ronda 2 aplicó este descubrimiento **sólo a la raíz**, y eso dejó la mitad
+ * grande abierta: sembrar `group = "verification"` en una tarea de
+ * `:core:common` la dejaba fuera del gate, en verde y sin aviso. Era el hueco de
+ * `checkNoLegacyDateApi` del otro lado del espejo — la misma falla partida en
+ * dos, y la mitad que quedó abierta tiene dieciséis módulos.
+ *
+ * ## Por qué no basta con "todo lo que esté en `verification`"
+ *
+ * Porque en un módulo ese grupo está lleno de tareas de plugins: `check`,
+ * `connectedCheck`, `deviceCheck`, `lint*`, `detektBaseline*`, `koverHtmlReport*`
+ * … Meterlas todas arrastraría lint y pruebas de dispositivo al pre-push. La
+ * raíz no tiene ese problema porque no aplica plugins (todos van con
+ * `apply false`), y por eso ahí el grupo solo basta.
+ *
+ * El acote que sí distingue una compuerta nuestra de una de plugin no es el
+ * nombre ni el tipo —`check` también es un `DefaultTask`— sino **quién la
+ * registró**: las nuestras están escritas en los scripts de este repo. Así que
+ * la regla es *grupo `verification` **y** registrada por nosotros*, y se aplica
+ * igual a la raíz y a los módulos.
+ */
+fun tareasDeGateDelGrupoDe(proyecto: Project): List<String> = proyecto.tasks.names
+    .filter { it != "prePushCheck" && it in tareasRegistradasPorElRepo }
+    .filter { nombre -> runCatching { proyecto.tasks.named(nombre).get().group }.getOrNull() == "verification" }
     .sorted()
 
 /** Lo que cada módulo aportó, para el control positivo del propio descubrimiento. */
@@ -560,18 +592,16 @@ fun tareasDeGateDe(proyecto: Project): List<String> {
         if ("$modulo:$elegida" in prePushTaskAllowlist) return@forEach
         aportadas += elegida
     }
-    tareaDeCoberturaDe(proyecto)
-        ?.takeUnless { "$modulo:$it" in prePushTaskAllowlist }
-        ?.let { aportadas += it }
-    // Reglas de cobertura acotadas por paquete, con nombre propio.
-    nombres
-        .filter { it.startsWith("koverVerify") && it !in koverBaseTaskNames }
+    tareasDeCoberturaDe(proyecto)
         .filterNot { "$modulo:$it" in prePushTaskAllowlist }
-        .sorted()
         .forEach { aportadas += it }
+    // (Ruling BC) Las compuertas que este repo registra en sus propios scripts:
+    // la misma regla de grupo que ya se aplicaba a la raíz, ahora también acá.
+    tareasDeGateDelGrupoDe(proyecto)
+        .filterNot { "$modulo:$it" in prePushTaskAllowlist }
+        .forEach { if (it !in aportadas) aportadas += it }
 
     prePushAportes[modulo] = aportadas
-    aportadas.forEach { prePushDescubiertas += "$modulo:$it" }
     return aportadas
 }
 
@@ -593,8 +623,20 @@ val MINIMO_DE_LA_BASE = 68
 /** La base congelada del Ruling BB. Ver el encabezado del propio archivo. */
 val prePushBaselineFile: File = file("gradle/prepush-baseline.txt")
 
-/** Lo que el descubrimiento entregó de verdad, en la forma canónica de la base. */
-val prePushDescubiertas: MutableSet<String> = linkedSetOf()
+/**
+ * El nombre canónico de [tarea] en la forma que usa la base congelada.
+ *
+ * Las tareas del build principal se nombran por su `path` (`:core:common:koverVerify`);
+ * las de un build INCLUIDO llevan el nombre de su build por delante
+ * (`build-logic:ktlintCheck`), porque su `path` es `:ktlintCheck` y chocaría con
+ * una tarea de la raíz.
+ */
+fun nombreCanonicoDe(tarea: Task): String =
+    if (tarea.project.gradle.parent != null) {
+        "${tarea.project.rootProject.name}${tarea.path}"
+    } else {
+        tarea.path
+    }
 
 /**
  * Ruling BB — el control de NO-REGRESIÓN sobre la propia compuerta.
@@ -630,7 +672,21 @@ fun Task.verificarLaBaseCongelada() {
         )
     }
 
-    val faltantes = (base - prePushDescubiertas - prePushBaselineBajas.keys).sorted()
+    // El agujero DENTRO de la red, cerrado: hasta la ronda 2 esto comparaba
+    // contra un conjunto de cadenas que el propio descubrimiento iba armando, y
+    // `build-logic:ktlintCheck` se agregaba a mano ahí. O sea que esa entrada de
+    // la base **no podía fallar**: se satisfacía a sí misma, y borrar el
+    // `dependsOn` del build incluido dejaba el gate en verde diciendo "68/68".
+    // Ahora se mide contra el GRAFO REAL de dependencias de esta tarea: si la
+    // dependencia no existe, la entrada falta y la red lo dice.
+    val reales = taskDependencies.getDependencies(this).map { nombreCanonicoDe(it) }.toSet()
+    if (reales.isEmpty()) {
+        throw GradleException(
+            "prePushCheck: la tarea no declara NINGUNA dependencia. El gate no corrió nada."
+        )
+    }
+
+    val faltantes = (base - reales - prePushBaselineBajas.keys).sorted()
     if (faltantes.isNotEmpty()) {
         throw GradleException(
             "prePushCheck: el descubrimiento PERDIÓ tareas que la compuerta escrita a mano sí " +
@@ -641,7 +697,7 @@ fun Task.verificarLaBaseCongelada() {
         )
     }
 
-    val bajasVivas = prePushBaselineBajas.keys.filter { it in prePushDescubiertas }.sorted()
+    val bajasVivas = prePushBaselineBajas.keys.filter { it in reales }.sorted()
     if (bajasVivas.isNotEmpty()) {
         throw GradleException(
             "prePushCheck: estas entradas de `prePushBaselineBajas` describen tareas que HOY sí " +
@@ -650,9 +706,10 @@ fun Task.verificarLaBaseCongelada() {
         )
     }
 
-    val ganadas = (prePushDescubiertas - base).sorted()
+    val ganadas = (reales - base).sorted()
     logger.lifecycle(
-        "prePushCheck: base congelada ${base.size}/${base.size} cubierta" +
+        "prePushCheck: base congelada ${base.size}/${base.size} cubierta contra el grafo real " +
+            "(${reales.size} dependencias)" +
             if (ganadas.isEmpty()) "" else ", ${ganadas.size} tareas ganadas: $ganadas"
     )
 }
@@ -669,12 +726,8 @@ val prePushCheck = tasks.register("prePushCheck") {
     // forma de ver las tareas por variante (ver KDoc de `tareasDeGateDe`).
     dependsOn(
         Callable {
-            val deLaRaiz = tareasDeGateDeLaRaiz()
+            val deLaRaiz = tareasDeGateDelGrupoDe(rootProject)
             prePushAportes[":"] = deLaRaiz
-            deLaRaiz.forEach { prePushDescubiertas += ":$it" }
-            // El build incluido no es un subproyecto: se referencia explícito
-            // arriba y se registra acá para que la base congelada lo cubra.
-            prePushDescubiertas += "build-logic:ktlintCheck"
             val deLosModulos = modulosDelBuild
                 .flatMap { sub -> tareasDeGateDe(sub).map { "${sub.path}:$it" } }
             deLaRaiz.map { ":$it" } + deLosModulos
