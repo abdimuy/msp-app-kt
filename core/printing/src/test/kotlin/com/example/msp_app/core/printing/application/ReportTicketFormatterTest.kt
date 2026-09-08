@@ -19,10 +19,19 @@ import org.junit.Test
  * Line-by-line tests of the pure [ReportTicketFormatter], mirroring
  * [PaymentReceiptFormatterTest]'s discipline: expected strings use explicit
  * `.padEnd`/`.padStart`/`" ".repeat(n)` so centring, column gaps and the
- * [TicketLine.ColumnRow] layout are pinned exactly. The JVM default time zone
- * is pinned to America/Mexico_City (fixed UTC-6, no DST) for the "Detalle de
- * pagos" tests — [ReportTicketFormatter] renders each payment's date prefix
- * in the device-local zone, so the default zone must be pinned for determinism.
+ * [TicketLine.ColumnRow] layout are pinned exactly.
+ *
+ * ## Sobre la zona horaria (Arreglo B)
+ *
+ * El [Before] sigue fijando `America/Mexico_City` como zona **del JVM**, pero
+ * ya no es lo que hace determinista al prefijo de cada pago: desde el Arreglo B
+ * el formateador convierte en `BUSINESS_ZONE` y **no mira la zona del
+ * dispositivo**. Antes sí la miraba, y este pin era justamente lo que impedía
+ * que estas pruebas vieran el defecto — fijaban la variable que en la calle
+ * varía. El pin se queda porque el resto del archivo (rangos, encabezados) lo
+ * asume, y la aserción que de verdad cierra el hueco es
+ * [`el prefijo del pago no depende de la zona del dispositivo`], que corre bajo
+ * una zona hostil y exige el mismo texto.
  */
 class ReportTicketFormatterTest {
     private val formatter = ReportTicketFormatter()
@@ -277,6 +286,49 @@ class ReportTicketFormatterTest {
 
         assertTrue(lines.contains("03/07 09:15 Juan Pérez" + " ".repeat(3) + "$700.00"))
         assertTrue(lines.any { it.contains("08/07 10:05 María Guzmán") })
+    }
+
+    /**
+     * Control de reversión del Arreglo B (M5 / C2.a).
+     *
+     * La ventana que decide qué pagos entran al corte se calcula en
+     * `America/Mexico_City` (`VentanaCobro`, [PrintDayRule]). Si el ticket
+     * imprime la hora en la zona del teléfono, un cobro cerca de medianoche
+     * sale con un día calendario distinto del que lo liquida. Acá el JVM
+     * corre en `Pacific/Kiritimati` (UTC+14, 20 horas de diferencia: cambia
+     * la hora **y** el día) y el texto tiene que ser byte por byte el mismo
+     * que bajo la zona del negocio.
+     *
+     * Volver a `ZoneId.systemDefault()` en `formatPaymentPrefix` pone esta
+     * prueba en rojo: el diario diría `05:15` del día siguiente.
+     */
+    @Test
+    fun `el prefijo del pago no depende de la zona del dispositivo`() {
+        val pagos = listOf(
+            ReportPaymentLine(
+                cliente = "Juan Pérez",
+                monto = "$700.00",
+                recordedAtEpochMillis = epochMorning()
+            )
+        )
+        val esperadoDiario = "09:15 Juan Pérez" + " ".repeat(9) + "$700.00"
+        val esperadoCorte = "03/07 09:15 Juan Pérez" + " ".repeat(3) + "$700.00"
+
+        TimeZone.setDefault(TimeZone.getTimeZone(ZoneId.of("Pacific/Kiritimati")))
+
+        val diario = render(diario().copy(payments = pagos))
+        val corte = render(corte().copy(payments = pagos))
+
+        assertTrue(
+            "el ticket diario cambió de hora con la zona del dispositivo: " +
+                diario.firstOrNull { it.contains("Juan Pérez") },
+            diario.contains(esperadoDiario)
+        )
+        assertTrue(
+            "el ticket de corte cambió de fecha/hora con la zona del dispositivo: " +
+                corte.firstOrNull { it.contains("Juan Pérez") },
+            corte.contains(esperadoCorte)
+        )
     }
 
     private companion object {

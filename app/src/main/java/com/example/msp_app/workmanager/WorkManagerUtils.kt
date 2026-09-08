@@ -150,8 +150,17 @@ const val COBRANZA_RECONCILE_PERIOD_MINUTES = 15L
  *
  * `KEEP` para que abrir y cerrar la app varias veces seguidas no apile
  * corridas: si ya hay una sin terminar, se conserva.
+ *
+ * **Arreglo B:** hasta acá esta función llevaba un `replace: Boolean = false`
+ * que ningún llamador usaba y que era el único camino vivo a
+ * `ExistingWorkPolicy.REPLACE` en todo el encolado de dinero. Es exactamente el
+ * parámetro que la Task 6 ya había borrado de las cinco funciones de trabajo
+ * pendiente, por la misma razón: `REPLACE` cancela lo que esté corriendo bajo
+ * el mismo nombre único y no rescata nada que `KEEP` no recupere solo (cuando
+ * el trabajo previo llega a un estado terminal, `KEEP` encola igual). Un
+ * parámetro muerto que solo puede hacer daño se borra, no se documenta.
  */
-fun enqueueCobranzaReconcileNowWorker(context: Context, replace: Boolean = false) {
+fun enqueueCobranzaReconcileNowWorker(context: Context) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -160,10 +169,8 @@ fun enqueueCobranzaReconcileNowWorker(context: Context, replace: Boolean = false
         .setConstraints(constraints)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
-
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(COBRANZA_RECONCILE_NOW_WORK, policy, request)
+        .enqueueUniqueWork(COBRANZA_RECONCILE_NOW_WORK, ExistingWorkPolicy.KEEP, request)
 }
 
 /**

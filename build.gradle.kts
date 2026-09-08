@@ -120,6 +120,16 @@ val legacyDateApiAllowlist = setOf(
 // loud and immediately obvious at the point of the reformat, unlike a
 // silently-widened file-level hole in a money ViewModel.
 val legacyDateApiContentAllowlist = mapOf(
+    // ── Arreglo B: primera entrada que NO viene de `:app` ──────────────────
+    // `AppClock.System` es LA implementación del reloj: alguien tiene que
+    // llamar a `Instant.now()` una vez, y el punto entero de este guard es que
+    // sea exactamente aquí y en ningún otro lado. Va por contenido y no por
+    // archivo a propósito — un segundo `Instant.now()` en este mismo archivo
+    // (p. ej. un helper de conveniencia que se saltara la interfaz) volvería a
+    // fallar el gate, que es lo que se quiere.
+    "core/common/src/main/kotlin/com/example/msp_app/core/common/time/AppClock.kt" to setOf(
+        "override fun now(): Instant = Instant.now()"
+    ),
     // FECHA_SUBIDA persisted for a sale-edit image (device clock).
     "app/src/main/java/com/example/msp_app/features/sales/viewmodels/EditLocalSaleViewModel.kt" to setOf(
         "java.time.Instant.now().toString()"
@@ -208,20 +218,89 @@ fun stripKotlinCommentsAndStrings(text: String): String {
     return out.toString()
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Arreglo B (2026-09-08) — el alcance del guard se DESCUBRE, no se escribe.
+//
+// Hasta acá esta tarea barría UN directorio literal (`app/src/main`). Los
+// cinco módulos que la rama `feat/pagos-y-visitas` agregó —`:feature:pagos`,
+// `:feature:visitas`, `:core:printing`, `:core:common`, …— quedaban FUERA de
+// la única compuerta que impone "AppTime/AppClock es la fuente única de
+// fechas", y nadie se enteraba: un módulo nuevo escapaba por defecto.
+//
+// Ahora el alcance sale de `subprojects` (el grafo de Gradle). Un módulo
+// nuevo entra al gate el día que entra a `settings.gradle.kts`, sin tocar
+// este archivo. **Salir** es lo que ahora cuesta: hay que escribirlo en
+// `legacyDateApiScopeAllowlist` CON su razón.
+//
+// Los source sets de prueba (`test`, `androidTest`, `testFixtures`) quedan
+// fuera a propósito y con razón escrita: un test construye fechas fijas a
+// mano (`LocalDate.of`, `SimpleDateFormat` para armar un fixture) y eso no es
+// la deuda que este guard persigue — persigue código de producción que lee el
+// reloj o la zona del dispositivo. `:core:testing` SÍ está en alcance por su
+// `src/main`, que es código de producción de las pruebas de otros módulos.
+val legacyDateApiTestSourceSets = setOf("test", "androidTest", "testFixtures")
+
+/**
+ * Módulos exentos del barrido, cada uno con la razón por la que lo está.
+ * Vacío hoy, y esa es la forma correcta: si mañana algo no puede cumplir la
+ * regla, la salida es una entrada acá con su motivo, nunca ablandar el
+ * patrón ni volver a un directorio literal.
+ */
+val legacyDateApiScopeAllowlist: Map<String, String> = emptyMap()
+
 tasks.register("checkNoLegacyDateApi") {
     group = "verification"
-    description = "Task 13 (fechas/AppTime): falla si :app introduce un NUEVO uso directo de " +
+    description = "Arreglo B (ex Task 13, fechas/AppTime): barre TODOS los módulos del build " +
+        "(descubiertos desde Gradle) y falla si aparece un NUEVO uso directo de " +
         "LocalDate/LocalDateTime/Instant.now(), Calendar.getInstance(), SimpleDateFormat, " +
         "java.util.Date, ZoneId.systemDefault() o Locale.getDefault() fuera del allowlist."
 
-    val appMainDir = layout.projectDirectory.dir("app/src/main")
     val repoRoot = layout.projectDirectory.asFile
 
-    inputs.files(fileTree(appMainDir) { include("**/*.kt") })
+    // Descubrimiento: cada subproyecto del build aporta sus source sets de
+    // producción. `subprojects` se evalúa en configuración, así que un módulo
+    // nuevo en `settings.gradle.kts` entra solo.
+    val scannedModules: List<Pair<String, File>> = subprojects
+        .filter { it.path !in legacyDateApiScopeAllowlist.keys }
+        .map { it.path to File(it.projectDir, "src") }
+        .filter { (_, srcDir) -> srcDir.isDirectory }
+        .sortedBy { it.first }
+
+    val scannedTrees = scannedModules.map { (_, srcDir) ->
+        fileTree(srcDir) {
+            include("**/*.kt")
+            legacyDateApiTestSourceSets.forEach { exclude("$it/**") }
+        }
+    }
+
+    val moduleCount = scannedModules.size
+    val moduleNames = scannedModules.joinToString(", ") { it.first }
+
+    inputs.files(scannedTrees)
+    inputs.property("legacyDateApiPatterns", legacyDateApiPatterns)
+    inputs.property("legacyDateApiScopeAllowlist", legacyDateApiScopeAllowlist)
 
     doLast {
+        // Control positivo del propio barrido: si el descubrimiento devuelve
+        // cero módulos o cero archivos, el "sin violaciones" de abajo no
+        // probaría nada. Una compuerta que sale verde sin medir es el defecto
+        // que esta tarea vino a cerrar; que no lo reintroduzca ella misma.
+        if (moduleCount == 0) {
+            throw GradleException(
+                "checkNoLegacyDateApi: el descubrimiento no encontró NINGÚN módulo. " +
+                    "El barrido no midió nada y su verde no vale."
+            )
+        }
+        val scannedFiles = scannedTrees.flatMap { it.files }
+        if (scannedFiles.isEmpty()) {
+            throw GradleException(
+                "checkNoLegacyDateApi: se descubrieron $moduleCount módulos pero CERO archivos " +
+                    "`.kt`. El barrido no midió nada y su verde no vale."
+            )
+        }
+
         val violations = mutableListOf<String>()
-        fileTree(appMainDir) { include("**/*.kt") }.forEach { file ->
+        scannedFiles.forEach { file ->
             val relativePath = file.relativeTo(repoRoot).invariantSeparatorsPath
             if (relativePath in legacyDateApiAllowlist) return@forEach
             val contentAllowlistForFile = legacyDateApiContentAllowlist[relativePath]
@@ -234,6 +313,10 @@ tasks.register("checkNoLegacyDateApi") {
                 violations += "$relativePath:${index + 1}: uso directo de `$hit`"
             }
         }
+        logger.lifecycle(
+            "checkNoLegacyDateApi: ${scannedFiles.size} archivos en $moduleCount módulos " +
+                "($moduleNames)"
+        )
         if (violations.isNotEmpty()) {
             throw GradleException(
                 "checkNoLegacyDateApi: uso directo de API de fecha/hora legado fuera del " +

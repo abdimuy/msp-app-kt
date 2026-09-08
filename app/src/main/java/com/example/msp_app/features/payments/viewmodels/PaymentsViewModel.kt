@@ -21,6 +21,7 @@ import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.payment.toDomain
 import com.example.msp_app.data.models.payment.toEntity
+import com.example.msp_app.features.sales.SaleIdSpaces
 import com.example.msp_app.workmanager.enqueuePendingPaymentsWorker
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -463,7 +464,7 @@ class PaymentsViewModel(application: Application) : AndroidViewModel(application
                         EstadoCobranza.PAGADO
                     )
                 }
-                getGroupedPaymentsBySaleId(payment.DOCTO_CC_ACR_ID)
+                getGroupedPaymentsBySaleId(SaleIdSpaces.forSalePayments(payment))
                 _savePaymentState.value = ResultState.Success(Unit)
             } catch (e: Exception) {
                 _savePaymentState.value = ResultState.Error(e.message ?: "Error guardando pago")

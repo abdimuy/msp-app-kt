@@ -1,6 +1,7 @@
 package com.example.msp_app.features.sales
 
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -21,6 +22,23 @@ import org.junit.Test
  * **Control positivo:** cada aserción se apoya en [leer], que falla si el archivo no existe o
  * viene vacío. Sin eso, un `contains` sobre un string vacío reportaría "no está" por la razón
  * equivocada — una ausencia que no prueba nada.
+ *
+ * ## Arreglo B — los pines se quedan, el CONJUNTO se descubre (I3)
+ *
+ * Hasta acá este archivo era **solo** los pines de abajo: cinco (luego seis) substrings escritos
+ * a mano. Documentaba el contrato y no lo impedía — un séptimo call site entraba sin ruido, y de
+ * hecho **ya habían entrado dos**: `GuaranteeSection` construía la ruta de garantía con
+ * `sale.DOCTO_CC_ID` crudo, en dos sitios, y nadie los miraba.
+ *
+ * Ahora hay dos mitades y cada una tapa lo que la otra no puede:
+ *
+ *  - [`ningun call site pasa un id de venta crudo`] **descubre** los sitios: barre el `src/main`
+ *    de todos los módulos de `settings.gradle.kts` y falla ante cualquier lectura cruda de
+ *    `DOCTO_CC_ID`/`DOCTO_CC_ACR_ID` pasada como argumento. Un call site nuevo entra a la regla
+ *    sin que nadie lo registre.
+ *  - Los pines por sitio **siguen**, porque hay un caso que ninguna regla sobre lecturas de campo
+ *    puede ver: `SaleDetailsScreen:81` pasaba **el argumento de la ruta** (`saleId`), no un campo.
+ *    Revertirlo no reintroduce ninguna lectura cruda, así que solo el pin lo atrapa.
  */
 class SaleIdSpacesCallSitesTest {
 
@@ -127,6 +145,132 @@ class SaleIdSpacesCallSitesTest {
         assertTrue(
             "volvió a navegarse con saleItem.DOCTO_CC_ID, que no es lo que getById filtra",
             !fuente.contains("saleId = saleItem.DOCTO_CC_ID")
+        )
+    }
+
+    // ── La mitad que descubre ────────────────────────────────────────────────
+
+    /**
+     * Barre **todos** los módulos del build y falla ante cualquier lectura cruda de
+     * `DOCTO_CC_ID`/`DOCTO_CC_ACR_ID` pasada como argumento a una llamada.
+     *
+     * Comparaciones y chequeos de nulo quedan fuera a propósito: `if (a.DOCTO_CC_ID == b...)` no
+     * entrega un id a nadie, y meterlo solo agregaría ruido sin cubrir un defecto de esta familia.
+     * Las construcciones por argumento nombrado (`DOCTO_CC_ACR_ID = sale.DOCTO_CC_ACR_ID,`) son
+     * la capa de escritura, no la de consumo, y tampoco entran: allí el campo destino nombra la
+     * columna, que es justo lo que este contrato pide.
+     */
+    @Test
+    fun `ningun call site pasa un id de venta crudo`() {
+        val archivos = fuentesDeProduccion()
+
+        // Control positivo del barrido: sin archivos, la ausencia de violaciones no prueba nada.
+        assertTrue(
+            "el barrido no leyó ningún .kt de producción — su verde no vale",
+            archivos.size > 100
+        )
+        assertTrue(
+            "el barrido no vio SaleIdSpaces.kt: el descubrimiento está roto",
+            archivos.keys.any { it.endsWith("features/sales/SaleIdSpaces.kt") }
+        )
+
+        val violaciones = archivos.flatMap { (ruta, texto) ->
+            if (ruta in ARCHIVOS_EXENTOS) {
+                emptyList<String>()
+            } else {
+                texto.lineSequence().mapIndexedNotNull { indice, linea ->
+                    val codigo = linea.trim()
+                    if (codigo.startsWith("*") || codigo.startsWith("//")) return@mapIndexedNotNull null
+                    if (!LECTURA_CRUDA.containsMatchIn(codigo)) return@mapIndexedNotNull null
+                    if (COMPARACION.containsMatchIn(codigo)) return@mapIndexedNotNull null
+                    if (LINEAS_EXENTAS[ruta]?.contains(codigo) == true) return@mapIndexedNotNull null
+                    "$ruta:${indice + 1}: $codigo"
+                }.toList()
+            }
+        }.sorted()
+
+        assertEquals(
+            "Estos call sites entregan un id de venta crudo en vez de pedirlo por SaleIdSpaces: " +
+                "$violaciones.\n" +
+                "`CLIENTE_ID`, `DOCTO_CC_ID` y `DOCTO_CC_ACR_ID` son tres `Int` pelados y el " +
+                "compilador nunca avisa cuando uno se pasa donde iba otro — de ahí salió toda la " +
+                "familia de defectos de esta rama. Pedí el id por el selector que nombra al " +
+                "consumidor, o agregá la línea exacta a `LINEAS_EXENTAS` CON su razón escrita.",
+            emptyList<String>(),
+            violaciones
+        )
+    }
+
+    /** Todo `.kt` de producción de todos los módulos declarados en `settings.gradle.kts`. */
+    private fun fuentesDeProduccion(): Map<String, String> {
+        val raiz = raizDelRepo()
+        val rutas = INCLUDE.findAll(File(raiz, "settings.gradle.kts").readText())
+            .map { it.groupValues[1].trim(':').replace(':', '/') }
+            .toList()
+        check(rutas.isNotEmpty()) { "no se leyó ningún include(...) de settings.gradle.kts" }
+
+        return rutas.flatMap { modulo ->
+            val srcMain = File(raiz, "$modulo/src/main")
+            if (!srcMain.isDirectory) {
+                emptyList()
+            } else {
+                srcMain.walkTopDown()
+                    .filter { it.isFile && it.extension == "kt" }
+                    .map { it.relativeTo(raiz).invariantSeparatorsPath to it.readText() }
+                    .toList()
+            }
+        }.toMap()
+    }
+
+    private fun raizDelRepo(): File {
+        var actual: File? = File(".").absoluteFile
+        while (actual != null) {
+            if (File(actual, "settings.gradle.kts").isFile) return actual
+            actual = actual.parentFile
+        }
+        error("no se encontró settings.gradle.kts subiendo desde ${File(".").absolutePath}")
+    }
+
+    private companion object {
+        val INCLUDE = Regex("""include\("(:[^"]+)"\)""")
+
+        /** Una lectura de campo entregada como argumento: `algo(… x.DOCTO_CC_ID …)`. */
+        val LECTURA_CRUDA = Regex("""\(\s*[^()]*?\b\w+\.DOCTO_CC_(?:ACR_)?ID\b""")
+
+        /** Comparaciones y chequeos de nulo: no entregan el id a ningún consumidor. */
+        val COMPARACION =
+            Regex("""\.DOCTO_CC_(?:ACR_)?ID\s*(==|!=|\?:)|(==|!=)\s*\w+\.DOCTO_CC_(?:ACR_)?ID""")
+
+        /**
+         * Los dos archivos que **son** la fuente de verdad de esta familia, y por eso leen los
+         * campos crudos: cualquier otro lugar tiene que pasar por ellos.
+         */
+        val ARCHIVOS_EXENTOS = setOf(
+            "app/src/main/java/com/example/msp_app/features/sales/SaleIdSpaces.kt",
+            // El `SaleIdSpaces` de la NAVEGACIÓN: una sola función por destino, cada una con la
+            // columna que usa escrita en su KDoc, y `DestinosDeCobranzaTest` afirma destino Y
+            // argumento. Es el mismo patrón, no una excepción a él.
+            "app/src/main/java/com/example/msp_app/navigation/DestinosDeCobranza.kt"
+        )
+
+        /**
+         * Líneas exentas, por contenido exacto y con su razón. Por contenido y no por archivo a
+         * propósito: una SEGUNDA lectura cruda en el mismo archivo sigue fallando.
+         */
+        val LINEAS_EXENTAS: Map<String, Set<String>> = mapOf(
+            // DEUDA REAL, no una excepción cómoda — y va al reporte del Arreglo B.
+            // `loadSaleDetails` resuelve con `SaleDao.getById`, que filtra la **PK**
+            // (`sales.DOCTO_CC_ACR_ID`); lo que el recibo tiene en la mano es
+            // `Payment.DOCTO_CC_ACR_ID`, que es el **cargo** (= `sales.DOCTO_CC_ID`). Hoy no
+            // rompe nada porque las dos columnas de `sales` llevan siempre el mismo número, y
+            // eso está probado por construcción en el KDoc de `SaleIdSpaces`. El arreglo honesto
+            // es `loadSaleDetailsByCreditId`, igual que hizo el Arreglo A con la garantía — pero
+            // eso cambia la consulta de una pantalla del camino del dinero y merece su tarea, no
+            // un renglón de esta. NO se inventa un selector para taparlo: nombrar "PK de la
+            // venta" a un cargo sería escribir en `SaleIdSpaces` la confusión que existe para
+            // impedir.
+            "app/src/main/java/com/example/msp_app/features/payments/screens/PaymentTicketScreen.kt" to
+                setOf("saleViewModel.loadSaleDetails(payment.DOCTO_CC_ACR_ID)")
         )
     }
 

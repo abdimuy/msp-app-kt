@@ -1,5 +1,6 @@
 package com.example.msp_app.features.sales
 
+import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 
@@ -78,6 +79,37 @@ object SaleIdSpaces {
      * justo el error del que salieron los once defectos de esta familia.
      */
     fun forSalePayments(sale: Sale): Int = sale.DOCTO_CC_ID
+
+    /**
+     * El mismo id, cuando lo que se tiene en la mano es un **pago** y no la venta
+     * — `PaymentsViewModel.getGroupedPaymentsBySaleId` (los hermanos del abono) y
+     * `PaymentTicketScreen` (los pagos de la venta del recibo).
+     *
+     * Es `Payment.DOCTO_CC_ACR_ID`, que es el **cargo acreditado** y por tanto el
+     * mismo número que `sales.DOCTO_CC_ID` — el join del backend
+     * (`s.DOCTO_CC_ID = p.DOCTO_CC_ACR_ID`) es exactamente esta igualdad. **No**
+     * es `Payment.DOCTO_CC_ID`, que es el documento del abono en Microsip (0
+     * hasta que el pago se aplica) y nunca identifica una venta.
+     *
+     * Existe porque tiene dos call sites vivos, no por simetría: la sobrecarga
+     * `forSaleRow(Sale)` se borró en el Arreglo A justamente por no tenerlos.
+     */
+    fun forSalePayments(payment: Payment): Int = payment.DOCTO_CC_ACR_ID
+
+    /**
+     * El id para todo lo que direcciona **la garantía de la venta** —
+     * `GuaranteeDao.getGuaranteeByDoctoCcId` (que filtra `garantias.DOCTO_CC_ID`)
+     * y la ruta `guarantee/{saleId}`, cuyo argumento el Arreglo A fijó como el
+     * **crédito** y no la PK.
+     *
+     * Es `sales.DOCTO_CC_ID`. El Arreglo A dejó la mitad de abajo cerrada
+     * —`GuaranteesScreen` resuelve la venta con `loadSaleDetailsByCreditId`— pero
+     * **la mitad de arriba seguía suelta**: `GuaranteeSection` construía la ruta
+     * con `sale.DOCTO_CC_ID` crudo, en dos sitios, y el guardarraíl de entonces
+     * miraba cinco substrings escritos a mano, así que no los veía. Ese es el
+     * sexto call site que el Arreglo B destapó al enumerar por descubrimiento.
+     */
+    fun forGuarantee(sale: Sale): Int = sale.DOCTO_CC_ID
 
     /**
      * El id para las consultas que filtran **`overdue_payments_view.DOCTO_CC_ID`** —

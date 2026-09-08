@@ -64,6 +64,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.components.newpaymentpdf.PaymentPdfGenerator
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
+import com.example.msp_app.features.sales.SaleIdSpaces
 import com.example.msp_app.features.sales.components.infofield.InfoField
 import com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel
 import com.example.msp_app.ui.theme.ThemeController
@@ -119,7 +120,7 @@ fun PaymentTicketScreen(paymentId: String, navController: NavController) {
             val payment = (paymentResult as ResultState.Success<Payment>).data
             selectedPayment = payment
             saleViewModel.loadSaleDetails(payment.DOCTO_CC_ACR_ID)
-            paymentsViewModel.getPaymentsBySaleId(payment.DOCTO_CC_ACR_ID)
+            paymentsViewModel.getPaymentsBySaleId(SaleIdSpaces.forSalePayments(payment))
         }
     }
 

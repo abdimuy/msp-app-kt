@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
+import com.example.msp_app.features.sales.SaleIdSpaces
 import com.example.msp_app.navigation.Screen
 
 @Composable
@@ -42,8 +43,8 @@ fun GuaranteeSection(sale: Sale, navController: NavController) {
     var showPrintDialog by remember { mutableStateOf(false) }
     var showDeliveryDialog by remember { mutableStateOf(false) }
 
-    LaunchedEffect(sale.DOCTO_CC_ID) {
-        guaranteesViewModel.loadGuaranteeBySaleId(sale.DOCTO_CC_ID)
+    LaunchedEffect(SaleIdSpaces.forGuarantee(sale)) {
+        guaranteesViewModel.loadGuaranteeBySaleId(SaleIdSpaces.forGuarantee(sale))
     }
 
     val guarantee by guaranteesViewModel.guaranteeBySale.collectAsState()
@@ -158,7 +159,7 @@ fun GuaranteeSection(sale: Sale, navController: NavController) {
         } ?: OutlinedButton(
             onClick = {
                 navController.navigate(
-                    Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())
+                    Screen.Guarantee.createRoute(SaleIdSpaces.forGuarantee(sale).toString())
                 )
             },
             modifier = Modifier
@@ -189,7 +190,9 @@ fun GuaranteeSection(sale: Sale, navController: NavController) {
                 TextButton(
                     onClick = {
                         guaranteesViewModel.onRecolectarProductoClick(guarantee!!) {
-                            guaranteesViewModel.loadGuaranteeBySaleId(sale.DOCTO_CC_ID)
+                            guaranteesViewModel.loadGuaranteeBySaleId(
+                                SaleIdSpaces.forGuarantee(sale)
+                            )
                         }
                         showConfirmDialog = false
                     }
@@ -223,7 +226,7 @@ fun GuaranteeSection(sale: Sale, navController: NavController) {
                 TextButton(
                     onClick = {
                         navController.navigate(
-                            Screen.Guarantee.createRoute(sale.DOCTO_CC_ID.toString())
+                            Screen.Guarantee.createRoute(SaleIdSpaces.forGuarantee(sale).toString())
                         )
                         showPrintDialog = false
                     }
@@ -257,7 +260,9 @@ fun GuaranteeSection(sale: Sale, navController: NavController) {
                 TextButton(
                     onClick = {
                         guaranteesViewModel.onEntregarProducto(guarantee!!) {
-                            guaranteesViewModel.loadGuaranteeBySaleId(sale.DOCTO_CC_ID)
+                            guaranteesViewModel.loadGuaranteeBySaleId(
+                                SaleIdSpaces.forGuarantee(sale)
+                            )
                         }
                         showDeliveryDialog = false
                     }
