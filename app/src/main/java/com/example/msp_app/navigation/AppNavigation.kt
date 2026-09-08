@@ -96,21 +96,21 @@ sealed class Screen(val route: String) {
      * necesita, y lo que le mandan los llamadores nuevos —`destinosDeCobranza`,
      * en el `onMasAcciones` de `:feature:pagos`—.
      *
-     * **Dos llamadores legados le mandan un `DOCTO_CC_ID`**, que es el id del
-     * **crédito** y otro espacio de números:
+     * La lista "otras ventas del cliente" (`SaleDetailsScreen`) navegaba con
+     * `saleItem.DOCTO_CC_ID`; ahora pasa por
+     * [com.example.msp_app.features.sales.SaleIdSpaces.forSaleRow], que entrega
+     * la PK. Ese archivo tiene el mapeo completo de qué id pide cada consumidor,
+     * medido contra la columna por la que filtra cada consulta.
      *
-     * - `SaleDetailsScreen.kt:239` — la lista "otras ventas del cliente" navega
-     *   con `saleItem.DOCTO_CC_ID`.
-     * - `GuaranteesScreen.kt:108` — `saleViewModel.loadSaleDetails(saleId)` con un
-     *   `saleId` que la ruta `guarantee/{saleId}` trae como `DOCTO_CC_ID` (las
-     *   garantías están indexadas por crédito).
-     *
-     * Los dos aterrizan igual en `SaleDao.getById`, así que abren otra venta o
-     * ninguna. Es el **miembro #7 de la familia del identificador** de este plan
-     * (commit `721c5551`), **preexistente** y de `:app` legado: queda anotado
-     * aquí y va al triage final, no se arregla de paso. Este KDoc dice lo que la
-     * ruta espera y quién no se lo da — antes afirmaba que todos le mandaban
-     * `DOCTO_CC_ACR_ID`, que es falso.
+     * **Queda un llamador legado que le manda otro id:** `GuaranteesScreen.kt:108`
+     * — `saleViewModel.loadSaleDetails(saleId)` con un `saleId` que la ruta
+     * `guarantee/{saleId}` trae como `DOCTO_CC_ID` (las garantías están indexadas
+     * por crédito). Aterriza igual en `SaleDao.getById`, que filtra la PK. Hoy no
+     * se nota porque el único escritor vivo de `sales` (`VentaDto.toEntity`) pone
+     * el MISMO número en las dos columnas, pero el llamador sigue pidiendo por la
+     * columna que no es. Es de `:app` legado y va al triage final, no se arregla
+     * de paso: resolverlo bien es `SaleDao.findByDoctoCcId`, no un cambio de
+     * argumento.
      */
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sales/sale_details/$saleId"
