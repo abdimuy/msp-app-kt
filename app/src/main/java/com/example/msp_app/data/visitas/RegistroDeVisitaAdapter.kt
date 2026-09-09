@@ -182,7 +182,46 @@ class RegistroDeVisitaAdapter(
                 ligarRecomendacion(visita)
             }
             guardarComprobantes(visita)
-            visitas.enqueueUpload(entidad.ID)
+            encolarEnvio(entidad.ID)
+        }
+    }
+
+    /**
+     * Encola el envío de la visita recién escrita. **Total: no propaga nada.**
+     *
+     * Era el ÚNICO paso post-commit sin guarda, y el daño no era el que parece.
+     * `enqueueUpload` termina en `WorkManager.enqueueUniqueWork`, que puede
+     * lanzar; la excepción subía al `catch` general de [registrar], que emite
+     * [VisitasTelemetria.CODE_VISITA_NO_SE_GUARDO] con el mensaje *"la
+     * transaccion no dejo nada escrito"* y devuelve
+     * [ResultadoDelRegistro.FALLO_EL_GUARDADO] — cuya documentación en el puerto
+     * dice literal *"Nada quedó escrito: es una transacción"*.
+     *
+     * **La visita SÍ quedaba escrita.** Lo que se rompía era la señal: se le
+     * decía al cobrador que su visita no se guardó cuando sí, y se contaminaba
+     * `visita_no_se_guardo` — el evento al que el GATE 1 de campo (`DEPLOY.md
+     * §0.2`) manda mirar — con visitas que están en la base.
+     *
+     * Con la guarda, el resultado sigue siendo `REGISTRADA` y el fallo lleva su
+     * propio código: `VisitsPendingSynchronizer` reencola en el siguiente login
+     * todo lo que quedó en `GUARDADO_EN_MICROSIP = 0`, así que la visita no se
+     * pierde, se retrasa.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // encolar puede fallar de varias formas; ninguna deshace la visita ya escrita.
+    private suspend fun encolarEnvio(visitaId: String) {
+        try {
+            visitas.enqueueUpload(visitaId)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            // Anti-PII: el nombre de la clase de la excepción, nunca su texto.
+            telemetry.error(
+                code = VisitasTelemetria.CODE_VISITA_SIN_ENCOLAR,
+                message = "la visita quedo escrita pero no se pudo encolar su envio",
+                props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+            )
         }
     }
 

@@ -30,12 +30,16 @@ class RoomPendingVisitsStore @Inject constructor(
      * turned into a silent error on every tick, invisible until it had burned
      * hours. A future caller with a bigger batch should hit a slower path, not
      * that one.
+     *
+     * The per-chunk counts are **summed and returned**, not dropped: since Task
+     * 23 [VisitDao.markSyncedByIds] refuses to mark a visita whose comprobante
+     * is still undelivered, so the count is what tells "confirmed" from "held
+     * back by a photo".
      */
-    override suspend fun markSynced(visitIds: List<String>) {
-        visitIds.chunked(SQLITE_MAX_IN_PARAMS).forEach { chunk ->
+    override suspend fun markSynced(visitIds: List<String>): Int =
+        visitIds.chunked(SQLITE_MAX_IN_PARAMS).sumOf { chunk ->
             visitDao.markSyncedByIds(chunk)
         }
-    }
 
     companion object {
         /** Below SQLITE_MAX_VARIABLE_NUMBER (999) with margin; `minSdk` here is 24. */

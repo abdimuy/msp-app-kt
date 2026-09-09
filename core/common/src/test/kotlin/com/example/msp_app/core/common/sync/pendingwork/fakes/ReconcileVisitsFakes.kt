@@ -18,7 +18,9 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitCustod
 class FakePendingVisitsStore(
     pending: List<String> = emptyList(),
     private val failOnRead: Throwable? = null,
-    private val failOnMark: Throwable? = null
+    private val failOnMark: Throwable? = null,
+    /** Ids que el marcado local NO puede flipear: retienen un comprobante sin subir. */
+    private val retenidas: Set<String> = emptySet()
 ) : PendingVisitsStore {
 
     /** What `pendingVisitIds()` will answer. Mutable so a test can script drift. */
@@ -39,10 +41,21 @@ class FakePendingVisitsStore(
         return pending
     }
 
-    override suspend fun markSynced(visitIds: List<String>) {
+    /**
+     * Devuelve CUÁNTAS marcó de verdad, igual que el DAO real: por defecto
+     * todas, y las de [retenidas] no — que es lo que hace la constraint del
+     * comprobante sin entregar (Task 23 / Ruling AR).
+     *
+     * Un fake que devolviera siempre `visitIds.size` volvería inerte cualquier
+     * aserción sobre `confirmedCount`, que es exactamente el defecto que este
+     * cambio vino a cerrar.
+     */
+    override suspend fun markSynced(visitIds: List<String>): Int {
         markSyncedCalls += visitIds
         failOnMark?.let { throw it }
-        synced += visitIds
+        val marcadas = visitIds.filterNot { it in retenidas }
+        synced += marcadas
+        return marcadas.size
     }
 }
 

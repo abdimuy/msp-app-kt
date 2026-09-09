@@ -144,6 +144,21 @@ object VisitasTelemetria {
      */
     const val CODE_VISITA_FOTO_BARRIDA_SIN_SUBIR: String = "visita_foto_barrida_sin_subir"
 
+    /**
+     * **La visita quedó escrita pero no se pudo encolar su envío.** El trabajo
+     * de campo no se toca: el resultado sigue siendo `REGISTRADA`. Lo que se
+     * pierde es la subida *inmediata* — `VisitsPendingSynchronizer` reencola en
+     * el siguiente login todo lo que quedó en `GUARDADO_EN_MICROSIP = 0`.
+     *
+     * Antes de este código, `enqueueUpload` era el único paso post-commit **sin
+     * guarda**: si `WorkManager.enqueueUniqueWork` lanzaba, subía al `catch`
+     * general y la visita —ya escrita— se reportaba como
+     * `visita_no_se_guardo` + `FALLO_EL_GUARDADO`, cuyo propio contrato dice
+     * *"nada quedó escrito"*. Se le mentía al cobrador y se contaminaba el
+     * evento que el GATE 1 de campo va a mirar.
+     */
+    const val CODE_VISITA_SIN_ENCOLAR: String = "visita_sin_encolar"
+
     /** Prop con el MIME rechazado. Valor técnico cerrado, nunca dato del cliente. */
     const val PROP_TIPO: String = "tipo"
 

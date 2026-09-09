@@ -34,10 +34,19 @@ interface PendingVisitsStore {
     /**
      * Flips `GUARDADO_EN_MICROSIP` to 1 for [visitIds] and nothing else.
      *
-     * Callers pass at most [com.example.msp_app.core.common.sync.pendingwork
-     * .domain.usecases.ReconcileVisitsUseCase.MAX_IDS_PER_REQUEST] ids, so an
+     * Callers pass at most [VisitCustodyRegistry.MAX_IDS_PER_REQUEST] ids, so an
      * implementation backed by a single `IN (...)` stays far below SQLite's
      * 999-parameter ceiling.
+     *
+     * @return how many ids were **actually** flipped. The number is not
+     *   decorative: since Task 23 the backing query also refuses to mark a
+     *   visita that still holds an undelivered photo (`Ruling AR`), so a return
+     *   value lower than `visitIds.size` is the ONLY local signal that
+     *   distinguishes *"confirmed"* from *"held back by a comprobante"*. The
+     *   port used to return `Unit`, and the caller reported `visitIds.size`
+     *   unconditionally — which over-counted every time that constraint fired,
+     *   in exactly the diagnostic GATE 1 of `DEPLOY.md §0.2` tells the field to
+     *   look at.
      */
-    suspend fun markSynced(visitIds: List<String>)
+    suspend fun markSynced(visitIds: List<String>): Int
 }

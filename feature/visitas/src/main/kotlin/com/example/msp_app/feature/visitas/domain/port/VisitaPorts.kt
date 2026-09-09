@@ -95,7 +95,16 @@ enum class ResultadoDelRegistro {
      */
     SIN_COBRADOR,
 
-    /** La escritura falló. Nada quedó escrito: es una transacción. */
+    /**
+     * La escritura falló. **Nada quedó escrito: es una transacción.**
+     *
+     * Y esa frase es hoy verdad en los dos sentidos. Antes del Arreglo C el
+     * encolado post-commit no tenía guarda, así que un `WorkManager` que lanzara
+     * producía este valor con la visita **ya escrita** — el enum mentía. Todos
+     * los pasos post-commit del adaptador (comprobantes y encolado) son ahora
+     * totales y llevan su propio código de telemetría, así que este valor
+     * solo puede salir de un fallo ANTES o DENTRO de la transacción.
+     */
     FALLO_EL_GUARDADO
 }
 

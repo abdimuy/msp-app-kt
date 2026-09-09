@@ -6,6 +6,7 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.Reconcil
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_MARCADO_FALLIDO
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_PENDIENTES_ILEGIBLES
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_RESPUESTA_AJENA
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.ReconcileVisitsUseCase.Companion.ERROR_CODE_RETENIDAS_POR_COMPROBANTE
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakePendingVisitsStore
 import com.example.msp_app.core.common.sync.pendingwork.fakes.FakeVisitCustodyRegistry
 import com.example.msp_app.core.common.sync.pendingwork.fakes.RecordingSyncErrorReporter
@@ -166,6 +167,80 @@ class ReconcileVisitsUseCaseTest {
             assertEquals(2, (result as VisitReconcileResult.Reconciled).confirmedCount)
             assertEquals(148, result.stillPendingCount)
         }
+
+    // ------------------------------- el conteo dice lo que de verdad se marcó
+
+    /**
+     * **El hallazgo I4, medido.** Desde la Task 23 el marcado local se niega a
+     * flipear una visita que todavía retiene un comprobante sin entregar (Ruling
+     * AR), así que "el servidor la tiene" y "quedó marcada" dejaron de ser lo
+     * mismo. El puerto devolvía `Unit` y el caso de uso reportaba `confirmed
+     * .size` sin mirar — o sea, `confirmedCount` **sobre-contaba exactamente
+     * cuando la constraint actuaba**.
+     *
+     * Y ese número no es decorativo: el GATE 1 de campo (`DEPLOY.md §0.2`) manda
+     * mirar esta telemetría para diagnosticar "subió y el marcado local no se
+     * actualizó", en el escenario —visita con foto— que dispara la constraint.
+     *
+     * **Control de reversión:** volver a `return confirmed.size` pone este test
+     * en ROJO (diría 2 donde solo se marcó 1).
+     */
+    @Test
+    fun `confirmedCount cuenta lo marcado, no lo preguntado`() = runTest {
+        val store = FakePendingVisitsStore(
+            pending = listOf("v-1", "v-2"),
+            // v-2 retiene una foto sin subir: el UPDATE no la toca.
+            retenidas = setOf("v-2")
+        )
+        val registry = FakeVisitCustodyRegistry(known = setOf("v-1", "v-2"))
+        val reporter = RecordingSyncErrorReporter()
+
+        val result = useCase(store, registry, reporter).execute()
+
+        result as VisitReconcileResult.Reconciled
+        assertEquals(
+            "el servidor nombro dos, el marcado local flipeo una",
+            1,
+            result.confirmedCount
+        )
+        assertEquals(1, result.stillPendingCount)
+        assertEquals(listOf("v-1"), store.synced)
+    }
+
+    /** La retención no es una falla, pero tampoco es silencio: lleva código propio. */
+    @Test
+    fun `una visita retenida por su comprobante se reporta con su propio codigo`() = runTest {
+        val store = FakePendingVisitsStore(
+            pending = listOf("v-1", "v-2"),
+            retenidas = setOf("v-2")
+        )
+        val registry = FakeVisitCustodyRegistry(known = setOf("v-1", "v-2"))
+        val reporter = RecordingSyncErrorReporter()
+
+        useCase(store, registry, reporter).execute()
+
+        val evento = reporter.reported.single {
+            it.code == ERROR_CODE_RETENIDAS_POR_COMPROBANTE
+        }
+        assertEquals("1", evento.props["retenidas"])
+    }
+
+    /**
+     * **Control positivo del anterior:** sin retención, el mismo montaje no
+     * emite ese código. Sin esto, la aserción de arriba no distinguiría "hubo
+     * retención" de "el caso de uso corrió".
+     */
+    @Test
+    fun `control positivo, sin retencion no se emite ese codigo`() = runTest {
+        val store = FakePendingVisitsStore(pending = listOf("v-1", "v-2"))
+        val registry = FakeVisitCustodyRegistry(known = setOf("v-1", "v-2"))
+        val reporter = RecordingSyncErrorReporter()
+
+        val result = useCase(store, registry, reporter).execute()
+
+        assertEquals(2, (result as VisitReconcileResult.Reconciled).confirmedCount)
+        assertTrue(reporter.codes.none { it == ERROR_CODE_RETENIDAS_POR_COMPROBANTE })
+    }
 
     // --------------------------------------- ids que el servidor NO conoce
 

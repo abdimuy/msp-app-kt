@@ -132,15 +132,42 @@ class ReconcileVisitsUseCase(
         return answered.filter { it in asked }.distinct()
     }
 
-    /** Returns how many ids were really flipped; 0 if the write failed or there was nothing to write. */
+    /**
+     * Returns how many ids were **really** flipped; 0 if the write failed or
+     * there was nothing to write.
+     *
+     * It used to return `confirmed.size` whenever the write did not throw. That
+     * over-counted from Task 23 onwards: [PendingVisitsStore.markSynced] refuses
+     * to mark a visita that still holds an undelivered comprobante (Ruling AR),
+     * so the rows changed can be fewer than the ids asked for — and that gap is
+     * the only local signal of it. GATE 1 of `DEPLOY.md §0.2` sends the field to
+     * this very telemetry to diagnose *"it uploaded but the local mark did not
+     * update"*, in the scenario (a visita with a photo) that fires the
+     * constraint, so a number that lies here can authorise a field decision
+     * wrongly.
+     *
+     * The shortfall gets its own greppable code rather than being inferred from
+     * two counters: it is not a failure, it is a deliberate hold, and the error
+     * norm says a deliberate outcome earns a code of its own instead of silence.
+     */
     private suspend fun markConfirmed(confirmed: List<String>): Int {
         if (confirmed.isEmpty()) return 0
         val marked = attempt(
             code = ERROR_CODE_MARCADO_FALLIDO,
             context = CONTEXT_MARCAR_SINCRONIZADAS,
             props = mapOf(PROP_TAMANO_LOTE to confirmed.size.toString())
-        ) { store.markSynced(confirmed) }
-        return if (marked == null) 0 else confirmed.size
+        ) { store.markSynced(confirmed) } ?: return 0
+        if (marked < confirmed.size) {
+            errorReporter.report(
+                code = ERROR_CODE_RETENIDAS_POR_COMPROBANTE,
+                message = "$CONTEXT_MARCAR_SINCRONIZADAS: el marcado local retuvo algunas",
+                props = mapOf(
+                    PROP_TAMANO_LOTE to confirmed.size.toString(),
+                    PROP_RETENIDAS to (confirmed.size - marked).toString()
+                )
+            )
+        }
+        return marked
     }
 
     /**
@@ -188,11 +215,22 @@ class ReconcileVisitsUseCase(
         /** The local flip of confirmed ids failed; they stay pending and are re-asked next run. */
         const val ERROR_CODE_MARCADO_FALLIDO: String = "visitas_reconcile_marcado_fallido"
 
+        /**
+         * The server holds them, but the local mark refused some: those visitas
+         * still carry an undelivered comprobante (Task 23 / Ruling AR). Not a
+         * failure — a deliberate hold, which the error norm says earns a code of
+         * its own rather than silence. They stay pending and get re-uploaded,
+         * which is what delivers the photo.
+         */
+        const val ERROR_CODE_RETENIDAS_POR_COMPROBANTE: String =
+            "visitas_reconcile_retenidas_por_comprobante"
+
         private const val CONTEXT_LEER_PENDIENTES = "ReconcileVisitsUseCase.pendingVisitIds"
         private const val CONTEXT_CONSULTA_BY_IDS = "ReconcileVisitsUseCase.findExisting"
         private const val CONTEXT_MARCAR_SINCRONIZADAS = "ReconcileVisitsUseCase.markSynced"
 
         private const val PROP_TAMANO_LOTE = "tamano_lote"
         private const val PROP_DESCARTADOS = "descartados"
+        private const val PROP_RETENIDAS = "retenidas"
     }
 }
