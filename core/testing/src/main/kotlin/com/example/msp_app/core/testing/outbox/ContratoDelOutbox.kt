@@ -1,7 +1,8 @@
-package com.example.msp_app.data.outbox
+package com.example.msp_app.core.testing.outbox
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
@@ -57,11 +58,27 @@ import org.junit.Test
  *    contrato exige que el camino feliz **no** los emita. Un fake que emitiera
  *    siempre, o nunca, falla una de las dos mitades.
  *
+ * ## Por qué esta clase vive en `:core:testing` y no en `:app` (Ruling BF)
+ *
+ * Porque **el contrato existe para hacer cumplir una disciplina y estaba él
+ * mismo fuera del análisis**: `:app` es legacy y no aplica el plugin de detekt.
+ * Es la misma forma que esta rama lleva persiguiendo — la compuerta que no se
+ * cubre a sí misma. Acá gana detekt estricto, y no cuesta nada: no importa una
+ * sola línea de `:app`, y `RoomTestBase` —del que hereda— ya vivía en este
+ * módulo. Los dos sujetos concretos se quedan en `:app` porque necesitan los
+ * adaptadores reales, que viven ahí.
+ *
  * ## Cómo se agrega una propiedad
  *
  * Se escribe un `@Test` acá usando solo [CaminoDeEscritura]. Si un solo módulo
  * la cumple, el otro se pone rojo — que es el criterio de éxito de este arreglo.
  */
+@Suppress(
+    // Once propiedades con sus controles negativos, mas los ganchos que cada
+    // modulo implementa. Partir la clase partiria el contrato, que es
+    // justamente lo que este arreglo existe para impedir.
+    "TooManyFunctions"
+)
 abstract class ContratoDelOutbox : RoomTestBase() {
 
     protected val ahora: Instant = Instant.parse("2026-09-11T18:00:00Z")
@@ -85,8 +102,23 @@ abstract class ContratoDelOutbox : RoomTestBase() {
          */
         suspend fun escribir(id: String, comprobantes: List<String> = emptyList()): Boolean
 
-        /** Cuántas filas del hecho hay con ese [id], leídas de la base del contrato. */
+        /**
+         * ¿Está escrito el hecho [id]? Devuelve 0 o 1 **por construcción** — el
+         * id es la PK— así que sirve para la identidad y **no** para contar.
+         */
         suspend fun filasDelHecho(id: String): Int
+
+        /**
+         * **Cuántas filas escribió el módulo en total**, sin filtrar por id.
+         *
+         * Existe porque [filasDelHecho] no puede devolver 2 nunca, así que una
+         * aserción de "quedó una sola fila" apoyada en él **no podía fallar por
+         * encontrar dos** — que es justo el riesgo que dice cubrir. El daño real
+         * de un reintento que quema su clave no es una segunda fila con el mismo
+         * id (imposible), es una segunda fila **con otro id**, y eso solo se ve
+         * contando el total.
+         */
+        suspend fun filasTotales(): Int
 
         /** Cuántos comprobantes hay para ese hecho, leídos de la base del contrato. */
         suspend fun filasDeComprobante(id: String): Int
@@ -172,6 +204,12 @@ abstract class ContratoDelOutbox : RoomTestBase() {
             camino.filasDeComprobante(HECHO_A),
             camino.filasDeComprobante(HECHO_B)
         )
+
+        // Y el contador SABE CONTAR: dos hechos distintos son dos filas. Sin
+        // esto, la propiedad 4 se apoyaria en un instrumento que solo sabe decir
+        // 0 o 1, y su asercion de "una sola fila" no podria fallar por encontrar
+        // dos — que es exactamente lo que dice cubrir.
+        assertEquals("dos hechos escritos son dos filas", 2, camino.filasTotales())
     }
 
     // ─── propiedad 1: se encola después del commit ───────────────────────────
@@ -323,7 +361,12 @@ abstract class ContratoDelOutbox : RoomTestBase() {
         camino.escribir(HECHO_A)
         camino.escribir(HECHO_A)
 
-        assertEquals("una sola fila", 1, camino.filasDelHecho(HECHO_A))
+        // Se cuenta el TOTAL, no las filas con ese id: `filasDelHecho` devuelve
+        // 0 o 1 por construccion, asi que apoyar esta asercion en el no podria
+        // detectar la unica forma en que el reintento se rompe de verdad — una
+        // segunda fila bajo una clave recien acunada.
+        assertEquals("una sola fila en toda la base", 1, camino.filasTotales())
+        assertEquals("y es la del id que se pidio", 1, camino.filasDelHecho(HECHO_A))
         assertEquals(
             "los dos encolados van con la MISMA clave",
             listOf(HECHO_A, HECHO_A),
@@ -351,7 +394,7 @@ abstract class ContratoDelOutbox : RoomTestBase() {
         assertTrue("y el modulo no puede decir que no se guardo nada", quedo)
         assertTrue(
             "ningun catch es mudo",
-            telemetria.recorded.any { it.type == ERROR }
+            telemetria.recorded.any { it.type == TelemetryEventType.ERROR }
         )
     }
 
@@ -369,7 +412,7 @@ abstract class ContratoDelOutbox : RoomTestBase() {
         assertEquals(
             "el camino feliz no reporta nada",
             emptyList<String>(),
-            telemetria.recorded.filter { it.type == ERROR }.map { it.name }
+            telemetria.recorded.filter { it.type == TelemetryEventType.ERROR }.map { it.name }
         )
     }
 
@@ -380,7 +423,5 @@ abstract class ContratoDelOutbox : RoomTestBase() {
 
         /** Viejo de sobra para que el barrido lo alcance (la ventana es de 7 días). */
         const val CREADA_HACE_MUCHO: String = "2026-08-01T10:00:00Z"
-
-        val ERROR = com.example.msp_app.core.telemetry.TelemetryEventType.ERROR
     }
 }

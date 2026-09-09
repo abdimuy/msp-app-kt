@@ -88,11 +88,20 @@ import kotlinx.coroutines.withContext
  * **incondicionalmente**, y la ubicación pasa a ser lo que siempre debió ser —
  * un acompañante que no decide nada.
  *
- * El encolado sigue siendo idempotente por construcción:
- * `enqueuePendingPaymentsWorker` usa `ExistingWorkPolicy.KEEP` sobre el nombre
- * único `sync_pending_payments_<id>`, así que el encolado tardío del handler
- * —que se conserva para el camino de la condonación— no crea una segunda
- * subida.
+ * ## Por qué el segundo encolado no puede cobrar dos veces
+ *
+ * `UpdateLocationHandler` sigue encolando —es el único encolado del camino de
+ * la condonación—, así que el mismo pago puede encolarse dos veces. **Lo que
+ * impide el doble cobro NO es `ExistingWorkPolicy.KEEP`**: el KDoc de
+ * `WorkManagerUtils:22-36` dice literal que `KEEP` solo salta el encolado
+ * mientras el trabajo previo sigue ENQUEUED/RUNNING/BLOCKED, y que en cuanto
+ * llega a un estado terminal encola *"exactamente como haría `REPLACE`"*. Lo
+ * que `KEEP` sí compra es no cancelar una subida viva, que es otra cosa.
+ *
+ * Lo que impide el doble cobro es la **idempotencia del servidor**: la subida
+ * viaja con `Idempotency-Key = Payment.ID`, fijado por
+ * `PendingPaymentsWorkerV2Test.la clave de idempotencia es el Payment ID`. Un
+ * segundo request con la misma clave es un replay, no un cobro nuevo.
  *
  * ## Por qué el par va dentro de `NonCancellable`
  *

@@ -115,8 +115,20 @@ data class PagoDelHistorial(
      * negativo suelta el cerrojo, y un segundo `confirmar()` vuelve a descontar
      * `SALDO_REST`, que es un decremento y no un set absoluto.
      *
-     * `null` en el histórico anterior al cutover y en las capturas que todavía
-     * no subieron (ahí [pagoId] **es** el id de captura).
+     * ## Dónde este oráculo NO alcanza, y hay que decirlo
+     *
+     * `null` en las capturas que todavía no subieron —ahí [pagoId] **es** el id
+     * de captura, así que la pregunta se contesta igual— **y también `null` en
+     * todo el canal legado**: el API Node nunca escribió
+     * `MSP_PAGOS_RECIBIDOS.IMPTE_DOCTO_CC_ID`, así que `PAGO_RECIBIDO_ID` es
+     * `NULL` para el histórico anterior al cutover (lo dice el KDoc de
+     * `PaymentDao.deleteLegacyTwinsByDoctoCcIds`, que por eso parea por
+     * `DOCTO_CC_ID` y no por este campo).
+     *
+     * O sea: un abono colapsado por la vía **legada** no deja rastro de su UUID
+     * de captura, y en esa vía el guard puede seguir dando el falso negativo que
+     * este campo cierra para la vía v2. Es una cota real del arreglo, no un
+     * detalle: se documenta acá en vez de dejar creer que el oráculo es total.
      */
     val capturaId: String? = null
 )

@@ -13,7 +13,11 @@ lo específico de la tarea.
 - Código en inglés; strings de usuario en español; UI text minimalista (2-4 palabras); datos de test = nombres mexicanos.
 - Commits por tarea, conventional commits, subject en español, SIN atribución de Claude / SIN `Co-Authored-By`.
 - NUNCA `--no-verify`. NUNCA push. El pre-commit corre ktlint + `:build-logic` ktlint/compile + `testDevlocalDebugUnitTest` y DEBE pasar.
-- Hexagonal + YAGNI: puerto/abstracción solo si hay consumidor real (≥2 impl o cruza módulo). Sin triple-map ritual.
+- Hexagonal + YAGNI: puerto/abstracción solo si se cumple **cualquiera de las tres**: ≥2 implementaciones,
+  cruza módulo, **o el contrato de capas lo exige** (Ruling BG). La tercera existe porque un módulo de feature
+  con su propio adaptador de Room termina, por construcción, con el puerto y su única implementación del mismo
+  lado: `application/` depende de `domain/port`, `data/adapter` es la única capa que importa Room y `ui/` nunca
+  ve `data/adapter`. Sin esa cláusula las dos reglas de la rúbrica se contradicen. Sin triple-map ritual.
 - Tests: fakes-only (estado + recording/spy), NO MockK/Mockito NUNCA; Turbine para Flows; `kotlinx-coroutines-test`.
 - **POLÍTICA DE MIGRACIÓN (instrucción del usuario 2026-08-08): AUDITAR + REESCRIBIR, no mover a ciegas.** El
   código de `:app` NO se confía: al migrar una pieza, (1) auditarla por bugs, (2) VERIFICAR el contrato de la API

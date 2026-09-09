@@ -49,7 +49,7 @@ class EstadoCobranzaEstadoCuentaTest {
     }
 
     @Test
-    fun `el mapeo conserva la particion que usa SalesScreen - pagado a un lado, el resto al otro`() {
+    fun `el mapeo conserva la particion que usaba SalesScreen - pagado a un lado, el resto al otro`() {
         val pagados = EstadoCobranza.entries.filter { it.aEstadoCuenta() == EstadoCuenta.PAGO }
         assertEquals(listOf(EstadoCobranza.PAGADO), pagados)
     }

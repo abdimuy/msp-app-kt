@@ -6,6 +6,7 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitImageDao
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitImageEntity
+import com.example.msp_app.core.testing.outbox.ContratoDelOutbox
 import com.example.msp_app.core.utils.Constants
 import com.example.msp_app.data.local.datasource.visit.VisitsLocalDataSource
 import com.example.msp_app.data.models.auth.User
@@ -125,6 +126,11 @@ class ContratoDelOutboxDeLaVisitaTest : ContratoDelOutbox() {
 
         override suspend fun filasDelHecho(id: String): Int =
             if (runCatching { db.visitDao().getVisitById(id) }.getOrNull() == null) 0 else 1
+
+        // Todas las visitas del cliente del contrato: son las unicas que
+        // cualquiera de estas pruebas escribe, asi que es el total del modulo.
+        override suspend fun filasTotales(): Int =
+            db.visitDao().getVisitsByClienteId(CLIENTE_ID).size
 
         override suspend fun filasDeComprobante(id: String): Int =
             db.visitImageDao().getByVisitaId(id).size

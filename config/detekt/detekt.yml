@@ -79,8 +79,14 @@ style:
 naming:
   # Compose usa PascalCase para funciones @Composable (son "widgets", no
   # verbos) — es la convención oficial del framework, no una violación.
+  # `Test`: el Ruling BF mudo `ContratoDelOutbox` a `:core:testing/src/main`
+  # —el contrato que hace cumplir la disciplina estaba el mismo fuera del
+  # analisis— y ese es el PRIMER `@Test` que cae dentro del alcance de detekt.
+  # Los nombres de prueba de este repo son frases en espanol entre backticks;
+  # camelCase-arlos degradaria el reporte de fallos para ganar nada. La
+  # exencion es por anotacion, asi que no toca ninguna funcion de produccion.
   FunctionNaming:
-    ignoreAnnotated: ['Composable']
+    ignoreAnnotated: ['Composable', 'Test']
   # `core/database/entities/**`: las entidades Room mirrorean 1:1 columnas
   # de Microsip (`DOCTO_CC_ACR_ID`, `CLIENTE_ID`, etc.) y los DAOs las
   # referencian tal cual en `@Query` con SQL crudo — camelCase-ar el nombre

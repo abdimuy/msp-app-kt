@@ -77,9 +77,15 @@ class UpdateLocationHandler(
                 //
                 // Desde el Arreglo C `RegistroDeAbonoAdapter` ya encola en la
                 // misma corrutina de la escritura, asi que este encolado es la
-                // segunda red (y el unico del camino de la condonacion). Sigue
-                // siendo idempotente: `ExistingWorkPolicy.KEEP` sobre el nombre
-                // unico `sync_pending_payments_<id>`.
+                // segunda red (y el unico del camino de la condonacion). Que se
+                // encole dos veces no cobra dos veces, y la razon NO es
+                // `ExistingWorkPolicy.KEEP` — `WorkManagerUtils:22-36` dice que
+                // KEEP solo salta mientras el trabajo previo sigue vivo y que en
+                // estado terminal encola igual que REPLACE. La razon es la
+                // idempotencia del servidor: la subida viaja con
+                // `Idempotency-Key = Payment.ID` (fijado por
+                // `PendingPaymentsWorkerV2Test`), asi que el segundo request es
+                // un replay.
                 location?.let {
                     ejecutar(ERROR_CODE_PAYMENT_LOCATION_NOT_WRITTEN, CONTEXT_PAYMENT_LOCATION) {
                         updatePaymentLocation(paymentId, it.latitude, it.longitude)

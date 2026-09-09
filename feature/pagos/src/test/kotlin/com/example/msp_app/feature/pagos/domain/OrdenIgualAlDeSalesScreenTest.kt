@@ -33,7 +33,7 @@ import org.junit.Test
  *    que no ha recibido un peso.
  * 2. ~~La segunda clave es la fecha de negocio~~ — **corregida tras la
  *    revisión.** Empataba dos ventas del mismo día mientras la pantalla vieja
- *    las ordena por hora, y esa divergencia no la forzaba nada: el instante
+ *    las ordenaba por hora, y esa divergencia no la forzaba nada: el instante
  *    crudo ya venía parseado en el adaptador. Hoy `RangoDeCobranza` desempata
  *    por `Instant` y la paridad es exacta, incluido el mismo día a distinta
  *    hora. La que queda es la de arriba, y esa sí la fuerza la REGLA DE DINERO.

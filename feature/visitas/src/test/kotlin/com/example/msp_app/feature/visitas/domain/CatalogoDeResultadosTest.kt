@@ -80,9 +80,10 @@ class CatalogoDeResultadosTest {
     )
 
     /**
-     * Las diez ofrecidas son **exactamente** las diez que el diálogo de hoy
-     * ofrece (`NewVisitDialog.visitConditionForm`). Ni una menos: ese es el
-     * "el cobrador no reaprende nada" del brief, medido.
+     * Las diez ofrecidas son **exactamente** las diez que ofrecía el diálogo al
+     * que este catálogo reemplaza (`NewVisitDialog.visitConditionForm`,
+     * retirado por la Task 21). Ni una menos: ese es el "el cobrador no
+     * reaprende nada" del brief, medido.
      */
     @Test
     fun `se ofrecen las diez etiquetas de hoy, sin una menos`() {

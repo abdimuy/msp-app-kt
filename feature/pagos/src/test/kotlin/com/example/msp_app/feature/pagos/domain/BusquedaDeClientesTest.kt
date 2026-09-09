@@ -5,8 +5,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * La búsqueda mira los CINCO datos que la pantalla vieja ya concatenaba
- * (`SalesScreen.kt:68`) — nombre, folio, calle, ciudad y teléfono — más los
+ * La búsqueda mira los CINCO datos que concatenaba la pantalla vieja
+ * (`SalesScreen.kt:68`, retirada por la Task 21) — nombre, folio, calle, ciudad
+ * y teléfono — más los
  * folios de todas las ventas del cliente.
  *
  * Un caso por campo: si mañana alguien quita uno de la concatenación, hay un

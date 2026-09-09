@@ -77,10 +77,10 @@ class ReunirCarteraTest {
     }
 
     /**
-     * `SalesScreen.kt:68` concatena SEIS campos y el sexto es `ESTADO`, la
-     * entidad federativa. Se quedó fuera en la primera versión: un buscador que
-     * encuentra menos que la pantalla que reemplaza es una regresión que el
-     * cobrador siente antes que nadie.
+     * `SalesScreen.kt:68` —retirada por la Task 21— concatenaba SEIS campos y
+     * el sexto era `ESTADO`, la entidad federativa. Se quedó fuera en la primera
+     * versión: un buscador que encuentra menos que la pantalla a la que
+     * reemplazó es una regresión que el cobrador siente antes que nadie.
      */
     @Test
     fun `el texto buscable trae la entidad, como la pantalla vieja`() = runTest {

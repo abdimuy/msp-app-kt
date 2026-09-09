@@ -32,6 +32,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -356,6 +357,40 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         // El mensaje viejo decía "y con su archivo" sin comprobar ningún
         // archivo. Ahora se comprueba: es la otra mitad de "no se quemó nada".
         assertTrue("y su archivo sigue en disco", archivo.exists())
+    }
+
+    /**
+     * **La clave de idempotencia es el `Payment.ID`, y de eso cuelga el
+     * no-doble-cobro.**
+     *
+     * `RegistroDeAbonoAdapter` y `UpdateLocationHandler` encolan los dos, así
+     * que el mismo pago puede encolarse dos veces. Lo que impide que eso cobre
+     * dos veces **no** es `ExistingWorkPolicy.KEEP` —`WorkManagerUtils:22-36`
+     * dice que en estado terminal encola igual que `REPLACE`— sino que el
+     * segundo request sea un **replay** para el servidor. Esa afirmación vivía
+     * solo en prosa, en dos KDoc del camino del dinero; acá se vuelve test.
+     *
+     * **Control de reversión:** cambiar `idempotencyKey = payment.ID` por
+     * cualquier otro valor en `PendingPaymentsWorker.uploadV2` pone este test en
+     * ROJO.
+     */
+    @Test
+    fun `la clave de idempotencia es el Payment ID`() = runTest {
+        seed(pendingPayment())
+        var claveVista: String? = null
+        val api = fakeV2Api { clave, _ ->
+            claveVista = clave
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+
+        assertEquals("pago-001", claveVista)
+        assertNotEquals(
+            "y no es un id acunado por el worker en cada intento",
+            null,
+            claveVista
+        )
     }
 
     /**

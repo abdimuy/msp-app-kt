@@ -124,8 +124,8 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
     )
 
     /**
-     * [Sale] de dominio — la forma que recibe `NewVisitDialog` (no
-     * [SaleEntity]) — con `DOCTO_CC_ACR_ID` y `DOCTO_CC_ID` deliberadamente
+     * [Sale] de dominio — la forma que recibía `NewVisitDialog`, retirado por
+     * la Task 21 (no [SaleEntity]) — con `DOCTO_CC_ACR_ID` y `DOCTO_CC_ID` deliberadamente
      * distintos, mismo patrón que `VisitFactoryTest`. Usada por el test de
      * la ronda 1 de revisión que cruza el limite real de `VisitFactory`
      * (ver [saleScopeVisit_usesTheIdVisitFactoryComputes_notSaleDoctoCcId]).
@@ -459,7 +459,9 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
      * Este test cruza el límite real que ningún otro test cruzaba: construye
      * el [Sale] de dominio que recibe el diálogo (no un [VisitEntity] armado
      * a mano) con `DOCTO_CC_ACR_ID` != `DOCTO_CC_ID`, pasa por
-     * [VisitFactory.fromSale] — la función real que usa `NewVisitDialog` —
+     * [VisitFactory.fromSale] — la función que usaba `NewVisitDialog`, y que hoy
+     * no tiene llamador de producción: la Task 21 retiró el diálogo y la
+     * escritura vive en `RegistroDeVisitaAdapter` —
      * y llama [VisitsLocalDataSource.insertVisitAndUpdateState] con el valor
      * que el call site corregido pasa hoy: `visit.IMPTE_DOCTO_CC_ID`.
      *

@@ -284,11 +284,13 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
      * `PaymentFactory` deja `LAT`/`LNG` en `0.0` y el mapa del día descarta
      * exactamente ese punto (`RouteMapScreen`: `lat != 0.0 || lng != 0.0`), así
      * que sin esta llamada **todo abono del camino nuevo era invisible en el
-     * mapa**. El legado sí la hacía (`NewPaymentDialog` arrancaba
+     * mapa**. El legado sí la hacía (el retirado `NewPaymentDialog` arrancaba
      * `UpdateLocationService`); el camino que la Task 21 volvió principal, no.
      *
      * **Control de reversión:** borrar `pedirUbicacionDelAbono(abono.abonoId)`
-     * de `RegistroDeAbonoAdapter.registrar` pone este test en ROJO.
+     * de `RegistroDeAbonoAdapter.guardar` pone este test en ROJO. (El Arreglo C
+     * mudó la llamada de `registrar` a `guardar`, dentro del `NonCancellable`;
+     * esta línea decía `registrar` y era una instrucción que ya no aplicaba.)
      */
     @Test
     fun `un abono registrado pide su ubicacion`() = runTest {

@@ -646,8 +646,16 @@ class RegistrarAbonoViewModel @Inject constructor(
      * duplique todos los totales del cobrador. Lo que faltaba era el segundo
      * oráculo: `toEntity()` **sí persiste** el UUID de la captura en
      * `Payment.PAGO_RECIBIDO_ID` de la fila canónica (por eso
-     * `findCollapsibleUuidTwins` puede leerlo), así que el rastro nunca se
-     * pierde — solo deja de ser la PK.
+     * `findCollapsibleUuidTwins` puede leerlo), así que por la vía v2 el rastro
+     * nunca se pierde — solo deja de ser la PK.
+     *
+     * **La cota, dicha entera:** por la vía **legada** sí se pierde.
+     * `PAGO_RECIBIDO_ID` es `NULL` para todo el histórico anterior al cutover
+     * —el API Node nunca escribió `MSP_PAGOS_RECIBIDOS.IMPTE_DOCTO_CC_ID`— y
+     * `deleteLegacyTwinsByDoctoCcIds` colapsa pareando por `DOCTO_CC_ID`, sin
+     * tocar este campo. Un abono colapsado por esa vía sigue pudiendo dar el
+     * falso negativo. Este arreglo cierra la vía v2, que es la del cobro que se
+     * captura hoy; la legada queda documentada, no cerrada.
      *
      * La secuencia que esto cierra: se registra el abono → guard puesto → muere
      * el proceso con la pantalla en el back stack → un tick de sync colapsa el

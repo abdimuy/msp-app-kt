@@ -7,6 +7,7 @@ import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.database.entities.SaleEntity
+import com.example.msp_app.core.testing.outbox.ContratoDelOutbox
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
@@ -123,6 +124,8 @@ class ContratoDelOutboxDelAbonoTest : ContratoDelOutbox() {
 
         override suspend fun filasDelHecho(id: String): Int =
             if (db.paymentDao().getPaymentById(id) == null) 0 else 1
+
+        override suspend fun filasTotales(): Int = db.paymentDao().getAllPayments().size
 
         override suspend fun filasDeComprobante(id: String): Int =
             db.paymentImageDao().getByPagoId(id).size
