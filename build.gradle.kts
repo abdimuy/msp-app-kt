@@ -1,7 +1,16 @@
+import buildlogic.CompuertaDelRepo
+import buildlogic.CompuertaDelRepoTask
 import java.util.concurrent.Callable
 
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
+    // (Arreglo B, ronda 4) La raíz aplica `msp.compuertas` — el único plugin de
+    // `build-logic` que NO configura un módulo. Trae dos cosas: el tipo
+    // `CompuertaDelRepo`, que es la identidad con la que `prePushCheck`
+    // reconoce a las compuertas de este repo, y la red que atrapa a la que se
+    // registre sin esa marca. Aplicarlo acá también exporta el tipo al
+    // classpath de los scripts de todos los módulos.
+    id("msp.compuertas")
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
@@ -28,6 +37,36 @@ plugins {
 // removed `DateUtils` API and the bugs it had by literally naming the old
 // APIs (`LocalDate.now()`, `ZoneId.systemDefault()`, etc.) in KDoc — a naive
 // whole-file grep would false-positive on that valuable history.
+//
+// ## `System.currentTimeMillis()` — FUERA de alcance, y ésta es la razón
+//
+// Va dos rondas señalado sin decidirse, así que se decide acá. **No entra a
+// `legacyDateApiPatterns`**, por cuatro hechos medidos (2026-09-08):
+//
+// 1. **En los 15 módulos migrados hay CERO usos.** Las dos únicas apariciones
+//    en `core/` y `feature/` están dentro de KDoc que prohíbe justamente eso
+//    (`VentanaCobro.kt:15`, `TelemetryEvent.kt:67`), y este barrido descarta
+//    comentarios antes de comparar. O sea que en el código que la migración
+//    fechas/AppTime tocó, la regla ya se cumple sola.
+// 2. **Los 51 usos restantes viven todos en `:app` legado** y son contabilidad
+//    en epoch-millis: `createdAt`/`updatedAt` de entidades Room, watermarks de
+//    sync, medición de duración (`t1 - t0`), edad de caché, nombres de archivo
+//    únicos y defaults de relojes inyectables (`val clock: () -> Long =
+//    System::currentTimeMillis`). Ninguno produce una fecha ni una zona.
+// 3. **La conversión sí está cubierta.** Un `Long` de epoch no es una fecha
+//    hasta que alguien le aplica una zona o un formato, y ese sitio SÍ lo
+//    atrapan los patrones de arriba: `ZoneId.systemDefault(`,
+//    `Calendar.getInstance(`, `SimpleDateFormat`, `java.util.Date`. El bug que
+//    esta compuerta persigue —una fecha de negocio derivada del reloj/zona del
+//    dispositivo— no puede escaparse por acá sin tocar uno de esos.
+// 4. **Agregarlo hoy DEBILITARÍA el guard.** Obligaría a allowlistear ~23
+//    archivos de `:app`, y el allowlist es a nivel de archivo: cada entrada
+//    ciega ese archivo también para los otros 8 patrones, justo en el código
+//    legado que más los necesita.
+//
+// Qué haría cambiar la decisión: que un módulo migrado gane su primer uso, o
+// que el allowlist pase a ser por línea. Mientras tanto es deuda declarada, no
+// un olvido — la diferencia es que está escrita.
 val legacyDateApiPatterns = listOf(
     "LocalDate.now(",
     "LocalDateTime.now(",
@@ -250,8 +289,9 @@ val legacyDateApiTestSourceSets = setOf("test", "androidTest", "testFixtures")
  */
 val legacyDateApiScopeAllowlist: Map<String, String> = emptyMap()
 
-tasks.register("checkNoLegacyDateApi") {
-    group = "verification"
+// El tipo es la marca: `CompuertaDelRepoTask` es lo que hace que esta compuerta
+// entre al gate. El grupo lo fija el propio tipo (ver `CompuertaDelRepo.kt`).
+tasks.register<CompuertaDelRepoTask>("checkNoLegacyDateApi") {
     description = "Arreglo B (ex Task 13, fechas/AppTime): barre TODOS los módulos del build " +
         "(descubiertos desde Gradle) y falla si aparece un NUEVO uso directo de " +
         "LocalDate/LocalDateTime/Instant.now(), Calendar.getInstance(), SimpleDateFormat, " +
@@ -421,8 +461,10 @@ tasks.named("prepareKotlinBuildScriptModel") {
 // agregarlas.
 //
 // `:build-logic` NO es un subproyecto sino un build incluido, así que su ktlint
-// se referencia explícito — `gradle.includedBuild(...)` es la única forma de
-// alcanzarlo y no hay lista que descubrir ahí: es uno solo.
+// se referencia explícito: `gradle.includedBuild(...)` es la única forma de
+// alcanzarlo, y la API pública de Gradle no deja ENUMERAR las tareas de un build
+// incluido. Ese aporte queda declarado, y la declaración la vigila
+// `verificarElBuildIncluido()` — ver su KDoc.
 
 /** Familias de tareas. Dentro de cada una se toma la PRIMERA que exista. */
 val prePushTaskFamilies: List<List<String>> = listOf(
@@ -516,56 +558,41 @@ val prePushTaskAllowlist: Map<String, String> = mapOf(
 )
 
 /**
- * Los nombres de tarea que **este repo** registra en sus propios scripts.
+ * Las compuertas propias de [proyecto]: se las pregunta al **modelo de objetos**.
  *
- * Se leen de todos los `*.gradle.kts` del build y de las fuentes de
- * `build-logic` (los convention plugins registran tareas dentro de los módulos
- * que los aplican). No es una lista de nombres: es el conjunto de lo que
- * `tasks.register(...)`/`tasks.create(...)` menciona, descubierto del texto que
- * lo declara.
+ * ## Ronda 4 — el criterio dejó de ser textual
+ *
+ * Las rondas 2 y 3 contestaron "¿es nuestra esta compuerta?" **leyendo el código
+ * fuente**: un regex sobre los `tasks.register("…")` de tres rutas de archivo,
+ * cruzado con el grupo `verification`. Eso medía *cómo está escrito el registro*,
+ * no *qué es la tarea*, y el revisor lo probó con tres semillas: el nombre en una
+ * constante no entraba (verde, sin aviso), el nombre por variante desde un
+ * convention plugin tampoco, y una línea de **comentario** que mencionaba
+ * `tasks.register("lintDebug")` metía Android Lint en el pre-push de los 14
+ * módulos Android. Un criterio de texto no sólo omite: también agrega.
+ *
+ * Hoy la identidad es el **tipo**: una compuerta de este repo es una tarea que
+ * implementa `buildlogic.CompuertaDelRepo` (ver el KDoc de esa interfaz, que
+ * explica por qué una marca de tipo y no una propiedad, y por qué interfaz y no
+ * sólo clase base). `tasks.withType(...)` filtra por el tipo con el que la tarea
+ * fue **registrada**, sin realizarla: es exactamente la pregunta que había que
+ * hacerle a Gradle, y no hay ningún archivo que leer.
+ *
+ * Como corolario, el grupo dejó de ser criterio. No hace falta acotar por
+ * `verification` para no arrastrar `check`, `lint*` ni `connectedCheck`: esas
+ * tareas no llevan la marca, y ninguna cantidad de texto en un comentario puede
+ * dársela.
+ *
+ * ## Y si alguien la registra sin la marca
+ *
+ * No pasa desapercibido: `verificarMarcaDeCompuertas` —que `msp.compuertas`
+ * registra en la raíz, que lleva la marca y que por lo tanto este mismo
+ * descubrimiento mete al gate— falla ante cualquier tarea del grupo
+ * `verification` con la forma de una compuerta escrita a mano (tipo público
+ * `DefaultTask`) que no la lleve.
  */
-val tareasRegistradasPorElRepo: Set<String> by lazy {
-    val patron = Regex("""tasks\.(?:register|create)(?:<[^>]*>)?\(\s*"([^"]+)"""")
-    val fuentes = buildList {
-        add(File(rootDir, "build.gradle.kts"))
-        subprojects.forEach { add(File(it.projectDir, "build.gradle.kts")) }
-        File(rootDir, "build-logic/src/main/kotlin").walkTopDown()
-            .filter { it.isFile && it.extension == "kt" }
-            .forEach { add(it) }
-    }.filter { it.isFile }
-    check(fuentes.isNotEmpty()) { "no se leyó ningún script del build" }
-    fuentes.flatMap { archivo -> patron.findAll(archivo.readText()).map { it.groupValues[1] } }.toSet()
-}
-
-/**
- * Las compuertas propias de [proyecto], descubiertas **por grupo**.
- *
- * ## Ruling BC — la misma regla, de los dos lados de `subprojects`
- *
- * La ronda 2 aplicó este descubrimiento **sólo a la raíz**, y eso dejó la mitad
- * grande abierta: sembrar `group = "verification"` en una tarea de
- * `:core:common` la dejaba fuera del gate, en verde y sin aviso. Era el hueco de
- * `checkNoLegacyDateApi` del otro lado del espejo — la misma falla partida en
- * dos, y la mitad que quedó abierta tiene dieciséis módulos.
- *
- * ## Por qué no basta con "todo lo que esté en `verification`"
- *
- * Porque en un módulo ese grupo está lleno de tareas de plugins: `check`,
- * `connectedCheck`, `deviceCheck`, `lint*`, `detektBaseline*`, `koverHtmlReport*`
- * … Meterlas todas arrastraría lint y pruebas de dispositivo al pre-push. La
- * raíz no tiene ese problema porque no aplica plugins (todos van con
- * `apply false`), y por eso ahí el grupo solo basta.
- *
- * El acote que sí distingue una compuerta nuestra de una de plugin no es el
- * nombre ni el tipo —`check` también es un `DefaultTask`— sino **quién la
- * registró**: las nuestras están escritas en los scripts de este repo. Así que
- * la regla es *grupo `verification` **y** registrada por nosotros*, y se aplica
- * igual a la raíz y a los módulos.
- */
-fun tareasDeGateDelGrupoDe(proyecto: Project): List<String> = proyecto.tasks.names
-    .filter { it != "prePushCheck" && it in tareasRegistradasPorElRepo }
-    .filter { nombre -> runCatching { proyecto.tasks.named(nombre).get().group }.getOrNull() == "verification" }
-    .sorted()
+fun compuertasDe(proyecto: Project): List<String> =
+    proyecto.tasks.withType(CompuertaDelRepo::class.java).names.sorted()
 
 /** Lo que cada módulo aportó, para el control positivo del propio descubrimiento. */
 val prePushAportes = linkedMapOf<String, List<String>>()
@@ -595,9 +622,8 @@ fun tareasDeGateDe(proyecto: Project): List<String> {
     tareasDeCoberturaDe(proyecto)
         .filterNot { "$modulo:$it" in prePushTaskAllowlist }
         .forEach { aportadas += it }
-    // (Ruling BC) Las compuertas que este repo registra en sus propios scripts:
-    // la misma regla de grupo que ya se aplicaba a la raíz, ahora también acá.
-    tareasDeGateDelGrupoDe(proyecto)
+    // (Ronda 4) Las compuertas propias del módulo, identificadas por su TIPO.
+    compuertasDe(proyecto)
         .filterNot { "$modulo:$it" in prePushTaskAllowlist }
         .forEach { if (it !in aportadas) aportadas += it }
 
@@ -714,6 +740,47 @@ fun Task.verificarLaBaseCongelada() {
     )
 }
 
+/**
+ * `build-logic` — por qué su aporte al gate se declara, y la red que vigila esa
+ * declaración.
+ *
+ * **El descubrimiento no se le puede aplicar.** `subprojects` no ve a un build
+ * incluido, y `gradle.includedBuild("build-logic")` expone exactamente tres
+ * cosas —`name`, `projectDir` y `task(path)`—: la API pública de Gradle 8.11 no
+ * ofrece ninguna forma de ENUMERAR las tareas de un build incluido desde el
+ * build principal. No es una omisión de este arreglo: es el límite de la API.
+ *
+ * Así que se declara, con su razón. `build-logic` tiene cuatro tareas en el
+ * grupo `verification` (medido con `../gradlew tasks --group=verification`):
+ * `check` (ciclo de vida), `checkKotlinGradlePluginConfigurationErrors` (de
+ * KGP), `ktlintCheck` y `test`. La primera y la segunda no verifican nada
+ * propio; `ktlintCheck` es la que el gate corre; y `test` **no tiene un solo
+ * test que correr**, porque `build-logic/src` sólo tiene `main`.
+ *
+ * Una declaración que nadie vigila es una lista escrita a mano con otro nombre.
+ * Por eso se vigila el hecho del que depende: el día que alguien escriba
+ * `build-logic/src/test`, esto falla y obliga a decidir de nuevo, en vez de
+ * dejar unas pruebas fuera del gate en silencio — que es el defecto que el
+ * Arreglo B persigue.
+ */
+fun verificarElBuildIncluido() {
+    val sourceSets = File(rootDir, "build-logic/src").listFiles()
+        .orEmpty()
+        .filter { it.isDirectory }
+        .map { it.name }
+        .sorted()
+    if (sourceSets != listOf("main")) {
+        throw GradleException(
+            "prePushCheck: `build-logic/src` tiene los source sets $sourceSets. La declaración " +
+                "de este gate dice que sólo hay `main`, y de ese hecho depende que " +
+                "`build-logic:test` esté fuera de alcance sin que nadie lo note.\n" +
+                "Si ahora hay pruebas, sumalas con " +
+                "`dependsOn(gradle.includedBuild(\"build-logic\").task(\":test\"))`; si no, " +
+                "reescribí esta declaración CON su razón."
+        )
+    }
+}
+
 val prePushCheck = tasks.register("prePushCheck") {
     group = "verification"
     description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, " +
@@ -726,7 +793,7 @@ val prePushCheck = tasks.register("prePushCheck") {
     // forma de ver las tareas por variante (ver KDoc de `tareasDeGateDe`).
     dependsOn(
         Callable {
-            val deLaRaiz = tareasDeGateDelGrupoDe(rootProject)
+            val deLaRaiz = compuertasDe(rootProject)
             prePushAportes[":"] = deLaRaiz
             val deLosModulos = modulosDelBuild
                 .flatMap { sub -> tareasDeGateDe(sub).map { "${sub.path}:$it" } }
@@ -745,6 +812,7 @@ val prePushCheck = tasks.register("prePushCheck") {
             throw GradleException("prePushCheck: el descubrimiento no encontró NINGÚN módulo.")
         }
         verificarLaBaseCongelada()
+        verificarElBuildIncluido()
 
         val sinAporte = esperados.filterNot { prePushAportes[it].orEmpty().isNotEmpty() }
         if (sinAporte.isNotEmpty()) {
