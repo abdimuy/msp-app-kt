@@ -17,6 +17,24 @@ import org.gradle.kotlin.dsl.register
  *
  * Su único comportamiento es registrar [NOMBRE_DE_LA_RED], que es la respuesta a
  * la pregunta *"¿y si alguien se olvida de marcarla?"*.
+ *
+ * ## Lo que esta red NO atrapa — límite conocido, declarado (ronda 5)
+ *
+ * Mira **sólo** tareas cuyo grupo sea `verification`. Así que una compuerta que
+ * se registre **sin la marca y sin grupo** —`tasks.register("checkAlgo") {
+ * doLast { … } }`— es invisible para esta red **y** para el descubrimiento: no
+ * entra al gate, sale verde y nadie avisa. Es un escape real; queda escrito acá
+ * en vez de que lo encuentre alguien dentro de seis meses.
+ *
+ * Por qué el filtro sigue siendo ése: de las 5.566 tareas de este build,
+ * **4.220 no declaran grupo** (271 de ellas con tipo público `DefaultTask`).
+ * Mirarlas todas exigiría una allowlist enorme de andamiaje de AGP/KGP, y una
+ * red con cientos de excepciones escritas es ruido, no red. El grupo es la señal
+ * más barata que separa "esto pretende ser una verificación" del andamiaje.
+ *
+ * Lo que **no** se puede decir de esta red —y la ronda 4 lo dijo— es que su
+ * error sólo pueda ser "de más, nunca de menos". Puede ser de menos, y el
+ * párrafo de arriba describe exactamente cómo.
  */
 class CompuertasConventionPlugin : Plugin<Project> {
     override fun apply(target: Project) {

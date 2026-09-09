@@ -27,15 +27,32 @@ import org.gradle.api.Task
  * otra lista*. Esta interfaz es esa respuesta: la identidad de una compuerta es
  * **su tipo**, que es un hecho del modelo de objetos y no del texto.
  *
- * ## Por qué una marca de TIPO y no una propiedad
+ * ## Por qué una marca de TIPO y no una propiedad en `extra`
  *
- * Porque el tipo es lo **único** que Gradle sabe contestar **sin realizar la
- * tarea**: `tasks.withType(CompuertaDelRepo::class)` filtra por el tipo con el
- * que se registró, mirando el `TaskProvider` pendiente. Una marca guardada en
- * `extra`/`extensions` obligaría a realizar las ~5.000 tareas del build entero
- * para leerla — caro, y encima capaz de romperse con tareas que fallan al
- * realizarse. Es la misma razón por la que el descubrimiento de este repo
- * prefiere `tasks.names` a `tasks.forEach`.
+ * **No es por costo, y la primera versión de este KDoc mentía** (ronda 4).
+ * Decía que el tipo es *"lo único que Gradle sabe contestar sin realizar la
+ * tarea"* y que una marca en `extra` obligaría a realizar *"las ~5.000 tareas
+ * del build"*. Las dos mitades son falsas. Medido en este build:
+ *
+ * - `tasks.collectionSchema` **también** contesta sin realizar —**5.702
+ *   entradas con su tipo en 0,3–0,5 ms, cero realizaciones**— y esta misma
+ *   ronda lo usa en `CompuertasConventionPlugin`. O sea que "lo único" era
+ *   falso mientras se escribía, y falso contra el archivo de al lado.
+ * - Realizar el build entero tampoco es caro: **5.566 tareas realizadas en
+ *   195–273 ms, 0 fallos**. El "punto ciego" de una realización que falla
+ *   existe como forma, pero acá, medido, no ocurre.
+ *
+ * La razón verdadera es más chica y no necesita números: **el tipo se declara en
+ * el mismo acto de registrar la tarea, y lo verifica el compilador**. Una marca
+ * en `extra` es una cadena mágica repetida en cada sitio de registro y otra vez
+ * en la consulta; un typo no rompe nada, deja la compuerta **silenciosamente
+ * fuera del gate** — que es, palabra por palabra, el defecto que el Arreglo B
+ * existe para eliminar. Y el tipo trae sus defaults consigo (acá, el grupo) sin
+ * un barrido aparte que los lea.
+ *
+ * Lo que sí es cierto del costo, como propiedad agradable y no como
+ * justificación: `withType` filtra por el tipo con el que la tarea se registró
+ * sin realizar ninguna, así que el descubrimiento no paga por esta decisión.
  *
  * ## Por qué una INTERFAZ y no sólo una clase base
  *

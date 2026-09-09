@@ -509,6 +509,14 @@ val prePushTaskFamilies: List<List<String>> = listOf(
  * leía `src/test` para decidir contaba menciones **dentro de comentarios**,
  * mientras `EscanerDeFuentes` las descarta a propósito. Ya no hay dos criterios
  * porque ya no hay lectura.
+ *
+ * **Sigue decidiendo por NOMBRE** (ronda 5, para que el inventario esté
+ * completo): `startsWith("koverVerify")` y `!endsWith("Release")` son un
+ * criterio textual sobre nombres de tarea de plugin, igual que
+ * [prePushTaskFamilies] y que `nombresDePrueba` en el `doLast` del gate. Son
+ * tareas de Kover: no llevan ni pueden llevar la marca `CompuertaDelRepo`, así
+ * que hay que nombrarlas. Está acotado y con razón escrita, pero no es
+ * descubrimiento y cuenta como lista.
  */
 fun tareasDeCoberturaDe(proyecto: Project): List<String> = proyecto.tasks.names
     .filter { it.startsWith("koverVerify") && !it.endsWith("Release") }
@@ -824,6 +832,10 @@ val prePushCheck = tasks.register("prePushCheck") {
         // ktlint y pruebas son el mínimo que todo módulo del repo puede dar. Un
         // módulo que no los tiene está mal configurado, o es una excepción que
         // alguien tiene que escribir.
+        // (Ronda 5) Espejo por NOMBRE de la familia 2 de `prePushTaskFamilies`:
+        // si alguien cambia una y no la otra, este chequeo de "media compuerta"
+        // miente. Cuenta como lista, junto con esa familia y con el
+        // `startsWith("koverVerify")` de `tareasDeCoberturaDe`.
         val nombresDePrueba = listOf("testDevlocalDebugUnitTest", "testDebugUnitTest", "test")
         val incompletos = esperados.filter { modulo ->
             val aportadas = prePushAportes[modulo].orEmpty()
