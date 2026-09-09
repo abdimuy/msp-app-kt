@@ -40,7 +40,40 @@ const val BUSCADOR_TAG: String = "pagos_buscador"
 /** `testTag` del mensaje que se pinta cuando no queda ningún cliente. */
 const val LISTA_VACIA_TAG: String = "pagos_lista_vacia"
 
-/** El destino: conecta el ViewModel con el contenido puro. */
+/**
+ * El destino: conecta el ViewModel con el contenido puro **y provee el tema**.
+ *
+ * ## Por qué `MspTheme` vive aquí
+ *
+ * **`:app` NUNCA provee `MspTheme`.** Su `MainActivity` monta `MspappTheme` —el
+ * Material legado del resto de la app, un sistema de composición DISTINTO— y su
+ * `NavHost` no envuelve a ningún destino, así que sin este bloque la primera
+ * lectura de `MspTheme.colors` (el `.background` del modificador más externo de
+ * [ListaDeClientesContent]) revienta con
+ * `IllegalStateException("MspTheme ausente")` apenas el cobrador toca
+ * "Clientes" — medido en el emulador, con la base vacía: ni siquiera hace falta
+ * que haya datos.
+ *
+ * Mismo envoltorio, mismo lugar y misma razón que
+ * `feature.configuracion.ui.ConfiguracionScreen` y que `ThemeRevealRoot` en el
+ * reporte de cobranza: **cada pantalla Msp se envuelve a sí misma**. En el
+ * `*Screen` y no en la ruta, para que la pantalla quede correcta desde
+ * cualquier host —`NavHost`, un `@Preview`, un bottom sheet futuro—, no solo
+ * desde el registro que hoy la monta.
+ *
+ * **Y no en la raíz de `:app`**, que arreglaría las siete de un plumazo:
+ * `MspTheme` monta además un `MaterialTheme` con su propio `colorScheme` y su
+ * tipografía, así que ponerlo alrededor de `AppNavigation` repintaría **en
+ * silencio** decenas de pantallas legadas que ningún golden cubre. El riesgo
+ * dejaría de ser "siete pantallas crashean" —que se ve— para pasar a "la app
+ * entera cambia de color" —que no—.
+ *
+ * La compuerta que impide que la pantalla número ocho vuelva a olvidarlo son
+ * `ElTemaLoPoneLaPantallaTest` (monta este composable SIN tema) y
+ * `CadaPantallaMspProveeSuTemaTest` de `:app` (escanea las fuentes de todos los
+ * módulos). La primera vez que esto pasó quedó una nota en un KDoc, y la nota
+ * no impidió la segunda.
+ */
 @Composable
 fun ListaDeClientesScreen(
     viewModel: ListaDeClientesViewModel,
@@ -50,16 +83,18 @@ fun ListaDeClientesScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    ListaDeClientesContent(
-        state = state,
-        onAtras = onAtras,
-        onBuscar = viewModel::buscar,
-        onElegirSegmento = viewModel::elegirSegmento,
-        onAbrirCliente = onAbrirCliente,
-        onAbrirVenta = onAbrirVenta,
-        onReintentar = viewModel::cargar,
-        modifier = modifier
-    )
+    MspTheme {
+        ListaDeClientesContent(
+            state = state,
+            onAtras = onAtras,
+            onBuscar = viewModel::buscar,
+            onElegirSegmento = viewModel::elegirSegmento,
+            onAbrirCliente = onAbrirCliente,
+            onAbrirVenta = onAbrirVenta,
+            onReintentar = viewModel::cargar,
+            modifier = modifier
+        )
+    }
 }
 
 /**

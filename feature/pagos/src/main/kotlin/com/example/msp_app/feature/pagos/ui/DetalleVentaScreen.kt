@@ -49,7 +49,16 @@ private val FECHA_DE_VENTA: DateTimeFormatter = DateTimeFormatter.ofPattern(
     BUSINESS_LOCALE
 )
 
-/** El destino: conecta el ViewModel con el contenido puro. */
+/**
+ * El destino: conecta el ViewModel con el contenido puro.
+ *
+ * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
+ * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
+ * la primera lectura de `MspTheme.colors` revienta con
+ * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
+ * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
+ * de `:app`, y cuál es la compuerta— está en el KDoc de [ListaDeClientesScreen].
+ */
 @Composable
 fun DetalleVentaScreen(
     viewModel: DetalleVentaViewModel,
@@ -62,25 +71,27 @@ fun DetalleVentaScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val detalle = state.detalle
-    DetalleVentaContent(
-        state = state,
-        onAtras = onAtras,
-        onRegistrarAbono = { onRegistrarAbono(viewModel.ventaId) },
-        // La visita se registra sobre la PUERTA, con esta cuenta como contexto:
-        // el `clienteId` sale del detalle ya cargado, que es el único lugar del
-        // módulo que lo conoce sin volver a leer Room.
-        onRegistrarVisita = {
-            detalle?.let { onRegistrarVisita(it.clienteId, viewModel.ventaId) }
-        },
-        onMasAcciones = { onMasAcciones(viewModel.ventaId) },
-        onUsarLiquidacion = { onRegistrarAbono(viewModel.ventaId) },
-        onVerAbonos = { onMasAcciones(viewModel.ventaId) },
-        // El flujo de garantías de `:app` está indexado por VENTA
-        // (`getGuaranteeSaleById(DOCTO_CC_ID)`), no por el `EXTERNAL_ID` de la
-        // garantía: se manda el crédito, que es la llave que ese flujo entiende.
-        onVerGarantia = { detalle?.let { onVerGarantia(it.creditoId) } },
-        modifier = modifier
-    )
+    MspTheme {
+        DetalleVentaContent(
+            state = state,
+            onAtras = onAtras,
+            onRegistrarAbono = { onRegistrarAbono(viewModel.ventaId) },
+            // La visita se registra sobre la PUERTA, con esta cuenta como contexto:
+            // el `clienteId` sale del detalle ya cargado, que es el único lugar del
+            // módulo que lo conoce sin volver a leer Room.
+            onRegistrarVisita = {
+                detalle?.let { onRegistrarVisita(it.clienteId, viewModel.ventaId) }
+            },
+            onMasAcciones = { onMasAcciones(viewModel.ventaId) },
+            onUsarLiquidacion = { onRegistrarAbono(viewModel.ventaId) },
+            onVerAbonos = { onMasAcciones(viewModel.ventaId) },
+            // El flujo de garantías de `:app` está indexado por VENTA
+            // (`getGuaranteeSaleById(DOCTO_CC_ID)`), no por el `EXTERNAL_ID` de la
+            // garantía: se manda el crédito, que es la llave que ese flujo entiende.
+            onVerGarantia = { detalle?.let { onVerGarantia(it.creditoId) } },
+            modifier = modifier
+        )
+    }
 }
 
 /**

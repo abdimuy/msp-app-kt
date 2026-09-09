@@ -73,6 +73,13 @@ private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", 
  * `null` no es alcanzable en producción: el dock solo se pinta con `detalle`
  * cargado, y `CargarDetalleCliente` devuelve `null` cuando el cliente no tiene
  * ni una venta. El `?.let` está por totalidad, no por un caso vivo.
+ *
+ * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
+ * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
+ * la primera lectura de `MspTheme.colors` revienta con
+ * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
+ * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
+ * de `:app`, y cuál es la compuerta— está en el KDoc de [ListaDeClientesScreen].
  */
 @Composable
 fun DetalleClienteScreen(
@@ -86,24 +93,26 @@ fun DetalleClienteScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val cuenta = cuentaQueEncabeza(state)
-    DetalleClienteContent(
-        state = state,
-        onAtras = onAtras,
-        onAbrirVenta = onAbrirVenta,
-        onRegistrarAbono = { cuenta?.let(onRegistrarAbono) },
-        onRegistrarVisita = { onRegistrarVisita(viewModel.clienteId, null) },
-        onMasAcciones = { cuenta?.let(onMasAcciones) },
-        onUsarLiquidacion = { cuenta?.let(onRegistrarAbono) },
-        onVerContactos = { cuenta?.let(onMasAcciones) },
-        fichaDelCliente = AccionesDeLaFicha(
-            onEditar = viewModel::editarFicha,
-            onCerrar = viewModel::cerrarFicha,
-            onSenal = viewModel::alternarSenal,
-            onNota = viewModel::escribirNota,
-            onGuardar = viewModel::guardarFicha
-        ),
-        modifier = modifier
-    )
+    MspTheme {
+        DetalleClienteContent(
+            state = state,
+            onAtras = onAtras,
+            onAbrirVenta = onAbrirVenta,
+            onRegistrarAbono = { cuenta?.let(onRegistrarAbono) },
+            onRegistrarVisita = { onRegistrarVisita(viewModel.clienteId, null) },
+            onMasAcciones = { cuenta?.let(onMasAcciones) },
+            onUsarLiquidacion = { cuenta?.let(onRegistrarAbono) },
+            onVerContactos = { cuenta?.let(onMasAcciones) },
+            fichaDelCliente = AccionesDeLaFicha(
+                onEditar = viewModel::editarFicha,
+                onCerrar = viewModel::cerrarFicha,
+                onSenal = viewModel::alternarSenal,
+                onNota = viewModel::escribirNota,
+                onGuardar = viewModel::guardarFicha
+            ),
+            modifier = modifier
+        )
+    }
 }
 
 /**

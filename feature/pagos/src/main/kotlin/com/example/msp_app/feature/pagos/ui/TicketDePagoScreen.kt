@@ -56,6 +56,13 @@ private const val ETIQUETA_SALDO = "saldo actual"
  * Pantalla del ticket de pago, cableada a su ViewModel. Misma forma que las
  * Tasks 16-19: el destino recibe el ViewModel y el contenido puro va aparte,
  * para que los goldens y los tests de pantalla lo monten sin Hilt.
+ *
+ * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
+ * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
+ * la primera lectura de `MspTheme.colors` revienta con
+ * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
+ * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
+ * de `:app`, y cuál es la compuerta— está en el KDoc de [ListaDeClientesScreen].
  */
 @Composable
 fun TicketDePagoScreen(
@@ -64,16 +71,18 @@ fun TicketDePagoScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    TicketDePagoContent(
-        state = state,
-        onAtras = onAtras,
-        onImprimir = viewModel::imprimir,
-        onCambiarImpresora = viewModel::cambiarImpresora,
-        onElegirImpresora = viewModel::elegirImpresora,
-        onCerrarImpresion = viewModel::cerrarImpresion,
-        onReintentar = viewModel::cargar,
-        modifier = modifier
-    )
+    MspTheme {
+        TicketDePagoContent(
+            state = state,
+            onAtras = onAtras,
+            onImprimir = viewModel::imprimir,
+            onCambiarImpresora = viewModel::cambiarImpresora,
+            onElegirImpresora = viewModel::elegirImpresora,
+            onCerrarImpresion = viewModel::cerrarImpresion,
+            onReintentar = viewModel::cargar,
+            modifier = modifier
+        )
+    }
 }
 
 /**

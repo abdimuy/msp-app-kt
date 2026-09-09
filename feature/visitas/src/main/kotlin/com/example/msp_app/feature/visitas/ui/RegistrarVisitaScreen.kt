@@ -63,6 +63,14 @@ import java.time.LocalTime
  *
  * [onRegistrada] se dispara UNA vez, con el id de la visita, dentro de un
  * `LaunchedEffect` con clave el propio id — una recomposición no lo repite.
+ *
+ * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
+ * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
+ * la primera lectura de `MspTheme.colors` revienta con
+ * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
+ * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
+ * de `:app`, y cuál es la compuerta— está en el KDoc de
+ * `feature.pagos.ui.ListaDeClientesScreen`.
  */
 @Composable
 fun RegistrarVisitaScreen(
@@ -79,32 +87,34 @@ fun RegistrarVisitaScreen(
     val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         if (ok) viewModel.fotoTomada() else viewModel.fotoCancelada()
     }
-    RegistrarVisitaContent(
-        state = state,
-        acciones = AccionesDeLaVisita(
-            onAtras = onAtras,
-            onResultado = viewModel::onResultado,
-            onCambiarResultado = viewModel::limpiarResultado,
-            onEtiqueta = viewModel::onEtiqueta,
-            onNota = viewModel::onNota,
-            onVentaDeLaPromesa = viewModel::onVentaDeLaPromesa,
-            onFechaPromesa = viewModel::onFechaPromesa,
-            onMonto = viewModel::onMontoPrometido,
-            onFechaCita = viewModel::onFechaCita,
-            onHoraCita = viewModel::onHoraCita,
-            onAbrirCalendario = viewModel::abrirCalendario,
-            onCerrarCalendario = viewModel::cerrarCalendario,
-            onDiaDelCalendario = viewModel::onDiaDelCalendario,
-            onAbrirReloj = viewModel::abrirReloj,
-            onCerrarReloj = viewModel::cerrarReloj,
-            onHoraDelReloj = viewModel::onHoraDelReloj,
-            onGuardar = viewModel::guardar,
-            onReintentar = viewModel::cargar,
-            onAgregarFoto = viewModel::pedirFoto,
-            onQuitarFoto = viewModel::quitarFoto
-        ),
-        modifier = modifier
-    )
+    MspTheme {
+        RegistrarVisitaContent(
+            state = state,
+            acciones = AccionesDeLaVisita(
+                onAtras = onAtras,
+                onResultado = viewModel::onResultado,
+                onCambiarResultado = viewModel::limpiarResultado,
+                onEtiqueta = viewModel::onEtiqueta,
+                onNota = viewModel::onNota,
+                onVentaDeLaPromesa = viewModel::onVentaDeLaPromesa,
+                onFechaPromesa = viewModel::onFechaPromesa,
+                onMonto = viewModel::onMontoPrometido,
+                onFechaCita = viewModel::onFechaCita,
+                onHoraCita = viewModel::onHoraCita,
+                onAbrirCalendario = viewModel::abrirCalendario,
+                onCerrarCalendario = viewModel::cerrarCalendario,
+                onDiaDelCalendario = viewModel::onDiaDelCalendario,
+                onAbrirReloj = viewModel::abrirReloj,
+                onCerrarReloj = viewModel::cerrarReloj,
+                onHoraDelReloj = viewModel::onHoraDelReloj,
+                onGuardar = viewModel::guardar,
+                onReintentar = viewModel::cargar,
+                onAgregarFoto = viewModel::pedirFoto,
+                onQuitarFoto = viewModel::quitarFoto
+            ),
+            modifier = modifier
+        )
+    }
     val destino = state.destinoDeFoto
     if (destino != null) {
         // Clave el id del destino: una recomposición no reabre la cámara, y un

@@ -54,7 +54,17 @@ private const val ETIQUETA_PROMETIO = "prometió"
 private const val ETIQUETA_CUENTAS = "cuentas"
 private const val SIN_MONTO = "sin monto"
 
-/** Pantalla del ticket de visita, cableada a su ViewModel. */
+/**
+ * Pantalla del ticket de visita, cableada a su ViewModel.
+ *
+ * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
+ * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
+ * la primera lectura de `MspTheme.colors` revienta con
+ * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
+ * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
+ * de `:app`, y cuál es la compuerta— está en el KDoc de
+ * `feature.pagos.ui.ListaDeClientesScreen`.
+ */
 @Composable
 fun TicketDeVisitaScreen(
     viewModel: TicketDeVisitaViewModel,
@@ -62,16 +72,18 @@ fun TicketDeVisitaScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    TicketDeVisitaContent(
-        state = state,
-        onAtras = onAtras,
-        onImprimir = viewModel::imprimir,
-        onCambiarImpresora = viewModel::cambiarImpresora,
-        onElegirImpresora = viewModel::elegirImpresora,
-        onCerrarImpresion = viewModel::cerrarImpresion,
-        onReintentar = viewModel::cargar,
-        modifier = modifier
-    )
+    MspTheme {
+        TicketDeVisitaContent(
+            state = state,
+            onAtras = onAtras,
+            onImprimir = viewModel::imprimir,
+            onCambiarImpresora = viewModel::cambiarImpresora,
+            onElegirImpresora = viewModel::elegirImpresora,
+            onCerrarImpresion = viewModel::cerrarImpresion,
+            onReintentar = viewModel::cargar,
+            modifier = modifier
+        )
+    }
 }
 
 /**

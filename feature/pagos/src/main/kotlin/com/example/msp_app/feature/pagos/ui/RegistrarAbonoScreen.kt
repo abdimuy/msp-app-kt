@@ -57,6 +57,13 @@ const val REVISAR_DE_NUEVO_TAG: String = "pagos_abono_revisar"
  * [onRegistrado] se dispara UNA vez, con el id del abono — la Task 20 lo lleva
  * al ticket. Va en un `LaunchedEffect` con clave el propio id para que una
  * recomposición no lo vuelva a disparar.
+ *
+ * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
+ * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
+ * la primera lectura de `MspTheme.colors` revienta con
+ * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
+ * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
+ * de `:app`, y cuál es la compuerta— está en el KDoc de [ListaDeClientesScreen].
  */
 @Composable
 fun RegistrarAbonoScreen(
@@ -69,22 +76,24 @@ fun RegistrarAbonoScreen(
     val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         if (ok) viewModel.fotoTomada() else viewModel.fotoCancelada()
     }
-    RegistrarAbonoContent(
-        state = state,
-        onAtras = onAtras,
-        onDigito = viewModel::onDigito,
-        onPunto = viewModel::onPunto,
-        onBorrar = viewModel::onBorrar,
-        onMetodo = viewModel::onMetodo,
-        onSugerido = viewModel::onSugerido,
-        onRegistrar = viewModel::pedirConfirmacion,
-        onConfirmar = viewModel::confirmar,
-        onEditar = viewModel::descartarConfirmacion,
-        onRevisar = viewModel::cargar,
-        onAgregarFoto = viewModel::pedirFoto,
-        onQuitarFoto = viewModel::quitarFoto,
-        modifier = modifier
-    )
+    MspTheme {
+        RegistrarAbonoContent(
+            state = state,
+            onAtras = onAtras,
+            onDigito = viewModel::onDigito,
+            onPunto = viewModel::onPunto,
+            onBorrar = viewModel::onBorrar,
+            onMetodo = viewModel::onMetodo,
+            onSugerido = viewModel::onSugerido,
+            onRegistrar = viewModel::pedirConfirmacion,
+            onConfirmar = viewModel::confirmar,
+            onEditar = viewModel::descartarConfirmacion,
+            onRevisar = viewModel::cargar,
+            onAgregarFoto = viewModel::pedirFoto,
+            onQuitarFoto = viewModel::quitarFoto,
+            modifier = modifier
+        )
+    }
     // El destino no nulo ES la petición de abrir la cámara: el ViewModel lo
     // acuña y lo persiste ANTES de que el intent salga, así que si el proceso
     // muere con la cámara encima la foto vuelve con el id que ya tenía — que es
