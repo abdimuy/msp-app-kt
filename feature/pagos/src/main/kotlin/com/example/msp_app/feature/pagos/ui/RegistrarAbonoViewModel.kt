@@ -654,8 +654,15 @@ class RegistrarAbonoViewModel @Inject constructor(
      * —el API Node nunca escribió `MSP_PAGOS_RECIBIDOS.IMPTE_DOCTO_CC_ID`— y
      * `deleteLegacyTwinsByDoctoCcIds` colapsa pareando por `DOCTO_CC_ID`, sin
      * tocar este campo. Un abono colapsado por esa vía sigue pudiendo dar el
-     * falso negativo. Este arreglo cierra la vía v2, que es la del cobro que se
-     * captura hoy; la legada queda documentada, no cerrada.
+     * falso negativo.
+     *
+     * **Por qué hoy esa cota es inalcanzable, y qué la volvería alcanzable:**
+     * `PAGOS_USE_V2 = true` en el flavor `prod` (`app/build.gradle.kts`), y el
+     * único flavor que lo tiene en `false` está **retirado** —su túnel de API v2
+     * pasó a ser el de producción y su `V2_BASE_URL` apunta a `.invalid`—, así
+     * que ningún build que salga a la calle captura por el canal legado. Voltear
+     * ese flag reabriría este camino **sin una sola prueba que lo cubra**: sería
+     * una regresión no probada en el camino del dinero, y por eso se dice acá.
      *
      * La secuencia que esto cierra: se registra el abono → guard puesto → muere
      * el proceso con la pantalla en el back stack → un tick de sync colapsa el

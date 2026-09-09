@@ -99,9 +99,10 @@ import kotlinx.coroutines.withContext
  * que `KEEP` sí compra es no cancelar una subida viva, que es otra cosa.
  *
  * Lo que impide el doble cobro es la **idempotencia del servidor**: la subida
- * viaja con `Idempotency-Key = Payment.ID`, fijado por
- * `PendingPaymentsWorkerV2Test.la clave de idempotencia es el Payment ID`. Un
- * segundo request con la misma clave es un replay, no un cobro nuevo.
+ * viaja con `Idempotency-Key = Payment.ID`, fijado desde antes de este arreglo
+ * por `PendingPaymentsWorkerV2Test.v2_happy_path_marks_guardado`
+ * (*"Idempotency-Key must equal the pago ID"*). Un segundo request con la
+ * misma clave es un replay, no un cobro nuevo.
  *
  * ## Por qué el par va dentro de `NonCancellable`
  *

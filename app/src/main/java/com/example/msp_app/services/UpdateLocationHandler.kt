@@ -83,9 +83,9 @@ class UpdateLocationHandler(
                 // KEEP solo salta mientras el trabajo previo sigue vivo y que en
                 // estado terminal encola igual que REPLACE. La razon es la
                 // idempotencia del servidor: la subida viaja con
-                // `Idempotency-Key = Payment.ID` (fijado por
-                // `PendingPaymentsWorkerV2Test`), asi que el segundo request es
-                // un replay.
+                // `Idempotency-Key = Payment.ID`, fijado por
+                // `PendingPaymentsWorkerV2Test.v2_happy_path_marks_guardado`,
+                // asi que el segundo request es un replay.
                 location?.let {
                     ejecutar(ERROR_CODE_PAYMENT_LOCATION_NOT_WRITTEN, CONTEXT_PAYMENT_LOCATION) {
                         updatePaymentLocation(paymentId, it.latitude, it.longitude)

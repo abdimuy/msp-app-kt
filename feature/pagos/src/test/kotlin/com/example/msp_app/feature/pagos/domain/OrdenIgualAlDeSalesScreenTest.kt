@@ -7,10 +7,16 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 /**
- * **La prueba de que el orden portado es el que ya corre en la calle.**
+ * **La prueba de que el orden portado es el mismo que traía la pantalla a la
+ * que reemplaza.**
  *
- * Abajo está la expresión de `SalesScreen.kt:201-203`, copiada literal sobre
- * los `Double` crudos que la pantalla vieja recibe de Room:
+ * Decía "el que ya corre en la calle": `SalesScreen` la borró la Task 21, y el
+ * KDoc gemelo de `OrdenDeCobranza` traía la misma frase falsa. La expresión se
+ * conserva acá **copiada literal** precisamente porque el original ya no
+ * existe — este test es lo único que sigue midiendo la paridad.
+ *
+ * Abajo está la expresión de `SalesScreen.kt:201-203`, tal como estaba escrita,
+ * sobre los `Double` crudos que aquella pantalla recibía de Room:
  *
  * ```kotlin
  * compareByDescending<SaleWithProducts> { it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE }
@@ -40,9 +46,9 @@ import org.junit.Test
  */
 @Suppress(
     // El ÚNICO lugar del módulo donde un `Double` de dinero es correcto: este
-    // test EXISTE para correr la expresión legada tal como está escrita hoy en
-    // `SalesScreen`, sobre los `Double` crudos que la pantalla vieja recibe de
-    // Room. Convertirlos a `Money` aquí borraría justo lo que se está midiendo
+    // test EXISTE para correr la expresión legada tal como estaba escrita en
+    // `SalesScreen` (retirada por la Task 21), sobre los `Double` crudos que
+    // aquella pantalla recibía de Room. Convertirlos a `Money` aquí borraría justo lo que se está midiendo
     // —si las dos aritméticas coinciden— y volvería el test una tautología.
     // La REGLA DE DINERO sigue vigente en todo el código de producción.
     "NoDoubleForMoney"

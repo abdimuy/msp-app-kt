@@ -49,10 +49,18 @@ import org.junit.Test
  *    el sujeto la recibe; todo lo que el contrato afirma sobre el estado lo lee
  *    de esa base con los DAO reales. Un sujeto no puede traer la suya.
  * 2. **Toda afirmación positiva tiene su control negativo, en el mismo test.**
- *    El primero de todos —`el instrumento discrimina, o el contrato entero no
- *    mide nada`— exige que el instrumento diga CERO antes y UNO después, y cero
- *    para un id ajeno. Un stub que siempre contesta lo mismo —lo que sea— muere
- *    ahí.
+ *    `el instrumento discrimina, o el contrato entero no mide nada` exige que el
+ *    instrumento diga CERO antes y UNO después, cero para un id ajeno, y que
+ *    sepa contar hasta dos. Un stub que siempre contesta lo mismo —lo que sea—
+ *    **no pasa la suite**.
+ *
+ *    Este KDoc decía que ese test "corre antes que todo" y que un stub moría
+ *    "antes de que corra ninguna propiedad". **JUnit 4 no garantiza orden** y
+ *    acá no hay `@FixMethodOrder`, así que era una afirmación verificable en
+ *    prosa — en el archivo cuyo tema es no escribirlas. Se borra el "antes" en
+ *    vez de agregar la anotación: `NAME_ASCENDING` tampoco pondría este test
+ *    primero, y la potencia discriminante **no depende del orden** — un stub
+ *    constante enrojece corra cuando corra.
  * 3. **Los códigos de telemetría los pone cada módulo desde su constante de
  *    PRODUCCIÓN** ([codigoComprobanteNoGuardado], [codigoBarridoSinSubir]), y el
  *    contrato exige que el camino feliz **no** los emita. Un fake que emitiera
@@ -74,8 +82,8 @@ import org.junit.Test
  * la cumple, el otro se pone rojo — que es el criterio de éxito de este arreglo.
  */
 @Suppress(
-    // Once propiedades con sus controles negativos, mas los ganchos que cada
-    // modulo implementa. Partir la clase partiria el contrato, que es
+    // Diez `@Test` —las cinco propiedades con sus controles negativos— mas los
+    // ganchos que cada modulo implementa. Partir la clase partiria el contrato, que es
     // justamente lo que este arreglo existe para impedir.
     "TooManyFunctions"
 )
@@ -168,12 +176,17 @@ abstract class ContratoDelOutbox : RoomTestBase() {
     // ─── propiedad 0: el instrumento ─────────────────────────────────────────
 
     /**
-     * **El control positivo del contrato entero, y corre antes que todo.**
+     * **El control positivo del contrato entero.**
      *
      * Si un módulo entrara con un [CaminoDeEscritura] que no hace nada —o que
      * contesta que sí a todo—, cada propiedad de abajo pasaría leyendo su propia
      * semilla. Este test exige que el instrumento **cambie de respuesta**: cero
-     * antes, uno después, y cero para un id que nunca se escribió.
+     * antes, uno después, cero para un id que nunca se escribió, y dos cuando
+     * hay dos hechos.
+     *
+     * No dice "corre primero" porque JUnit 4 no lo garantiza y acá no hay
+     * `@FixMethodOrder`. No hace falta: un sujeto que no discrimine enrojece
+     * este test **corra en la posición que corra**.
      */
     @Test
     fun `el instrumento discrimina, o el contrato entero no mide nada`() = runTest {

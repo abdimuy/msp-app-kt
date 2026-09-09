@@ -127,8 +127,13 @@ data class PagoDelHistorial(
      *
      * O sea: un abono colapsado por la vía **legada** no deja rastro de su UUID
      * de captura, y en esa vía el guard puede seguir dando el falso negativo que
-     * este campo cierra para la vía v2. Es una cota real del arreglo, no un
-     * detalle: se documenta acá en vez de dejar creer que el oráculo es total.
+     * este campo cierra para la vía v2.
+     *
+     * Hoy eso es inalcanzable: `PAGOS_USE_V2 = true` en `prod` y el único flavor
+     * que lo tiene en `false` está retirado. **Voltear ese flag reabriría este
+     * camino sin ninguna prueba que lo cubra** — regresión no probada en el
+     * camino del dinero. Se dice acá en vez de dejar creer que el oráculo es
+     * total.
      */
     val capturaId: String? = null
 )
