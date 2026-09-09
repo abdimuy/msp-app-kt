@@ -2,7 +2,6 @@ package com.example.msp_app.core.designsystem.theme
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -51,6 +50,16 @@ internal val LocalMspMotion = staticCompositionLocalOf<MspMotion> {
  * `screenshot/MspScreenshotTest.capture`) para blindarse de cambios futuros
  * en esa garantía y renderizar 100% determinista.
  *
+ * [darkTheme] por defecto es [appDarkTheme]: el tema elegido EN LA APP si el composition
+ * root lo reportó vía [LocalAppDarkTheme], y `isSystemInDarkTheme()` si no. Era
+ * `isSystemInDarkTheme()` a secas, y eso hacía que toda pantalla que se envuelve a sí misma
+ * con `MspTheme { }` —las siete de cobranza y `VersionBlockedScreen`— siguiera al SISTEMA
+ * OPERATIVO en vez de al toggle de la app: app en oscuro con el SO en claro daba una pantalla
+ * blanca, y app en claro con el SO en oscuro daba una pantalla negra con la barra de estado
+ * ilegible (ver KDoc de [LocalAppDarkTheme], con las dos direcciones medidas). Los callers que
+ * pasan [darkTheme] explícito —`ConfiguracionScreen`, `ThemeRevealRoot`, todos los
+ * screenshot tests— no cambian en nada.
+ *
  * [animateColors] es el escape hatch que la reveal de tema (Task 9) usará
  * para tomar control manual de la transición en vez de dejar que
  * `MspTheme` la anime sola.
@@ -67,7 +76,7 @@ internal val LocalMspMotion = staticCompositionLocalOf<MspMotion> {
  */
 @Composable
 fun MspTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = appDarkTheme(),
     animateColors: Boolean = true,
     typography: MspTypography? = null,
     content: @Composable () -> Unit

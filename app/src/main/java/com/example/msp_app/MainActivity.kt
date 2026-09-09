@@ -38,6 +38,7 @@ import com.example.msp_app.core.appgate.ui.VersionGateViewModel
 import com.example.msp_app.core.context.LocalConnectivityState
 import com.example.msp_app.core.context.rememberConnectivityState
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
+import com.example.msp_app.core.designsystem.theme.LocalAppDarkTheme
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.settings.SettingsRepository
@@ -167,6 +168,14 @@ class MainActivity : FragmentActivity() {
                 CompositionLocalProvider(
                     LocalDensity provides Density(baseDensity.density, effectiveFontScale),
                     LocalFontSizeLevel provides fontSizeLevel,
+                    // El tema de la APP (los 3 modos de `ThemeController` ya resueltos), para
+                    // que toda pantalla Msp que se envuelva a sí misma en `MspTheme` siga a
+                    // este toggle y no al del SISTEMA. Es un local inerte, no un tema: NO monta
+                    // `MaterialTheme` ni repinta nada de la app legada — ver KDoc de
+                    // `LocalAppDarkTheme`. De paso, la barra de estado deja de quedar ilegible:
+                    // `statusBarAppearanceDark` (arriba) sigue a `isDarkMode`, que ahora es lo
+                    // mismo que esas pantallas pintan.
+                    LocalAppDarkTheme provides ThemeController.isDarkMode,
                     LocalReduceMotion provides reduceMotion,
                     LocalConnectivityState provides connectivityState,
                     LocalTelemetry provides telemetry
