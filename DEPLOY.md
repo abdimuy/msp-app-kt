@@ -98,6 +98,113 @@ cliente (que la primera venta siga visible) y la pantalla de registrar visita.
 Si algo se ve mal, el golden está mal: se corrige el componente y se regraba.
 **Nunca** se sube `RoborazziConfig.CHANGE_THRESHOLD` para que un desajuste pase.
 
+## 0.4 Compuerta manual: **las 7 pantallas de cobranza, compuestas en el aparato**
+
+> **Obligatoria antes de soltar cualquier build que toque las pantallas de
+> cobranza, `MspTheme` o la provisión de `LocalAppDarkTheme` en `MainActivity`.**
+> Lo que `prePushCheck` mide de esas siete pantallas es JVM: Robolectric, con el
+> `NavHost` y el `hiltViewModel()` **reales**
+> (`CadaDestinoDeCobranzaSeMontaTest`), que es lo más cerca del teléfono que
+> llega la compuerta automática. Lo que falta es vidrio, y **sí hay forma**: la
+> tarea `connectedDevlocalDebugAndroidTest` existe y está cableada — solo está
+> **fuera** del gate a propósito (`prePushCheck` no toma nada de la familia
+> `connected*`: exige un aparato conectado).
+>
+> Esto **no es una imposibilidad**: es alcance. La receta de abajo es ejecutable
+> tal cual.
+
+**Preparación:** un emulador o teléfono con `adb devices` respondiendo `device`,
+y el flavor `devlocal` (Firebase dev `msp-dev-96ff5`).
+
+⚠️ **Esto cierra la sesión del que esté usando el aparato.** Los tests
+instrumentados firman con las credenciales dev en `@Before` y hacen
+`FirebaseAuth.signOut()` en `@After`: al terminar, el dueño del teléfono tiene
+que volver a iniciar sesión. **No se corre sobre el teléfono de un cobrador en
+jornada.** No toca `theme_prefs.xml` ni borra datos de la app.
+
+### Paso 1 — escribir el test (una vez)
+
+En `app/src/androidTest/java/com/example/msp_app/e2e/`, calcado de
+`CollectionReportDeviceSmokeTest` para las tres piezas que ese ya resuelve —y
+que durante meses se dieron por imposibles—:
+
+| Pieza | Cómo se resuelve | Dónde ya está |
+|---|---|---|
+| biometría | `MainActivity.isAuthenticated = true` (campo público del companion) | `CollectionReportDeviceSmokeTest.signIn()` |
+| sesión | `FirebaseAuth.signInWithEmailAndPassword("gabriel.roque@msp.com", …)` | ídem — **no** hace falta la sesión de nadie |
+| host de Hilt | `createAndroidComposeRule<MainActivity>()` (`MainActivity` es `@AndroidEntryPoint`) | ídem |
+
+El cuerpo es la sonda de la JVM transplantada — `composeTestRule.activity` es una
+Activity `@AndroidEntryPoint` viva, así que sirve para lo mismo que
+`Robolectric.buildActivity(DestinosDeCobranzaTestActivity)`:
+
+```kotlin
+@Test
+fun lasSieteDeCobranzaSeComponenEnVidrio() {
+    val activity = composeTestRule.activity
+    val errores = rutasDeCobranza().mapNotNull { ruta ->
+        runCatching {
+            composeTestRule.runOnUiThread {
+                val nav = TestNavHostController(activity)
+                nav.navigatorProvider.addNavigator(ComposeNavigator())
+                nav.setLifecycleOwner(activity)
+                nav.setViewModelStore(activity.viewModelStore)
+                val grafo = nav.createGraph(startDestination = RAIZ) {
+                    composable(RAIZ) {}
+                    destinosDeCobranza(nav)
+                }
+                nav.graph = grafo
+                nav.navigate(ruta)              // ANTES de componer, o no compone nada
+                activity.setContent { NavHost(navController = nav, graph = grafo) }
+            }
+            composeTestRule.waitForIdle()
+        }.exceptionOrNull()?.let { "$ruta → ${it.message}" }
+    }
+    assertEquals(emptyList<String>(), errores)
+}
+```
+
+`rutasDeCobranza()` y las tres decisiones del `montar()` (un `NavHost` por
+destino, navegar **antes** de componer, `navigate()` y no `startDestination`) se
+copian tal cual de `CadaDestinoDeCobranzaSeMontaTest` — cada una costó un falso
+verde medido, están documentadas ahí.
+
+**Falta una dependencia y es una línea.** `TestNavHostController` viene de
+`androidx.navigation:navigation-testing`, que hoy está en `app/build.gradle.kts`
+como `testImplementation` **y no** en `androidTest`:
+
+```kotlin
+androidTestImplementation(libs.androidx.navigation.testing)
+```
+
+**No hacen falta datos de cobranza.** El crash de `MspTheme` ocurre en el
+modificador más externo, antes de que ningún dato importe: la captura de
+"clientes" con la base vacía es la prueba.
+
+### Paso 2 — correrlo
+
+```bash
+export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
+./gradlew :app:connectedDevlocalDebugAndroidTest
+```
+
+| Qué mirar | Qué tiene que pasar |
+|---|---|
+| El test de arriba | Verde. En rojo, el mensaje **nombra la ruta** de cada pantalla que revienta |
+| `CollectionReportDeviceSmokeTest`, que va en la misma corrida | Verde — es el único test que recorre la app REAL desde el drawer, y el que atrapó este mismo defecto la primera vez |
+| El informe | `app/build/reports/androidTests/connected/` |
+
+### Paso 3 — el tema oscuro, a ojo (solo si se tocó `MspTheme` o `ThemeController`)
+
+Con la app abierta en una pantalla de cobranza, mover el toggle de tema de la
+app (cajón o Configuración → Apariencia) y confirmar dos cosas: la pantalla
+cambia **con la app**, y la barra de estado sigue legible en los dos temas
+(reloj oscuro sobre claro, claro sobre oscuro). Poner el **SO** en oscuro con la
+app en claro **no** debe cambiar nada de la pantalla: manda la app.
+
+⚠️ Esto **persiste la preferencia del dueño del aparato** (`applyThemeMode`
+escribe `theme_prefs.xml`). Dejarlo como estaba al terminar.
+
 ## 1. Compilar release
 
 ```bash

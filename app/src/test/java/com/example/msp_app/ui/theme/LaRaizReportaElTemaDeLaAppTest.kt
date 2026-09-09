@@ -14,9 +14,13 @@ import org.junit.Test
  * falta no la nota nadie — es literalmente la forma del defecto que originó todo
  * este arreglo: `:app` nunca proveía `MspTheme` y el contrato vivía en un KDoc.
  *
- * Es un escaneo de fuente, no una composición: `MainActivity` levanta Firebase,
- * Hilt y los observadores de sync, así que ningún test la monta. Lo que se puede
- * probar sin montarla es que la línea siga ahí, y eso es más que lo que había.
+ * Es un escaneo de fuente y no una composición **por elección de alcance**, no
+ * porque componerla sea imposible: hoy ningún test de la JVM monta `MainActivity`
+ * (levanta Firebase, Hilt y los observadores de sync) y nadie ha intentado
+ * hacerlo. La medida en vidrio existe y es
+ * `:app:connectedDevlocalDebugAndroidTest` — ver la compuerta manual 0.4 de
+ * `DEPLOY.md`. Lo que este escaneo prueba sin montar nada es que la línea siga
+ * ahí **y diga lo que tiene que decir**, que es más que lo que había.
  *
  * Control positivo incluido: se busca con el MISMO método un local hermano que
  * también tiene que estar (`LocalFontSizeLevel`), así un `File` mal armado o un
@@ -45,7 +49,21 @@ class LaRaizReportaElTemaDeLaAppTest {
     }
 
     private companion object {
-        val PROVEE_TEMA = Regex("""LocalAppDarkTheme\s+provides\s+ThemeController\.isDarkMode""")
+        /**
+         * **Anclada por la derecha con `\s*,`.** Sin ese ancla, `containsMatchIn`
+         * aceptaba cualquier cosa pegada al identificador. Medido: sembrando
+         * `LocalAppDarkTheme provides ThemeController.isDarkMode.not(),` —el tema de
+         * la app INVERTIDO, que es el defecto original pero peor— la suite entera de
+         * `:app` pasaba con **1569 pruebas verdes**. Con el ancla la misma semilla no
+         * matchea y esta prueba se pone roja: el argumento tiene que **terminar** en
+         * `isDarkMode`, y lo que sigue en un `CompositionLocalProvider` es la coma.
+         *
+         * Lo que el ancla NO cubre —y un escaneo de fuente no puede— es mover la
+         * línea entera a un `CompositionLocalProvider` muerto. Esa forma no se ha
+         * visto; la del booleano equivocado sí.
+         */
+        val PROVEE_TEMA =
+            Regex("""LocalAppDarkTheme\s+provides\s+ThemeController\.isDarkMode\s*,""")
         val PROVEE_TAMANO_DE_LETRA = Regex("""LocalFontSizeLevel\s+provides\s+""")
     }
 }
