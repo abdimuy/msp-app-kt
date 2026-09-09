@@ -1,6 +1,7 @@
 package com.example.msp_app.data.pagos
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.dao.sale.SaleDao
@@ -51,6 +52,9 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     /** Lo que hace la lambda de ubicacion. Por defecto, grabar y volver. */
     private var alPedirUbicacion: (String) -> Unit = { ubicacionesPedidas += it }
 
+    /** Fake a mano (sin MockK): los `Payment.ID` encolados, en orden. */
+    private val encolador = EncoladorQueGraba()
+
     @Before
     fun setUpAdaptador() = runTest {
         pagos = PaymentsLocalDataSource(db.paymentDao(), db.saleDao())
@@ -70,6 +74,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
         pagos = pagos,
         imagenes = imagenes,
         telemetry = telemetria,
+        encolador = encolador,
         clock = clock,
         traerUsuario = { usuario },
         pedirUbicacion = { alPedirUbicacion(it) }
@@ -137,6 +142,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             pagos = pagos,
             imagenes = db.paymentImageDao(),
             telemetry = telemetria,
+            encolador = encolador,
             clock = clock,
             traerUsuario = { error("firestore caido cobrando a Victoria Flores") },
             pedirUbicacion = { ubicacionesPedidas += it }
@@ -183,6 +189,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
                 ),
                 imagenes = db.paymentImageDao(),
                 telemetry = telemetria,
+                encolador = encolador,
                 clock = clock,
                 traerUsuario = { usuario },
                 pedirUbicacion = { ubicacionesPedidas += it }
@@ -375,6 +382,7 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
             ),
             imagenes = db.paymentImageDao(),
             telemetry = telemetria,
+            encolador = encolador,
             clock = clock,
             traerUsuario = { usuario },
             pedirUbicacion = { ubicacionesPedidas += it }
@@ -601,6 +609,15 @@ class RegistroDeAbonoAdapterTest : RoomTestBase() {
     private class PaymentImageDaoQueTruena(real: PaymentImageDao) : PaymentImageDao by real {
         override suspend fun insertAll(imagenes: List<PaymentImageEntity>): Unit =
             error("no se pudo escribir el comprobante de Victoria Flores")
+    }
+
+    /** Fake a mano (sin MockK): lista pública de lo encolado, en orden. */
+    private class EncoladorQueGraba : PaymentsWorkEnqueuer {
+        val encolados: MutableList<String> = mutableListOf()
+
+        override fun enqueue(paymentId: String) {
+            encolados += paymentId
+        }
     }
 
     private class SaleDaoQueTruenaAlDescontar(real: SaleDao) : SaleDao by real {

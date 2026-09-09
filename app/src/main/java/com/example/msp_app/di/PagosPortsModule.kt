@@ -1,12 +1,14 @@
 package com.example.msp_app.di
 
 import android.content.Context
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
+import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkManagerEnqueuer
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
@@ -56,9 +58,11 @@ object PagosPortsModule {
      *
      * `pedirUbicacion` es el ÚNICO lugar donde el camino nuevo del abono toca
      * `android.content.Intent`: el adaptador recibe una lambda y por eso se
-     * prueba con un fake, sin arrancar un servicio real. Ver el KDoc de
-     * [RegistroDeAbonoAdapter] para por qué se eligió el servicio y no la
-     * captura inline por puerto.
+     * prueba con un fake, sin arrancar un servicio real.
+     *
+     * El encolador se construye aquí y no se inyecta, mismo reparto que
+     * `VisitasPortsModule`: [PaymentsWorkEnqueuer] no tiene binding de Hilt y su
+     * única implementación necesita el `Context` de aplicación.
      */
     @Provides
     fun provideRegistroDeAbonoPort(
@@ -75,6 +79,7 @@ object PagosPortsModule {
         pagos = PaymentsLocalDataSource(paymentDao, saleDao),
         imagenes = paymentImageDao,
         telemetry = telemetry,
+        encolador = PaymentsWorkManagerEnqueuer(context),
         clock = clock,
         pedirUbicacion = { pagoId -> pedirUbicacionDelPago(context, pagoId) }
     )

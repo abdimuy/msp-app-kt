@@ -255,6 +255,34 @@ object PagosTelemetria {
      */
     const val CODE_FICHA_NO_QUEDO_GUARDADA: String = "pagos_ficha_no_quedo_guardada"
 
+    /**
+     * **Se barrió un comprobante de abono que nunca llegó a subir.** Su pago ya
+     * no existe —el re-llaveado del sync lo colapsó, o la poda se lo llevó—, así
+     * que nadie lo iba a mandar nunca y el disco del teléfono no puede crecer sin
+     * techo. Borrarlo es correcto; **borrarlo en silencio no.**
+     *
+     * En cobranza esta pérdida no es un borde raro: es el desenlace diseñado de
+     * los dos caminos no-felices de la subida (`RECONCILED_VIA_GET` y
+     * `UploadDecision.RELEASE` dejan los comprobantes pendientes a propósito).
+     * Sin este código, el barrido sería el desagüe mudo de esa evidencia.
+     *
+     * Gemelo exacto de `VisitasTelemetria.CODE_VISITA_FOTO_BARRIDA_SIN_SUBIR`.
+     * Viaja el CONTEO, nunca ids ni rutas (anti-PII).
+     */
+    const val CODE_ABONO_FOTO_BARRIDA_SIN_SUBIR: String = "pagos_abono_foto_barrida_sin_subir"
+
+    /**
+     * **El abono quedó escrito pero no se pudo encolar su subida.** El dinero no
+     * se toca: el resultado sigue siendo `REGISTRADO`. Lo que se pierde es la
+     * subida *inmediata* — `PaymentsPendingSynchronizer` lo recoge en el
+     * siguiente login, así que el pago no se pierde, se retrasa.
+     *
+     * Lleva código propio y no el de la ubicación: desde que el encolado dejó de
+     * colgar del arranque de `UpdateLocationService`, son dos fallas distintas y
+     * se diagnostican distinto.
+     */
+    const val CODE_ABONO_SIN_ENCOLAR: String = "pagos_abono_sin_encolar"
+
     /** Clave estática de `props` con los nombres de los bloqueos de seguridad. */
     const val PROP_BLOQUEOS: String = "bloqueos"
 

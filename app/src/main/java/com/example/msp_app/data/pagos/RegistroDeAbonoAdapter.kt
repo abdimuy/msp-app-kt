@@ -2,6 +2,7 @@ package com.example.msp_app.data.pagos
 
 import androidx.room.withTransaction
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.PaymentsWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.AppDatabase
@@ -24,6 +25,8 @@ import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import com.example.msp_app.features.payments.newpayment.PaymentFactory
 import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 /**
  * Implementación real de [RegistroDeAbonoPort], provista desde el composition
@@ -69,39 +72,47 @@ import kotlinx.coroutines.CancellationException
  * pueda arrastrar el error binario del flotante. Del otro lado de esta línea no
  * hay un solo `Double` de dinero.
  *
+ * ## El encolado es del abono, no de la ubicación (Arreglo C)
+ *
+ * Hasta la revisión final de esta rama, el ÚNICO encolado inmediato del abono
+ * vivía dentro de `UpdateLocationHandler`: `pedirUbicacion` arrancaba
+ * `UpdateLocationService` y el handler llamaba a `enqueuePendingPaymentsWorker`
+ * **después** de escribir `LAT`/`LNG`. Eso hacía que la subida del dinero
+ * colgara de un adorno — servicio que Android 12+ puede rechazar en segundo
+ * plano, GPS sin fix, permiso denegado, escritura de coordenadas que truena.
+ *
+ * Es exactamente el hallazgo de campo #2 de la Task 5 (*"pagos tiene el mismo
+ * bug latente"*), que se cerró **solo para visitas**. Aquí se cierra para el
+ * dinero, con la MISMA forma que `VisitsLocalDataSource.saveVisitAndEnqueue`:
+ * [encolador] se llama en la misma corrutina de la escritura,
+ * **incondicionalmente**, y la ubicación pasa a ser lo que siempre debió ser —
+ * un acompañante que no decide nada.
+ *
+ * El encolado sigue siendo idempotente por construcción:
+ * `enqueuePendingPaymentsWorker` usa `ExistingWorkPolicy.KEEP` sobre el nombre
+ * único `sync_pending_payments_<id>`, así que el encolado tardío del handler
+ * —que se conserva para el camino de la condonación— no crea una segunda
+ * subida.
+ *
+ * ## Por qué el par va dentro de `NonCancellable`
+ *
+ * Misma razón que `RegistroDeVisitaAdapter` (Ruling AD): `registrar` corre bajo
+ * el `viewModelScope` de la pantalla, que se cancela en cuanto el cobrador
+ * navega hacia atrás, y `withTransaction` termina en un `withContext` que
+ * **lanza al reanudar si el job se canceló mientras el bloque corría, aunque el
+ * bloque haya terminado bien** — o sea con el dinero ya commiteado. Sin la
+ * guarda quedaría un abono escrito, sin fotos y jamás encolado.
+ *
  * ## La ubicación: se pide DESPUÉS de escribir, y nunca decide nada
  *
  * `PaymentFactory` deja `LAT`/`LNG` en `0.0`, y el mapa del día descarta
  * justamente ese punto (`RouteMapScreen`: `lat != 0.0 || lng != 0.0`). Sin este
  * paso, **todo abono tomado por la pantalla nueva sería invisible en el mapa**.
  *
- * El mecanismo es el MISMO que usaba `NewPaymentDialog`
- * (`pedirUbicacionDelPago` -> `UpdateLocationService`), y se eligió sobre la
- * captura inline por puerto —lo que hace `RegistrarVisita`— por dos razones
- * medibles, no de gusto:
- *
- * 1. **No retrasa el guardado, ni el regreso.** El servicio corre por su
- *    cuenta; pedirle la ubicación es una llamada que vuelve de inmediato. Un
- *    puerto inline tendría que esperar el fix del GPS **dentro** de la
- *    corrutina del abono, o sea entre el toque y el ticket.
- * 2. **Es también el único encolado inmediato del abono.**
- *    `PaymentsLocalDataSource.saveAndEnqueue` no encola nada pese al nombre; el
- *    `enqueuePendingPaymentsWorker` del pago vive dentro de
- *    `UpdateLocationHandler`. Con el puerto inline, retirar `NewPaymentDialog`
- *    habría dejado el abono esperando al barrido de
- *    `PaymentsPendingSynchronizer` en vez de subir enseguida.
- *
- * Las dos objeciones que este KDoc traía contra el servicio **ya no existen**:
- * la `SecurityException` sin `try/catch` (§8.1) la arregló la Task 3 en
- * `UpdateLocationHandler`, y el encolado de visitas colgado del servicio (§8.2)
- * lo cortó la Task 5 — hoy la rama de visita de ese handler no encola nada.
- *
- * **El orden importa:** se pide *después* de que la transacción commiteó y
- * *fuera* de ella, y su fallo se atrapa entero. Arrancar un servicio puede
- * lanzar (Android 12+ rechaza `startForegroundService` en segundo plano) y un
- * abono ya escrito no puede volverse `FALLO_EL_GUARDADO` porque el GPS no se
- * dejó: se emite [PagosTelemetria.CODE_ABONO_SIN_UBICACION] y el resultado
- * sigue siendo `REGISTRADO`. Misma regla que la foto — **el dinero se guarda
+ * Se pide *después* de que la transacción commiteó, *fuera* de ella y *después*
+ * del encolado, y su fallo se atrapa entero: se emite
+ * [PagosTelemetria.CODE_ABONO_SIN_UBICACION] y el resultado sigue siendo
+ * `REGISTRADO`. Misma regla que la foto — **el dinero se guarda, y se encola,
  * aunque no haya GPS, señal ni permiso**.
  *
  * ## Los comprobantes: el segundo caso de la misma familia (Task 22)
@@ -112,9 +123,9 @@ import kotlinx.coroutines.CancellationException
  * guardado**. Ni la cámara que falla, ni el disco lleno, ni Room negándose a
  * insertar pueden convertir un abono ya escrito en `FALLO_EL_GUARDADO`.
  *
- * Lo único que las distingue es el ORDEN entre ellas: los comprobantes van
- * **antes** de pedir la ubicación, porque pedir la ubicación es lo que encola
- * el worker que los va a subir. Ver [guardarComprobantes].
+ * Lo único que las distingue es el ORDEN: los comprobantes van **antes** del
+ * encolado, porque encolar es lo que despierta al worker que los va a subir.
+ * Ver [guardarComprobantes].
  *
  * [traerUsuario] y [pedirUbicacion] son inyectables **solo para test**
  * (fakes-only, sin MockK): ningún test unitario arranca un servicio real.
@@ -125,6 +136,7 @@ class RegistroDeAbonoAdapter(
     private val pagos: PaymentsLocalDataSource,
     private val imagenes: PaymentImageDao,
     private val telemetry: Telemetry,
+    private val encolador: PaymentsWorkEnqueuer,
     private val clock: AppClock = AppClock.System,
     private val traerUsuario: suspend () -> User? = ::usuarioAutenticado,
     private val pedirUbicacion: (pagoId: String) -> Unit
@@ -144,16 +156,6 @@ class RegistroDeAbonoAdapter(
             sobrepasaElSaldo(abono, venta.SALDO_REST) -> ResultadoDelAbono.BLOQUEADO_POR_SEGURIDAD
             else -> {
                 guardar(abono, venta.toDomain(), usuario)
-                // Fuera de la transacción y DESPUÉS del commit: el dinero ya
-                // está escrito y nada de lo que pase aquí puede deshacerlo.
-                //
-                // Los comprobantes van ANTES de la ubicación, y ese orden es
-                // funcional, no estético: pedir la ubicación es lo que ENCOLA el
-                // worker de subida (ver arriba, razón 2), así que escribir las
-                // fotos después sería mandar el pago sin ellas cada vez que el
-                // teléfono tenga señal en ese instante.
-                guardarComprobantes(abono)
-                pedirUbicacionDelAbono(abono.abonoId)
                 ResultadoDelAbono.REGISTRADO
             }
         }
@@ -187,13 +189,54 @@ class RegistroDeAbonoAdapter(
             id = abono.abonoId,
             fecha = currentPaymentTimestamp(clock)
         )
-        // El insert del pago y el descuento del saldo, o los dos o ninguno.
-        db.withTransaction {
-            pagos.saveAndEnqueue(
-                payment = pago.toEntity(),
-                saleId = pago.DOCTO_CC_ACR_ID,
-                newAmount = pago.IMPORTE,
-                newEstadoCobranza = EstadoCobranza.PAGADO
+        withContext(NonCancellable) {
+            // El insert del pago y el descuento del saldo, o los dos o ninguno.
+            db.withTransaction {
+                pagos.saveAndEnqueue(
+                    payment = pago.toEntity(),
+                    saleId = pago.DOCTO_CC_ACR_ID,
+                    newAmount = pago.IMPORTE,
+                    newEstadoCobranza = EstadoCobranza.PAGADO
+                )
+            }
+            // Fuera de la transacción y DESPUÉS del commit: el dinero ya está
+            // escrito y nada de lo que pase aquí puede deshacerlo.
+            //
+            // Los comprobantes van ANTES del encolado, y ese orden es funcional,
+            // no estético: encolar es lo que despierta al worker, y el worker
+            // manda lo que encuentre en `pago_imagenes`. Escribir las fotos
+            // después sería mandar el pago sin ellas cada vez que el teléfono
+            // tenga señal en ese instante.
+            guardarComprobantes(abono)
+            encolarSubida(abono.abonoId)
+            pedirUbicacionDelAbono(abono.abonoId)
+        }
+    }
+
+    /**
+     * Encola la subida del abono recién escrito. **Total: no propaga nada.**
+     *
+     * `WorkManager.enqueueUniqueWork` puede lanzar (el proceso muriendo, el
+     * componente deshabilitado), y un abono ya escrito no puede volverse
+     * `FALLO_EL_GUARDADO` por eso: la pantalla ofrecería reintentar un cobro que
+     * ya ocurrió. Se reporta con código propio y se sigue —
+     * `PaymentsPendingSynchronizer` recoge en el siguiente login todo lo que
+     * quedó con `GUARDADO_EN_MICROSIP = 0`.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // encolar puede fallar de varias formas; ninguna toca el dinero ya commiteado.
+    private fun encolarSubida(pagoId: String) {
+        try {
+            encolador.enqueue(pagoId)
+        } catch (cancelada: CancellationException) {
+            throw cancelada
+        } catch (fallo: Throwable) {
+            // Anti-PII: el nombre de la clase de la excepción, nunca su texto.
+            telemetry.error(
+                code = PagosTelemetria.CODE_ABONO_SIN_ENCOLAR,
+                message = "no se pudo encolar la subida del abono; el abono si quedo escrito",
+                props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
             )
         }
     }

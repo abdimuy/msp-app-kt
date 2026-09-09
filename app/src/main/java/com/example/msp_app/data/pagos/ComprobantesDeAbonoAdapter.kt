@@ -2,6 +2,7 @@ package com.example.msp_app.data.pagos
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.VisibleForTesting
 import androidx.core.content.FileProvider
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
@@ -136,6 +137,23 @@ class ComprobantesDeAbonoAdapter(
      *    que el abono se registre, así que un cobrador que se arrepiente y sale
      *    de la pantalla deja el archivo sin fila.
      *
+     * ## Huérfana es la que no tiene padre; pendiente NO es huérfana
+     *
+     * La consulta de [PaymentImageDao.huerfanasAnterioresA] exige
+     * `PAGO_ID NOT IN (SELECT ID FROM Payment)`, así que una imagen pendiente
+     * **cuyo pago sigue existiendo** no se toca nunca: esa no es basura, es
+     * evidencia esperando señal.
+     *
+     * Lo que sí puede caer es la pendiente **sin padre**, y en cobranza eso no
+     * es un borde raro: `RECONCILED_VIA_GET` y `UploadDecision.RELEASE` dejan
+     * los comprobantes pendientes A PROPÓSITO, `CobranzaSyncManager.mergePagos`
+     * re-llavea el pago y los deja sin padre, y la Task 26 quitó la FK con
+     * `CASCADE` justamente para que sobrevivieran. Ahí borrar es correcto —el
+     * disco del teléfono no puede crecer sin techo— pero **borrar en silencio
+     * no**: convertiría este barrido en el desagüe mudo de toda la evidencia que
+     * esos dos caminos dejaron pendiente. Por eso se cuenta y se reporta
+     * ([PagosTelemetria.CODE_ABONO_FOTO_BARRIDA_SIN_SUBIR]).
+     *
      * Las dos por ANTIGÜEDAD, nunca al instante: un archivo reciente sin fila
      * puede ser el de la captura que está ocurriendo ahora mismo, y un pago sin
      * fila puede estar a media re-llaveada.
@@ -143,20 +161,23 @@ class ComprobantesDeAbonoAdapter(
      * Es best-effort y corre al preparar la cámara, nunca en el tick del merge
      * de sincronización. Su fallo no puede impedir tomar una foto.
      */
+    @VisibleForTesting
     @Suppress(
         "TooGenericExceptionCaught"
     ) // leer un directorio o la base puede fallar; ninguna de las dos toca la captura.
-    private suspend fun barrerHuerfanos() {
+    internal suspend fun barrerHuerfanos() {
         try {
             val corte = clock.now().minus(VEJEZ)
             // 1. Las filas cuyo pago ya no existe: se van con su archivo. Es lo
             //    que el KDoc de `PaymentImageEntity` le encarga a esta tarea, y
             //    corre por ANTIGÜEDAD para no confundir el re-llaveado del sync
             //    (rutina, instantáneo) con un pago que se fue de verdad.
-            imagenes.huerfanasAnterioresA(AppTime.toWireFormat(corte)).forEach { fila ->
+            val huerfanas = imagenes.huerfanasAnterioresA(AppTime.toWireFormat(corte))
+            huerfanas.forEach { fila ->
                 File(fila.URI).delete()
                 imagenes.eliminar(fila.ID)
             }
+            reportarLoQueNuncaSubio(huerfanas.count { it.SUBIDA_EN == null })
             // 2. Los archivos que ninguna fila referencia — la foto que se
             //    capturó y cuyo abono nunca llegó a registrarse.
             val vivas = imagenes.rutasVivas().toSet()
@@ -171,6 +192,21 @@ class ComprobantesDeAbonoAdapter(
                 props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
             )
         }
+    }
+
+    /**
+     * Dice **cuántos** comprobantes de abono se barrieron sin haber subido
+     * nunca. Solo el conteo: ni ids, ni rutas, ni nada del cliente (anti-PII).
+     *
+     * Cero no se reporta — un barrido que no perdió nada no es un evento.
+     */
+    private fun reportarLoQueNuncaSubio(cuantas: Int) {
+        if (cuantas == 0) return
+        telemetry.error(
+            code = PagosTelemetria.CODE_ABONO_FOTO_BARRIDA_SIN_SUBIR,
+            message = "se barrieron comprobantes de abonos sin padre que nunca llegaron a subir",
+            props = mapOf(PagosTelemetria.PROP_OCURRENCIAS to cuantas.toString())
+        )
     }
 
     private companion object {
