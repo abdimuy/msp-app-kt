@@ -333,7 +333,7 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
     @Test
     fun v2_si_la_lectura_de_comprobantes_falla_no_se_sube_el_pago() = runTest {
         seed(pendingPayment())
-        sembrarImagen("IMG-1", "uno.jpg")
+        val archivo = sembrarImagen("IMG-1", "uno.jpg")
 
         var llamadas = 0
         val api = fakeV2Api { _, _ ->
@@ -341,13 +341,47 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
             PagoRecibidoDTO(id = "pago-001")
         }
 
-        val resultado = buildAndRunWorker(api = api, imagenes = PaymentImageDaoQueTruena())
+        val resultado = buildAndRunWorker(
+            api = api,
+            imagenes = PaymentImageDaoQueTruena(db.paymentImageDao())
+        )
 
         assertEquals(ListenableWorker.Result.retry(), resultado)
         assertEquals("el id del pago NO se quema", 0, llamadas)
         assertFalse("y el pago sigue pendiente", guardadoFlag("pago-001"))
         assertNull(
-            "el comprobante sigue pendiente y con su archivo",
+            "el comprobante sigue pendiente",
+            db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN
+        )
+        // El mensaje viejo decía "y con su archivo" sin comprobar ningún
+        // archivo. Ahora se comprueba: es la otra mitad de "no se quemó nada".
+        assertTrue("y su archivo sigue en disco", archivo.exists())
+    }
+
+    /**
+     * **Control positivo del FAKE, y de la aserción que cuelga de él.**
+     *
+     * La aserción de arriba dice "el comprobante sigue pendiente". Para que eso
+     * signifique algo, el fake tiene que ser capaz de volverlo NO pendiente: el
+     * único escritor de producción de `SUBIDA_EN` es `marcarSubida`, y este fake
+     * lo declaraba `= Unit`. Con esa versión, la aserción leía su propia semilla
+     * y no podía fallar con ningún worker, correcto o roto.
+     *
+     * **Control de reversión:** volver `marcarSubida(...)` a `= Unit` en el fake
+     * pone este test en ROJO — que es exactamente lo que la undécima aserción
+     * inerte de este plan no tenía.
+     */
+    @Test
+    fun `el fake de comprobantes escribe de verdad, o la asercion de arriba es inerte`() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+        val fake = PaymentImageDaoQueTruena(db.paymentImageDao())
+
+        fake.marcarSubida("IMG-1", "2026-09-04T18:00:00Z")
+
+        assertEquals(
+            "un fake que no escribe vuelve decorativa toda asercion sobre SUBIDA_EN",
+            "2026-09-04T18:00:00Z",
             db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN
         )
     }
@@ -387,19 +421,28 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         assertNull(db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN)
     }
 
-    /** Un `PaymentImageDao` que no puede leer. Delegación no: aquí truena la lectura. */
-    private class PaymentImageDaoQueTruena : PaymentImageDao {
-        override suspend fun insertAll(imagenes: List<PaymentImageEntity>) = Unit
-        override suspend fun getByPagoId(pagoId: String): List<PaymentImageEntity> = emptyList()
+    /**
+     * DAO que revienta al LEER los pendientes y **delega todo lo demás al DAO
+     * real**: así el fallo que se prueba es el de lectura y no "la base entera
+     * caída".
+     *
+     * ## Por qué la delegación no es cosmética
+     *
+     * Este fake declaraba `marcarSubida(...) = Unit` — un no-op que nunca tocaba
+     * Room — mientras su gemelo de visitas (`DaoDeImagenesQueRevienta`) sí
+     * delegaba al DAO real. El único escritor de producción de `SUBIDA_EN` es
+     * `PendingPaymentsWorker` a través de este método, así que la aserción
+     * `assertNull(... .SUBIDA_EN)` de abajo **leía su propia semilla**: ningún
+     * comportamiento del worker, correcto o roto, podía volverla no-nula.
+     *
+     * Fue la **undécima aserción que no podía fallar** de este plan, y estaba en
+     * el camino del dinero. La regla que deja: **si un fake puede no hacer nada,
+     * lo que cuelga de él es decorativo.**
+     */
+    private class PaymentImageDaoQueTruena(private val real: PaymentImageDao) :
+        PaymentImageDao by real {
         override suspend fun getPendientesDe(pagoId: String): List<PaymentImageEntity> =
             error("la base no responde")
-
-        override suspend fun marcarSubida(imagenId: String, subidaEn: String) = Unit
-        override suspend fun rutasVivas(): List<String> = emptyList()
-        override suspend fun huerfanasAnterioresA(limite: String): List<PaymentImageEntity> =
-            emptyList()
-
-        override suspend fun eliminar(imagenId: String) = Unit
     }
 
     // ─── plomería de comprobantes ────────────────────────────────────────────
