@@ -320,6 +320,65 @@ class RegistrarAbonoViewModelTest {
         assertEquals(0, registroPort.registrados.size)
     }
 
+    /**
+     * **El hallazgo I3, medido.** El oráculo del guard era `pagoId`, que es
+     * `Payment.ID` — y `CobranzaSyncManager.mergePagos` **borra esa fila a
+     * propósito** en cuanto el servidor acusa recibo, reinsertando la canónica
+     * bajo la llave numérica. El UUID de la captura no se pierde (viaja a
+     * `PAGO_RECIBIDO_ID`), pero deja de ser la PK.
+     *
+     * Secuencia: se registra el abono → guard puesto → muere el proceso con la
+     * pantalla en el back stack → un tick de sync colapsa el gemelo → se
+     * restaura la pantalla. Con un solo oráculo, `resolverGuard` no encontraba
+     * el abono, **soltaba el cerrojo** y rearmaba el formulario con el mismo id;
+     * un segundo `confirmar()` insertaba otra fila y `updateTotal` —que es un
+     * decremento, no un set absoluto— bajaba `SALDO_REST` **dos veces**.
+     *
+     * **Control de reversión:** quitar `|| it.capturaId == abonoId` de
+     * `estaEnElHistorial` pone este test en ROJO — el guard se libera y el
+     * segundo cobro pasa.
+     */
+    @Test
+    fun `el guard sobrevive a que el sync re-llavee el abono`() = runTest(testDispatcher) {
+        aterrizarYaSincronizado(ABONO_FIJO)
+
+        val vm = viewModel(handle(guardPuesto = true))
+        advanceUntilIdle()
+
+        assertEquals(
+            "el abono esta, con otra PK: la pantalla se queda en su final",
+            ABONO_FIJO,
+            vm.state.value.registrado
+        )
+        assertFalse(vm.state.value.sePuedeRegistrar)
+        assertTrue(
+            "y el guard no se reporta como perdido",
+            telemetria.recorded.none { it.name == PagosTelemetria.CODE_ABONO_GUARD_SIN_ABONO }
+        )
+        vm.pedirConfirmacion()
+        vm.confirmar()
+        advanceUntilIdle()
+        assertEquals("nadie cobra dos veces", 0, registroPort.registrados.size)
+    }
+
+    /**
+     * **Control positivo del anterior.** El mismo montaje con el `capturaId` de
+     * OTRO abono sí libera el guard: la aserción de arriba mide el pareo por
+     * `capturaId`, no un guard que dejó de liberarse nunca.
+     */
+    @Test
+    fun `un capturaId ajeno no sostiene el guard`() = runTest(testDispatcher) {
+        aterrizarYaSincronizado("abono-de-otro-cliente")
+
+        val vm = viewModel(handle(guardPuesto = true))
+        advanceUntilIdle()
+
+        assertNull(vm.state.value.registrado)
+        assertTrue(
+            telemetria.recorded.any { it.name == PagosTelemetria.CODE_ABONO_GUARD_SIN_ABONO }
+        )
+    }
+
     // --- Fallos --------------------------------------------------------------
 
     @Test
@@ -649,6 +708,25 @@ class RegistrarAbonoViewModelTest {
             formaCobroId = MetodoDeCobro.EFECTIVO.formaCobroId,
             metodo = MetodoDeCobro.EFECTIVO,
             nota = null
+        )
+    }
+
+    /**
+     * El MISMO abono, pero **después de que el sync colapsó el gemelo UUID**:
+     * la fila ya no tiene el id de captura como PK —`mergePagos` la borró y
+     * reinsertó bajo la llave numérica de Microsip— y el UUID sobrevive solo en
+     * `PAGO_RECIBIDO_ID`.
+     */
+    private fun aterrizarYaSincronizado(abonoId: String) {
+        pagosPort.pagos = pagosPort.pagos + PagoDelHistorial(
+            pagoId = "4471902",
+            ventaId = AbonoFixtures.VENTA_ID,
+            fecha = PagosFixtures.AHORA,
+            importe = AbonoFixtures.ESPERADO_HOY,
+            formaCobroId = MetodoDeCobro.EFECTIVO.formaCobroId,
+            metodo = MetodoDeCobro.EFECTIVO,
+            nota = null,
+            capturaId = abonoId
         )
     }
 

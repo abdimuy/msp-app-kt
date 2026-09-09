@@ -91,6 +91,36 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
             FREC_PAGO = "SEMANAL"
         )
 
+    /**
+     * **El id de captura sobrevive al re-llaveado del sync.**
+     * `CobranzaSyncManager.mergePagos` borra la fila del UUID y reinserta la
+     * canónica bajo la llave numérica de Microsip, conservando el UUID en
+     * `PAGO_RECIBIDO_ID`. El guard anti-duplicado de la pantalla de abono se
+     * resuelve mirando el historial, así que si el adaptador tirara esa columna
+     * el guard se soltaría después de cada merge y el saldo se descontaría dos
+     * veces.
+     *
+     * **Control de reversión:** borrar `capturaId = PAGO_RECIBIDO_ID` del mapeo
+     * pone este test en ROJO.
+     */
+    @Test
+    fun `el historial conserva el id con el que el telefono capturo el abono`() = runTest {
+        db.paymentDao().saveAll(
+            listOf(
+                pago("4471902", EFECTIVO, 220.0).copy(PAGO_RECIBIDO_ID = "abono-uuid-0001"),
+                pago("4471903", EFECTIVO, 100.0)
+            )
+        )
+
+        val historial = pagos.pagosDe(VENTA).associateBy { it.pagoId }
+
+        assertEquals("abono-uuid-0001", historial.getValue("4471902").capturaId)
+        assertNull(
+            "una fila que nunca se re-llaveo no inventa un id de captura",
+            historial.getValue("4471903").capturaId
+        )
+    }
+
     // `raw` (no `importe`) para no disparar NoDoubleForMoney: es el Double crudo del schema.
     private fun pago(id: String, formaCobro: Int, raw: Double) = PaymentEntity(
         ID = id,

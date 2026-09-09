@@ -56,6 +56,22 @@ private fun dayKeyOf(fechaHoraPago: String): String = AppTime.parseWireFormatOrN
     ?.let { AppTime.toBusinessDate(it).toString() }
     ?: fechaHoraPago
 
+/**
+ * ## Por qué TRES de estas proyecciones cargan `PAGO_RECIBIDO_ID` y las demás no
+ *
+ * Las lecturas que alimentan el HISTORIAL de abonos —[PaymentDao.getPaymentById],
+ * [PaymentDao.getPaymentsBySaleId] y [PaymentDao.getPaymentsByDate]— la traen
+ * porque el guard anti-duplicado de la pantalla de abono se resuelve preguntando
+ * *"¿está mi abono en el historial?"*, y `Payment.ID` **no sobrevive a la
+ * sincronización**: `CobranzaSyncManager.mergePagos` borra la fila del UUID y
+ * reinserta la canónica bajo la llave numérica de Microsip, conservando el UUID
+ * en esta columna. Sin ella en la proyección, la columna llega `null` por el
+ * default de la data class —Room no se queja— y el guard se suelta después de
+ * cada merge.
+ *
+ * Las demás proyecciones NO la cargan a propósito: no la leen, y una lista de
+ * columnas dice qué usa cada consulta.
+ */
 @Dao
 interface PaymentDao {
 
@@ -75,7 +91,8 @@ interface PaymentDao {
             COBRADOR_ID,
             FORMA_COBRO_ID,
             ZONA_CLIENTE_ID,
-            NOMBRE_CLIENTE
+            NOMBRE_CLIENTE,
+            PAGO_RECIBIDO_ID
         FROM Payment
         WHERE ID = :id
         """
@@ -97,7 +114,8 @@ interface PaymentDao {
         COBRADOR_ID,
         FORMA_COBRO_ID,
         ZONA_CLIENTE_ID,
-        NOMBRE_CLIENTE
+        NOMBRE_CLIENTE,
+        PAGO_RECIBIDO_ID
     FROM Payment
     WHERE DOCTO_CC_ACR_ID = :saleId"""
     )
@@ -118,7 +136,8 @@ interface PaymentDao {
                 COBRADOR_ID,
                 FORMA_COBRO_ID,
                 ZONA_CLIENTE_ID,
-                NOMBRE_CLIENTE
+                NOMBRE_CLIENTE,
+                PAGO_RECIBIDO_ID
             FROM Payment
             WHERE
                 FECHA_HORA_PAGO >= :start AND FECHA_HORA_PAGO < :end

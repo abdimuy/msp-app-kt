@@ -98,7 +98,27 @@ data class PagoDelHistorial(
      * ([com.example.msp_app.feature.pagos.data.adapter.RoomPagosAdapter]), así
      * que el default no esconde ningún camino sin barrer.
      */
-    val cobrador: String = ""
+    val cobrador: String = "",
+    /**
+     * El id con el que **este teléfono capturó** el abono, cuando la fila que se
+     * está leyendo ya no es la de la captura (`Payment.PAGO_RECIBIDO_ID`).
+     *
+     * Existe porque [pagoId] **no sobrevive a la sincronización**:
+     * `CobranzaSyncManager.mergePagos` borra la fila del UUID en cuanto el
+     * servidor acusa recibo y reinserta la canónica bajo la llave numérica de
+     * Microsip. El UUID no se pierde —viaja a esta columna— pero deja de ser la
+     * PK, así que preguntar *"¿está mi abono en el historial?"* comparando solo
+     * contra [pagoId] devuelve **falso negativo** después de un merge.
+     *
+     * Eso importa porque el guard anti-duplicado de la pantalla de abono se
+     * resuelve con esa pregunta al despertar de la muerte del proceso: un falso
+     * negativo suelta el cerrojo, y un segundo `confirmar()` vuelve a descontar
+     * `SALDO_REST`, que es un decremento y no un set absoluto.
+     *
+     * `null` en el histórico anterior al cutover y en las capturas que todavía
+     * no subieron (ahí [pagoId] **es** el id de captura).
+     */
+    val capturaId: String? = null
 )
 
 /**

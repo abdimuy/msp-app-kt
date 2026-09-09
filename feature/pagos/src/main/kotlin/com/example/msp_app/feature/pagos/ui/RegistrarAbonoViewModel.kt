@@ -630,9 +630,38 @@ class RegistrarAbonoViewModel @Inject constructor(
         )
     }
 
-    /** ¿Está [abonoId] entre los abonos de la venta? */
-    private fun estaEnElHistorial(venta: DetalleVenta): Boolean =
-        venta.historial.meses.any { mes -> mes.pagos.any { it.pagoId == abonoId } }
+    /**
+     * ¿Está [abonoId] entre los abonos de la venta?
+     *
+     * **Se pregunta por DOS columnas, y no es defensa por si acaso.** El
+     * oráculo del guard era solo `pagoId`, que es `Payment.ID` — y
+     * `CobranzaSyncManager.mergePagos` **borra esa fila a propósito** en cuanto
+     * el servidor acusa recibo (`filterExistingIDs` →
+     * `paymentDao.deleteByIDs`), reinsertando la canónica bajo la llave numérica
+     * de Microsip. O sea que la defensa contra el cobro duplicado se apoyaba en
+     * un dato que el sync elimina cada 30 segundos.
+     *
+     * **Verificado antes de tocar nada, y el borrado NO está mal:** el colapso
+     * del gemelo es lo que impide que el mismo abono quede dos veces en Room y
+     * duplique todos los totales del cobrador. Lo que faltaba era el segundo
+     * oráculo: `toEntity()` **sí persiste** el UUID de la captura en
+     * `Payment.PAGO_RECIBIDO_ID` de la fila canónica (por eso
+     * `findCollapsibleUuidTwins` puede leerlo), así que el rastro nunca se
+     * pierde — solo deja de ser la PK.
+     *
+     * La secuencia que esto cierra: se registra el abono → guard puesto → muere
+     * el proceso con la pantalla en el back stack → un tick de sync colapsa el
+     * gemelo UUID → se restaura la pantalla → [resolverGuard] no encontraba
+     * `abonoId`, **soltaba el guard** y rearmaba el formulario con el mismo id;
+     * un segundo `confirmar()` insertaba otra fila y `updateTotal` —que es un
+     * decremento, no un set absoluto— bajaba `SALDO_REST` dos veces. El daño de
+     * cable estaba acotado (`crearPago` viaja con `idempotencyKey`), pero el
+     * local no: saldo descontado dos veces, y `SALDO_REST` es el techo del
+     * bloqueo duro.
+     */
+    private fun estaEnElHistorial(venta: DetalleVenta): Boolean = venta.historial.meses.any { mes ->
+        mes.pagos.any { it.pagoId == abonoId || it.capturaId == abonoId }
+    }
 
     private fun falloDe(resultado: ResultadoDelAbono): FalloDelAbono = when (resultado) {
         ResultadoDelAbono.VENTA_NO_ESTA_EN_EL_TELEFONO -> FalloDelAbono.VENTA_NO_ESTA

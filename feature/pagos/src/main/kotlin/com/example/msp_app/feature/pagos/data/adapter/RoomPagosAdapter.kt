@@ -99,6 +99,10 @@ private fun PaymentEntity.aPagoDelHistorial(): PagoDelHistorial? {
         formaCobroId = FORMA_COBRO_ID,
         metodo = MetodoDeCobro.de(FORMA_COBRO_ID),
         nota = null,
-        cobrador = COBRADOR
+        cobrador = COBRADOR,
+        // El UUID de la captura, cuando el merge ya re-llaveó la fila. Ver el
+        // KDoc de `PagoDelHistorial.capturaId`: es el único rastro que queda del
+        // id con el que el teléfono escribió este abono.
+        capturaId = PAGO_RECIBIDO_ID
     )
 }
