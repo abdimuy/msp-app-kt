@@ -19,8 +19,8 @@ import java.time.Instant
  *
  * **Corrección.** Este KDoc afirmaba que *"cada puerto de este archivo cruza un
  * límite de módulo … no hay aquí ningún puerto con una sola implementación
- * encerrada en el propio módulo"*. Era falso —cuatro de los seis tienen su
- * adaptador en `feature/pagos/data/adapter`— y, peor, estaba redactado para que
+ * encerrada en el propio módulo"*. Era falso —la revisión final de la rama
+ * enumeró los puertos y localizó sus adaptadores— y, peor, estaba redactado para que
  * el próximo revisor **no fuera a mirar**, que es la clase de premisa falsa más
  * cara: desactiva la verificación.
  *

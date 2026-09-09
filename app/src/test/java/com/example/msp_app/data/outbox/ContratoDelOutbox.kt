@@ -48,9 +48,8 @@ import org.junit.Test
  *    el sujeto la recibe; todo lo que el contrato afirma sobre el estado lo lee
  *    de esa base con los DAO reales. Un sujeto no puede traer la suya.
  * 2. **Toda afirmación positiva tiene su control negativo, en el mismo test.**
- *    [el instrumento discrimina antes de medir nada][
- *    `el instrumento discrimina, o el contrato entero no mide nada`] corre
- *    primero y exige que el instrumento diga CERO antes y UNO después, y cero
+ *    El primero de todos —`el instrumento discrimina, o el contrato entero no
+ *    mide nada`— exige que el instrumento diga CERO antes y UNO después, y cero
  *    para un id ajeno. Un stub que siempre contesta lo mismo —lo que sea— muere
  *    ahí.
  * 3. **Los códigos de telemetría los pone cada módulo desde su constante de
