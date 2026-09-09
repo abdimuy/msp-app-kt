@@ -8,7 +8,8 @@ import java.time.Instant
  * que mandan.
  *
  * [sinAbonos] es el predicado que la lista vieja escribía así
- * (`SalesScreen.kt:201-203`, código que hoy corre en la calle):
+ * (`SalesScreen.kt:201-203`, **archivo borrado por la Task 21** — la cita queda
+ * como procedencia del criterio, no como referencia a código vivo):
  *
  * ```kotlin
  * compareByDescending<SaleWithProducts> { it.SALDO_REST == it.PRECIO_TOTAL - it.ENGANCHE }
@@ -27,7 +28,7 @@ data class RangoDeCobranza(
      * El instante crudo de `Sale.FECHA`, **sin recortar a día**.
      *
      * Es la clave de desempate, y es un [Instant] y no un `LocalDate` por
-     * paridad exacta con `SalesScreen.kt:202`: aquella ordena por el texto
+     * paridad exacta con lo que hacía `SalesScreen.kt:202` (retirado): aquella ordenaba por el texto
      * completo de `FECHA`, así que dos ventas del mismo día quedan separadas por
      * su hora. Con la fecha de negocio empataban, y ese empate no lo forzaba
      * nada — el instante ya venía parseado en el adaptador.
@@ -45,7 +46,8 @@ data class RangoDeCobranza(
  *
  * Las DOS claves son las mismas y en el mismo sentido: primero quien no ha
  * abonado nada, después la venta más vieja **por su instante**, no por su día
- * (la paridad al minuto con `SalesScreen.kt:202` se restauró tras la revisión).
+ * (la paridad al minuto con el `SalesScreen.kt:202` retirado se restauró tras
+ * la revisión).
  *
  * El **predicado** es idéntico: `saldo == totalVenta - enganche`. Lo único que
  * cambia es el tipo en el que se evalúa. La pantalla vieja lo hacía sobre `Double`

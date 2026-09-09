@@ -8,10 +8,10 @@ import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
  *
  * ## Para qué existe
  *
- * Para que el **histórico** y el **orden de la lista** no se rompan. Pantallas
- * como `SalesScreen` particionan hoy por `ESTADO_COBRANZA` (`PENDIENTE ||
- * VISITADO` a un lado, `PAGADO` al otro) y las filas viejas solo tienen esa
- * columna. Este mapeo las traduce al vocabulario nuevo sin reescribir una sola
+ * Para que el **histórico** y el **orden de la lista** no se rompan.
+ * `SalesScreen` —la pantalla que la Task 21 retiró— particionaba por
+ * `ESTADO_COBRANZA` (`PENDIENTE || VISITADO` a un lado, `PAGADO` al otro) y las
+ * filas viejas solo tienen esa columna. Este mapeo las traduce al vocabulario nuevo sin reescribir una sola
  * fila.
  *
  * ## Para qué NO existe
@@ -43,8 +43,9 @@ fun EstadoCobranza.aEstadoCuenta(): EstadoCuenta = when (this) {
     // El bucket ancho de `VisitStatusMapper`: pasaste y no se resolvió.
     EstadoCobranza.VOLVER_VISITAR -> EstadoCuenta.VISITE_VUELVO
 
-    // Ningún camino del código actual lo escribe (solo `SalesScreen` lo lee como
-    // filtro); son filas viejas que significan "alguien pasó por aquí".
+    // Ningún camino del código actual lo escribe, y su único lector era el filtro
+    // de `SalesScreen` (retirada por la Task 21); son filas viejas que
+    // significan "alguien pasó por aquí".
     EstadoCobranza.VISITADO -> EstadoCuenta.VISITE_VUELVO
 
     // El estado inicial que pone `AuthViewModel` al sincronizar ventas: nadie la

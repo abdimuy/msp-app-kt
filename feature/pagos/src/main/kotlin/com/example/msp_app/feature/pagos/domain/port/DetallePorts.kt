@@ -15,9 +15,30 @@ import java.time.Instant
  * en `Double`. Los adaptadores de `data/adapter` los implementan sobre los DAOs
  * de `:core:database` y son la ÚNICA capa que ve Room.
  *
- * Cada puerto de este archivo cruza un límite de módulo (a `:core:database` o a
- * `:app`), que es lo que lo justifica frente a YAGNI — no hay aquí ningún
- * puerto con una sola implementación encerrada en el propio módulo.
+ * ## Por qué existen estos puertos, y la regla que colisiona
+ *
+ * **Corrección.** Este KDoc afirmaba que *"cada puerto de este archivo cruza un
+ * límite de módulo … no hay aquí ningún puerto con una sola implementación
+ * encerrada en el propio módulo"*. Era falso —cuatro de los seis tienen su
+ * adaptador en `feature/pagos/data/adapter`— y, peor, estaba redactado para que
+ * el próximo revisor **no fuera a mirar**, que es la clase de premisa falsa más
+ * cara: desactiva la verificación.
+ *
+ * Lo que sí manda acá es el **contrato hexagonal**, no el conteo de
+ * implementaciones: `application/` depende de `domain/port`, `data/adapter` es
+ * la única capa que importa Room, y `ui/` nunca ve `data/adapter`. Un módulo de
+ * feature que tiene su propio adaptador de Room termina, **por construcción**,
+ * con el puerto y su única implementación del mismo lado. El módulo de
+ * referencia que el plan nombra, `:feature:collectionReport`, está construido
+ * igual.
+ *
+ * Eso choca de frente con la regla YAGNI de `DISPATCH-CONVENTIONS.md` ("puerto
+ * solo si hay ≥2 implementaciones o cruza módulo; uno solo es un DEFECTO"). Las
+ * dos reglas de la rúbrica no pueden cumplirse a la vez cuando el adaptador vive
+ * en el mismo módulo, y esta rama resolvió la colisión a favor del contrato
+ * hexagonal. La resolución queda escrita acá para que no haya que redescubrirla,
+ * y **no se sustituye una afirmación falsa por otra**: dónde está hoy cada
+ * adaptador no se afirma en prosa.
  */
 interface VentasPort {
 

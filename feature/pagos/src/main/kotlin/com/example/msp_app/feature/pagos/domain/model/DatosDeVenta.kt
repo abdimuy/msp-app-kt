@@ -27,9 +27,9 @@ data class DatosDeVenta(
      * [com.example.msp_app.core.common.cobranza.domain.EstadoCuenta].
      *
      * Existe porque la búsqueda de la lista (Task 17) concatena los mismos SEIS
-     * campos que `SalesScreen.kt:68` —nombre, folio, calle, ciudad, estado,
-     * teléfono— y sin este el buscador nuevo encontraría menos que la pantalla
-     * que reemplaza.
+     * campos que concatenaba `SalesScreen.kt:68` (retirado en la Task 21)
+     * —nombre, folio, calle, ciudad, estado, teléfono— y sin este el buscador
+     * nuevo encontraría menos que la pantalla que reemplazó.
      */
     val entidad: String,
     val zona: String,
@@ -43,8 +43,9 @@ data class DatosDeVenta(
      * El instante crudo de `Sale.FECHA`, sin recortar a día.
      *
      * Es la SEGUNDA clave del orden de cobranza y existe para tener paridad
-     * exacta con `SalesScreen.kt:202`, que ordena por el texto completo de
-     * `FECHA` y por lo tanto separa dos ventas del mismo día por su hora.
+     * exacta con `SalesScreen.kt:202` (retirado en la Task 21), que ordenaba por
+     * el texto completo de `FECHA` y por lo tanto separaba dos ventas del mismo
+     * día por su hora.
      * Ordenar por [fechaVenta] las empataba: una divergencia que nada forzaba,
      * justo en lo único que había orden de copiar sin cambios.
      *

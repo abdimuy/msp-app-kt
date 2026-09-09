@@ -10,8 +10,9 @@ import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
  * `PaymentEntity.IMPORTE` (REGLA DE DINERO, `global-constraints.md`).
  *
  * [abonoId] es a la vez el id del pago y la **clave de idempotencia** que ya
- * usa la app: `NewPaymentDialog` la acuña una vez por apertura del diálogo
- * justo para que un segundo toque no entre como cobro nuevo. Aquí vive en el
+ * usaba la app: `NewPaymentDialog` —retirado por la Task 21— la acuñaba una vez
+ * por apertura del diálogo, justo para que un segundo toque no entrara como
+ * cobro nuevo. Aquí vive en el
  * `SavedStateHandle` del destino, así que además sobrevive a la rotación y a la
  * muerte del proceso.
  */
@@ -48,7 +49,7 @@ enum class ResultadoDelAbono {
     /**
      * No se pudo saber qué cobrador está registrando. Nada se escribió — un
      * abono sin `COBRADOR_ID` es dinero que nadie entregó (defecto ya conocido:
-     * `NewPaymentDialog` lo valida antes de guardar).
+     * el retirado `NewPaymentDialog` también lo validaba antes de guardar).
      */
     SIN_COBRADOR,
 

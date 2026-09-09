@@ -346,8 +346,9 @@ class RegistroDeAbonoAdapter(
     }
 
     /**
-     * La forma de cobro que va al schema. Se toma de `Constants`, que es lo que
-     * usa hoy `NewPaymentDialog`, y se comprueba contra el id del catálogo de
+     * La forma de cobro que va al schema. Se toma de `Constants`, que es de
+     * donde la tomaba el retirado `NewPaymentDialog`, y se comprueba contra el
+     * id del catálogo de
      * dominio: son el mismo número (157 / 52569) y esta línea existe para que
      * sigan siéndolo.
      */

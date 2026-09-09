@@ -113,10 +113,12 @@ class VisitsLocalDataSource @Inject constructor(
      * [com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource.saveAndEnqueue]
      * has the same name and the same intent — insert + enqueue as one call
      * — but its body is only [insertPaymentAndUpdateSale]; it never actually
-     * calls an enqueuer. Pagos carries the identical latent bug (its upload
-     * also only gets enqueued from `UpdateLocationHandler`). Fixing pagos is
-     * out of Task 5's scope (title and brief are visit-only); this method is
-     * the corrected version of that shape, applied to visits.
+     * calls an enqueuer. Task 5 recorded that pagos carried the identical
+     * latent bug and left it out of scope (title and brief were visit-only).
+     * **Arreglo C closed it**, not here but one layer up: `RegistroDeAbonoAdapter`
+     * now enqueues through `PaymentsWorkEnqueuer` in the same coroutine as the
+     * write, so the money upload no longer depends on `UpdateLocationService`
+     * running either. This method stays the corrected shape applied to visits.
      *
      * The local write and the enqueue happen in the same call, so the
      * upload no longer depends on the location service ever running. The

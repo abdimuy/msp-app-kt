@@ -14,8 +14,9 @@ import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
  * `CatalogoDeResultadosTest`, así que las dos no pueden despegarse.
  *
  * El cobrador no reaprende nada y el historial sigue siendo comparable: son las
- * mismas diez cadenas que `NewVisitDialog.visitConditionForm` ofrece hoy, con
- * el mismo texto y el mismo valor guardado.
+ * mismas diez cadenas que ofrecía `NewVisitDialog.visitConditionForm` —el
+ * diálogo al que reemplaza, retirado por la Task 21—, con el mismo texto y el
+ * mismo valor guardado.
  *
  * ## Los dos grupos de una sola etiqueta
  *

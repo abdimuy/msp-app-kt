@@ -33,8 +33,9 @@ data class CarteraProyectada(
  *
  * ## La búsqueda apaga el orden (heredado, tal cual)
  *
- * `SalesScreen` ordena solo `if (query.isBlank())`; buscando, respeta el orden
- * natural de la fuente. Se copia: quien teclea un nombre está buscando a UNA
+ * `SalesScreen` (retirada por la Task 21) ordenaba solo `if (query.isBlank())`;
+ * buscando, respetaba el orden natural de la fuente. Se copia: quien teclea un
+ * nombre está buscando a UNA
  * persona, y reordenar el resultado por prioridad de cobranza mueve de lugar lo
  * que ya encontró.
  *

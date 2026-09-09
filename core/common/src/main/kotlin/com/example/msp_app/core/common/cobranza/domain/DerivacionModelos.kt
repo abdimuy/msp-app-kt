@@ -51,12 +51,20 @@ data class PagoEnVentana(
  *
  * ## Los tres campos de la Task 19
  *
- * [fechaPromesa], [montoPrometido] y [horaCita] existen para que el catálogo
- * esté **listo para recibirlos**, no para inventarlos. Hoy llegan siempre en
- * `null`: la captura estructurada la construye la Task 19 y las columnas las
- * agrega la migración aditiva de la Task 26. Reconstruirlos desde `NOTA` —donde
- * `NewVisitDialog` escribe hoy "La cita ha sido reagendada para el …"— es
- * precisamente el defecto que este plan vino a arreglar.
+ * [fechaPromesa], [montoPrometido], [fechaCita] y [horaCita] existen para que el
+ * catálogo esté **listo para recibirlos**, no para inventarlos.
+ *
+ * **Corrección (Arreglo C).** Este KDoc decía que los campos *"hoy llegan
+ * siempre en `null`"* y que `NewVisitDialog` *"escribe hoy"* la fecha dentro de
+ * `NOTA`. Las dos frases quedaron congeladas en el fix de la Task 17: después la
+ * Task 19 construyó la captura estructurada, la Task 26 agregó las columnas, y
+ * la Task 21 borró el diálogo. Quien las leyera y les creyera concluiría que el
+ * chip `hoy` y las ramas `DIFERIDO`/`CITA` son código muerto — que es
+ * literalmente el razonamiento equivocado que produjo el Ruling AC.
+ *
+ * Reconstruir estos campos desde el texto libre de `NOTA` —lo que hacía el
+ * diálogo retirado con "La cita ha sido reagendada para el …"— sigue siendo el
+ * defecto que este plan vino a arreglar.
  */
 data class VisitaEnVentana(
     val clienteId: Int,
@@ -80,8 +88,10 @@ data class VisitaEnVentana(
  * justifican para que la pantalla no tenga que recalcularlos.
  *
  * [abonoVentana] es la suma de los pagos válidos del periodo para esa venta —
- * el `AbonoSemana` del servidor. [fechaPromesa] / [montoPrometido] / [horaCita]
- * son los campos de la Task 19: hoy siempre `null`.
+ * el `AbonoSemana` del servidor. [fechaPromesa] / [montoPrometido] /
+ * [fechaCita] / [horaCita] son los campos de la Task 19; el KDoc decía que eran
+ * "hoy siempre `null`" y dejó de ser cierto cuando `EstadoCuentaDeriver` empezó
+ * a asignarlos — ver la corrección en [VisitaEnVentana].
  */
 data class ResultadoEstadoCuenta(
     val estado: EstadoCuenta,
@@ -89,7 +99,7 @@ data class ResultadoEstadoCuenta(
     val parcialidad: BigDecimal,
     val fechaPromesa: LocalDate? = null,
     val montoPrometido: BigDecimal? = null,
-    /** El día de la cita — ver [VisitaEnVentana.fechaCita]. Hoy siempre `null`. */
+    /** El día de la cita — ver [VisitaEnVentana.fechaCita]. */
     val fechaCita: LocalDate? = null,
     val horaCita: LocalTime? = null
 )

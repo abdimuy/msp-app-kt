@@ -107,6 +107,7 @@ class ReunirCartera @Inject constructor(
             ventas = suyas.map { it.aVentaEnLista(estados[it.ventaId]) },
             textoBuscable = BusquedaDeClientes.textoBuscable(
                 // Los MISMOS SEIS datos que concatenaba `SalesScreen.kt:68`
+                // (pantalla retirada por la Task 21)
                 // —nombre, folio, calle, ciudad, ESTADO (la entidad) y
                 // teléfono—, salvo que los folios de TODAS sus ventas entran al
                 // mismo texto: buscar el folio de la segunda venta tiene que

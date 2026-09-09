@@ -17,7 +17,8 @@ import com.example.msp_app.feature.visitas.domain.model.TicketDeVisita
  *
  * ## Qué se tomó del ticket viejo y qué cambió
  *
- * Del ticket de hoy (`app/.../VisitTicketScreen.kt`) se conserva lo que el
+ * Del ticket al que reemplaza (`app/.../VisitTicketScreen.kt`, retirado por la
+ * Task 21) se conserva lo que el
  * cliente ya reconoce: encabezado del negocio, "estimado cliente" con su nombre,
  * el cuerpo del mensaje, el saldo, y el cierre con el nombre del gestor. Cambia:
  *

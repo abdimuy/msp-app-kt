@@ -13,7 +13,7 @@ import androidx.navigation.navArgument
  *
  * La captura es un **destino de navegación con su propio ViewModel y
  * `SavedStateHandle`**, igual que las Tasks 16-18, y no un `FullScreenDialog`
- * como el `NewVisitDialog` de hoy. La cámara (Task 23) manda al usuario fuera de
+ * como el `NewVisitDialog` al que reemplaza (retirado por la Task 21). La cámara (Task 23) manda al usuario fuera de
  * la app y el proceso puede morir mientras tanto: un destino vuelve con su
  * argumento y con el id de la visita intactos; un diálogo alojado en la
  * composición del llamador no vuelve en absoluto. Por eso los argumentos se leen

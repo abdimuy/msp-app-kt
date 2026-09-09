@@ -85,9 +85,15 @@ data class VisitEntity(
      */
     @ColumnInfo(name = "CITA_FECHA") val CITA_FECHA: String? = null,
     /**
-     * Hora de la cita, `HH:mm` en la zona de negocio. Hoy esa hora solo existe
-     * embebida en el texto de [NOTA] (`NewVisitDialog.kt:119-125`), que es
-     * justamente por lo que *Cita a una hora* no se puede derivar.
+     * Hora de la cita, `HH:mm` en la zona de negocio.
+     *
+     * **Corrección (Arreglo C).** Este KDoc decía que la hora *"solo existe
+     * embebida en el texto de [NOTA] (`NewVisitDialog.kt:119-125`)"*. Las dos
+     * mitades quedaron falsas: la Task 19 escribe esta columna
+     * (`RegistroDeVisitaAdapter`), la lectura de cobranza la consume
+     * (`RoomVisitasAdapter`), y `NewVisitDialog` lo borró la Task 21. Quien
+     * leyera esto concluiría que *Cita a una hora* no se puede derivar, que es
+     * el razonamiento equivocado que ya costó una vuelta entera en la Task 17.
      */
     @ColumnInfo(name = "CITA_HORA") val CITA_HORA: String? = null
 )

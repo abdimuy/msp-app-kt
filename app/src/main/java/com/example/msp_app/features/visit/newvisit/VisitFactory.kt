@@ -24,9 +24,12 @@ import com.example.msp_app.data.models.visit.Visit
  *  - `FORMA_COBRO_ID` is always 0 today (the dialog has no forma-de-cobro
  *    picker for visitas); kept as a parameter for symmetry with
  *    `PaymentFactory` and because the wire contract carries the field.
- *  - `LAT`/`LNG` start at 0.0 — the real location is patched later by
- *    [com.example.msp_app.services.UpdateLocationService] running in the
- *    background.
+ *  - `LAT`/`LNG` start at 0.0. This line used to say the location was
+ *    "patched later by `UpdateLocationService` running in the background".
+ *    That stopped being true when Task 21 deleted `NewVisitDialog`, the only
+ *    producer that ever started that service with a `visit_id`. The live path
+ *    (`RegistroDeVisitaAdapter`) asks `UbicacionDeVisitaPort` once, at save
+ *    time, and 0.0 is what a visita without a fix keeps.
  *  - `GUARDADO_EN_MICROSIP` starts 0 — the visita is pending until the
  *    sync/upload pipeline confirms it against Microsip.
  */

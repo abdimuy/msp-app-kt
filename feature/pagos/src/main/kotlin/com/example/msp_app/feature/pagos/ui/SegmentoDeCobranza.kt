@@ -9,8 +9,9 @@ import java.time.LocalDate
  *
  * ## Por qué chips y no las tres pestañas de antes
  *
- * `SalesScreen` parte la lista en `POR VISITAR` / `VISITADOS` / `PAGADOS`
- * mirando `Sale.ESTADO_COBRANZA` (el enum legado de 5 valores). Esa columna la
+ * `SalesScreen` —retirada por la Task 21— partía la lista en `POR VISITAR` /
+ * `VISITADOS` / `PAGADOS` mirando `Sale.ESTADO_COBRANZA` (el enum legado de 5
+ * valores). Esa columna la
  * escribe `PaymentsViewModel.savePayment` con `PAGADO` en **cada** pago
  * guardado, sin comparar el monto contra `PARCIALIDAD`, así que la pestaña
  * "PAGADOS" incluye a quien abonó cincuenta pesos de una parcialidad de

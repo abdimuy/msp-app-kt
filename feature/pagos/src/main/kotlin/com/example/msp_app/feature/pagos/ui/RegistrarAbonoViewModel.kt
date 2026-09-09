@@ -43,10 +43,10 @@ import kotlinx.coroutines.withContext
  * ## Las tres capas anti-duplicado
  *
  * 1. **[abonoId], acuñado una vez y persistido.** Es el id del pago y la clave
- *    de idempotencia. `NewPaymentDialog` ya la acuña una vez por apertura
- *    (`rememberPaymentIdempotencyKey`) precisamente porque generarla dentro del
- *    manejador del botón daba una clave distinta por toque y la idempotencia
- *    del servidor nunca podía actuar. Aquí vive en el `SavedStateHandle`: un
+ *    de idempotencia. El retirado `NewPaymentDialog` ya la acuñaba una vez por
+ *    apertura (`rememberPaymentIdempotencyKey`) precisamente porque generarla
+ *    dentro del manejador del botón daba una clave distinta por toque y la
+ *    idempotencia del servidor nunca podía actuar. Aquí vive en el `SavedStateHandle`: un
  *    `remember` muere en la rotación, y con él moría esa protección.
  * 2. **[yaSeEncolo], el guard persistido**, puesto **sincrónicamente antes** de
  *    lanzar la corrutina. Un doble toque rápido no puede colarse entre el

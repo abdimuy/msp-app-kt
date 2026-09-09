@@ -28,8 +28,8 @@ package com.example.msp_app.core.common.cobranza.domain
  * columnas llegan en la Task 26. Hasta entonces los campos viajan en `null`
  * dentro de [ResultadoEstadoCuenta] y **no** se reconstruyen desde el texto
  * libre de `NOTA` — esa reconstrucción es exactamente el defecto que este plan
- * vino a arreglar (`NewVisitDialog` escribe "La cita ha sido reagendada para
- * el …" dentro de la nota; parsear eso es adivinar).
+ * vino a arreglar (el retirado `NewVisitDialog` escribía "La cita ha sido
+ * reagendada para el …" dentro de la nota; parsear eso es adivinar).
  */
 enum class EstadoCuenta(val alcance: VisitScope) {
     /** Cobró completo lo del periodo. No hace falta volver. */

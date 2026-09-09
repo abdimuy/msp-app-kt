@@ -7,8 +7,9 @@ import java.text.Normalizer
  *
  * ## Qué se busca
  *
- * Los mismos cinco datos que la pantalla vieja ya concatenaba
- * (`SalesScreen.kt:68`): nombre, folio, calle, ciudad y teléfono. La diferencia
+ * Los mismos cinco datos que concatenaba la pantalla vieja
+ * (`SalesScreen.kt:68`, **borrada por la Task 21**): nombre, folio, calle,
+ * ciudad y teléfono. La diferencia
  * es que aquí se concatenan **por cliente** —los folios de TODAS sus ventas
  * entran al mismo texto— para que teclear el folio de la segunda venta traiga
  * al cliente, no a una fila suelta que parece otra persona.
@@ -19,9 +20,9 @@ import java.text.Normalizer
  * no puede depender de `:app` — la dirección de dependencias del contrato
  * hexagonal solo va al revés. Verificado con
  * `grep -rn "searchSimilarItems" --include='*.kt'`, la misma consulta que SÍ lo
- * encontró en `:app` (control positivo): sus tres consumidores son
- * `SalesScreen`, `ProductsCatalogScreen` y `ClienteRepository`, los tres en
- * `:app`.
+ * encontró en `:app` (control positivo). Sus consumidores al momento de la Task
+ * 17 eran `SalesScreen`, `ProductsCatalogScreen` y `ClienteRepository`, los tres
+ * en `:app`; el primero lo borró la Task 21.
  *
  * Subirlo a `:core:common` sería mudar código de `:app` con sus tres
  * consumidores detrás, que es una migración con su propia auditoría y no lo que

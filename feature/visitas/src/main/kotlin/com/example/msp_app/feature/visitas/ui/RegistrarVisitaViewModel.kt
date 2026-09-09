@@ -47,8 +47,8 @@ import kotlinx.coroutines.withContext
  *
  * 1. **[visitaId], acuñado una vez.** Es el id de la visita y la clave de
  *    idempotencia del envío. Generarlo dentro del manejador del botón daría uno
- *    distinto por toque, que es exactamente el defecto que `NewPaymentDialog` ya
- *    había tenido que arreglar del lado del dinero.
+ *    distinto por toque, que es exactamente el defecto que el retirado
+ *    `NewPaymentDialog` ya había tenido que arreglar del lado del dinero.
  * 2. **[yaSeEncolo], el guard**, puesto **sincrónicamente antes** de lanzar la
  *    corrutina: ni un doble toque rápido ni un toque sobre el ViewModel recreado
  *    pueden colarse entre el chequeo y el lanzamiento.
@@ -70,8 +70,8 @@ import kotlinx.coroutines.withContext
  *
  * [onNota] escribe texto libre y **nada más**. La fecha va a `PROMESA_FECHA`, el
  * monto a `PROMESA_MONTO_CENTAVOS` y la hora a `CITA_HORA`. Meterlas en la nota
- * —como hace hoy `NewVisitDialog` con "La cita ha sido reagendada para el …"— es
- * el defecto que este plan vino a arreglar.
+ * —como hacía el retirado `NewVisitDialog` con "La cita ha sido reagendada para
+ * el …"— es el defecto que este plan vino a arreglar.
  */
 @HiltViewModel
 @Suppress(

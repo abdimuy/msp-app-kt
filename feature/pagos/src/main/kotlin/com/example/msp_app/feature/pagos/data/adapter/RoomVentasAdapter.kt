@@ -67,7 +67,8 @@ private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta {
         direccion = listOf(CALLE, CIUDAD).filter { it.isNotBlank() }.joinToString(", "),
         // `ESTADO` es la entidad federativa. NO entra a `direccion` —eso cambiaría lo
         // que pintan las pantallas de detalle— pero sí al texto que busca la lista,
-        // que es donde `SalesScreen.kt:68` lo usa.
+        // que es donde lo usaba `SalesScreen.kt:68`, la pantalla que la Task 21
+        // retiró y de la que esta lista hereda el criterio.
         entidad = ESTADO,
         zona = ZONA_NOMBRE,
         aval = AVAL_O_RESPONSABLE,

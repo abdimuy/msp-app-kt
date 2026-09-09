@@ -292,9 +292,14 @@ class RegistroDeVisitaAdapter(
      * "La cita ha sido reagendada para el …", retirado en la Task 21— es el
      * defecto que este plan vino a arreglar.
      *
-     * `LAT`/`LNG` en cero cuando no hubo ubicación, exactamente como ya hace
-     * `VisitFactory` mientras `UpdateLocationService` parcha las columnas
-     * después. La ubicación **nunca** bloquea el guardado.
+     * `LAT`/`LNG` en cero cuando no hubo ubicación: la ubicación **nunca**
+     * bloquea el guardado, y `UbicacionDeVisitaPort` la pide una sola vez, antes
+     * de llegar acá. Este KDoc decía además que `UpdateLocationService` parchaba
+     * las columnas después; era falso desde que la Task 21 borró
+     * `NewVisitDialog`, el único productor que arrancaba ese servicio con un
+     * `visit_id`. Lo que el código hace lo fijan
+     * `la visita queda encolada aunque no haya ubicacion` y
+     * `con ubicacion se escriben las coordenadas`.
      */
     private fun entidadDe(
         visita: VisitaARegistrar,

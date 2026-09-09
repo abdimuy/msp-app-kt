@@ -141,9 +141,16 @@ interface RegistroDeVisitaPort {
  * puede inventar: **cuándo** se registró la visita (la entrada de la regla del
  * día del cobro) y **quién** la registró.
  *
- * Cruza a `:core:database`, que es lo que lo justifica frente a YAGNI. `null`
- * cuando el teléfono ya no tiene esa visita: es un estado normal de la pantalla
- * —la poda de sincronizadas la pudo haber borrado— y no una excepción.
+ * **Corrección.** Este KDoc decía *"cruza a `:core:database`, que es lo que lo
+ * justifica frente a YAGNI"*. Lo que cruza a `:core:database` es el
+ * **adaptador**, no el puerto: los dos viven del mismo lado. Lo que justifica
+ * esta interfaz es el contrato hexagonal —`ui/` y `application/` no pueden ver
+ * `data/adapter`— y la colisión con la regla YAGNI de `DISPATCH-CONVENTIONS.md`
+ * está resuelta y explicada en el KDoc de
+ * `com.example.msp_app.feature.pagos.domain.port.VentasPort`.
+ *
+ * `null` cuando el teléfono ya no tiene esa visita: es un estado normal de la
+ * pantalla —la poda de sincronizadas la pudo haber borrado— y no una excepción.
  */
 interface VisitaImpresaPort {
 

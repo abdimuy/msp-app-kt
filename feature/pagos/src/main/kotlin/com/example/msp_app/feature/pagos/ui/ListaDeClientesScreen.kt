@@ -68,10 +68,11 @@ fun ListaDeClientesScreen(
  *
  * ## Qué reemplaza
  *
- * Las DOS listas que hoy muestran lo mismo con lógicas distintas: la de
+ * Las DOS listas que mostraban lo mismo con lógicas distintas: la de
  * `SalesScreen` (tres pestañas sobre el enum legado `ESTADO_COBRANZA`) y la de
  * Home ("VENTAS CERCANAS", ordenada por distancia a los centroides). Ninguna de
- * las dos se borra aquí — los puntos de entrada los recablea la Task 21.
+ * las dos se borró aquí — los puntos de entrada los recableó la Task 21, que
+ * además retiró `SalesScreen`.
  *
  * ## La cercanía queda relegada, y por qué
  *

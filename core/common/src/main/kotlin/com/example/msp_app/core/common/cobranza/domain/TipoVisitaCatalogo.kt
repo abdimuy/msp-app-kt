@@ -16,11 +16,12 @@ package com.example.msp_app.core.common.cobranza.domain
  *   objeto tiene que cubrir.
  * - **11** — los literales que define `Constants.kt:31-41` en `:app`, o sea lo
  *   que **manda** el build actual.
- * - **10** — los que el diálogo realmente **ofrece**
- *   (`NewVisitDialog.visitConditionForm`). El que falta es
+ * - **10** — los que ofrecía el diálogo medido
+ *   (`NewVisitDialog.visitConditionForm`, retirado por la Task 21; su sucesor
+ *   es `CatalogoDeResultados`). El que faltaba es
  *   `PIDE_TIEMPO` ("Pidió que regrese otro día"): sigue definido en
  *   `Constants`, sigue aceptado por el servidor y sigue existiendo en filas
- *   históricas, pero ya no aparece en el diálogo. La tabla de agrupación del
+ *   históricas, pero ya no aparecía en el diálogo. La tabla de agrupación del
  *   brief habla de las diez ofrecidas, por eso no lo menciona.
  * - **8** — los estados de [EstadoCuenta]. No es una partición de los
  *   literales: [EstadoCuenta.PAGO] y [EstadoCuenta.ABONO_PARCIAL] salen del

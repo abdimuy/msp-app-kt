@@ -32,7 +32,8 @@ import java.time.temporal.ChronoUnit
  *   vez de en número de cuotas. Se recalcula aquí y no se lee de esa vista por
  *   una razón concreta: la vista une `sales.DOCTO_CC_ID` con
  *   `payment.DOCTO_CC_ACR_ID` —dos llaves distintas, el mismo cruce que ya
- *   costó el defecto de `NewVisitDialog` (commit `721c5551`)—, así que su
+ *   costó el defecto del entonces vigente `NewVisitDialog` (commit
+ *   `721c5551`; el diálogo lo retiró después la Task 21)—, así que su
  *   número no es confiable para alimentar un monto de dinero. La fórmula sí lo
  *   es; el `JOIN` es lo que no. **No se toca esa vista**: se reporta.
  * - **liquidar** = "hoy liquida con" cuando existe (viene de

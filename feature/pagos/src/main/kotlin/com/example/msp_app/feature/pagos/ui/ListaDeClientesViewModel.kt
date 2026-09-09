@@ -38,10 +38,10 @@ data class ListaDeClientesUiState(
 )
 
 /**
- * La lista de cobranza **por cliente** — el reemplazo de las dos listas que hoy
- * muestran lo mismo con lógicas distintas: la de `SalesScreen` (tres pestañas
- * sobre `ESTADO_COBRANZA`) y la de Home ("ventas cercanas", ordenada por
- * centroides).
+ * La lista de cobranza **por cliente** — el reemplazo de las dos listas que
+ * mostraban lo mismo con lógicas distintas: la de `SalesScreen` (tres pestañas
+ * sobre `ESTADO_COBRANZA`, retirada por la Task 21) y la de Home ("ventas
+ * cercanas", ordenada por centroides).
  *
  * ## Dónde ocurre cada cosa, y por qué importa
  *

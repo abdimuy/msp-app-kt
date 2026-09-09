@@ -18,8 +18,15 @@ import kotlinx.coroutines.tasks.await
  * del plan (§8.1: revienta con `SecurityException` sin `try/catch`) y además es
  * el que antes sostenía el encolado de las visitas (§8.2, cerrado por la Task
  * 5). Colgar de él el camino nuevo reintroduciría exactamente el acoplamiento
- * que esa tarea quitó. Aquí se pide la ubicación de una vez, y si no llega, no
- * llega: el servicio sigue parchando `LAT`/`LNG` después por su cuenta.
+ * que esa tarea quitó.
+ *
+ * **La ubicación de la visita se pide UNA vez, acá, al guardar.** Una versión
+ * anterior de este comentario terminaba diciendo *"el servicio sigue parchando
+ * `LAT`/`LNG` después por su cuenta"*. Era falso: `NewVisitDialog` era el único
+ * productor que arrancaba el servicio con un `visit_id`, y la Task 21 lo borró.
+ * Lo que hace el código está fijado por `RegistroDeVisitaAdapterTest`
+ * —`la visita queda encolada aunque no haya ubicacion` (fila en `0.0`) y
+ * `con ubicacion se escriben las coordenadas`—, y no por esta prosa.
  *
  * **Contesta `null`, no lanza**, cuando el permiso está negado — la comprobación
  * es explícita y previa, así que la `SecurityException` no es siquiera el camino
