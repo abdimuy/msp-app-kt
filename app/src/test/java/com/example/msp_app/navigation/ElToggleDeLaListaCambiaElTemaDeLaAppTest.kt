@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_CLARO
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
 import com.example.msp_app.core.designsystem.theme.LocalAppDarkTheme
+import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.mspDarkColors
 import com.example.msp_app.core.designsystem.theme.mspLightColors
@@ -160,7 +161,19 @@ class ElToggleDeLaListaCambiaElTemaDeLaAppTest {
             .get()
         val viewModel = ViewModelProvider(host)[ListaDeClientesViewModel::class.java]
         composeTestRule.setContent {
-            CompositionLocalProvider(LocalAppDarkTheme provides ThemeController.isDarkMode) {
+            CompositionLocalProvider(
+                LocalAppDarkTheme provides ThemeController.isDarkMode,
+                // Movimiento reducido, igual que `MainActivity:179` cuando el dueño tiene
+                // "Deshabilitar animaciones" puesto: la pantalla no instala el host de la
+                // reveal y el tap del toggle flipea de forma SÍNCRONA, que es la única rama
+                // medible en JVM. La animada no completa acá — `toImageBitmap()` truena con
+                // `IllegalArgumentException: width and height must be > 0` porque un
+                // compose-test no corre el pase de dibujo que puebla el `GraphicsLayer`
+                // (medido en LEGACY **y** en `GraphicsMode.NATIVE`). Que la pantalla instale
+                // el host cuando el movimiento NO está reducido lo mide
+                // `LaListaInstalaLaRevealDeTemaTest` (`:feature:pagos`).
+                LocalReduceMotion provides true
+            ) {
                 Column {
                     ListaDeClientesScreen(
                         viewModel = viewModel,

@@ -27,8 +27,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
+import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.ChipsDeSegmento
@@ -69,6 +72,16 @@ const val LISTA_VACIA_TAG: String = "pagos_lista_vacia"
  * dejaría de ser "siete pantallas crashean" —que se ve— para pasar a "la app
  * entera cambia de color" —que no—.
  *
+ * ## Y por qué el tema lo envuelve `MspThemeRevealHost` y no `MspTheme` pelado
+ *
+ * Porque si no, **el mismo botón se sentiría distinto en dos pantallas de esta app**: el
+ * `MspThemeToggle` del reporte de cobranza anima una reveal circular (su `ThemeRevealRoot`
+ * instala el host) y el de acá haría un crossfade. Kollect instala el host en su raíz, así que
+ * todos sus toggles animan igual; acá la raíz está prohibida (Ruling BJ: `MspTheme` alrededor
+ * de `AppNavigation` repintaría la app legada), así que cada pantalla Msp instala el host sobre
+ * sí misma — igual que ya hace con el tema. El mecanismo es UNO
+ * ([MspThemeRevealHost], `:core:designsystem`); lo que cambia por pantalla es qué tema envuelve.
+ *
  * La compuerta que impide que la pantalla número ocho vuelva a olvidarlo son
  * `ElTemaLoPoneLaPantallaTest` (monta este composable SIN tema) y
  * `CadaPantallaMspProveeSuTemaTest` de `:app` (escanea las fuentes de todos los
@@ -84,7 +97,21 @@ fun ListaDeClientesScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    MspTheme {
+    // Las DOS señales de reduce-motion, combinadas acá y no en un helper: es el mismo criterio
+    // que `rememberReportReducedMotion()` (accesibilidad del SO **o** "Deshabilitar
+    // animaciones" de Configuración) pero ese vive en `:feature:collectionReport`, que este
+    // módulo no importa. Una línea en el único call site, en vez de una abstracción nueva —
+    // cuando aparezca el tercer caller, esto sí gana su lugar en `:core:designsystem`.
+    val reduceMotion = rememberReducedMotionEnabled() || LocalReduceMotion.current
+    MspThemeRevealHost(
+        onToggleTheme = viewModel::alternarTema,
+        reducedMotion = reduceMotion,
+        tema = { animateColors, contenido ->
+            // `darkTheme` queda en su default (`appDarkTheme()` → `LocalAppDarkTheme` →
+            // `ThemeController.isDarkMode`): el tema lo manda la app, no esta pantalla.
+            MspTheme(animateColors = animateColors, content = contenido)
+        }
+    ) {
         ListaDeClientesContent(
             state = state,
             onAtras = onAtras,

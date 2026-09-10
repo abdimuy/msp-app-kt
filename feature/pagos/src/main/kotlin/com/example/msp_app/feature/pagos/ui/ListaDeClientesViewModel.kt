@@ -16,8 +16,10 @@ import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -76,13 +78,43 @@ class ListaDeClientesViewModel @Inject constructor(
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
 
-    private val mutableState = MutableStateFlow(
-        // Sembrado SÍNCRONO, no por la colecta de abajo: con el default `false`
-        // la pantalla pintaría un frame en claro antes del primer valor del
-        // `Flow`, y con la app en oscuro eso es un flash blanco al entrar.
-        ListaDeClientesUiState(temaOscuro = tema.oscuroAhora())
-    )
-    val state: StateFlow<ListaDeClientesUiState> = mutableState.asStateFlow()
+    /**
+     * La cartera proyectada — **sin el tema**. `temaOscuro` NO se guarda acá: se deriva en
+     * [state]. Ver el KDoc de [state] por qué.
+     */
+    private val mutableState = MutableStateFlow(ListaDeClientesUiState())
+
+    /**
+     * **El tema se DERIVA, no se guarda** (Ruling BQ).
+     *
+     * La primera versión lo guardaba en [mutableState] y lo mantenía con una colecta que hacía
+     * `copy(temaOscuro = ...)`. Eso deja un agujero más filoso de lo que parece: cualquier
+     * escritor que reconstruya el estado con el **constructor** en vez de `copy` lo pisa al
+     * default, y como el `StateFlow` del puerto **no re-emite** un valor que no cambió, el
+     * pisón **queda pegado hasta el próximo cambio de tema** — o sea hasta que el cobrador
+     * toque el botón otra vez. Se midió: `proyectar()` corre en cada tecla del buscador, así
+     * que teclear una letra apagaba el tema del encabezado y ahí se quedaba.
+     *
+     * Con `combine` el tema se vuelve a aplicar **en cada emisión**, así que ya no hay pisón
+     * posible: un escritor descuidado puede perder los campos de la cartera, pero no el tema.
+     * Arreglar la clase entera cuesta estas cinco líneas; declararla como riesgo no alcanzaba.
+     *
+     * `initialValue` con la lectura **síncrona** del puerto ([TemaDeLaAppPort.oscuroAhora]): sin
+     * ella la pantalla pintaría un frame en claro antes de la primera emisión, y con la app en
+     * oscuro eso es un flash blanco al entrar.
+     *
+     * `SharingStarted.Eagerly` y no `WhileSubscribed`: el estado tiene que estar correcto para
+     * quien lea `state.value` sin coleccionar (los tests lo hacen) y la colecta anterior también
+     * era eager, colgada de `viewModelScope`.
+     */
+    val state: StateFlow<ListaDeClientesUiState> =
+        combine(mutableState, tema.oscuro) { cartera, oscuro ->
+            cartera.copy(temaOscuro = oscuro)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = ListaDeClientesUiState(temaOscuro = tema.oscuroAhora())
+        )
 
     private var cartera: Cartera? = null
 
@@ -100,17 +132,6 @@ class ListaDeClientesViewModel @Inject constructor(
 
     init {
         telemetry.screenView(PANTALLA)
-        // Mantiene `temaOscuro` pegado al tema GLOBAL mientras la pantalla vive
-        // — no solo cuando se toca ESTE toggle: si el tema cambia desde otro
-        // lado (el cajón legado, Configuración, el reporte, o el sistema
-        // operativo en modo Automático) el glifo del encabezado lo refleja.
-        // `viewModelScope` cancela la colecta sola. Mismo patrón que
-        // `CollectionReportViewModel.init`.
-        viewModelScope.launch {
-            tema.oscuro.collect { oscuro ->
-                mutableState.update { it.copy(temaOscuro = oscuro) }
-            }
-        }
         cargar()
     }
 
@@ -155,13 +176,10 @@ class ListaDeClientesViewModel @Inject constructor(
     }
 
     /**
-     * **`copy` y no un `ListaDeClientesUiState(...)` nuevo**, y esa diferencia
-     * es un defecto que ya estaba esperando: esta función corre en cada tecla
-     * del buscador y en cada toque de chip, así que construir el estado desde
-     * cero devuelve al default TODO campo que no se nombre acá. Con
-     * `temaOscuro` en el estado eso significaba que **teclear una letra
-     * apagaba el tema oscuro del encabezado**. `copy` nombra las seis que esta
-     * proyección sí produce y deja intacto lo que no es suyo.
+     * `copy` en vez de un `ListaDeClientesUiState(...)` nuevo: nombra las seis que esta
+     * proyección produce y deja intacto lo que no es suyo. Es lo correcto, pero **ya no es
+     * lo que sostiene el tema** — eso lo sostiene la derivación de [state] (Ruling BQ), que
+     * es inmune a que alguien vuelva al constructor acá o en una proyección futura.
      */
     private fun proyectar() {
         val cargada = cartera

@@ -1,5 +1,7 @@
 package com.example.msp_app.feature.pagos.ui
 
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -15,6 +17,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.height
 import androidx.lifecycle.SavedStateHandle
+import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_CLARO
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
@@ -32,6 +35,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.ui.components.ATRAS_TAG
+import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -76,9 +80,26 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
     private val visitasPort = FakeVisitasPort()
     private val temaPort = FakeTemaDeLaAppPort()
 
+    /**
+     * **Reduce-motion forzado, y no es cosmético.** Desde Ruling BP la pantalla instala
+     * `MspThemeRevealHost`, y su rama animada graba un `GraphicsLayer` por frame y llama
+     * `toImageBitmap()` — respaldado por `RenderNode`/`Picture`, que Robolectric no soporta de
+     * forma confiable fuera de `GraphicsMode.NATIVE` (le costó ~40 min de cuelgue al Plan 3, ver
+     * KDoc de `ThemeRevealRootTest`). Además, en esa rama el tap **no** llama a `onToggle`: pide
+     * una reveal. Sin este `@Before` estos tests medirían otra cosa o colgarían. Es la misma
+     * disciplina que `PagosScreenshotTest` y `ThemeRevealRootTest`.
+     *
+     * Que la pantalla instale el host cuando el movimiento **no** está reducido lo mide
+     * `LaListaInstalaLaRevealDeTemaTest`, que es la red de la reveal.
+     */
     @Before
-    fun sembrarLaRuta() {
+    fun sembrarLaRutaYApagarAnimaciones() {
         ventasPort.ventas = ListaFixtures.datosDeLaRuta()
+        Settings.Global.putFloat(
+            ApplicationProvider.getApplicationContext<Context>().contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            0f
+        )
     }
 
     private fun viewModel() = ListaDeClientesViewModel(
@@ -191,9 +212,17 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
 
         composeTestRule.onNodeWithTag(BUSCADOR_TAG).performTextInput("Flores")
         composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithContentDescription(DESCRIPCION_A_CLARO).assertIsDisplayed()
+
+        // Y el chip, que este `@Test` prometía en el nombre y no tocaba. Los dos disparan
+        // `proyectar()`, que es el escritor que pisaba el tema.
+        composeTestRule
+            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.VENCIDOS.name.lowercase())
+            .performClick()
+        composeTestRule.waitForIdle()
 
         assertEquals(
-            "teclear no puede apagar el tema: nadie pidió alternar de nuevo",
+            "ni teclear ni cambiar de chip pueden apagar el tema: nadie pidió alternar de nuevo",
             1,
             temaPort.alternaciones
         )

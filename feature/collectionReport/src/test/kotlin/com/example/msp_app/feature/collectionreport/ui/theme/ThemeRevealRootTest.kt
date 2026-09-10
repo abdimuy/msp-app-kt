@@ -16,6 +16,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.component.LocalThemeReveal
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.component.maxDistanceToCorner
+import com.example.msp_app.core.designsystem.component.revealTargetRadius
 import com.example.msp_app.core.testing.RobolectricTestBase
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,7 +50,9 @@ private fun ToggleProbe(darkTheme: Boolean, onToggle: () -> Unit) {
  * test ejercita, y es la única que los goldens Roborazzi ejercitan también (ver
  * `screenshot/CollectionReportScreenshotTest.disableAnimationsForDeterministicGoldens`).
  * [revealTargetRadius] (el cálculo puro que sí alimenta la rama animada) se prueba aparte, sin
- * Compose, más abajo.
+ * Compose, más abajo — desde su lugar nuevo, `:core:designsystem` (Ruling BP: el mecanismo de
+ * la reveal se centralizó en `MspThemeRevealHost` para que el toggle se sienta igual en toda
+ * la app; lo que quedó acá es qué tema envuelve el reporte y qué cuenta como reduce-motion).
  */
 class ThemeRevealRootTest : RobolectricTestBase() {
 

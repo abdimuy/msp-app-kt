@@ -111,6 +111,12 @@ class ListaDeClientesViewModelTest {
         advanceUntilIdle()
 
         vm.buscar("Zepeda")
+        // `state` se DERIVA con `combine(...).stateIn(...)` desde Ruling BQ (el tema no se
+        // guarda, se re-aplica en cada emisión), así que hay que dejar correr al dispatcher.
+        // En producción no hay lag: `viewModelScope` es `Dispatchers.Main.immediate` y la
+        // emisión sale inline; el `advanceUntilIdle` es contabilidad del
+        // `StandardTestDispatcher`, que esta clase usa a propósito (ver su KDoc).
+        advanceUntilIdle()
         assertEquals(listOf(ListaFixtures.RICARDO), vm.state.value.clientes.map { it.clienteId })
         assertEquals("Zepeda", vm.state.value.query)
         // La búsqueda es sobre lo ya cargado: nada de releer Room por tecla.
@@ -123,6 +129,7 @@ class ListaDeClientesViewModelTest {
         advanceUntilIdle()
 
         vm.elegirSegmento(SegmentoDeCobranza.VENCIDOS)
+        advanceUntilIdle() // ver el comentario del test de arriba (derivación de `state`)
         assertEquals(SegmentoDeCobranza.VENCIDOS, vm.state.value.segmento)
         // Solo Guadalupe tiene una visita en la ventana, y dice que se negó.
         assertEquals(listOf(ListaFixtures.GUADALUPE), vm.state.value.clientes.map { it.clienteId })
