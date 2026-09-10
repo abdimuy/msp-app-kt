@@ -15,6 +15,7 @@ import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
 import com.example.msp_app.data.pagos.FichaDelClienteAdapter
 import com.example.msp_app.data.pagos.RegistroDeAbonoAdapter
 import com.example.msp_app.data.pagos.SettlementLiquidacionAdapter
+import com.example.msp_app.data.pagos.ThemeControllerTemaDeLaAppAdapter
 import com.example.msp_app.data.pagos.UserCyclePeriodoDeCobroAdapter
 import com.example.msp_app.feature.collectionreport.domain.port.UserCyclePort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
@@ -22,6 +23,7 @@ import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
+import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import com.example.msp_app.services.pedirUbicacionDelPago
 import dagger.Module
 import dagger.Provides
@@ -43,6 +45,21 @@ import dagger.hilt.components.SingletonComponent
 @Module
 @InstallIn(SingletonComponent::class)
 object PagosPortsModule {
+
+    /**
+     * El tema GLOBAL de la app para el encabezado de la lista de clientes — el
+     * botón sol/luna que el dueño no encontraba. Vive aquí y no en
+     * `PagosDataModule` por la misma razón que sus vecinos: `ThemeController`
+     * es de `:app`, fuera del alcance del módulo de feature.
+     *
+     * SIN `@Singleton`, igual que [CollectionReportThemeModule] y
+     * [ConfiguracionThemeModule]: [ThemeControllerTemaDeLaAppAdapter] no
+     * sostiene ningún estado propio (delega TODO en el objeto `ThemeController`,
+     * que ya es el singleton real), así que instanciarlo por inyección es tan
+     * caro como no hacerlo.
+     */
+    @Provides
+    fun provideTemaDeLaAppPort(): TemaDeLaAppPort = ThemeControllerTemaDeLaAppAdapter()
 
     @Provides
     fun provideLiquidacionPort(saleDao: SaleDao, telemetry: Telemetry): LiquidacionPort =

@@ -19,9 +19,13 @@ import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDeLaFicha
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
+import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import com.example.msp_app.feature.pagos.domain.port.VisitasPort
 import java.time.Instant
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Fakes escritos a mano de los cinco puertos: estado público + lista pública
@@ -265,5 +269,29 @@ class FakeFichaPort : FichaDelClientePort {
         val guardada = ficha.copy(actualizada = actualizadaEn)
         fichas[clienteId] = guardada
         return ResultadoDeLaFicha.Guardada(guardada)
+    }
+}
+
+/**
+ * El tema GLOBAL de la app, fingido. **Flipea de verdad** y emite el valor
+ * nuevo por [oscuro], igual que `ThemeController.toggle()`: un fake que solo
+ * grabara la llamada sin cambiar el valor dejaría pasar un cableado donde el
+ * botón llama al puerto y la pantalla nunca se enterara.
+ */
+class FakeTemaDeLaAppPort(oscuroInicial: Boolean = false) : TemaDeLaAppPort {
+
+    private val estado = MutableStateFlow(oscuroInicial)
+
+    /** Cuántas veces se pidió alternar, en orden de llegada. */
+    var alternaciones: Int = 0
+        private set
+
+    override val oscuro: Flow<Boolean> = estado.asStateFlow()
+
+    override fun oscuroAhora(): Boolean = estado.value
+
+    override fun alternar() {
+        alternaciones++
+        estado.value = !estado.value
     }
 }

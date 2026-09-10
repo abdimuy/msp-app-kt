@@ -11,6 +11,7 @@ import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
@@ -48,6 +49,7 @@ class ListaDeClientesViewModelTest {
     private val pagosPort = FakePagosPort()
     private val visitasPort = FakeVisitasPort()
     private val periodoPort = FakePeriodoDeCobroPort()
+    private val temaPort = FakeTemaDeLaAppPort()
 
     @Before
     fun setUp() {
@@ -83,6 +85,7 @@ class ListaDeClientesViewModelTest {
             derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
             telemetry = telemetria
         ),
+        tema = temaPort,
         telemetry = telemetria,
         io = testDispatcher
     )
@@ -139,6 +142,7 @@ class ListaDeClientesViewModelTest {
                 derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
                 telemetry = telemetria
             ),
+            tema = temaPort,
             telemetry = telemetria,
             io = testDispatcher
         )

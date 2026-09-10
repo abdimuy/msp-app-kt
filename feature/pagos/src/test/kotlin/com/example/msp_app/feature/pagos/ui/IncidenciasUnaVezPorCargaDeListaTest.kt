@@ -16,6 +16,7 @@ import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +90,7 @@ class IncidenciasUnaVezPorCargaDeListaTest : RobolectricTestBase() {
                 derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria),
                 telemetry = telemetria
             ),
+            tema = FakeTemaDeLaAppPort(),
             telemetry = telemetria,
             io = testDispatcher
         )
@@ -108,7 +110,8 @@ class IncidenciasUnaVezPorCargaDeListaTest : RobolectricTestBase() {
                     onElegirSegmento = {},
                     onAbrirCliente = {},
                     onAbrirVenta = {},
-                    onReintentar = {}
+                    onReintentar = {},
+                    onAlternarTema = {}
                 )
             }
         }

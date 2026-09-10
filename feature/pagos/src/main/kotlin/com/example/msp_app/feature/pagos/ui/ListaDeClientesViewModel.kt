@@ -10,6 +10,7 @@ import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
+import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -17,6 +18,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -34,7 +36,14 @@ data class ListaDeClientesUiState(
      * el detalle: una ruta sin clientes es un resultado legítimo (cobrador
      * nuevo, sync pendiente) y se dice con el vacío, no con un error.
      */
-    val fallo: Boolean = false
+    val fallo: Boolean = false,
+    /**
+     * Tema oscuro vigente **de la app entera** — lo pinta el botón sol/luna del
+     * encabezado. No es un espejo local: lo siembra y lo mantiene
+     * [TemaDeLaAppPort], que es `ThemeController`. Ver el KDoc de
+     * [ListaDeClientesViewModel.alternarTema].
+     */
+    val temaOscuro: Boolean = false
 )
 
 /**
@@ -62,11 +71,17 @@ data class ListaDeClientesUiState(
 class ListaDeClientesViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val reunirCartera: ReunirCartera,
+    private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
 
-    private val mutableState = MutableStateFlow(ListaDeClientesUiState())
+    private val mutableState = MutableStateFlow(
+        // Sembrado SÍNCRONO, no por la colecta de abajo: con el default `false`
+        // la pantalla pintaría un frame en claro antes del primer valor del
+        // `Flow`, y con la app en oscuro eso es un flash blanco al entrar.
+        ListaDeClientesUiState(temaOscuro = tema.oscuroAhora())
+    )
     val state: StateFlow<ListaDeClientesUiState> = mutableState.asStateFlow()
 
     private var cartera: Cartera? = null
@@ -85,6 +100,17 @@ class ListaDeClientesViewModel @Inject constructor(
 
     init {
         telemetry.screenView(PANTALLA)
+        // Mantiene `temaOscuro` pegado al tema GLOBAL mientras la pantalla vive
+        // — no solo cuando se toca ESTE toggle: si el tema cambia desde otro
+        // lado (el cajón legado, Configuración, el reporte, o el sistema
+        // operativo en modo Automático) el glifo del encabezado lo refleja.
+        // `viewModelScope` cancela la colecta sola. Mismo patrón que
+        // `CollectionReportViewModel.init`.
+        viewModelScope.launch {
+            tema.oscuro.collect { oscuro ->
+                mutableState.update { it.copy(temaOscuro = oscuro) }
+            }
+        }
         cargar()
     }
 
@@ -109,6 +135,34 @@ class ListaDeClientesViewModel @Inject constructor(
         proyectar()
     }
 
+    /**
+     * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
+     * mueven el cajón legado, Configuración y el reporte de cobranza—, y por eso
+     * persiste: sobrevive a navegar al cliente y volver, y a que muera el
+     * proceso.
+     *
+     * No escribe `temaOscuro` aquí a propósito. La escritura del `StateFlow` la
+     * produce la colecta de [TemaDeLaAppPort.oscuro] instalada en [init], que es
+     * lo que hace que el glifo también reaccione a un cambio de tema hecho en
+     * otra pantalla. Mismo desacople que `CollectionReportViewModel.toggleTheme`
+     * y `ConfiguracionViewModel.selectThemeMode`; el `alternar()` real es
+     * síncrono (solo escribe `SharedPreferences`), así que no hace falta lanzar
+     * una corrutina.
+     */
+    fun alternarTema() {
+        telemetry.tap(PANTALLA, ACCION_TEMA)
+        tema.alternar()
+    }
+
+    /**
+     * **`copy` y no un `ListaDeClientesUiState(...)` nuevo**, y esa diferencia
+     * es un defecto que ya estaba esperando: esta función corre en cada tecla
+     * del buscador y en cada toque de chip, así que construir el estado desde
+     * cero devuelve al default TODO campo que no se nombre acá. Con
+     * `temaOscuro` en el estado eso significaba que **teclear una letra
+     * apagaba el tema oscuro del encabezado**. `copy` nombra las seis que esta
+     * proyección sí produce y deja intacto lo que no es suyo.
+     */
     private fun proyectar() {
         val cargada = cartera
         val proyeccion = cargada?.let {
@@ -119,14 +173,16 @@ class ListaDeClientesViewModel @Inject constructor(
                 hoy = it.hoy
             )
         }
-        mutableState.value = ListaDeClientesUiState(
-            cargando = false,
-            clientes = proyeccion?.clientes.orEmpty(),
-            conteos = proyeccion?.conteos.orEmpty(),
-            segmento = segmento,
-            query = query,
-            fallo = cargada == null
-        )
+        mutableState.update {
+            it.copy(
+                cargando = false,
+                clientes = proyeccion?.clientes.orEmpty(),
+                conteos = proyeccion?.conteos.orEmpty(),
+                segmento = segmento,
+                query = query,
+                fallo = cargada == null
+            )
+        }
     }
 
     @Suppress(
@@ -157,5 +213,8 @@ class ListaDeClientesViewModel @Inject constructor(
 
         /** El chip elegido, por `ordinal` — un `Int` sobrevive al bundle sin ceremonia. */
         const val CLAVE_SEGMENTO = "pagos_lista_segmento"
+
+        /** Id de la acción del toggle en telemetría — mismo nombre que usa el reporte. */
+        const val ACCION_TEMA = "theme_toggle"
     }
 }

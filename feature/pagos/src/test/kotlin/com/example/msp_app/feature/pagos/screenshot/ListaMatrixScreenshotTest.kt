@@ -57,7 +57,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         dark = dark,
         nivel = nivel
     ) {
-        Lista(estadoDeLaRuta())
+        Lista(estadoDeLaRuta(dark))
     }
 
     private fun vacia(dark: Boolean) = capture(
@@ -66,13 +66,28 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
     ) {
         // Con `vencidos`: el estado vacío se retrata con un chip que el cobrador
         // usa todos los días, no con el que acaba de encenderse.
-        Lista(ListaDeClientesUiState(cargando = false, segmento = SegmentoDeCobranza.VENCIDOS))
+        Lista(
+            ListaDeClientesUiState(
+                cargando = false,
+                segmento = SegmentoDeCobranza.VENCIDOS,
+                temaOscuro = dark
+            )
+        )
     }
 
     private fun tema(dark: Boolean) = if (dark) "dark" else "light"
 
-    /** El mismo estado que produciría el ViewModel: proyectado, no armado a mano. */
-    private fun estadoDeLaRuta(): ListaDeClientesUiState {
+    /**
+     * El mismo estado que produciría el ViewModel: proyectado, no armado a mano.
+     *
+     * [dark] viaja al estado además del tema de la captura **a propósito**: es lo
+     * que decide el glifo del toggle del encabezado (sol en claro, luna en
+     * oscuro), y en producción los dos salen del mismo booleano
+     * (`ThemeController.isDarkMode`, vía `TemaDeLaAppPort` y `LocalAppDarkTheme`).
+     * Pasar uno sin el otro retrataría una combinación que la app no puede
+     * producir: luna sobre fondo blanco.
+     */
+    private fun estadoDeLaRuta(dark: Boolean): ListaDeClientesUiState {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.rutaConPromesaDeHoy(),
             segmento = SegmentoDeCobranza.TODOS,
@@ -82,7 +97,8 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         return ListaDeClientesUiState(
             cargando = false,
             clientes = proyeccion.clientes,
-            conteos = proyeccion.conteos
+            conteos = proyeccion.conteos,
+            temaOscuro = dark
         )
     }
 }
@@ -96,6 +112,7 @@ private fun Lista(state: ListaDeClientesUiState) {
         onElegirSegmento = {},
         onAbrirCliente = {},
         onAbrirVenta = {},
-        onReintentar = {}
+        onReintentar = {},
+        onAlternarTema = {}
     )
 }

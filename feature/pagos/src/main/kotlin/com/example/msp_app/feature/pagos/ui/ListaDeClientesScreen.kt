@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
@@ -92,6 +93,7 @@ fun ListaDeClientesScreen(
             onAbrirCliente = onAbrirCliente,
             onAbrirVenta = onAbrirVenta,
             onReintentar = viewModel::cargar,
+            onAlternarTema = viewModel::alternarTema,
             modifier = modifier
         )
     }
@@ -122,6 +124,30 @@ fun ListaDeClientesScreen(
  * Composable PURO sobre [ListaDeClientesUiState]: no lee puertos, no deriva
  * estados, no ordena y no emite telemetría. Ordenar aquí sería reordenar la
  * ruta en cada recomposición.
+ *
+ * ## El botón de modo oscuro, y por qué en ESTA pantalla
+ *
+ * El encabezado cuelga [MspThemeToggle] del hueco de la derecha que
+ * `BarraDeDetalle` ya tenía. kollect pone su cluster de toggles en el
+ * encabezado de sus **5 pantallas de nivel superior** y en ninguna de las
+ * empujadas, donde el encabezado es del botón de atrás y del contexto. De las
+ * siete pantallas de cobranza, **ésta es la única de nivel superior**: es la que
+ * el cajón abre (`DrawerContainer` → `PagosRutas.LISTA_CLIENTES`); a las otras
+ * seis se llega empujadas desde otra pantalla, y las dos de ticket ni eso —
+ * aparecen después de cobrar. Ponerlo en las siete sería copiarle a kollect algo
+ * que kollect no hace.
+ *
+ * **Sin `HeaderToggles`.** El envoltorio de kollect existe para juntar DOS
+ * controles (tema + ojo de privacidad) y darlos "de forma consistente en todas
+ * partes". Acá el ojo no se construye —enmascarar montos es funcionalidad
+ * nueva que nadie pidió—, así que un `Row` de un solo hijo, en un solo sitio,
+ * sería una abstracción sin nada que abstraer (YAGNI). El día que exista el
+ * ojo, `HeaderToggles` es el molde y este `accion` es donde entra.
+ *
+ * [onAlternarTema] **no tiene default**. Un `= {}` habría dejado compilar a
+ * cualquier host que se olvidara de cablearlo, y el síntoma sería un botón que
+ * se ve, se puede tocar y no hace nada — un defecto que ningún golden
+ * fotografía.
  */
 @Composable
 fun ListaDeClientesContent(
@@ -132,6 +158,7 @@ fun ListaDeClientesContent(
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onReintentar: () -> Unit,
+    onAlternarTema: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -140,7 +167,15 @@ fun ListaDeClientesContent(
             .background(MspTheme.colors.background)
     ) {
         Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
-            BarraDeDetalle(onAtras = onAtras)
+            BarraDeDetalle(
+                onAtras = onAtras,
+                accion = {
+                    MspThemeToggle(
+                        darkTheme = state.temaOscuro,
+                        onToggle = onAlternarTema
+                    )
+                }
+            )
             Text(
                 text = "clientes",
                 style = MspTheme.type.screenTitle,
