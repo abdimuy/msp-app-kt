@@ -102,8 +102,9 @@ fun revealTargetRadius(origin: Offset, size: IntSize): Float =
  *
  * La rama de reduce-motion **no envuelve nada en un `Box` y no aplica [modifier]** — es un
  * `return` temprano idéntico al que tenía `ThemeRevealRoot` antes de esta extracción. Esa
- * asimetría se conserva a propósito: es la rama que fotografían los 138 goldens del reporte, y
- * agregarle un nodo de layout los movería todos.
+ * asimetría se conserva a propósito: es la rama que fotografían los 86 goldens `.png` de
+ * `feature/collectionReport` (carpeta `src/test/screenshots`, verificados byte a byte contra
+ * `--rerun-tasks`), y agregarle un nodo de layout los movería todos.
  *
  * [reducedMotion] llega como parámetro y no se lee acá porque **la combinación de señales es
  * del caller**: el reporte usa `rememberReportReducedMotion()` (accesibilidad del SO **o** la
