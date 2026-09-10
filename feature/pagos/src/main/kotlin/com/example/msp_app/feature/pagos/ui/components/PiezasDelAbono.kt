@@ -6,6 +6,7 @@ package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
@@ -73,6 +76,14 @@ const val TECLA_BORRAR: String = "borrar"
  * declara.
  */
 private val TOQUE = 56.dp
+
+/**
+ * Ancho mínimo de un chip sugerido. Sale del `SuggestionChips` de kollect
+ * (`feature/abono/.../AbonoSuggestions.kt`, `CHIP_MIN_WIDTH = 84.dp`), que es
+ * la misma pieza de la misma pantalla allá. Evita que el chip más corto
+ * ("LIQUIDAR") quede apretado ahora que los tres se miden por su contenido.
+ */
+private val ANCHO_MINIMO_DEL_CHIP = 84.dp
 
 /**
  * El encabezado (`.head` del mock): "abono" y debajo el cliente, **con el
@@ -242,6 +253,29 @@ fun BandaDeBloqueo(mensaje: String, modifier: Modifier = Modifier) {
  *
  * Ninguno puede exceder el saldo — lo garantiza
  * [com.example.msp_app.feature.pagos.domain.MontosSugeridos], no esta fila.
+ *
+ * **Los tres chips se miden por su contenido, no en tercios iguales
+ * (corrección de la ronda 1).** En tercios de 360dp cada chip tiene 81dp de
+ * texto y "AL CORRIENTE" necesita ~88dp, así que a escala normal el rótulo se
+ * partía en dos renglones (`AL` / `CORRIENTE`) y la fila quedaba con dos chips
+ * altos y uno bajo. No es un problema de tamaño de letra: en tercios iguales
+ * **ningún** reparto alcanza, porque dos de los tres rótulos tienen 12
+ * caracteres y el tercero ("LIQUIDAR") ocho — sobra ancho justo donde no hace
+ * falta. Medidos por contenido los tres caben en un renglón y la fila queda
+ * pareja.
+ *
+ * Es además lo que hace kollect en **esta misma pantalla**: su
+ * `SuggestionChips` (`feature/abono/.../AbonoSuggestions.kt`) es un `Row` con
+ * `horizontalScroll` de chips medidos por contenido con
+ * `defaultMinSize(minWidth = 84.dp)`, y su rótulo es `type.eyebrow` en
+ * mayúsculas — el mismo rol que usamos. El `horizontalScroll` no se ve a 360dp
+ * (los tres chips entran), y es lo que impide que en una pantalla más angosta
+ * el tercer chip se quede sin ancho: un `Row` sin peso le da 0dp al último
+ * hijo cuando los primeros se comieron el espacio, y un chip de dinero
+ * invisible es peor que uno al que hay que arrastrar.
+ *
+ * A `GRANDE`/`MUY_GRANDE` no cambia nada: ahí siguen apilados a lo ancho
+ * ([EnFilaOApiladas]).
  */
 @Composable
 fun ChipsSugeridos(
@@ -250,7 +284,7 @@ fun ChipsSugeridos(
     modifier: Modifier = Modifier
 ) {
     if (sugeridos.isEmpty()) return
-    EnFilaOApiladas(modifier = modifier) { anchoDeCadaUno ->
+    EnFilaOApiladas(modifier = modifier, porContenido = true) { anchoDeCadaUno ->
         sugeridos.forEach { sugerido ->
             ChipSugerido(
                 sugerido = sugerido,
@@ -271,18 +305,36 @@ fun ChipsSugeridos(
  * `MspMoneyText`— y le pasa justo al usuario que más ayuda necesita. Se lee
  * [LocalFontSizeLevel], la preferencia elegida en la app, no el `fontScale` del
  * sistema.
+ *
+ * [porContenido] cambia solo la rama en fila: en vez de tercios iguales
+ * (`weight(1f)`) los hijos se miden por su contenido dentro de un `Row` con
+ * `horizontalScroll`, que es lo que necesitan los chips sugeridos y **no** las
+ * pastillas de método —esas sí quieren tercios iguales, y su rótulo
+ * ("efectivo", "transferencia") nunca se partió—. El porqué completo está en
+ * el KDoc de [ChipsSugeridos].
  */
 @Composable
 private fun EnFilaOApiladas(
     modifier: Modifier = Modifier,
+    porContenido: Boolean = false,
     contenido: @Composable (Modifier) -> Unit
 ) {
     if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
         Row(
-            modifier = modifier.fillMaxWidth(),
+            modifier = if (porContenido) {
+                modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            } else {
+                modifier.fillMaxWidth()
+            },
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
         ) {
-            contenido(Modifier.weight(1f))
+            contenido(
+                if (porContenido) {
+                    Modifier.widthIn(min = ANCHO_MINIMO_DEL_CHIP)
+                } else {
+                    Modifier.weight(1f)
+                }
+            )
         }
     } else {
         Column(

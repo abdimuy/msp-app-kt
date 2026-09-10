@@ -128,13 +128,23 @@ fun EstadoEnGrande(estado: EstadoDelPeriodo, modifier: Modifier = Modifier) {
  *    "sus ventas" donde el mock y kollect dicen "SUS VENTAS". Va con la
  *    locale de negocio y no la del teléfono: en es-MX los acentos se
  *    conservan ("LIQUIDACIÓN"), que es como los escribe kollect.
- * 2. **El rol tipográfico correcto es `eyebrow`, no `overline`.** Verificado
- *    en `CampoType.kt:215-218`: `overline` (12/600, +0.05em) es de los labels
- *    DENTRO de una tarjeta (`.hero .lab`, `.capa .k`), y `eyebrow` (11/700,
- *    +0.09em, "caller uppercases") es el del encabezado de sección — el que
- *    `ClienteDetalleScreen.kt:337` y `VentaDetalleSections.kt:325` usan para
- *    "ÚLTIMOS PAGOS" y "COMPORTAMIENTO DE PAGO". El tracking ancho es la
- *    firma; con `overline` se queda a la mitad.
+ * 2. **El rol tipográfico correcto es `eyebrow`, no `overline`.** El argumento
+ *    es el **ancho de tracking**: el `.sl` del mock es
+ *    `10px/700/letter-spacing:.16em` (los tres HTML que lo definen:
+ *    `cliente-y-venta.html:79`, `historial-de-pagos.html:30`,
+ *    `registrar-visita.html:44`), y de los cuatro roles de esta familia que
+ *    tenemos —`sectionHeader` +0.04em, `overline` +0.05em, `sectionLabel`
+ *    +0.08em, `eyebrow` +0.09em (`MspType.kt:191-194`, 1:1 con
+ *    `CampoType.kt:209-218`)— **`eyebrow` es el más ancho**, o sea el más
+ *    cercano a .16em. Con `overline` el tracking se queda a la mitad.
+ *
+ *    **Corrección de la ronda 1:** este KDoc citaba
+ *    `ClienteDetalleScreen.kt:337` como el uso de `eyebrow` en kollect para
+ *    "ÚLTIMOS PAGOS", y **es falso**: ahí el estilo es `sectionHeader`
+ *    (`ClienteDetalleScreen.kt:339`) y ese archivo no usa `eyebrow` en ningún
+ *    Text. La cita que **sí** existe es `VentaDetalleSections.kt:325`,
+ *    "COMPORTAMIENTO DE PAGO" con `type.eyebrow`. Los valores del rol siempre
+ *    fueron correctos; la cita no.
  */
 @Composable
 fun LabelDeSeccion(texto: String, modifier: Modifier = Modifier) {
@@ -158,9 +168,24 @@ fun LabelDeSeccion(texto: String, modifier: Modifier = Modifier) {
  * ancho completo, el padding interior de `spacing.md` y `shapes.card` (20dp)
  * en vez del `shapes.tile` (16dp) por default.
  *
- * Nota de encuadre: el hairline sale de **kollect**, no del mock. Los cuatro
- * HTML no ponen borde en ninguna tarjeta (`grep border:` devuelve solo la marca
- * de semana sin pago), así que aquí manda la app de referencia.
+ * Nota de encuadre — **corregida en la ronda 1; la versión anterior de este
+ * párrafo era falsa.** El hairline no se importó de kollect: `MspSurface` lo
+ * documenta como **invariante de este design system** — *"El hairline va
+ * SIEMPRE — no es opcional… define las tarjetas casi-planas del sistema"*
+ * (spec §2.3) —, así que las siete pantallas eran la **desviación** y reusar
+ * [MspCard] no agregó un adorno: dejó de violar §2.3.
+ *
+ * Y el mock **sí** lo pide. Un `grep 'border:'` sobre los cuatro HTML de
+ * `docs/design/mocks/` devuelve
+ * **nueve** coincidencias, no una — entre ellas la tarjeta `.opt` de
+ * `historial-de-pagos.html:21` y el `.map` de `cliente-y-venta.html:151`, las
+ * dos con `1px solid var(--line)`. Y sobre todo: **el idioma del hairline en
+ * el mock es `box-shadow:inset 0 0 0 1.5px var(--line)`**, 20 reglas repartidas
+ * entre `registrar-abono.html` (11) y `registrar-visita.html` (9) — incluidas
+ * **las doce teclas** (`.m`, `registrar-abono.html:58`) y los chips sugeridos
+ * (`.sug`, `:49`). Esos dos archivos no tienen **ni un** `border:`, así que un
+ * grep de `border:` es ciego exactamente donde el mock más pide el borde: la
+ * falla de control positivo que originó esta corrección.
  */
 @Composable
 fun Tarjeta(

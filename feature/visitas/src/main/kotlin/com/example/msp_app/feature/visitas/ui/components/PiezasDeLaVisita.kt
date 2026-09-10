@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspCard
+import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
@@ -533,6 +534,16 @@ fun CampoDeNota(
  * **Apagado también quiere decir apagado visualmente** (`.btn.off` del mock) y
  * sin `onClick`: un botón vivo que no hace nada es la mentira que la Task 18
  * tuvo que arreglar dos veces.
+ *
+ * **El CTA es [MspPrimaryFieldButton], no un `Surface` a mano (corrección de
+ * la ronda 1).** El `Surface` local reproducía la receta del compartido
+ * —`heightIn(min = 56dp)` + `shapes.button` + `type.buttonLarge` +
+ * `brand`/`onBrand`, y el apagado pintado a mano— incluido el gotcha que el
+ * KDoc del compartido documenta: un `Surface` clickable de M3 no aplica alfa
+ * de deshabilitado por sí solo. Con el compartido llegan además el **haptic**
+ * de cada tap (spec §8.4) y la sombra de 8dp tintada a marca, y el apagado
+ * pasa del `surface2` local al `outline` del sistema, que es el token que el
+ * design system usa para un botón muerto.
  */
 @Composable
 fun DockDeLaVisita(
@@ -556,28 +567,14 @@ fun DockDeLaVisita(
                 .padding(MspTheme.spacing.md),
             verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
         ) {
-            Surface(
+            MspPrimaryFieldButton(
+                text = texto,
                 onClick = onGuardar,
                 enabled = habilitado,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = TOQUE)
-                    .testTag(GUARDAR_TAG),
-                shape = MspTheme.shapes.button,
-                color = if (habilitado) MspTheme.colors.brand else MspTheme.colors.surface2
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = texto,
-                        style = MspTheme.type.buttonLarge,
-                        color = if (habilitado) {
-                            MspTheme.colors.onBrand
-                        } else {
-                            MspTheme.colors.onSurfaceMuted
-                        }
-                    )
-                }
-            }
+                    .testTag(GUARDAR_TAG)
+            )
             if (razon != null) {
                 Text(
                     text = razon,

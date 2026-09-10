@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /** `testTag` del botón "atrás". */
@@ -126,6 +127,22 @@ private fun BotonCircular(
  * El dock del mock (`.dock`): CTA primario en `brand` (nunca en verde — el
  * verde `statusPaid` es solo estado), acción de visita en superficie y el "⋯"
  * donde vive la condonación.
+ *
+ * **El slot primario es [MspPrimaryFieldButton], no [BotonDelDock]
+ * (corrección de la ronda 1).** Se pintaba a mano con la receta exacta del
+ * componente compartido —`heightIn(min = 56dp)` + `shapes.button` +
+ * `type.buttonLarge` + `brand`/`onBrand`— y al hacerlo se perdía lo que no es
+ * cosmético: **el haptic**. El CTA de esta pantalla es "abonar $NNN", una
+ * acción de dinero, y el design system lo declara regla dura — *"las acciones
+ * de dinero deben sentirse físicas"* (spec §8.4, KDoc de
+ * `PrimaryFieldButton`): cada tap dispara `HapticFeedbackType.LongPress`. Con
+ * el `Surface` local no vibraba. También llegan la sombra de 8dp tintada a
+ * marca y el estado apagado plano del sistema.
+ *
+ * [BotonDelDock] se queda para los otros dos slots, que **no** son variantes
+ * del compartido: van rellenos de `surface` y `MspPrimaryFieldButton` solo
+ * ofrece `Primary` (fill marca), `Danger` (fill rojo) y `Ghost` (outline sin
+ * relleno). Forzar `Ghost` cambiaría el peso visual del dock.
  */
 @Composable
 fun DockDeAcciones(
@@ -150,10 +167,8 @@ fun DockDeAcciones(
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BotonDelDock(
-                texto = textoPrimario,
-                relleno = MspTheme.colors.brand,
-                contenido = MspTheme.colors.onBrand,
+            MspPrimaryFieldButton(
+                text = textoPrimario,
                 onClick = onPrimario,
                 modifier = Modifier
                     .weight(1.7f)
