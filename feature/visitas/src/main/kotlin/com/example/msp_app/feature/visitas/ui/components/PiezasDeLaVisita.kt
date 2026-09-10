@@ -34,6 +34,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
@@ -122,11 +124,7 @@ fun BarraDeVisita(
 /** El `.ctx` del mock: avatar, nombre, cuentas y dirección, saldo total a la derecha. */
 @Composable
 fun TiraDelCliente(contexto: ContextoDeVisita, modifier: Modifier = Modifier) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MspTheme.shapes.tile,
-        color = MspTheme.colors.surface
-    ) {
+    MspCard(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(MspTheme.spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
@@ -212,16 +210,22 @@ fun OpcionDeResultado(
     modifier: Modifier = Modifier
 ) {
     val visual = resultadoVisualDe(resultado)
-    Surface(
-        onClick = onElegir,
-        enabled = habilitado,
+    // `MspCard` pone el hairline de 1dp `outline` en TODA tarjeta del sistema;
+    // el anillo de 2dp del desenlace elegido se dibuja ENCIMA con un
+    // `Modifier.border`, no en lugar del hairline. Antes el renglón no
+    // seleccionado no tenía borde alguno.
+    val anillo = if (seleccionado) {
+        Modifier.border(2.dp, visual.contenido, MspTheme.shapes.tile)
+    } else {
+        Modifier
+    }
+    MspCard(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = TOQUE)
+            .then(anillo)
             .testTag(OPCION_TAG + resultado.name.lowercase()),
-        shape = MspTheme.shapes.tile,
-        color = MspTheme.colors.surface,
-        border = if (seleccionado) BorderStroke(2.dp, visual.contenido) else null
+        onClick = if (habilitado) onElegir else null
     ) {
         Row(
             modifier = Modifier.padding(MspTheme.spacing.sm),
@@ -241,11 +245,7 @@ fun OpcionDeResultado(
                     color = MspTheme.colors.onSurfaceMuted
                 )
             }
-            Text(
-                text = resultado.etiquetaDeAlcance,
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.onSurfaceMuted
-            )
+            EtiquetaDeAlcance(resultado.etiquetaDeAlcance)
         }
     }
 }
@@ -268,6 +268,36 @@ private fun GlifoDelResultado(visual: ResultadoVisual) {
 }
 
 /**
+ * El `.oscope` del mock: `9px/800`, `.06em`, `uppercase`, sobre `surface2` con
+ * radio de 6dp.
+ *
+ * Antes era el texto gris en minúscula y sin caja, y se leía como un metadato
+ * suelto en vez de como la etiqueta que dice si el desenlace es del CLIENTE o
+ * de una VENTA — que es la distinción de la que depende a qué se aplica lo que
+ * el cobrador está por guardar.
+ */
+@Composable
+private fun EtiquetaDeAlcance(texto: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .background(MspTheme.colors.surface2, MspTheme.shapes.chip9)
+            // El anillo de 1dp: en claro `surface2` (#FBFCFC) sobre `surface`
+            // (#FFFFFF) no se distingue, así que sin él la caja del mock
+            // desaparecía y quedaba otra vez el texto suelto. Es el patrón que
+            // kollect usa para este mismo tipo de insignia en versalitas
+            // (`SaleWorkStateDot.kt:174-177`: tint + anillo de 1dp).
+            .border(1.dp, MspTheme.colors.outline, MspTheme.shapes.chip9)
+            .padding(horizontal = MspTheme.spacing.xs, vertical = 2.dp)
+    ) {
+        Text(
+            text = texto.uppercase(BUSINESS_LOCALE),
+            style = MspTheme.type.eyebrow,
+            color = MspTheme.colors.onSurfaceMuted
+        )
+    }
+}
+
+/**
  * El aviso de alcance del mock ("aplica a sus 2 ventas"). Solo aparece cuando el
  * desenlace es del cliente: es la regla del catálogo hecha visible en vez de
  * implícita.
@@ -275,7 +305,7 @@ private fun GlifoDelResultado(visual: ResultadoVisual) {
 @Composable
 fun AvisoDeAlcance(cuantas: Int, modifier: Modifier = Modifier) {
     val cuentas = if (cuantas == 1) "su cuenta" else "sus $cuantas ventas"
-    Surface(
+    MspCard(
         modifier = modifier.fillMaxWidth(),
         shape = MspTheme.shapes.control,
         color = MspTheme.colors.surface2
@@ -289,12 +319,23 @@ fun AvisoDeAlcance(cuantas: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/** El encabezado de una sección del fold (`.fk` del mock). */
+/**
+ * El encabezado de una sección del fold (`.fk` del mock: `10px/800`, `.13em`,
+ * `uppercase`).
+ *
+ * En versalitas y con el rol `eyebrow`, el mismo que `LabelDeSeccion` de
+ * `:feature:pagos` — es el rol que kollect usa para el encabezado de sección
+ * (`CampoType.kt:218`, "caller uppercases"). Antes iba en `sectionLabel`
+ * (11/800/+0.08em) y sin `.uppercase()`: casi el mismo grosor, pero minúsculas,
+ * y ese es el detalle que hacía que la pantalla se leyera suave. Con dos rótulos
+ * del mismo sistema en dos rols distintos, además, las dos features no
+ * coincidían entre sí.
+ */
 @Composable
 fun RotuloDeSeccion(texto: String, modifier: Modifier = Modifier) {
     Text(
-        text = texto,
-        style = MspTheme.type.sectionLabel,
+        text = texto.uppercase(BUSINESS_LOCALE),
+        style = MspTheme.type.eyebrow,
         color = MspTheme.colors.onSurfaceMuted,
         modifier = modifier.padding(top = MspTheme.spacing.sm)
     )
@@ -349,11 +390,7 @@ fun ChipDeOpcion(
 /** La tarjeta que envuelve un fold del mock (`.fold`). */
 @Composable
 fun TarjetaDelFold(modifier: Modifier = Modifier, contenido: @Composable () -> Unit) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = MspTheme.shapes.tile,
-        color = MspTheme.colors.surface
-    ) {
+    MspCard(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(MspTheme.spacing.sm),
             verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)

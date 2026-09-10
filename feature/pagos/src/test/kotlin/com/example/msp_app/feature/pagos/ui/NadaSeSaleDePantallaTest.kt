@@ -12,6 +12,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -101,15 +102,32 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText("notificada").performScrollTo().assertIsDisplayed()
     }
 
+    /** Los bordes del nodo cuyo texto es [etiqueta], tal cual se pinta. */
     private fun bordesDe(etiqueta: String): DpRect =
         composeTestRule.onNodeWithText(etiqueta).performScrollTo().getUnclippedBoundsInRoot()
+
+    /**
+     * Los bordes de uno de los tres labels del pie de la tarjeta de saldo
+     * (`.pgrid` del mock: `abonos · parcialidad · frecuencia`).
+     *
+     * **Busca en VERSALITAS a propósito.** `DatoDelPie` los pinta con
+     * `.uppercase()`, como el `.pgrid .k` del mock y como kollect, así que
+     * buscarlos en minúscula no encuentra el nodo. La aserción se arregla; la
+     * mayúscula se queda en la pantalla.
+     *
+     * Es un helper aparte y no un `.uppercase()` dentro de [bordesDe] porque
+     * [bordesDe] también localiza texto que NO va en versalitas —"ver los 6
+     * abonos", el enlace del riel— y uppercasearlo ahí lo dejaba sin nodo. La
+     * primera versión de este arreglo hizo exactamente eso.
+     */
+    private fun bordesDelPie(clave: String): DpRect = bordesDe(clave.uppercase(BUSINESS_LOCALE))
 
     @Test
     fun `en NORMAL los tres datos comparten renglon`() {
         ventaA(FontSizeLevel.NORMAL)
-        val abonos = bordesDe("abonos")
-        val parcialidad = bordesDe("parcialidad")
-        val frecuencia = bordesDe("frecuencia")
+        val abonos = bordesDelPie("abonos")
+        val parcialidad = bordesDelPie("parcialidad")
+        val frecuencia = bordesDelPie("frecuencia")
         assertEquals(abonos.top, parcialidad.top)
         assertEquals(abonos.top, frecuencia.top)
         assertTrue(
@@ -131,9 +149,9 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
     }
 
     private fun afirmaApilados() {
-        val abonos = bordesDe("abonos")
-        val parcialidad = bordesDe("parcialidad")
-        val frecuencia = bordesDe("frecuencia")
+        val abonos = bordesDelPie("abonos")
+        val parcialidad = bordesDelPie("parcialidad")
+        val frecuencia = bordesDelPie("frecuencia")
         assertTrue(
             "parcialidad sigue en el renglón de abonos: " + abonos.bottom + " vs " + parcialidad.top,
             parcialidad.top >= abonos.bottom

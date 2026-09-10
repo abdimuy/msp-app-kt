@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -94,7 +95,7 @@ fun SeccionDeComprobantes(
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         Text(
-            text = "comprobantes",
+            text = "comprobantes".uppercase(BUSINESS_LOCALE),
             style = MspTheme.type.overline,
             color = MspTheme.colors.onSurfaceMuted
         )

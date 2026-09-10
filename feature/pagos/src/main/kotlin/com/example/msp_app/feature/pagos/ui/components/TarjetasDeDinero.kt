@@ -21,7 +21,6 @@ import com.example.msp_app.core.designsystem.component.MspProgressBar
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
-import com.example.msp_app.feature.pagos.ui.estadoVisualDe
 import java.time.format.DateTimeFormatter
 
 /** `testTag` del botón "usar" de la tarjeta de liquidación. */
@@ -49,7 +48,7 @@ fun TarjetaDeSaldo(
     Tarjeta(modifier = modifier) {
         Column {
             Text(
-                text = label,
+                text = label.uppercase(BUSINESS_LOCALE),
                 style = MspTheme.type.overline,
                 color = MspTheme.colors.onSurfaceMuted
             )
@@ -88,7 +87,7 @@ fun TarjetaDeLiquidacion(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = label,
+                    text = label.uppercase(BUSINESS_LOCALE),
                     style = MspTheme.type.overline,
                     color = MspTheme.colors.onSurfaceMuted
                 )
@@ -132,16 +131,23 @@ fun TarjetaDeLiquidacion(
 const val FILA_DE_VENTA_TAG: String = "pagos_fila_venta"
 
 /**
- * Una venta dentro del detalle del cliente (`.sale`): cuadro de estado, título,
- * la etiqueta del estado, el saldo, la barra de abonos y el pie con la
- * parcialidad.
+ * Una venta dentro del detalle del cliente (`.sale`): título, **chip de
+ * estado**, el saldo, la barra de abonos y el pie con los abonos.
  *
- * El riel de color de la izquierda del mock (`.sale::before`) se traduce en el
- * cuadro de estado y en el color de la etiqueta: dos portadores, no uno.
+ * **Por qué el chip y no el cuadro.** Kollect arma esta misma fila con
+ * `SaleCard`, y `SaleCard.kt:107` pone `StatusChip(status, statusLabel)`: la
+ * pastilla con ícono + texto dentro. Aquí había un cuadro de color de 28dp más
+ * la etiqueta suelta al lado, en el color del estado — los dos portadores
+ * estaban, pero es justo la pieza chica cuya ausencia hacía que la pantalla se
+ * viera "suave" al lado de kollect. El chip queda debajo del título en vez de
+ * a su izquierda porque a 360dp la fila título + chip + monto no cabe, y el
+ * monto es el dato por el que el cobrador abrió la pantalla.
+ *
+ * El folio se queda, en gris apagado: dejó de compartir línea con el estado
+ * (iban los dos en el color del estado, y un identificador no tiene estado).
  */
 @Composable
 fun FilaDeVenta(venta: VentaDelCliente, onAbrir: () -> Unit, modifier: Modifier = Modifier) {
-    val visual = estadoVisualDe(venta.estado)
     Tarjeta(modifier = modifier.testTag(FILA_DE_VENTA_TAG), onClick = onAbrir) {
         Column {
             Row(
@@ -150,7 +156,6 @@ fun FilaDeVenta(venta: VentaDelCliente, onAbrir: () -> Unit, modifier: Modifier 
                     MspTheme.spacing.sm + MspTheme.spacing.xs
                 )
             ) {
-                CuadroDeEstado(visual)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = venta.descripcion.ifBlank { venta.folio },
@@ -158,12 +163,18 @@ fun FilaDeVenta(venta: VentaDelCliente, onAbrir: () -> Unit, modifier: Modifier 
                         color = MspTheme.colors.onSurface,
                         maxLines = 2
                     )
-                    Text(
-                        text = visual.etiqueta + " · " + venta.folio,
-                        style = MspTheme.type.saleMeta,
-                        color = visual.contenido,
-                        modifier = Modifier.testTag(ETIQUETA_DE_ESTADO_TAG)
-                    )
+                    Spacer(Modifier.height(MspTheme.spacing.xs))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+                    ) {
+                        ChipDeEstado(venta.estado)
+                        Text(
+                            text = venta.folio,
+                            style = MspTheme.type.saleMeta,
+                            color = MspTheme.colors.onSurfaceMuted
+                        )
+                    }
                 }
                 MspMoneyText(
                     amount = venta.saldo.amount,

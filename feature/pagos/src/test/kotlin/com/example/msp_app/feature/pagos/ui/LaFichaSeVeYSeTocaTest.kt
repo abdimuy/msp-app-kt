@@ -122,7 +122,7 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(CHIP_DE_FICHA_TAG + senal.ordinal, useUnmergedTree = true)
 
     private fun topeDeSusVentas(): Dp =
-        composeTestRule.onNodeWithText("sus ventas").getUnclippedBoundsInRoot().top
+        composeTestRule.onNodeWithText(SUS_VENTAS).getUnclippedBoundsInRoot().top
 
     private fun altoDeLaBarra(): Dp = bordesDe(ATRAS_TAG).let { it.bottom - it.top }
 
@@ -203,7 +203,7 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `la ficha vive ABAJO, despues de sus ventas`() {
         cliente()
-        val ventas = composeTestRule.onNodeWithText("sus ventas").getUnclippedBoundsInRoot()
+        val ventas = composeTestRule.onNodeWithText(SUS_VENTAS).getUnclippedBoundsInRoot()
         assertTrue(
             "la ficha no puede quedar arriba del dinero",
             bordesDe(TARJETA_DE_LA_FICHA_TAG).top > ventas.bottom
@@ -364,6 +364,15 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     private companion object {
+        /**
+         * El rótulo de la sección de ventas, **en versalitas**.
+         *
+         * `LabelDeSeccion` lo pinta con `.uppercase()` —como el `.sl` del mock
+         * y como el "ÚLTIMOS PAGOS" de kollect—, así que buscarlo en minúscula
+         * no encuentra el nodo. La aserción se arregla; la mayúscula se queda.
+         */
+        const val SUS_VENTAS = "SUS VENTAS"
+
         /** El producto de la primera fila de "sus ventas" del fixture. */
         const val PRIMERA_VENTA = "Sala 3 piezas + base"
 

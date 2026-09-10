@@ -13,8 +13,9 @@ import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
 /**
- * El "ritmo" del mock: las últimas [SEMANAS] semanas como barras — *a tiempo /
- * tarde / sin pago* — más el pie cumple / promedio / sin pago.
+ * El "ritmo": las últimas [SEMANAS] semanas — *a tiempo / tarde / sin pago* —
+ * más el pie cumple / promedio / sin pago. La UI las pinta como los doce
+ * cuadros iguales de kollect; este objeto solo clasifica.
  *
  * Dominio PURO: cero `android.*`, cero Room, cero `Instant.now()`. El "hoy" se
  * recibe por parámetro ([hoy]) porque un borde de semana es justo donde alguien
@@ -77,28 +78,11 @@ object RitmoDePagos {
         )
     }
 
-    /**
-     * Altura relativa de la barra de [semana] dentro de [semanas], en `[0f, 1f]`.
-     * Una semana sin pago conserva un piso visible porque la barra vacía TAMBIÉN
-     * es información — el mock la pinta como un tocón rojo, no como un hueco.
-     */
-    fun alturaDe(semana: SemanaDeRitmo, semanas: List<SemanaDeRitmo>): Float {
-        if (semana.ritmo == RitmoDeSemana.SIN_PAGO) return FRACCION_VACIA
-        val techo = semanas.maxOfOrNull { it.cobrado }?.takeIf { it > Money.ZERO } ?: return FRACCION_VACIA
-        val fraccion = semana.cobrado.amount
-            .divide(techo.amount, ESCALA_DE_FRACCION, RoundingMode.HALF_UP)
-            .toFloat()
-        return fraccion.coerceIn(FRACCION_MINIMA, 1f)
-    }
-
-    /** Alto relativo del tocón de una semana sin dinero: la ausencia también se ve. */
-    private const val FRACCION_VACIA = 0.24f
-
-    /** Piso de una barra CON dinero, para que un abono chico no desaparezca. */
-    private const val FRACCION_MINIMA = 0.34f
-
-    /** Decimales de la división de fracciones — precisión de layout, no de dinero. */
-    private const val ESCALA_DE_FRACCION = 4
+    // `alturaDe` vivía aquí: la altura relativa de cada barra dentro del ciclo.
+    // Se fue con las barras. El dueño eligió los DOCE CUADROS IGUALES de kollect
+    // sobre las barras de altura variable del mock (ver el KDoc de
+    // `RitmoDeSemanas`), así que ya no hay altura que calcular — y dejar la
+    // función sin llamador sería dejar dominio muerto que ninguna prueba cubría.
 
     private fun semanaDe(instante: java.time.Instant): LocalDate =
         AppTime.toBusinessDate(instante).with(DayOfWeek.MONDAY)

@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
@@ -391,7 +392,7 @@ private fun CeldaDeSaldo(
         // elipsis al menos se ve que están recortadas — ver el reporte de la
         // ronda 5 para si eso alcanza para distinguirlas.
         Text(
-            text = etiqueta,
+            text = etiqueta.uppercase(BUSINESS_LOCALE),
             style = MspTheme.type.eyebrow,
             color = MspTheme.colors.onSurfaceMuted,
             maxLines = 1,

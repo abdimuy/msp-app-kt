@@ -21,6 +21,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspCard
+import com.example.msp_app.core.designsystem.component.MspStatusChip
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -60,23 +63,27 @@ fun CuadroDeEstado(visual: EstadoVisual, lado: Dp = 28.dp, modifier: Modifier = 
     }
 }
 
-/** El cuadro más el texto del estado, en una fila — la unidad mínima legible. */
+/**
+ * El estado como **chip con texto dentro** — `⚠ Vencido 12d` en kollect,
+ * `.mstate` en el mock.
+ *
+ * Antes era el cuadro de color más una etiqueta suelta al lado. Los dos
+ * portadores estaban, pero la textura no: kollect mete ícono y texto DENTRO de
+ * una pastilla con tint, y pone dos o tres por pantalla. Ahora reusa
+ * [MspStatusChip] del design system —el componente compartido, no una copia
+ * local— por el overload de terna resuelta, porque nuestro catálogo tiene ocho
+ * estados y [ChipStatus] cinco (ver el KDoc de ese overload).
+ */
 @Composable
-fun EstadoEnFila(estado: EstadoDelPeriodo, modifier: Modifier = Modifier) {
+fun ChipDeEstado(estado: EstadoDelPeriodo, modifier: Modifier = Modifier) {
     val visual = estadoVisualDe(estado)
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-    ) {
-        CuadroDeEstado(visual)
-        Text(
-            text = visual.etiqueta,
-            style = MspTheme.type.captionStrong,
-            color = visual.contenido,
-            modifier = Modifier.testTag(ETIQUETA_DE_ESTADO_TAG)
-        )
-    }
+    MspStatusChip(
+        icon = visual.icono,
+        text = visual.etiqueta,
+        contentColor = visual.contenido,
+        containerColor = visual.fondo,
+        modifier = modifier.testTag(ETIQUETA_DE_ESTADO_TAG)
+    )
 }
 
 /**
@@ -109,42 +116,64 @@ fun EstadoEnGrande(estado: EstadoDelPeriodo, modifier: Modifier = Modifier) {
     }
 }
 
-/** El label de sección del mock (`.sl`): overline en mayúsculas ópticas. */
+/**
+ * El label de sección del mock (`.sl` = `10px/700`, `letter-spacing:.16em`,
+ * `text-transform:uppercase`) y de kollect ("ÚLTIMOS PAGOS",
+ * "COMPORTAMIENTO DE PAGO").
+ *
+ * Dos cosas que antes no estaban:
+ *
+ * 1. **Las versalitas.** El KDoc anterior decía "overline en mayúsculas
+ *    ópticas" pero el `.uppercase()` no existía, así que la pantalla decía
+ *    "sus ventas" donde el mock y kollect dicen "SUS VENTAS". Va con la
+ *    locale de negocio y no la del teléfono: en es-MX los acentos se
+ *    conservan ("LIQUIDACIÓN"), que es como los escribe kollect.
+ * 2. **El rol tipográfico correcto es `eyebrow`, no `overline`.** Verificado
+ *    en `CampoType.kt:215-218`: `overline` (12/600, +0.05em) es de los labels
+ *    DENTRO de una tarjeta (`.hero .lab`, `.capa .k`), y `eyebrow` (11/700,
+ *    +0.09em, "caller uppercases") es el del encabezado de sección — el que
+ *    `ClienteDetalleScreen.kt:337` y `VentaDetalleSections.kt:325` usan para
+ *    "ÚLTIMOS PAGOS" y "COMPORTAMIENTO DE PAGO". El tracking ancho es la
+ *    firma; con `overline` se queda a la mitad.
+ */
 @Composable
 fun LabelDeSeccion(texto: String, modifier: Modifier = Modifier) {
     Text(
-        text = texto,
-        style = MspTheme.type.overline,
+        text = texto.uppercase(BUSINESS_LOCALE),
+        style = MspTheme.type.eyebrow,
         color = MspTheme.colors.onSurfaceMuted,
         modifier = modifier.padding(top = MspTheme.spacing.md, bottom = MspTheme.spacing.sm)
     )
 }
 
-/** Tarjeta base de las secciones (`.money`, `.liq`, `.know`, `.stbig`). */
+/**
+ * Tarjeta base de las secciones (`.money`, `.liq`, `.know`, `.stbig`).
+ *
+ * **Es un envoltorio de [MspCard], no una tarjeta propia.** Antes era un
+ * `Box.clip(shapes.card).background(surface)` y por eso las siete pantallas se
+ * veían más suaves que kollect: les faltaba el **hairline de 1dp `outline`**
+ * que `MspCard` → `MspSurface` pone en TODA tarjeta del sistema (1:1
+ * `CampoCard`/`CampoSurface`). Lo único que esta función agrega encima es lo
+ * que las siete pantallas comparten y `MspCard` deliberadamente no asume: el
+ * ancho completo, el padding interior de `spacing.md` y `shapes.card` (20dp)
+ * en vez del `shapes.tile` (16dp) por default.
+ *
+ * Nota de encuadre: el hairline sale de **kollect**, no del mock. Los cuatro
+ * HTML no ponen borde en ninguna tarjeta (`grep border:` devuelve solo la marca
+ * de semana sin pago), así que aquí manda la app de referencia.
+ */
 @Composable
 fun Tarjeta(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
-    val cuerpo: @Composable () -> Unit = {
+    MspCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = MspTheme.shapes.card,
+        onClick = onClick
+    ) {
         Box(modifier = Modifier.padding(MspTheme.spacing.md)) { content() }
-    }
-    if (onClick == null) {
-        Box(
-            modifier = modifier
-                .fillMaxWidth()
-                .clip(MspTheme.shapes.card)
-                .background(MspTheme.colors.surface)
-        ) { cuerpo() }
-    } else {
-        androidx.compose.material3.Surface(
-            onClick = onClick,
-            modifier = modifier.fillMaxWidth(),
-            shape = MspTheme.shapes.card,
-            color = MspTheme.colors.surface,
-            content = cuerpo
-        )
     }
 }
 

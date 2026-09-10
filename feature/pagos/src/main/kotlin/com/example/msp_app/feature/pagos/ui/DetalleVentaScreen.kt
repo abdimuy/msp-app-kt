@@ -280,7 +280,8 @@ private fun PieDeLaVenta(detalle: DetalleVenta) {
 private fun DatoDelPie(clave: String, valor: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Text(
-            text = clave,
+            // `.pgrid .k` del mock: `10px/700`, `.11em`, `uppercase`.
+            text = clave.uppercase(BUSINESS_LOCALE),
             style = MspTheme.type.overline,
             color = MspTheme.colors.onSurfaceMuted
         )

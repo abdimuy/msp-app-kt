@@ -34,6 +34,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
@@ -180,7 +182,7 @@ fun TarjetaDeCaptura(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "monto recibido",
+                text = "monto recibido".uppercase(BUSINESS_LOCALE),
                 style = MspTheme.type.overline,
                 color = MspTheme.colors.onSurfaceMuted
             )
@@ -324,7 +326,8 @@ private fun ChipSugerido(
             // sin puntos suspensivos — el chip decía "esperado" y el cobrador
             // no podía saber de qué.
             Text(
-                text = sugerido.cual.etiqueta,
+                // `.sug .sk` del mock: `9px/800`, `.05em`, `uppercase`.
+                text = sugerido.cual.etiqueta.uppercase(BUSINESS_LOCALE),
                 style = MspTheme.type.eyebrow,
                 color = contenido
             )
@@ -461,6 +464,14 @@ fun TecladoDeMontos(
     }
 }
 
+/**
+ * Una tecla del teclado.
+ *
+ * Va en [MspCard] y no en un `Surface` pelado porque el `NumericKeypad` de
+ * kollect monta cada tecla en `CampoSurface` —su KDoc lo nombra: "hairline
+ * borders, 22sp tabular digits, muted decimal/backspace keys"— y sin el
+ * hairline el teclado se lee como doce huecos en vez de doce teclas.
+ */
 @Composable
 private fun Tecla(
     etiqueta: String,
@@ -469,13 +480,12 @@ private fun Tecla(
     modifier: Modifier = Modifier,
     apagada: Boolean = false
 ) {
-    Surface(
-        onClick = onClick,
+    MspCard(
         modifier = modifier
             .heightIn(min = TOQUE)
             .testTag(TECLA_TAG + tag),
         shape = MspTheme.shapes.control,
-        color = MspTheme.colors.surface
+        onClick = onClick
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
@@ -489,13 +499,12 @@ private fun Tecla(
 
 @Composable
 private fun TeclaDeBorrado(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        onClick = onClick,
+    MspCard(
         modifier = modifier
             .heightIn(min = TOQUE)
             .testTag(TECLA_TAG + TECLA_BORRAR),
         shape = MspTheme.shapes.control,
-        color = MspTheme.colors.surface
+        onClick = onClick
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
