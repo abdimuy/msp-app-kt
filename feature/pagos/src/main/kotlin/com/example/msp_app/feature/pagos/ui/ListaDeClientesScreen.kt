@@ -187,11 +187,12 @@ fun ListaDeClientesScreen(
  * un botón cuya caja tocable va de 36 a 180. Nada en logcat, porque el evento
  * nunca entró al proceso.
  *
- * Ninguna pantalla de este módulo consumía el inset, y **todas las demás del
- * repo sí** (las siete legadas, el reporte de cobranza, Configuración). La
- * compuerta es `ElEncabezadoDeLaListaRespetaLaBarraDeEstadoTest`, que despacha
- * un inset de barra de estado al árbol de vistas —lo único que una composición
- * de test nunca recibe— y exige que la caja tocable caiga completa por debajo.
+ * Ninguna pantalla de este módulo ni de `:feature:visitas` consumía el inset, y
+ * **todas las demás del repo sí** (las siete legadas, el reporte de cobranza,
+ * Configuración). Ruling BR las arregló las siete. La compuerta es
+ * `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`, que despacha un inset de
+ * barra de estado al árbol de vistas —lo único que una composición de test nunca
+ * recibe— y exige que ningún control tocable arranque por encima de él.
  * `performClick()` no podía verlo: despacha sobre el nodo de semántica, sin
  * pasar por el sistema de ventanas.
  */

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -117,6 +118,12 @@ fun DetalleVentaContent(
         modifier = modifier
             .fillMaxSize()
             .background(MspTheme.colors.background)
+            // Ruling BR — DESPUÉS del `background`, para que el color siga pintándose a
+            // sangre bajo la barra de estado y el inset solo baje el CONTENIDO. Sin esto la
+            // app corre `enableEdgeToEdge()` y la ventana `StatusBar` del sistema queda
+            // ENCIMA del encabezado y se come sus taps (medido: 36 de 168 px útiles en el
+            // "atrás"). La compuerta es `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`.
+            .statusBarsPadding()
     ) {
         val detalle = state.detalle
         Box(modifier = Modifier.weight(1f)) {
