@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -175,6 +176,24 @@ fun ListaDeClientesScreen(
  * cualquier host que se olvidara de cablearlo, y el síntoma sería un botón que
  * se ve, se puede tocar y no hace nada — un defecto que ningún golden
  * fotografía.
+ *
+ * ## Y pasó igual, por la otra puerta: `statusBarsPadding()`
+ *
+ * El cableado estaba bien y el botón estaba muerto de todos modos. La app corre
+ * `enableEdgeToEdge()`, así que el contenido arranca en `y = 0` y la ventana
+ * `StatusBar` del sistema —156 px en el emulador donde se midió— queda ENCIMA
+ * del encabezado: se come todo tap por arriba de su borde, el centro del toggle
+ * incluido. Medido: taps a `y ≤ 155` perdidos, taps a `y ≥ 157` llegados, sobre
+ * un botón cuya caja tocable va de 36 a 180. Nada en logcat, porque el evento
+ * nunca entró al proceso.
+ *
+ * Ninguna pantalla de este módulo consumía el inset, y **todas las demás del
+ * repo sí** (las siete legadas, el reporte de cobranza, Configuración). La
+ * compuerta es `ElEncabezadoDeLaListaRespetaLaBarraDeEstadoTest`, que despacha
+ * un inset de barra de estado al árbol de vistas —lo único que una composición
+ * de test nunca recibe— y exige que la caja tocable caiga completa por debajo.
+ * `performClick()` no podía verlo: despacha sobre el nodo de semántica, sin
+ * pasar por el sistema de ventanas.
  */
 @Composable
 fun ListaDeClientesContent(
@@ -192,6 +211,11 @@ fun ListaDeClientesContent(
         modifier = modifier
             .fillMaxSize()
             .background(MspTheme.colors.background)
+            // DESPUÉS del `background` y no antes: el color se pinta a sangre —también DEBAJO
+            // de la barra de estado, que es lo que `enableEdgeToEdge()` pide— y el inset solo
+            // baja el CONTENIDO. Al revés, la franja de la barra quedaría con el fondo del
+            // tema legado de `MainActivity` y se vería clara en modo oscuro.
+            .statusBarsPadding()
     ) {
         Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
             BarraDeDetalle(
