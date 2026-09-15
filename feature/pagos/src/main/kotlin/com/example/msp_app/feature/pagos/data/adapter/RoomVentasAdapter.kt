@@ -89,6 +89,10 @@ private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta {
         enganche = Money.of(ENGANCHE),
         vendedor = listOf(VENDEDOR_1, VENDEDOR_2, VENDEDOR_3)
             .firstOrNull { it.isNotBlank() }
-            .orEmpty()
+            .orEmpty(),
+        // La columna es nullable en el schema: sin dato no se afirma atraso.
+        atrasos = NUM_PAGOS_ATRASADOS ?: 0,
+        fechaUltimoPago = AppTime.parseWireFormatOrNull(FECHA_ULT_PAGO)
+            ?.let(AppTime::toBusinessDate)
     )
 }

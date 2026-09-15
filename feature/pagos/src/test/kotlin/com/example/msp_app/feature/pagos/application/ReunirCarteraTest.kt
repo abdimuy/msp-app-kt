@@ -13,8 +13,10 @@ import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.ui.ListaFixtures
 import com.example.msp_app.feature.pagos.ui.PagosFixtures
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -65,6 +67,84 @@ class ReunirCarteraTest {
         assertEquals(listOf("V-5021", "V-5188"), victoria.ventas.map { it.venta.folio })
         // El saldo del cliente es la suma de sus cuentas: 2100 + 5500.
         assertEquals(ListaFixtures.dinero("7600"), victoria.saldoTotal)
+    }
+
+    /**
+     * Los atrasos se **leen**, no se derivan. Si alguien borra el `atrasos =
+     * atrasos` del mapper "porque el módulo deriva todo lo demás", este test se
+     * pone rojo antes de que la tarjeta empiece a decir que nadie debe nada.
+     */
+    @Test
+    fun `los atrasos se leen de la venta y llegan a la tarjeta`() = runTest {
+        ventasPort.ventas = listOf(
+            ListaFixtures.datos(
+                clienteId = ListaFixtures.VICTORIA,
+                nombre = "Victoria Flores Olmedo",
+                ventaId = 77021,
+                folio = "V-5021",
+                saldo = "2100",
+                total = "5200",
+                enganche = "900",
+                fecha = "2026-05-04",
+                atrasos = 3
+            )
+        )
+        assertEquals(3, reunir()().clientes.single().ventas.single().venta.atrasos)
+    }
+
+    /**
+     * El cliente "pagó" el día que pagó CUALQUIERA de sus cuentas, no el día que
+     * pagó la primera de la lista. Con dos ventas, gana la fecha más reciente.
+     */
+    @Test
+    fun `el ultimo pago del cliente es el mas reciente de sus ventas`() = runTest {
+        ventasPort.ventas = listOf(
+            ListaFixtures.datos(
+                clienteId = ListaFixtures.VICTORIA,
+                nombre = "Victoria Flores Olmedo",
+                ventaId = 77021,
+                folio = "V-5021",
+                saldo = "2100",
+                total = "5200",
+                enganche = "900",
+                fecha = "2026-05-04",
+                ultimoPago = "2026-07-18"
+            ),
+            ListaFixtures.datos(
+                clienteId = ListaFixtures.VICTORIA,
+                nombre = "Victoria Flores Olmedo",
+                ventaId = 77188,
+                folio = "V-5188",
+                saldo = "5500",
+                total = "8000",
+                enganche = "900",
+                fecha = "2026-06-01",
+                ultimoPago = "2026-09-06"
+            )
+        )
+        assertEquals(
+            LocalDate.parse("2026-09-06"),
+            reunir()().clientes.single().ultimoPago
+        )
+    }
+
+    /** Quien nunca pagó no tiene fecha que mostrar, y la tarjeta no la inventa. */
+    @Test
+    fun `sin ningun pago el cliente se queda sin fecha de ultimo pago`() = runTest {
+        ventasPort.ventas = listOf(
+            ListaFixtures.datos(
+                clienteId = ListaFixtures.VICTORIA,
+                nombre = "Victoria Flores Olmedo",
+                ventaId = 77021,
+                folio = "V-5021",
+                saldo = "2100",
+                total = "5200",
+                enganche = "900",
+                fecha = "2026-05-04",
+                ultimoPago = null
+            )
+        )
+        assertNull(reunir()().clientes.single().ultimoPago)
     }
 
     @Test

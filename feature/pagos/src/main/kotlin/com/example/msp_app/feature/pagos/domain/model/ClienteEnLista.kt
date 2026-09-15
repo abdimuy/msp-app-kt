@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.domain.model
 
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.pagos.domain.RangoDeCobranza
+import java.time.LocalDate
 
 /**
  * Un CLIENTE en la lista de cobranza, con sus ventas dentro.
@@ -31,6 +32,14 @@ data class ClienteEnLista(
     /** La suma de los saldos de [ventas]. Es del cliente, no de un segmento. */
     val saldoTotal: Money,
     val ventas: List<VentaEnLista>,
+    /**
+     * El último día en que este cliente pagó ALGO, en cualquiera de sus ventas
+     * — la más reciente de sus `FECHA_ULT_PAGO`, o `null` si nunca pagó.
+     *
+     * Es el único dato de la tarjeta que contesta "¿hace cuánto que este no da
+     * nada?"; el resto habla de la semana en curso.
+     */
+    val ultimoPago: LocalDate?,
     /**
      * Nombre, folios, calle, ciudad y teléfono concatenados y normalizados —
      * lo que mira la búsqueda. Se arma una vez por carga, no por tecla.

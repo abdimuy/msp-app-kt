@@ -105,6 +105,9 @@ class ReunirCartera @Inject constructor(
             zona = primera.zona,
             saldoTotal = Money.sum(suyas.map { it.saldo }),
             ventas = suyas.map { it.aVentaEnLista(estados[it.ventaId]) },
+            // La más reciente de sus ventas: el cliente "pagó" el día que pagó
+            // cualquiera de sus cuentas, no el día que pagó la primera.
+            ultimoPago = suyas.mapNotNull { it.fechaUltimoPago }.maxOrNull(),
             textoBuscable = BusquedaDeClientes.textoBuscable(
                 // Los MISMOS SEIS datos que concatenaba `SalesScreen.kt:68`
                 // (pantalla retirada por la Task 21)

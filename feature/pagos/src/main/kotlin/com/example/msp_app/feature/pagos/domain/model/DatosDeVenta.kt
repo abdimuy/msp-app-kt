@@ -59,7 +59,22 @@ data class DatosDeVenta(
     val totalVenta: Money,
     val precioContado: Money,
     val enganche: Money,
-    val vendedor: String
+    val vendedor: String,
+    /**
+     * `NUM_PAGOS_ATRASADOS` — cuántas parcialidades DEBERÍA llevar pagadas a
+     * estas alturas menos las que lleva, topado por las que le faltan.
+     *
+     * **Se lee, no se deriva.** Lo calcula la vista `overdue_payments_view`
+     * (`PaymentEntity.OVERDUE_PAYMENTS_VIEW_SQL`, migración 21→22) y es el mismo
+     * número que la pantalla vieja lleva años mostrando. Derivarlo aquí daría
+     * otra cifra y el cobrador lo leería como un defecto, no como una mejora;
+     * si algún día se comprueba que la vista miente, se corrige la vista.
+     *
+     * `null` en la columna se toma como 0: sin dato no hay atraso que afirmar.
+     */
+    val atrasos: Int,
+    /** `FECHA_ULT_PAGO` — el día del último pago, o `null` si nunca pagó. */
+    val fechaUltimoPago: LocalDate?
 ) {
     /** Lo abonado hasta hoy: total financiado menos lo que falta. */
     val abonado: Money get() = totalVenta - saldo

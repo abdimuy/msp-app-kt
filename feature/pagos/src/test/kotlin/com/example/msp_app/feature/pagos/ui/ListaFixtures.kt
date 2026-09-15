@@ -62,7 +62,9 @@ object ListaFixtures {
         totalVenta: Money,
         enganche: Money,
         fechaVenta: LocalDate?,
-        estado: EstadoDelPeriodo
+        estado: EstadoDelPeriodo,
+        /** `NUM_PAGOS_ATRASADOS`: se LEE de la vista, así que la fixture lo dicta. */
+        atrasos: Int = 0
     ): VentaEnLista {
         // El orden desempata por INSTANTE, no por día: se usa el mediodía de
         // negocio de esa fecha, que es un instante real y ordena igual.
@@ -83,7 +85,8 @@ object ListaFixtures {
                 abonosPagados = plan.pagados,
                 abonosTotales = plan.totales,
                 avance = plan.avance,
-                estado = estado
+                estado = estado,
+                atrasos = atrasos
             ),
             rango = OrdenDeCobranza.rangoDe(
                 saldo = saldo,
@@ -94,13 +97,15 @@ object ListaFixtures {
         )
     }
 
+    @Suppress("LongParameterList") // constructor de fixture: 1:1 con los campos del cliente
     fun cliente(
         clienteId: Int,
         nombre: String,
         ventas: List<VentaEnLista>,
         telefono: String = "238 162 7597",
         direccion: String = "C. Hidalgo 214, Centro",
-        zona: String = "ruta 25 · centro"
+        zona: String = "ruta 25 · centro",
+        ultimoPago: LocalDate? = null
     ): ClienteEnLista = ClienteEnLista(
         clienteId = clienteId,
         nombre = nombre,
@@ -109,6 +114,7 @@ object ListaFixtures {
         zona = zona,
         saldoTotal = Money.sum(ventas.map { it.venta.saldo }),
         ventas = ventas,
+        ultimoPago = ultimoPago,
         textoBuscable = com.example.msp_app.feature.pagos.domain.BusquedaDeClientes.textoBuscable(
             listOf(nombre, direccion, telefono) + ventas.map { it.venta.folio }
         )
@@ -122,6 +128,7 @@ object ListaFixtures {
     fun victoria(): ClienteEnLista = cliente(
         clienteId = VICTORIA,
         nombre = "Victoria Flores Olmedo",
+        ultimoPago = LocalDate.parse("2026-09-06"),
         ventas = listOf(
             venta(
                 ventaId = 77021,
@@ -131,7 +138,9 @@ object ListaFixtures {
                 totalVenta = dinero("8400"),
                 enganche = dinero("900"),
                 fechaVenta = LocalDate.of(2026, 5, 4),
-                estado = estado(EstadoCuenta.PAGO, abonoDelPeriodo = dinero("350"))
+                estado = estado(EstadoCuenta.PAGO, abonoDelPeriodo = dinero("350")),
+                // Tramo verde de la pastilla: al corriente.
+                atrasos = 0
             ),
             venta(
                 ventaId = 77188,
@@ -141,7 +150,9 @@ object ListaFixtures {
                 totalVenta = dinero("6400"),
                 enganche = dinero("900"),
                 fechaVenta = LocalDate.of(2026, 8, 10),
-                estado = estado(EstadoCuenta.SIN_TOCAR, parcialidad = dinero("220"))
+                estado = estado(EstadoCuenta.SIN_TOCAR, parcialidad = dinero("220")),
+                // Tramo ámbar: 1-4.
+                atrasos = 2
             )
         )
     )
@@ -170,6 +181,7 @@ object ListaFixtures {
     fun guadalupe(): ClienteEnLista = cliente(
         clienteId = GUADALUPE,
         nombre = "Guadalupe Arellano Sosa",
+        ultimoPago = LocalDate.parse("2026-07-18"),
         telefono = "238 155 0904",
         direccion = "Priv. Morelos 3, Tepeaca",
         ventas = listOf(
@@ -181,7 +193,9 @@ object ListaFixtures {
                 totalVenta = dinero("7300"),
                 enganche = dinero("800"),
                 fechaVenta = LocalDate.of(2026, 6, 21),
-                estado = estado(EstadoCuenta.SE_NEGO)
+                estado = estado(EstadoCuenta.SE_NEGO),
+                // Tramo rojo: 5 o más.
+                atrasos = 6
             )
         )
     )
@@ -272,7 +286,11 @@ object ListaFixtures {
         saldo: String,
         total: String,
         enganche: String,
-        fecha: String?
+        fecha: String?,
+        /** `NUM_PAGOS_ATRASADOS` tal como lo devuelve la vista. */
+        atrasos: Int = 0,
+        /** `FECHA_ULT_PAGO`. Por defecto, el día de la venta. */
+        ultimoPago: String? = fecha
     ): DatosDeVenta = DatosDeVenta(
         ventaId = ventaId,
         creditoId = ventaId + 1,
@@ -296,6 +314,8 @@ object ListaFixtures {
         totalVenta = dinero(total),
         precioContado = dinero("5200"),
         enganche = dinero(enganche),
-        vendedor = "J. Carlos Méndez"
+        vendedor = "J. Carlos Méndez",
+        atrasos = atrasos,
+        fechaUltimoPago = ultimoPago?.let(LocalDate::parse)
     )
 }

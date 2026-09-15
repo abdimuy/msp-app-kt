@@ -89,7 +89,12 @@ data class VentaDelCliente(
     val abonosPagados: Int,
     val abonosTotales: Int,
     val avance: Float,
-    val estado: EstadoDelPeriodo
+    val estado: EstadoDelPeriodo,
+    /**
+     * Cuántos pagos lleva atrasados — leído de `NUM_PAGOS_ATRASADOS`, no
+     * derivado. Ver el KDoc de [DatosDeVenta.atrasos] para el porqué.
+     */
+    val atrasos: Int = 0
 )
 
 /**

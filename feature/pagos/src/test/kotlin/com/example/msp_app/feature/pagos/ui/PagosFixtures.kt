@@ -330,7 +330,9 @@ object PagosFixtures {
         totalVenta = cifras.total,
         precioContado = dinero("5200"),
         enganche = dinero("900"),
-        vendedor = "J. Carlos Méndez"
+        vendedor = "J. Carlos Méndez",
+        atrasos = 2,
+        fechaUltimoPago = LocalDate.of(2026, 9, 6)
     )
 
     /** Una visita del catálogo, con el literal crudo que le toca. */

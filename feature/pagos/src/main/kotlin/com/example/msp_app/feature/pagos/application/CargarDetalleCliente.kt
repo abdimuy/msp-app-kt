@@ -179,6 +179,7 @@ internal fun DatosDeVenta.aVentaDelCliente(estado: EstadoDelPeriodo?): VentaDelC
         abonosPagados = plan.pagados,
         abonosTotales = plan.totales,
         avance = plan.avance,
-        estado = estado ?: EstadoDelPeriodo.sinTocar(parcialidad)
+        estado = estado ?: EstadoDelPeriodo.sinTocar(parcialidad),
+        atrasos = atrasos
     )
 }
