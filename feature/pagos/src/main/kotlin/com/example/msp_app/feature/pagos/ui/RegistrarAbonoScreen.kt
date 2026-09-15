@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -151,7 +151,12 @@ fun RegistrarAbonoContent(
             // app corre `enableEdgeToEdge()` y la ventana `StatusBar` del sistema queda
             // ENCIMA del encabezado y se come sus taps (medido: 36 de 168 px útiles en el
             // "atrás"). La compuerta es `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`.
-            .statusBarsPadding()
+            // `systemBars` y no `statusBars`: el mismo argumento vale ABAJO. Con
+            // `enableEdgeToEdge()` la barra de navegación también queda encima, y el pie de
+            // la pantalla se pintaba detrás de los botones de Android (reportado en vidrio,
+            // SM-A256E). El fondo sigue a sangre porque este padding va después del
+            // `background`; lo único que se corre es el CONTENIDO.
+            .systemBarsPadding()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             val venta = state.venta

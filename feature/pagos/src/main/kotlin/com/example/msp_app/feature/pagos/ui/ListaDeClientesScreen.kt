@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -216,7 +216,12 @@ fun ListaDeClientesContent(
             // de la barra de estado, que es lo que `enableEdgeToEdge()` pide— y el inset solo
             // baja el CONTENIDO. Al revés, la franja de la barra quedaría con el fondo del
             // tema legado de `MainActivity` y se vería clara en modo oscuro.
-            .statusBarsPadding()
+            // `systemBars` y no `statusBars`: el mismo argumento vale ABAJO. Con
+            // `enableEdgeToEdge()` la barra de navegación también queda encima, y el pie de
+            // la pantalla se pintaba detrás de los botones de Android (reportado en vidrio,
+            // SM-A256E). El fondo sigue a sangre porque este padding va después del
+            // `background`; lo único que se corre es el CONTENIDO.
+            .systemBarsPadding()
     ) {
         Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
             BarraDeDetalle(
