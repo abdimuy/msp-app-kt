@@ -3,6 +3,8 @@ package com.example.msp_app.navigation
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import com.example.msp_app.feature.pagos.ui.PagosRutas
+import com.example.msp_app.feature.pagos.ui.destinoDeBitacora
+import com.example.msp_app.feature.pagos.ui.destinoDeDetalleCliente
 import com.example.msp_app.feature.pagos.ui.destinoDeListaDeClientes
 import com.example.msp_app.feature.pagos.ui.destinoDeRegistrarAbono
 import com.example.msp_app.feature.pagos.ui.destinoDeTicketDePago
@@ -37,9 +39,24 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) }
     )
 
-    destinosDePagos(
+    // El detalle de cliente va aparte: perdió el "⋯" y ganó la bitácora, así que
+    // ya no comparte callbacks con el detalle de venta.
+    destinoDeDetalleCliente(
         onAtras = { navController.popBackStack() },
         onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) },
+        onRegistrarAbono = { ventaId ->
+            navController.navigate(PagosRutas.registrarAbono(ventaId))
+        },
+        onRegistrarVisita = { clienteId, ventaId ->
+            navController.navigate(VisitasRutas.registrar(clienteId, ventaId))
+        },
+        onVerContactos = { clienteId -> navController.navigate(PagosRutas.bitacora(clienteId)) }
+    )
+
+    destinoDeBitacora(onAtras = { navController.popBackStack() })
+
+    destinosDePagos(
+        onAtras = { navController.popBackStack() },
         onRegistrarAbono = { ventaId ->
             navController.navigate(PagosRutas.registrarAbono(ventaId))
         },

@@ -28,6 +28,7 @@ import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
+import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE
@@ -304,6 +305,82 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
         )
     }
 
+    /**
+     * **Todo control tocable de cobranza mide 50dp de alto, en toda pantalla.**
+     *
+     * El de arriba cobra los segmentos del filtro; éste cobra **todo lo demás**, y
+     * sin lista de controles: barre cada destino que el grafo registre y mide cada
+     * nodo con `onClick`. Una pieza nueva entra a la compuerta el día que se
+     * escribe, que es la propiedad que hace útil a este archivo.
+     *
+     * El mínimo es el del repo (**≥50dp**) y es más estricto que los 48 de
+     * Material. Si un control lo incumple, **sube la implementación**: bajar el
+     * número aquí sería convertir la compuerta en un adorno.
+     *
+     * Va acá y no en un golden porque **un `.png` de Robolectric no mide áreas
+     * tocables**; esta rama ya perdió un botón por pintar sin medir el toque.
+     *
+     * ## La deuda que este barrido destapó, y por qué NO se arregla aquí
+     *
+     * Al escribirlo, la medición encontró **dos controles que ya estaban** y no
+     * cumplen: el ojo de privacidad y el toggle de tema del encabezado de la
+     * lista, los dos de **40dp** (80px a xhdpi) contra los 50 que pide el repo.
+     * Son de `:core:designsystem` y los estrena la lista, que ya está en el
+     * teléfono del dueño.
+     *
+     * Se **reportan** en vez de arreglarse de paso, y la razón es de alcance: el
+     * arreglo correcto es subir el componente compartido, eso mueve los goldens
+     * de `:core:designsystem` —que este trabajo tiene prohibido tocar— y el
+     * parche en el llamador crecería el encabezado de la lista 10dp, moviendo
+     * goldens de una pantalla que este trabajo no vino a rediseñar.
+     *
+     * [DEUDA_DE_TOQUE] los nombra **uno por uno**. No es un umbral bajado: el
+     * mínimo sigue siendo 50dp para todo lo demás, y un control nuevo que no
+     * llegue pone este test en rojo el día que se escriba. Cuando el toggle suba,
+     * se borran las dos líneas y la compuerta queda cerrada del todo.
+     */
+    @Test
+    fun `todo control tocable de cobranza conserva sus 50dp`() {
+        val rutas = montarElGrafo()
+        val minimo = with(composeTestRule.density) { ALTO_TOCABLE_MINIMO.roundToPx() }
+
+        val chicos = mutableListOf<String>()
+        var medidos = 0
+        var conocidos = 0
+        rutas.forEach { ruta ->
+            controlesDe(ruta).forEach { control ->
+                medidos += 1
+                val alto = control.boundsInRoot.height.toInt()
+                val nombre = nombreDe(control)
+                if (alto < minimo) {
+                    val clave = "$ruta → $nombre"
+                    if (clave in DEUDA_DE_TOQUE) conocidos += 1 else chicos += "$clave mide ${alto}px"
+                }
+            }
+        }
+
+        // Control positivo de la deuda: si los dos conocidos YA se arreglaron,
+        // este test avisa para que se borre la lista en vez de dejarla creciendo
+        // sola. Una excepción que nadie vuelve a mirar se vuelve un umbral.
+        assertTrue(
+            "ningún control de DEUDA_DE_TOQUE incumple ya: borra esa lista",
+            conocidos > 0
+        )
+
+        // Control positivo: sin controles medidos, el `assertEquals` de abajo
+        // pasaría por lista vacía sin haber mirado una sola pantalla.
+        assertTrue(
+            "el barrido no midió un solo control tocable: no probaría nada",
+            medidos > 0
+        )
+        assertEquals(
+            "estos controles no llegan a los ${minimo}px tocables del repo: el cobrador " +
+                "toca y el tap no entra. Sube la implementación, no bajes este mínimo",
+            emptyList<String>(),
+            chicos
+        )
+    }
+
     // -----------------------------------------------------------------------
 
     /**
@@ -429,6 +506,27 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
          * rojo antes que el dedo del cobrador.
          */
         val ALTO_TOCABLE_MINIMO = 50.dp
+
+        /**
+         * Los controles que YA incumplían los 50dp antes de este barrido, por
+         * nombre de semántica. Ver el KDoc de
+         * `todo control tocable de cobranza conserva sus 50dp`.
+         *
+         * Los dos son el mismo par del encabezado de la lista —ojo de privacidad
+         * y toggle de tema—, los dos de 40dp, los dos de `:core:designsystem`.
+         * **No se agrega nada a esta lista**: lo que entra nuevo, se arregla.
+         *
+         * La llave lleva **la ruta pegada al nombre**, y no el nombre solo. El ojo
+         * de privacidad no expone etiqueta, así que perdonarlo por nombre —"control
+         * sin etiqueta"— perdonaba de paso a CUALQUIER control sin etiqueta de
+         * CUALQUIER destino: un comodín disfrazado de excepción, justo lo que el
+         * KDoc de arriba promete que no es. Con la ruta adentro la excepción vale
+         * para estos dos controles del encabezado de la lista y para nadie más.
+         */
+        val DEUDA_DE_TOQUE = setOf(
+            "${PagosRutas.LISTA_CLIENTES} → \"$DESCRIPCION_A_OSCURO\"",
+            "${PagosRutas.LISTA_CLIENTES} → control sin etiqueta"
+        )
 
         /**
          * La cadena encadenada sobre el `modifier` **entrante** — el que el llamador pasa, que

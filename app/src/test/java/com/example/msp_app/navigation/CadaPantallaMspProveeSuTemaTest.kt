@@ -58,8 +58,8 @@ class CadaPantallaMspProveeSuTemaTest {
         val pantallas = pantallasDeModulosMsp()
 
         // Control positivo: una ausencia no vale hasta probar que el método
-        // habría encontrado la cosa. Si el escaneo no ve las siete pantallas de
-        // cobranza —que SÍ existen— tampoco vería la octava.
+        // habría encontrado la cosa. Si el escaneo no ve las ocho pantallas de
+        // cobranza —que SÍ existen— tampoco vería la novena.
         assertTrue(
             "el escaneo no encontró ninguna pantalla Msp: no probaría nada",
             pantallas.isNotEmpty()
@@ -155,13 +155,14 @@ class CadaPantallaMspProveeSuTemaTest {
         const val RAIZ_DE_PRUEBA = "raiz_de_prueba"
 
         /**
-         * Control positivo: las siete que este arreglo envolvió. No es la lista
+         * Control positivo: las ocho que hoy registra el grafo. No es la lista
          * que gobierna el test —esa sale del escaneo— sino la prueba de que el
          * escaneo ve algo real.
          */
         val PANTALLAS_DE_COBRANZA = setOf(
             "ListaDeClientesScreen",
             "DetalleClienteScreen",
+            "BitacoraScreen",
             "DetalleVentaScreen",
             "RegistrarAbonoScreen",
             "TicketDePagoScreen",

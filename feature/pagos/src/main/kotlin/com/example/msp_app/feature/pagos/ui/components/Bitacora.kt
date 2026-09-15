@@ -43,7 +43,11 @@ private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", 
  * palabras.
  */
 @Composable
-fun FilaDeContacto(contacto: ContactoDeCobranza, modifier: Modifier = Modifier) {
+fun FilaDeContacto(
+    contacto: ContactoDeCobranza,
+    modifier: Modifier = Modifier,
+    ocultos: Boolean = false
+) {
     val trato = EstadoCuentaUi.tratoDe(
         EstadoDelPeriodo(
             estado = contacto.estado,
@@ -89,6 +93,7 @@ fun FilaDeContacto(contacto: ContactoDeCobranza, modifier: Modifier = Modifier) 
             if (contacto.importe != null) {
                 MspMoneyText(
                     amount = contacto.importe.amount,
+                    masked = ocultos,
                     style = MspTheme.type.amountInline,
                     color = MspTheme.colors.onSurface
                 )

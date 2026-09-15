@@ -139,6 +139,20 @@ class ReglaDelOrigenTest {
     // El resto de los puntos de entrada
     // -----------------------------------------------------------------------
 
+    /**
+     * Punto de entrada: "ver los N contactos" del detalle de cliente — lo único
+     * que el "⋯" retirado sí llevaba y que ahora tiene destino propio.
+     *
+     * Viaja el `clienteId` porque la bitácora es del **domicilio**: mandar la
+     * lista ya armada la congelaría en lo que se leyó al abrir el detalle.
+     */
+    @Test
+    fun `desde el cliente, ver los contactos abre SU bitacora`() {
+        nav.navigate(PagosRutas.bitacora(CLIENTE))
+        assertEquals(PagosRutas.BITACORA, ruta())
+        assertEquals(CLIENTE, argInt(PagosRutas.ARG_CLIENTE_ID))
+    }
+
     /** Punto de entrada: la fila de venta dentro de una puerta, en la lista. */
     @Test
     fun `desde una venta de la lista se abre esa VENTA`() {
@@ -292,6 +306,7 @@ class ReglaDelOrigenTest {
             RAIZ,
             PagosRutas.LISTA_CLIENTES,
             PagosRutas.DETALLE_CLIENTE,
+            PagosRutas.BITACORA,
             PagosRutas.DETALLE_VENTA,
             PagosRutas.REGISTRAR_ABONO,
             PagosRutas.TICKET_PAGO,
@@ -307,7 +322,7 @@ class ReglaDelOrigenTest {
      * (`"visit_ticket/{saleId}"`) ya no existen: navegar ahí no resuelve.
      *
      * Su **control positivo** es el `assertEquals` de arriba: la misma búsqueda
-     * SÍ encuentra las ocho rutas vivas más las tres legadas, así que el `null`
+     * SÍ encuentra las nueve rutas vivas más las tres legadas, así que el `null`
      * de aquí abajo es una ausencia medida, no un método que no mira.
      */
     @Test

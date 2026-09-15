@@ -43,6 +43,15 @@ object PagosRutas {
     /** Detalle de cliente. Desde la lista y el mapa se entra por aquí (Task 21). */
     const val DETALLE_CLIENTE: String = "pagos/cliente/{$ARG_CLIENTE_ID}"
 
+    /**
+     * La bitácora completa de un domicilio.
+     *
+     * Lleva el `clienteId` y no una lista ya armada: la bitácora es del
+     * DOMICILIO, y pasarla por la ruta la congelaría en lo que se leyó al abrir
+     * el detalle — un abono registrado en medio no aparecería.
+     */
+    const val BITACORA: String = "pagos/cliente/{$ARG_CLIENTE_ID}/bitacora"
+
     /** Detalle de venta. Desde un pago o un recibo se entra directo aquí (Task 21). */
     const val DETALLE_VENTA: String = "pagos/venta/{$ARG_VENTA_ID}"
 
@@ -57,6 +66,9 @@ object PagosRutas {
 
     /** La ruta concreta del cliente [clienteId]. */
     fun detalleCliente(clienteId: Int): String = "pagos/cliente/$clienteId"
+
+    /** La bitácora de [clienteId]. */
+    fun bitacora(clienteId: Int): String = "pagos/cliente/$clienteId/bitacora"
 
     /** La ruta concreta de la venta [ventaId]. */
     fun detalleVenta(ventaId: Int): String = "pagos/venta/$ventaId"
@@ -104,25 +116,11 @@ object PagosRutas {
  */
 fun NavGraphBuilder.destinosDePagos(
     onAtras: () -> Unit,
-    onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
     onMasAcciones: (Int) -> Unit,
     onVerGarantia: (Int) -> Unit
 ) {
-    composable(
-        route = PagosRutas.DETALLE_CLIENTE,
-        arguments = listOf(navArgument(PagosRutas.ARG_CLIENTE_ID) { type = NavType.IntType })
-    ) {
-        DetalleClienteScreen(
-            viewModel = hiltViewModel(),
-            onAtras = onAtras,
-            onAbrirVenta = onAbrirVenta,
-            onRegistrarAbono = onRegistrarAbono,
-            onRegistrarVisita = onRegistrarVisita,
-            onMasAcciones = onMasAcciones
-        )
-    }
     composable(
         route = PagosRutas.DETALLE_VENTA,
         arguments = listOf(navArgument(PagosRutas.ARG_VENTA_ID) { type = NavType.IntType })
@@ -135,6 +133,62 @@ fun NavGraphBuilder.destinosDePagos(
             onMasAcciones = onMasAcciones,
             onVerGarantia = onVerGarantia
         )
+    }
+}
+
+/**
+ * Registra el **detalle de cliente** en el grafo.
+ *
+ * Va aparte de [destinosDePagos] por la misma razón que la lista y el abono: la
+ * pantalla dejó de compartir callbacks con el detalle de venta. Ya no recibe
+ * `onMasAcciones` —el "⋯" se fue— y en cambio recibe [onVerContactos], que es el
+ * destino nuevo de la bitácora; meterlos en la función compartida habría dejado
+ * dos parámetros que solo uno de los dos destinos usa.
+ *
+ * **No recibe las acciones que salen de la app** (llamar, WhatsApp, cómo llegar):
+ * las resuelve el ViewModel por `AccionesExternasPort`. `:app` no tiene por qué
+ * saber cómo se marca un teléfono, y así el fallo de abrirlas queda reportado por
+ * telemetría en vez de perderse en un `onClick`.
+ *
+ * [onRegistrarAbono] recibe **siempre un `ventaId`**: el abono es de una cuenta,
+ * nunca de una persona. Cuál cuenta lo decide la pantalla — directo cuando hay
+ * una sola, y preguntando en una hoja cuando hay varias.
+ */
+fun NavGraphBuilder.destinoDeDetalleCliente(
+    onAtras: () -> Unit,
+    onAbrirVenta: (Int) -> Unit,
+    onRegistrarAbono: (Int) -> Unit,
+    onRegistrarVisita: (Int, Int?) -> Unit,
+    onVerContactos: (Int) -> Unit
+) {
+    composable(
+        route = PagosRutas.DETALLE_CLIENTE,
+        arguments = listOf(navArgument(PagosRutas.ARG_CLIENTE_ID) { type = NavType.IntType })
+    ) {
+        DetalleClienteScreen(
+            viewModel = hiltViewModel(),
+            onAtras = onAtras,
+            onAbrirVenta = onAbrirVenta,
+            onRegistrarAbono = onRegistrarAbono,
+            onRegistrarVisita = onRegistrarVisita,
+            onVerContactos = onVerContactos
+        )
+    }
+}
+
+/**
+ * Registra la **bitácora** del cliente en el grafo.
+ *
+ * Es el destino que libera al "⋯" de su doble vida: ese botón abría la pantalla
+ * legada y era también el único camino a "ver los N contactos". Ahora la bitácora
+ * tiene su propia casa y el "⋯" se pudo quitar sin perder nada.
+ */
+fun NavGraphBuilder.destinoDeBitacora(onAtras: () -> Unit) {
+    composable(
+        route = PagosRutas.BITACORA,
+        arguments = listOf(navArgument(PagosRutas.ARG_CLIENTE_ID) { type = NavType.IntType })
+    ) {
+        BitacoraScreen(viewModel = hiltViewModel(), onAtras = onAtras)
     }
 }
 
