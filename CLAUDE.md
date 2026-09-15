@@ -84,7 +84,7 @@ silencioso en cada tick**.
 
 ## 3. UI
 
-- Texto de usuario en **español**, minúsculas, sin punto final.
+- Texto de usuario en **español**, con mayúscula inicial, sin punto final.
 - **Minimalista: 2-4 palabras.** Nada de oraciones en banners.
 - **NUNCA diga "ciclo" en la UI** — se dice **"semana"**. El nombre interno sí
   puede ser ciclo.

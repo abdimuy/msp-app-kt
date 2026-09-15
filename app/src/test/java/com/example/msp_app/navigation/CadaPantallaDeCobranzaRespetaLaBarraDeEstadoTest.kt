@@ -28,6 +28,9 @@ import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
+import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
+import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
+import com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -245,6 +248,62 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
         )
     }
 
+    /**
+     * **El filtro segmentado conserva sus 50dp tocables aunque pinte menos franja.**
+     *
+     * La pastilla anterior fijaba `heightIn(min = touchTarget)` y **pintaba sus 56dp
+     * tocables enteros**: el dueño la rechazó por alta. El segmentado recupera 8dp de
+     * tinta, y el riesgo del cambio es exactamente que esos 6dp salgan del área del
+     * dedo en vez de salir del relleno. El mínimo es el del repo (**≥50dp**), no el
+     * piso de 48 de Material: `ListaSeVeYSeTocaTest` ya lo cobra sobre el componente
+     * suelto, y acá se cobra sobre el `NavHost` real.
+     *
+     * Va acá y no en un golden por la misma razón que el resto de este archivo: un
+     * `.png` de Robolectric no mide áreas tocables, y esta rama **ya perdió un botón**
+     * por pintar sin medir el toque (`toggle-vidrio-report.md`). Lo que se afirma es la
+     * caja de semántica del nodo que lleva el `onClick`, que es la que recibe el dedo.
+     */
+    @Test
+    fun `cada segmento del filtro conserva sus 50dp tocables`() {
+        val rutas = montarElGrafo()
+        val minimo = with(composeTestRule.density) { ALTO_TOCABLE_MINIMO.roundToPx() }
+
+        val segmentos = mutableMapOf<String, Int>()
+        rutas.forEach { ruta ->
+            controlesDe(ruta).forEach { control ->
+                val tag = control.config.getOrNull(SemanticsProperties.TestTag)
+                if (tag != null && tag.startsWith(CHIP_DE_SEGMENTO_TAG)) {
+                    segmentos[tag] = control.boundsInRoot.height.toInt()
+                }
+            }
+        }
+
+        // Control positivo: sin esto, un barrido que no viera ningún segmento dejaría
+        // pasar el `assertEquals` de abajo por lista vacía. Los esperados salen del
+        // enum y del mismo interruptor que usa la pantalla, no de una lista escrita.
+        val esperados = SegmentoDeCobranza.entries
+            .filter { HOY_VISIBLE || it != SegmentoDeCobranza.HOY }
+            .map { CHIP_DE_SEGMENTO_TAG + it.name.lowercase() }
+            .sorted()
+        assertEquals(
+            "el barrido no encontró los segmentos del filtro en ningún destino: " +
+                "no probaría nada",
+            esperados,
+            segmentos.keys.sorted()
+        )
+
+        val chicos = segmentos
+            .filterValues { it < minimo }
+            .map { (tag, alto) -> "$tag mide ${alto}px y el mínimo son ${minimo}px" }
+            .sorted()
+        assertEquals(
+            "estos segmentos no conservan los 50dp tocables: el cobrador toca el centro " +
+                "del segmento y el tap no entra",
+            emptyList<String>(),
+            chicos
+        )
+    }
+
     // -----------------------------------------------------------------------
 
     /**
@@ -362,6 +421,14 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
          * exige es que la pantalla consuma **el** inset, no que acierte un número.
          */
         val ALTO_DE_LA_BARRA = 24.dp
+
+        /**
+         * El mínimo que el plan exige por control (**≥50dp**, más estricto que los 48
+         * de Material). El segmentado pinta 50dp justos porque el contenedor no agrega
+         * padding vertical; si alguien se lo quita para "apretarlo", este test se pone
+         * rojo antes que el dedo del cobrador.
+         */
+        val ALTO_TOCABLE_MINIMO = 50.dp
 
         /**
          * La cadena encadenada sobre el `modifier` **entrante** — el que el llamador pasa, que

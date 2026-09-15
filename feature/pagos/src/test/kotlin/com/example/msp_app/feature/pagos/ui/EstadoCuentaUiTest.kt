@@ -54,7 +54,7 @@ class EstadoCuentaUiTest {
     fun `promesa sin fecha nunca dice que no cae esta semana`() {
         val detalle = EstadoCuentaUi.detalleDe(promesa(null))
         assertFalse(detalle.contains("no cae"))
-        assertEquals("prometió sin fecha", EstadoCuentaUi.etiquetaDe(promesa(null)))
+        assertEquals("Prometió sin fecha", EstadoCuentaUi.etiquetaDe(promesa(null)))
     }
 
     @Test
@@ -63,7 +63,7 @@ class EstadoCuentaUiTest {
         assertEquals(TratoDelEstado.DIFERIDO, EstadoCuentaUi.tratoDe(conFecha))
         assertFalse(EstadoCuentaUi.requiereAtencion(TratoDelEstado.DIFERIDO))
         assertTrue(EstadoCuentaUi.etiquetaDe(conFecha).contains("15"))
-        assertEquals("no cae esta semana", EstadoCuentaUi.detalleDe(conFecha))
+        assertEquals("No cae esta semana", EstadoCuentaUi.detalleDe(conFecha))
     }
 
     @Test
@@ -96,8 +96,8 @@ class EstadoCuentaUiTest {
 
     @Test
     fun `cita sin hora se nombra como pendiente, no como cita cerrada`() {
-        assertEquals("cita sin hora", EstadoCuentaUi.etiquetaDe(cita(null)))
-        assertEquals("sin hora, regresas", EstadoCuentaUi.detalleDe(cita(null)))
+        assertEquals("Cita sin hora", EstadoCuentaUi.etiquetaDe(cita(null)))
+        assertEquals("Sin hora, regresas", EstadoCuentaUi.detalleDe(cita(null)))
         assertFalse(EstadoCuentaUi.detalleDe(cita(null)).contains("quedaron"))
     }
 
@@ -106,8 +106,8 @@ class EstadoCuentaUiTest {
         val conHora = cita(LocalTime.of(16, 30))
         assertEquals(TratoDelEstado.CITA, EstadoCuentaUi.tratoDe(conHora))
         assertFalse(EstadoCuentaUi.requiereAtencion(TratoDelEstado.CITA))
-        assertEquals("cita 16:30", EstadoCuentaUi.etiquetaDe(conHora))
-        assertEquals("quedaron de verse", EstadoCuentaUi.detalleDe(conHora))
+        assertEquals("Cita 16:30", EstadoCuentaUi.etiquetaDe(conHora))
+        assertEquals("Quedaron de verse", EstadoCuentaUi.detalleDe(conHora))
     }
 
     @Test
@@ -210,13 +210,13 @@ class EstadoCuentaUiTest {
     @Test
     fun `el aviso cuenta las cuentas que siguen pidiendo trabajo`() {
         val pagada = EstadoDelPeriodo(EstadoCuenta.PAGO, Money.ZERO, Money.ZERO)
-        assertEquals("falta 1 de 2", EstadoCuentaUi.avisoDeCuentas(listOf(pagada, promesa(null))))
+        assertEquals("Falta 1 de 2", EstadoCuentaUi.avisoDeCuentas(listOf(pagada, promesa(null))))
         assertEquals(
             null,
             EstadoCuentaUi.avisoDeCuentas(listOf(pagada, promesa(LocalDate.of(2026, 9, 15))))
         )
         assertEquals(
-            "faltan 2 de 2",
+            "Faltan 2 de 2",
             EstadoCuentaUi.avisoDeCuentas(listOf(promesa(null), promesa(null)))
         )
     }

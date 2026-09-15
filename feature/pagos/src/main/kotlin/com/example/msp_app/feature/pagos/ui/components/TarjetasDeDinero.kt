@@ -201,7 +201,7 @@ fun FilaDeVenta(venta: VentaDelCliente, onAbrir: () -> Unit, modifier: Modifier 
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "ver venta",
+                    text = "Ver venta",
                     style = MspTheme.type.captionStrong,
                     color = MspTheme.colors.brand
                 )

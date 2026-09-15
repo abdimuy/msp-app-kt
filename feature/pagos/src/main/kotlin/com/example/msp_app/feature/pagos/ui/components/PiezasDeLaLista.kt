@@ -1,6 +1,8 @@
 package com.example.msp_app.feature.pagos.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +19,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.component.MspInitialsAvatar
@@ -37,41 +42,80 @@ const val CHIP_DE_SEGMENTO_TAG: String = "pagos_chip_"
 const val FILA_DE_CLIENTE_TAG: String = "pagos_fila_cliente"
 
 /**
- * Los chips de segmento, con el conteo de clientes de cada uno.
+ * El filtro de la lista, como **un solo control de cuatro estados**.
  *
- * ## Por qué no se usa `MspSegmentChips` del design system
+ * ## Por qué un segmentado y no cuatro pastillas
  *
- * Se midió: sus segmentos son `10.dp` de padding vertical sobre un
- * `segmentLabel` de 13sp, o sea ~38dp de alto tocable — por debajo de los 50px
- * que exige el plan (la Task 16 shipeó un control de 49.5dp y tuvo que
- * corregirlo). Además es un **selector segmentado** de 2-3 opciones que
- * reparten el ancho por igual; aquí hay cuatro filtros con conteo que a
- * `MUY_GRANDE` (2.0) no caben en 360dp y tienen que poder desplazarse.
+ * La forma dice la verdad. Cuatro pastillas sueltas sugieren que se pueden
+ * prender varias a la vez, y el comportamiento real es que **solo una puede
+ * estar activa**. El segmentado lo dice sin gastar una palabra de texto.
  *
- * Cada chip se fija en [MspTheme.spacing.touchTarget] (56dp), que es el token
- * que el design system ya define para esto y va holgado sobre el mínimo.
+ * ## De dónde salen los 6dp de tinta que se recuperan
+ *
+ * La pastilla anterior fijaba `heightIn(min = touchTarget)` —el token de 56dp
+ * del tema— con padding vertical 0: **pintaba sus 56dp tocables enteros**. Aquí
+ * el alto lo pone el toque y no la tinta: cada segmento fija
+ * [ALTO_TOCABLE_DEL_SEGMENTO] y el contenedor no agrega padding vertical, así
+ * que el control mide 50dp. La misma accesibilidad, 6dp menos de franja, y
+ * cuatro pastillas sueltas menos.
+ *
+ * **50 y no 48.** El piso de Material son 48dp, pero este repo pide **≥50**
+ * (`plans/2026-09-01-pagos-y-visitas.md` §Global Constraints) y ya lo cobra
+ * `ListaSeVeYSeTocaTest`: la Task 16 shipeó un control de 49.5dp y tuvo que
+ * corregirlo. Se toma el número del repo, que es el más estricto.
+ *
+ * ## Por qué a escala grande vuelve a rodar
+ *
+ * Repartir los 328dp de la pantalla entre cuatro segmentos da 79dp a cada uno.
+ * A `MUY_GRANDE` (2.0) "sin visitar" no cabe ni de lejos, así que el control
+ * deja de repartir el ancho y **rueda en horizontal**. Es el mismo criterio que
+ * [EncabezadoDeCliente] aplica al monto, y por la misma razón: un dato que se
+ * sale de la pantalla es información perdida, y el rótulo que se corta es justo
+ * el que más trabajo esconde.
+ *
+ * El área tocable **no** se puede probar con un golden. La cobran dos tests, y
+ * miden cosas distintas: `ListaSeVeYSeTocaTest` mide el componente suelto, y
+ * `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest` lo mide dentro del
+ * `NavHost` real y con el inset de la barra despachado — que es donde el
+ * defecto del toggle se escondió, porque en Robolectric ese inset vale cero.
  */
 @Composable
-fun ChipsDeSegmento(
+fun SegmentadoDeCobranza(
     seleccionado: SegmentoDeCobranza,
     conteos: Map<SegmentoDeCobranza, Int>,
     onElegir: (SegmentoDeCobranza) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        segmentosVisibles().forEach { segmento ->
-            ChipDeSegmento(
-                segmento = segmento,
-                cuantos = conteos[segmento] ?: 0,
-                activo = segmento == seleccionado,
-                onElegir = { onElegir(segmento) }
-            )
+    val reparteElAncho = LocalFontSizeLevel.current == FontSizeLevel.NORMAL
+    val rueda = if (reparteElAncho) {
+        Modifier
+    } else {
+        Modifier.horizontalScroll(rememberScrollState())
+    }
+    Box(modifier = modifier.then(rueda)) {
+        Surface(
+            modifier = if (reparteElAncho) Modifier.fillMaxWidth() else Modifier,
+            color = MspTheme.colors.surface,
+            shape = MspTheme.shapes.control,
+            border = BorderStroke(GROSOR_DEL_BORDE, MspTheme.colors.outline)
+        ) {
+            Row(
+                // Sin padding vertical a propósito: el alto del control ES el
+                // alto tocable del segmento, no una franja pintada alrededor.
+                modifier = Modifier.padding(horizontal = SANGRIA_DEL_SEGMENTADO),
+                horizontalArrangement = Arrangement.spacedBy(SEPARACION_DE_SEGMENTOS),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                segmentosVisibles().forEach { segmento ->
+                    Segmento(
+                        segmento = segmento,
+                        cuantos = conteos[segmento] ?: 0,
+                        activo = segmento == seleccionado,
+                        onElegir = { onElegir(segmento) },
+                        modifier = if (reparteElAncho) Modifier.weight(1f) else Modifier
+                    )
+                }
+            }
         }
     }
 }
@@ -108,47 +152,77 @@ private fun segmentosVisibles(): List<SegmentoDeCobranza> =
  */
 const val HOY_VISIBLE: Boolean = true
 
+/**
+ * Un segmento del control.
+ *
+ * El rótulo admite **dos renglones**: a escala NORMAL "sin visitar" ocupa casi
+ * los 79dp que le tocan, y cortarlo con puntos suspensivos escondería justo el
+ * filtro que más trabajo agrupa. Con el conteo debajo, dos renglones de rótulo
+ * siguen cabiendo dentro de los 48dp tocables, así que partir no agranda el
+ * control.
+ */
 @Composable
-private fun ChipDeSegmento(
+private fun Segmento(
     segmento: SegmentoDeCobranza,
     cuantos: Int,
     activo: Boolean,
-    onElegir: () -> Unit
+    onElegir: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Surface(
-        onClick = onElegir,
-        // El chip activo va en `brand` — es el control protagónico de la
-        // pantalla. Nunca en `statusPaid`: el verde es solo estado.
-        color = if (activo) MspTheme.colors.brand else MspTheme.colors.surface,
-        shape = MspTheme.shapes.chip,
-        modifier = Modifier
-            .heightIn(min = MspTheme.spacing.touchTarget)
-            .testTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
+    Box(
+        modifier = modifier
+            .heightIn(min = ALTO_TOCABLE_DEL_SEGMENTO)
+            .clip(MspTheme.shapes.chip9)
+            // El segmento activo va en `brand` — es el control protagónico de la
+            // pantalla. Nunca en `statusPaid`: el verde es solo estado.
+            .background(if (activo) MspTheme.colors.brand else Color.Transparent)
+            .clickable(onClick = onElegir)
+            .padding(horizontal = MspTheme.spacing.xs)
+            .testTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase()),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            // Padding justo: con `md`, los CUATRO chips (o sea con `HOY_VISIBLE`
-            // encendido) no caben en 360dp ni siquiera a escala NORMAL y el
-            // último quedaba cortado. Con `sm` caben; el alto tocable no depende
-            // de esto y sigue en 56dp.
-            modifier = Modifier.padding(horizontal = MspTheme.spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
-        ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
                 text = segmento.etiqueta,
                 style = MspTheme.type.chipLabel,
                 color = if (activo) MspTheme.colors.onBrand else MspTheme.colors.onSurfaceMuted,
-                maxLines = 1
+                maxLines = RENGLONES_DEL_ROTULO,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
             )
             Text(
                 text = cuantos.toString(),
                 style = MspTheme.type.captionStrong,
-                color = if (activo) MspTheme.colors.onBrand else MspTheme.colors.onSurface,
-                maxLines = 1
+                // El conteo acompaña al rótulo, no compite con él: sobre el
+                // relleno de marca baja a tres cuartos de opacidad.
+                color = if (activo) {
+                    MspTheme.colors.onBrand.copy(alpha = OPACIDAD_DEL_CONTEO)
+                } else {
+                    MspTheme.colors.onSurfaceMuted
+                },
+                maxLines = 1,
+                textAlign = TextAlign.Center
             )
         }
     }
 }
+
+/**
+ * **50dp, y los pone el toque.** El control pinta exactamente esto de alto
+ * porque el contenedor no agrega padding vertical; la pastilla anterior pintaba
+ * 56 por fijar el `touchTarget` del tema (56dp) y no quitarse el padding.
+ */
+private val ALTO_TOCABLE_DEL_SEGMENTO = 50.dp
+
+private val SANGRIA_DEL_SEGMENTADO = 3.dp
+
+private val SEPARACION_DE_SEGMENTOS = 2.dp
+
+private val GROSOR_DEL_BORDE = 1.dp
+
+private const val RENGLONES_DEL_ROTULO = 2
+
+private const val OPACIDAD_DEL_CONTEO = 0.75f
 
 /**
  * Un CLIENTE en la lista: su encabezado y **sus ventas dentro**, cada una con

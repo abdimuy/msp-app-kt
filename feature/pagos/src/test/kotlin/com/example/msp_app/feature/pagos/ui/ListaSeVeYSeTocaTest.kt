@@ -180,14 +180,24 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
         }
     }
 
+    /**
+     * **Los CUATRO, no solo el primero.** A `MUY_GRANDE` el segmentado deja de
+     * repartir el ancho y rueda en horizontal; el riesgo es que un segmento que
+     * quedó fuera del viewport se mida distinto del que se ve. Se usan bordes
+     * **sin recortar** justo por eso.
+     */
     @Test
     fun `a escala muy grande los chips siguen siendo tocables`() {
         pinta(FontSizeLevel.MUY_GRANDE)
-        val bordes = composeTestRule
-            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.TODOS.name.lowercase())
-            .getUnclippedBoundsInRoot()
-        val alto = bordes.bottom - bordes.top
-        assertTrue("el chip mide $alto", alto >= MINIMO_TOCABLE)
+        SegmentoDeCobranza.entries.filter {
+            HOY_VISIBLE || it != SegmentoDeCobranza.HOY
+        }.forEach { segmento ->
+            val bordes = composeTestRule
+                .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
+                .getUnclippedBoundsInRoot()
+            val alto = bordes.bottom - bordes.top
+            assertTrue("el chip ${segmento.etiqueta} mide $alto", alto >= MINIMO_TOCABLE)
+        }
     }
 
     @Test

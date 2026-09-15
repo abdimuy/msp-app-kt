@@ -35,8 +35,8 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
-import com.example.msp_app.feature.pagos.ui.components.ChipsDeSegmento
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
+import com.example.msp_app.feature.pagos.ui.components.SegmentadoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
 
 /** `testTag` del campo de búsqueda. */
@@ -229,14 +229,14 @@ fun ListaDeClientesContent(
                 }
             )
             Text(
-                text = "clientes",
+                text = "Clientes",
                 style = MspTheme.type.screenTitle,
                 color = MspTheme.colors.onSurface
             )
             Spacer(Modifier.height(MspTheme.spacing.sm))
             CampoDeBusqueda(query = state.query, onBuscar = onBuscar)
             Spacer(Modifier.height(MspTheme.spacing.sm))
-            ChipsDeSegmento(
+            SegmentadoDeCobranza(
                 seleccionado = state.segmento,
                 conteos = state.conteos,
                 onElegir = onElegirSegmento
@@ -294,7 +294,7 @@ private fun CampoDeBusqueda(query: String, onBuscar: (String) -> Unit) {
             // pero se fija para que no dependa de un default que puede cambiar.
             .heightIn(min = MspTheme.spacing.touchTarget)
             .testTag(BUSCADOR_TAG),
-        placeholder = { Text("buscar cliente", style = MspTheme.type.body) },
+        placeholder = { Text("Buscar cliente", style = MspTheme.type.body) },
         singleLine = true,
         shape = MspTheme.shapes.field,
         textStyle = MspTheme.type.body,
@@ -308,7 +308,7 @@ private fun CampoDeBusqueda(query: String, onBuscar: (String) -> Unit) {
                     onClick = { onBuscar("") },
                     modifier = Modifier.heightIn(min = MspTheme.spacing.touchTarget)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "borrar búsqueda")
+                    Icon(Icons.Default.Close, contentDescription = "Borrar búsqueda")
                 }
             }
         }
@@ -324,7 +324,7 @@ private fun ListaVacia() {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = "no hay clientes",
+            text = "No hay clientes",
             style = MspTheme.type.cardTitle,
             color = MspTheme.colors.onSurfaceMuted,
             textAlign = TextAlign.Center,
@@ -343,11 +343,11 @@ private fun MensajeDeFallo(onReintentar: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "no se pudo cargar",
+            text = "No se pudo cargar",
             style = MspTheme.type.cardTitle,
             color = MspTheme.colors.onSurface
         )
         Spacer(Modifier.height(MspTheme.spacing.sm))
-        VerTodos("reintentar", onReintentar)
+        VerTodos("Reintentar", onReintentar)
     }
 }

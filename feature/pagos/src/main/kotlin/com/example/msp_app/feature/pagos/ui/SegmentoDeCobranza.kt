@@ -47,14 +47,14 @@ import java.time.LocalDate
 enum class SegmentoDeCobranza(val etiqueta: String) {
 
     /** Toda la ruta. */
-    TODOS("todos"),
+    TODOS("Todos"),
 
     /**
      * Se le pasó el compromiso: abonó menos de la parcialidad, pasaste y no se
      * resolvió, no había quién atendiera, se negó, o prometió para una fecha
      * que ya quedó atrás.
      */
-    VENCIDOS("vencidos"),
+    VENCIDOS("Vencidos"),
 
     /**
      * Cae hoy: la promesa es para hoy, o hay una cita **de hoy** a una hora
@@ -67,10 +67,10 @@ enum class SegmentoDeCobranza(val etiqueta: String) {
      * Task 21 al cablear el dock de las pantallas de detalle y retirar el
      * `NewVisitDialog`.
      */
-    HOY("hoy"),
+    HOY("Hoy"),
 
     /** Nadie la ha trabajado esta semana. */
-    SIN_VISITAR("sin visitar");
+    SIN_VISITAR("Sin visitar");
 
     /**
      * ¿Cae [estado] en este segmento?

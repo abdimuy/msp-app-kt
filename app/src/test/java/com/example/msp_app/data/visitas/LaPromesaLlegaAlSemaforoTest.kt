@@ -102,8 +102,8 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
         assertEquals(EstadoCuenta.PROMETIO_PROXIMA, estado.estado)
         assertEquals(TratoDelEstado.DIFERIDO, EstadoCuentaUi.tratoDe(estado))
-        assertEquals("prometió el 4 sept", EstadoCuentaUi.etiquetaDe(estado))
-        assertEquals("no cae esta semana", EstadoCuentaUi.detalleDe(estado))
+        assertEquals("Prometió el 4 sept", EstadoCuentaUi.etiquetaDe(estado))
+        assertEquals("No cae esta semana", EstadoCuentaUi.detalleDe(estado))
         assertFalse(EstadoCuentaUi.requiereAtencion(EstadoCuentaUi.tratoDe(estado)))
     }
 
@@ -120,7 +120,7 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
         assertEquals(EstadoCuenta.PROMETIO_PROXIMA, estado.estado)
         assertEquals(TratoDelEstado.REGRESAS, EstadoCuentaUi.tratoDe(estado))
-        assertEquals("prometió sin fecha", EstadoCuentaUi.etiquetaDe(estado))
+        assertEquals("Prometió sin fecha", EstadoCuentaUi.etiquetaDe(estado))
         assertTrue(EstadoCuentaUi.requiereAtencion(EstadoCuentaUi.tratoDe(estado)))
     }
 
@@ -133,8 +133,8 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
         assertEquals(EstadoCuenta.CITA_A_UNA_HORA, estado.estado)
         assertEquals(TratoDelEstado.CITA, EstadoCuentaUi.tratoDe(estado))
-        assertEquals("cita 16:00", EstadoCuentaUi.etiquetaDe(estado))
-        assertEquals("quedaron de verse", EstadoCuentaUi.detalleDe(estado))
+        assertEquals("Cita 16:00", EstadoCuentaUi.etiquetaDe(estado))
+        assertEquals("Quedaron de verse", EstadoCuentaUi.detalleDe(estado))
     }
 
     /** **Control positivo:** una cita SIN hora sigue siendo un pendiente. */
@@ -146,7 +146,7 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
         assertEquals(EstadoCuenta.CITA_A_UNA_HORA, estado.estado)
         assertEquals(TratoDelEstado.REGRESAS, EstadoCuentaUi.tratoDe(estado))
-        assertEquals("cita sin hora", EstadoCuentaUi.etiquetaDe(estado))
+        assertEquals("Cita sin hora", EstadoCuentaUi.etiquetaDe(estado))
         assertTrue(EstadoCuentaUi.requiereAtencion(EstadoCuentaUi.tratoDe(estado)))
     }
 

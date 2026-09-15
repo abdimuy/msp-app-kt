@@ -84,7 +84,7 @@ fun BarraDeDetalle(
     ) {
         BotonCircular(
             icono = Icons.Filled.ArrowBack,
-            descripcion = "atrás",
+            descripcion = "Atrás",
             onClick = onAtras,
             modifier = Modifier.testTag(ATRAS_TAG)
         )

@@ -81,12 +81,12 @@ data class EstadoVisual(
  * [EstadoCuenta.PROMETIO_PROXIMA] por la tabla del plan, **pero no trae fecha
  * ni monto**. Y [EstadoCuenta.PROMETIO_PROXIMA] es el único camino del sistema
  * que le dice a un cobrador que deje de trabajar una puerta este periodo. Sin
- * fecha, "no cae esta semana" es una afirmación que nada sostiene: se estaría
+ * fecha, "No cae esta semana" es una afirmación que nada sostiene: se estaría
  * sacando una cuenta de la ruta con base en un texto que solo dice "regrese".
  *
  * Por eso [tratoDe] ramifica sobre [EstadoDelPeriodo.fechaPromesa] —un campo
  * que el DOMINIO ya devuelve, no algo que la pantalla adivine— y manda la
- * promesa sin fecha a [TratoDelEstado.REGRESAS], junto a "visité, vuelvo". El
+ * promesa sin fecha a [TratoDelEstado.REGRESAS], junto a "Visité, vuelvo". El
  * estado sigue siendo `PROMETIO_PROXIMA`; lo que cambia es cómo se pinta. Esta
  * pantalla no deriva estados: los consume.
  *
@@ -97,7 +97,7 @@ data class EstadoVisual(
  * ## La MISMA regla, una rama más allá: [EstadoCuenta.CITA_A_UNA_HORA]
  *
  * Una cita sin hora tiene exactamente la misma forma que una promesa sin
- * fecha: "quedaron de verse" saca la cuenta del trabajo de la semana, y sin
+ * fecha: "Quedaron de verse" saca la cuenta del trabajo de la semana, y sin
  * hora no hay nada a qué sujetar al cliente. Un estado que se llama *cita a una
  * hora* y llega sin hora no es una cita — es un pendiente.
  *
@@ -145,35 +145,35 @@ object EstadoCuentaUi {
 
     /** El texto corto del estado. Minúsculas, sin punto final. */
     fun etiquetaDe(estado: EstadoDelPeriodo): String = when (tratoDe(estado)) {
-        TratoDelEstado.PAGADO -> "pagó esta semana"
-        TratoDelEstado.PARCIAL -> "abonó parcial"
+        TratoDelEstado.PAGADO -> "Pagó esta semana"
+        TratoDelEstado.PARCIAL -> "Abonó parcial"
         TratoDelEstado.REGRESAS -> when (estado.estado) {
-            EstadoCuenta.PROMETIO_PROXIMA -> "prometió sin fecha"
-            EstadoCuenta.CITA_A_UNA_HORA -> "cita sin hora"
-            else -> "visité, vuelvo"
+            EstadoCuenta.PROMETIO_PROXIMA -> "Prometió sin fecha"
+            EstadoCuenta.CITA_A_UNA_HORA -> "Cita sin hora"
+            else -> "Visité, vuelvo"
         }
-        TratoDelEstado.DIFERIDO -> "prometió el " + DIA_Y_MES.format(estado.fechaPromesa)
-        TratoDelEstado.ESCALAR -> "se negó"
+        TratoDelEstado.DIFERIDO -> "Prometió el " + DIA_Y_MES.format(estado.fechaPromesa)
+        TratoDelEstado.ESCALAR -> "Se negó"
         // Aquí `horaCita` ya no puede ser null: sin hora, `tratoDe` mandó a REGRESAS.
-        TratoDelEstado.CITA -> "cita " + HORA.format(estado.horaCita)
-        TratoDelEstado.NADIE -> "no estaba"
-        TratoDelEstado.SIN_TRABAJAR -> "sin trabajar"
+        TratoDelEstado.CITA -> "Cita " + HORA.format(estado.horaCita)
+        TratoDelEstado.NADIE -> "No estaba"
+        TratoDelEstado.SIN_TRABAJAR -> "Sin trabajar"
     }
 
     /** La línea que explica qué hacer. Minúsculas, sin punto final. */
     fun detalleDe(estado: EstadoDelPeriodo): String = when (tratoDe(estado)) {
-        TratoDelEstado.PAGADO -> "no hace falta volver"
-        TratoDelEstado.PARCIAL -> "falta por confirmar"
+        TratoDelEstado.PAGADO -> "No hace falta volver"
+        TratoDelEstado.PARCIAL -> "Falta por confirmar"
         TratoDelEstado.REGRESAS -> when (estado.estado) {
-            EstadoCuenta.PROMETIO_PROXIMA -> "sin fecha, regresas"
-            EstadoCuenta.CITA_A_UNA_HORA -> "sin hora, regresas"
-            else -> "regresas esta semana"
+            EstadoCuenta.PROMETIO_PROXIMA -> "Sin fecha, regresas"
+            EstadoCuenta.CITA_A_UNA_HORA -> "Sin hora, regresas"
+            else -> "Regresas esta semana"
         }
-        TratoDelEstado.DIFERIDO -> "no cae esta semana"
-        TratoDelEstado.ESCALAR -> "escalar esta cuenta"
-        TratoDelEstado.CITA -> "quedaron de verse"
-        TratoDelEstado.NADIE -> "regresas esta semana"
-        TratoDelEstado.SIN_TRABAJAR -> "nadie la ha trabajado"
+        TratoDelEstado.DIFERIDO -> "No cae esta semana"
+        TratoDelEstado.ESCALAR -> "Escalar esta cuenta"
+        TratoDelEstado.CITA -> "Quedaron de verse"
+        TratoDelEstado.NADIE -> "Regresas esta semana"
+        TratoDelEstado.SIN_TRABAJAR -> "Nadie la ha trabajado"
     }
 
     /**
@@ -229,16 +229,16 @@ object EstadoCuentaUi {
      * entonces no hay nada que avisar y la banda no se pinta.
      *
      * Es el número que el brief protege: con dos ventas, una pagada y otra en
-     * promesa, aquí dice "falta 1 de 2" en vez de dar por cerrado al cliente.
+     * promesa, aquí dice "Falta 1 de 2" en vez de dar por cerrado al cliente.
      */
     fun avisoDeCuentas(estados: List<EstadoDelPeriodo>): String? {
         val pendientes = estados.count { requiereAtencion(tratoDe(it)) }
         if (pendientes == 0) return null
-        val verbo = if (pendientes == 1) "falta" else "faltan"
+        val verbo = if (pendientes == 1) "Falta" else "Faltan"
         return "$verbo $pendientes de ${estados.size}"
     }
 
-    /** Solo "se negó" va en sólido invertido (`.st.negado` del mock). */
+    /** Solo "Se negó" va en sólido invertido (`.st.negado` del mock). */
     fun esRelleno(trato: TratoDelEstado): Boolean = trato == TratoDelEstado.ESCALAR
 }
 

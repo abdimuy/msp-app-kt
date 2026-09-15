@@ -26,10 +26,10 @@ internal const val THEME_TOGGLE_TAG = "msp_theme_toggle"
 private val THEME_TOGGLE_SIZE = 40.dp
 
 /** Lo que anuncia el botón cuando el tema YA es oscuro: tocarlo lleva a claro. */
-const val DESCRIPCION_A_CLARO: String = "cambiar a tema claro"
+const val DESCRIPCION_A_CLARO: String = "Cambiar a tema claro"
 
 /** Lo que anuncia el botón cuando el tema YA es claro: tocarlo lleva a oscuro. */
-const val DESCRIPCION_A_OSCURO: String = "cambiar a tema oscuro"
+const val DESCRIPCION_A_OSCURO: String = "Cambiar a tema oscuro"
 
 /**
  * Botón sol/luna del design system: icon-surface de 40dp, shape
@@ -56,10 +56,12 @@ const val DESCRIPCION_A_OSCURO: String = "cambiar a tema oscuro"
  *
  * El `ThemeToggle` de kollect anuncia **la acción, no el estado**
  * (`"Cambiar a tema claro"` cuando ya está oscuro, y al revés), y este port lo
- * traía en `null`: un botón invisible para TalkBack. Se restituye. En
- * minúscula, como los otros controles de encabezado del repo (`"atrás"`,
- * `"borrar búsqueda"`) — la única desviación del 1:1, y es la convención de
- * texto de la app.
+ * traía en `null`: un botón invisible para TalkBack. Se restituye — y desde
+ * que `CLAUDE.md` §3 pide **mayúscula inicial** en el texto de usuario, se
+ * restituye sin desviación ninguna: la minúscula que este párrafo defendía era
+ * la convención vieja, y era además el último punto en que el port se apartaba
+ * del 1:1 con kollect. Los otros controles del encabezado (`"Atrás"`,
+ * `"Borrar búsqueda"`) se movieron en el mismo cambio.
  *
  * Que describa la ACCIÓN es también lo que lo vuelve medible: un compose-test
  * puede afirmar que el tap cambió el tema mirando cómo cambió esta cadena, sin
