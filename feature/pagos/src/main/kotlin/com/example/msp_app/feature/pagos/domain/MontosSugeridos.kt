@@ -1,7 +1,7 @@
 package com.example.msp_app.feature.pagos.domain
 
 import com.example.msp_app.core.common.money.Money
-import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
+import com.example.msp_app.feature.pagos.domain.model.CuentaCobrable
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -63,7 +63,7 @@ object MontosSugeridos {
     data class Sugerido(val cual: Sugerencia, val importe: Money)
 
     /** Los sugeridos de [venta] al día [hoy], en orden y sin repetidos. */
-    fun de(venta: DetalleVenta, hoy: LocalDate): List<Sugerido> {
+    fun de(venta: CuentaCobrable, hoy: LocalDate): List<Sugerido> {
         val saldo = venta.saldo
         if (saldo <= Money.ZERO) return emptyList()
         val candidatos = listOf(
@@ -80,7 +80,7 @@ object MontosSugeridos {
     }
 
     /** Lo que falta de la cuota del periodo, topado en el saldo. */
-    fun esperadoHoy(venta: DetalleVenta): Money = Money
+    fun esperadoHoy(venta: CuentaCobrable): Money = Money
         .of(venta.parcialidad.amount.subtract(venta.estado.abonoDelPeriodo.amount))
         .entre(Money.ZERO, venta.saldo)
 
@@ -89,7 +89,7 @@ object MontosSugeridos {
      * realmente abonado (sin el enganche, que no es una cuota). Topado en el
      * saldo y con piso en cero — una venta adelantada no trae atraso negativo.
      */
-    fun alCorriente(venta: DetalleVenta, hoy: LocalDate): Money {
+    fun alCorriente(venta: CuentaCobrable, hoy: LocalDate): Money {
         val esperadoAcumulado = venta.parcialidad.amount
             .multiply(BigDecimal(periodosTranscurridos(venta, hoy)))
         val cuotasPagadas = venta.abonado.amount.subtract(venta.enganche.amount)
@@ -97,7 +97,7 @@ object MontosSugeridos {
     }
 
     /** "Hoy liquida con", o el saldo completo si esta venta no tiene oferta. */
-    fun liquidar(venta: DetalleVenta): Money =
+    fun liquidar(venta: CuentaCobrable): Money =
         (venta.liquidacion?.monto ?: venta.saldo).entre(Money.ZERO, venta.saldo)
 
     /**
@@ -109,7 +109,7 @@ object MontosSugeridos {
      * transcurridas (`overdue_payments_view`): 7 / 15 / 30 días, y 1 para
      * cualquier otra frecuencia.
      */
-    fun periodosTranscurridos(venta: DetalleVenta, hoy: LocalDate): Long {
+    fun periodosTranscurridos(venta: CuentaCobrable, hoy: LocalDate): Long {
         val inicio = venta.fechaVenta ?: return 0
         val dias = ChronoUnit.DAYS.between(inicio, hoy)
         if (dias <= 0) return 0

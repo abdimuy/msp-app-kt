@@ -66,7 +66,19 @@ data class DetalleCliente(
      */
     val ficha: FichaDelCliente?,
     val liquidacion: Liquidacion?,
-    val ultimaVisita: Instant?
+    val ultimaVisita: Instant?,
+    /**
+     * El día de la semana en que le toca la ruta — `DIA_TEMPORAL_COBRANZA` si
+     * alguien lo movió esta vuelta, y si no `DIA_COBRANZA`. Ver
+     * [DatosDeVenta.diaDeRuta], que es donde vive esa precedencia.
+     *
+     * Es del **domicilio**, no de una venta: el cobrador pasa una vez por la
+     * puerta. Sale del mismo representante del cliente del que ya salen nombre,
+     * teléfono, zona y aval. Vacío cuando la fila no lo trae.
+     */
+    val diaDeRuta: String = "",
+    /** `FREC_PAGO` del representante — "semanal", "quincenal", "mensual". */
+    val frecuencia: String = ""
 ) {
     /** Cuántas cuentas tiene — el badge "N cuentas" del encabezado. */
     val cuentas: Int get() = ventas.size
@@ -84,18 +96,42 @@ data class VentaDelCliente(
     val ventaId: Int,
     val folio: String,
     val descripcion: String,
-    val saldo: Money,
-    val parcialidad: Money,
+    override val saldo: Money,
+    override val parcialidad: Money,
     val abonosPagados: Int,
     val abonosTotales: Int,
     val avance: Float,
-    val estado: EstadoDelPeriodo,
+    override val estado: EstadoDelPeriodo,
     /**
      * Cuántos pagos lleva atrasados — leído de `NUM_PAGOS_ATRASADOS`, no
      * derivado. Ver el KDoc de [DatosDeVenta.atrasos] para el porqué.
      */
-    val atrasos: Int = 0
-)
+    val atrasos: Int = 0,
+    /**
+     * ## Los seis campos de abajo: por qué la fila de una venta los carga
+     *
+     * No son adorno de la lista. Son **exactamente** lo que
+     * [com.example.msp_app.feature.pagos.domain.MontosSugeridos] necesita para
+     * calcular un sugerido, y sin ellos el "pídele hoy" del detalle del cliente
+     * no se puede derivar sin volver a leer las ventas crudas desde la UI — que
+     * es la capa que tiene prohibido hacerlo.
+     *
+     * El cálculo por cliente es la SUMA de los de sus ventas (ver
+     * `MontosSugeridosDelCliente`), así que cada fila tiene que traer su parte.
+     * Aplanarlos a nivel cliente perdería el caso que este modelo existe para no
+     * perder: una venta al corriente y otra vencida no se suman a "medio
+     * vencido".
+     */
+    override val fechaVenta: LocalDate? = null,
+    override val frecuencia: String = "",
+    val totalVenta: Money = Money.ZERO,
+    override val enganche: Money = Money.ZERO,
+    override val abonado: Money = Money.ZERO,
+    /** "Hoy liquida con" de ESTA venta — por venta, nunca por cliente. */
+    override val liquidacion: Liquidacion? = null,
+    /** Lo que suele dar en esta cuenta. Ver [DatosDeVenta.pagoPromedio]. */
+    val pagoPromedio: Money? = null
+) : CuentaCobrable
 
 /**
  * Una línea de la bitácora "últimos contactos". [estado] viene del catálogo de

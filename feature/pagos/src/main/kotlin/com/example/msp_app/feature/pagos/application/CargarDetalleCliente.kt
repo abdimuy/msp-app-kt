@@ -10,6 +10,7 @@ import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
+import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
@@ -90,7 +91,17 @@ class CargarDetalleCliente @Inject constructor(
             aval = primera.aval,
             telefonoAval = primera.telefonoAval,
             saldoTotal = Money.sum(ventas.map { it.saldo }),
-            ventas = ventas.map { it.aVentaDelCliente(cobranza.estados[it.ventaId]) },
+            ventas = ventas.map {
+                it.aVentaDelCliente(
+                    estado = cobranza.estados[it.ventaId],
+                    liquidacion = cobranza.liquidaciones[it.ventaId]
+                )
+            },
+            // El día de la ruta es del DOMICILIO, no de una venta: el cobrador
+            // pasa una vez por la puerta. Se toma del representante del cliente,
+            // la misma fila de la que ya salen nombre, teléfono, zona y aval.
+            diaDeRuta = primera.diaDeRuta,
+            frecuencia = primera.frecuencia,
             contactos = contactos.take(CONTACTOS_VISIBLES),
             totalContactos = contactos.size,
             notaDeLaVenta = primera.notas.takeIf { it.isNotBlank() },
@@ -163,8 +174,17 @@ class CargarDetalleCliente @Inject constructor(
     }
 }
 
-/** Proyecta una venta a su fila en "sus ventas", con su estado ya derivado. */
-internal fun DatosDeVenta.aVentaDelCliente(estado: EstadoDelPeriodo?): VentaDelCliente {
+/**
+ * Proyecta una venta a su fila en "sus ventas", con su estado ya derivado.
+ *
+ * [liquidacion] llega por parámetro y no se lee aquí: quien la tiene es
+ * [CobranzaDelCliente], que ya la reunió en la misma pasada. `null` es el caso
+ * normal — no toda venta admite liquidación.
+ */
+internal fun DatosDeVenta.aVentaDelCliente(
+    estado: EstadoDelPeriodo?,
+    liquidacion: Liquidacion? = null
+): VentaDelCliente {
     val plan = PlanDeAbonos.de(
         totalVenta = totalVenta,
         abonado = abonado,
@@ -180,6 +200,13 @@ internal fun DatosDeVenta.aVentaDelCliente(estado: EstadoDelPeriodo?): VentaDelC
         abonosTotales = plan.totales,
         avance = plan.avance,
         estado = estado ?: EstadoDelPeriodo.sinTocar(parcialidad),
-        atrasos = atrasos
+        atrasos = atrasos,
+        fechaVenta = fechaVenta,
+        frecuencia = frecuencia,
+        totalVenta = totalVenta,
+        enganche = enganche,
+        abonado = abonado,
+        liquidacion = liquidacion,
+        pagoPromedio = pagoPromedio
     )
 }

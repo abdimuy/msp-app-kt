@@ -18,24 +18,24 @@ data class DetalleVenta(
     val clienteId: Int,
     val clienteNombre: String,
     val titulo: String,
-    val fechaVenta: LocalDate?,
-    val saldo: Money,
-    val parcialidad: Money,
-    val frecuencia: String,
+    override val fechaVenta: LocalDate?,
+    override val saldo: Money,
+    override val parcialidad: Money,
+    override val frecuencia: String,
     val abonosPagados: Int,
     val abonosTotales: Int,
     val avance: Float,
     val totalVenta: Money,
     val precioContado: Money,
-    val enganche: Money,
-    val abonado: Money,
+    override val enganche: Money,
+    override val abonado: Money,
     val vendedor: String,
-    val estado: EstadoDelPeriodo,
+    override val estado: EstadoDelPeriodo,
     val productos: List<ProductoDeVenta>,
     val historial: HistorialDePagos,
-    val liquidacion: Liquidacion?,
+    override val liquidacion: Liquidacion?,
     val garantia: GarantiaDeLaVenta?
-)
+) : CuentaCobrable
 
 /** Una línea de la sección "productos". */
 data class ProductoDeVenta(

@@ -175,7 +175,8 @@ object PagosFixtures {
                 folio = "V-5188",
                 descripcion = "Refrigerador Mabe 14'",
                 cifras = Cifras(dinero("6400"), dinero("1450"), dinero("220"), dinero("4950")),
-                estado = estadoDeLaSegunda
+                estado = estadoDeLaSegunda,
+                atrasos = 2
             )
         ),
         contactos = listOf(
@@ -202,6 +203,8 @@ object PagosFixtures {
             )
         ),
         totalContactos = 27,
+        diaDeRuta = "jueves",
+        frecuencia = "semanal",
         notaDeLaVenta = "entrega en la puerta de atrás",
         ficha = fichaDelCliente(),
         liquidacion = liquidacionDelCliente(),
@@ -232,7 +235,8 @@ object PagosFixtures {
         folio: String,
         descripcion: String,
         cifras: Cifras,
-        estado: EstadoDelPeriodo
+        estado: EstadoDelPeriodo,
+        atrasos: Int = 0
     ): VentaDelCliente {
         val plan = PlanDeAbonos.de(
             totalVenta = cifras.total,
@@ -248,7 +252,15 @@ object PagosFixtures {
             abonosPagados = plan.pagados,
             abonosTotales = plan.totales,
             avance = plan.avance,
-            estado = estado
+            estado = estado,
+            atrasos = atrasos,
+            fechaVenta = LocalDate.of(2026, 5, 4),
+            frecuencia = "semanal",
+            totalVenta = cifras.total,
+            enganche = dinero("900"),
+            abonado = cifras.cubierto,
+            liquidacion = liquidacionDeLaVenta(),
+            pagoPromedio = dinero("150")
         )
     }
 
@@ -325,7 +337,10 @@ object PagosFixtures {
         instanteDeVenta = Instant.parse("2026-05-04T18:00:00Z"),
         saldo = cifras.restante,
         parcialidad = cifras.cuota,
+        pagoPromedio = dinero("150"),
         frecuencia = "semanal",
+        diaDeCobranza = "jueves",
+        diaTemporal = "",
         abonosTotales = 20,
         totalVenta = cifras.total,
         precioContado = dinero("5200"),
