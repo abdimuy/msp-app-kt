@@ -34,10 +34,7 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
     // Sin `onAtras`: la lista es pantalla de nivel superior y ya no pinta flecha
     // de volver — se llega desde el cajón.
     destinoDeListaDeClientes(
-        onAbrirCliente = {
-            navController.navigate(PagosRutas.detalleCliente(it))
-        },
-        onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) }
+        onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) }
     )
 
     destinosDePagos(

@@ -93,8 +93,7 @@ class LaListaInstalaLaRevealDeTemaTest : RobolectricTestBase() {
             ) {
                 ListaDeClientesScreen(
                     viewModel = vm,
-                    onAbrirCliente = {},
-                    onAbrirVenta = {}
+                    onAbrirCliente = {}
                 )
             }
         }

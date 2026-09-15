@@ -258,7 +258,6 @@ private const val OPACIDAD_DEL_CONTEO = 0.75f
 fun FilaDeCliente(
     cliente: ClienteEnLista,
     onAbrirCliente: () -> Unit,
-    onAbrirVenta: (Int) -> Unit,
     modifier: Modifier = Modifier,
     /** "Esconder cantidades": el monto de cada venta se pinta enmascarado. */
     montosOcultos: Boolean = false
@@ -268,11 +267,7 @@ fun FilaDeCliente(
             EncabezadoDeCliente(cliente)
             Spacer(Modifier.height(AIRE_ANTES_DE_LA_PRIMERA_VENTA))
             cliente.ventas.forEach { enLista ->
-                RenglonDeVenta(
-                    venta = enLista.venta,
-                    montosOcultos = montosOcultos,
-                    onAbrir = { onAbrirVenta(enLista.venta.ventaId) }
-                )
+                RenglonDeVenta(venta = enLista.venta, montosOcultos = montosOcultos)
             }
         }
     }
@@ -365,7 +360,7 @@ private fun NombreDelCliente(nombre: String) {
  * único que se les pide.
  */
 @Composable
-private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbrir: () -> Unit) {
+private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -373,9 +368,13 @@ private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbr
             .background(MspTheme.colors.outline)
     )
     Column(
+        // SIN `clickable`: desde la lista **siempre se entra por el cliente**, y la
+        // venta se elige dentro de su pantalla. Un renglón tocable dentro de una
+        // tarjeta tocable obliga al cobrador a apuntar —el renglón abría la venta
+        // y el resto de la tarjeta al cliente—, y con la ruta en la mano se apunta
+        // mal. Ahora toda la tarjeta hace lo mismo.
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onAbrir)
             .padding(vertical = AIRE_DEL_RENGLON)
     ) {
         Row(

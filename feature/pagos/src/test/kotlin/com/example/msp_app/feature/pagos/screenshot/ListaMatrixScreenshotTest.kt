@@ -110,7 +110,6 @@ private fun Lista(state: ListaDeClientesUiState) {
         onBuscar = {},
         onElegirSegmento = {},
         onAbrirCliente = {},
-        onAbrirVenta = {},
         onReintentar = {},
         onAlternarTema = {},
         onAlternarPrivacidad = {}

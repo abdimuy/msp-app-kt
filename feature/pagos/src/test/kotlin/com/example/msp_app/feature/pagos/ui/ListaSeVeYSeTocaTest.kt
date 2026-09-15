@@ -75,7 +75,6 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
             onBuscar = {},
             onElegirSegmento = {},
             onAbrirCliente = {},
-            onAbrirVenta = {},
             onReintentar = {},
             onAlternarTema = {},
             onAlternarPrivacidad = {}
@@ -212,7 +211,6 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
                     onBuscar = {},
                     onElegirSegmento = {},
                     onAbrirCliente = {},
-                    onAbrirVenta = {},
                     onReintentar = {},
                     onAlternarTema = {},
                     onAlternarPrivacidad = {}

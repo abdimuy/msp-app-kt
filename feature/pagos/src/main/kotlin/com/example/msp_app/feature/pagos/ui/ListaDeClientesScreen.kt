@@ -94,7 +94,6 @@ const val LISTA_VACIA_TAG: String = "pagos_lista_vacia"
 fun ListaDeClientesScreen(
     viewModel: ListaDeClientesViewModel,
     onAbrirCliente: (Int) -> Unit,
-    onAbrirVenta: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -118,7 +117,6 @@ fun ListaDeClientesScreen(
             onBuscar = viewModel::buscar,
             onElegirSegmento = viewModel::elegirSegmento,
             onAbrirCliente = onAbrirCliente,
-            onAbrirVenta = onAbrirVenta,
             onReintentar = viewModel::cargar,
             onAlternarTema = viewModel::alternarTema,
             onAlternarPrivacidad = viewModel::alternarPrivacidad,
@@ -202,7 +200,6 @@ fun ListaDeClientesContent(
     onBuscar: (String) -> Unit,
     onElegirSegmento: (SegmentoDeCobranza) -> Unit,
     onAbrirCliente: (Int) -> Unit,
-    onAbrirVenta: (Int) -> Unit,
     onReintentar: () -> Unit,
     onAlternarTema: () -> Unit,
     onAlternarPrivacidad: () -> Unit,
@@ -270,8 +267,7 @@ fun ListaDeClientesContent(
             else -> Clientes(
                 clientes = state.clientes,
                 montosOcultos = state.montosOcultos,
-                onAbrirCliente = onAbrirCliente,
-                onAbrirVenta = onAbrirVenta
+                onAbrirCliente = onAbrirCliente
             )
         }
     }
@@ -286,8 +282,7 @@ fun ListaDeClientesContent(
 private fun Clientes(
     clientes: List<ClienteEnLista>,
     montosOcultos: Boolean,
-    onAbrirCliente: (Int) -> Unit,
-    onAbrirVenta: (Int) -> Unit
+    onAbrirCliente: (Int) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -299,8 +294,7 @@ private fun Clientes(
             FilaDeCliente(
                 cliente = cliente,
                 montosOcultos = montosOcultos,
-                onAbrirCliente = { onAbrirCliente(cliente.clienteId) },
-                onAbrirVenta = onAbrirVenta
+                onAbrirCliente = { onAbrirCliente(cliente.clienteId) }
             )
         }
     }

@@ -147,15 +147,11 @@ fun NavGraphBuilder.destinosDePagos(
  * es difícil de leer en la llamada. Son dos registros cohesivos en vez de uno
  * largo; la Task 21, que cablea los puntos de entrada, llama a los dos.
  */
-fun NavGraphBuilder.destinoDeListaDeClientes(
-    onAbrirCliente: (Int) -> Unit,
-    onAbrirVenta: (Int) -> Unit
-) {
+fun NavGraphBuilder.destinoDeListaDeClientes(onAbrirCliente: (Int) -> Unit) {
     composable(route = PagosRutas.LISTA_CLIENTES) {
         ListaDeClientesScreen(
             viewModel = hiltViewModel(),
-            onAbrirCliente = onAbrirCliente,
-            onAbrirVenta = onAbrirVenta
+            onAbrirCliente = onAbrirCliente
         )
     }
 }

@@ -142,8 +142,7 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
     private fun Pantalla(vm: ListaDeClientesViewModel) {
         ListaDeClientesScreen(
             viewModel = vm,
-            onAbrirCliente = {},
-            onAbrirVenta = {}
+            onAbrirCliente = {}
         )
     }
 

@@ -110,7 +110,6 @@ class IncidenciasUnaVezPorCargaDeListaTest : RobolectricTestBase() {
                     onBuscar = {},
                     onElegirSegmento = {},
                     onAbrirCliente = {},
-                    onAbrirVenta = {},
                     onReintentar = {},
                     onAlternarTema = {},
                     onAlternarPrivacidad = {}
