@@ -9,10 +9,11 @@ import java.time.LocalTime
  * completo, no el registro: puede estar a medias, y por eso casi todo es
  * anulable.
  *
- * [ventaDeLaPromesa] es una columna aparte de la venta que el cobrador tenía
- * abierta: "el cobrador toca una puerta, no una venta" (§7 del expediente), así
- * que el cliente puede prometer sobre otra de sus cuentas, o sobre todas
- * (`null`).
+ * [cuentas] son las cuentas marcadas: "el cobrador toca una puerta, no una
+ * venta" (§7 del expediente), así que el desenlace se dice UNA vez y se aplica a
+ * las cuentas que toque. Vacío cuando el desenlace es de toda la puerta
+ * ([ResultadoDeVisita.alcance] `CLIENTE`): ahí el estado se propaga solo, sin
+ * escribir una fila por cuenta.
  *
  * El monto viaja en [Money] —nunca `Double`— y solo cruza a centavos enteros en
  * el adaptador, que es la frontera que fija la REGLA DE DINERO.
@@ -23,7 +24,14 @@ data class CapturaDeVisita(
     val etiqueta: String? = null,
     /** Texto libre, opcional. **Nunca** lleva la fecha ni la hora dentro. */
     val nota: String = "",
-    val ventaDeLaPromesa: Int? = null,
+    /**
+     * Las cuentas a las que aplica el desenlace, por `DOCTO_CC_ACR_ID`.
+     *
+     * Un `Set` y no una lista: marcar dos veces la misma cuenta no significa
+     * nada, y el orden de la escritura no lo pone el dedo del cobrador sino
+     * [com.example.msp_app.feature.visitas.domain.IdsDeLaVisita].
+     */
+    val cuentas: Set<Int> = emptySet(),
     val fechaPromesa: LocalDate? = null,
     val montoPrometido: Money? = null,
     val fechaCita: LocalDate? = null,
@@ -40,6 +48,17 @@ data class CapturaDeVisita(
 enum class BloqueoDeLaVisita(val razon: String) {
     /** Todavía no eligió qué pasó. El mock lo pinta con el CTA apagado. */
     SIN_RESULTADO("elige un resultado"),
+
+    /**
+     * El desenlace es de una cuenta y no queda ninguna marcada.
+     *
+     * Las casillas nacen TODAS marcadas —"no te voy a pagar nada" es el caso
+     * común y desmarcar es para el caso fino—, así que llegar aquí exige que el
+     * cobrador las haya desmarcado a mano. Y sin una sola cuenta no hay nada que
+     * escribir: un desenlace de alcance VENTA sin venta no toca ninguna fila y
+     * se perdería entero.
+     */
+    SIN_CUENTAS("elige una cuenta"),
 
     /**
      * Prometió, pero no dijo cuándo. **Sin fecha no hay promesa**: es el único

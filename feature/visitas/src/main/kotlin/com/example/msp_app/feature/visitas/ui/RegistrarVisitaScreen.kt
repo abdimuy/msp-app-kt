@@ -26,17 +26,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.msp_app.core.common.cobranza.domain.VisitScope
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.DiasSugeridos
 import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
-import com.example.msp_app.feature.visitas.ui.components.AvisoDeAlcance
 import com.example.msp_app.feature.visitas.ui.components.BandaDeFallo
 import com.example.msp_app.feature.visitas.ui.components.BandaDeRecomendacion
 import com.example.msp_app.feature.visitas.ui.components.BarraDeVisita
@@ -46,15 +43,17 @@ import com.example.msp_app.feature.visitas.ui.components.CalendarioDeVisita
 import com.example.msp_app.feature.visitas.ui.components.CampoDeMonto
 import com.example.msp_app.feature.visitas.ui.components.CampoDeNota
 import com.example.msp_app.feature.visitas.ui.components.ChipDeOpcion
-import com.example.msp_app.feature.visitas.ui.components.ChipDeVenta
 import com.example.msp_app.feature.visitas.ui.components.DockDeLaVisita
 import com.example.msp_app.feature.visitas.ui.components.ETIQUETA_TAG
+import com.example.msp_app.feature.visitas.ui.components.EncabezadoDeCuentas
+import com.example.msp_app.feature.visitas.ui.components.FilaDeCuenta
 import com.example.msp_app.feature.visitas.ui.components.OpcionDeResultado
 import com.example.msp_app.feature.visitas.ui.components.RelojDeLaCita
 import com.example.msp_app.feature.visitas.ui.components.RotuloDeSeccion
 import com.example.msp_app.feature.visitas.ui.components.SeccionDeComprobantesDeVisita
 import com.example.msp_app.feature.visitas.ui.components.TarjetaDelFold
 import com.example.msp_app.feature.visitas.ui.components.TiraDelCliente
+import com.example.msp_app.feature.visitas.ui.components.TituloDeSeccion
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalTime
@@ -97,7 +96,8 @@ fun RegistrarVisitaScreen(
                 onCambiarResultado = viewModel::limpiarResultado,
                 onEtiqueta = viewModel::onEtiqueta,
                 onNota = viewModel::onNota,
-                onVentaDeLaPromesa = viewModel::onVentaDeLaPromesa,
+                onCuenta = viewModel::onCuenta,
+                onTodasLasCuentas = viewModel::onTodasLasCuentas,
                 onFechaPromesa = viewModel::onFechaPromesa,
                 onMonto = viewModel::onMontoPrometido,
                 onFechaCita = viewModel::onFechaCita,
@@ -141,7 +141,8 @@ data class AccionesDeLaVisita(
     val onCambiarResultado: () -> Unit,
     val onEtiqueta: (String) -> Unit,
     val onNota: (String) -> Unit,
-    val onVentaDeLaPromesa: (Int?) -> Unit,
+    val onCuenta: (Int) -> Unit,
+    val onTodasLasCuentas: () -> Unit,
     val onFechaPromesa: (LocalDate) -> Unit,
     val onMonto: (Money?) -> Unit,
     val onFechaCita: (LocalDate) -> Unit,
@@ -165,7 +166,8 @@ data class AccionesDeLaVisita(
             onCambiarResultado = {},
             onEtiqueta = {},
             onNota = {},
-            onVentaDeLaPromesa = {},
+            onCuenta = {},
+            onTodasLasCuentas = {},
             onFechaPromesa = {},
             onMonto = {},
             onFechaCita = {},
@@ -234,7 +236,7 @@ fun RegistrarVisitaContent(
                 DockDeLaVisita(
                     texto = if (state.registrada == null) "guardar visita" else "visita guardada",
                     habilitado = state.sePuedeGuardar,
-                    razon = state.razonDelBloqueo,
+                    pie = state.pieDelCta,
                     onGuardar = acciones.onGuardar
                 )
             }
@@ -304,7 +306,7 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
             BandaDeRecomendacion("${it.etiquetaDePosicion} · ${it.motivo}")
         }
         state.fallo?.let { BandaDeFallo(it.mensaje) }
-        RotuloDeSeccion("qué pasó")
+        TituloDeSeccion("¿Qué pasó en la puerta?")
         // Elegido un desenlace, la lista se colapsa al elegido y su fold ocupa
         // la pantalla — es la composición del mock, y en un teléfono a una mano
         // evita que la captura de la promesa nazca debajo del pliegue. Tocar el
@@ -326,8 +328,18 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
                 habilitado = state.sePuedeCapturar,
                 onElegir = acciones.onCambiarResultado
             )
-            if (elegido.alcance == VisitScope.CLIENTE) AvisoDeAlcance(contexto.ventas.size)
-            FoldDelResultado(elegido, state, acciones)
+            if (CatalogoDeResultados.pideEtiqueta(elegido)) {
+                TarjetaDelFold {
+                    RotuloDeSeccion("cómo estaba")
+                    FilaDeEtiquetas(elegido, state, acciones)
+                }
+            }
+            SeccionDeCuentas(state, acciones)
+            when (elegido) {
+                ResultadoDeVisita.PROMETIO -> SeccionDeLaPromesa(state, acciones)
+                ResultadoDeVisita.CITA -> SeccionDeLaCita(state, acciones)
+                else -> Unit
+            }
         }
         CampoDeNota(
             nota = state.captura.nota,
@@ -345,22 +357,44 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
     }
 }
 
+/**
+ * **¿De cuáles cuentas?** — la sección que convierte una frase del cliente en
+ * las visitas que le corresponden.
+ *
+ * Solo aparece cuando el desenlace es de una cuenta **y hay más de una**: con
+ * una sola cuenta la pregunta ya está contestada y un control de una opción es
+ * ruido. Con toda la puerta no aparece nunca, porque ahí no se elige nada — el
+ * estado se propaga a todas las cuentas activas del cliente.
+ *
+ * El atajo "todas / ninguna" solo se pinta cuando se pueden marcar varias: bajo
+ * "prometió" sería un botón que promete repartir un monto que no se reparte.
+ */
 @Composable
-private fun FoldDelResultado(
-    resultado: ResultadoDeVisita,
-    state: RegistrarVisitaUiState,
-    acciones: AccionesDeLaVisita
-) {
-    TarjetaDelFold {
-        if (CatalogoDeResultados.pideEtiqueta(resultado)) {
-            RotuloDeSeccion("cómo estaba")
-            FilaDeEtiquetas(resultado, state, acciones)
-        }
-        when (resultado) {
-            ResultadoDeVisita.PROMETIO -> FoldDeLaPromesa(state, acciones)
-            ResultadoDeVisita.CITA -> FoldDeLaCita(state, acciones)
-            else -> Unit
-        }
+private fun SeccionDeCuentas(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
+    if (!state.pideCuentas) return
+    val contexto = requireNotNull(state.contexto)
+    if (state.variasCuentas) {
+        EncabezadoDeCuentas(
+            todasMarcadas = state.todasLasCuentasMarcadas,
+            habilitado = state.sePuedeCapturar,
+            onTodas = acciones.onTodasLasCuentas
+        )
+        Text(
+            text = "Vienen marcadas todas; desmarca las que no",
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted
+        )
+    } else {
+        TituloDeSeccion("¿De cuál cuenta?")
+    }
+    contexto.ventas.forEach { venta ->
+        FilaDeCuenta(
+            venta = venta,
+            marcada = venta.ventaId in state.captura.cuentas,
+            varias = state.variasCuentas,
+            habilitado = state.sePuedeCapturar,
+            onTocar = { acciones.onCuenta(venta.ventaId) }
+        )
     }
 }
 
@@ -382,30 +416,17 @@ private fun FilaDeEtiquetas(
                 activo = state.captura.etiqueta == etiqueta,
                 habilitado = state.sePuedeCapturar,
                 onElegir = { acciones.onEtiqueta(etiqueta) },
-                modifier = Modifier.testTag(ETIQUETA_TAG + indice),
-                contenidoActivo = MspTheme.colors.onSurface,
-                fondoActivo = MspTheme.colors.surface2
+                modifier = Modifier.testTag(ETIQUETA_TAG + indice)
             )
         }
     }
 }
 
+/** **¿Cuándo?** y **¿cuánto?** — los dos datos que hacen existir una promesa. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FoldDeLaPromesa(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
-    val contexto = requireNotNull(state.contexto)
-    if (contexto.ventas.size > 1) {
-        RotuloDeSeccion("de cuál venta")
-        contexto.ventas.forEach { venta ->
-            ChipDeVenta(
-                venta = venta,
-                activo = state.captura.ventaDeLaPromesa == venta.ventaId,
-                habilitado = state.sePuedeCapturar,
-                onElegir = { acciones.onVentaDeLaPromesa(venta.ventaId) }
-            )
-        }
-    }
-    RotuloDeSeccion("cuándo")
+private fun SeccionDeLaPromesa(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
+    TituloDeSeccion("¿Cuándo?")
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
@@ -416,8 +437,6 @@ private fun FoldDeLaPromesa(state: RegistrarVisitaUiState, acciones: AccionesDeL
                 dia = dia,
                 elegido = state.captura.fechaPromesa,
                 state = state,
-                contenido = MspTheme.colors.statusOverdue,
-                fondo = MspTheme.colors.statusOverdueTint,
                 onElegir = acciones.onFechaPromesa
             )
         }
@@ -430,10 +449,11 @@ private fun FoldDeLaPromesa(state: RegistrarVisitaUiState, acciones: AccionesDeL
     )
 }
 
+/** **¿Qué día?** y **¿a qué hora?** — la cita, con la hora como campo. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FoldDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
-    RotuloDeSeccion("qué día")
+private fun SeccionDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
+    TituloDeSeccion("¿Qué día?")
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
@@ -444,14 +464,12 @@ private fun FoldDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeLaVi
                 dia = dia,
                 elegido = state.captura.fechaCita,
                 state = state,
-                contenido = MspTheme.colors.promise,
-                fondo = MspTheme.colors.promiseTint,
                 onElegir = acciones.onFechaCita
             )
         }
         ChipDeOtroDia(state, acciones)
     }
-    RotuloDeSeccion("a qué hora")
+    TituloDeSeccion("¿A qué hora?")
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
@@ -465,9 +483,7 @@ private fun FoldDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeLaVi
             activo = state.captura.horaCita == null,
             habilitado = state.sePuedeCapturar,
             onElegir = { acciones.onHoraCita(null) },
-            modifier = Modifier.testTag(CHIP_TAG + "sin_hora"),
-            contenidoActivo = MspTheme.colors.promise,
-            fondoActivo = MspTheme.colors.promiseTint
+            modifier = Modifier.testTag(CHIP_TAG + "sin_hora")
         )
         DiasSugeridos.HORAS_SUGERIDAS.forEach { hora ->
             ChipDeOpcion(
@@ -475,9 +491,7 @@ private fun FoldDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeLaVi
                 activo = state.captura.horaCita == hora,
                 habilitado = state.sePuedeCapturar,
                 onElegir = { acciones.onHoraCita(hora) },
-                modifier = Modifier.testTag(CHIP_TAG + "hora_${hora.hour}"),
-                contenidoActivo = MspTheme.colors.promise,
-                fondoActivo = MspTheme.colors.promiseTint
+                modifier = Modifier.testTag(CHIP_TAG + "hora_${hora.hour}")
             )
         }
         ChipDeOpcion(
@@ -491,17 +505,19 @@ private fun FoldDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeLaVi
 }
 
 /**
- * Un chip de día. El acento es **el color del desenlace** (§3 de la tabla de
- * paleta): rojo en la promesa, violeta en la cita — no un azul genérico, porque
- * estos chips sí llevan estado.
+ * Un chip de día. El acento es `brand`, como toda selección de esta pantalla.
+ *
+ * Iba en el color del desenlace —rojo en la promesa, violeta en la cita— con el
+ * argumento de que "estos chips sí llevan estado". No lo llevan: llevan una
+ * elección. El efecto medido era que elegir "prometió" pintaba de rojo el
+ * renglón, la cuenta, la fecha y el monto, y una pantalla de captura entera en
+ * rojo se lee como un error, no como un formulario contestado.
  */
 @Composable
 private fun ChipDeDia(
     dia: LocalDate,
     elegido: LocalDate?,
     state: RegistrarVisitaUiState,
-    contenido: Color,
-    fondo: Color,
     onElegir: (LocalDate) -> Unit
 ) {
     ChipDeOpcion(
@@ -509,9 +525,7 @@ private fun ChipDeDia(
         activo = elegido == dia,
         habilitado = state.sePuedeCapturar,
         onElegir = { onElegir(dia) },
-        modifier = Modifier.testTag(CHIP_TAG + "dia_$dia"),
-        contenidoActivo = contenido,
-        fondoActivo = fondo
+        modifier = Modifier.testTag(CHIP_TAG + "dia_$dia")
     )
 }
 

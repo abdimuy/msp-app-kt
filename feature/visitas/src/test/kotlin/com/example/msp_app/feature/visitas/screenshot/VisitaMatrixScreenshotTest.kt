@@ -13,9 +13,11 @@ import org.junit.Test
  * estaba— en claro y oscuro, y cada uno en las TRES escalas reales de
  * `FontSizeLevel` (1.0 / 1.5 / 2.0).
  *
- * Son 18 goldens de la matriz completa más cuatro de los dos estados que el
- * mock no dibuja pero que esta tarea hizo posibles: la **cita** con día y hora
- * (el estado que estaba muerto hasta hoy) y la **recomendación a la vista**.
+ * Son 24 goldens de la matriz completa —los tres estados del mock más la
+ * selección múltiple de `VisitaB`— y cuatro más de estados que el mock no
+ * dibuja: la **cita** con día y hora, la **recomendación a la vista**, y la
+ * selección vacía, que es la única forma de apagar el CTA en un desenlace que
+ * no pide fecha ni monto.
  */
 @Suppress("TooManyFunctions") // un @Test por celda de la matriz; agruparlas escondería cuál falló.
 class VisitaMatrixScreenshotTest : VisitasScreenshotTest() {
@@ -107,6 +109,44 @@ class VisitaMatrixScreenshotTest : VisitasScreenshotTest() {
     @Test
     fun `no estaba dark muy grande`() =
         matriz("no_estaba", VisitaFixtures.noEstaba(), true, FontSizeLevel.MUY_GRANDE)
+
+    /**
+     * **La selección múltiple** (`VisitaB`): "se negó" con las dos cuentas
+     * marcadas. Va en las tres escalas porque es la fila más apretada de la
+     * pantalla —marca, nombre de producto y "le toca" en un solo renglón— y es
+     * justo donde una escala 2.0 rompe cosas que ningún assert ve.
+     */
+    @Test
+    fun `se nego light normal`() =
+        matriz("se_nego", VisitaFixtures.seNegoEnTodo(), false, FontSizeLevel.NORMAL)
+
+    @Test
+    fun `se nego light grande`() =
+        matriz("se_nego", VisitaFixtures.seNegoEnTodo(), false, FontSizeLevel.GRANDE)
+
+    @Test
+    fun `se nego light muy grande`() =
+        matriz("se_nego", VisitaFixtures.seNegoEnTodo(), false, FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `se nego dark normal`() =
+        matriz("se_nego", VisitaFixtures.seNegoEnTodo(), true, FontSizeLevel.NORMAL)
+
+    @Test
+    fun `se nego dark grande`() =
+        matriz("se_nego", VisitaFixtures.seNegoEnTodo(), true, FontSizeLevel.GRANDE)
+
+    @Test
+    fun `se nego dark muy grande`() =
+        matriz("se_nego", VisitaFixtures.seNegoEnTodo(), true, FontSizeLevel.MUY_GRANDE)
+
+    /** Todas desmarcadas: el CTA apagado y el pie diciendo qué falta. */
+    @Test
+    fun `sin cuentas light`() =
+        estado("sin_cuentas", VisitaFixtures.seNegoSinCuentas(), dark = false)
+
+    @Test
+    fun `sin cuentas dark`() = estado("sin_cuentas", VisitaFixtures.seNegoSinCuentas(), dark = true)
 
     /** El estado que hasta hoy no existía: cita con día y hora como campos. */
     @Test

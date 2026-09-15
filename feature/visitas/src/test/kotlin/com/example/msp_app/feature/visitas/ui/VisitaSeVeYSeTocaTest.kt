@@ -20,9 +20,11 @@ import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
+import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.ui.components.AGREGAR_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.CHIP_TAG
+import com.example.msp_app.feature.visitas.ui.components.CUENTA_TAG
 import com.example.msp_app.feature.visitas.ui.components.FALLO_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.FOTO_EN_LINEA_TAG
 import com.example.msp_app.feature.visitas.ui.components.GUARDAR_TAG
@@ -30,6 +32,7 @@ import com.example.msp_app.feature.visitas.ui.components.OPCION_TAG
 import com.example.msp_app.feature.visitas.ui.components.QUITAR_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.RAZON_TAG
 import com.example.msp_app.feature.visitas.ui.components.RECOMENDACION_TAG
+import com.example.msp_app.feature.visitas.ui.components.TODAS_LAS_CUENTAS_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -201,6 +204,126 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
 
         composeTestRule.onNodeWithTag(GUARDAR_TAG).assertIsNotEnabled()
         composeTestRule.onNodeWithTag(RAZON_TAG).assertIsDisplayed()
+    }
+
+    // ─── las cuentas ─────────────────────────────────────────────────────────
+
+    /**
+     * **Los renglones de cuenta y el atajo también se tocan**: >=50dp de alto.
+     * Son controles nuevos en una pantalla que ya cobraba esa regla, y el piso no
+     * se baja nunca.
+     */
+    @Test
+    fun `los controles de las cuentas miden al menos 50dp de alto`() {
+        pinta(VisitaFixtures.seNegoEnTodo())
+
+        val tags = VisitasFixtures.dosCuentas().map { CUENTA_TAG + it.ventaId } +
+            TODAS_LAS_CUENTAS_TAG
+        tags.forEach { tag ->
+            val bordes = composeTestRule
+                .onNodeWithTag(tag)
+                .performScrollTo()
+                .getUnclippedBoundsInRoot()
+            val alto = bordes.bottom - bordes.top
+            assertTrue("$tag mide $alto", alto >= MINIMO_TOCABLE)
+        }
+    }
+
+    /** Y siguen siendo tocables a escala 2.0, que es donde las filas se aprietan. */
+    @Test
+    fun `a escala muy grande las cuentas siguen siendo tocables`() {
+        pinta(VisitaFixtures.seNegoEnTodo(), FontSizeLevel.MUY_GRANDE)
+
+        VisitasFixtures.dosCuentas().forEach { venta ->
+            val bordes = composeTestRule
+                .onNodeWithTag(CUENTA_TAG + venta.ventaId)
+                .performScrollTo()
+                .getUnclippedBoundsInRoot()
+            assertTrue(
+                "la cuenta ${venta.ventaId} se encoge a escala 2.0",
+                bordes.bottom - bordes.top >= MINIMO_TOCABLE
+            )
+        }
+    }
+
+    /** Tocar una cuenta avisa **con el id de esa cuenta**, no con el de la de al lado. */
+    @Test
+    fun `tocar una cuenta manda el id de esa cuenta`() {
+        val tocadas = mutableListOf<Int>()
+        pintaCon(VisitaFixtures.seNegoEnTodo()) { it.copy(onCuenta = { id -> tocadas += id }) }
+
+        composeTestRule
+            .onNodeWithTag(CUENTA_TAG + VisitasFixtures.REFRIGERADOR)
+            .performScrollTo()
+            .performClick()
+
+        assertEquals(listOf(VisitasFixtures.REFRIGERADOR), tocadas)
+    }
+
+    /**
+     * **Con un desenlace de toda la puerta la sección no existe.** Control
+     * positivo de las pruebas de arriba: sin esto no distinguirían "se pinta
+     * cuando toca" de "se pinta siempre".
+     */
+    @Test
+    fun `un desenlace de toda la puerta no pinta cuentas`() {
+        pinta(VisitaFixtures.noEstaba())
+
+        VisitasFixtures.dosCuentas().forEach { venta ->
+            assertEquals(
+                "no estaba no elige cuentas",
+                0,
+                composeTestRule
+                    .onAllNodesWithTag(CUENTA_TAG + venta.ventaId)
+                    .fetchSemanticsNodes()
+                    .size
+            )
+        }
+    }
+
+    /** Y bajo "prometió" no hay atajo de "todas": no se pueden marcar varias. */
+    @Test
+    fun `bajo prometió no hay atajo de todas`() {
+        pinta(VisitaFixtures.prometio())
+
+        assertEquals(
+            "prometió sí elige cuenta",
+            1,
+            composeTestRule
+                .onAllNodesWithTag(CUENTA_TAG + VisitasFixtures.SALA)
+                .fetchSemanticsNodes()
+                .size
+        )
+        assertEquals(
+            0,
+            composeTestRule
+                .onAllNodesWithTag(TODAS_LAS_CUENTAS_TAG)
+                .fetchSemanticsNodes()
+                .size
+        )
+    }
+
+    /** Sin una sola cuenta marcada el CTA está apagado y el pie dice qué falta. */
+    @Test
+    fun `sin cuentas marcadas el CTA esta apagado`() {
+        pinta(VisitaFixtures.seNegoSinCuentas())
+
+        composeTestRule.onNodeWithTag(GUARDAR_TAG).assertIsNotEnabled()
+        composeTestRule.onNodeWithTag(RAZON_TAG).assert(hasText("elige una cuenta"))
+    }
+
+    /**
+     * Control positivo: con las cuentas marcadas, el MISMO pie dice qué se va a
+     * guardar en vez de qué falta.
+     */
+    @Test
+    fun `con las cuentas marcadas el pie dice cuantas visitas se guardan`() {
+        pinta(VisitaFixtures.seNegoEnTodo())
+
+        composeTestRule.onNodeWithTag(GUARDAR_TAG).assertIsEnabled()
+        composeTestRule
+            .onNodeWithTag(RAZON_TAG)
+            .assert(hasText("se guardan 2 visitas, una por cuenta"))
     }
 
     // ─── la recomendación se ve ──────────────────────────────────────────────

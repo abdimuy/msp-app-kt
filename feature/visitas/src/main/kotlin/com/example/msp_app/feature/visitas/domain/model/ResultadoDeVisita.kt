@@ -49,10 +49,34 @@ enum class ResultadoDeVisita(
     /** ¿El desenlace es del domicilio o de una deuda? Lo dice el catálogo. */
     val alcance: VisitScope get() = estado.alcance
 
-    /** El badge del mock: `cliente` o `venta`, en minúsculas. */
+    /**
+     * El badge del renglón, **en el vocabulario del cobrador**.
+     *
+     * Decía `CLIENTE` y `VENTA`, que son los nombres de dos ramas de un `when`.
+     * Nadie parado en una puerta sabe qué es "una venta" y sí sabe qué es una
+     * cuenta y qué es la puerta entera. La regla es exactamente la misma; lo que
+     * cambia es que ahora está dicha para quien la usa.
+     */
     val etiquetaDeAlcance: String
         get() = when (alcance) {
-            VisitScope.CLIENTE -> "cliente"
-            VisitScope.VENTA -> "venta"
+            VisitScope.CLIENTE -> "toda la puerta"
+            VisitScope.VENTA -> "una cuenta"
         }
+
+    /**
+     * ¿Se puede marcar en VARIAS cuentas a la vez?
+     *
+     * Sí para "visité, vuelvo" y "se negó": el cliente lo dice UNA vez sobre
+     * todo lo que debe, y hasta hoy había que registrar dos visitas para
+     * capturar una sola frase.
+     *
+     * **No para [PROMETIO]**, y no por simetría: una promesa lleva UNA fecha y
+     * UN monto. Repartir "$220 el viernes" entre dos cuentas escribiría $440
+     * prometidos, que es dinero que el cliente no prometió; y dejar el monto en
+     * una sola de las dos dejaría a la otra con una promesa a medias. El
+     * desenlace que difiere trabajo es el que menos puede mentir sobre a qué
+     * cuenta lo difiere.
+     */
+    val admiteVariasCuentas: Boolean
+        get() = alcance == VisitScope.VENTA && this != PROMETIO
 }

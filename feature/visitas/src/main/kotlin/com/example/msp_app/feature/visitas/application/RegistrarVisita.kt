@@ -1,7 +1,9 @@
 package com.example.msp_app.feature.visitas.application
 
+import com.example.msp_app.core.common.cobranza.domain.VisitScope
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
+import com.example.msp_app.feature.visitas.domain.IdsDeLaVisita
 import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
@@ -39,6 +41,23 @@ import kotlinx.coroutines.CancellationException
  * es el defecto que este plan vino a arreglar, y una invariante que vive en un
  * solo lugar es una invariante que un refactor puede borrar sin poner nada rojo.
  * Los dos cinturones llaman a la MISMA función, así que no pueden discrepar.
+ *
+ * ## Una captura, N visitas
+ *
+ * Un desenlace de alcance `VENTA` marcado sobre N cuentas escribe **N filas**.
+ * Es la traducción literal de lo que pasa en la puerta: "no te voy a pagar
+ * nada" se dice UNA vez sobre todo lo que se debe, y hasta hoy había que
+ * registrar dos visitas —dos capturas completas, dos notas, dos fotos— para
+ * dejar constancia de una sola frase.
+ *
+ * Cada fila va atada a SU cuenta (`ventaId`), que es lo que hace que el estado
+ * aterrice en la venta correcta: `VisitScope.VENTA` toca solo `saleId`
+ * (`VisitsLocalDataSource.insertVisitAndUpdateState`). El alcance `CLIENTE`
+ * sigue escribiendo **una sola** visita, porque ahí la propagación ya la hace la
+ * base por `CLIENTE_ID` y N filas serían N veces el mismo hecho.
+ *
+ * Los N ids salen de [IdsDeLaVisita] — derivados, nunca acuñados al azar. El
+ * porqué completo y la propiedad de idempotencia están en su KDoc.
  */
 class RegistrarVisita @Inject constructor(
     private val registro: RegistroDeVisitaPort,
@@ -83,18 +102,101 @@ class RegistrarVisita @Inject constructor(
         val resultado = requireNotNull(captura.resultado) {
             "sin resultado no hay bloqueos vacios: ReglasDeLaVisita lo garantiza"
         }
-        return registro.registrar(
-            VisitaARegistrar(
-                visitaId = visitaId,
-                clienteId = clienteId,
-                ventaId = ventaId,
-                tipoVisita = tipoVisitaDe(resultado, captura),
-                nota = captura.nota.trim().takeIf { it.isNotBlank() },
-                promesa = promesaDe(resultado, captura),
-                cita = citaDe(resultado, captura),
-                ubicacion = ubicacionActual(),
-                recomendacionId = recomendacionId,
-                comprobantes = comprobantes
+        // UNA sola lectura de la ubicación para las N filas: son el mismo hecho,
+        // en el mismo instante y en la misma puerta. Pedirla N veces daría N
+        // coordenadas distintas de un cobrador que no se movió, y N eventos de
+        // telemetría por un solo permiso negado.
+        val donde = ubicacionActual()
+        val plantilla = VisitaARegistrar(
+            visitaId = visitaId,
+            clienteId = clienteId,
+            ventaId = ventaId,
+            tipoVisita = tipoVisitaDe(resultado, captura),
+            nota = captura.nota.trim().takeIf { it.isNotBlank() },
+            cita = citaDe(resultado, captura),
+            ubicacion = donde,
+            recomendacionId = recomendacionId,
+            comprobantes = comprobantes
+        )
+        if (resultado.alcance == VisitScope.CLIENTE) {
+            // El hecho es de la puerta entera y la base lo propaga sola a todas
+            // las cuentas activas del cliente. Una fila, con la semilla de id
+            // tal cual.
+            return registro.registrar(plantilla)
+        }
+        return registrarUnaPorCuenta(plantilla, resultado, captura)
+    }
+
+    /**
+     * Escribe una visita por cuenta marcada y contesta **el peor desenlace**.
+     *
+     * ## Por qué no se corta en el primer fallo
+     *
+     * Porque cada `registrar` es su propia transacción y las cuentas son
+     * independientes: abandonar al primer tropiezo tiraría el trabajo de campo
+     * de las cuentas que sí podían escribirse. Se intentan todas, se reporta el
+     * primer fallo, y el reintento —con la MISMA semilla y las MISMAS cuentas—
+     * vuelve a derivar los mismos ids y reescribe sobre sí mismo.
+     *
+     * ## Qué se lleva el ancla, y qué no se duplica
+     *
+     * - **Las fotos** cuelgan solo del ancla. `VisitImageEntity.ID` es llave
+     *   primaria, así que la misma foto en N visitas se colapsaría a la última y
+     *   las otras N-1 quedarían sin evidencia — peor que no intentarlo.
+     * - **La recomendación** también. El par "qué sugirió el sistema / qué hizo
+     *   el cobrador" es UN hecho; `ligarConVisita` es un `UPDATE` sobre la fila
+     *   de la recomendación, así que ligarla N veces solo dejaría la última y
+     *   haría ilegible la evaluación.
+     * - **La promesa** solo puede existir sobre una cuenta, y por eso
+     *   [ResultadoDeVisita.admiteVariasCuentas] la deja fuera de la selección
+     *   múltiple: aquí su lista trae exactamente una.
+     */
+    private suspend fun registrarUnaPorCuenta(
+        plantilla: VisitaARegistrar,
+        resultado: ResultadoDeVisita,
+        captura: CapturaDeVisita
+    ): ResultadoDelRegistro {
+        val ids = IdsDeLaVisita.paraCuentas(plantilla.visitaId, captura.cuentas)
+        val ancla = ids.keys.first()
+        var escritas = 0
+        var primerFallo: ResultadoDelRegistro? = null
+        ids.forEach { (cuenta, id) ->
+            val desenlace = registro.registrar(
+                plantilla.copy(
+                    visitaId = id,
+                    ventaId = cuenta,
+                    promesa = promesaDe(resultado, captura, cuenta),
+                    recomendacionId = plantilla.recomendacionId.takeIf { cuenta == ancla },
+                    comprobantes = if (cuenta == ancla) plantilla.comprobantes else emptyList()
+                )
+            )
+            if (desenlace == ResultadoDelRegistro.REGISTRADA) {
+                escritas++
+            } else if (primerFallo == null) {
+                primerFallo = desenlace
+            }
+        }
+        val fallo = primerFallo ?: return ResultadoDelRegistro.REGISTRADA
+        if (escritas > 0) reportarParcial(escritas, ids.size, fallo)
+        return fallo
+    }
+
+    /**
+     * Unas cuentas quedaron escritas y otras no. **No se traga**: el cobrador ve
+     * "no se pudo guardar" y la base tiene parte del hecho, que es un estado que
+     * nadie podría reconstruir después sin este evento.
+     *
+     * Anti-PII: viajan dos CONTEOS y el nombre del desenlace. Ni ids de cuenta,
+     * ni nombres, ni montos.
+     */
+    private fun reportarParcial(escritas: Int, total: Int, fallo: ResultadoDelRegistro) {
+        telemetry.error(
+            code = VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA,
+            message = "unas cuentas de la captura quedaron escritas y otras no",
+            props = mapOf(
+                VisitasTelemetria.PROP_OCURRENCIAS to escritas.toString(),
+                VisitasTelemetria.PROP_CUENTAS to total.toString(),
+                VisitasTelemetria.PROP_RESULTADO to fallo.name
             )
         )
     }
@@ -121,12 +223,13 @@ class RegistrarVisita @Inject constructor(
      */
     private fun promesaDe(
         resultado: ResultadoDeVisita,
-        captura: CapturaDeVisita
+        captura: CapturaDeVisita,
+        cuenta: Int
     ): PromesaEstructurada? {
         if (resultado != ResultadoDeVisita.PROMETIO) return null
         val fecha = captura.fechaPromesa ?: return null
         return PromesaEstructurada(
-            ventaId = captura.ventaDeLaPromesa,
+            ventaId = cuenta,
             fecha = fecha,
             monto = captura.montoPrometido
         )

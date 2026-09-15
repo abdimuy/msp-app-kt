@@ -47,7 +47,7 @@ class ElDockDeLaVisitaSeSienteTest : RobolectricTestBase() {
                     DockDeLaVisita(
                         texto = "guardar visita",
                         habilitado = habilitado,
-                        razon = if (habilitado) null else "elige un resultado",
+                        pie = if (habilitado) null else "elige un resultado",
                         onGuardar = {}
                     )
                 }

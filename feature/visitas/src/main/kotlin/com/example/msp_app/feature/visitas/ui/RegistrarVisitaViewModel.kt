@@ -3,6 +3,7 @@ package com.example.msp_app.feature.visitas.ui
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.cobranza.domain.VisitScope
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
@@ -13,6 +14,7 @@ import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.di.VisitasIoDispatcher
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
+import com.example.msp_app.feature.visitas.domain.IdsDeLaVisita
 import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
@@ -45,8 +47,9 @@ import kotlinx.coroutines.withContext
  *
  * ## Lo que el `SavedStateHandle` sostiene
  *
- * 1. **[visitaId], acuñado una vez.** Es el id de la visita y la clave de
- *    idempotencia del envío. Generarlo dentro del manejador del botón daría uno
+ * 1. **[visitaId], acuñado una vez.** Es la semilla de la captura y, por la
+ *    derivación de [IdsDeLaVisita], la clave de idempotencia de cada visita que
+ *    escriba. Generarlo dentro del manejador del botón daría uno
  *    distinto por toque, que es exactamente el defecto que el retirado
  *    `NewPaymentDialog` ya había tenido que arreglar del lado del dinero.
  * 2. **[yaSeEncolo], el guard**, puesto **sincrónicamente antes** de lanzar la
@@ -98,7 +101,17 @@ class RegistrarVisitaViewModel @Inject constructor(
     val ventaId: Int? = savedStateHandle.get<Int>(VisitasRutas.ARG_VENTA_ID)
         ?.takeIf { it != VisitasRutas.SIN_VENTA }
 
-    /** El id de ESTA visita. Sobrevive rotación y muerte de proceso. */
+    /**
+     * **La semilla de esta captura.** Sobrevive rotación y muerte de proceso.
+     *
+     * Con un desenlace de toda la puerta es, tal cual, el id de la única visita
+     * que se escribe. Con un desenlace de cuenta es la raíz de la que
+     * [IdsDeLaVisita] deriva un id por cuenta marcada — y por eso se acuña UNA
+     * vez y se persiste: derivar desde una semilla nueva en cada toque haría que
+     * el reintento escribiera filas nuevas al lado de las que ya están, que es
+     * el defecto que el retirado `NewPaymentDialog` ya había tenido que arreglar
+     * del lado del dinero.
+     */
     val visitaId: String = savedStateHandle.get<String>(CLAVE_VISITA_ID)
         ?: UUID.randomUUID().toString().also { savedStateHandle[CLAVE_VISITA_ID] = it }
 
@@ -222,11 +235,36 @@ class RegistrarVisitaViewModel @Inject constructor(
             resultado = resultado,
             etiqueta = CatalogoDeResultados.etiquetaPorDefecto(resultado),
             nota = actual.nota,
-            // La venta por la que se entró se conserva como destino sugerido de
-            // la promesa: es la cuenta que el cobrador tenía abierta. Todo lo
-            // demás (fecha, monto, hora) arranca vacío a propósito.
-            ventaDeLaPromesa = ventaId
+            // Las cuentas arrancan marcadas; todo lo demás (fecha, monto, hora)
+            // arranca vacío a propósito.
+            cuentas = cuentasPorDefecto(resultado)
         )
+    }
+
+    /**
+     * Con qué cuentas nace un desenlace recién elegido.
+     *
+     * - **Toda la puerta** ("no estaba", "cita") → ninguna. No hay nada que
+     *   elegir: la base propaga el estado a todas las cuentas activas del
+     *   cliente y marcar casillas prometería un control que no existe.
+     * - **Prometió** → **una**: la cuenta por la que el cobrador entró, y si
+     *   entró por el cliente, el ancla (la más vieja). Una promesa lleva una
+     *   fecha y un monto; repartirla sería inventar dinero.
+     * - **"Vuelvo" y "se negó"** → **todas marcadas**. "No te voy a pagar nada"
+     *   es el caso común y desmarcar es para el caso fino; al revés, el cobrador
+     *   tendría que marcar tres casillas para capturar lo que el cliente dijo
+     *   una sola vez.
+     */
+    private fun cuentasPorDefecto(resultado: ResultadoDeVisita): Set<Int> {
+        val ventas = mutableState.value.contexto?.ventas.orEmpty()
+        return when {
+            resultado.alcance == VisitScope.CLIENTE -> emptySet()
+            resultado.admiteVariasCuentas -> ventas.map { it.ventaId }.toSet()
+            else -> setOfNotNull(
+                ventaId?.takeIf { entrada -> ventas.any { it.ventaId == entrada } }
+                    ?: ventas.minOfOrNull { it.ventaId }
+            )
+        }
     }
 
     /**
@@ -249,8 +287,37 @@ class RegistrarVisitaViewModel @Inject constructor(
     /** Texto libre. Nunca lleva la fecha ni la hora dentro. */
     fun onNota(nota: String) = editar { it.copy(nota = nota) }
 
-    /** Sobre cuál venta prometió. `null` = sobre el cliente completo. */
-    fun onVentaDeLaPromesa(ventaId: Int?) = editar { it.copy(ventaDeLaPromesa = ventaId) }
+    /**
+     * Toca la cuenta [ventaId]. **Alterna cuando el desenlace admite varias, y
+     * sustituye cuando no**: la forma y el comportamiento no pueden discrepar
+     * —una casilla que se desmarca sola sería una mentira, y un botón de opción
+     * que acumula, otra—, así que la misma función decide las dos cosas a partir
+     * de [ResultadoDeVisita.admiteVariasCuentas].
+     */
+    fun onCuenta(ventaId: Int) = editar { actual ->
+        val resultado = actual.resultado ?: return@editar actual
+        if (!resultado.admiteVariasCuentas) return@editar actual.copy(cuentas = setOf(ventaId))
+        val cuentas = if (ventaId in actual.cuentas) {
+            actual.cuentas - ventaId
+        } else {
+            actual.cuentas + ventaId
+        }
+        actual.copy(cuentas = cuentas)
+    }
+
+    /**
+     * El atajo del encabezado: **todas o ninguna**.
+     *
+     * "Ninguna" deja el CTA apagado con su razón, y eso es correcto: es el
+     * cobrador diciendo "espera, esto no aplica a ninguna" antes de marcar la
+     * que sí. Quitarle la opción lo obligaría a desmarcar una por una.
+     */
+    fun onTodasLasCuentas() = editar { actual ->
+        val resultado = actual.resultado ?: return@editar actual
+        if (!resultado.admiteVariasCuentas) return@editar actual
+        val todas = mutableState.value.contexto?.ventas.orEmpty().map { it.ventaId }.toSet()
+        actual.copy(cuentas = if (actual.cuentas.containsAll(todas)) emptySet() else todas)
+    }
 
     fun onFechaPromesa(fecha: LocalDate) = editar {
         it.copy(fechaPromesa = fecha)
@@ -579,7 +646,7 @@ class RegistrarVisitaViewModel @Inject constructor(
             // Y desde este instante la lista está tomada: lo que llegue después
             // no entra, y `adjuntar` lo reporta en vez de tragárselo.
             laEscrituraYaTomoLasFotos = true
-            aplicar(escribir(conLasFotosDeAhora))
+            aplicar(escribir(conLasFotosDeAhora), conLasFotosDeAhora.captura)
         }
     }
 
@@ -608,12 +675,16 @@ class RegistrarVisitaViewModel @Inject constructor(
      * quedado podría convertirse en una segunda visita: el `INSERT` es
      * `REPLACE` sobre la misma llave.
      */
-    private fun aplicar(resultado: ResultadoDelRegistro) {
+    private fun aplicar(resultado: ResultadoDelRegistro, captura: CapturaDeVisita) {
         if (resultado == ResultadoDelRegistro.REGISTRADA) {
             mutableState.value = mutableState.value.copy(
                 guardando = false,
                 fallo = null,
-                registrada = visitaId
+                // El ANCLA, no la semilla. Con varias cuentas la semilla no
+                // nombra ninguna fila —los N ids se derivan de ella—, así que
+                // navegar con ella abriría un ticket de una visita que no
+                // existe. Lo calcula la MISMA función que acuñó los ids.
+                registrada = IdsDeLaVisita.ancla(visitaId, captura.cuentas)
             )
             return
         }
@@ -664,7 +735,7 @@ class RegistrarVisitaViewModel @Inject constructor(
         if (contexto == null) {
             RegistrarVisitaUiState(cargando = false, error = ErrorDeLaVisita.CLIENTE_NO_ESTA)
         } else {
-            val captura = CapturaDeVisita(ventaDeLaPromesa = ventaId)
+            val captura = CapturaDeVisita()
             RegistrarVisitaUiState(
                 cargando = false,
                 contexto = contexto,

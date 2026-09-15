@@ -5,6 +5,7 @@ import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.VentaParaVisitar
 import com.example.msp_app.feature.visitas.domain.port.ContextoDeVisitaPort
+import java.math.BigDecimal
 
 /**
  * Adaptador Room de [ContextoDeVisitaPort] sobre [SaleDao.getByClientId]
@@ -38,14 +39,29 @@ class RoomContextoDeVisitaAdapter(
                 .filter { it.isNotBlank() }
                 .joinToString(", "),
             saldoTotal = Money.sum(ventas.map { Money.of(it.SALDO_REST) }),
-            ventas = ventas.map {
-                VentaParaVisitar(
-                    ventaId = it.DOCTO_CC_ACR_ID,
-                    folio = it.FOLIO,
-                    descripcion = it.PRODUCTOS.orEmpty(),
-                    saldo = Money.of(it.SALDO_REST)
-                )
-            }
+            // ORDENADAS por `DOCTO_CC_ACR_ID`, y no es cosmética: la consulta
+            // **no lleva `ORDER BY`** (`SaleDao.getByClientId`), así que el orden
+            // en que SQLite emite las filas no está garantizado entre corridas.
+            // De ese orden dependen ahora dos cosas visibles: cuál cuenta pinta
+            // primero la pantalla y cuál es el ancla de la captura
+            // (`IdsDeLaVisita.ancla`), que es la visita que se lleva las fotos y
+            // abre el ticket. Es el mismo desempate explícito, y por la misma
+            // razón, que `RegistroDeVisitaAdapter.cuentaDeAtribucion`.
+            ventas = ventas
+                .sortedBy { it.DOCTO_CC_ACR_ID }
+                .map {
+                    VentaParaVisitar(
+                        ventaId = it.DOCTO_CC_ACR_ID,
+                        folio = it.FOLIO,
+                        descripcion = it.PRODUCTOS.orEmpty(),
+                        saldo = Money.of(it.SALDO_REST),
+                        // `PARCIALIDAD` es `Int` en el schema heredado: cruza con
+                        // `BigDecimal.valueOf` sobre el `Long`, NUNCA con el
+                        // constructor de `double`, que mete centavos fantasma en un
+                        // número que era exacto. Misma frontera que `RoomVentasAdapter`.
+                        parcialidad = Money.of(BigDecimal.valueOf(it.PARCIALIDAD.toLong()))
+                    )
+                }
         )
     }
 }

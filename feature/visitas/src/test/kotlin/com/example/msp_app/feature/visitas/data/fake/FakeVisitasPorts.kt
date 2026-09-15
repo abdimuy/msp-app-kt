@@ -46,15 +46,20 @@ object VisitasFixtures {
             ventaId = SALA,
             folio = "V-5021",
             descripcion = "Sala 3 piezas + base",
-            saldo = dinero("2100")
+            saldo = dinero("2100"),
+            parcialidad = dinero("350")
         ),
         VentaParaVisitar(
             ventaId = REFRIGERADOR,
             folio = "V-5188",
-            descripcion = "Refrigerador Mabe 14'",
-            saldo = dinero("1450")
+            descripcion = "Refrigerador Mabe 14 pies",
+            saldo = dinero("1450"),
+            parcialidad = dinero("220")
         )
     )
+
+    /** Una sola cuenta: el caso en que la pantalla no pregunta nada. */
+    fun unaCuenta(): List<VentaParaVisitar> = listOf(dosCuentas().first())
 
     fun recomendacion(
         id: String = "rec-victoria-1",
@@ -111,9 +116,17 @@ class FakeRegistroDeVisitaPort(
 
     val registradas: MutableList<VisitaARegistrar> = mutableListOf()
 
+    /**
+     * El índice (base 0) de la llamada que debe fallar, o `null` si ninguna.
+     * Existe para el caso de varias cuentas: una que falla no puede tirar a las
+     * demás, y eso solo se puede probar haciendo fallar exactamente a una.
+     */
+    var fallaEn: Int? = null
+
     override suspend fun registrar(visita: VisitaARegistrar): ResultadoDelRegistro {
+        val indice = registradas.size
         registradas += visita
-        return resultado
+        return if (indice == fallaEn) ResultadoDelRegistro.FALLO_EL_GUARDADO else resultado
     }
 }
 

@@ -21,6 +21,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Surface
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspCard
@@ -54,8 +56,14 @@ const val OPCION_TAG: String = "visitas_opcion_"
 /** `testTag` de cada chip de etiqueta. Se sufija con el índice dentro del grupo. */
 const val ETIQUETA_TAG: String = "visitas_etiqueta_"
 
-/** `testTag` de cada chip genérico (fecha, hora, venta). Se sufija con su clave. */
+/** `testTag` de cada chip genérico (fecha, hora). Se sufija con su clave. */
 const val CHIP_TAG: String = "visitas_chip_"
+
+/** `testTag` del renglón de una cuenta. Se sufija con su `DOCTO_CC_ACR_ID`. */
+const val CUENTA_TAG: String = "visitas_cuenta_"
+
+/** `testTag` del atajo "todas / ninguna" del encabezado de cuentas. */
+const val TODAS_LAS_CUENTAS_TAG: String = "visitas_cuentas_todas"
 
 /** `testTag` del CTA de guardar. */
 const val GUARDAR_TAG: String = "visitas_guardar"
@@ -77,6 +85,26 @@ const val RECOMENDACION_TAG: String = "visitas_recomendacion"
  * ese es el que manda — un piso más alto nunca viola el más bajo.
  */
 internal val TOQUE = 56.dp
+
+/** El lado de la casilla / anillo de una cuenta. El mismo 22dp de `HojaDeAbono`. */
+private val MARCA = 22.dp
+
+/** El grosor del borde de la marca vacía. */
+private val BORDE_DE_LA_MARCA = 3.dp
+
+/** El punto lleno del anillo de opción única. */
+private val PUNTO = 8.dp
+
+/** La palomita de la casilla marcada. */
+private val PALOMITA = 14.dp
+
+/**
+ * Ancho máximo de la etiqueta de alcance. Con "TODA LA PUERTA" y la escala 2.0,
+ * una etiqueta sin techo se come el renglón entero y empuja el título del
+ * desenlace fuera de la fila. Con techo, se apila en dos renglones y el título
+ * conserva su espacio.
+ */
+private val ANCHO_DEL_ALCANCE = 124.dp
 
 /**
  * La fila de navegación: "atrás" y, a la derecha, lo que [alFinal] ponga.
@@ -199,8 +227,17 @@ fun BandaDeRecomendacion(texto: String, modifier: Modifier = Modifier) {
 /**
  * Un renglón de desenlace (`.opt` del mock).
  *
- * El anillo de selección toma el color **del propio desenlace** (§3 de la tabla
- * de paleta), no azul: el azul `brand` es del CTA y de la selección genérica.
+ * ## El color del estado se queda en el ÍCONO
+ *
+ * El anillo y el fondo del renglón elegido van en `brand`, no en el color del
+ * desenlace. Es la corrección de un defecto medido: al elegir "prometió" se
+ * pintaban de rojo el renglón, la cuenta, la fecha y el monto a la vez, y en una
+ * pantalla de **captura** eso no se lee como "elegiste esto", se lee como
+ * "algo está mal". El rojo de esta app es `statusOverdue`; gastarlo en una
+ * selección convierte un formulario en una alarma.
+ *
+ * El semáforo no se pierde: vive en el glifo, que es donde siempre estuvo y
+ * donde sí significa estado. Color + ícono, nunca color solo.
  */
 @Composable
 fun OpcionDeResultado(
@@ -216,7 +253,7 @@ fun OpcionDeResultado(
     // `Modifier.border`, no en lugar del hairline. Antes el renglón no
     // seleccionado no tenía borde alguno.
     val anillo = if (seleccionado) {
-        Modifier.border(2.dp, visual.contenido, MspTheme.shapes.tile)
+        Modifier.border(2.dp, MspTheme.colors.brand, MspTheme.shapes.tile)
     } else {
         Modifier
     }
@@ -226,6 +263,7 @@ fun OpcionDeResultado(
             .heightIn(min = TOQUE)
             .then(anillo)
             .testTag(OPCION_TAG + resultado.name.lowercase()),
+        color = if (seleccionado) MspTheme.colors.brandTint else MspTheme.colors.surface,
         onClick = if (habilitado) onElegir else null
     ) {
         Row(
@@ -269,18 +307,28 @@ private fun GlifoDelResultado(visual: ResultadoVisual) {
 }
 
 /**
- * El `.oscope` del mock: `9px/800`, `.06em`, `uppercase`, sobre `surface2` con
- * radio de 6dp.
+ * El `.oscope` del mock: la etiqueta que dice **a qué se aplica** lo que el
+ * cobrador está por guardar — toda la puerta, o una cuenta.
  *
- * Antes era el texto gris en minúscula y sin caja, y se leía como un metadato
- * suelto en vez de como la etiqueta que dice si el desenlace es del CLIENTE o
- * de una VENTA — que es la distinción de la que depende a qué se aplica lo que
- * el cobrador está por guardar.
+ * Dos letras chicas en versalitas sobre `surface2`, con anillo de 1dp porque en
+ * claro `surface2` (#FBFCFC) sobre `surface` (#FFFFFF) no se distingue y sin él
+ * la caja desaparece.
+ *
+ * **Dos renglones como máximo, y nunca recortada.** "Toda la puerta" es más
+ * larga que el "CLIENTE" que decía antes, y a escala 2.0 en una fila que ya
+ * lleva glifo y título no cabe de un tirón; apilarla es la regla del repo
+ * (antes de truncar, apilar).
+ *
+ * El techo de [ANCHO_DEL_ALCANCE] está **medido, no elegido**: con 96dp el
+ * golden de escala 2.0 salía diciendo "UNA CUENT" — la caja recortaba la última
+ * letra en silencio, sin puntos suspensivos y sin que ningún assert lo viera. Es
+ * exactamente el defecto que mirar los goldens existe para atrapar.
  */
 @Composable
 private fun EtiquetaDeAlcance(texto: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
+            .widthIn(max = ANCHO_DEL_ALCANCE)
             .background(MspTheme.colors.surface2, MspTheme.shapes.chip9)
             // El anillo de 1dp: en claro `surface2` (#FBFCFC) sobre `surface`
             // (#FFFFFF) no se distingue, así que sin él la caja del mock
@@ -293,30 +341,80 @@ private fun EtiquetaDeAlcance(texto: String, modifier: Modifier = Modifier) {
         Text(
             text = texto.uppercase(BUSINESS_LOCALE),
             style = MspTheme.type.eyebrow,
-            color = MspTheme.colors.onSurfaceMuted
+            color = MspTheme.colors.onSurfaceMuted,
+            maxLines = 2
         )
     }
 }
 
 /**
- * El aviso de alcance del mock ("aplica a sus 2 ventas"). Solo aparece cuando el
- * desenlace es del cliente: es la regla del catálogo hecha visible en vez de
- * implícita.
+ * El título de una sección de la pantalla: **una pregunta**, en el tamaño de un
+ * título de tarjeta.
+ *
+ * "¿Qué pasó en la puerta?" en vez de "QUÉ PASÓ". Un rótulo en versalitas
+ * etiqueta un bloque; una pregunta pide una respuesta, que es exactamente lo
+ * que cada sección de esta pantalla hace. Es el mismo registro que ya usa
+ * `HojaDeAbono` de `:feature:pagos` con su "¿A cuál cuenta?", así que las dos
+ * pantallas de captura hablan igual.
  */
 @Composable
-fun AvisoDeAlcance(cuantas: Int, modifier: Modifier = Modifier) {
-    val cuentas = if (cuantas == 1) "su cuenta" else "sus $cuantas ventas"
-    MspCard(
+fun TituloDeSeccion(texto: String, modifier: Modifier = Modifier) {
+    Text(
+        text = texto,
+        style = MspTheme.type.cardTitle,
+        color = MspTheme.colors.onSurface,
+        modifier = modifier.padding(top = MspTheme.spacing.sm)
+    )
+}
+
+/**
+ * El encabezado de la sección de cuentas: el título a la izquierda y, a la
+ * derecha, **todas o ninguna**.
+ *
+ * El atajo dice lo que va a pasar al tocarlo, no el estado actual: con todo
+ * marcado ofrece "ninguna", y al revés. Un botón que anuncia su efecto no
+ * necesita que nadie recuerde qué significaba.
+ */
+@Composable
+fun EncabezadoDeCuentas(
+    todasMarcadas: Boolean,
+    habilitado: Boolean,
+    onTodas: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
         modifier = modifier.fillMaxWidth(),
-        shape = MspTheme.shapes.control,
-        color = MspTheme.colors.surface2
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "aplica a $cuentas",
-            style = MspTheme.type.caption,
-            color = MspTheme.colors.onSurfaceMuted,
-            modifier = Modifier.padding(MspTheme.spacing.sm)
-        )
+        TituloDeSeccion("¿De cuáles cuentas?", modifier = Modifier.weight(1f))
+        Surface(
+            onClick = onTodas,
+            enabled = habilitado,
+            modifier = Modifier
+                .heightIn(min = TOQUE)
+                .testTag(TODAS_LAS_CUENTAS_TAG),
+            shape = MspTheme.shapes.chip,
+            // `brandTint` y no `surface2`: el atajo vive sobre el fondo de la
+            // pantalla, y `surface2` (#FBFCFC) sobre `background` (#F4F6F5) no se
+            // distingue — el golden lo enseñó como una mancha pálida detrás de un
+            // texto azul suelto, que es la "pastilla flotando" de siempre.
+            color = MspTheme.colors.brandTint
+        ) {
+            Box(
+                // `md` y no `sm`: con 8dp la caja medía 48dp de ancho por 56 de
+                // alto y el radio del 50% la volvía un círculo. Un control de
+                // texto tiene que verse como una pastilla.
+                modifier = Modifier.padding(horizontal = MspTheme.spacing.md),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (todasMarcadas) "ninguna" else "todas",
+                    style = MspTheme.type.chipLabel,
+                    color = MspTheme.colors.brand,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
@@ -343,8 +441,15 @@ fun RotuloDeSeccion(texto: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * Un chip de opción. [activo] lo pinta con el color de su grupo; apagado, se ve
- * apagado — un control que se ve vivo y no responde es una mentira.
+ * Un chip de opción; apagado, se ve apagado — un control que se ve vivo y no
+ * responde es una mentira.
+ *
+ * **Elegido = `brand`, en toda la pantalla.** Los chips de fecha iban antes en
+ * el color del desenlace (rojo en la promesa, violeta en la cita) con el
+ * argumento de que "sí llevan estado". No lo llevan: un chip de fecha es una
+ * elección, y pintarlo de rojo dejaba la captura de una promesa con el tipo, la
+ * cuenta, la fecha y el monto los cuatro en rojo. El estado se quedó donde sí
+ * significa algo, que es el glifo del desenlace.
  */
 @Composable
 fun ChipDeOpcion(
@@ -353,8 +458,8 @@ fun ChipDeOpcion(
     habilitado: Boolean,
     onElegir: () -> Unit,
     modifier: Modifier = Modifier,
-    contenidoActivo: Color = MspTheme.colors.onBrand,
-    fondoActivo: Color = MspTheme.colors.brand
+    contenidoActivo: Color = MspTheme.colors.brand,
+    fondoActivo: Color = MspTheme.colors.brandTint
 ) {
     Surface(
         onClick = onElegir,
@@ -364,11 +469,18 @@ fun ChipDeOpcion(
             .widthIn(min = TOQUE),
         shape = MspTheme.shapes.chip,
         color = if (activo) fondoActivo else MspTheme.colors.surface2,
-        // El anillo del `.ch.on` del mock. No es adorno: los chips de etiqueta
-        // usan el MISMO fondo activo que inactivo (estilo `.ch.onm`, gris sobre
-        // gris), así que sin el borde "elegido" y "no elegido" se verían igual —
-        // y el color solo nunca puede ser el portador del significado.
-        border = if (activo) BorderStroke(1.5.dp, contenidoActivo) else null
+        // El anillo del `.ch.on` del mock. No es adorno: el color solo nunca
+        // puede ser el portador del significado.
+        //
+        // Y el chip APAGADO también lleva anillo, en `outline`. Sin él, un chip
+        // `surface2` (#FBFCFC) sobre la tarjeta `surface` (#FFFFFF) es invisible:
+        // el golden enseñaba tres etiquetas flotando sin caja, que es la misma
+        // "pastilla flotando" que esta sesión ya tuvo que arreglar una vez.
+        border = if (activo) {
+            BorderStroke(1.5.dp, contenidoActivo)
+        } else {
+            BorderStroke(1.dp, MspTheme.colors.outline)
+        }
     ) {
         Box(
             modifier = Modifier.padding(horizontal = MspTheme.spacing.sm),
@@ -401,26 +513,113 @@ fun TarjetaDelFold(modifier: Modifier = Modifier, contenido: @Composable () -> U
     }
 }
 
-/** El renglón de una venta como destino de la promesa (`.ch.full` del mock). */
+/**
+ * El renglón de una cuenta, con su marca a la izquierda.
+ *
+ * ## Por su nombre, no por su folio
+ *
+ * Decía "V-5021 · $2,100". Nadie parado en una puerta sabe qué es V-5021; sabe
+ * cuál es el refrigerador. Ahora dice el producto y, debajo, lo que le toca dar
+ * por esa cuenta — que es el número con el que se decide si el "no te voy a
+ * pagar" aplica a esta o a la otra.
+ *
+ * ## La marca dice la verdad sobre el comportamiento
+ *
+ * [varias] la parte en dos formas, y no es adorno: una **casilla** se marca y se
+ * desmarca sin tocar a las demás; un **botón de opción** mueve la selección. Con
+ * casillas donde el comportamiento es de opción única, el cobrador marcaría dos
+ * y esperaría que la app guardara dos — que es justo lo que "prometió" no puede
+ * hacer, porque la promesa lleva una fecha y un monto. Es el mismo argumento con
+ * el que `HojaDeAbono` eligió radio para el dinero.
+ *
+ * **La selección va en `brand`.** El rojo de esta app significa "se negó".
+ */
 @Composable
-fun ChipDeVenta(
+fun FilaDeCuenta(
     venta: VentaParaVisitar,
-    activo: Boolean,
+    marcada: Boolean,
+    varias: Boolean,
     habilitado: Boolean,
-    onElegir: () -> Unit,
+    onTocar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    ChipDeOpcion(
-        texto = "${venta.folio} · ${formatMoneyMxn(venta.saldo.amount)}",
-        activo = activo,
-        habilitado = habilitado,
-        onElegir = onElegir,
+    Surface(
+        onClick = onTocar,
+        enabled = habilitado,
+        shape = MspTheme.shapes.field,
+        color = if (marcada) MspTheme.colors.brandTint else MspTheme.colors.surface2,
+        border = if (marcada) BorderStroke(1.5.dp, MspTheme.colors.brand) else null,
         modifier = modifier
             .fillMaxWidth()
-            .testTag(CHIP_TAG + "venta_${venta.ventaId}"),
-        contenidoActivo = MspTheme.colors.statusOverdue,
-        fondoActivo = MspTheme.colors.statusOverdueTint
-    )
+            .heightIn(min = TOQUE)
+            .testTag(CUENTA_TAG + venta.ventaId)
+    ) {
+        Row(
+            modifier = Modifier.padding(MspTheme.spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            MarcaDeCuenta(marcada = marcada, varias = varias)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = venta.nombre,
+                    style = MspTheme.type.listTitle,
+                    color = colorDeTexto(habilitado),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "le toca ${formatMoneyMxn(venta.parcialidad.amount)}",
+                    style = MspTheme.type.caption,
+                    color = MspTheme.colors.onSurfaceMuted,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+/**
+ * La marca: **cuadro con palomita** cuando se pueden marcar varias, **anillo con
+ * punto** cuando solo una.
+ *
+ * Es un portador que no es color: en oscuro y a plena luz del sol el tint de la
+ * fila elegida y el de las otras se parecen demasiado, y la palomita (o el
+ * punto) se ve igual. Mismo razonamiento que el anillo de `HojaDeAbono`.
+ */
+@Composable
+private fun MarcaDeCuenta(marcada: Boolean, varias: Boolean) {
+    val forma = if (varias) MspTheme.shapes.chip9 else MspTheme.shapes.chip
+    Box(
+        modifier = Modifier
+            .size(MARCA)
+            .background(
+                color = if (marcada) MspTheme.colors.brand else MspTheme.colors.progressTrack,
+                shape = forma
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            marcada && varias -> Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = MspTheme.colors.onBrand,
+                modifier = Modifier.size(PALOMITA)
+            )
+
+            marcada -> Box(
+                modifier = Modifier
+                    .size(PUNTO)
+                    .background(MspTheme.colors.onBrand, MspTheme.shapes.chip)
+            )
+
+            else -> Box(
+                modifier = Modifier
+                    .size(MARCA - BORDE_DE_LA_MARCA)
+                    .background(MspTheme.colors.surface2, forma)
+            )
+        }
+    }
 }
 
 /**
@@ -449,7 +648,7 @@ fun CampoDeMonto(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "cuánto prometió",
+                text = "¿Cuánto prometió?",
                 style = MspTheme.type.caption,
                 color = MspTheme.colors.onSurfaceMuted,
                 modifier = Modifier.weight(1f)
@@ -458,7 +657,7 @@ fun CampoDeMonto(
                 Text(
                     text = "$",
                     style = MspTheme.type.amountCard,
-                    color = MspTheme.colors.statusOverdue
+                    color = MspTheme.colors.onSurface
                 )
             }
             BasicTextField(
@@ -466,10 +665,15 @@ fun CampoDeMonto(
                 onValueChange = { onCambio(it.filter(Char::isDigit)) },
                 enabled = habilitado,
                 singleLine = true,
+                // El monto capturado va en tinta, no en rojo. Iba en
+                // `statusOverdue` porque "prometió" es rojo en el semáforo, y el
+                // resultado era una cifra que el cobrador acaba de teclear
+                // pintada del color con el que esta app dice "esto está mal". El
+                // cursor sí va en `brand`: es el foco, o sea selección.
                 textStyle = LocalTextStyle.current
                     .merge(MspTheme.type.amountCard)
-                    .merge(TextStyle(color = MspTheme.colors.statusOverdue)),
-                cursorBrush = SolidColor(MspTheme.colors.statusOverdue),
+                    .merge(TextStyle(color = MspTheme.colors.onSurface)),
+                cursorBrush = SolidColor(MspTheme.colors.brand),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier
                     .widthIn(min = 80.dp)
@@ -508,7 +712,7 @@ fun CampoDeNota(
     ) {
         Column(modifier = Modifier.padding(MspTheme.spacing.sm)) {
             Text(
-                text = "nota opcional",
+                text = "Nota — opcional",
                 style = MspTheme.type.caption,
                 color = MspTheme.colors.onSurfaceMuted
             )
@@ -529,7 +733,14 @@ fun CampoDeNota(
 }
 
 /**
- * El dock: el CTA de guardar y, debajo, la razón por la que está apagado.
+ * El dock: el CTA de guardar y, debajo, **un solo renglón que dice la razón
+ * cuando el botón está apagado y el efecto cuando está encendido**.
+ *
+ * Lo segundo entró con la selección múltiple: "se guardan 2 visitas, una por
+ * cuenta" es la única señal de que desmarcar una casilla cambia lo que va a
+ * quedar escrito, y un renglón que ya existía para la razón lo dice con coste
+ * vertical cero. Quién decide cuál de los dos textos toca es
+ * `RegistrarVisitaUiState.pieDelCta`, no esta pieza.
  *
  * **Apagado también quiere decir apagado visualmente** (`.btn.off` del mock) y
  * sin `onClick`: un botón vivo que no hace nada es la mentira que la Task 18
@@ -549,7 +760,7 @@ fun CampoDeNota(
 fun DockDeLaVisita(
     texto: String,
     habilitado: Boolean,
-    razon: String?,
+    pie: String?,
     onGuardar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -575,9 +786,9 @@ fun DockDeLaVisita(
                     .fillMaxWidth()
                     .testTag(GUARDAR_TAG)
             )
-            if (razon != null) {
+            if (pie != null) {
                 Text(
-                    text = razon,
+                    text = pie,
                     style = MspTheme.type.caption,
                     color = MspTheme.colors.onSurfaceMuted,
                     modifier = Modifier.testTag(RAZON_TAG)

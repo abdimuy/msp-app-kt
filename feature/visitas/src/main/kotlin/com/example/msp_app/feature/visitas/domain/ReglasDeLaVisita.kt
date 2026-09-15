@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.visitas.domain
 
+import com.example.msp_app.core.common.cobranza.domain.VisitScope
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.visitas.domain.model.BloqueoDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
@@ -39,7 +40,7 @@ object ReglasDeLaVisita {
      */
     fun bloqueosDe(captura: CapturaDeVisita, hoy: LocalDate): List<BloqueoDeLaVisita> {
         val resultado = captura.resultado ?: return listOf(BloqueoDeLaVisita.SIN_RESULTADO)
-        return when (resultado) {
+        return sinCuentas(resultado, captura) + when (resultado) {
             ResultadoDeVisita.PROMETIO -> bloqueosDeLaPromesa(captura, hoy)
             ResultadoDeVisita.CITA -> bloqueosDeLaCita(captura, hoy)
             // "No estaba", "vuelvo" y "se negó" se sostienen con la sola
@@ -49,6 +50,31 @@ object ReglasDeLaVisita {
             ResultadoDeVisita.SE_NEGO -> emptyList()
         }
     }
+
+    /**
+     * Un desenlace de alcance VENTA sin una sola cuenta marcada **no se puede
+     * guardar**, y va primero porque es el bloqueo que el cobrador causó con el
+     * último toque.
+     *
+     * No es una guarda defensiva: la pantalla ofrece desmarcar todas (el
+     * "ninguna" del mock), así que el estado es alcanzable con dos toques. Y
+     * dejarlo pasar no escribiría "una visita sin cuenta": escribiría una visita
+     * de alcance VENTA que no toca ninguna fila de `sales`, o sea trabajo de
+     * campo que se pierde sin decirlo.
+     *
+     * El alcance CLIENTE no lo pide y no puede pedirlo: ahí el estado se propaga
+     * a todas las cuentas activas por `CLIENTE_ID`
+     * (`SaleDao.updateEstadoCobranzaActivasByClienteId`), sin que nadie elija.
+     */
+    private fun sinCuentas(
+        resultado: ResultadoDeVisita,
+        captura: CapturaDeVisita
+    ): List<BloqueoDeLaVisita> =
+        if (resultado.alcance == VisitScope.VENTA && captura.cuentas.isEmpty()) {
+            listOf(BloqueoDeLaVisita.SIN_CUENTAS)
+        } else {
+            emptyList()
+        }
 
     /** ¿Se puede guardar? Azúcar sobre [bloqueosDe], para que nadie lo recalcule. */
     fun sePuedeGuardar(captura: CapturaDeVisita, hoy: LocalDate): Boolean =

@@ -8,11 +8,13 @@ import com.example.msp_app.feature.visitas.data.fake.FakeUbicacionPort
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.model.BloqueoDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
+import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.UUID
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -39,7 +41,7 @@ class RegistrarVisitaTest {
         resultado = ResultadoDeVisita.PROMETIO,
         etiqueta = TipoVisitaCatalogo.PIDE_REAGENDAR,
         nota = "el viernes que cobre mi esposo",
-        ventaDeLaPromesa = VisitasFixtures.REFRIGERADOR,
+        cuentas = setOf(VisitasFixtures.REFRIGERADOR),
         fechaPromesa = fecha,
         montoPrometido = monto
     )
@@ -196,7 +198,8 @@ class RegistrarVisitaTest {
     fun `una etiqueta ajena al desenlace se corrige`() = runTest {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.SE_NEGO,
-            etiqueta = TipoVisitaCatalogo.SOLO_MENORES
+            etiqueta = TipoVisitaCatalogo.SOLO_MENORES,
+            cuentas = setOf(VisitasFixtures.REFRIGERADOR)
         )
 
         registrar(captura)
@@ -233,6 +236,202 @@ class RegistrarVisitaTest {
         registrar(CapturaDeVisita(), ubicacion)
 
         assertEquals(0, ubicacion.vecesConsultada)
+    }
+
+    // ─── una captura, N visitas ──────────────────────────────────────────────
+
+    private fun seNego(cuentas: Set<Int>) = CapturaDeVisita(
+        resultado = ResultadoDeVisita.SE_NEGO,
+        etiqueta = TipoVisitaCatalogo.NO_VA_A_DAR_PAGO,
+        nota = "dice que hasta que le arreglen el refri",
+        cuentas = cuentas
+    )
+
+    /**
+     * **Dos cuentas marcadas escriben DOS visitas**, cada una atada a su cuenta.
+     * Antes había que registrar dos visitas a mano —dos capturas, dos notas— para
+     * dejar constancia de una frase que el cliente dijo una sola vez.
+     */
+    @Test
+    fun `se negó en las dos cuentas escribe dos visitas, una por cuenta`() = runTest {
+        registrar(seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)))
+
+        assertEquals(2, registro.registradas.size)
+        assertEquals(
+            listOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR),
+            registro.registradas.map { it.ventaId }
+        )
+        // La nota y la etiqueta son las MISMAS: es un solo hecho contado en dos
+        // filas, no dos hechos distintos.
+        assertEquals(1, registro.registradas.map { it.nota }.toSet().size)
+        assertEquals(1, registro.registradas.map { it.tipoVisita }.toSet().size)
+    }
+
+    /**
+     * Control positivo del reparto: con UNA cuenta marcada se escribe UNA visita.
+     * Sin esto, la prueba de arriba no distinguiría "escribe una por cuenta" de
+     * "escribe dos siempre".
+     */
+    @Test
+    fun `una sola cuenta marcada escribe una sola visita`() = runTest {
+        registrar(seNego(setOf(VisitasFixtures.REFRIGERADOR)))
+
+        assertEquals(1, registro.registradas.size)
+        assertEquals(VisitasFixtures.REFRIGERADOR, registro.registradas.single().ventaId)
+    }
+
+    /** Y un desenlace de toda la puerta sigue escribiendo UNA fila, con la semilla. */
+    @Test
+    fun `un desenlace de toda la puerta escribe una sola visita con la semilla`() = runTest {
+        registrar(
+            CapturaDeVisita(
+                resultado = ResultadoDeVisita.NO_ESTABA,
+                etiqueta = TipoVisitaCatalogo.CASA_CERRADA
+            )
+        )
+
+        assertEquals(1, registro.registradas.size)
+        assertEquals("visita-1", registro.registradas.single().visitaId)
+    }
+
+    /**
+     * **Los ids son deterministas.** Dos corridas de la MISMA semilla con las
+     * MISMAS cuentas producen exactamente los mismos ids — que es la condición
+     * para que el reintento reescriba las filas en vez de duplicarlas.
+     */
+    @Test
+    fun `la misma semilla y las mismas cuentas producen los mismos ids dos veces`() = runTest {
+        val cuentas = setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)
+
+        registrar(seNego(cuentas))
+        val primera = registro.registradas.map { it.visitaId }
+        registro.registradas.clear()
+        registrar(seNego(cuentas))
+        val segunda = registro.registradas.map { it.visitaId }
+
+        assertEquals(2, primera.size)
+        assertEquals(primera, segunda)
+        assertEquals("dos cuentas, dos ids distintos", 2, primera.toSet().size)
+    }
+
+    /**
+     * Y cada id es un **UUID canónico**. No es cosmética: el servidor hace
+     * `uuid.Parse` sobre el id antes de mirar nada más, así que un id con forma
+     * libre viajaría bien por Room y rebotaría con 422 en la subida — la visita
+     * se quedaría reintentando en el teléfono para siempre.
+     */
+    @Test
+    fun `cada id derivado es un UUID que el servidor puede parsear`() = runTest {
+        registrar(seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)))
+
+        registro.registradas.forEach { visita ->
+            assertEquals(
+                "el id derivado no es un UUID canonico: ${visita.visitaId}",
+                visita.visitaId,
+                UUID.fromString(visita.visitaId).toString()
+            )
+        }
+    }
+
+    /**
+     * **Las fotos y la recomendación cuelgan del ancla, y de nadie más.**
+     * `VisitImageEntity.ID` es llave primaria: la misma foto en dos visitas se
+     * colapsaría a la última y dejaría a la otra sin evidencia.
+     */
+    @Test
+    fun `las fotos y la recomendacion van solo en la visita ancla`() = runTest {
+        casoDeUso().invoke(
+            visitaId = "visita-1",
+            clienteId = VisitasFixtures.VICTORIA,
+            ventaId = null,
+            captura = seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)),
+            hoy = hoy,
+            recomendacionId = "rec-victoria-1",
+            comprobantes = listOf(ComprobanteDeVisita("IMG-1", "/files/IMG-1.jpg", "image/jpeg"))
+        )
+
+        // El ancla es la cuenta más baja: SALA.
+        val ancla = registro.registradas.single { it.ventaId == VisitasFixtures.SALA }
+        val otra = registro.registradas.single { it.ventaId == VisitasFixtures.REFRIGERADOR }
+        assertEquals(1, ancla.comprobantes.size)
+        assertEquals("rec-victoria-1", ancla.recomendacionId)
+        assertTrue("la segunda cuenta no se lleva la foto", otra.comprobantes.isEmpty())
+        assertNull("la recomendacion se liga una sola vez", otra.recomendacionId)
+    }
+
+    /**
+     * Un desenlace de cuenta **sin una sola cuenta marcada** no escribe nada y se
+     * reporta: sin venta, una visita de alcance VENTA no toca ninguna fila de
+     * `sales` y el trabajo de campo se perdería en silencio.
+     */
+    @Test
+    fun `se negó sin cuentas marcadas no escribe y se reporta`() = runTest {
+        val resultado = registrar(seNego(emptySet()))
+
+        assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, resultado)
+        assertTrue("nada debio escribirse", registro.registradas.isEmpty())
+        val evento = telemetry.recorded.single {
+            it.name == VisitasTelemetria.CODE_CAPTURA_BLOQUEADA_EN_APLICACION
+        }
+        assertEquals(
+            BloqueoDeLaVisita.SIN_CUENTAS.name,
+            evento.props[VisitasTelemetria.PROP_BLOQUEOS]
+        )
+    }
+
+    /**
+     * **La ubicación se pide UNA vez para las N filas.** Son el mismo hecho, en
+     * el mismo instante y en la misma puerta: pedirla por cuenta daría N
+     * coordenadas de un cobrador que no se movió y N eventos por un solo permiso
+     * negado.
+     */
+    @Test
+    fun `la ubicacion se pide una sola vez aunque se escriban dos visitas`() = runTest {
+        val ubicacion = FakeUbicacionPort()
+
+        registrar(seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)), ubicacion)
+
+        assertEquals(2, registro.registradas.size)
+        assertEquals(1, ubicacion.vecesConsultada)
+    }
+
+    /**
+     * Una cuenta que falla **no tira a las demás**, y el desenlace a medias no se
+     * calla: nadie podría reconstruir después "se guardaron 2 de 3".
+     */
+    @Test
+    fun `si una cuenta falla se intentan las demas y el parcial se reporta`() = runTest {
+        val registroParcial = FakeRegistroDeVisitaPort()
+        registroParcial.fallaEn = 1
+        RegistrarVisita(registroParcial, FakeUbicacionPort(), telemetry).invoke(
+            visitaId = "visita-1",
+            clienteId = VisitasFixtures.VICTORIA,
+            ventaId = null,
+            captura = seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)),
+            hoy = hoy
+        ).let { assertEquals(ResultadoDelRegistro.FALLO_EL_GUARDADO, it) }
+
+        assertEquals("las dos cuentas se intentaron", 2, registroParcial.registradas.size)
+        val evento = telemetry.recorded.single {
+            it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
+        }
+        assertEquals("1", evento.props[VisitasTelemetria.PROP_OCURRENCIAS])
+        assertEquals("2", evento.props[VisitasTelemetria.PROP_CUENTAS])
+    }
+
+    /**
+     * Control positivo del silencio: cuando las N cuentas se escriben, el evento
+     * de parcial **no** se emite.
+     */
+    @Test
+    fun `sin fallos no se emite el evento de parcial`() = runTest {
+        registrar(seNego(setOf(VisitasFixtures.SALA, VisitasFixtures.REFRIGERADOR)))
+
+        assertTrue(
+            telemetry.recorded.none {
+                it.name == VisitasTelemetria.CODE_VISITA_PARCIAL_POR_CUENTA
+            }
+        )
     }
 
     /** La recomendación viaja al puerto para que quede atada a la visita. */

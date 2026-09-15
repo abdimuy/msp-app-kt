@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.visitas.domain
 
+import com.example.msp_app.core.common.cobranza.domain.VisitScope
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.visitas.domain.model.BloqueoDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
@@ -22,6 +23,9 @@ class ReglasDeLaVisitaTest {
 
     private val hoy = LocalDate.of(2026, 9, 1)
 
+    /** Una cuenta cualquiera del cliente: el `DOCTO_CC_ACR_ID` del refrigerador. */
+    private val cuenta = 77188
+
     private fun dinero(pesos: String) = Money.of(BigDecimal(pesos))
 
     // ─── promesa ─────────────────────────────────────────────────────────────
@@ -31,6 +35,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa con fecha pasada esta bloqueada`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy.minusDays(1),
             montoPrometido = dinero("220")
         )
@@ -46,6 +51,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa para hoy si se puede guardar`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy,
             montoPrometido = dinero("220")
         )
@@ -57,6 +63,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa sin monto se puede guardar`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy.plusDays(3),
             montoPrometido = null
         )
@@ -68,6 +75,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa de cero pesos esta bloqueada`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy.plusDays(3),
             montoPrometido = Money.ZERO
         )
@@ -82,6 +90,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa de un peso si se puede guardar`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy.plusDays(3),
             montoPrometido = dinero("1")
         )
@@ -93,6 +102,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa sin fecha esta bloqueada`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             montoPrometido = dinero("220")
         )
         assertEquals(
@@ -106,6 +116,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa pasada y de cero reporta los dos bloqueos`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy.minusDays(5),
             montoPrometido = Money.ZERO
         )
@@ -120,6 +131,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa a un ano exacto si se puede guardar`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy.plusDays(ReglasDeLaVisita.HORIZONTE_DIAS)
         )
         assertTrue(ReglasDeLaVisita.bloqueosDe(captura, hoy).isEmpty())
@@ -130,6 +142,7 @@ class ReglasDeLaVisitaTest {
     fun `una promesa un dia mas alla del horizonte esta bloqueada`() {
         val captura = CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
+            cuentas = setOf(cuenta),
             fechaPromesa = hoy.plusDays(ReglasDeLaVisita.HORIZONTE_DIAS + 1)
         )
         assertEquals(
@@ -227,7 +240,11 @@ class ReglasDeLaVisitaTest {
         )
     }
 
-    /** Los tres desenlaces que se sostienen con la sola etiqueta no piden nada más. */
+    /**
+     * Los tres desenlaces que se sostienen con la sola etiqueta no piden fecha ni
+     * monto. Los dos de cuenta sí piden **al menos una cuenta**, que es lo único
+     * sin lo cual no habría fila que tocar.
+     */
     @Test
     fun `no estaba, vuelvo y se nego no piden mas datos`() {
         listOf(
@@ -235,10 +252,65 @@ class ReglasDeLaVisitaTest {
             ResultadoDeVisita.VISITE_VUELVO,
             ResultadoDeVisita.SE_NEGO
         ).forEach { resultado ->
-            val captura = CapturaDeVisita(resultado = resultado)
+            val cuentas = if (resultado.alcance == VisitScope.VENTA) setOf(cuenta) else emptySet()
+            val captura = CapturaDeVisita(resultado = resultado, cuentas = cuentas)
             assertTrue(
                 "$resultado no deberia pedir nada mas",
                 ReglasDeLaVisita.bloqueosDe(captura, hoy).isEmpty()
+            )
+        }
+    }
+
+    // ─── la cuenta ───────────────────────────────────────────────────────────
+
+    /**
+     * **Un desenlace de cuenta sin una sola cuenta marcada está bloqueado.** No
+     * es una guarda defensiva: la pantalla ofrece desmarcarlas todas, así que el
+     * estado se alcanza con dos toques. Y una visita de alcance VENTA sin venta
+     * no toca ninguna fila de `sales`: el trabajo de campo se perdería entero.
+     */
+    @Test
+    fun `un desenlace de cuenta sin cuentas marcadas esta bloqueado`() {
+        listOf(ResultadoDeVisita.VISITE_VUELVO, ResultadoDeVisita.SE_NEGO).forEach { resultado ->
+            assertEquals(
+                "$resultado sin cuentas deberia estar bloqueado",
+                listOf(BloqueoDeLaVisita.SIN_CUENTAS),
+                ReglasDeLaVisita.bloqueosDe(
+                    CapturaDeVisita(resultado = resultado, cuentas = emptySet()),
+                    hoy
+                )
+            )
+        }
+    }
+
+    /** Y la promesa, además del suyo, reporta también el de la cuenta que falta. */
+    @Test
+    fun `una promesa sin cuenta y sin fecha reporta los dos bloqueos`() {
+        assertEquals(
+            listOf(BloqueoDeLaVisita.SIN_CUENTAS, BloqueoDeLaVisita.PROMESA_SIN_FECHA),
+            ReglasDeLaVisita.bloqueosDe(
+                CapturaDeVisita(resultado = ResultadoDeVisita.PROMETIO),
+                hoy
+            )
+        )
+    }
+
+    /**
+     * **Un desenlace de toda la puerta NO pide cuentas**, y no puede pedirlas: el
+     * estado se propaga a todas las cuentas activas del cliente por `CLIENTE_ID`,
+     * sin que nadie elija. Control positivo del bloqueo de arriba.
+     */
+    @Test
+    fun `un desenlace de toda la puerta no pide cuentas`() {
+        listOf(ResultadoDeVisita.NO_ESTABA, ResultadoDeVisita.CITA).forEach { resultado ->
+            val captura = CapturaDeVisita(
+                resultado = resultado,
+                cuentas = emptySet(),
+                fechaCita = hoy
+            )
+            assertTrue(
+                "$resultado no deberia pedir cuentas",
+                BloqueoDeLaVisita.SIN_CUENTAS !in ReglasDeLaVisita.bloqueosDe(captura, hoy)
             )
         }
     }

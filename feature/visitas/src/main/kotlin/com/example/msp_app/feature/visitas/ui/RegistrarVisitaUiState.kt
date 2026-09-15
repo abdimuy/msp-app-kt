@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.visitas.ui
 
+import com.example.msp_app.core.common.cobranza.domain.VisitScope
 import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.model.BloqueoDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
@@ -7,6 +8,7 @@ import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.visitas.domain.model.RecomendacionMostrada
+import com.example.msp_app.feature.visitas.domain.model.VentaParaVisitar
 import java.time.LocalDate
 
 /** Por qué la pantalla no pudo abrirse. */
@@ -117,6 +119,53 @@ data class RegistrarVisitaUiState(
     /** La razón que se muestra bajo el CTA apagado. `null` cuando no hay ninguna. */
     val razonDelBloqueo: String?
         get() = bloqueos.firstOrNull()?.razon
+
+    /**
+     * ¿La pantalla pregunta por cuáles cuentas? Solo cuando el desenlace es de
+     * una cuenta **y hay más de una de dónde escoger**: con una sola, la sección
+     * sería un control de una opción ya elegida.
+     */
+    val pideCuentas: Boolean
+        get() = captura.resultado?.alcance == VisitScope.VENTA &&
+            (contexto?.ventas?.size ?: 0) > 1
+
+    /** ¿Las casillas de cuenta son casillas, o un solo botón de opción? */
+    val variasCuentas: Boolean
+        get() = captura.resultado?.admiteVariasCuentas == true
+
+    /** ¿Están marcadas TODAS las cuentas del cliente? */
+    val todasLasCuentasMarcadas: Boolean
+        get() = contexto?.ventas.orEmpty().let {
+            it.isNotEmpty() && captura.cuentas.containsAll(it.map(VentaParaVisitar::ventaId))
+        }
+
+    /**
+     * La línea bajo el CTA. **Un solo renglón que dice dos cosas distintas según
+     * el estado del botón**, que es lo que le deja coste vertical cero:
+     *
+     * - apagado → por qué no se puede guardar;
+     * - encendido → qué va a quedar escrito.
+     *
+     * Lo segundo importa más de lo que parece ahora que una captura puede
+     * escribir varias visitas: "se guardan 2 visitas, una por cuenta" es la
+     * única señal de que desmarcar una casilla cambia lo que pasa, y decirla
+     * después sería decirla tarde.
+     */
+    val pieDelCta: String?
+        get() = when {
+            razonDelBloqueo != null -> razonDelBloqueo
+            registrada != null -> null
+            captura.resultado?.alcance == VisitScope.CLIENTE -> aplicaATodaLaPuerta()
+            captura.cuentas.size > 1 -> "se guardan ${captura.cuentas.size} visitas, una por cuenta"
+            captura.cuentas.size == 1 -> "se guarda 1 visita, de esa cuenta"
+            else -> null
+        }
+
+    /** "Aplica a sus 3 cuentas" — el alcance del desenlace, contado. */
+    private fun aplicaATodaLaPuerta(): String {
+        val cuantas = contexto?.ventas?.size ?: 0
+        return if (cuantas == 1) "aplica a su única cuenta" else "aplica a sus $cuantas cuentas"
+    }
 }
 
 /**

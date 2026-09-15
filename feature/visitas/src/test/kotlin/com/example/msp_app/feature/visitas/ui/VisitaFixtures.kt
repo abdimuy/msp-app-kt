@@ -27,19 +27,46 @@ object VisitaFixtures {
     /** **Estado 1 del mock:** los cinco desenlaces, ninguno elegido, CTA apagado. */
     fun elegir(): RegistrarVisitaUiState = estado(CapturaDeVisita())
 
-    /** **Estado 2 del mock:** prometió — venta, fecha y monto. */
+    /**
+     * **Estado 3 del mock (`VisitaC`):** prometió — **una sola cuenta**, fecha y
+     * monto. La otra cuenta queda desmarcada: una promesa lleva una fecha y un
+     * monto, y repartirlos entre dos cuentas sería inventar dinero.
+     */
     fun prometio(): RegistrarVisitaUiState = estado(
         CapturaDeVisita(
             resultado = ResultadoDeVisita.PROMETIO,
             etiqueta = TipoVisitaCatalogo.PIDE_REAGENDAR,
             nota = "el viernes que cobre mi esposo",
-            ventaDeLaPromesa = VisitasFixtures.REFRIGERADOR,
+            cuentas = setOf(VisitasFixtures.REFRIGERADOR),
             fechaPromesa = HOY.plusDays(3),
             montoPrometido = Money.of(BigDecimal("220"))
         )
     )
 
-    /** **Estado 3 del mock:** no estaba — aplica a las dos cuentas del cliente. */
+    /**
+     * **Estado 2 del mock (`VisitaB`):** se negó — **las dos cuentas marcadas**,
+     * que es como nacen. Es la captura que antes exigía registrar dos visitas
+     * para decir algo que el cliente dijo una sola vez.
+     */
+    fun seNegoEnTodo(): RegistrarVisitaUiState = estado(
+        CapturaDeVisita(
+            resultado = ResultadoDeVisita.SE_NEGO,
+            etiqueta = TipoVisitaCatalogo.NO_VA_A_DAR_PAGO,
+            nota = "dice que hasta que le arreglen el refri",
+            cuentas = VisitasFixtures.dosCuentas().map { it.ventaId }.toSet()
+        )
+    )
+
+    /** El mismo desenlace con **todas desmarcadas**: el CTA se apaga y dice por qué. */
+    fun seNegoSinCuentas(): RegistrarVisitaUiState = estado(
+        CapturaDeVisita(
+            resultado = ResultadoDeVisita.SE_NEGO,
+            etiqueta = TipoVisitaCatalogo.NO_VA_A_DAR_PAGO,
+            cuentas = emptySet()
+        )
+    )
+
+    /** **Estado 1 del mock, ya elegido:** no estaba — aplica a toda la puerta. */
     fun noEstaba(): RegistrarVisitaUiState = estado(
         CapturaDeVisita(
             resultado = ResultadoDeVisita.NO_ESTABA,

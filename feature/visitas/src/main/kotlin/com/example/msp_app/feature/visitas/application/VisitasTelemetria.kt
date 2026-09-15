@@ -159,6 +159,22 @@ object VisitasTelemetria {
      */
     const val CODE_VISITA_SIN_ENCOLAR: String = "visita_sin_encolar"
 
+    /**
+     * **Una captura de varias cuentas quedó a medias**: unas visitas se
+     * escribieron y otras no.
+     *
+     * Código propio y no [CODE_VISITA_NO_SE_GUARDO], porque el desenlace es
+     * distinto y se depura distinto: ahí no quedó nada y el reintento parte de
+     * cero; aquí la base tiene parte del hecho y el reintento reescribe las
+     * mismas filas —los ids se derivan de la semilla, no se acuñan— hasta
+     * completar. Sin este evento, "se guardaron 2 de 3" sería un estado que
+     * nadie podría reconstruir después.
+     */
+    const val CODE_VISITA_PARCIAL_POR_CUENTA: String = "visita_parcial_por_cuenta"
+
+    /** Prop con CUÁNTAS cuentas llevaba la captura. Un conteo, nunca un id. */
+    const val PROP_CUENTAS: String = "cuentas"
+
     /** Prop con el MIME rechazado. Valor técnico cerrado, nunca dato del cliente. */
     const val PROP_TIPO: String = "tipo"
 

@@ -14,6 +14,7 @@ import com.example.msp_app.feature.visitas.data.fake.FakeRecomendacionesPort
 import com.example.msp_app.feature.visitas.data.fake.FakeRegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeUbicacionPort
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
+import com.example.msp_app.feature.visitas.domain.IdsDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.BloqueoDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
@@ -199,7 +200,140 @@ class RegistrarVisitaViewModelTest {
 
         vm.onResultado(ResultadoDeVisita.PROMETIO)
 
-        assertEquals(VisitasFixtures.REFRIGERADOR, vm.state.value.captura.ventaDeLaPromesa)
+        assertEquals(setOf(VisitasFixtures.REFRIGERADOR), vm.state.value.captura.cuentas)
+    }
+
+    // ─── la selección de cuentas ─────────────────────────────────────────────
+
+    /**
+     * **"Se negó" nace con TODAS las cuentas marcadas.** "No te voy a pagar
+     * nada" es el caso común; desmarcar es para el caso fino. Al revés, el
+     * cobrador tendría que marcar casilla por casilla lo que el cliente dijo una
+     * sola vez.
+     */
+    @Test
+    fun `se negó nace con todas las cuentas marcadas`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onResultado(ResultadoDeVisita.SE_NEGO)
+
+        assertEquals(
+            VisitasFixtures.dosCuentas().map { it.ventaId }.toSet(),
+            vm.state.value.captura.cuentas
+        )
+        assertTrue("con todas marcadas se puede guardar", vm.state.value.sePuedeGuardar)
+    }
+
+    /**
+     * Control positivo del "todas": **"prometió" nace con UNA**, aunque el
+     * cliente tenga dos cuentas. Sin esta prueba, la de arriba no distinguiría
+     * "marca todas las de este desenlace" de "marca todas siempre".
+     */
+    @Test
+    fun `prometió nace con una sola cuenta marcada`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onResultado(ResultadoDeVisita.PROMETIO)
+
+        assertEquals(1, vm.state.value.captura.cuentas.size)
+    }
+
+    /** Y un desenlace de toda la puerta no marca ninguna: ahí no se elige nada. */
+    @Test
+    fun `no estaba no marca ninguna cuenta`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onResultado(ResultadoDeVisita.NO_ESTABA)
+
+        assertTrue(vm.state.value.captura.cuentas.isEmpty())
+        assertTrue("y aun así se puede guardar", vm.state.value.sePuedeGuardar)
+    }
+
+    /** Bajo "se negó" la casilla ALTERNA: desmarcar una no toca a la otra. */
+    @Test
+    fun `bajo se negó tocar una cuenta la desmarca sin tocar la otra`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.SE_NEGO)
+
+        vm.onCuenta(VisitasFixtures.SALA)
+
+        assertEquals(setOf(VisitasFixtures.REFRIGERADOR), vm.state.value.captura.cuentas)
+    }
+
+    /** Bajo "prometió" la selección se MUEVE: nunca quedan dos. */
+    @Test
+    fun `bajo prometió tocar otra cuenta mueve la seleccion`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.PROMETIO)
+
+        vm.onCuenta(VisitasFixtures.SALA)
+
+        assertEquals(setOf(VisitasFixtures.SALA), vm.state.value.captura.cuentas)
+    }
+
+    /**
+     * **Sin una sola cuenta marcada el CTA se apaga con su razón.** Es un estado
+     * alcanzable con dos toques (el atajo "ninguna"), y dejarlo pasar escribiría
+     * una visita de alcance VENTA que no toca ninguna fila de `sales`.
+     */
+    @Test
+    fun `desmarcar todas apaga el CTA y dice por qué`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.SE_NEGO)
+
+        vm.onTodasLasCuentas()
+
+        assertTrue(vm.state.value.captura.cuentas.isEmpty())
+        assertFalse(vm.state.value.sePuedeGuardar)
+        assertEquals("elige una cuenta", vm.state.value.razonDelBloqueo)
+    }
+
+    /** Y el mismo atajo, otra vez, las vuelve a marcar todas. */
+    @Test
+    fun `el atajo vuelve a marcar todas`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.SE_NEGO)
+        vm.onTodasLasCuentas()
+
+        vm.onTodasLasCuentas()
+
+        assertEquals(2, vm.state.value.captura.cuentas.size)
+    }
+
+    /**
+     * **Dos cuentas marcadas escriben dos visitas**, y la pantalla navega al
+     * ANCLA — no a la semilla, que con varias cuentas no nombra ninguna fila y
+     * abriría un ticket de una visita que no existe.
+     */
+    @Test
+    fun `se negó en las dos cuentas escribe dos visitas y navega al ancla`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onResultado(ResultadoDeVisita.SE_NEGO)
+
+        vm.guardar()
+        advanceUntilIdle()
+
+        assertEquals(2, registroPort.registradas.size)
+        val registrada = vm.state.value.registrada
+        assertTrue(
+            "la pantalla navega a una visita que existe",
+            registroPort.registradas.any { it.visitaId == registrada }
+        )
+        assertEquals(
+            "y es la de la cuenta más baja",
+            VisitasFixtures.SALA,
+            registroPort.registradas.single { it.visitaId == registrada }.ventaId
+        )
     }
 
     @Test
@@ -314,10 +448,16 @@ class RegistrarVisitaViewModelTest {
             advanceUntilIdle()
 
             val visita = registroPort.registradas.single()
-            assertEquals(vm.visitaId, visita.visitaId)
+            // El id de la fila se DERIVA de la semilla y de la cuenta, así que no
+            // es la semilla; lo que importa es que la pantalla navegue a la fila
+            // que de verdad se escribió.
+            assertEquals(
+                IdsDeLaVisita.idDe(vm.visitaId, VisitasFixtures.REFRIGERADOR),
+                visita.visitaId
+            )
             assertEquals(hoy.plusDays(3), visita.promesa?.fecha)
             assertEquals(Money.of(BigDecimal("220")), visita.promesa?.monto)
-            assertEquals(vm.visitaId, vm.state.value.registrada)
+            assertEquals(visita.visitaId, vm.state.value.registrada)
             assertFalse("ya no se puede capturar", vm.state.value.sePuedeCapturar)
         }
 
