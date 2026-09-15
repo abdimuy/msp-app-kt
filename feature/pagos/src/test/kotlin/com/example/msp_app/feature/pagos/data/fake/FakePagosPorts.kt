@@ -11,7 +11,9 @@ import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
+import com.example.msp_app.feature.pagos.domain.port.AccionesExternasPort
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
+import com.example.msp_app.feature.pagos.domain.port.DestinoEnElMapa
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
@@ -116,6 +118,44 @@ class FakeVisitasPort : VisitasPort {
         ventanasConsultadas += ventana
         return visitas.filter { ventana.contiene(it.fecha) }
     }
+}
+
+/**
+ * Fake de [AccionesExternasPort]. Graba qué se pidió abrir y, con [falla]
+ * puesto, contesta `Result` fallido — que es el caso que la norma de errores
+ * exige probar: un teléfono sin WhatsApp o sin app de mapas existe en la flota.
+ */
+class FakeAccionesExternasPort : AccionesExternasPort {
+
+    /** Los teléfonos que se pidió marcar, en orden. */
+    val marcados: MutableList<String> = mutableListOf()
+
+    /** Los teléfonos a los que se pidió escribir, en orden. */
+    val escritos: MutableList<String> = mutableListOf()
+
+    /** Los destinos de mapa pedidos, en orden. */
+    val destinos: MutableList<DestinoEnElMapa> = mutableListOf()
+
+    /** Si no es `null`, las tres acciones contestan este fallo. */
+    var falla: Throwable? = null
+
+    override suspend fun marcar(telefono: String): Result<Unit> {
+        marcados += telefono
+        return resultado()
+    }
+
+    override suspend fun escribirPorWhatsApp(telefono: String): Result<Unit> {
+        escritos += telefono
+        return resultado()
+    }
+
+    override suspend fun comoLlegar(destino: DestinoEnElMapa): Result<Unit> {
+        destinos += destino
+        return resultado()
+    }
+
+    private fun resultado(): Result<Unit> =
+        falla?.let { Result.failure(it) } ?: Result.success(Unit)
 }
 
 class FakeLiquidacionPort : LiquidacionPort {

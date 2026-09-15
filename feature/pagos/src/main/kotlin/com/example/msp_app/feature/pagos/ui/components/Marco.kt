@@ -143,13 +143,24 @@ private fun BotonCircular(
  * del compartido: van rellenos de `surface` y `MspPrimaryFieldButton` solo
  * ofrece `Primary` (fill marca), `Danger` (fill rojo) y `Ghost` (outline sin
  * relleno). Forzar `Ghost` cambiaría el peso visual del dock.
+ *
+ * ## El "⋯" es opcional, y `null` significa que no existe
+ *
+ * El detalle del CLIENTE lo pasa en `null`: ahí el "⋯" abría la pantalla legada
+ * y lo único que llevaba —"ver los N contactos"— tiene ahora su propio destino,
+ * así que quitarlo no borró ninguna función. El detalle de VENTA lo conserva,
+ * porque ahí sigue viviendo la condonación.
+ *
+ * Es `(() -> Unit)?` y no un `Boolean` aparte a propósito: con dos parámetros se
+ * puede pedir el botón sin darle a dónde ir, y el síntoma sería un control que se
+ * ve, se toca y no hace nada. Así el tipo no deja escribir ese estado.
  */
 @Composable
 fun DockDeAcciones(
     textoPrimario: String,
     onPrimario: () -> Unit,
     onVisita: () -> Unit,
-    onMasAcciones: () -> Unit,
+    onMasAcciones: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -183,15 +194,17 @@ fun DockDeAcciones(
                     .weight(1f)
                     .testTag(CTA_VISITA_TAG)
             )
-            BotonDelDock(
-                texto = "⋯",
-                relleno = MspTheme.colors.surface,
-                contenido = MspTheme.colors.onSurfaceMuted,
-                onClick = onMasAcciones,
-                modifier = Modifier
-                    .size(TOQUE)
-                    .testTag(MAS_ACCIONES_TAG)
-            )
+            if (onMasAcciones != null) {
+                BotonDelDock(
+                    texto = "⋯",
+                    relleno = MspTheme.colors.surface,
+                    contenido = MspTheme.colors.onSurfaceMuted,
+                    onClick = onMasAcciones,
+                    modifier = Modifier
+                        .size(TOQUE)
+                        .testTag(MAS_ACCIONES_TAG)
+                )
+            }
         }
     }
 }

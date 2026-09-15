@@ -10,10 +10,14 @@ import com.example.msp_app.feature.pagos.application.GuardarFichaDelCliente
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeAccionesExternasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
+import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
@@ -40,6 +44,14 @@ import org.junit.Test
  * El aserto que más carga: **con la ficha ilegible la hoja no abre**. Sin él,
  * el camino "leer falló → editar → guardar" borra conocimiento real, y ningún
  * otro test de esta clase lo vería.
+ */
+/*
+ * Nota sobre los `advanceUntilIdle()` que acompañan a cada acción del borrador:
+ * desde que `state` se DERIVA de los puertos de tema y privacidad (Ruling BQ),
+ * la emisión pasa por el `stateIn` y con `StandardTestDispatcher` eso cuesta un
+ * tick. En producción el colector vive en `Dispatchers.Main.immediate`, así que
+ * la hoja abre en el mismo frame; el tick es del dispatcher de prueba, no del
+ * comportamiento.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FichaEnElDetalleTest {
@@ -76,6 +88,8 @@ class FichaEnElDetalleTest {
         ),
         cargarDetalleCliente = CargarDetalleCliente(
             fichaPort = fichaPort,
+            productosPort = FakeProductosPort(),
+            clock = clock,
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,
@@ -86,6 +100,9 @@ class FichaEnElDetalleTest {
             )
         ),
         guardarFichaDelCliente = GuardarFichaDelCliente(fichaPort),
+        accionesExternas = FakeAccionesExternasPort(),
+        tema = FakeTemaDeLaAppPort(),
+        privacidad = FakePrivacidadPort(),
         telemetry = telemetria,
         io = testDispatcher
     )
@@ -105,6 +122,7 @@ class FichaEnElDetalleTest {
         advanceUntilIdle()
 
         vm.editarFicha()
+        advanceUntilIdle()
         val edicion = checkNotNull(vm.state.value.edicionDeLaFicha)
         assertEquals(setOf(SenalDeFicha.ESTA_EN_LA_NOCHE), edicion.senales)
         assertEquals("atiende la suegra", edicion.nota)
@@ -116,6 +134,7 @@ class FichaEnElDetalleTest {
         val vm = viewModel()
         advanceUntilIdle()
         vm.editarFicha()
+        advanceUntilIdle()
         val edicion = checkNotNull(vm.state.value.edicionDeLaFicha)
         assertTrue(edicion.senales.isEmpty())
         assertEquals("", edicion.nota)
@@ -129,6 +148,7 @@ class FichaEnElDetalleTest {
         assertNull("no se pudo leer, no es que no haya", vm.state.value.detalle?.ficha)
 
         vm.editarFicha()
+        advanceUntilIdle()
         assertNull(
             "abrir aqui invitaria a guardar una ficha en blanco encima de la buena",
             vm.state.value.edicionDeLaFicha
@@ -139,6 +159,7 @@ class FichaEnElDetalleTest {
         vm.cargar()
         advanceUntilIdle()
         vm.editarFicha()
+        advanceUntilIdle()
         assertNotNull(vm.state.value.edicionDeLaFicha)
     }
 
@@ -162,11 +183,13 @@ class FichaEnElDetalleTest {
         vm.editarFicha()
 
         vm.alternarSenal(SenalDeFicha.ESTA_EN_LA_TARDE)
+        advanceUntilIdle()
         assertEquals(
             setOf(SenalDeFicha.ESTA_EN_LA_TARDE),
             vm.state.value.edicionDeLaFicha?.senales
         )
         vm.alternarSenal(SenalDeFicha.ESTA_EN_LA_TARDE)
+        advanceUntilIdle()
         assertTrue(checkNotNull(vm.state.value.edicionDeLaFicha).senales.isEmpty())
 
         assertTrue("nada se escribió", fichaPort.guardados.isEmpty())
@@ -262,6 +285,7 @@ class FichaEnElDetalleTest {
         assertTrue(checkNotNull(vm.state.value.edicionDeLaFicha).fallo)
 
         vm.escribirNota("hay perro")
+        advanceUntilIdle()
         assertFalse(checkNotNull(vm.state.value.edicionDeLaFicha).fallo)
     }
 

@@ -98,6 +98,48 @@ internal object PagosIconos {
 }
 
 /**
+ * Los glifos de **acción** del detalle del cliente: llamar, WhatsApp, ficha,
+ * producto, el pin del mapa y el chevron de "ver todos".
+ *
+ * Van en un objeto aparte de [PagosIconos] a propósito: aquél es el catálogo de
+ * **estado** —diez glifos, uno por estado de cobranza, y esa correspondencia
+ * uno-a-uno es lo que lo hace verificable—. Un icono de teléfono ahí dentro
+ * rompería la cuenta y el próximo lector tendría que decidir cuáles son estados
+ * y cuáles no.
+ *
+ * Comparten el constructor [trazo] porque comparten la decisión que importa: son
+ * de **trazo**, no de relleno, con los mismos grosores y los mismos remates
+ * redondeados. Los paths salen del lienzo de mockups, verbatim.
+ */
+internal object AccionesIconos {
+
+    /** Llamar → bocina de teléfono. */
+    val Llamar: ImageVector = trazo("llamar", GROSOR_NORMAL, BOCINA)
+
+    /**
+     * WhatsApp → globo de conversación con la bocina dentro.
+     *
+     * La bocina va en [GROSOR_FINO] y no en el del globo: a 18dp, dos trazos de
+     * 2.0 tan cerca se empastan en una mancha y el glifo deja de leerse como
+     * WhatsApp. Es la misma razón por la que el calendario de "prometió" es fino.
+     */
+    val WhatsApp: ImageVector =
+        trazo("whatsapp", GROSOR_NORMAL, GLOBO, finas = listOf(BOCINA_CHICA))
+
+    /** Ficha → lápiz, porque la ficha se ESCRIBE. */
+    val Ficha: ImageVector = trazo("ficha", GROSOR_NORMAL, LAPIZ)
+
+    /** Un producto de la venta → caja. */
+    val Producto: ImageVector = trazo("producto", GROSOR_NORMAL, CAJA, TAPA_DE_LA_CAJA)
+
+    /** El pin del mapa. */
+    val Pin: ImageVector = trazo("pin", GROSOR_NORMAL, GOTA_DEL_PIN, OJO_DEL_PIN)
+
+    /** "Ver los N contactos" → chevron. */
+    val Chevron: ImageVector = trazo("chevron", GROSOR_NORMAL, PUNTA_DE_CHEVRON)
+}
+
+/**
  * Construye un glifo de 24×24 a trazo, con el grosor que le toca.
  *
  * [relleno] es la excepción medida: la media luna de "abonó parcial" es una
@@ -107,7 +149,8 @@ private fun trazo(
     nombre: String,
     grosor: Float,
     vararg lineas: String,
-    relleno: String? = null
+    relleno: String? = null,
+    finas: List<String> = emptyList()
 ): ImageVector {
     val builder = ImageVector.Builder(
         name = "pagos_$nombre",
@@ -122,16 +165,21 @@ private fun trazo(
             fill = SolidColor(Color.Black)
         )
     }
-    lineas.forEach { linea ->
-        builder.addPath(
-            pathData = PathParser().parsePathString(linea).toNodes(),
-            stroke = SolidColor(Color.Black),
-            strokeLineWidth = grosor,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = StrokeJoin.Round
-        )
-    }
+    lineas.forEach { linea -> builder.trazar(linea, grosor) }
+    // Un segundo grosor para el detalle interior de un glifo compuesto; ver el
+    // KDoc de `AccionesIconos.WhatsApp`.
+    finas.forEach { linea -> builder.trazar(linea, GROSOR_FINO) }
     return builder.build()
+}
+
+private fun ImageVector.Builder.trazar(linea: String, grosor: Float) {
+    addPath(
+        pathData = PathParser().parsePathString(linea).toNodes(),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = grosor,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round
+    )
 }
 
 /** Dimensión estándar de los íconos Material. */
@@ -187,3 +235,26 @@ private const val MANECILLAS = "M12,6.8 L12,12 L15.6,14.1"
 private const val TECHO = "M4,11.2 L12,4.5 L20,11.2"
 private const val PAREDES = "M6,12.8 L6,19.5 L18,19.5 L18,12.8"
 private const val TACHADURA = "M3.2,3.2 L20.8,20.8"
+
+// --- Paths de los glifos de acción, verbatim del lienzo de mockups -----------
+
+private const val BOCINA =
+    "M5,4 h4 l2,5 -2.5,1.5 a12,12 0 0 0 5,5 L15,13 l5,2 v4 " +
+        "a1.5,1.5 0 0 1 -1.6,1.5 A16.5,16.5 0 0 1 3.5,5.6 A1.5,1.5 0 0 1 5,4 z"
+
+private const val GLOBO = "M12,3 a9,9 0 0 0 -7.7,13.6 L3,21 l4.5,-1.2 A9,9 0 1 0 12,3 z"
+
+private const val BOCINA_CHICA =
+    "M8.7,9.2 c0.2,1.9 2.2,3.9 4.1,4.1 l0.9,-1.1 2,0.9 v1.3 c-2.6,0.5 -5.9,-2.4 -6.4,-5 h1.3 z"
+
+private const val LAPIZ = "M4,20 h4 L20,8 l-4,-4 L4,16 v4 z"
+
+private const val CAJA = "M3,8 l9,-4 9,4 v8 l-9,4 -9,-4 z"
+
+private const val TAPA_DE_LA_CAJA = "M3,8 l9,4 9,-4 M12,12 v8"
+
+private const val GOTA_DEL_PIN = "M12,21 c0,0 7,-6.2 7,-11 a7,7 0 1 0 -14,0 c0,4.8 7,11 7,11 z"
+
+private const val OJO_DEL_PIN = "M9.6,10 A2.4,2.4 0 1,1 14.4,10 A2.4,2.4 0 1,1 9.6,10"
+
+private const val PUNTA_DE_CHEVRON = "M9,5 l7,7 -7,7"

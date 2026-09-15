@@ -59,6 +59,9 @@ object PagosTelemetria {
      */
     const val CODE_VENTA_SIN_FECHA_LEGIBLE: String = "pagos_venta_sin_fecha_legible"
 
+    /** Falló la carga de la bitácora del cliente. El id del cliente NO se emite. */
+    const val CODE_BITACORA_FALLO: String = "pagos_bitacora_fallo"
+
     /** Falló la carga de la lista de clientes. Ningún dato de cliente se emite. */
     const val CODE_LISTA_CLIENTES_FALLO: String = "pagos_lista_clientes_fallo"
 
@@ -282,6 +285,34 @@ object PagosTelemetria {
      * se diagnostican distinto.
      */
     const val CODE_ABONO_SIN_ENCOLAR: String = "pagos_abono_sin_encolar"
+
+    /**
+     * No se pudo abrir la app de fuera (marcador, WhatsApp o mapas) desde el
+     * detalle del cliente.
+     *
+     * **El teléfono y el nombre del cliente NO se emiten** — viajan solo
+     * [PROP_ACCION], que es del catálogo cerrado de abajo, y [PROP_EXCEPCION].
+     * Un teléfono es PII directa y es justo lo que esta acción trae en la mano.
+     */
+    const val CODE_ACCION_EXTERNA_FALLO: String = "pagos_accion_externa_fallo"
+
+    /**
+     * Clave estática de `props` con CUÁL acción externa falló. Catálogo cerrado
+     * de tres valores estáticos del desarrollador — ver [ACCION_MARCAR],
+     * [ACCION_WHATSAPP] y [ACCION_COMO_LLEGAR]. Sin él, los tres fallos se ven
+     * iguales en el reporte y no se puede saber si a la flota le falta WhatsApp
+     * o le falta la app de mapas.
+     */
+    const val PROP_ACCION: String = "accion"
+
+    /** Valor estático de [PROP_ACCION]: abrir el marcador. */
+    const val ACCION_MARCAR: String = "marcar"
+
+    /** Valor estático de [PROP_ACCION]: abrir WhatsApp. */
+    const val ACCION_WHATSAPP: String = "whatsapp"
+
+    /** Valor estático de [PROP_ACCION]: abrir el mapa. */
+    const val ACCION_COMO_LLEGAR: String = "como_llegar"
 
     /** Clave estática de `props` con los nombres de los bloqueos de seguridad. */
     const val PROP_BLOQUEOS: String = "bloqueos"

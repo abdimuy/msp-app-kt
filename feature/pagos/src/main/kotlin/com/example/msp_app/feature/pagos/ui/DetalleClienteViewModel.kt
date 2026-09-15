@@ -8,15 +8,22 @@ import com.example.msp_app.feature.pagos.application.CargarDetalleCliente
 import com.example.msp_app.feature.pagos.application.GuardarFichaDelCliente
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
+import com.example.msp_app.feature.pagos.domain.port.AccionesExternasPort
+import com.example.msp_app.feature.pagos.domain.port.DestinoEnElMapa
+import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDeLaFicha
+import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -34,10 +41,21 @@ import kotlinx.coroutines.withContext
  * inyecta sostiene una sesión o un API service.
  */
 @HiltViewModel
+@Suppress(
+    "TooManyFunctions",
+    // Ocho dependencias: las siete de la Task 21 mas `AccionesExternasPort`.
+    // Ese puerto es justamente lo que saca el `Intent` del Composable —mismo
+    // criterio que `RegistrarAbonoViewModel` con la camara—, y agruparlas en un
+    // holder solo escondería el wiring.
+    "LongParameterList"
+) // una funcion por gesto de la pantalla; agruparlas escondería cuál toca qué.
 class DetalleClienteViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val cargarDetalleCliente: CargarDetalleCliente,
     private val guardarFichaDelCliente: GuardarFichaDelCliente,
+    private val accionesExternas: AccionesExternasPort,
+    private val tema: TemaDeLaAppPort,
+    private val privacidad: PrivacidadPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -52,7 +70,34 @@ class DetalleClienteViewModel @Inject constructor(
     }
 
     private val mutableState = MutableStateFlow(DetalleClienteUiState())
-    val state: StateFlow<DetalleClienteUiState> = mutableState.asStateFlow()
+
+    /**
+     * El detalle, con el tema y la privacidad **derivados** de sus puertos en cada
+     * emisión — no guardados con un `copy`.
+     *
+     * Es el mismo reparto que `ListaDeClientesViewModel` (Ruling BQ) y por la
+     * misma razón: cualquier escritor de [mutableState] que use `copy` sobre un
+     * valor viejo pisaría el tema, y el pisón se queda pegado hasta el próximo
+     * cambio de tema. Acá hay dos escritores que lo harían —`cargar()`, que
+     * construye un estado nuevo desde cero, y `guardarFicha()`— así que el riesgo
+     * no es teórico.
+     *
+     * El `initialValue` se siembra con las lecturas **síncronas** de los dos
+     * puertos: sin eso la pantalla pinta un frame en claro antes de la primera
+     * emisión (flash blanco con la app en oscuro) y enseña los montos un frame
+     * antes de esconderlos, que es justo lo que el ojo existe para evitar.
+     */
+    val state: StateFlow<DetalleClienteUiState> =
+        combine(mutableState, tema.oscuro, privacidad.ocultos) { detalle, oscuro, ocultos ->
+            detalle.copy(temaOscuro = oscuro, montosOcultos = ocultos)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = DetalleClienteUiState(
+                temaOscuro = tema.oscuroAhora(),
+                montosOcultos = privacidad.ocultosAhora()
+            )
+        )
 
     init {
         telemetry.screenView(PANTALLA)
@@ -86,6 +131,126 @@ class DetalleClienteViewModel @Inject constructor(
             props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
         DetalleClienteUiState(cargando = false, error = ErrorDeDetalle.FALLO_LA_CARGA)
+    }
+
+    /**
+     * "Registrar abono": va directo si hay una sola cuenta cobrable, y si no
+     * abre la hoja que pregunta a cuál.
+     *
+     * Devuelve el `ventaId` cuando hay que navegar, y `null` cuando lo que hizo
+     * fue abrir la hoja. **No adivina nunca**: el `firstOrNull()` que había aquí
+     * mandaba el dinero a la primera venta de la lista sin decirlo.
+     */
+    fun registrarAbono(): Int? {
+        val ventas = state.value.detalle?.ventas.orEmpty()
+        CuentaDelAbono.unica(ventas)?.let { return it }
+        if (CuentaDelAbono.cobrables(ventas).isEmpty()) return null
+        mutableState.value = mutableState.value.copy(
+            eleccionDeCuenta = EleccionDeCuenta(CuentaDelAbono.preseleccionada(ventas))
+        )
+        return null
+    }
+
+    /** Cambia la cuenta marcada dentro de la hoja. Nada se registra todavía. */
+    fun elegirCuenta(ventaId: Int) {
+        val eleccion = mutableState.value.eleccionDeCuenta ?: return
+        mutableState.value = mutableState.value.copy(
+            eleccionDeCuenta = eleccion.copy(elegida = ventaId)
+        )
+    }
+
+    /** Cierra la hoja sin elegir. Nada se registra. */
+    fun cerrarEleccionDeCuenta() {
+        mutableState.value = mutableState.value.copy(eleccionDeCuenta = null)
+    }
+
+    /**
+     * Confirma la cuenta y cierra la hoja; devuelve a dónde navegar.
+     *
+     * La hoja se cierra **antes** de navegar para que volver del abono no
+     * encuentre la hoja todavía arriba.
+     */
+    fun confirmarCuenta(): Int? {
+        val elegida = mutableState.value.eleccionDeCuenta?.elegida ?: return null
+        mutableState.value = mutableState.value.copy(eleccionDeCuenta = null)
+        return elegida
+    }
+
+    /** Abre el marcador con el teléfono del cliente. */
+    fun marcar() {
+        val telefono = state.value.detalle?.telefono?.takeIf { it.isNotBlank() } ?: return
+        telemetry.tap(PANTALLA, PagosTelemetria.ACCION_MARCAR)
+        correr(PagosTelemetria.ACCION_MARCAR) { accionesExternas.marcar(telefono) }
+    }
+
+    /** Abre la conversación de WhatsApp con el cliente. */
+    fun escribirPorWhatsApp() {
+        val telefono = state.value.detalle?.telefono?.takeIf { it.isNotBlank() } ?: return
+        telemetry.tap(PANTALLA, PagosTelemetria.ACCION_WHATSAPP)
+        correr(PagosTelemetria.ACCION_WHATSAPP) { accionesExternas.escribirPorWhatsApp(telefono) }
+    }
+
+    /**
+     * Abre la casa en el mapa: con el punto del último cobro cuando existe, y si
+     * no con la dirección escrita.
+     */
+    fun comoLlegar() {
+        val detalle = state.value.detalle ?: return
+        telemetry.tap(PANTALLA, PagosTelemetria.ACCION_COMO_LLEGAR)
+        val destino = DestinoEnElMapa(
+            etiqueta = detalle.nombre,
+            direccion = detalle.direccion,
+            lat = detalle.ultimoCobroAqui?.lat,
+            lng = detalle.ultimoCobroAqui?.lng
+        )
+        correr(PagosTelemetria.ACCION_COMO_LLEGAR) { accionesExternas.comoLlegar(destino) }
+    }
+
+    /**
+     * Corre una acción externa y **reporta si no se pudo abrir**.
+     *
+     * No hay `catch`: el puerto contesta `Result` por contrato y nunca lanza. Lo
+     * que no puede pasar es que el fallo se pierda — un teléfono sin WhatsApp o
+     * sin app de mapas es un caso real de la flota, y sin este reporte el síntoma
+     * sería "toco y no pasa nada", que no deja rastro en ningún lado.
+     *
+     * Anti-PII: viajan la acción (catálogo cerrado) y el nombre de la clase de
+     * excepción. **El teléfono y el nombre del cliente no.**
+     */
+    private fun correr(accion: String, bloque: suspend () -> Result<Unit>) {
+        viewModelScope.launch {
+            bloque().onFailure { fallo ->
+                telemetry.error(
+                    code = PagosTelemetria.CODE_ACCION_EXTERNA_FALLO,
+                    message = "no se pudo abrir la app de fuera desde el detalle de cliente",
+                    props = mapOf(
+                        PagosTelemetria.PROP_ACCION to accion,
+                        PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Alterna el tema **GLOBAL** de la app, el mismo que mueven la lista, el cajón
+     * legado, Configuración y el reporte de cobranza. No escribe el estado aquí: lo
+     * escribe la colecta de [TemaDeLaAppPort.oscuro] que sostiene [state], que es
+     * lo que hace que el glifo también reaccione a un cambio hecho en otra
+     * pantalla.
+     */
+    fun alternarTema() {
+        telemetry.tap(PANTALLA, ACCION_TEMA)
+        tema.alternar()
+    }
+
+    /**
+     * Esconde o enseña los montos. A diferencia del tema, [PrivacidadPort.alternar]
+     * SÍ suspende —escribe en DataStore—, así que va en una corrutina.
+     */
+    fun alternarPrivacidad() {
+        telemetry.tap(PANTALLA, ACCION_PRIVACIDAD)
+        viewModelScope.launch { privacidad.alternar() }
     }
 
     /**
@@ -190,5 +355,11 @@ class DetalleClienteViewModel @Inject constructor(
     private companion object {
         /** Id estático de pantalla para telemetría — sin PII. */
         const val PANTALLA = "pagos_detalle_cliente"
+
+        /** Acción estática del toggle de tema. */
+        const val ACCION_TEMA = "tema"
+
+        /** Acción estática del ojo de privacidad. */
+        const val ACCION_PRIVACIDAD = "privacidad"
     }
 }

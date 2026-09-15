@@ -78,10 +78,62 @@ data class DetalleCliente(
      */
     val diaDeRuta: String = "",
     /** `FREC_PAGO` del representante — "semanal", "quincenal", "mensual". */
-    val frecuencia: String = ""
+    val frecuencia: String = "",
+    /**
+     * Las tres cifras y la tira de ritmo del bloque de saldo. Ver
+     * [ResumenDelCliente].
+     */
+    val resumen: ResumenDelCliente = ResumenDelCliente(),
+    /**
+     * Los productos de TODAS sus ventas, con su importe real.
+     *
+     * A nivel cliente es la lista de lo que hay en esa casa, que es como el
+     * cobrador la reconoce ("el refri y la sala"). Sale de `products`, no del
+     * `GROUP_CONCAT` de la venta — ver
+     * [com.example.msp_app.feature.pagos.domain.port.ProductosPort].
+     */
+    val productos: List<ProductoDeVenta> = emptyList(),
+    /**
+     * Dónde se le cobró la última vez, para el pin del mapa.
+     *
+     * **Es un punto medido, no una dirección geocodificada.** Sale de
+     * `Payment.LAT`/`LNG` del abono más reciente: la puerta donde el cobrador de
+     * verdad estuvo parado. `null` cuando ningún abono suyo trae coordenadas —y
+     * entonces no se pinta un pin en un lugar inventado.
+     */
+    val ultimoCobroAqui: UbicacionDelCobro? = null
 ) {
     /** Cuántas cuentas tiene — el badge "N cuentas" del encabezado. */
     val cuentas: Int get() = ventas.size
+}
+
+/**
+ * Lo que el bloque de saldo del detalle dice además del saldo: **suele dar**,
+ * **pídele hoy**, **último pago**, los atrasos y la tira de ritmo.
+ *
+ * Va junto y no suelto en [DetalleCliente] porque es un bloque de la pantalla,
+ * y porque son las cifras DERIVADAS: todas salen de
+ * [com.example.msp_app.feature.pagos.domain.MontosSugeridosDelCliente] y
+ * [com.example.msp_app.feature.pagos.domain.RitmoDePagos], calculadas en
+ * `application/` una vez por carga. La UI las **consume**; derivarlas en un
+ * Composable sería re-derivarlas en cada recomposición.
+ */
+data class ResumenDelCliente(
+    /** Lo que suele dar por visita. `null` = ninguna cuenta trae el dato. */
+    val sueleDar: Money? = null,
+    /** Lo que hay que pedirle hoy para dejarlo sin atraso. */
+    val pideleHoy: Money = Money.ZERO,
+    /** El día del último abono, de la cuenta que sea. `null` si nunca pagó. */
+    val ultimoPago: LocalDate? = null,
+    /** Cuántas parcialidades debe, sumando sus cuentas. */
+    val atrasos: Int = 0,
+    /** Las doce semanas de la tira, del cliente completo. */
+    val ritmo: List<SemanaDeRitmo> = emptyList(),
+    /** Cuántas de esas semanas cumplió. */
+    val semanasCumplidas: Int = 0
+) {
+    /** El "N de 12" del encabezado del ritmo. */
+    val semanasTotales: Int get() = ritmo.size
 }
 
 /**

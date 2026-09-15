@@ -1,3 +1,7 @@
+@file:Suppress(
+    "TooManyFunctions"
+) // una funcion por hoja de la pantalla; fusionarlas rehace el muro que el rediseño partio.
+
 package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.foundation.background
@@ -9,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -20,67 +25,61 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.AppTime
-import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
+import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
+import com.example.msp_app.feature.pagos.ui.components.AccionesDelCliente
 import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
-import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
+import com.example.msp_app.feature.pagos.ui.components.BloqueDeIdentidad
+import com.example.msp_app.feature.pagos.ui.components.CifrasDelCliente
+import com.example.msp_app.feature.pagos.ui.components.ContactoEnLaHoja
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
-import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
-import com.example.msp_app.feature.pagos.ui.components.FilaDeContacto
-import com.example.msp_app.feature.pagos.ui.components.FilaDeVenta
+import com.example.msp_app.feature.pagos.ui.components.HojaContinua
+import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
-import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
+import com.example.msp_app.feature.pagos.ui.components.MapaDelCliente
+import com.example.msp_app.feature.pagos.ui.components.ProductoDelCliente
+import com.example.msp_app.feature.pagos.ui.components.RitmoDelCliente
+import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
+import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.TarjetaDeLiquidacion
-import com.example.msp_app.feature.pagos.ui.components.TarjetaDeSaldo
+import com.example.msp_app.feature.pagos.ui.components.Separador
+import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
+import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
+import com.example.msp_app.feature.pagos.ui.components.VerLosContactos
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
-import java.time.format.DateTimeFormatter
 
 /** `testTag` del título de la pantalla — el nombre del cliente. */
 const val TITULO_DE_CLIENTE_TAG: String = "pagos_titulo_cliente"
 
-/** `testTag` del aviso de cuentas pendientes del encabezado. */
-const val AVISO_DE_CUENTAS_TAG: String = "pagos_aviso_cuentas"
-
-private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", BUSINESS_LOCALE)
-
 /**
  * El destino: conecta el ViewModel con el contenido puro.
  *
- * ## La cuenta que encabeza "sus ventas" (arreglo de la Task 21)
+ * ## A qué cuenta va el abono (arreglo de esta pasada)
  *
- * Antes esta función pasaba el **`clienteId`** a `onRegistrarAbono`. El destino
- * del abono es `pagos/abono/{ventaId}`, así que ese id aterrizaba en el lugar de
- * un `DOCTO_CC_ACR_ID` y la pantalla del dinero abría una venta que no era la
- * del cliente —o ninguna—. Un cliente no tiene saldo que cobrar: lo tienen sus
- * cuentas.
+ * Antes esto resolvía la cuenta con `cuentaQueEncabeza`, o sea
+ * `ventas.firstOrNull()`: **el dinero entraba a la primera cuenta de la lista sin
+ * decirlo en ninguna parte**. Con dos cuentas, el abono podía caer en la
+ * equivocada y nadie se enteraba hasta que cuadraban. No era una decisión de
+ * diseño, era un defecto.
  *
- * La cuenta elegida es **la primera de `detalle.ventas`**, que es exactamente la
- * fila de arriba de "sus ventas" en la pantalla que el cobrador está mirando —
- * no una elección escondida— y la misma que `CargarDetalleCliente` ya usa como
- * representante del cliente (nombre, teléfono, zona, aval). La pantalla del
- * abono encabeza con el folio, el producto y el saldo de esa venta, así que un
- * cliente con varias cuentas ve cuál es antes de teclear un peso.
- *
- * `null` no es alcanzable en producción: el dock solo se pinta con `detalle`
- * cargado, y `CargarDetalleCliente` devuelve `null` cuando el cliente no tiene
- * ni una venta. El `?.let` está por totalidad, no por un caso vivo.
+ * Ahora el dock no elige: pide la cuenta. Con una sola venta va directo —el flujo
+ * es idéntico al de siempre—, y con dos o más abre la hoja que pregunta a cuál
+ * entra, con la de atrasos preseleccionada. Ver `HojaDeAbono`.
  *
  * **Provee el tema.** `:app` nunca provee `MspTheme` —monta `MspappTheme`, el
  * Material legado— y su `NavHost` no envuelve a ningún destino: sin este bloque
  * la primera lectura de `MspTheme.colors` revienta con
  * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
- * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
- * de `:app`, y cuál es la compuerta— está en el KDoc de [ListaDeClientesScreen].
+ * razonamiento completo está en el KDoc de [ListaDeClientesScreen].
  */
 @Composable
 fun DetalleClienteScreen(
@@ -89,21 +88,36 @@ fun DetalleClienteScreen(
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
-    onMasAcciones: (Int) -> Unit,
+    onVerContactos: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val cuenta = cuentaQueEncabeza(state)
     MspTheme {
         DetalleClienteContent(
             state = state,
             onAtras = onAtras,
             onAbrirVenta = onAbrirVenta,
-            onRegistrarAbono = { cuenta?.let(onRegistrarAbono) },
+            // El ViewModel contesta la cuenta cuando hay una sola; con dos o más
+            // abre la hoja y contesta `null`, así que no se navega todavía.
+            onRegistrarAbono = { viewModel.registrarAbono()?.let(onRegistrarAbono) },
+            abono = AccionesDelAbono(
+                onElegir = viewModel::elegirCuenta,
+                onContinuar = { viewModel.confirmarCuenta()?.let(onRegistrarAbono) },
+                onCerrar = viewModel::cerrarEleccionDeCuenta
+            ),
             onRegistrarVisita = { onRegistrarVisita(viewModel.clienteId, null) },
-            onMasAcciones = { cuenta?.let(onMasAcciones) },
-            onUsarLiquidacion = { cuenta?.let(onRegistrarAbono) },
-            onVerContactos = { cuenta?.let(onMasAcciones) },
+            onVerContactos = { onVerContactos(viewModel.clienteId) },
+            // Las tres acciones que salen de la app las resuelve el ViewModel
+            // por `AccionesExternasPort`, no la navegación: `:app` no tiene por
+            // qué saber cómo se marca un teléfono, y el fallo de abrirlas tiene
+            // que quedar reportado (norma de errores).
+            contacto = AccionesDeContacto(
+                onLlamar = viewModel::marcar,
+                onWhatsApp = viewModel::escribirPorWhatsApp,
+                onComoLlegar = viewModel::comoLlegar
+            ),
+            onAlternarTema = viewModel::alternarTema,
+            onAlternarPrivacidad = viewModel::alternarPrivacidad,
             fichaDelCliente = AccionesDeLaFicha(
                 onEditar = viewModel::editarFicha,
                 onCerrar = viewModel::cerrarFicha,
@@ -117,39 +131,57 @@ fun DetalleClienteScreen(
 }
 
 /**
- * La cuenta a la que apunta el dock del cliente: **la primera de "sus ventas"**,
- * o sea la fila de arriba de la lista que el cobrador está mirando.
+ * Las tres acciones que salen de la app: llamar, WhatsApp y cómo llegar.
  *
- * Devuelve un `DOCTO_CC_ACR_ID`, **nunca** un `CLIENTE_ID`. Esa confusión era el
- * defecto: `pagos/abono/{ventaId}` recibía el id del cliente y la pantalla del
- * dinero abría una cuenta que no era la suya —o ninguna—. Un cliente no tiene
- * saldo que cobrar; lo tienen sus cuentas.
- *
- * **"La primera" es una cuenta concreta, no la que tocó.** El orden de esa lista
- * lo fija
- * [com.example.msp_app.feature.pagos.application.CargarDetalleCliente] con un
- * desempate total antes de emitir, así que lo que se pinta arriba y lo que se
- * cobra son la misma cuenta **por construcción**. Este `firstOrNull` no elige
- * nada: lee la decisión que el caso de uso ya tomó. Que el orden aquí fuera el
- * azar de `SaleDao.getByClientId` —que agrupa sin `ORDER BY`— era el defecto que
- * la ronda 1 de arreglo cerró.
- *
- * `null` solo cuando todavía no hay detalle cargado, y en ese estado el dock ni
- * se pinta.
+ * Van juntas por la misma razón que [AccionesDeLaFicha]: el contenido ya recibe
+ * suficientes lambdas y detekt corta en siete (`LongParameterList`).
  */
-internal fun cuentaQueEncabeza(state: DetalleClienteUiState): Int? =
-    state.detalle?.ventas?.firstOrNull()?.ventaId
+@Immutable
+data class AccionesDeContacto(
+    val onLlamar: () -> Unit = {},
+    val onWhatsApp: () -> Unit = {},
+    val onComoLlegar: () -> Unit = {}
+)
 
 /**
- * El detalle de cliente. **El nombre del cliente es el título** y sus ventas
- * van dentro, cada una con su estado — decisiones del `task-16-brief.md`.
+ * El detalle de cliente, **hoja continua** (variante B del lienzo).
+ *
+ * ## Qué cambió y por qué
+ *
+ * La versión anterior era una pila de siete tarjetas sueltas, con el racimo de
+ * estados pegado al nombre y un "⋯" que abría la pantalla legada. El dueño la
+ * rechazó con tres frases: *"se ve medio rara"*, *"quiero tenerla más completa"*,
+ * *"que se vea como una app cara"*. Las tres tienen traducción concreta:
+ *
+ *  - **"Medio rara"** era el ritmo vertical. Siete tarjetas con el mismo aire
+ *    entre todo se leen como cosas sueltas. Ahora son cinco hojas, y dentro de
+ *    cada una el aire antes de un separador es mayor que el aire entre dos
+ *    renglones del mismo bloque — que es lo que hace que un bloque se lea como
+ *    un bloque.
+ *  - **"Más completa"** eran datos que la base YA tenía y nadie pintaba:
+ *    `IMPORTE_PAGO_PROMEDIO` ("suele dar"), `FECHA_ULT_PAGO`,
+ *    `NUM_PAGOS_ATRASADOS`, el día de la ruta y los productos con su importe.
+ *  - **"App cara"** es el mapa y las acciones como iconos.
+ *
+ * ## Sin botón de volver, y el nombre como título
+ *
+ * Igual que la lista: el nombre del cliente ocupa el renglón completo y a su
+ * derecha van el ojo de privacidad y el cambio de tema. La flecha de atrás se
+ * fue porque el gesto del sistema ya vuelve y la franja que ocupaba vale más
+ * como nombre.
+ *
+ * ## Sin "⋯" y sin "hoy liquida todo con"
+ *
+ * El "⋯" abría la pantalla legada y era el único camino a ella desde aquí. Lo que
+ * sí llevaba —"ver los N contactos"— tiene ahora su propio destino, así que
+ * quitarlo no borró ninguna función.
+ *
+ * "Hoy liquida todo con" salió porque **liquidar es por venta**, contra un
+ * `DOCTO_CC_ACR_ID`: una suma a nivel cliente no corresponde a ninguna operación
+ * que la app pueda ejecutar. Vive dentro del detalle de cada venta.
  *
  * Composable PURO sobre [DetalleClienteUiState]: no lee puertos, no deriva
- * estados y no emite telemetría. Lo primero lo hace el ViewModel, lo segundo el
- * catálogo de la Task 14, y lo tercero
- * [com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo] una
- * vez por sincronización — emitir desde aquí sería emitir una vez por
- * recomposición.
+ * estados y no emite telemetría.
  */
 @Composable
 fun DetalleClienteContent(
@@ -158,10 +190,12 @@ fun DetalleClienteContent(
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: () -> Unit,
     onRegistrarVisita: () -> Unit,
-    onMasAcciones: () -> Unit,
-    onUsarLiquidacion: () -> Unit,
     onVerContactos: () -> Unit,
+    onAlternarTema: () -> Unit,
+    onAlternarPrivacidad: () -> Unit,
     modifier: Modifier = Modifier,
+    contacto: AccionesDeContacto = AccionesDeContacto(),
+    abono: AccionesDelAbono = AccionesDelAbono(),
     fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha()
 ) {
     Column(
@@ -171,13 +205,8 @@ fun DetalleClienteContent(
             // Ruling BR — DESPUÉS del `background`, para que el color siga pintándose a
             // sangre bajo la barra de estado y el inset solo baje el CONTENIDO. Sin esto la
             // app corre `enableEdgeToEdge()` y la ventana `StatusBar` del sistema queda
-            // ENCIMA del encabezado y se come sus taps (medido: 36 de 168 px útiles en el
-            // "atrás"). La compuerta es `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`.
-            // `systemBars` y no `statusBars`: el mismo argumento vale ABAJO. Con
-            // `enableEdgeToEdge()` la barra de navegación también queda encima, y el pie de
-            // la pantalla se pintaba detrás de los botones de Android (reportado en vidrio,
-            // SM-A256E). El fondo sigue a sangre porque este padding va después del
-            // `background`; lo único que se corre es el CONTENIDO.
+            // ENCIMA del encabezado y se come sus taps. La compuerta es
+            // `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`.
             .systemBarsPadding()
     ) {
         val detalle = state.detalle
@@ -187,10 +216,13 @@ fun DetalleClienteContent(
                 detalle == null -> MensajeDeError(state.error, onAtras)
                 else -> CuerpoDelCliente(
                     detalle = detalle,
-                    onAtras = onAtras,
+                    ocultos = state.montosOcultos,
+                    temaOscuro = state.temaOscuro,
                     onAbrirVenta = onAbrirVenta,
-                    onUsarLiquidacion = onUsarLiquidacion,
                     onVerContactos = onVerContactos,
+                    onAlternarTema = onAlternarTema,
+                    onAlternarPrivacidad = onAlternarPrivacidad,
+                    contacto = contacto.copy(onComoLlegar = contacto.onComoLlegar),
                     onEditarFicha = fichaDelCliente.onEditar
                 )
             }
@@ -200,7 +232,8 @@ fun DetalleClienteContent(
                 textoPrimario = "registrar abono",
                 onPrimario = onRegistrarAbono,
                 onVisita = onRegistrarVisita,
-                onMasAcciones = onMasAcciones
+                // Sin "⋯": ya no hay camino a la pantalla legada desde aquí.
+                onMasAcciones = null
             )
         }
     }
@@ -211,13 +244,37 @@ fun DetalleClienteContent(
         onNota = fichaDelCliente.onNota,
         onGuardar = fichaDelCliente.onGuardar
     )
+    val eleccion = state.eleccionDeCuenta
+    if (eleccion != null && state.detalle != null) {
+        HojaDeAbono(
+            cuentas = CuentaDelAbono.cobrables(state.detalle.ventas),
+            elegida = eleccion.elegida,
+            onElegir = abono.onElegir,
+            onContinuar = abono.onContinuar,
+            onCerrar = abono.onCerrar,
+            ocultos = state.montosOcultos
+        )
+    }
 }
+
+/**
+ * Las tres acciones de la hoja "¿a cuál cuenta?".
+ *
+ * Juntas por la misma razón que [AccionesDeContacto] y [AccionesDeLaFicha]: el
+ * contenido ya recibe muchas lambdas y detekt corta en siete.
+ */
+@Immutable
+data class AccionesDelAbono(
+    val onElegir: (Int) -> Unit = {},
+    val onContinuar: () -> Unit = {},
+    val onCerrar: () -> Unit = {}
+)
 
 /**
  * Las cinco acciones de la ficha, juntas.
  *
  * Van en un objeto y no en cinco parámetros sueltos porque
- * [DetalleClienteContent] ya recibe ocho lambdas y detekt corta ahí
+ * [DetalleClienteContent] ya recibe muchas lambdas y detekt corta ahí
  * (`LongParameterList`); además así la pantalla del golden pasa un default
  * inerte en vez de repetir cinco `{}`. Mismo criterio que
  * `AccionesDeLaVisita` en `:feature:visitas`.
@@ -234,10 +291,13 @@ data class AccionesDeLaFicha(
 @Composable
 private fun CuerpoDelCliente(
     detalle: DetalleCliente,
-    onAtras: () -> Unit,
+    ocultos: Boolean,
+    temaOscuro: Boolean,
     onAbrirVenta: (Int) -> Unit,
-    onUsarLiquidacion: () -> Unit,
     onVerContactos: () -> Unit,
+    onAlternarTema: () -> Unit,
+    onAlternarPrivacidad: () -> Unit,
+    contacto: AccionesDeContacto,
     onEditarFicha: () -> Unit
 ) {
     Column(
@@ -246,147 +306,199 @@ private fun CuerpoDelCliente(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.md)
     ) {
-        BarraDeDetalle(
-            onAtras = onAtras,
-            accion = {
-                AfordanteDeLaFicha(ficha = detalle.ficha, onEditar = onEditarFicha)
-            }
+        EncabezadoDelCliente(
+            detalle = detalle,
+            ocultos = ocultos,
+            temaOscuro = temaOscuro,
+            onAlternarTema = onAlternarTema,
+            onAlternarPrivacidad = onAlternarPrivacidad,
+            onEditarFicha = onEditarFicha
         )
-        EncabezadoDelCliente(detalle)
-        Spacer(Modifier.height(MspTheme.spacing.md))
-        TarjetaDeSaldo(
-            label = "saldo total",
-            monto = detalle.saldoTotal,
-            pie = { PieDelSaldo(detalle) }
-        )
-        EstadoCuentaUi.avisoDeCuentas(detalle.ventas.map { it.estado })?.let { aviso ->
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-            Aviso(aviso)
+        Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
+        HojaDeIdentidad(detalle, contacto, onEditarFicha)
+        Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
+        HojaDeDinero(detalle, ocultos)
+        Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
+        HojaDeVentas(detalle, ocultos, onAbrirVenta)
+        if (detalle.productos.isNotEmpty()) {
+            Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
+            HojaDeProductos(detalle)
         }
-
-        LabelDeSeccion("sus ventas")
-        detalle.ventas.forEach { venta ->
-            FilaDeVenta(venta = venta, onAbrir = { onAbrirVenta(venta.ventaId) })
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-        }
-
-        detalle.liquidacion?.let { liquidacion ->
-            LabelDeSeccion("liquidación")
-            TarjetaDeLiquidacion(
-                label = "hoy liquida todo con",
-                liquidacion = liquidacion,
-                onUsar = onUsarLiquidacion
-            )
-        }
-
         if (detalle.contactos.isNotEmpty()) {
-            LabelDeSeccion("últimos contactos")
-            detalle.contactos.forEach { FilaDeContacto(it) }
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-            VerTodos("ver los ${detalle.totalContactos} contactos", onVerContactos)
+            Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
+            HojaDeContactos(detalle, onVerContactos)
         }
-
-        // La ficha vive AL FONDO, en el mismo lugar donde la Task 16 puso su
-        // antecesora: así no empuja un solo dp de lo que está arriba, que es
-        // el dinero — por lo que el cobrador abrió esta pantalla.
-        // `LaFichaSeVeYSeTocaTest` lo mide. Lo que sí sube, y gratis, es el
-        // afordante de la barra: ahí es donde una advertencia grita.
+        // La ficha vive AL FONDO, donde la puso la Task 16 y donde no empuja un
+        // solo dp de lo que está arriba — que es el dinero, por lo que el
+        // cobrador abrió esta pantalla. `LaFichaSeVeYSeTocaTest` lo mide. Lo que
+        // sí sube, y gratis, es el afordante del encabezado: ahí es donde una
+        // advertencia grita.
         SeccionDeLaFicha(
             ficha = detalle.ficha,
             notaDeLaVenta = detalle.notaDeLaVenta,
             onEditar = onEditarFicha
         )
-
-        LabelDeSeccion("datos del cliente")
-        FilaClaveValor("zona", detalle.zona)
-        FilaClaveValor("aval o responsable", detalle.aval)
-        // El mock pide el teléfono DEL AVAL, no el del cliente: ese ya está en el
-        // encabezado, y a quien el cobrador llama cuando el cliente no contesta es
-        // al aval. Se pinta solo cuando el dato existe (hoy no existe la columna,
-        // ver `DetalleCliente.telefonoAval`); una fila permanentemente en "—" es
-        // el mismo ruido que se quitó del chip de saldo.
-        detalle.telefonoAval?.let { FilaClaveValor("teléfono del aval", it) }
-        FilaClaveValor("dirección", detalle.direccion)
         Spacer(Modifier.height(MspTheme.spacing.lg))
     }
 }
 
+/**
+ * El nombre como título, con el ojo y el tema a su derecha — el mismo renglón que
+ * la lista, para que las dos pantallas de nivel de cliente se sientan una sola.
+ *
+ * El nombre se recorta con elipsis en vez de partirse en dos renglones: a dos
+ * líneas el encabezado empuja todo lo de abajo y el saldo deja de verse sin
+ * desplazar.
+ */
 @Composable
-private fun EncabezadoDelCliente(detalle: DetalleCliente) {
-    Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
-            detalle.ventas.take(CUADROS_EN_EL_CLUSTER).forEach { venta ->
-                CuadroDeEstado(estadoVisualDe(venta.estado), lado = 22.dp)
-            }
-        }
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = detalle.nombre,
-                style = MspTheme.type.detailTitle,
-                color = MspTheme.colors.onSurface,
-                modifier = Modifier.testTag(TITULO_DE_CLIENTE_TAG)
-            )
-            Text(
-                text = listOf(detalle.telefono, detalle.zona).filter { it.isNotBlank() }
-                    .joinToString(" · ")
-                    .ifBlank { SIN_DATO },
-                style = MspTheme.type.subtitle,
-                color = MspTheme.colors.onSurfaceMuted
-            )
-            Text(
-                text = detalle.direccion.ifBlank { SIN_DATO },
-                style = MspTheme.type.subtitle,
-                color = MspTheme.colors.onSurfaceMuted
-            )
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-            Text(
-                text = "${detalle.cuentas} cuentas",
-                style = MspTheme.type.chipLabel,
-                color = MspTheme.colors.onSurfaceMuted,
-                modifier = Modifier
-                    .clip(MspTheme.shapes.control)
-                    .background(MspTheme.colors.surface2)
-                    .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.xs)
-            )
-        }
-    }
-}
-
-@Composable
-private fun PieDelSaldo(detalle: DetalleCliente) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "${detalle.cuentas} cuentas activas",
-            style = MspTheme.type.caption,
-            color = MspTheme.colors.onSurfaceMuted,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = detalle.ultimaVisita
-                ?.let { "última visita " + DIA_Y_MES.format(AppTime.toBusinessDate(it)) }
-                ?: "sin visitas registradas",
-            style = MspTheme.type.caption,
-            color = MspTheme.colors.onSurfaceMuted
-        )
-    }
-}
-
-/** La banda del encabezado (`.tip`): ámbar de "vuelvo", nunca rojo de "no cae". */
-@Composable
-private fun Aviso(texto: String) {
-    Box(
+private fun EncabezadoDelCliente(
+    detalle: DetalleCliente,
+    ocultos: Boolean,
+    temaOscuro: Boolean,
+    onAlternarTema: () -> Unit,
+    onAlternarPrivacidad: () -> Unit,
+    onEditarFicha: () -> Unit
+) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(MspTheme.shapes.field)
-            .background(MspTheme.colors.statusPartialTint)
-            .padding(MspTheme.spacing.md)
+            .padding(top = MspTheme.spacing.sm)
+            // Alto FIJO, y no el que resulte del contenido. El afordante aparece y
+            // desaparece con el estado de la ficha, así que sin este piso la fila
+            // mediría distinto con advertencia que sin ella y **la ficha movería el
+            // dinero** — que es justo lo que `LaFichaSeVeYSeTocaTest` prohíbe. El
+            // valor es el alto del afordante, que es la pieza más alta de la fila.
+            .heightIn(min = ALTO_DEL_ENCABEZADO),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         Text(
-            text = texto,
-            style = MspTheme.type.bodyStrong,
-            color = MspTheme.colors.statusPartial,
-            modifier = Modifier.testTag(AVISO_DE_CUENTAS_TAG)
+            text = detalle.nombre,
+            style = MspTheme.type.greeting,
+            color = MspTheme.colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .testTag(TITULO_DE_CLIENTE_TAG)
         )
+        // El afordante va EN el renglón del título —cuesta cero dp verticales, que
+        // es su razón de ser— y **solo cuando tiene algo que gritar**.
+        //
+        // En el golden se vio el costo de ponerlo siempre: con "ver ficha" puesto,
+        // el nombre se recortaba a "Victoria Fl…". Y "ver ficha" no aporta nada
+        // nuevo, porque la ficha ya tiene su icono dos filas abajo, en las
+        // acciones: la pastilla era el MISMO camino dicho dos veces, comiéndose el
+        // título de la pantalla.
+        //
+        // Lo que el icono NO puede decir es la advertencia. *"Hay perro"* y *"no ir
+        // solo"* tienen que llegarle al cobrador antes de que abra el portón, y una
+        // ficha ilegible tiene que avisarse para que nadie crea que está vacía. En
+        // esos dos casos la pastilla aparece y el nombre cede el ancho: entre un
+        // nombre entero y una advertencia a tiempo, gana la advertencia.
+        if (detalle.ficha == null || detalle.ficha.advertencias.isNotEmpty()) {
+            AfordanteDeLaFicha(ficha = detalle.ficha, onEditar = onEditarFicha)
+        }
+        MspPrivacyEyeToggle(masked = ocultos, onToggle = onAlternarPrivacidad)
+        MspThemeToggle(darkTheme = temaOscuro, onToggle = onAlternarTema)
+    }
+}
+
+@Composable
+private fun HojaDeIdentidad(
+    detalle: DetalleCliente,
+    contacto: AccionesDeContacto,
+    onEditarFicha: () -> Unit
+) {
+    val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
+    HojaContinua {
+        SeccionDeHoja(primera = true) {
+            BloqueDeIdentidad(
+                estados = visuales.map { it.icono },
+                colores = visuales.map { it.fondo to it.contenido },
+                zonaYDireccion = listOf(detalle.zona, detalle.direccion)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" · ")
+            )
+        }
+        // El cuadro del mapa se pinta SOLO con un punto medido. Sin él quedaban
+        // 130 dp de nada con un botón encima —se vio en el golden— y una banda
+        // vacía se lee como una pantalla a medio cargar. Sin punto, "cómo llegar"
+        // sigue existiendo: baja a la fila de acciones y abre la dirección escrita.
+        if (detalle.ultimoCobroAqui != null) {
+            MapaDelCliente(
+                ubicacion = detalle.ultimoCobroAqui,
+                onComoLlegar = contacto.onComoLlegar
+            )
+        }
+        SeccionDeHoja {
+            AccionesDelCliente(
+                onLlamar = contacto.onLlamar,
+                onWhatsApp = contacto.onWhatsApp,
+                onFicha = onEditarFicha,
+                onComoLlegar = contacto.onComoLlegar.takeIf { detalle.ultimoCobroAqui == null }
+            )
+        }
+    }
+}
+
+@Composable
+private fun HojaDeDinero(detalle: DetalleCliente, ocultos: Boolean) {
+    HojaContinua {
+        SeccionDeHoja(primera = true) {
+            SaldoDelCliente(
+                saldo = detalle.saldoTotal,
+                atrasos = detalle.resumen.atrasos,
+                ocultos = ocultos
+            )
+        }
+        SeccionDeHoja { CifrasDelCliente(detalle.resumen, ocultos = ocultos) }
+        SeccionDeHoja {
+            RitmoDelCliente(
+                resumen = detalle.resumen,
+                diaDeRuta = detalle.diaDeRuta,
+                frecuencia = detalle.frecuencia
+            )
+        }
+    }
+}
+
+@Composable
+private fun HojaDeVentas(detalle: DetalleCliente, ocultos: Boolean, onAbrirVenta: (Int) -> Unit) {
+    HojaContinua {
+        TituloDeHoja("sus ventas")
+        detalle.ventas.forEachIndexed { indice, venta ->
+            if (indice > 0) Separador()
+            VentaEnLaHoja(
+                venta = venta,
+                onAbrir = { onAbrirVenta(venta.ventaId) },
+                ocultos = ocultos
+            )
+        }
+    }
+}
+
+@Composable
+private fun HojaDeProductos(detalle: DetalleCliente) {
+    HojaContinua {
+        TituloDeHoja("productos")
+        detalle.productos.forEachIndexed { indice, producto ->
+            if (indice > 0) Separador()
+            ProductoDelCliente(producto)
+        }
+    }
+}
+
+@Composable
+private fun HojaDeContactos(detalle: DetalleCliente, onVerContactos: () -> Unit) {
+    HojaContinua {
+        TituloDeHoja("últimos contactos")
+        detalle.contactos.forEachIndexed { indice, contacto ->
+            if (indice > 0) Separador()
+            ContactoEnLaHoja(contacto = contacto, fecha = AppTime.toBusinessDate(contacto.fecha))
+        }
+        Separador()
+        VerLosContactos(cuantos = detalle.totalContactos, onVer = onVerContactos)
     }
 }
 
@@ -419,4 +531,19 @@ internal fun MensajeDeError(error: ErrorDeDetalle?, onAtras: () -> Unit) {
     }
 }
 
-private const val CUADROS_EN_EL_CLUSTER = 4
+/**
+ * Cuántos cuadros de estado caben en el racimo de identidad.
+ *
+ * Cuatro, como antes: a 22 dp más su aire, un quinto empieza a comerse el
+ * renglón de zona y dirección, que es texto y pesa más que un cuadro de más.
+ */
+private const val CUADROS_EN_EL_RACIMO = 4
+
+/**
+ * El alto fijo del renglón del título.
+ *
+ * Es el alto del afordante de la ficha —la pieza más alta de esa fila— para que
+ * la fila mida lo mismo con advertencia y sin ella. Ver el comentario en
+ * [EncabezadoDelCliente].
+ */
+private val ALTO_DEL_ENCABEZADO = 56.dp

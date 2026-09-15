@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.ui
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.feature.pagos.domain.MontosSugeridosDelCliente
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.RielDePagos
 import com.example.msp_app.feature.pagos.domain.RitmoDePagos
@@ -19,7 +20,9 @@ import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
+import com.example.msp_app.feature.pagos.domain.model.ResumenDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
+import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import java.math.BigDecimal
@@ -153,63 +156,75 @@ object PagosFixtures {
     /** El detalle de cliente del mock. [estadoDeLaSegunda] permite variar la promesa. */
     fun detalleCliente(
         estadoDeLaSegunda: EstadoDelPeriodo = estadoPromesaConFecha()
-    ): DetalleCliente = DetalleCliente(
-        clienteId = CLIENTE_ID,
-        nombre = "Victoria Flores Olmedo",
-        telefono = "238 162 7597",
-        direccion = "C. Hidalgo 214, Centro",
-        zona = "ruta 25 · centro",
-        aval = "Rosa María Ramírez",
-        telefonoAval = "238 118 4402",
-        saldoTotal = dinero("3550"),
-        ventas = listOf(
-            venta(
-                ventaId = VENTA_PAGADA,
-                folio = "V-5021",
-                descripcion = "Sala 3 piezas + base",
-                cifras = Cifras(dinero("8400"), dinero("2100"), dinero("350"), dinero("6300")),
-                estado = estadoPago()
-            ),
-            venta(
-                ventaId = VENTA_EN_PROMESA,
-                folio = "V-5188",
-                descripcion = "Refrigerador Mabe 14'",
-                cifras = Cifras(dinero("6400"), dinero("1450"), dinero("220"), dinero("4950")),
-                estado = estadoDeLaSegunda,
-                atrasos = 2
-            )
+    ): DetalleCliente = detalleCliente(ventasDelDetalle(estadoDeLaSegunda))
+
+    /** Las dos cuentas del mock, para poder derivar el resumen SIN recursión. */
+    private fun ventasDelDetalle(estadoDeLaSegunda: EstadoDelPeriodo) = listOf(
+        venta(
+            ventaId = VENTA_PAGADA,
+            folio = "V-5021",
+            descripcion = "Sala 3 piezas + base",
+            cifras = Cifras(dinero("8400"), dinero("2100"), dinero("350"), dinero("6300")),
+            estado = estadoPago()
         ),
-        contactos = listOf(
-            ContactoDeCobranza(
-                fecha = Instant.parse("2026-08-24T17:00:00Z"),
-                etiqueta = "no responde aunque está",
-                nota = null,
-                estado = EstadoCuenta.VISITE_VUELVO,
-                importe = null
-            ),
-            ContactoDeCobranza(
-                fecha = Instant.parse("2026-08-10T17:00:00Z"),
-                etiqueta = "pidió reagendar visita",
-                nota = "el viernes que cobre mi esposo",
-                estado = EstadoCuenta.PROMETIO_PROXIMA,
-                importe = null
-            ),
-            ContactoDeCobranza(
-                fecha = Instant.parse("2026-08-03T17:10:00Z"),
-                etiqueta = "cobré",
-                nota = null,
-                estado = EstadoCuenta.PAGO,
-                importe = dinero("350")
-            )
-        ),
-        totalContactos = 27,
-        diaDeRuta = "jueves",
-        frecuencia = "semanal",
-        notaDeLaVenta = "entrega en la puerta de atrás",
-        ficha = fichaDelCliente(),
-        liquidacion = liquidacionDelCliente(),
-        ultimaVisita = Instant.parse("2026-08-24T17:00:00Z")
+        venta(
+            ventaId = VENTA_EN_PROMESA,
+            folio = "V-5188",
+            descripcion = "Refrigerador Mabe 14'",
+            cifras = Cifras(dinero("6400"), dinero("1450"), dinero("220"), dinero("4950")),
+            estado = estadoDeLaSegunda,
+            atrasos = 2
+        )
     )
+
+    private fun detalleCliente(ventasDelCliente: List<VentaDelCliente>): DetalleCliente =
+        DetalleCliente(
+            clienteId = CLIENTE_ID,
+            nombre = "Victoria Flores Olmedo",
+            telefono = "238 162 7597",
+            direccion = "C. Hidalgo 214, Centro",
+            zona = "ruta 25 · centro",
+            aval = "Rosa María Ramírez",
+            telefonoAval = "238 118 4402",
+            saldoTotal = dinero("3550"),
+            ventas = ventasDelCliente,
+            contactos = listOf(
+                ContactoDeCobranza(
+                    fecha = Instant.parse("2026-08-24T17:00:00Z"),
+                    etiqueta = "no responde aunque está",
+                    nota = null,
+                    estado = EstadoCuenta.VISITE_VUELVO,
+                    importe = null
+                ),
+                ContactoDeCobranza(
+                    fecha = Instant.parse("2026-08-10T17:00:00Z"),
+                    etiqueta = "pidió reagendar visita",
+                    nota = "el viernes que cobre mi esposo",
+                    estado = EstadoCuenta.PROMETIO_PROXIMA,
+                    importe = null
+                ),
+                ContactoDeCobranza(
+                    fecha = Instant.parse("2026-08-03T17:10:00Z"),
+                    etiqueta = "cobré",
+                    nota = null,
+                    estado = EstadoCuenta.PAGO,
+                    importe = dinero("350")
+                )
+            ),
+            totalContactos = 27,
+            diaDeRuta = "jueves",
+            frecuencia = "semanal",
+            resumen = resumenDelCliente(ventasDelCliente),
+            productos = listOf(
+                ProductoDeVenta("Sala 3 piezas + base", dinero("6300")),
+                ProductoDeVenta("Refrigerador Mabe 14'", dinero("4950"))
+            ),
+            ultimoCobroAqui = UbicacionDelCobro(lat = 18.4609, lng = -97.3926),
+            notaDeLaVenta = "entrega en la puerta de atrás",
+            ficha = fichaDelCliente(),
+            liquidacion = liquidacionDelCliente(),
+            ultimaVisita = Instant.parse("2026-08-24T17:00:00Z")
+        )
 
     /**
      * La ficha del mock: dos señales del catálogo cerrado y la nota libre con
@@ -348,6 +363,45 @@ object PagosFixtures {
         vendedor = "J. Carlos Méndez",
         atrasos = 2,
         fechaUltimoPago = LocalDate.of(2026, 9, 6)
+    )
+
+    /**
+     * El resumen del bloque de dinero, **derivado con el dominio real** y no
+     * escrito a mano.
+     *
+     * Importa que sea derivado: un resumen inventado dejaría los goldens
+     * enseñando cifras que ninguna fórmula produce, y entonces la foto ya no
+     * probaría que la pantalla pinta lo que el dominio calcula — que es la mitad
+     * de para qué existe el golden.
+     */
+    fun resumenDelCliente(ventas: List<VentaDelCliente>): ResumenDelCliente {
+        val pagos = pagosDeLaVenta()
+        val semanas = RitmoDePagos.de(
+            pagos = pagos,
+            parcialidad = Money.sum(ventas.map { it.parcialidad }),
+            hoy = HOY
+        )
+        return ResumenDelCliente(
+            sueleDar = MontosSugeridosDelCliente.sueleDar(ventas),
+            pideleHoy = MontosSugeridosDelCliente.pideleHoy(ventas, HOY),
+            ultimoPago = pagos.maxByOrNull { it.fecha }
+                ?.let { AppTime.toBusinessDate(it.fecha) },
+            atrasos = ventas.sumOf { it.atrasos },
+            ritmo = semanas,
+            semanasCumplidas = RitmoDePagos.resumen(semanas).cumplidas
+        )
+    }
+
+    /** Un abono con coordenadas, para el pin del mapa del detalle. */
+    fun pagoConUbicacion(lat: Double, lng: Double): PagoDelHistorial = PagoDelHistorial(
+        pagoId = "COB-CON-PIN",
+        ventaId = VENTA_EN_PROMESA,
+        fecha = Instant.parse("2026-09-06T17:10:00Z"),
+        importe = dinero("220"),
+        formaCobroId = MetodoDeCobro.EFECTIVO.formaCobroId,
+        metodo = MetodoDeCobro.EFECTIVO,
+        nota = null,
+        ubicacion = UbicacionDelCobro(lat, lng)
     )
 
     /** Una visita del catálogo, con el literal crudo que le toca. */

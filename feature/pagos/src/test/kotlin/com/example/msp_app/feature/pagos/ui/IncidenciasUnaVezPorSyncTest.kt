@@ -16,10 +16,14 @@ import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.GuardarFichaDelCliente
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeAccionesExternasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
+import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +93,8 @@ class IncidenciasUnaVezPorSyncTest : RobolectricTestBase() {
             ),
             cargarDetalleCliente = CargarDetalleCliente(
                 fichaPort = FakeFichaPort(),
+                productosPort = FakeProductosPort(),
+                clock = clock,
                 reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                     ventasPort = ventasPort,
                     pagosPort = pagosPort,
@@ -102,6 +108,9 @@ class IncidenciasUnaVezPorSyncTest : RobolectricTestBase() {
                 )
             ),
             guardarFichaDelCliente = GuardarFichaDelCliente(FakeFichaPort()),
+            accionesExternas = FakeAccionesExternasPort(),
+            tema = FakeTemaDeLaAppPort(),
+            privacidad = FakePrivacidadPort(),
             telemetry = telemetria,
             io = testDispatcher
         )
@@ -118,9 +127,9 @@ class IncidenciasUnaVezPorSyncTest : RobolectricTestBase() {
                     onAbrirVenta = {},
                     onRegistrarAbono = {},
                     onRegistrarVisita = {},
-                    onMasAcciones = {},
-                    onUsarLiquidacion = {},
-                    onVerContactos = {}
+                    onVerContactos = {},
+                    onAlternarTema = {},
+                    onAlternarPrivacidad = {}
                 )
             }
         }

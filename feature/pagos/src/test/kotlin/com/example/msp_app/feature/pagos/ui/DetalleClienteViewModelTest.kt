@@ -11,10 +11,14 @@ import com.example.msp_app.feature.pagos.application.GuardarFichaDelCliente
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCobranzaDelCliente
+import com.example.msp_app.feature.pagos.data.fake.FakeAccionesExternasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
+import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import kotlinx.coroutines.Dispatchers
@@ -70,10 +74,14 @@ class DetalleClienteViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private val accionesExternas = FakeAccionesExternasPort()
+
     private fun viewModel(clienteId: Int = PagosFixtures.CLIENTE_ID) = DetalleClienteViewModel(
         savedStateHandle = SavedStateHandle(mapOf(PagosRutas.ARG_CLIENTE_ID to clienteId)),
         cargarDetalleCliente = CargarDetalleCliente(
             fichaPort = fichaPort,
+            productosPort = FakeProductosPort(),
+            clock = clock,
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,
@@ -84,6 +92,9 @@ class DetalleClienteViewModelTest {
             )
         ),
         guardarFichaDelCliente = GuardarFichaDelCliente(fichaPort),
+        accionesExternas = accionesExternas,
+        tema = FakeTemaDeLaAppPort(),
+        privacidad = FakePrivacidadPort(),
         telemetry = telemetria,
         io = testDispatcher
     )

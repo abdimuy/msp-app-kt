@@ -1,20 +1,23 @@
 package com.example.msp_app.feature.pagos.application
 
-import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
-import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
+import com.example.msp_app.feature.pagos.domain.MontosSugeridosDelCliente
 import com.example.msp_app.feature.pagos.domain.OrdenDeCobranza
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.RangoDeCobranza
-import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
+import com.example.msp_app.feature.pagos.domain.RitmoDePagos
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
+import com.example.msp_app.feature.pagos.domain.model.ResumenDelCliente
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
-import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
+import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import javax.inject.Inject
 
 /**
@@ -72,7 +75,9 @@ import javax.inject.Inject
  */
 class CargarDetalleCliente @Inject constructor(
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
-    private val fichaPort: FichaDelClientePort
+    private val fichaPort: FichaDelClientePort,
+    private val productosPort: ProductosPort,
+    private val clock: AppClock
 ) {
 
     suspend operator fun invoke(clienteId: Int): DetalleCliente? {
@@ -81,7 +86,13 @@ class CargarDetalleCliente @Inject constructor(
         // lista pintada— sale de esta misma lista ya ordenada.
         val ventas = cobranza.ventas.sortedWith(ORDEN_DE_SUS_VENTAS)
         val primera = ventas.firstOrNull() ?: return null
-        val contactos = bitacora(cobranza.visitas, cobranza.pagos)
+        val contactos = BitacoraDelCliente.de(cobranza.visitas, cobranza.pagos)
+        val filas = ventas.map {
+            it.aVentaDelCliente(
+                estado = cobranza.estados[it.ventaId],
+                liquidacion = cobranza.liquidaciones[it.ventaId]
+            )
+        }
         return DetalleCliente(
             clienteId = clienteId,
             nombre = primera.clienteNombre,
@@ -91,18 +102,21 @@ class CargarDetalleCliente @Inject constructor(
             aval = primera.aval,
             telefonoAval = primera.telefonoAval,
             saldoTotal = Money.sum(ventas.map { it.saldo }),
-            ventas = ventas.map {
-                it.aVentaDelCliente(
-                    estado = cobranza.estados[it.ventaId],
-                    liquidacion = cobranza.liquidaciones[it.ventaId]
-                )
-            },
+            ventas = filas,
             // El día de la ruta es del DOMICILIO, no de una venta: el cobrador
             // pasa una vez por la puerta. Se toma del representante del cliente,
             // la misma fila de la que ya salen nombre, teléfono, zona y aval.
             diaDeRuta = primera.diaDeRuta,
             frecuencia = primera.frecuencia,
-            contactos = contactos.take(CONTACTOS_VISIBLES),
+            resumen = resumenDe(filas, cobranza.pagos),
+            productos = ventas.flatMap { productosPort.productosDe(it.folio) },
+            // El pin sale del abono MÁS RECIENTE que traiga coordenadas, no del
+            // más reciente a secas: si el último se capturó sin señal, el
+            // anterior sigue siendo una puerta donde de verdad se cobró.
+            ultimoCobroAqui = cobranza.pagos
+                .sortedByDescending { it.fecha }
+                .firstNotNullOfOrNull { it.ubicacion },
+            contactos = contactos.take(BitacoraDelCliente.VISIBLES_EN_EL_DETALLE),
             totalContactos = contactos.size,
             notaDeLaVenta = primera.notas.takeIf { it.isNotBlank() },
             ficha = fichaPort.fichaDe(clienteId),
@@ -112,43 +126,35 @@ class CargarDetalleCliente @Inject constructor(
     }
 
     /**
-     * La bitácora "últimos contactos": visitas y abonos del mismo domicilio, en
-     * una sola línea de tiempo. Se mezclan a propósito — el cobrador recuerda
-     * "la vez pasada me dijo que el viernes, y antes sí me pagó", no dos listas.
+     * Las cifras derivadas del bloque de saldo, calculadas **una vez por carga**.
      *
-     * El estado de cada visita sale de [TipoVisitaCatalogo.estadoDe] (Task 14),
-     * que es consumirlo, no re-derivarlo: la clasificación literal→estado tiene
-     * un solo dueño en el repo y es ese objeto.
+     * El ritmo se arma con la parcialidad SUMADA de sus cuentas, porque la tira
+     * es del cliente: una semana "a tiempo" es aquella en la que entró lo que
+     * las dos cuentas juntas esperaban. Armar una tira por venta y promediarlas
+     * daría un color que no es el de ninguna.
+     *
+     * Los atrasos SÍ se suman en cuotas y no en dinero: `NUM_PAGOS_ATRASADOS` es
+     * un conteo de parcialidades, y la pastilla del encabezado dice "2 atrasos",
+     * no pesos.
      */
-    private fun bitacora(
-        visitas: List<VisitaDelCliente>,
+    private fun resumenDe(
+        ventas: List<VentaDelCliente>,
         pagos: List<PagoDelHistorial>
-    ): List<ContactoDeCobranza> {
-        val deVisitas = visitas.map { visita ->
-            ContactoDeCobranza(
-                fecha = visita.fecha,
-                etiqueta = visita.tipoVisita.lowercase(),
-                nota = visita.nota?.takeIf { it.isNotBlank() },
-                // El MISMO par (literal, ¿trae día de cita?) que usa el deriver:
-                // una cita en la bitácora tiene que verse como cita, no como
-                // el "vuelvo" de su literal de cable.
-                estado = TipoVisitaCatalogo.estadoDe(
-                    visita.tipoVisita,
-                    visita.fechaCita != null
-                ),
-                importe = null
-            )
-        }
-        val dePagos = pagos.map { pago ->
-            ContactoDeCobranza(
-                fecha = pago.fecha,
-                etiqueta = ETIQUETA_COBRE,
-                nota = pago.nota,
-                estado = EstadoCuenta.PAGO,
-                importe = pago.importe
-            )
-        }
-        return (deVisitas + dePagos).sortedByDescending { it.fecha }
+    ): ResumenDelCliente {
+        val hoy = AppTime.todayInBusinessZone(clock)
+        val semanas = RitmoDePagos.de(
+            pagos = pagos,
+            parcialidad = Money.sum(ventas.map { it.parcialidad }),
+            hoy = hoy
+        )
+        return ResumenDelCliente(
+            sueleDar = MontosSugeridosDelCliente.sueleDar(ventas),
+            pideleHoy = MontosSugeridosDelCliente.pideleHoy(ventas, hoy),
+            ultimoPago = pagos.maxByOrNull { it.fecha }?.let { AppTime.toBusinessDate(it.fecha) },
+            atrasos = ventas.sumOf { it.atrasos },
+            ritmo = semanas,
+            semanasCumplidas = RitmoDePagos.resumen(semanas).cumplidas
+        )
     }
 
     private companion object {
@@ -165,12 +171,6 @@ class CargarDetalleCliente @Inject constructor(
                     instanteDeVenta = it.instanteDeVenta
                 )
             }.thenBy { it.ventaId }
-
-        /** Cuántos contactos se pintan antes del "ver los N contactos" del mock. */
-        const val CONTACTOS_VISIBLES = 3
-
-        /** Etiqueta estática del abono en la bitácora. Minúsculas, sin punto final. */
-        const val ETIQUETA_COBRE = "cobré"
     }
 }
 

@@ -26,8 +26,34 @@ data class DetalleClienteUiState(
     val detalle: DetalleCliente? = null,
     val error: ErrorDeDetalle? = null,
     /** La hoja de la ficha; `null` mientras está cerrada. */
-    val edicionDeLaFicha: EdicionDeLaFicha? = null
+    val edicionDeLaFicha: EdicionDeLaFicha? = null,
+    /**
+     * "Esconder cantidades" — la preferencia GLOBAL, la misma que mueve el ojo de
+     * la lista. Se deriva del puerto en cada emisión, no se guarda acá con un
+     * `copy`; ver el KDoc de `DetalleClienteViewModel.state`.
+     */
+    val montosOcultos: Boolean = false,
+    /** Tema oscuro vigente de la app entera — lo pinta el botón sol/luna. */
+    val temaOscuro: Boolean = false,
+    /**
+     * La hoja "¿a cuál cuenta?"; `null` mientras está cerrada.
+     *
+     * Solo se abre cuando el cliente tiene **dos o más** cuentas cobrables — con
+     * una sola el abono va directo y esta hoja nunca existe. Ver
+     * [com.example.msp_app.feature.pagos.domain.CuentaDelAbono].
+     */
+    val eleccionDeCuenta: EleccionDeCuenta? = null
 )
+
+/**
+ * La elección de cuenta para el abono, en curso.
+ *
+ * [elegida] arranca en la que trae más atrasos —no en la primera de la lista,
+ * que era el defecto— y cambia con cada toque. Nada se registra hasta
+ * "continuar": esta hoja solo decide **a dónde** va el dinero, no lo mueve.
+ */
+@Immutable
+data class EleccionDeCuenta(val elegida: Int?)
 
 /** Estado observable del detalle de venta. */
 @Immutable

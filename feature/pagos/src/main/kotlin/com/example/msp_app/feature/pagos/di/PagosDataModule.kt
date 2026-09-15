@@ -1,16 +1,19 @@
 package com.example.msp_app.feature.pagos.di
 
+import android.content.Context
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
 import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.telemetry.Telemetry
+import com.example.msp_app.feature.pagos.data.adapter.IntentAccionesExternasAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomGarantiasAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomPagosAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomProductosAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomVentasAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomVisitasAdapter
+import com.example.msp_app.feature.pagos.domain.port.AccionesExternasPort
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.ProductosPort
@@ -19,6 +22,7 @@ import com.example.msp_app.feature.pagos.domain.port.VisitasPort
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Qualifier
 import kotlinx.coroutines.CoroutineDispatcher
@@ -78,6 +82,15 @@ object PagosDataModule {
     @Provides
     fun provideVisitasPort(visitDao: VisitDao, telemetry: Telemetry): VisitasPort =
         RoomVisitasAdapter(visitDao, telemetry)
+
+    /**
+     * El `Context` es el de la APLICACIÓN, no el de una `Activity`: el adaptador
+     * lo guarda y una `Activity` retenida sería una fuga. Por eso el `Intent`
+     * lleva `FLAG_ACTIVITY_NEW_TASK`.
+     */
+    @Provides
+    fun provideAccionesExternasPort(@ApplicationContext context: Context): AccionesExternasPort =
+        IntentAccionesExternasAdapter(context)
 
     @Provides
     @PagosIoDispatcher

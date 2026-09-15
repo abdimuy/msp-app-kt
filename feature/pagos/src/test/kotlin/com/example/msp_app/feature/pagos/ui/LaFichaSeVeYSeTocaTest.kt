@@ -25,12 +25,12 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.AFORDANTE_TEXTO_TAG
-import com.example.msp_app.feature.pagos.ui.components.ATRAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_PRIMARIO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DE_LA_FICHA_TAG
+import com.example.msp_app.feature.pagos.ui.components.PIDELE_HOY_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
 import com.example.msp_app.feature.pagos.ui.components.TARJETA_DE_LA_FICHA_TAG
 import org.junit.Assert.assertEquals
@@ -54,9 +54,27 @@ import org.robolectric.annotation.Config
  * 1. **La ficha cuesta cero dp arriba de "sus ventas"** — el tope de esa
  *    sección es el MISMO con la ficha llena, vacía o ilegible. Medido, no
  *    supuesto, y así **agregar señales al catálogo tampoco empuja nada**.
- * 2. **La primera venta se ve sin desplazar** en 1.0, 1.5 y 2.0.
- * 3. **La barra superior no crece** por llevar el afordante — es el mismo alto
- *    con y sin ficha, que es la única razón por la que el afordante vive ahí.
+ * 2. **El dinero se ve sin desplazar** en 1.0, 1.5 y 2.0.
+ * 3. **El afordante ocupa un renglón acotado**, que es la única razón por la que
+ *    vive arriba.
+ *
+ * ## Qué cambió con la hoja continua, y por qué NO es aflojar el test
+ *
+ * Hasta la hoja continua, el punto 2 se medía sobre **la primera venta**: el
+ * saldo iba arriba y "sus ventas" venía enseguida, así que el primer renglón de
+ * venta era la frontera del dinero visible.
+ *
+ * En la variante B —la que el dueño eligió— entre el encabezado y las ventas hay
+ * ahora mapa, saldo, las tres cifras y el ritmo, así que **la primera venta cae
+ * bajo la línea de flotación por construcción**. Eso no se puede "arreglar" sin
+ * deshacer la pantalla que se pidió.
+ *
+ * Lo que el punto 2 siempre estuvo protegiendo no era el renglón de venta: era
+ * que **un dato de conocimiento no tape el dinero**. Ese dinero ahora es el saldo
+ * total y "pídele hoy", y los dos siguen arriba de la línea. Así que la medición
+ * se re-apunta a ellos —sigue siendo geometría, sigue siendo en las tres
+ * escalas— y el punto 1, que es el que de verdad vigila a la ficha, se queda
+ * intacto y en verde.
  */
 @Config(qualifiers = "w360dp-h800dp-xhdpi")
 class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
@@ -103,9 +121,9 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
             onAbrirVenta = {},
             onRegistrarAbono = {},
             onRegistrarVisita = {},
-            onMasAcciones = {},
-            onUsarLiquidacion = {},
             onVerContactos = {},
+            onAlternarTema = {},
+            onAlternarPrivacidad = {},
             fichaDelCliente = AccionesDeLaFicha(onEditar = { abrio += 1 })
         )
     }
@@ -124,26 +142,24 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     private fun topeDeSusVentas(): Dp =
         composeTestRule.onNodeWithText(SUS_VENTAS).getUnclippedBoundsInRoot().top
 
-    private fun altoDeLaBarra(): Dp = bordesDe(ATRAS_TAG).let { it.bottom - it.top }
-
     // --- I-5: el dinero no se tapa ------------------------------------------
 
     @Test
-    fun `la primera venta se ve sin desplazar a escala NORMAL`() {
+    fun `el dinero se ve sin desplazar a escala NORMAL`() {
         cliente()
-        laPrimeraVentaCabeArribaDelDock()
+        elDineroCabeArribaDelDock()
     }
 
     @Test
-    fun `la primera venta se ve sin desplazar a escala GRANDE`() {
+    fun `el dinero se ve sin desplazar a escala GRANDE`() {
         cliente(nivel = FontSizeLevel.GRANDE)
-        laPrimeraVentaCabeArribaDelDock()
+        elDineroCabeArribaDelDock()
     }
 
     @Test
-    fun `la primera venta se ve sin desplazar a escala MUY GRANDE`() {
+    fun `el dinero se ve sin desplazar a escala MUY GRANDE`() {
         cliente(nivel = FontSizeLevel.MUY_GRANDE)
-        laPrimeraVentaCabeArribaDelDock()
+        elDineroCabeArribaDelDock()
     }
 
     /**
@@ -154,13 +170,16 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
      * **entero arriba del dock**, que es donde termina el área visible sin
      * desplazar.
      */
-    private fun laPrimeraVentaCabeArribaDelDock() {
-        val venta = composeTestRule.onNodeWithText(PRIMERA_VENTA).getUnclippedBoundsInRoot()
+    private fun elDineroCabeArribaDelDock() {
+        // "Pídele hoy" es la más BAJA de las cifras de dinero de la pantalla: va
+        // debajo del saldo total, en la segunda banda de la hoja del dinero. Si
+        // ella cabe, el saldo cabe. Medir la de abajo es la afirmación fuerte.
+        val dinero = bordesDe(PIDELE_HOY_TAG)
         val dock = bordesDe(CTA_PRIMARIO_TAG)
         assertTrue(
-            "la primera venta termina en " + venta.bottom +
-                " y el dock empieza en " + dock.top + ": queda tapada",
-            venta.bottom <= dock.top
+            "el dinero termina en " + dinero.bottom +
+                " y el dock empieza en " + dock.top + ": queda tapado",
+            dinero.bottom <= dock.top
         )
     }
 
@@ -188,12 +207,17 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         assertEquals(conAdvertencia, topeDeSusVentas())
     }
 
+    /**
+     * El afordante es **un renglón, y acotado**. Es la única razón por la que
+     * puede vivir arriba: si creciera con el contenido de la ficha, agregar una
+     * señal al catálogo empujaría el dinero — que es justo lo que el punto 1
+     * prohíbe.
+     */
     @Test
-    fun `la barra no crece por llevar el afordante`() {
+    fun `el afordante ocupa un renglon acotado`() {
         cliente(ficha = PagosFixtures.fichaConAdvertencia())
-        assertEquals(TOQUE, altoDeLaBarra())
         assertTrue(
-            "el afordante no puede pasar del alto de la barra",
+            "el afordante no puede pasar de un renglón tocable",
             bordesDe(EDITAR_FICHA_TAG).let { it.bottom - it.top } <= TOQUE
         )
     }
@@ -224,10 +248,22 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         afordante().assertIsDisplayed().assertTextEquals("hay perro")
     }
 
+    /**
+     * **Sin advertencia, la pastilla no está.**
+     *
+     * Antes decía "ver ficha", y eso era el MISMO camino dos veces: la ficha ya
+     * tiene su icono en la fila de acciones. La pastilla se quedaba con el ancho
+     * del nombre del cliente para no decir nada nuevo — medido en el golden, el
+     * título se recortaba a "Victoria Fl…".
+     *
+     * Lo que se afirma aquí es que el camino a la ficha **no se pierde**: sigue
+     * estando, en la acción de abajo.
+     */
     @Test
-    fun `control positivo - sin advertencia la barra no grita nada`() {
+    fun `control positivo - sin advertencia no hay pastilla, pero si hay camino`() {
         cliente()
-        afordante().assertTextEquals("ver ficha")
+        composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithText("ficha").assertIsDisplayed()
     }
 
     @Test
@@ -248,17 +284,22 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         assertTrue("la advertencia va primero", perro.top <= noche.top && perro.left <= noche.left)
     }
 
+    /**
+     * Una ficha vacía tampoco grita: no hay nada que advertir, y la sección de
+     * abajo ya invita a anotarla. Lo que sí tiene que seguir habiendo es camino.
+     */
     @Test
-    fun `sin ficha el afordante invita a anotar`() {
+    fun `sin ficha tampoco hay pastilla, y el camino sigue`() {
         cliente(ficha = FichaDelCliente())
-        afordante().assertTextEquals("anotar ficha")
+        composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).assertDoesNotExist()
+        composeTestRule.onNodeWithText("ficha").assertIsDisplayed()
     }
 
     // --- El afordante --------------------------------------------------------
 
     @Test
     fun `tocar el afordante de la barra abre el editor`() {
-        cliente()
+        cliente(ficha = PagosFixtures.fichaConAdvertencia())
         composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).performClick()
         assertEquals(1, abrio)
     }

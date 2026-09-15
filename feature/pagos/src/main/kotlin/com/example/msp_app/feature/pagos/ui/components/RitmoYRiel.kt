@@ -81,15 +81,7 @@ private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", 
 @Composable
 fun RitmoDeSemanas(historial: HistorialDePagos, modifier: Modifier = Modifier) {
     Column(modifier = modifier.testTag(RITMO_TAG)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
-        ) {
-            historial.semanas.forEach { semana ->
-                BarraDeSemana(semana = semana, modifier = Modifier.weight(1f))
-            }
-        }
+        TiraDeRitmo(historial.semanas)
         Spacer(Modifier.height(MspTheme.spacing.sm))
         Row(modifier = Modifier.fillMaxWidth()) {
             Text(
@@ -139,6 +131,34 @@ fun RitmoDeSemanas(historial: HistorialDePagos, modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.height(MspTheme.spacing.sm))
         LeyendaDelRitmo()
+    }
+}
+
+/**
+ * **Solo la tira** de doce cuadros, sin las etiquetas de mes, sin el pie de tres
+ * datos y sin la leyenda.
+ *
+ * Existe porque el detalle del CLIENTE pinta el mismo ritmo con otro marco: ahí
+ * arriba va "ritmo · 12 semanas" con el "9 de 12" a la derecha, y abajo el día
+ * de la ruta. Copiar los doce cuadros habría dejado dos tiras con dos escalas de
+ * color que se pueden despegar; extraerlas deja una sola.
+ *
+ * [RitmoDeSemanas] —la pantalla de VENTA— la llama y le agrega su propio marco,
+ * así que la tira de las dos pantallas es literalmente el mismo código.
+ *
+ * **Quien la use tiene que poner el portador que no es color** cerca: en la
+ * venta es la leyenda, en el cliente es el "N de 12" del encabezado.
+ */
+@Composable
+fun TiraDeRitmo(semanas: List<SemanaDeRitmo>, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+    ) {
+        semanas.forEach { semana ->
+            BarraDeSemana(semana = semana, modifier = Modifier.weight(1f))
+        }
     }
 }
 

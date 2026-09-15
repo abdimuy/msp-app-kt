@@ -112,9 +112,9 @@ private fun Cliente(detalle: com.example.msp_app.feature.pagos.domain.model.Deta
         onAbrirVenta = {},
         onRegistrarAbono = {},
         onRegistrarVisita = {},
-        onMasAcciones = {},
-        onUsarLiquidacion = {},
-        onVerContactos = {}
+        onVerContactos = {},
+        onAlternarTema = {},
+        onAlternarPrivacidad = {}
     )
 }
 
