@@ -177,7 +177,6 @@ class ElToggleDeLaListaCambiaElTemaDeLaAppTest {
                 Column {
                     ListaDeClientesScreen(
                         viewModel = viewModel,
-                        onAtras = {},
                         onAbrirCliente = {},
                         onAbrirVenta = {}
                     )

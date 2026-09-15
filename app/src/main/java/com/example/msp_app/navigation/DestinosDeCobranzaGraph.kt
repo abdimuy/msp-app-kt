@@ -31,8 +31,9 @@ import com.example.msp_app.feature.visitas.ui.destinoDeTicketDeVisita
  * desde un pago y desde un recibo sin tener que saber cuál fue.
  */
 fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
+    // Sin `onAtras`: la lista es pantalla de nivel superior y ya no pinta flecha
+    // de volver — se llega desde el cajón.
     destinoDeListaDeClientes(
-        onAtras = { navController.popBackStack() },
         onAbrirCliente = {
             navController.navigate(PagosRutas.detalleCliente(it))
         },

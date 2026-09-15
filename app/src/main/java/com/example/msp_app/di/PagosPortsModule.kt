@@ -14,6 +14,7 @@ import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.pagos.ComprobantesDeAbonoAdapter
 import com.example.msp_app.data.pagos.FichaDelClienteAdapter
 import com.example.msp_app.data.pagos.RegistroDeAbonoAdapter
+import com.example.msp_app.data.pagos.SettingsPrivacidadAdapter
 import com.example.msp_app.data.pagos.SettlementLiquidacionAdapter
 import com.example.msp_app.data.pagos.ThemeControllerTemaDeLaAppAdapter
 import com.example.msp_app.data.pagos.UserCyclePeriodoDeCobroAdapter
@@ -22,6 +23,7 @@ import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import com.example.msp_app.services.pedirUbicacionDelPago
@@ -68,6 +70,14 @@ object PagosPortsModule {
     @Provides
     fun providePeriodoDeCobroPort(userCyclePort: UserCyclePort): PeriodoDeCobroPort =
         UserCyclePeriodoDeCobroAdapter(userCyclePort)
+
+    /**
+     * "Esconder cantidades". El adaptador es `@Singleton` a propósito: cachea la
+     * preferencia en un `StateFlow` para poder contestar `ocultosAhora()` sin
+     * suspender, y un adaptador nuevo por inyección tiraría esa caché.
+     */
+    @Provides
+    fun providePrivacidadPort(adapter: SettingsPrivacidadAdapter): PrivacidadPort = adapter
 
     /**
      * La escritura del abono (Task 18). SIN `@Singleton`: resuelve el usuario

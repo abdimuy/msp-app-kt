@@ -11,6 +11,7 @@ import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
@@ -86,6 +87,7 @@ class ListaDeClientesViewModelTest {
             telemetry = telemetria
         ),
         tema = temaPort,
+        privacidad = FakePrivacidadPort(),
         telemetry = telemetria,
         io = testDispatcher
     )
@@ -150,6 +152,7 @@ class ListaDeClientesViewModelTest {
                 telemetry = telemetria
             ),
             tema = temaPort,
+            privacidad = FakePrivacidadPort(),
             telemetry = telemetria,
             io = testDispatcher
         )

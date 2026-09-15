@@ -107,12 +107,12 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
 private fun Lista(state: ListaDeClientesUiState) {
     ListaDeClientesContent(
         state = state,
-        onAtras = {},
         onBuscar = {},
         onElegirSegmento = {},
         onAbrirCliente = {},
         onAbrirVenta = {},
         onReintentar = {},
-        onAlternarTema = {}
+        onAlternarTema = {},
+        onAlternarPrivacidad = {}
     )
 }

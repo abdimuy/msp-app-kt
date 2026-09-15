@@ -259,7 +259,9 @@ fun FilaDeCliente(
     cliente: ClienteEnLista,
     onAbrirCliente: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** "Esconder cantidades": el monto de cada venta se pinta enmascarado. */
+    montosOcultos: Boolean = false
 ) {
     Tarjeta(modifier = modifier.testTag(FILA_DE_CLIENTE_TAG), onClick = onAbrirCliente) {
         Column {
@@ -268,6 +270,7 @@ fun FilaDeCliente(
             cliente.ventas.forEach { enLista ->
                 RenglonDeVenta(
                     venta = enLista.venta,
+                    montosOcultos = montosOcultos,
                     onAbrir = { onAbrirVenta(enLista.venta.ventaId) }
                 )
             }
@@ -362,7 +365,7 @@ private fun NombreDelCliente(nombre: String) {
  * único que se les pide.
  */
 @Composable
-private fun RenglonDeVenta(venta: VentaDelCliente, onAbrir: () -> Unit) {
+private fun RenglonDeVenta(venta: VentaDelCliente, montosOcultos: Boolean, onAbrir: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -389,6 +392,7 @@ private fun RenglonDeVenta(venta: VentaDelCliente, onAbrir: () -> Unit) {
             )
             MspMoneyText(
                 amount = venta.saldo.amount,
+                masked = montosOcultos,
                 style = MspTheme.type.amountRow,
                 color = MspTheme.colors.onSurface
             )

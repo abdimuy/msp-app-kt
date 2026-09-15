@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,13 +29,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
-import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import com.example.msp_app.feature.pagos.ui.components.SegmentadoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
@@ -92,7 +93,6 @@ const val LISTA_VACIA_TAG: String = "pagos_lista_vacia"
 @Composable
 fun ListaDeClientesScreen(
     viewModel: ListaDeClientesViewModel,
-    onAtras: () -> Unit,
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -115,13 +115,13 @@ fun ListaDeClientesScreen(
     ) {
         ListaDeClientesContent(
             state = state,
-            onAtras = onAtras,
             onBuscar = viewModel::buscar,
             onElegirSegmento = viewModel::elegirSegmento,
             onAbrirCliente = onAbrirCliente,
             onAbrirVenta = onAbrirVenta,
             onReintentar = viewModel::cargar,
             onAlternarTema = viewModel::alternarTema,
+            onAlternarPrivacidad = viewModel::alternarPrivacidad,
             modifier = modifier
         )
     }
@@ -199,13 +199,13 @@ fun ListaDeClientesScreen(
 @Composable
 fun ListaDeClientesContent(
     state: ListaDeClientesUiState,
-    onAtras: () -> Unit,
     onBuscar: (String) -> Unit,
     onElegirSegmento: (SegmentoDeCobranza) -> Unit,
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onReintentar: () -> Unit,
     onAlternarTema: () -> Unit,
+    onAlternarPrivacidad: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -224,20 +224,35 @@ fun ListaDeClientesContent(
             .systemBarsPadding()
     ) {
         Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
-            BarraDeDetalle(
-                onAtras = onAtras,
-                accion = {
-                    MspThemeToggle(
-                        darkTheme = state.temaOscuro,
-                        onToggle = onAlternarTema
-                    )
-                }
-            )
-            Text(
-                text = "Clientes",
-                style = MspTheme.type.screenTitle,
-                color = MspTheme.colors.onSurface
-            )
+            // Sin botón de volver: es pantalla de NIVEL SUPERIOR — se llega desde
+            // el cajón, verificado en el aparato, y kollect tampoco lo pone en
+            // ninguna de sus cuatro pestañas. La flecha no llevaba a ningún lado
+            // útil y se comía una franja entera para ella sola.
+            //
+            // Los dos botones comparten el renglón del título en vez de tener el
+            // suyo, que era el otro reclamo del dueño sobre esta cabecera.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = MspTheme.spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+            ) {
+                Text(
+                    text = "Clientes",
+                    style = MspTheme.type.screenTitle,
+                    color = MspTheme.colors.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                MspPrivacyEyeToggle(
+                    masked = state.montosOcultos,
+                    onToggle = onAlternarPrivacidad
+                )
+                MspThemeToggle(
+                    darkTheme = state.temaOscuro,
+                    onToggle = onAlternarTema
+                )
+            }
             Spacer(Modifier.height(MspTheme.spacing.sm))
             CampoDeBusqueda(query = state.query, onBuscar = onBuscar)
             Spacer(Modifier.height(MspTheme.spacing.sm))
@@ -254,6 +269,7 @@ fun ListaDeClientesContent(
             state.clientes.isEmpty() -> ListaVacia()
             else -> Clientes(
                 clientes = state.clientes,
+                montosOcultos = state.montosOcultos,
                 onAbrirCliente = onAbrirCliente,
                 onAbrirVenta = onAbrirVenta
             )
@@ -269,6 +285,7 @@ fun ListaDeClientesContent(
 @Composable
 private fun Clientes(
     clientes: List<ClienteEnLista>,
+    montosOcultos: Boolean,
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit
 ) {
@@ -281,6 +298,7 @@ private fun Clientes(
         items(clientes, key = { it.clienteId }) { cliente ->
             FilaDeCliente(
                 cliente = cliente,
+                montosOcultos = montosOcultos,
                 onAbrirCliente = { onAbrirCliente(cliente.clienteId) },
                 onAbrirVenta = onAbrirVenta
             )

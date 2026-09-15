@@ -16,6 +16,7 @@ import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
@@ -91,6 +92,7 @@ class IncidenciasUnaVezPorCargaDeListaTest : RobolectricTestBase() {
                 telemetry = telemetria
             ),
             tema = FakeTemaDeLaAppPort(),
+            privacidad = FakePrivacidadPort(),
             telemetry = telemetria,
             io = testDispatcher
         )
@@ -105,13 +107,13 @@ class IncidenciasUnaVezPorCargaDeListaTest : RobolectricTestBase() {
             MspTheme(darkTheme = recomposiciones % 2 == 0, animateColors = false) {
                 ListaDeClientesContent(
                     state = estado,
-                    onAtras = {},
                     onBuscar = {},
                     onElegirSegmento = {},
                     onAbrirCliente = {},
                     onAbrirVenta = {},
                     onReintentar = {},
-                    onAlternarTema = {}
+                    onAlternarTema = {},
+                    onAlternarPrivacidad = {}
                 )
             }
         }

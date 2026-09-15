@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
@@ -31,10 +32,10 @@ import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
 import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
-import com.example.msp_app.feature.pagos.ui.components.ATRAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
@@ -113,6 +114,7 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
             telemetry = telemetria
         ),
         tema = temaPort,
+        privacidad = FakePrivacidadPort(),
         telemetry = telemetria,
         // `Dispatchers.Unconfined` y no el del `MainDispatcherRule`: la carga de
         // la cartera tiene que haber terminado ANTES de que el test toque algo,
@@ -140,7 +142,6 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
     private fun Pantalla(vm: ListaDeClientesViewModel) {
         ListaDeClientesScreen(
             viewModel = vm,
-            onAtras = {},
             onAbrirCliente = {},
             onAbrirVenta = {}
         )
@@ -230,30 +231,50 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
     }
 
     /**
-     * **El botón cuesta cero dp de alto.** El hueco de la derecha de
-     * `BarraDeDetalle` existe porque la fila ya medía 56dp por el botón de atrás
-     * (ver su KDoc: *"un afordante que viaja con una fila que ya existía no
-     * cuesta un solo dp de alto"*). El toggle mide 40dp, así que no puede
-     * empujar nada — y esto lo mide en la escala de fuente más grande, que es
-     * donde un control que creciera se notaría primero.
+     * **El encabezado no se estira con la escala de fuente.**
+     *
+     * La primera versión de este test afirmaba que el toggle nunca era más alto
+     * que el botón de atrás, y se apoyaba en que ambos viajaban en la fila de
+     * `BarraDeDetalle`. Esa fila se retiró —la lista es pantalla de nivel
+     * superior y se llega desde el cajón—, así que los dos toggles bajaron al
+     * renglón del título.
+     *
+     * Y al medirlo cayó la suposición con la que se reescribió: a `MUY_GRANDE` el
+     * título mide 17.5dp y el toggle 40, o sea que **son los toggles los que
+     * fijan el alto del renglón**, no el título. Lo que sí se sostiene —y es lo
+     * que de verdad protege a la cabecera— es que ese alto es CONSTANTE: el
+     * toggle es un icon-surface de 40dp sin texto, así que no crece con la
+     * escala. El renglón mide lo mismo a 1.0 que a 2.0.
+     *
+     * Antes la misma franja costaba 56dp por el botón de atrás. Ahora cuesta 40.
      */
     @Test
-    fun `el toggle nunca es mas alto que el boton de atras`() {
-        // La escala más grande es la única que puede romper la invariante (un
-        // control con texto crecería ahí primero); las otras dos las retrata la
-        // matriz de goldens. `setContent` admite una sola llamada por prueba,
-        // así que acá se mide una escala, no tres.
+    fun `el encabezado no se estira con la escala de fuente`() {
+        // `setContent` admite una sola llamada por prueba, así que se mide la
+        // escala donde un control con texto crecería primero.
         lista(nivel = FontSizeLevel.MUY_GRANDE)
 
-        val atras = composeTestRule.onNodeWithTag(ATRAS_TAG).getUnclippedBoundsInRoot()
         val toggle = composeTestRule
             .onNodeWithContentDescription(DESCRIPCION_A_OSCURO)
             .getUnclippedBoundsInRoot()
 
-        assertTrue(
-            "el botón de atrás mide ${atras.height} y el toggle ${toggle.height}: " +
-                "el toggle no puede ser el que fija el alto de la fila",
-            toggle.height <= atras.height
+        assertEquals(
+            "el toggle creció con la escala de fuente: la cabecera ya no tiene alto fijo",
+            ALTO_DEL_TOGGLE,
+            toggle.height
         )
+        assertTrue(
+            "el renglón de los toggles (${toggle.height}) no puede costar más que la " +
+                "fila de atrás que reemplazó ($ALTO_DE_LA_FILA_DE_ATRAS)",
+            toggle.height <= ALTO_DE_LA_FILA_DE_ATRAS
+        )
+    }
+
+    private companion object {
+        /** El icon-surface del design system, sin texto: no escala con la fuente. */
+        val ALTO_DEL_TOGGLE = 40.dp
+
+        /** Lo que medía la fila de `BarraDeDetalle` por su botón de atrás. */
+        val ALTO_DE_LA_FILA_DE_ATRAS = 56.dp
     }
 }

@@ -16,6 +16,7 @@ import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDeLaFicha
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
@@ -291,6 +292,25 @@ class FakeTemaDeLaAppPort(oscuroInicial: Boolean = false) : TemaDeLaAppPort {
     override fun oscuroAhora(): Boolean = estado.value
 
     override fun alternar() {
+        alternaciones++
+        estado.value = !estado.value
+    }
+}
+
+/** "Esconder cantidades" — estado público y cuenta de alternaciones. */
+class FakePrivacidadPort(ocultosIniciales: Boolean = false) : PrivacidadPort {
+
+    private val estado = MutableStateFlow(ocultosIniciales)
+
+    /** Cuántas veces se pidió alternar, en orden de llegada. */
+    var alternaciones: Int = 0
+        private set
+
+    override val ocultos: Flow<Boolean> = estado.asStateFlow()
+
+    override fun ocultosAhora(): Boolean = estado.value
+
+    override suspend fun alternar() {
         alternaciones++
         estado.value = !estado.value
     }

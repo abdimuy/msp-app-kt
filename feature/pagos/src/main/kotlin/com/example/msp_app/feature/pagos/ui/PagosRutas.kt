@@ -148,14 +148,12 @@ fun NavGraphBuilder.destinosDePagos(
  * largo; la Task 21, que cablea los puntos de entrada, llama a los dos.
  */
 fun NavGraphBuilder.destinoDeListaDeClientes(
-    onAtras: () -> Unit,
     onAbrirCliente: (Int) -> Unit,
     onAbrirVenta: (Int) -> Unit
 ) {
     composable(route = PagosRutas.LISTA_CLIENTES) {
         ListaDeClientesScreen(
             viewModel = hiltViewModel(),
-            onAtras = onAtras,
             onAbrirCliente = onAbrirCliente,
             onAbrirVenta = onAbrirVenta
         )

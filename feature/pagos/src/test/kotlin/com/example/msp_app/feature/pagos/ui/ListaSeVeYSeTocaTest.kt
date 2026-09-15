@@ -72,13 +72,13 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
                 clientes = proyeccion.clientes,
                 conteos = proyeccion.conteos
             ),
-            onAtras = {},
             onBuscar = {},
             onElegirSegmento = {},
             onAbrirCliente = {},
             onAbrirVenta = {},
             onReintentar = {},
-            onAlternarTema = {}
+            onAlternarTema = {},
+            onAlternarPrivacidad = {}
         )
     }
 
@@ -209,13 +209,13 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
                         cargando = false,
                         segmento = SegmentoDeCobranza.HOY
                     ),
-                    onAtras = {},
                     onBuscar = {},
                     onElegirSegmento = {},
                     onAbrirCliente = {},
                     onAbrirVenta = {},
                     onReintentar = {},
-                    onAlternarTema = {}
+                    onAlternarTema = {},
+                    onAlternarPrivacidad = {}
                 )
             }
         }

@@ -10,6 +10,7 @@ import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ReunirCartera
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
+import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -39,6 +40,11 @@ data class ListaDeClientesUiState(
      * nuevo, sync pendiente) y se dice con el vacío, no con un error.
      */
     val fallo: Boolean = false,
+    /**
+     * "Esconder cantidades" — lo mantiene [PrivacidadPort], que es la preferencia
+     * global de la app, no un espejo local de esta pantalla.
+     */
+    val montosOcultos: Boolean = false,
     /**
      * Tema oscuro vigente **de la app entera** — lo pinta el botón sol/luna del
      * encabezado. No es un espejo local: lo siembra y lo mantiene
@@ -74,6 +80,7 @@ class ListaDeClientesViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val reunirCartera: ReunirCartera,
     private val tema: TemaDeLaAppPort,
+    private val privacidad: PrivacidadPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -108,12 +115,18 @@ class ListaDeClientesViewModel @Inject constructor(
      * era eager, colgada de `viewModelScope`.
      */
     val state: StateFlow<ListaDeClientesUiState> =
-        combine(mutableState, tema.oscuro) { cartera, oscuro ->
-            cartera.copy(temaOscuro = oscuro)
+        combine(mutableState, tema.oscuro, privacidad.ocultos) { cartera, oscuro, ocultos ->
+            cartera.copy(temaOscuro = oscuro, montosOcultos = ocultos)
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.Eagerly,
-            initialValue = ListaDeClientesUiState(temaOscuro = tema.oscuroAhora())
+            initialValue = ListaDeClientesUiState(
+                temaOscuro = tema.oscuroAhora(),
+                // Síncrono por la misma razón que el tema, y con más motivo: sin
+                // esto la pantalla enseñaría los montos un frame antes de
+                // esconderlos, que es justo lo que el botón existe para evitar.
+                montosOcultos = privacidad.ocultosAhora()
+            )
         )
 
     private var cartera: Cartera? = null
@@ -176,6 +189,15 @@ class ListaDeClientesViewModel @Inject constructor(
     }
 
     /**
+     * Esconde o enseña los montos. A diferencia del tema, [PrivacidadPort.alternar]
+     * SÍ suspende —escribe en DataStore—, así que va en una corrutina.
+     */
+    fun alternarPrivacidad() {
+        telemetry.tap(PANTALLA, ACCION_PRIVACIDAD)
+        viewModelScope.launch { privacidad.alternar() }
+    }
+
+    /**
      * `copy` en vez de un `ListaDeClientesUiState(...)` nuevo: nombra las seis que esta
      * proyección produce y deja intacto lo que no es suyo. Es lo correcto, pero **ya no es
      * lo que sostiene el tema** — eso lo sostiene la derivación de [state] (Ruling BQ), que
@@ -234,5 +256,6 @@ class ListaDeClientesViewModel @Inject constructor(
 
         /** Id de la acción del toggle en telemetría — mismo nombre que usa el reporte. */
         const val ACCION_TEMA = "theme_toggle"
+        const val ACCION_PRIVACIDAD = "privacy_toggle"
     }
 }
