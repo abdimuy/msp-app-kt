@@ -82,7 +82,12 @@ private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta {
         instanteDeVenta = instante,
         saldo = Money.of(SALDO_REST),
         parcialidad = Money.of(BigDecimal.valueOf(PARCIALIDAD.toLong())),
+        // La columna es nullable: sin dato no se afirma un promedio, y `Money.ZERO`
+        // sería afirmar que suele dar cero, que es otra cosa.
+        pagoPromedio = IMPORTE_PAGO_PROMEDIO?.let(Money::of),
         frecuencia = FREC_PAGO.orEmpty().lowercase(),
+        diaDeCobranza = DIA_COBRANZA.trim(),
+        diaTemporal = DIA_TEMPORAL_COBRANZA.trim(),
         abonosTotales = NUM_IMPORTES,
         totalVenta = Money.of(PRECIO_TOTAL),
         precioContado = Money.of(PRECIO_DE_CONTADO),

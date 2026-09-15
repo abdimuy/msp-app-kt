@@ -11,6 +11,7 @@ import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.HistorialDePagos
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
+import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import javax.inject.Inject
 
@@ -23,6 +24,7 @@ import javax.inject.Inject
 class CargarDetalleVenta @Inject constructor(
     private val ventasPort: VentasPort,
     private val garantiasPort: GarantiasPort,
+    private val productosPort: ProductosPort,
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
     private val clock: AppClock
 ) {
@@ -69,7 +71,7 @@ class CargarDetalleVenta @Inject constructor(
             abonado = venta.abonado,
             vendedor = venta.vendedor,
             estado = cobranza.estados[ventaId] ?: EstadoDelPeriodo.sinTocar(venta.parcialidad),
-            productos = productosDe(venta.descripcion, venta.totalVenta),
+            productos = productosDe(venta.folio, venta.descripcion, venta.totalVenta),
             historial = HistorialDePagos(
                 semanas = semanas,
                 resumen = RitmoDePagos.resumen(semanas),
@@ -82,14 +84,30 @@ class CargarDetalleVenta @Inject constructor(
     }
 
     /**
-     * Los productos de la venta. Room los trae concatenados en una sola columna
-     * (`GROUP_CONCAT(p.ARTICULO, ', ')` en `SaleDao.getByClientId`), así que
-     * aquí se parten de vuelta. El importe individual NO existe en ese origen:
-     * cuando hay un solo producto se le atribuye el total de la venta —que sí es
-     * cierto—, y con varios se deja en `null` antes que repartir un total entre
-     * renglones inventando precios.
+     * Los productos de la venta, **con su importe real** cuando la tabla
+     * `products` los tiene.
+     *
+     * [ProductosPort] lee `PRECIO_TOTAL_NETO` renglón por renglón, que es el
+     * importe de verdad. Antes esto partía por comas el `GROUP_CONCAT` de la
+     * venta y **solo podía atribuir importe con un único producto**: una venta
+     * de tres muebles pintaba tres renglones con la columna de dinero en blanco.
+     *
+     * El corte por comas se queda como **respaldo**, y no por prudencia
+     * decorativa: `products` se sincroniza aparte de `sales`, así que un folio
+     * puede existir con su descripción y todavía sin sus renglones. En ese caso
+     * se prefiere pintar los nombres sin importe a no pintar productos — el
+     * cobrador reconoce el mueble por su nombre, que es para lo que mira esta
+     * sección. La atribución del total a un producto único se conserva igual:
+     * con uno solo, el total de la venta SÍ es su importe.
      */
-    private fun productosDe(descripcion: String, totalVenta: Money): List<ProductoDeVenta> {
+    private suspend fun productosDe(
+        folio: String,
+        descripcion: String,
+        totalVenta: Money
+    ): List<ProductoDeVenta> =
+        productosPort.productosDe(folio).ifEmpty { deLaDescripcion(descripcion, totalVenta) }
+
+    private fun deLaDescripcion(descripcion: String, totalVenta: Money): List<ProductoDeVenta> {
         val nombres = descripcion.split(",").map { it.trim() }.filter { it.isNotEmpty() }
         val importe = totalVenta.takeIf { nombres.size == 1 }
         return nombres.map { ProductoDeVenta(nombre = it, importe = importe) }

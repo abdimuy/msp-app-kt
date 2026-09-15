@@ -2,15 +2,18 @@ package com.example.msp_app.feature.pagos.di
 
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.data.adapter.RoomGarantiasAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomPagosAdapter
+import com.example.msp_app.feature.pagos.data.adapter.RoomProductosAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomVentasAdapter
 import com.example.msp_app.feature.pagos.data.adapter.RoomVisitasAdapter
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
+import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import com.example.msp_app.feature.pagos.domain.port.VisitasPort
 import dagger.Module
@@ -63,6 +66,10 @@ object PagosDataModule {
     @Provides
     fun providePagosPort(paymentDao: PaymentDao, telemetry: Telemetry): PagosPort =
         RoomPagosAdapter(paymentDao, telemetry)
+
+    @Provides
+    fun provideProductosPort(productDao: ProductDao): ProductosPort =
+        RoomProductosAdapter(productDao)
 
     @Provides
     fun provideGarantiasPort(guaranteeDao: GuaranteeDao): GarantiasPort =

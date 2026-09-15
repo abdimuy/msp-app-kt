@@ -15,6 +15,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
 import com.example.msp_app.feature.pagos.data.fake.FakeRegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
@@ -62,6 +63,8 @@ class RegistrarAbonoFotosTest {
     private val visitasPort = FakeVisitasPort()
     private val liquidacionPort = FakeLiquidacionPort()
     private val garantiasPort = FakeGarantiasPort()
+
+    private val productosPort = FakeProductosPort()
     private val periodoPort = FakePeriodoDeCobroPort()
     private val registroPort = FakeRegistroDeAbonoPort()
     private val camaraPort = FakeComprobantesPort()
@@ -495,6 +498,7 @@ class RegistrarAbonoFotosTest {
         cargarDetalleVenta = CargarDetalleVenta(
             ventasPort = ventasPort,
             garantiasPort = garantiasPort,
+            productosPort = productosPort,
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,

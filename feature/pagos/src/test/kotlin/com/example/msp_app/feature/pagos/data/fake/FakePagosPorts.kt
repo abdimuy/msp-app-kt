@@ -8,6 +8,7 @@ import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
+import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.AbonoARegistrar
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
@@ -17,6 +18,7 @@ import com.example.msp_app.feature.pagos.domain.port.LiquidacionPort
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.PeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
+import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import com.example.msp_app.feature.pagos.domain.port.RegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDeLaFicha
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
@@ -121,6 +123,24 @@ class FakeLiquidacionPort : LiquidacionPort {
     var liquidaciones: Map<Int, Liquidacion> = emptyMap()
 
     override suspend fun liquidacionDe(ventaId: Int): Liquidacion? = liquidaciones[ventaId]
+}
+
+/**
+ * Fake de [ProductosPort]. Por defecto contesta VACÍO, que es el caso real de un
+ * folio cuyos renglones todavía no sincronizaron — así el respaldo por comas de
+ * `CargarDetalleVenta` queda cubierto por los tests que no siembran nada.
+ */
+class FakeProductosPort : ProductosPort {
+
+    var porFolio: Map<String, List<ProductoDeVenta>> = emptyMap()
+
+    /** Cada folio consultado, en orden — para afirmar que SÍ se preguntó. */
+    val foliosConsultados: MutableList<String> = mutableListOf()
+
+    override suspend fun productosDe(folio: String): List<ProductoDeVenta> {
+        foliosConsultados += folio
+        return porFolio[folio].orEmpty()
+    }
 }
 
 class FakeGarantiasPort : GarantiasPort {

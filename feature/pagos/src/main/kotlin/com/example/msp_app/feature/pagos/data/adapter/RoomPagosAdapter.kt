@@ -9,6 +9,7 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
+import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.domain.port.PagosPort
 
 /**
@@ -103,6 +104,9 @@ private fun PaymentEntity.aPagoDelHistorial(): PagoDelHistorial? {
         // El UUID de la captura, cuando el merge ya re-llaveó la fila. Ver el
         // KDoc de `PagoDelHistorial.capturaId`: es el único rastro que queda del
         // id con el que el teléfono escribió este abono.
-        capturaId = PAGO_RECIBIDO_ID
+        capturaId = PAGO_RECIBIDO_ID,
+        // `de` deja pasar SOLO el par completo: media coordenada pintaría un pin
+        // en el meridiano cero, que es un dato falso y no uno ausente.
+        ubicacion = UbicacionDelCobro.de(LAT, LNG)
     )
 }

@@ -54,7 +54,32 @@ data class DatosDeVenta(
     val instanteDeVenta: Instant?,
     val saldo: Money,
     val parcialidad: Money,
+    /**
+     * `IMPORTE_PAGO_PROMEDIO` — lo que este cliente **suele dar** por abono.
+     *
+     * **Se lee, no se deriva**, por el mismo argumento que [atrasos]: la columna
+     * ya viajaba en la proyección de `SaleDao` sin que nadie la pintara, y
+     * recalcular el promedio sobre el historial local daría OTRA cifra para el
+     * mismo cliente según cuántos pagos alcanzó a sincronizar ese teléfono. Dos
+     * cobradores verían dos "suele dar" distintos del mismo cliente.
+     *
+     * `null` cuando la columna viene vacía: sin dato no se afirma un promedio.
+     */
+    val pagoPromedio: Money?,
     val frecuencia: String,
+    /**
+     * `DIA_COBRANZA` — el día de la semana en que a esta venta le toca la ruta,
+     * tal como lo manda el servidor. Vacío cuando la fila no lo trae.
+     */
+    val diaDeCobranza: String,
+    /**
+     * `DIA_TEMPORAL_COBRANZA` — el día al que se movió **esta vuelta**, cuando
+     * alguien lo cambió (`SaleDao.updateTemporaryCollectionDate`).
+     *
+     * Manda sobre [diaDeCobranza] mientras traiga algo, y solo por esta vuelta.
+     * Vacío es el caso normal: nadie lo movió.
+     */
+    val diaTemporal: String,
     val abonosTotales: Int,
     val totalVenta: Money,
     val precioContado: Money,
@@ -78,6 +103,17 @@ data class DatosDeVenta(
 ) {
     /** Lo abonado hasta hoy: total financiado menos lo que falta. */
     val abonado: Money get() = totalVenta - saldo
+
+    /**
+     * El día en que hay que pasar: [diaTemporal] si alguien lo movió, y si no
+     * [diaDeCobranza].
+     *
+     * La precedencia vive **aquí y en un solo lugar** a propósito. Es la misma
+     * que aplica `SaleDao.updateTemporaryCollectionDate` al escribir, y dejarla
+     * a cargo de cada pantalla es cómo se termina con dos sitios diciendo días
+     * distintos del mismo cliente.
+     */
+    val diaDeRuta: String get() = diaTemporal.ifBlank { diaDeCobranza }
 }
 
 /**

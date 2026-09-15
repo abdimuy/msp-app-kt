@@ -135,8 +135,37 @@ data class PagoDelHistorial(
      * camino del dinero. Se dice acá en vez de dejar creer que el oráculo es
      * total.
      */
-    val capturaId: String? = null
+    val capturaId: String? = null,
+    /**
+     * Dónde se cobró este abono, cuando el teléfono lo pudo tomar.
+     *
+     * `Payment.LAT`/`LNG` ya viajaban en las TRES proyecciones del historial
+     * (`getPaymentById`, `getPaymentsBySaleId`, `getPaymentsByDate`) sin que
+     * nadie las mapeara. Es lo que pone el pin del mapa del detalle en la puerta
+     * donde de verdad se cobró, en vez de geocodificar una dirección de texto.
+     *
+     * `null` en todo abono capturado sin permiso de ubicación o sin señal, y en
+     * el histórico anterior a que se guardara.
+     */
+    val ubicacion: UbicacionDelCobro? = null
 )
+
+/**
+ * El punto donde se cobró un abono.
+ *
+ * **Existe como un solo valor, y no como dos `Double?` sueltos, a propósito.**
+ * Media coordenada no ubica nada: una latitud sin longitud pintaría un pin en el
+ * meridiano cero, o sea un dato FALSO en vez de un dato ausente. [de] es la
+ * única puerta de entrada y solo deja pasar el par completo.
+ */
+data class UbicacionDelCobro(val lat: Double, val lng: Double) {
+
+    companion object {
+        /** El par, o `null` si falta cualquiera de los dos. */
+        fun de(lat: Double?, lng: Double?): UbicacionDelCobro? =
+            if (lat != null && lng != null) UbicacionDelCobro(lat, lng) else null
+    }
+}
 
 /**
  * Cómo entró el dinero. Solo los tres que `VentanaCobro.FORMAS_COBRO_COBRANZA`

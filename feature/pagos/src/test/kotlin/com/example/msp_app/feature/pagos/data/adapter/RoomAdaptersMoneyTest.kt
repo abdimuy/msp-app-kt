@@ -299,6 +299,127 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
         assertEquals("Refrigerador Mabe 14'", ventas.ventasDelCliente(CLIENTE).single().descripcion)
     }
 
+    /**
+     * **Lo que ya llegaba al adaptador y nadie pintaba.** Las tres columnas
+     * viajaban en la proyección de `SaleDao` desde antes de este trabajo; lo que
+     * faltaba era mapearlas.
+     *
+     * **Control de reversión:** quitar cualquiera de las tres líneas del mapeo de
+     * `RoomVentasAdapter` pone este test en ROJO.
+     */
+    @Test
+    fun `el promedio y los dos dias de cobranza se mapean`() = runTest {
+        db.saleDao().insertAll(
+            listOf(venta().copy(IMPORTE_PAGO_PROMEDIO = 150.0, DIA_COBRANZA = " JUEVES "))
+        )
+
+        val datos = ventas.ventasDelCliente(CLIENTE).single()
+
+        assertEquals(Money.of(BigDecimal("150.00")), datos.pagoPromedio)
+        assertEquals("JUEVES", datos.diaDeCobranza)
+        assertEquals("", datos.diaTemporal)
+    }
+
+    /**
+     * Sin `IMPORTE_PAGO_PROMEDIO` no se afirma un promedio. `Money.ZERO` diría
+     * "suele dar cero", que es una afirmación distinta de "no se sabe".
+     */
+    @Test
+    fun `sin promedio en la columna no se inventa un cero`() = runTest {
+        db.saleDao().insertAll(listOf(venta()))
+        assertNull(ventas.ventasDelCliente(CLIENTE).single().pagoPromedio)
+    }
+
+    /**
+     * El día movido MANDA sobre el de catálogo, y la precedencia vive en un solo
+     * lugar ([com.example.msp_app.feature.pagos.domain.model.DatosDeVenta.diaDeRuta]).
+     */
+    @Test
+    fun `el dia temporal manda sobre el dia de cobranza mientras traiga algo`() = runTest {
+        db.saleDao().insertAll(
+            listOf(venta().copy(DIA_COBRANZA = "LUNES", DIA_TEMPORAL_COBRANZA = "JUEVES"))
+        )
+        assertEquals("JUEVES", ventas.ventasDelCliente(CLIENTE).single().diaDeRuta)
+
+        db.saleDao().insertAll(
+            listOf(venta().copy(DIA_COBRANZA = "LUNES", DIA_TEMPORAL_COBRANZA = "   "))
+        )
+        assertEquals("LUNES", ventas.ventasDelCliente(CLIENTE).single().diaDeRuta)
+    }
+
+    /**
+     * **Dónde se cobró.** `LAT`/`LNG` ya viajaban en las tres proyecciones del
+     * historial sin mapearse.
+     *
+     * **Control de reversión:** quitar `ubicacion = UbicacionDelCobro.de(LAT, LNG)`
+     * pone este test en ROJO.
+     */
+    @Test
+    fun `el historial trae el punto donde se cobro`() = runTest {
+        db.saleDao().insertAll(listOf(venta()))
+        db.paymentDao().saveAll(
+            listOf(pago("p1", EFECTIVO, 350.0).copy(LAT = 18.46, LNG = -97.39))
+        )
+
+        val ubicacion = pagos.pagosDe(VENTA).single().ubicacion!!
+
+        assertEquals(18.46, ubicacion.lat, 0.0)
+        assertEquals(-97.39, ubicacion.lng, 0.0)
+    }
+
+    /**
+     * **Media coordenada no ubica nada.** Una latitud sin longitud pintaría el
+     * pin en el meridiano cero: un dato FALSO, no uno ausente.
+     */
+    @Test
+    fun `media coordenada no es una ubicacion`() = runTest {
+        db.saleDao().insertAll(listOf(venta()))
+        db.paymentDao().saveAll(
+            listOf(
+                pago("p1", EFECTIVO, 350.0).copy(LAT = 18.46, LNG = null),
+                pago("p2", EFECTIVO, 350.0).copy(LAT = null, LNG = -97.39),
+                pago("p3", EFECTIVO, 350.0)
+            )
+        )
+
+        assertTrue(pagos.pagosDe(VENTA).all { it.ubicacion == null })
+    }
+
+    /**
+     * **El importe por renglón que la pantalla no podía pintar.** El
+     * `GROUP_CONCAT` de la venta solo trae nombres; con dos o más productos la
+     * columna de dinero quedaba en blanco. `products` sí tiene
+     * `PRECIO_TOTAL_NETO` por renglón.
+     *
+     * Prueba también el orden: la `@Query` no lleva `ORDER BY`, así que el
+     * adaptador ordena por `POSICION` para que el renglón de arriba no dependa
+     * del plan de consulta.
+     */
+    @Test
+    fun `cada producto llega con su importe real y en el orden de captura`() = runTest {
+        // Las llaves van AL REVÉS de `POSICION` a propósito: sin el `sortedWith`
+        // SQLite emite por rowid y contestaría "Base para cama" primero, así que
+        // el orden que afirma este test no puede salir por casualidad.
+        db.productDao().saveAll(
+            listOf(
+                ProductEntity(1, CREDITO, "V-5188", 11, "Base para cama", 1, 1200.0, 1200.0, 2),
+                ProductEntity(2, CREDITO, "V-5188", 10, "Sala 3 piezas", 1, 5200.0, 5200.0, 1)
+            )
+        )
+
+        val productos = RoomProductosAdapter(db.productDao()).productosDe("V-5188")
+
+        assertEquals(listOf("Sala 3 piezas", "Base para cama"), productos.map { it.nombre })
+        assertEquals(Money.of(BigDecimal("5200.00")), productos.first().importe)
+        assertEquals(Money.of(BigDecimal("1200.00")), productos.last().importe)
+    }
+
+    /** Un folio cuyos renglones no sincronizaron contesta vacío, no lanza. */
+    @Test
+    fun `un folio sin renglones contesta vacio`() = runTest {
+        assertTrue(RoomProductosAdapter(db.productDao()).productosDe("V-0000").isEmpty())
+    }
+
     @Test
     fun `PROMESA_MONTO_CENTAVOS cruza exacto a pesos con centavos`() = runTest {
         db.visitDao().insertVisit(visita("v1", centavos = 35050))
