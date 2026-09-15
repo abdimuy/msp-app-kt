@@ -110,11 +110,21 @@ class EstadoCuentaUiTest {
         assertEquals("Quedaron de verse", EstadoCuentaUi.detalleDe(conHora))
     }
 
+    /**
+     * **Los dos ya NO comparten glifo, y ese es el arreglo.**
+     *
+     * Compartían el triángulo de advertencia, así que en pantalla una promesa sin
+     * fecha y una cita sin hora se veían idénticas y solo el texto las separaba.
+     * Ahora cada una dice qué dato le falta: calendario sin día contra reloj sin
+     * manecillas. Lo que se conserva es el TRATO —los dos siguen siendo un
+     * pendiente— porque eso no cambió.
+     */
     @Test
-    fun `los dos compromisos sin su dato comparten tratamiento y no se confunden con los que si lo tienen`() {
+    fun `los dos compromisos sin su dato comparten trato pero ya no comparten glifo`() {
         // Misma forma: sin el dato que lo sostiene, el compromiso es un pendiente.
         assertEquals(EstadoCuentaUi.tratoDe(promesa(null)), EstadoCuentaUi.tratoDe(cita(null)))
-        assertEquals(EstadoCuentaUi.iconoDe(promesa(null)), EstadoCuentaUi.iconoDe(cita(null)))
+        // Pero cada uno con su glifo: el que faltaba era este.
+        assertNotEquals(EstadoCuentaUi.iconoDe(promesa(null)), EstadoCuentaUi.iconoDe(cita(null)))
         // Y ninguno comparte ícono con su versión completa.
         assertNotEquals(
             EstadoCuentaUi.iconoDe(cita(null)),

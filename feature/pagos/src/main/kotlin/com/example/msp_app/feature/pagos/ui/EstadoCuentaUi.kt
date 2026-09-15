@@ -185,8 +185,12 @@ object EstadoCuentaUi {
     fun iconoDe(estado: EstadoDelPeriodo): ImageVector = when (tratoDe(estado)) {
         TratoDelEstado.PAGADO -> PagosIconos.Pago
         TratoDelEstado.PARCIAL -> PagosIconos.Parcial
+        // Los dos compartían el triángulo de advertencia y en pantalla se veían
+        // idénticos. Ahora cada uno dice QUÉ dato le falta: a la promesa el día,
+        // a la cita la hora.
         TratoDelEstado.REGRESAS -> when (estado.estado) {
-            EstadoCuenta.PROMETIO_PROXIMA, EstadoCuenta.CITA_A_UNA_HORA -> PagosIconos.SinDatoQueLoSostenga
+            EstadoCuenta.PROMETIO_PROXIMA -> PagosIconos.PrometioSinFecha
+            EstadoCuenta.CITA_A_UNA_HORA -> PagosIconos.CitaSinHora
             else -> PagosIconos.Vuelvo
         }
         TratoDelEstado.DIFERIDO -> PagosIconos.Prometio

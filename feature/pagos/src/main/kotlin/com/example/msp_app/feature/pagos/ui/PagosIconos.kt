@@ -1,101 +1,189 @@
 package com.example.msp_app.feature.pagos.ui
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 
 /**
- * Los ocho glifos de estado de las pantallas de detalle.
+ * Los **diez** glifos de estado de la cobranza, dibujados a TRAZO.
  *
- * ## Por qué existe este objeto y no se reusa `MspIcons`
+ * ## Por qué trazo y no relleno
  *
- * `MspIcons` (`:core:designsystem`) es **`internal` por decisión explícita de
- * la Task 9** —su KDoc dice "nada fuera del módulo instancia estos íconos
- * directamente"— y esa decisión no se relitiga desde aquí. Lo que sí se copia
- * es su método: los glifos que no están en `material-icons-core` se transcriben
- * 1:1 del path SVG oficial de Material Icons (viewport 24×24) en vez de
- * arrastrar `material-icons-extended`, que pesa.
+ * Los nueve glifos anteriores eran todos de relleno —`grep -c stroke` sobre este
+ * archivo devolvía 0—, así que el aspecto de "contorno" de la cita y de "sin
+ * trabajar" era en realidad un **dónut relleno**, no una línea. Kollect declara
+ * `strokeLineWidth` ícono por ícono (`CampoIcons.kt:16-17,24`) y esa es la
+ * diferencia estructural entre los dos juegos, no el dibujo.
  *
- * Los tres paths transcritos son literalmente los mismos que `MspIcons` ya
- * transcribió (`contrast`, `schedule`, `radio_button_unchecked`). Esa
- * duplicación está reportada como preocupación de la Task 16: la salida
- * correcta es que un trabajo del design system publique `MspIcons`, no que
- * cada feature vuelva a copiar paths.
+ * El grosor se declara **por glifo** y no con una constante única: un tache de
+ * dos líneas aguanta más peso que un calendario con seis, y a 11.88dp esa
+ * diferencia es la que decide si se lee o se emborrona.
+ *
+ * ## Por qué ahora son diez y no nueve
+ *
+ * `SinDatoQueLoSostenga` servía a DOS estados a la vez —"prometió sin fecha" y
+ * "cita sin hora"— con el mismo triángulo de advertencia, así que en pantalla
+ * los dos se veían idénticos. Se parten: [PrometioSinFecha] es un calendario sin
+ * día y [CitaSinHora] un reloj sin manecillas. Cada estado tiene por fin su
+ * glifo.
+ *
+ * Y [NoEstaba] pasa a ser una casa **tachada**: la casa sola decía "casa", no
+ * "no había nadie". Kollect usa `HouseSlash` por la misma razón.
+ *
+ * ## Dónde se miden
+ *
+ * El tamaño más chico en que se pintan es **11.88dp** —`CuadroDeEstado` de 22dp
+ * por `PiezasComunes.kt:61`, en las dos pantallas de detalle— y **14dp** en el
+ * chip de estado de la lista. Un trazo de 2.0 sobre 24 unidades mide 0.99dp a
+ * 11.88, por debajo de un píxel en densidad 1.0; por eso los glifos con más
+ * líneas suben de grosor.
+ *
+ * ## Deuda conocida, y NO se toca aquí
+ *
+ * Hay tres objetos de íconos con paths copiados —`MspIcons` (internal al design
+ * system), este y `VisitasIconos`—. La salida correcta es que un trabajo del
+ * design system publique `MspIcons`; unificarlos desde aquí es trabajo propio y
+ * está fuera de este cambio.
  */
 internal object PagosIconos {
 
-    /** Pagó → check. De `material-icons-core`. */
-    val Pago: ImageVector = Icons.Filled.Check
+    /** Pagó → palomita. Dos trazos, aguanta el grosor alto. */
+    val Pago: ImageVector = trazo("pago", GROSOR_GRUESO, CHECK)
 
-    /** Abonó parcial → círculo medio lleno (Material `contrast`). */
-    val Parcial: ImageVector = materialVector("parcial", CONTRAST_PATH)
+    /** Abonó parcial → círculo con la mitad derecha llena. */
+    val Parcial: ImageVector = trazo("parcial", GROSOR_NORMAL, CIRCULO, relleno = MEDIA_LUNA)
 
-    /** Visité, vuelvo → flecha de regreso. De `material-icons-core`. */
-    val Vuelvo: ImageVector = Icons.Filled.Refresh
+    /** Visité, vuelvo → flecha de regreso. */
+    val Vuelvo: ImageVector = trazo("vuelvo", GROSOR_NORMAL, ARCO_DE_REGRESO, PUNTA_DE_REGRESO)
 
-    /** Prometió CON fecha → calendario. De `material-icons-core`. */
-    val Prometio: ImageVector = Icons.Filled.DateRange
+    /** Prometió CON fecha → calendario con su día marcado. */
+    val Prometio: ImageVector =
+        trazo("prometio", GROSOR_FINO, MARCO_CALENDARIO, GRAPAS, RENGLON, relleno = DIA_MARCADO)
 
     /**
-     * Prometió sin fecha, o quedaron de verse sin hora → advertencia.
+     * Prometió SIN fecha → calendario **sin día**.
      *
-     * No es el calendario ni el reloj a propósito: un compromiso al que le
-     * falta el dato que lo sostiene no es un compromiso, es un pendiente — y
-     * tiene que verse distinto de los dos estados que sí lo tienen.
+     * Antes compartía el triángulo de advertencia con [CitaSinHora]. Un
+     * compromiso al que le falta el dato que lo sostiene no es un pendiente
+     * genérico: es una promesa a la que le falta el DÍA, y el glifo lo dice.
      */
-    val SinDatoQueLoSostenga: ImageVector = Icons.Filled.Warning
+    val PrometioSinFecha: ImageVector =
+        trazo("prometio_sin_fecha", GROSOR_FINO, MARCO_CALENDARIO, GRAPAS, RENGLON, HUECO_DEL_DIA)
 
-    /** Se negó → tache. De `material-icons-core`. */
-    val Negado: ImageVector = Icons.Filled.Clear
+    /**
+     * Cita sin hora → reloj **sin manecillas**.
+     *
+     * El otro mitad del triángulo que servía a dos estados. Aquí lo que falta es
+     * la HORA, y un reloj con marcas pero sin manecillas lo dice sin texto.
+     */
+    val CitaSinHora: ImageVector =
+        trazo("cita_sin_hora", GROSOR_NORMAL, CIRCULO, MARCAS_DEL_RELOJ)
 
-    /** Cita → reloj (Material `schedule`). */
-    val Cita: ImageVector = materialVector("cita", SCHEDULE_PATH)
+    /** Se negó → tache. */
+    val Negado: ImageVector = trazo("negado", GROSOR_GRUESO, TACHE)
 
-    /** No estaba → casa. De `material-icons-core`. */
-    val NoEstaba: ImageVector = Icons.Filled.Home
+    /** Cita → reloj con manecillas. */
+    val Cita: ImageVector = trazo("cita", GROSOR_NORMAL, CIRCULO, MANECILLAS)
 
-    /** Sin trabajar → anillo vacío (Material `radio_button_unchecked`). */
-    val SinTocar: ImageVector = materialVector("sin_tocar", CIRCLE_OUTLINE_PATH)
+    /** No estaba → casa **tachada**. La casa sola decía "casa". */
+    val NoEstaba: ImageVector =
+        trazo("no_estaba", GROSOR_NORMAL, TECHO, PAREDES, TACHADURA)
+
+    /** Sin trabajar → anillo vacío. */
+    val SinTocar: ImageVector = trazo("sin_tocar", GROSOR_NORMAL, CIRCULO)
 }
 
-/** Dimensión estándar de los íconos Material (property declaration → sin MagicNumber). */
+/**
+ * Construye un glifo de 24×24 a trazo, con el grosor que le toca.
+ *
+ * [relleno] es la excepción medida: la media luna de "abonó parcial" es una
+ * superficie, no una línea, y dibujarla con trazo la convertiría en dos arcos.
+ */
+private fun trazo(
+    nombre: String,
+    grosor: Float,
+    vararg lineas: String,
+    relleno: String? = null
+): ImageVector {
+    val builder = ImageVector.Builder(
+        name = "pagos_$nombre",
+        defaultWidth = ICON_DIMENSION,
+        defaultHeight = ICON_DIMENSION,
+        viewportWidth = ICON_VIEWPORT,
+        viewportHeight = ICON_VIEWPORT
+    )
+    relleno?.let {
+        builder.addPath(
+            pathData = PathParser().parsePathString(it).toNodes(),
+            fill = SolidColor(Color.Black)
+        )
+    }
+    lineas.forEach { linea ->
+        builder.addPath(
+            pathData = PathParser().parsePathString(linea).toNodes(),
+            stroke = SolidColor(Color.Black),
+            strokeLineWidth = grosor,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = StrokeJoin.Round
+        )
+    }
+    return builder.build()
+}
+
+/** Dimensión estándar de los íconos Material. */
 private val ICON_DIMENSION = 24.dp
 
 /** Viewport estándar de los paths Material 24×24. */
 private const val ICON_VIEWPORT = 24f
 
-private fun materialVector(name: String, pathData: String): ImageVector = ImageVector.Builder(
-    name = "pagos_$name",
-    defaultWidth = ICON_DIMENSION,
-    defaultHeight = ICON_DIMENSION,
-    viewportWidth = ICON_VIEWPORT,
-    viewportHeight = ICON_VIEWPORT
-).addPath(
-    pathData = PathParser().parsePathString(pathData).toNodes(),
-    fill = SolidColor(Color.Black)
-).build()
+/** Para glifos de muchas líneas (el calendario): más fino, o se emborrona. */
+private const val GROSOR_FINO = 1.8f
 
-/** Material `contrast` — círculo con la mitad derecha llena. */
-private const val CONTRAST_PATH =
-    "M12,22c5.52,0 10,-4.48 10,-10S17.52,2 12,2 2,6.48 2,12s4.48,10 10,10z" +
-        "M13,4.07c3.94,0.49 7,3.85 7,7.93s-3.05,7.44 -7,7.93L13,4.07z"
+/** El grosor de casa. */
+private const val GROSOR_NORMAL = 2.0f
 
-/** Material `radio_button_unchecked` — anillo (círculo vacío). */
-private const val CIRCLE_OUTLINE_PATH =
-    "M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2z" +
-        "M12,20c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z"
+/** Para glifos de dos trazos sueltos (palomita y tache): aguantan más peso. */
+private const val GROSOR_GRUESO = 2.4f
 
-/** Material `schedule` — reloj con manecillas. */
-private const val SCHEDULE_PATH =
-    "M11.99,2C6.47,2 2,6.48 2,12s4.47,10 9.99,10C17.52,22 22,17.52 22,12S17.52,2 11.99,2z" +
-        "M12,20c-4.42,0 -8,-3.58 -8,-8s3.58,-8 8,-8 8,3.58 8,8 -3.58,8 -8,8z" +
-        "M12.5,7H11v6l5.25,3.15 0.75,-1.23 -4.5,-2.67z"
+// ── Los trazos, en el viewport de 24×24 ──────────────────────────────────────
+
+private const val CHECK = "M4,12.5 L9.5,18 L20,6.5"
+
+private const val TACHE = "M6.5,6.5 L17.5,17.5 M17.5,6.5 L6.5,17.5"
+
+/** Círculo completo, en dos arcos: es lo que `PathParser` acepta sin trucos. */
+private const val CIRCULO = "M3,12 A9,9 0 1,1 21,12 A9,9 0 1,1 3,12"
+
+/** La mitad derecha del mismo círculo, como superficie. */
+private const val MEDIA_LUNA = "M12,3 A9,9 0 0,1 12,21 Z"
+
+private const val ARCO_DE_REGRESO = "M20.5,12 A8.5,8.5 0 1,1 18.01,5.99"
+private const val PUNTA_DE_REGRESO = "M20.5,3.5 L20.5,9 L15,9"
+
+private const val MARCO_CALENDARIO =
+    "M3,7.5 A2.5,2.5 0 0,1 5.5,5 L18.5,5 A2.5,2.5 0 0,1 21,7.5 " +
+        "L21,18.5 A2.5,2.5 0 0,1 18.5,21 L5.5,21 A2.5,2.5 0 0,1 3,18.5 Z"
+
+private const val GRAPAS = "M8,2.5 L8,7.5 M16,2.5 L16,7.5"
+
+private const val RENGLON = "M3,10.5 L21,10.5"
+
+/** El día marcado: un punto lleno. */
+private const val DIA_MARCADO = "M12,14 A1.6,1.6 0 1,1 12,17.2 A1.6,1.6 0 1,1 12,14"
+
+/** El día que falta: el renglón vacío donde iría el punto. */
+private const val HUECO_DEL_DIA = "M9.5,15.6 L14.5,15.6"
+
+/** Las cuatro marcas del reloj, sin manecillas. */
+private const val MARCAS_DEL_RELOJ =
+    "M12,6.4 L12,7.9 M17.6,12 L16.1,12 M12,17.6 L12,16.1 M6.4,12 L7.9,12"
+
+private const val MANECILLAS = "M12,6.8 L12,12 L15.6,14.1"
+
+private const val TECHO = "M4,11.2 L12,4.5 L20,11.2"
+private const val PAREDES = "M6,12.8 L6,19.5 L18,19.5 L18,12.8"
+private const val TACHADURA = "M3.2,3.2 L20.8,20.8"
