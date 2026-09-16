@@ -32,6 +32,9 @@ import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
  * imagen). Cambia dónde se valida —el tag `contentType` de Huma en cobranza, el
  * loop del handler en visitas—, no qué pasa.
  */
+@Suppress(
+    "TooManyFunctions"
+) // es el reglamento entero del comprobante; partirlo partiría el contrato en dos.
 object ComprobantesDeVisita {
 
     /**
@@ -126,6 +129,48 @@ object ComprobantesDeVisita {
             .map { it.toInt() and 0xFF } == listOf(0x57, 0x45, 0x42, 0x50)
         return riff && webp
     }
+
+    /**
+     * El lado, en píxeles, con el que se pide la miniatura de la rejilla.
+     *
+     * **Medido, no elegido:** el cuadro de la rejilla mide ~104dp (el ancho de
+     * la columna, 328dp a 360dp de pantalla, menos dos huecos de 8dp, partido
+     * en tres). A `xxhdpi` —la densidad más alta que el teléfono del cobrador
+     * alcanza— eso son 312px. 320 los cubre sin pedir un pixel de más: pedir la
+     * foto entera para pintarla en 104dp es lo que hace que una rejilla de
+     * cinco fotos se coma la memoria de un equipo de gama baja.
+     */
+    const val LADO_DE_MINIATURA: Int = 320
+
+    /**
+     * El `inSampleSize` con el que decodificar una imagen de [ancho]x[alto]
+     * para que su lado CORTO no baje de [lado].
+     *
+     * El lado corto y no el largo: el cuadro de la rejilla es cuadrado y
+     * recorta, así que lo que decide si la miniatura se ve borrosa es la
+     * dimensión menor. `BitmapFactory` solo honra potencias de dos, por eso
+     * duplica en vez de dividir.
+     *
+     * Función pura y en el dominio a propósito: es la única aritmética real de
+     * la miniatura, y acá se prueba sin Android y sin un archivo.
+     */
+    @Suppress("MagicNumber") // el 2 es la base de `inSampleSize`, no una cifra de negocio.
+    fun muestreoPara(ancho: Int, alto: Int, lado: Int = LADO_DE_MINIATURA): Int {
+        if (ancho <= 0 || alto <= 0 || lado <= 0) return 1
+        var muestreo = 1
+        val corto = minOf(ancho, alto)
+        while (muestreo < MUESTREO_MAXIMO && corto / (muestreo * 2) >= lado) {
+            muestreo *= 2
+        }
+        return muestreo
+    }
+
+    /**
+     * Techo del muestreo. Sin él, una imagen con un lado absurdo (o un `outWidth`
+     * corrupto) deja el `while` girando hasta desbordar el `Int`; 64 ya reduce
+     * un lado de 20 480px por debajo del pedido.
+     */
+    private const val MUESTREO_MAXIMO = 64
 
     /**
      * Codifica un comprobante para el `SavedStateHandle`.

@@ -107,6 +107,18 @@ object VisitasTelemetria {
     const val CODE_VISITA_FOTO_SIN_DESTINO: String = "visita_foto_sin_destino"
 
     /**
+     * No se pudieron sacar los píxeles de un comprobante para la rejilla.
+     *
+     * Código propio y **no** [CODE_VISITA_FOTO_FALLO]: acá no se perdió
+     * evidencia. El comprobante está adjunto, va a viajar con la visita y se
+     * va a subir igual; lo único que falta es la vista previa. Por eso tampoco
+     * pinta un cuadro ámbar — un aviso diría que algo se perdió, y no se perdió.
+     * Se reporta porque la norma no autoriza el silencio, ni siquiera para lo
+     * que no escala.
+     */
+    const val CODE_VISITA_FOTO_SIN_MINIATURA: String = "visita_foto_sin_miniatura"
+
+    /**
      * Una entrada de comprobante guardada en el `SavedStateHandle` no se pudo
      * leer al volver de la muerte del proceso. Se descarta —no puede tumbar la
      * pantalla— pero se cuenta y se reporta.

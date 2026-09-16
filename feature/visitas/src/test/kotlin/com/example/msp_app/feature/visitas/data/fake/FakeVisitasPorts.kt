@@ -4,6 +4,7 @@ import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
+import com.example.msp_app.feature.visitas.domain.model.Miniatura
 import com.example.msp_app.feature.visitas.domain.model.RecomendacionMostrada
 import com.example.msp_app.feature.visitas.domain.model.VentaParaVisitar
 import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
@@ -181,15 +182,38 @@ class FakeVisitaImpresaPort(
  * [mimeAceptado] es lo que devuelve [aceptar]: cambiarlo a algo fuera de la
  * whitelist es cómo se prueba el rechazo por tipo sin escribir bytes reales.
  */
-class FakeComprobantesDeVisitaPort(
-    var fallaAlPreparar: Throwable? = null,
-    var fallaAlAceptar: Throwable? = null,
-    var fallaAlDescartar: Throwable? = null,
+class FakeComprobantesDeVisitaPort : ComprobantesDeVisitaPort {
+
+    // Las perillas van como propiedades y no en el constructor: ya son ocho, y
+    // un constructor de ocho parámetros opcionales se lee peor en la llamada
+    // (`FakeComprobantesDeVisitaPort(null, null, null, X)`) que un `.also { }`
+    // que nombra la única que el test cambia.
+
+    var fallaAlPreparar: Throwable? = null
+
+    var fallaAlAceptar: Throwable? = null
+
+    var fallaAlDescartar: Throwable? = null
+
+    var fallaAlImportar: Throwable? = null
+
+    var fallaAlPedirMiniatura: Throwable? = null
+
     var mimeAceptado: String = "image/jpeg"
-) : ComprobantesDeVisitaPort {
+
+    var mimeImportado: String = "image/jpeg"
+
+    /** Lo que devuelve [miniatura]. `null` = el cuadro se pinta sin vista previa. */
+    var miniaturaDeCadaArchivo: Miniatura? = null
 
     /** Los destinos acuñados, en orden. */
     val destinos: MutableList<DestinoDeFoto> = mutableListOf()
+
+    /** Los `content://` que se mandó importar, en orden. */
+    val importados: MutableList<String> = mutableListOf()
+
+    /** Las rutas de las que se pidió miniatura, en orden. */
+    val miniaturasPedidas: MutableList<String> = mutableListOf()
 
     /** Los destinos que llegaron a [aceptar], en orden. */
     val aceptados: MutableList<DestinoDeFoto> = mutableListOf()
@@ -221,6 +245,25 @@ class FakeComprobantesDeVisitaPort(
             archivo = "/tmp/fake/comprobante-${destino.id}.jpg",
             mime = mimeAceptado
         )
+    }
+
+    override suspend fun importar(uri: String): ComprobanteDeVisita {
+        fallaAlImportar?.let { throw it }
+        importados += uri
+        siguiente++
+        // Acuña su propio id, igual que el adaptador real: la importación no
+        // pasa por un destino, así que nadie le acuñó uno antes.
+        return ComprobanteDeVisita(
+            id = "ARCH-$siguiente",
+            archivo = "/tmp/fake/importado-$siguiente.jpg",
+            mime = mimeImportado
+        )
+    }
+
+    override suspend fun miniatura(archivo: String): Miniatura? {
+        miniaturasPedidas += archivo
+        fallaAlPedirMiniatura?.let { throw it }
+        return miniaturaDeCadaArchivo
     }
 
     override suspend fun descartar(archivo: String) {

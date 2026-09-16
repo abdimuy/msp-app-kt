@@ -107,21 +107,18 @@ private val PALOMITA = 14.dp
 private val ANCHO_DEL_ALCANCE = 124.dp
 
 /**
- * La fila de navegación: "atrás" y, a la derecha, lo que [alFinal] ponga.
+ * La fila de navegación: "atrás", y nada más.
  *
- * [alFinal] existe para el afordante de la foto (Task 23) y ocupa el hueco que
- * ya había: la fila terminaba en un `Box(weight(1f))` vacío. **Coste vertical
- * cero** — la fila ya medía [TOQUE] de alto y el botón mide lo mismo, así que
- * nada de lo de abajo se mueve. Es la salida que la Task 22 tuvo que encontrar
- * cuando su sección quedó bajo la línea de flotación, aplicada antes de que el
- * problema exista en vez de después.
+ * Tuvo un hueco `alFinal` para un botón de cámara **en línea**, que existía
+ * porque la sección de comprobantes vivía debajo de la línea de flotación y el
+ * cobrador podía no descubrirla nunca. Se retiró con la rejilla: el remedio
+ * dejaba TRES afordantes para agregar una foto —este, la pastilla del pie y la
+ * lista— y un aviso de fallo que no podía decir cuál de los tres había fallado.
+ * Ahora hay un solo «+», y un segundo botón acá volvería a ser la repetición que
+ * delata que la pantalla no sabe qué importa.
  */
 @Composable
-fun BarraDeVisita(
-    onAtras: () -> Unit,
-    modifier: Modifier = Modifier,
-    alFinal: @Composable () -> Unit = {}
-) {
+fun BarraDeVisita(onAtras: () -> Unit, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -146,7 +143,6 @@ fun BarraDeVisita(
             }
         }
         Box(modifier = Modifier.weight(1f))
-        alFinal()
     }
 }
 

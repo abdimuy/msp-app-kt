@@ -7,6 +7,7 @@ import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
+import com.example.msp_app.feature.visitas.domain.model.Miniatura
 import com.example.msp_app.feature.visitas.domain.model.RecomendacionMostrada
 import com.example.msp_app.feature.visitas.domain.model.VentaParaVisitar
 import java.time.LocalDate
@@ -50,6 +51,38 @@ enum class FalloDeLaFoto {
 }
 
 /**
+ * Un intento que **no llegó a ser comprobante**: ocupa su propio cuadro de la
+ * rejilla, en ámbar, al lado de las fotos que sí entraron.
+ *
+ * ## Por qué un cuadro y no un aviso suelto
+ *
+ * El aviso de antes decía "ese archivo no se acepta" **sin decir cuál**, y con
+ * una galería que deja escoger varias a la vez eso pasó de incómodo a inútil: el
+ * cobrador elige tres, una se cae, y la pantalla no dice cuál de las tres. El
+ * cuadro sí lo dice, porque **es** la que se cayó, en el lugar donde habría
+ * quedado.
+ *
+ * [id] es el que acuñó el puerto para ese intento: el de la cámara o el de la
+ * importación. Sirve para quitarlo con su tache, igual que a una foto puesta.
+ */
+data class IntentoFallido(val id: String, val motivo: FalloDeLaFoto)
+
+/**
+ * De dónde sale un comprobante. Las tres que ofrece la hoja del «+».
+ *
+ * Son tres y no dos porque las tres son distintas de verdad: la cámara escribe
+ * un archivo nuevo, la galería deja escoger **varias** de un tirón, y el
+ * explorador es el único que alcanza un PDF —el selector de fotos del sistema
+ * solo enseña imágenes y video, así que sin esta tercera un recibo en PDF sería
+ * inalcanzable.
+ */
+enum class OrigenDeLaFoto {
+    CAMARA,
+    GALERIA,
+    ARCHIVO
+}
+
+/**
  * El estado de la pantalla de registrar visita.
  *
  * [hoy] viaja en el estado y no se lee de `LocalDate.now()` dentro de un
@@ -86,10 +119,25 @@ data class RegistrarVisitaUiState(
      * aquí ninguna regla puede convertir una foto en un bloqueo.
      */
     val comprobantes: List<ComprobanteDeVisita> = emptyList(),
+    /**
+     * Los píxeles ya reducidos de cada comprobante, por su id. Lo que falta
+     * —un PDF, o una decodificación que falló— pinta el cuadro con su glifo en
+     * vez de con la foto, y **no** es un fallo: el comprobante está adjunto y va
+     * a viajar igual.
+     */
+    val miniaturas: Map<String, Miniatura> = emptyMap(),
+    /** Los intentos que no entraron, cada uno con su cuadro ámbar. */
+    val intentos: List<IntentoFallido> = emptyList(),
     /** Hay un destino listo y la cámara tiene que abrirse. `null` = nada en vuelo. */
     val destinoDeFoto: DestinoDeFoto? = null,
-    /** Por qué la última foto no se adjuntó. Nunca apaga el CTA. */
-    val falloDeLaFoto: FalloDeLaFoto? = null
+    /** La hoja del «+» está arriba, preguntando de dónde sale el comprobante. */
+    val eligiendoOrigen: Boolean = false,
+    /**
+     * Hay que abrir un selector del sistema. Nunca vale
+     * [OrigenDeLaFoto.CAMARA] — ésa viaja por [destinoDeFoto], que sí se
+     * persiste porque su id tiene que sobrevivir a la muerte del proceso.
+     */
+    val selectorPedido: OrigenDeLaFoto? = null
 ) {
     /**
      * ¿El CTA está vivo? Si esto es `false` el botón se pinta apagado **y** no
@@ -114,7 +162,16 @@ data class RegistrarVisitaUiState(
      * una invariante.
      */
     val sePuedeAgregarFoto: Boolean
-        get() = sePuedeCapturar && comprobantes.size < ComprobantesDeVisita.MAXIMO
+        get() = sePuedeCapturar && espaciosLibres > 0
+
+    /**
+     * Cuántos comprobantes más caben. Cuenta **solo los puestos**: un cuadro
+     * ámbar no ocupa lugar porque no hay ninguna foto detrás de él, y descontarlo
+     * dejaría al cobrador con un espacio menos por cada archivo que el servidor
+     * rechazó.
+     */
+    val espaciosLibres: Int
+        get() = (ComprobantesDeVisita.MAXIMO - comprobantes.size).coerceAtLeast(0)
 
     /** La razón que se muestra bajo el CTA apagado. `null` cuando no hay ninguna. */
     val razonDelBloqueo: String?

@@ -187,6 +187,10 @@ class RegistrarVisitaViewModel @Inject constructor(
         // Reescribe el handle ya normalizado: lo ilegible no vuelve a leerse ni
         // a contarse en la siguiente muerte de proceso.
         comprobantes = leidos
+        // Las miniaturas NO se persisten —son píxeles, no evidencia— así que se
+        // vuelven a pedir para lo que sí sobrevivió. Sin esto, una muerte de
+        // proceso devolvía la rejilla llena de cuadros sin foto.
+        leidos.forEach(::pedirMiniatura)
         val ilegibles = crudos.size - leidos.size
         if (ilegibles > 0) {
             telemetry.error(
@@ -220,7 +224,12 @@ class RegistrarVisitaViewModel @Inject constructor(
      * y la publicación: [tomarDestinoPendiente] no puede colarse entre las dos.
      */
     private fun conLoCapturado(estado: RegistrarVisitaUiState): RegistrarVisitaUiState =
-        estado.copy(comprobantes = comprobantes, destinoDeFoto = destinoGuardado)
+        estado.copy(
+            comprobantes = comprobantes,
+            miniaturas = mutableState.value.miniaturas,
+            intentos = mutableState.value.intentos,
+            destinoDeFoto = destinoGuardado
+        )
 
     /**
      * Elige el desenlace. **Limpia lo que el desenlace anterior había capturado**
@@ -374,6 +383,65 @@ class RegistrarVisitaViewModel @Inject constructor(
     // --- La foto: cuelga de la visita y NUNCA la detiene -----------------------
 
     /**
+     * **El «+» de la rejilla.** Abre la hoja que pregunta de dónde sale el
+     * comprobante.
+     *
+     * No adjunta nada por sí solo, y eso es el cambio: antes había TRES
+     * afordantes para lo mismo —un chip arriba, una pastilla abajo y la lista— y
+     * cuando algo fallaba el aviso no decía cuál de los tres había fallado. Ahora
+     * hay un solo cuadro que agrega, y la pregunta "¿de dónde?" se hace una vez,
+     * explícitamente, en vez de repartirse entre tres botones que no la hacían.
+     */
+    fun abrirOrigenes() {
+        val actual = mutableState.value
+        if (!actual.sePuedeCapturar) return
+        // Con la rejilla llena el «+» no se pinta, así que esto solo se alcanza
+        // desde un test o desde una recomposición a destiempo. Se anota igual en
+        // vez de callarse: un afordante que no hace nada y tampoco dice por qué
+        // es la mentira que esta pantalla no comete.
+        if (actual.espaciosLibres <= 0) {
+            anotarIntento(FalloDeLaFoto.YA_NO_CABEN)
+            return
+        }
+        mutableState.value = actual.copy(eligiendoOrigen = true)
+    }
+
+    /** Cierra la hoja sin elegir. Tocar el velo hace esto. */
+    fun cerrarOrigenes() {
+        mutableState.value = mutableState.value.copy(eligiendoOrigen = false)
+    }
+
+    /**
+     * El cobrador eligió de dónde. La cámara sigue su propio camino —acuña el
+     * destino ANTES de salir de la app, que es lo que deja el id a salvo de la
+     * muerte del proceso—; las otras dos solo piden abrir el selector del
+     * sistema, que devuelve `content://` y no necesita nada acuñado de antemano.
+     */
+    fun onOrigen(origen: OrigenDeLaFoto) {
+        val actual = mutableState.value
+        if (!actual.sePuedeCapturar) return
+        mutableState.value = actual.copy(eligiendoOrigen = false)
+        if (origen == OrigenDeLaFoto.CAMARA) {
+            pedirFoto()
+        } else {
+            mutableState.value = mutableState.value.copy(selectorPedido = origen)
+        }
+    }
+
+    /**
+     * La pantalla ya lanzó el selector. Se suelta la petición para que una
+     * recomposición no lo vuelva a abrir.
+     *
+     * **No se persiste** (a diferencia del destino de la cámara): si el proceso
+     * muere con el selector arriba no se acuñó nada que proteger, y reponer la
+     * petición al volver reabriría el selector solo. Es el mismo criterio que
+     * [pidiendoFoto].
+     */
+    fun selectorAtendido() {
+        mutableState.value = mutableState.value.copy(selectorPedido = null)
+    }
+
+    /**
      * **Paso uno de la foto:** prepara el destino y pide abrir la cámara.
      *
      * No abre nada por sí mismo — deja [RegistrarVisitaUiState.destinoDeFoto] y
@@ -387,11 +455,11 @@ class RegistrarVisitaViewModel @Inject constructor(
     @Suppress(
         "TooGenericExceptionCaught"
     ) // preparar el destino toca disco y FileProvider; la visita no se entera.
-    fun pedirFoto() {
+    private fun pedirFoto() {
         val actual = mutableState.value
         if (!actual.sePuedeCapturar || actual.destinoDeFoto != null || pidiendoFoto) return
-        if (actual.comprobantes.size >= ComprobantesDeVisita.MAXIMO) {
-            mutableState.value = actual.copy(falloDeLaFoto = FalloDeLaFoto.YA_NO_CABEN)
+        if (actual.espaciosLibres <= 0) {
+            anotarIntento(FalloDeLaFoto.YA_NO_CABEN)
             return
         }
         pidiendoFoto = true
@@ -399,10 +467,7 @@ class RegistrarVisitaViewModel @Inject constructor(
             try {
                 val destino = withContext(io) { camara.nuevoDestino() }
                 destinoGuardado = destino
-                mutableState.value = mutableState.value.copy(
-                    destinoDeFoto = destino,
-                    falloDeLaFoto = null
-                )
+                mutableState.value = mutableState.value.copy(destinoDeFoto = destino)
             } catch (cancelada: CancellationException) {
                 throw cancelada
             } catch (fallo: Throwable) {
@@ -433,11 +498,7 @@ class RegistrarVisitaViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val comprobante = withContext(io) { camara.aceptar(destino) }
-                if (ComprobantesDeVisita.permitido(comprobante.mime)) {
-                    adjuntar(comprobante)
-                } else {
-                    rechazarPorTipo(comprobante)
-                }
+                recibir(comprobante)
             } catch (cancelada: CancellationException) {
                 throw cancelada
             } catch (fallo: Throwable) {
@@ -450,6 +511,55 @@ class RegistrarVisitaViewModel @Inject constructor(
     fun fotoCancelada() {
         val destino = tomarDestinoPendiente() ?: return
         borrarArchivo(destino.archivoCrudo)
+    }
+
+    /**
+     * **Lo que el selector del sistema devolvió**: de la galería pueden venir
+     * varias de un tirón, del explorador viene una.
+     *
+     * Se importan **una por una y en orden**, y cada una decide sola: la que no
+     * cabe se anota como [FalloDeLaFoto.YA_NO_CABEN], la que el servidor no
+     * aceptaría como [FalloDeLaFoto.TIPO_NO_PERMITIDO], y las dos se pintan en
+     * SU cuadro. Elegir cuatro con el hueco para dos deja dos fotos y dos cuadros
+     * ámbar, que es exactamente lo que pasó; un aviso suelto habría dicho una
+     * sola cosa sobre cuatro archivos distintos.
+     *
+     * Una lista vacía —el cobrador salió del selector sin elegir— no hace nada y
+     * **no es un error**: cancelar no es fallar.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // copiar y comprimir tocan disco y ContentResolver; la visita no se entera.
+    fun archivosElegidos(uris: List<String>) {
+        if (uris.isEmpty()) return
+        if (!mutableState.value.sePuedeCapturar) return
+        viewModelScope.launch {
+            uris.forEach { uri ->
+                if (mutableState.value.espaciosLibres <= 0) {
+                    anotarIntento(FalloDeLaFoto.YA_NO_CABEN)
+                    return@forEach
+                }
+                try {
+                    recibir(withContext(io) { camara.importar(uri) })
+                } catch (cancelada: CancellationException) {
+                    throw cancelada
+                } catch (fallo: Throwable) {
+                    reportarFalloDeFoto(fallo, "no se pudo importar el archivo elegido")
+                }
+            }
+        }
+    }
+
+    /**
+     * Un comprobante recién llegado —de la cámara o del selector— pasa por el
+     * MISMO filtro. Un archivo bueno no puede depender de por dónde entró.
+     */
+    private suspend fun recibir(comprobante: ComprobanteDeVisita) {
+        if (ComprobantesDeVisita.permitido(comprobante.mime)) {
+            adjuntar(comprobante)
+        } else {
+            rechazarPorTipo(comprobante)
+        }
     }
 
     /**
@@ -488,13 +598,24 @@ class RegistrarVisitaViewModel @Inject constructor(
         )
     }
 
-    /** Quita un comprobante ya adjunto y borra su archivo. */
+    /**
+     * Quita un cuadro de la rejilla por su id: una foto puesta —y entonces borra
+     * su archivo— o un cuadro ámbar, que no tiene archivo que borrar porque ya
+     * se descartó al rechazarlo.
+     */
     fun quitarFoto(id: String) {
         val actual = mutableState.value
         if (!actual.sePuedeCapturar) return
+        if (actual.intentos.any { it.id == id }) {
+            mutableState.value = actual.copy(intentos = actual.intentos.filterNot { it.id == id })
+            return
+        }
         val quitado = actual.comprobantes.firstOrNull { it.id == id } ?: return
         comprobantes = actual.comprobantes.filterNot { it.id == id }
-        mutableState.value = actual.copy(comprobantes = comprobantes, falloDeLaFoto = null)
+        mutableState.value = actual.copy(
+            comprobantes = comprobantes,
+            miniaturas = actual.miniaturas - id
+        )
         borrarArchivo(quitado.archivo)
     }
 
@@ -521,10 +642,41 @@ class RegistrarVisitaViewModel @Inject constructor(
             return
         }
         comprobantes = comprobantes + comprobante
-        mutableState.value = mutableState.value.copy(
-            comprobantes = comprobantes,
-            falloDeLaFoto = null
-        )
+        mutableState.value = mutableState.value.copy(comprobantes = comprobantes)
+        pedirMiniatura(comprobante)
+    }
+
+    /**
+     * Pide los píxeles reducidos del comprobante y los cuelga del estado.
+     *
+     * **Fuera del hilo principal** (`withContext(io)`): decodificar un JPEG es
+     * trabajo de disco y de CPU, y hacerlo dentro de la composición congelaría la
+     * pantalla una vez por cuadro. Y **fuera del camino que adjunta**: si la
+     * decodificación falla, el comprobante YA está adjunto y va a viajar igual —
+     * la miniatura es cómo se ve, no si existe. Por eso el fallo no pinta ámbar:
+     * no se perdió nada.
+     */
+    @Suppress(
+        "TooGenericExceptionCaught"
+    ) // decodificar puede reventar con un OOM; el comprobante ya está adjunto.
+    private fun pedirMiniatura(comprobante: ComprobanteDeVisita) {
+        viewModelScope.launch {
+            try {
+                val miniatura = withContext(io) { camara.miniatura(comprobante.archivo) }
+                    ?: return@launch
+                mutableState.value = mutableState.value.copy(
+                    miniaturas = mutableState.value.miniaturas + (comprobante.id to miniatura)
+                )
+            } catch (cancelada: CancellationException) {
+                throw cancelada
+            } catch (fallo: Throwable) {
+                telemetry.error(
+                    code = VisitasTelemetria.CODE_VISITA_FOTO_SIN_MINIATURA,
+                    message = "no se pudo decodificar la miniatura; el comprobante sigue adjunto",
+                    props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
+                )
+            }
+        }
     }
 
     /**
@@ -532,50 +684,61 @@ class RegistrarVisitaViewModel @Inject constructor(
      * traga**: código propio, porque no falló nada y aun así la evidencia no
      * existe en ningún lado.
      */
-    @Suppress(
-        "TooGenericExceptionCaught"
-    ) // borrar un archivo puede fallar por permisos o por FS; se reporta y se sigue.
     private suspend fun rechazarTardia(comprobante: ComprobanteDeVisita) {
         telemetry.error(
             code = VisitasTelemetria.CODE_VISITA_FOTO_TARDE,
             message = "la foto termino de procesarse cuando la escritura ya se llevo la lista",
             props = emptyMap()
         )
-        mutableState.value = mutableState.value.copy(falloDeLaFoto = FalloDeLaFoto.LLEGO_TARDE)
-        try {
-            camara.descartar(comprobante.archivo)
-        } catch (cancelada: CancellationException) {
-            throw cancelada
-        } catch (fallo: Throwable) {
-            reportarFalloDeFoto(
-                fallo,
-                "no se pudo borrar la foto que llego tarde",
-                conAviso = false
-            )
-        }
+        anotarIntento(FalloDeLaFoto.LLEGO_TARDE, comprobante.id)
+        descartarArchivoDe(comprobante, "no se pudo borrar la foto que llego tarde")
+    }
+
+    private suspend fun rechazarPorTipo(comprobante: ComprobanteDeVisita) {
+        telemetry.error(
+            code = VisitasTelemetria.CODE_VISITA_FOTO_TIPO_NO_PERMITIDO,
+            message = "el archivo elegido tiene un tipo que el servidor no acepta; no se adjunta",
+            // Anti-PII: el MIME es un valor tecnico cerrado, no dato del cliente.
+            props = mapOf(VisitasTelemetria.PROP_TIPO to comprobante.mime)
+        )
+        anotarIntento(FalloDeLaFoto.TIPO_NO_PERMITIDO, comprobante.id)
+        // El archivo se va con el rechazo: nada lo va a subir nunca.
+        descartarArchivoDe(comprobante, "no se pudo borrar la foto rechazada")
     }
 
     @Suppress(
         "TooGenericExceptionCaught"
     ) // borrar un archivo puede fallar por permisos o por FS; se reporta y se sigue.
-    private suspend fun rechazarPorTipo(comprobante: ComprobanteDeVisita) {
-        telemetry.error(
-            code = VisitasTelemetria.CODE_VISITA_FOTO_TIPO_NO_PERMITIDO,
-            message = "la camara dejo un tipo que el servidor no acepta; no se adjunta",
-            // Anti-PII: el MIME es un valor tecnico cerrado, no dato del cliente.
-            props = mapOf(VisitasTelemetria.PROP_TIPO to comprobante.mime)
-        )
-        mutableState.value = mutableState.value.copy(
-            falloDeLaFoto = FalloDeLaFoto.TIPO_NO_PERMITIDO
-        )
-        // El archivo se va con el rechazo: nada lo va a subir nunca.
+    private suspend fun descartarArchivoDe(comprobante: ComprobanteDeVisita, porque: String) {
         try {
             camara.descartar(comprobante.archivo)
         } catch (cancelada: CancellationException) {
             throw cancelada
         } catch (fallo: Throwable) {
-            reportarFalloDeFoto(fallo, "no se pudo borrar la foto rechazada", conAviso = false)
+            reportarFalloDeFoto(fallo, porque, conCuadro = false)
         }
+    }
+
+    /**
+     * Anota un cuadro ámbar en la rejilla.
+     *
+     * ## Ámbar, nunca rojo, y el techo de la lista
+     *
+     * Ninguno de los cuatro motivos impide registrar la visita, y el rojo en esta
+     * pantalla ya significa otra cosa: es el color de `BandaDeFallo`, "la visita
+     * no quedó registrada". Pintar una foto fallida en rojo diría que se perdió
+     * trabajo de campo, y no se perdió.
+     *
+     * La lista se topa en [ComprobantesDeVisita.MAXIMO] y **conserva los
+     * últimos**: sin techo, un cobrador que insiste con la cámara rota llena la
+     * rejilla de avisos y pierde de vista las fotos que sí entraron. Los que caen
+     * ya quedaron reportados por telemetría, que es donde se cuentan.
+     */
+    private fun anotarIntento(motivo: FalloDeLaFoto, id: String = UUID.randomUUID().toString()) {
+        val intentos = mutableState.value.intentos + IntentoFallido(id = id, motivo = motivo)
+        mutableState.value = mutableState.value.copy(
+            intentos = intentos.takeLast(ComprobantesDeVisita.MAXIMO)
+        )
     }
 
     /** Suelta el destino en el estado y en el `SavedStateHandle`, a la vez. */
@@ -594,10 +757,10 @@ class RegistrarVisitaViewModel @Inject constructor(
             } catch (cancelada: CancellationException) {
                 throw cancelada
             } catch (fallo: Throwable) {
-                // Sin aviso en pantalla: el cobrador pidió quitar la foto y la
+                // Sin cuadro en pantalla: el cobrador pidió quitar la foto y la
                 // foto se quitó. Lo que quedó fue un archivo en disco, y eso es
                 // asunto del que lo tiene que limpiar, no suyo.
-                reportarFalloDeFoto(fallo, "no se pudo borrar el archivo local", conAviso = false)
+                reportarFalloDeFoto(fallo, "no se pudo borrar el archivo local", conCuadro = false)
             }
         }
     }
@@ -605,21 +768,17 @@ class RegistrarVisitaViewModel @Inject constructor(
     /**
      * Un fallo de la capa de fotos. Reporta con el NOMBRE de la clase de la
      * excepción (nunca su texto, que puede arrastrar la ruta o la nota del
-     * cobrador) y, si toca, enciende el aviso.
+     * cobrador) y, si toca, deja su cuadro ámbar.
      *
      * **Nunca toca la visita**: no cambia `fallo`, ni `guardando`, ni el guard.
      */
-    private fun reportarFalloDeFoto(fallo: Throwable, porque: String, conAviso: Boolean = true) {
+    private fun reportarFalloDeFoto(fallo: Throwable, porque: String, conCuadro: Boolean = true) {
         telemetry.error(
             code = VisitasTelemetria.CODE_VISITA_FOTO_FALLO,
             message = "$porque; la visita no se ve afectada",
             props = mapOf(VisitasTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
-        if (conAviso) {
-            mutableState.value = mutableState.value.copy(
-                falloDeLaFoto = FalloDeLaFoto.NO_SE_PUDO_TOMAR
-            )
-        }
+        if (conCuadro) anotarIntento(FalloDeLaFoto.NO_SE_PUDO_TOMAR)
     }
 
     /**

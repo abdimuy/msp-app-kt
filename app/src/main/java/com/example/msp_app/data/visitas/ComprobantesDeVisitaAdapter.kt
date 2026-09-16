@@ -1,6 +1,8 @@
 package com.example.msp_app.data.visitas
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.FileProvider
@@ -13,6 +15,7 @@ import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
+import com.example.msp_app.feature.visitas.domain.model.Miniatura
 import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
 import java.io.File
 import java.time.Duration
@@ -123,8 +126,109 @@ class ComprobantesDeVisitaAdapter(
         )
     }
 
+    /**
+     * Trae a la app lo que el cobrador eligió en la galería o en el explorador.
+     *
+     * ## Se copia ANTES de decidir, y el orden importa
+     *
+     * El `content://` del selector vale para esta entrega y nada más: el permiso
+     * de lectura se revoca con el proceso, así que guardarlo dejaría un
+     * comprobante que el reintento de subida de mañana no puede abrir. Se copia
+     * al crudo de `cacheDir` primero, y recién sobre el archivo propio se leen
+     * los bytes que deciden el tipo — exactamente el mismo orden que [aceptar],
+     * para que un archivo bueno no dependa de por dónde entró.
+     *
+     * ## Un PDF se MUEVE, no se comprime
+     *
+     * [ImageCompressor] decodifica un bitmap; pasarle un PDF revienta con
+     * `IllegalStateException` y, peor, si no reventara escribiría un JPEG a
+     * partir de basura. El PDF se copia tal cual a `filesDir` con su extensión,
+     * que es lo que el multipart necesita.
+     */
+    override suspend fun importar(uri: String): ComprobanteDeVisita {
+        barrerHuerfanos()
+        val id = UUID.randomUUID().toString()
+        val crudo = File(context.cacheDir, "$PREFIJO_CRUDO$id")
+        copiarAlCrudo(Uri.parse(uri), crudo)
+        val tipo = ComprobantesDeVisita.tipoDe(primerosBytesDe(crudo))
+        if (!ComprobantesDeVisita.permitido(tipo)) {
+            // Vuelve con su ruta REAL, no vacía: el ViewModel lo rechaza y manda
+            // borrar ese archivo, y una ruta vacía dejaría el crudo en disco.
+            return ComprobanteDeVisita(id = id, archivo = crudo.absolutePath, mime = tipo)
+        }
+        if (tipo == PDF) {
+            val destino = File(context.filesDir, "$PREFIJO_COMPROBANTE_VISITA$id.pdf")
+            crudo.copyTo(destino, overwrite = true)
+            crudo.delete()
+            return ComprobanteDeVisita(id = id, archivo = destino.absolutePath, mime = tipo)
+        }
+        val resultado = ImageCompressor.compressImage(
+            context = context,
+            uri = Uri.fromFile(crudo),
+            outputFileName = "$PREFIJO_COMPROBANTE_VISITA$id.jpg"
+        )
+        crudo.delete()
+        return ComprobanteDeVisita(
+            id = id,
+            archivo = resultado.outputFile.absolutePath,
+            // ImageCompressor SIEMPRE escribe JPEG, sea cual sea el formato de
+            // entrada: el tipo del archivo que se sube es el del que se sube.
+            mime = "image/jpeg"
+        )
+    }
+
+    /**
+     * Los píxeles reducidos de [archivo], para el cuadro de la rejilla.
+     *
+     * **Dos pasadas de `BitmapFactory`, y ninguna carga la foto entera.** La
+     * primera va con `inJustDecodeBounds` y solo lee la cabecera; con esas
+     * medidas, [ComprobantesDeVisita.muestreoPara] decide el `inSampleSize` y la
+     * segunda decodifica ya reducido. Cargar el bitmap completo para pintarlo en
+     * 104dp es lo que hace que una rejilla de cinco fotos reviente un teléfono de
+     * gama baja.
+     *
+     * Devuelve `null` —no lanza— cuando no hay imagen que reducir: un PDF, un
+     * archivo que ya no está, o uno que `BitmapFactory` no reconoce. No es un
+     * fallo: el comprobante sigue adjunto y va a viajar igual, y el cuadro pinta
+     * su glifo. Lo que sí es un fallo (un OOM, por ejemplo) sale como excepción y
+     * lo recoge el `catch` con telemetría del ViewModel.
+     */
+    override suspend fun miniatura(archivo: String): Miniatura? {
+        val fuente = File(archivo)
+        if (!fuente.exists()) return null
+        val medidas = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(archivo, medidas)
+        if (medidas.outWidth <= 0 || medidas.outHeight <= 0) return null
+        val opciones = BitmapFactory.Options().apply {
+            inSampleSize = ComprobantesDeVisita.muestreoPara(medidas.outWidth, medidas.outHeight)
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+        }
+        val bitmap = BitmapFactory.decodeFile(archivo, opciones) ?: return null
+        val ancho = bitmap.width
+        val alto = bitmap.height
+        val pixeles = IntArray(ancho * alto)
+        bitmap.getPixels(pixeles, 0, ancho, 0, 0, ancho, alto)
+        // El bitmap ya no hace falta: lo que viaja al dominio es el buffer.
+        bitmap.recycle()
+        return Miniatura(ancho = ancho, alto = alto, pixeles = pixeles)
+    }
+
     override suspend fun descartar(archivo: String) {
         File(archivo).delete()
+    }
+
+    /**
+     * Copia el `content://` elegido a un archivo propio.
+     *
+     * `?: error(...)` y no un `return` silencioso: un proveedor que no abre su
+     * propio Uri es un fallo real, y el `catch` con telemetría del ViewModel es
+     * quien tiene que enterarse. Tragárselo dejaría un archivo de cero bytes que
+     * después caería como "tipo no permitido", contando una causa que no fue.
+     */
+    private fun copiarAlCrudo(origen: Uri, crudo: File) {
+        val entrada = context.contentResolver.openInputStream(origen)
+            ?: error("el proveedor no abrio el archivo elegido")
+        entrada.use { flujo -> crudo.outputStream().use(flujo::copyTo) }
     }
 
     private fun primerosBytesDe(archivo: File): ByteArray {
@@ -222,8 +326,11 @@ class ComprobantesDeVisitaAdapter(
 
     private companion object {
 
-        /** Prefijo del crudo de la cámara, en `cacheDir`. */
+        /** Prefijo del crudo de la cámara y de la importación, en `cacheDir`. */
         const val PREFIJO_CRUDO = PREFIJO_COMPROBANTE_VISITA + "crudo_"
+
+        /** El MIME del único adjunto que no es una imagen y no se comprime. */
+        const val PDF = "application/pdf"
 
         /**
          * Cuánto espera un archivo sin fila antes de que se le dé por

@@ -2,10 +2,12 @@ package com.example.msp_app.feature.visitas.domain
 
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
+import com.example.msp_app.feature.visitas.domain.model.Miniatura
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -192,6 +194,62 @@ class ComprobantesDeVisitaTest {
     @Test
     fun `el tope de fotos es cinco`() {
         assertEquals(5, ComprobantesDeVisita.MAXIMO)
+    }
+
+    // ─── la miniatura de la rejilla ──────────────────────────────────────────
+
+    /**
+     * **El muestreo cuida el lado CORTO.** El cuadro de la rejilla es cuadrado y
+     * recorta, así que lo que decide si la miniatura se ve borrosa es la
+     * dimensión menor. Los bordes exactos: en el pedido justo NO se reduce, y un
+     * pixel por encima del doble sí.
+     */
+    @Test
+    fun `el muestreo mira el lado corto y respeta el pedido`() {
+        val lado = ComprobantesDeVisita.LADO_DE_MINIATURA
+        assertEquals("el lado justo no se reduce", 1, ComprobantesDeVisita.muestreoPara(lado, lado))
+        assertEquals(
+            "un pixel menos tampoco",
+            1,
+            ComprobantesDeVisita.muestreoPara(lado - 1, lado - 1)
+        )
+        assertEquals("el doble exacto sí", 2, ComprobantesDeVisita.muestreoPara(lado * 2, lado * 2))
+        assertEquals(
+            "y el cuádruple, cuatro",
+            4,
+            ComprobantesDeVisita.muestreoPara(lado * 4, lado * 4)
+        )
+        assertEquals(
+            "una panorámica se muestrea por su lado corto, no por el largo",
+            1,
+            ComprobantesDeVisita.muestreoPara(lado * 8, lado)
+        )
+    }
+
+    /** Medidas imposibles no reducen nada; el `while` no puede girar sin techo. */
+    @Test
+    fun `el muestreo no revienta con medidas imposibles`() {
+        assertEquals(1, ComprobantesDeVisita.muestreoPara(0, 0))
+        assertEquals(1, ComprobantesDeVisita.muestreoPara(-10, -10))
+        assertEquals(1, ComprobantesDeVisita.muestreoPara(1000, 1000, lado = 0))
+        assertTrue(
+            "hay techo: sin él, un lado absurdo desborda el Int",
+            ComprobantesDeVisita.muestreoPara(Int.MAX_VALUE, Int.MAX_VALUE) <= 64
+        )
+    }
+
+    /**
+     * Un buffer más corto que `ancho * alto` revienta **aquí** y no dentro de una
+     * composición, donde ya no se podría reportar sin tumbar la pantalla.
+     */
+    @Test
+    fun `una miniatura con el buffer corto no se puede construir`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            Miniatura(4, 4, IntArray(15))
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            Miniatura(0, 4, IntArray(64))
+        }
     }
 
     private fun bytes(vararg valores: Int): ByteArray =

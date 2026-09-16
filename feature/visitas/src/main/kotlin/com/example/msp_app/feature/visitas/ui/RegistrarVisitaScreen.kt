@@ -6,6 +6,7 @@ package com.example.msp_app.feature.visitas.ui
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -31,13 +32,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
+import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.DiasSugeridos
 import com.example.msp_app.feature.visitas.domain.ReglasDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.ui.components.BandaDeFallo
 import com.example.msp_app.feature.visitas.ui.components.BandaDeRecomendacion
 import com.example.msp_app.feature.visitas.ui.components.BarraDeVisita
-import com.example.msp_app.feature.visitas.ui.components.BotonDeFotoEnLinea
 import com.example.msp_app.feature.visitas.ui.components.CHIP_TAG
 import com.example.msp_app.feature.visitas.ui.components.CalendarioDeVisita
 import com.example.msp_app.feature.visitas.ui.components.CampoDeMonto
@@ -47,6 +48,7 @@ import com.example.msp_app.feature.visitas.ui.components.DockDeLaVisita
 import com.example.msp_app.feature.visitas.ui.components.ETIQUETA_TAG
 import com.example.msp_app.feature.visitas.ui.components.EncabezadoDeCuentas
 import com.example.msp_app.feature.visitas.ui.components.FilaDeCuenta
+import com.example.msp_app.feature.visitas.ui.components.HojaDeOrigenDelComprobante
 import com.example.msp_app.feature.visitas.ui.components.OpcionDeResultado
 import com.example.msp_app.feature.visitas.ui.components.RelojDeLaCita
 import com.example.msp_app.feature.visitas.ui.components.RotuloDeSeccion
@@ -87,6 +89,25 @@ fun RegistrarVisitaScreen(
     val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         if (ok) viewModel.fotoTomada() else viewModel.fotoCancelada()
     }
+    // El selector de fotos del sistema. **No pide ningún permiso** —ni
+    // `READ_EXTERNAL_STORAGE` ni `READ_MEDIA_IMAGES`—: corre fuera del proceso y
+    // solo devuelve lo que el cobrador escogió. `PickMultipleVisualMedia` y no
+    // `PickVisualMedia` porque la hoja promete "puedes escoger varias", y una
+    // hoja que promete lo que el selector no hace es la forma que miente.
+    val galeria = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(ComprobantesDeVisita.MAXIMO)
+    ) { uris ->
+        viewModel.archivosElegidos(uris.map(Uri::toString))
+    }
+    // El explorador de archivos (SAF). Es el único de los tres que alcanza un
+    // PDF: el selector de fotos solo enseña imágenes y video. Tampoco pide
+    // permisos. Se lanza con `*/*` a propósito y NO con la whitelist: el tipo se
+    // decide por los BYTES del archivo (`ComprobantesDeVisita.tipoDe`), y filtrar
+    // por el MIME que declara el proveedor sería confiar en el dato que este
+    // módulo decidió no creerle a nadie.
+    val archivo = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        viewModel.archivosElegidos(listOfNotNull(uri?.toString()))
+    }
     MspTheme {
         RegistrarVisitaContent(
             state = state,
@@ -110,7 +131,9 @@ fun RegistrarVisitaScreen(
                 onHoraDelReloj = viewModel::onHoraDelReloj,
                 onGuardar = viewModel::guardar,
                 onReintentar = viewModel::cargar,
-                onAgregarFoto = viewModel::pedirFoto,
+                onAgregarFoto = viewModel::abrirOrigenes,
+                onOrigen = viewModel::onOrigen,
+                onCerrarOrigenes = viewModel::cerrarOrigenes,
                 onQuitarFoto = viewModel::quitarFoto
             ),
             modifier = modifier
@@ -121,6 +144,26 @@ fun RegistrarVisitaScreen(
         // Clave el id del destino: una recomposición no reabre la cámara, y un
         // destino nuevo sí la abre.
         LaunchedEffect(destino.id) { camara.launch(Uri.parse(destino.uriParaLaCamara)) }
+    }
+    val selector = state.selectorPedido
+    if (selector != null) {
+        // Mismo patrón que la cámara, con la petición de clave: se lanza una vez
+        // y el ViewModel la suelta en el acto, así una recomposición no reabre el
+        // selector. La petición NO se persiste — si el proceso muere con el
+        // selector arriba no hay nada acuñado que proteger, y reponerla al volver
+        // lo reabriría solo.
+        LaunchedEffect(selector) {
+            when (selector) {
+                OrigenDeLaFoto.GALERIA -> galeria.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+                // `*/*` y no `application/pdf`: la whitelist admite además JPEG,
+                // PNG, GIF y WebP, y `GetContent` solo acepta UN tipo. Lo que
+                // decide sigue siendo la firma de los bytes.
+                else -> archivo.launch("*/*")
+            }
+            viewModel.selectorAtendido()
+        }
     }
     val registrada = state.registrada
     if (registrada != null) {
@@ -156,6 +199,8 @@ data class AccionesDeLaVisita(
     val onGuardar: () -> Unit,
     val onReintentar: () -> Unit,
     val onAgregarFoto: () -> Unit,
+    val onOrigen: (OrigenDeLaFoto) -> Unit,
+    val onCerrarOrigenes: () -> Unit,
     val onQuitarFoto: (String) -> Unit
 ) {
     companion object {
@@ -181,6 +226,8 @@ data class AccionesDeLaVisita(
             onGuardar = {},
             onReintentar = {},
             onAgregarFoto = {},
+            onOrigen = {},
+            onCerrarOrigenes = {},
             onQuitarFoto = {}
         )
     }
@@ -241,6 +288,13 @@ fun RegistrarVisitaContent(
                 )
             }
         }
+        if (state.eligiendoOrigen) {
+            HojaDeOrigenDelComprobante(
+                espaciosLibres = state.espaciosLibres,
+                onOrigen = acciones.onOrigen,
+                onCerrar = acciones.onCerrarOrigenes
+            )
+        }
         DialogosDeLaVisita(state, acciones)
     }
 }
@@ -286,16 +340,7 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
             .padding(horizontal = MspTheme.spacing.md),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        BarraDeVisita(
-            onAtras = acciones.onAtras,
-            alFinal = {
-                BotonDeFotoEnLinea(
-                    cuantos = state.comprobantes.size,
-                    habilitado = state.sePuedeAgregarFoto,
-                    onAgregar = acciones.onAgregarFoto
-                )
-            }
-        )
+        BarraDeVisita(onAtras = acciones.onAtras)
         Text(
             text = "visita",
             style = MspTheme.type.screenTitle,
@@ -348,7 +393,8 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
         )
         SeccionDeComprobantesDeVisita(
             comprobantes = state.comprobantes,
-            fallo = state.falloDeLaFoto,
+            miniaturas = state.miniaturas,
+            intentos = state.intentos,
             puedeAgregar = state.sePuedeAgregarFoto,
             onAgregar = acciones.onAgregarFoto,
             onQuitar = acciones.onQuitarFoto

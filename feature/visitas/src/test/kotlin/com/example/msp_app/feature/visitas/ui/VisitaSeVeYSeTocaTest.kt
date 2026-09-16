@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -26,9 +27,10 @@ import com.example.msp_app.feature.visitas.ui.components.AGREGAR_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.CHIP_TAG
 import com.example.msp_app.feature.visitas.ui.components.CUENTA_TAG
 import com.example.msp_app.feature.visitas.ui.components.FALLO_FOTO_TAG
-import com.example.msp_app.feature.visitas.ui.components.FOTO_EN_LINEA_TAG
 import com.example.msp_app.feature.visitas.ui.components.GUARDAR_TAG
+import com.example.msp_app.feature.visitas.ui.components.HOJA_DE_ORIGEN_TAG
 import com.example.msp_app.feature.visitas.ui.components.OPCION_TAG
+import com.example.msp_app.feature.visitas.ui.components.ORIGEN_TAG
 import com.example.msp_app.feature.visitas.ui.components.QUITAR_FOTO_TAG
 import com.example.msp_app.feature.visitas.ui.components.RAZON_TAG
 import com.example.msp_app.feature.visitas.ui.components.RECOMENDACION_TAG
@@ -353,39 +355,74 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
     // ─── la foto (Task 23) ───────────────────────────────────────────────────
 
     /**
-     * **El afordante se ve sin scroll.** Es la diferencia entera entre "cara de
-     * alcanzar" y "a un toque": la sección de comprobantes vive al pie de la
-     * columna, debajo de la línea de flotación a 360×800dp, así que el punto de
-     * entrada tiene que estar arriba. Se afirma **sin `performScrollTo`**.
+     * **El «+» es el ÚNICO afordante que agrega, y abre la hoja.** No toma la
+     * foto: pregunta de dónde. Antes había tres botones para lo mismo —el chip
+     * del encabezado, la pastilla del pie y la lista— y un aviso de fallo que no
+     * podía decir cuál de los tres había fallado.
      */
     @Test
-    fun `el boton de foto en linea se ve sin scroll y abre la camara`() {
+    fun `el mas abre la hoja de origenes y es el unico que agrega`() {
         var pedidas = 0
         pintaCon(VisitaFixtures.elegir()) { it.copy(onAgregarFoto = { pedidas++ }) }
 
-        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).assertIsDisplayed().performClick()
+        composeTestRule.onNodeWithTag(AGREGAR_FOTO_TAG).performScrollTo().performClick()
 
         assertEquals(1, pedidas)
+        // Control positivo del "único": el barrido cuenta TODO nodo con el tag de
+        // agregar, así que un segundo afordante que volviera a aparecer —en el
+        // encabezado, al pie o donde sea— pondría esto en rojo.
+        assertEquals(
+            1,
+            composeTestRule.onAllNodesWithTag(AGREGAR_FOTO_TAG).fetchSemanticsNodes().size
+        )
     }
 
-    /** Y enseña el conteo, así que dice "la evidencia está puesta" sin bajar. */
+    /** La hoja ofrece las TRES, cada una con su explicación, y cada una avisa cuál. */
     @Test
-    fun `el boton de foto en linea cuenta los comprobantes`() {
-        pinta(VisitaFixtures.conComprobantes())
-
-        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).assert(hasText("foto 2"))
-    }
-
-    /** Con la visita ya registrada, el afordante está apagado. */
-    @Test
-    fun `con la visita registrada el boton de foto esta apagado`() {
-        var pedidas = 0
-        pintaCon(VisitaFixtures.elegir().copy(registrada = "visita-1")) {
-            it.copy(onAgregarFoto = { pedidas++ })
+    fun `la hoja del mas ofrece camara galeria y archivo`() {
+        val elegidos = mutableListOf<OrigenDeLaFoto>()
+        pintaCon(VisitaFixtures.eligiendoOrigen()) {
+            it.copy(onOrigen = { origen -> elegidos += origen })
         }
 
-        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).assertIsNotEnabled()
-        assertEquals(0, pedidas)
+        OrigenDeLaFoto.entries.forEach { origen ->
+            composeTestRule.onNodeWithTag(ORIGEN_TAG + origen.name)
+                .assertIsDisplayed()
+                .performClick()
+        }
+
+        assertEquals(OrigenDeLaFoto.entries.toList(), elegidos)
+    }
+
+    /** Y dice cuántos espacios quedan, contados — no un número escrito a mano. */
+    @Test
+    fun `la hoja dice cuantos espacios quedan`() {
+        pinta(VisitaFixtures.eligiendoOrigen())
+
+        composeTestRule.onNodeWithTag(HOJA_DE_ORIGEN_TAG)
+            .assert(hasAnyDescendant(hasText("Quedan 4 espacios de 5")))
+    }
+
+    /** Con la visita ya registrada, el «+» no se pinta: no hay nada que agregar. */
+    @Test
+    fun `con la visita registrada el mas desaparece`() {
+        pinta(VisitaFixtures.elegir().copy(registrada = "visita-1"))
+
+        assertEquals(
+            0,
+            composeTestRule.onAllNodesWithTag(AGREGAR_FOTO_TAG).fetchSemanticsNodes().size
+        )
+    }
+
+    /** Llena la rejilla, el «+» tampoco se pinta: un botón mudo es una mentira. */
+    @Test
+    fun `con la rejilla llena el mas desaparece`() {
+        pinta(VisitaFixtures.comprobantesLlenos())
+
+        assertEquals(
+            0,
+            composeTestRule.onAllNodesWithTag(AGREGAR_FOTO_TAG).fetchSemanticsNodes().size
+        )
     }
 
     /** Quitar una foto avisa **con el id de esa foto**, no con el de la de al lado. */
@@ -401,21 +438,48 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
         assertEquals(listOf("IMG-2"), quitadas)
     }
 
-    /** El aviso de la foto es visible, y **no apaga el CTA**. */
+    /**
+     * **El fallo se pinta EN SU CUADRO**, con el id del intento — no en un aviso
+     * suelto que no dice cuál de los archivos elegidos se cayó. Y **no apaga el
+     * CTA**: la visita se registra igual.
+     */
     @Test
-    fun `el aviso de la foto no apaga el CTA de la visita`() {
-        pinta(VisitaFixtures.conComprobantes())
+    fun `el cuadro fallido se ve en su lugar y no apaga el CTA de la visita`() {
+        val state = VisitaFixtures.conComprobantes()
+        pinta(state)
 
-        composeTestRule.onNodeWithTag(FALLO_FOTO_TAG).performScrollTo().assertIsDisplayed()
+        val intento = state.intentos.single()
+        composeTestRule.onNodeWithTag(FALLO_FOTO_TAG + intento.id)
+            .performScrollTo()
+            .assertIsDisplayed()
         composeTestRule.onNodeWithTag(GUARDAR_TAG).assertIsEnabled()
     }
 
     /** Los controles de la foto también se tocan: >=50dp de alto. */
     @Test
     fun `los controles de la foto miden al menos 50dp de alto`() {
-        pinta(VisitaFixtures.conComprobantes())
+        val state = VisitaFixtures.conComprobantes()
+        pinta(state)
 
-        listOf(FOTO_EN_LINEA_TAG, QUITAR_FOTO_TAG + "IMG-1", AGREGAR_FOTO_TAG).forEach { tag ->
+        val tags = listOf(
+            AGREGAR_FOTO_TAG,
+            QUITAR_FOTO_TAG + "IMG-1",
+            QUITAR_FOTO_TAG + state.intentos.single().id
+        )
+        tags.forEach { tag ->
+            val bordes = composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+            val alto = bordes.bottom - bordes.top
+            assertTrue("$tag mide $alto", alto >= MINIMO_TOCABLE)
+        }
+    }
+
+    /** Los tres renglones de la hoja, también. */
+    @Test
+    fun `los renglones de la hoja miden al menos 50dp de alto`() {
+        pinta(VisitaFixtures.eligiendoOrigen())
+
+        OrigenDeLaFoto.entries.forEach { origen ->
+            val tag = ORIGEN_TAG + origen.name
             val bordes = composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
             val alto = bordes.bottom - bordes.top
             assertTrue("$tag mide $alto", alto >= MINIMO_TOCABLE)

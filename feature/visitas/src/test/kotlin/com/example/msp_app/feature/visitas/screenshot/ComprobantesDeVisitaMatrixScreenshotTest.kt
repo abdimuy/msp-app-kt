@@ -6,15 +6,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.visitas.ui.RegistrarVisitaUiState
 import com.example.msp_app.feature.visitas.ui.VisitaFixtures
-import com.example.msp_app.feature.visitas.ui.components.BotonDeFotoEnLinea
+import com.example.msp_app.feature.visitas.ui.components.HojaDeOrigenDelComprobante
 import com.example.msp_app.feature.visitas.ui.components.SeccionDeComprobantesDeVisita
 import org.junit.Test
 
 /**
- * La **sección de comprobantes** de la visita, sola, en su estado más apretado:
- * dos fotos, el aviso ámbar y el botón de agregar — más el afordante de la fila
- * del encabezado, que es el punto de entrada visible.
+ * La **rejilla de comprobantes** de la visita, sola, en su estado más apretado:
+ * el «+», dos fotos, un PDF sin vista previa y un cuadro ámbar — cinco cuadros,
+ * que es justo lo que obliga a la rejilla a envolver a la segunda fila.
  *
  * ## Por qué la sección sola y no la pantalla entera
  *
@@ -25,7 +26,10 @@ import org.junit.Test
  * pantalla completa sigue existiendo aparte y cubre lo que sí se ve; ésta cubre
  * lo que hay que mirar de cerca.
  *
- * Matriz completa: claro × oscuro × 1.0/1.5/2.0.
+ * Matriz completa: claro × oscuro × 1.0/1.5/2.0. La hoja del «+» y la rejilla
+ * llena van aparte y **solo en 1.0 y 2.0**: lo que prueban es una composición
+ * distinta, no el comportamiento de la escala intermedia, que ya cubre la matriz
+ * de arriba.
  */
 class ComprobantesDeVisitaMatrixScreenshotTest : VisitasScreenshotTest() {
 
@@ -47,27 +51,71 @@ class ComprobantesDeVisitaMatrixScreenshotTest : VisitasScreenshotTest() {
     @Test
     fun `comprobantes dark muy grande`() = seccion(true, FontSizeLevel.MUY_GRANDE)
 
-    private fun seccion(dark: Boolean, nivel: FontSizeLevel) {
-        val state = VisitaFixtures.conComprobantes()
-        capture("visitas_comprobantes_${tema(dark)}_${sufijoDe(nivel)}", dark, nivel) {
+    /** La rejilla LLENA: cinco fotos y **sin** el «+», porque ya no caben más. */
+    @Test
+    fun `comprobantes llenos light`() = llenos(false)
+
+    @Test
+    fun `comprobantes llenos dark`() = llenos(true)
+
+    /** La hoja del «+»: las tres opciones con su explicación, y el pie que cuenta. */
+    @Test
+    fun `origen light normal`() = hoja(false, FontSizeLevel.NORMAL)
+
+    @Test
+    fun `origen light muy grande`() = hoja(false, FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `origen dark normal`() = hoja(true, FontSizeLevel.NORMAL)
+
+    @Test
+    fun `origen dark muy grande`() = hoja(true, FontSizeLevel.MUY_GRANDE)
+
+    private fun seccion(dark: Boolean, nivel: FontSizeLevel) =
+        rejilla(VisitaFixtures.conComprobantes(), "comprobantes", dark, nivel)
+
+    private fun llenos(dark: Boolean) = rejilla(
+        VisitaFixtures.comprobantesLlenos(),
+        "comprobantes_llenos",
+        dark,
+        FontSizeLevel.NORMAL
+    )
+
+    private fun rejilla(
+        state: RegistrarVisitaUiState,
+        nombre: String,
+        dark: Boolean,
+        nivel: FontSizeLevel
+    ) {
+        capture("visitas_${nombre}_${tema(dark)}_${sufijoDe(nivel)}", dark, nivel) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(MspTheme.spacing.md)
+                    // El mismo margen horizontal que la columna de la pantalla,
+                    // para que el ancho de los cuadros sea el real y no uno de
+                    // laboratorio: la rejilla parte ESE ancho en tres.
+                    .padding(horizontal = MspTheme.spacing.md)
             ) {
-                BotonDeFotoEnLinea(
-                    cuantos = state.comprobantes.size,
-                    habilitado = true,
-                    onAgregar = {}
-                )
                 SeccionDeComprobantesDeVisita(
                     comprobantes = state.comprobantes,
-                    fallo = state.falloDeLaFoto,
-                    puedeAgregar = true,
+                    miniaturas = state.miniaturas,
+                    intentos = state.intentos,
+                    puedeAgregar = state.sePuedeAgregarFoto,
                     onAgregar = {},
                     onQuitar = {}
                 )
             }
+        }
+    }
+
+    private fun hoja(dark: Boolean, nivel: FontSizeLevel) {
+        val state = VisitaFixtures.eligiendoOrigen()
+        capture("visitas_origen_${tema(dark)}_${sufijoDe(nivel)}", dark, nivel) {
+            HojaDeOrigenDelComprobante(
+                espaciosLibres = state.espaciosLibres,
+                onOrigen = {},
+                onCerrar = {}
+            )
         }
     }
 }
