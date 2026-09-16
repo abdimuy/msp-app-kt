@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -720,70 +721,78 @@ fun MapaDelCliente(
 ) {
     Box(modifier = modifier.fillMaxWidth().height(ALTO_DEL_MAPA)) {
         suelo()
-        if (ubicacion != null) {
-            PinDelCobro(modifier = Modifier.align(Alignment.Center))
-        }
-        // El pie del mapa es una FILA, no dos piezas ancladas a las esquinas. Con
-        // esquinas, a `FontSizeLevel.MUY_GRANDE` el botón crecía hasta montarse
-        // encima de la pastilla y del pin — se vio en el golden `..._light_2_0`.
-        // En fila, lo que sobra se le quita a la pastilla, que es contexto, y
-        // nunca al botón, que es la acción.
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(MspTheme.spacing.sm + MspTheme.spacing.xs),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-        ) {
-            // La pastilla solo cabe a escala normal. A las grandes desaparece en
-            // vez de recortarse: "último c…" no informa, y el pin ya dice dónde.
-            if (ubicacion != null && LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
-                Text(
-                    text = "último cobro aquí",
-                    style = MspTheme.type.chipLabel,
-                    color = MspTheme.colors.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .clip(MspTheme.shapes.chip)
-                        .background(MspTheme.colors.surface)
-                        .padding(
-                            horizontal = MspTheme.spacing.sm + MspTheme.spacing.xs,
-                            vertical = MspTheme.spacing.xs + 2.dp
-                        )
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Surface(
-                onClick = onComoLlegar,
-                shape = MspTheme.shapes.chip,
-                color = MspTheme.colors.brand,
-                modifier = Modifier
-                    .heightIn(min = TOQUE_DE_ACCION)
-                    .testTag(COMO_LLEGAR_TAG)
+        // El pin y el pie viven en BANDAS, no anclados a las esquinas de la misma
+        // caja. Anclados se montaban uno sobre otro: el botón crecía con la escala
+        // de fuente y tapaba primero la pastilla (golden `..._light_2_0`) y luego
+        // el propio pin (`..._light_1_5`). Con la banda de arriba tomando el
+        // espacio que sobra, el encimamiento deja de ser posible a cualquier escala.
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
-                    modifier = Modifier.padding(
-                        horizontal = MspTheme.spacing.md,
-                        vertical = MspTheme.spacing.sm
-                    )
-                ) {
-                    Icon(
-                        imageVector = AccionesIconos.Pin,
-                        contentDescription = null,
-                        tint = MspTheme.colors.onBrand,
-                        modifier = Modifier.size(MspTheme.spacing.md)
-                    )
+                if (ubicacion != null) PinDelCobro()
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(MspTheme.spacing.sm + MspTheme.spacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+            ) {
+                // La pastilla solo cabe a escala normal. A las grandes desaparece en
+                // vez de recortarse: "último c…" no informa, y el pin ya dice dónde.
+                //
+                // **Sin `weight`**: con `weight(1f, fill = false)` peleaba contra el
+                // `Spacer(weight(1f))` de al lado —los dos se repartían la fila— y el
+                // texto salía recortado a "último …" hasta a escala 1.0, donde sobra
+                // espacio. Es literal fijo y corto: que mida lo que mide.
+                if (ubicacion != null && LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
                     Text(
-                        text = "cómo llegar",
-                        style = MspTheme.type.buttonSmall,
-                        color = MspTheme.colors.onBrand,
-                        maxLines = 1
+                        text = "último cobro aquí",
+                        style = MspTheme.type.chipLabel,
+                        color = MspTheme.colors.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .clip(MspTheme.shapes.chip)
+                            .background(MspTheme.colors.surface)
+                            .padding(
+                                horizontal = MspTheme.spacing.sm + MspTheme.spacing.xs,
+                                vertical = MspTheme.spacing.xs + 2.dp
+                            )
                     )
+                }
+                Spacer(Modifier.weight(1f))
+                Surface(
+                    onClick = onComoLlegar,
+                    shape = MspTheme.shapes.chip,
+                    color = MspTheme.colors.brand,
+                    modifier = Modifier
+                        .heightIn(min = TOQUE_DE_ACCION)
+                        .testTag(COMO_LLEGAR_TAG)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
+                        modifier = Modifier.padding(
+                            horizontal = MspTheme.spacing.md,
+                            vertical = MspTheme.spacing.sm
+                        )
+                    ) {
+                        Icon(
+                            imageVector = AccionesIconos.Pin,
+                            contentDescription = null,
+                            tint = MspTheme.colors.onBrand,
+                            modifier = Modifier.size(MspTheme.spacing.md)
+                        )
+                        Text(
+                            text = "cómo llegar",
+                            style = MspTheme.type.buttonSmall,
+                            color = MspTheme.colors.onBrand,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }

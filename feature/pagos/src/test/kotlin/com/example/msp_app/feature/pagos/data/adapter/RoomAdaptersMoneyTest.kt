@@ -300,6 +300,51 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
     }
 
     /**
+     * **Los atrasos llegan por la lectura POR CLIENTE, no solo por la ruta completa.**
+     *
+     * Este test existe porque su ausencia escondió un defecto real. `getAll` une
+     * `overdue_payments_view` y `getByClientId` **no lo hacía**, así que
+     * `NUM_PAGOS_ATRASADOS` caía al default `null` y el adaptador contestaba
+     * `atrasos = 0` para TODA venta leída por cliente.
+     *
+     * No era cosmético. `CuentaDelAbono.preseleccionada` marca la cuenta con más
+     * atrasos; con todas en cero, `maxByOrNull` devuelve **la primera de la
+     * lista** — exactamente el defecto que la hoja del abono vino a cerrar.
+     *
+     * **Por qué no se vio antes:** las pruebas de esa hoja siembran `atrasos` en
+     * el fixture, así que probaban la FUNCIÓN y no la TUBERÍA. Es la regla de
+     * control positivo: una ausencia no es un hallazgo hasta probar que la
+     * consulta habría encontrado la cosa. Éste es el test que la prueba, y por eso
+     * va sobre Room de verdad y no sobre un fake.
+     *
+     * **Control de reversión:** quitar el `LEFT JOIN overdue_payments_view` de
+     * `SaleDao.getByClientId` pone este test en ROJO.
+     */
+    @Test
+    fun `los atrasos llegan tambien leyendo por cliente, no solo por la ruta`() = runTest {
+        // Una venta vieja y casi sin abonar: la vista tiene que contarle atraso.
+        db.saleDao().insertAll(
+            listOf(
+                venta(parcialidad = 220, restante = 6000.0, bruto = 6400.0)
+                    .copy(FECHA = "2026-01-05T06:00:00Z", FREC_PAGO = "SEMANAL")
+            )
+        )
+
+        val porCliente = ventas.ventasDelCliente(CLIENTE).single().atrasos
+        val porLaRuta = ventas.todasLasVentas().single().atrasos
+
+        assertTrue(
+            "la vista tiene que contar atraso en esta venta, o el test no prueba nada",
+            porLaRuta > 0
+        )
+        assertEquals(
+            "leer por cliente y leer la ruta completa no pueden dar atrasos distintos",
+            porLaRuta,
+            porCliente
+        )
+    }
+
+    /**
      * **Lo que ya llegaba al adaptador y nadie pintaba.** Las tres columnas
      * viajaban en la proyección de `SaleDao` desde antes de este trabajo; lo que
      * faltaba era mapearlas.

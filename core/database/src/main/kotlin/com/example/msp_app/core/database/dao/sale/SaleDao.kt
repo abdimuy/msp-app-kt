@@ -229,7 +229,7 @@ interface SaleDao {
         """
         SELECT
             DOCTO_CC_ACR_ID,
-            DOCTO_CC_ID,
+            sales.DOCTO_CC_ID,
             sales.FOLIO,
             CLIENTE_ID,
             APLICADO,
@@ -241,7 +241,7 @@ interface SaleDao {
             ZONA_NOMBRE,
             IMPORTE_PAGO_PROMEDIO,
             TOTAL_IMPORTE,
-            NUM_IMPORTES,
+            sales.NUM_IMPORTES,
             FECHA,
             PARCIALIDAD,
             ENGANCHE,
@@ -253,7 +253,7 @@ interface SaleDao {
             PRECIO_TOTAL,
             IMPTE_REST,
             SALDO_REST,
-            FECHA_ULT_PAGO,
+            sales.FECHA_ULT_PAGO,
             CALLE,
             CIUDAD,
             ESTADO,
@@ -265,9 +265,11 @@ interface SaleDao {
             PRECIO_DE_CONTADO,
             AVAL_O_RESPONSABLE,
             FREC_PAGO,
-            GROUP_CONCAT(p.ARTICULO, ', ') AS PRODUCTOS
+            GROUP_CONCAT(p.ARTICULO, ', ') AS PRODUCTOS,
+            CAST(a.NUM_PAGOS_ATRASADOS AS INTEGER) AS NUM_PAGOS_ATRASADOS
         FROM sales
         LEFT JOIN products p ON p.FOLIO = sales.FOLIO
+        LEFT JOIN overdue_payments_view AS a ON a.DOCTO_CC_ID = sales.DOCTO_CC_ID
         WHERE sales.CLIENTE_ID = :clientId
         GROUP BY sales.DOCTO_CC_ID
         """
