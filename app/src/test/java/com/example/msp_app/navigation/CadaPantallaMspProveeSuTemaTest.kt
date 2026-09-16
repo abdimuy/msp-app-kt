@@ -155,9 +155,13 @@ class CadaPantallaMspProveeSuTemaTest {
         const val RAIZ_DE_PRUEBA = "raiz_de_prueba"
 
         /**
-         * Control positivo: las ocho que hoy registra el grafo. No es la lista
+         * Control positivo: las diez que hoy registra el grafo. No es la lista
          * que gobierna el test —esa sale del escaneo— sino la prueba de que el
          * escaneo ve algo real.
+         *
+         * Las dos últimas no son de cobranza: son las descargas opcionales, que
+         * `destinosDeDescargas` registra dentro de [destinosDeCobranza] para que
+         * las cuatro redes de `:app` las barran. Ver su KDoc.
          */
         val PANTALLAS_DE_COBRANZA = setOf(
             "ListaDeClientesScreen",
@@ -167,7 +171,9 @@ class CadaPantallaMspProveeSuTemaTest {
             "RegistrarAbonoScreen",
             "TicketDePagoScreen",
             "RegistrarVisitaScreen",
-            "TicketDeVisitaScreen"
+            "TicketDeVisitaScreen",
+            "DescargaDelDictadoScreen",
+            "DescargaDelMapaScreen"
         )
 
         /** `MspTheme(...)` o `MspTheme { ... }` — las DOS formas de llamada. */

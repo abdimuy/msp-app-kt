@@ -12,8 +12,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,6 +42,9 @@ const val BORRAR_MAPA_TAG: String = "mapa_borrar"
 /** `testTag` de la barra de avance. */
 const val AVANCE_DEL_MAPA_TAG: String = "mapa_avance"
 
+/** `testTag` del botón de volver. */
+const val ATRAS_DEL_MAPA_TAG: String = "mapa_atras"
+
 /**
  * **La pantalla que le dice la verdad al cobrador sobre los megas del mapa.**
  *
@@ -55,11 +63,21 @@ fun DescargaDelMapaScreen(
     estado: EstadoDelExtracto,
     onDescargar: () -> Unit,
     onBorrar: () -> Unit,
+    onAtras: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     MspTheme {
-        Box(modifier = modifier.fillMaxSize().background(MspTheme.colors.background)) {
-            DescargaDelMapaContenido(paquete, estado, onDescargar, onBorrar)
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MspTheme.colors.background)
+                // Ruling BR — DESPUÉS del `background`, para que el color se
+                // pinte a sangre bajo la barra de estado y el inset solo baje el
+                // contenido. Sin esto, con `enableEdgeToEdge()` la ventana del
+                // sistema se come los taps del botón de volver.
+                .systemBarsPadding()
+        ) {
+            DescargaDelMapaContenido(paquete, estado, onDescargar, onBorrar, onAtras)
         }
     }
 }
@@ -75,6 +93,7 @@ fun DescargaDelMapaContenido(
     estado: EstadoDelExtracto,
     onDescargar: () -> Unit,
     onBorrar: () -> Unit,
+    onAtras: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -84,6 +103,10 @@ fun DescargaDelMapaContenido(
             .padding(MspTheme.spacing.md),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)
     ) {
+        // Dentro del contenido y no del envoltorio: lo que los goldens
+        // fotografían es esto, y una barra que ningún `.png` mira es una barra
+        // que nadie ve hasta que el cobrador la toca.
+        BarraDeVuelta(onAtras)
         Text(
             text = "Mapa de la ruta",
             style = MspTheme.type.screenTitle,
@@ -277,6 +300,39 @@ private fun CreditoDeLosDatos() {
     )
 }
 
+/**
+ * La fila de volver: sólo la flecha, y el título grande va debajo.
+ *
+ * Misma forma que `BarraDeDetalle` de `:feature:pagos` y no `MspTicketTopBar`
+ * del design system: aquél lleva su propio título, y ponerlo aquí repetiría el
+ * "Mapa de la ruta" que ya encabeza la pantalla (principio 5 — repetir no
+ * jerarquiza). Se escribe aparte en cada uno de los dos módulos de descarga por
+ * la misma razón que `AvanceDeLaDescarga`: hacer que `:core:mapas` dependa de
+ * `:core:speech` para compartir quince líneas ataría el mapa al dictado, que
+ * cuesta más.
+ */
+@Composable
+private fun BarraDeVuelta(onAtras: () -> Unit) {
+    Surface(
+        onClick = onAtras,
+        // 56 dp, por encima de los >=50 dp que el repo exige por control. El
+        // barrido de `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest` lo mide
+        // sobre el grafo real.
+        modifier = Modifier.size(TOQUE).testTag(ATRAS_DEL_MAPA_TAG),
+        shape = MspTheme.shapes.chip,
+        color = MspTheme.colors.surface
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Atrás",
+                tint = MspTheme.colors.onSurface,
+                modifier = Modifier.size(ICONO)
+            )
+        }
+    }
+}
+
 /** Un hecho de la lista, con su punto. */
 @Composable
 private fun Hecho(texto: String) {
@@ -304,3 +360,9 @@ private fun Hecho(texto: String) {
 private val ALTO_DE_LA_BARRA = 6.dp
 
 private val PUNTO = 6.dp
+
+/** Alto y ancho tocables del botón de volver. */
+private val TOQUE = 56.dp
+
+/** La flecha dentro del botón. */
+private val ICONO = 20.dp

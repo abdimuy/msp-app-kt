@@ -3,11 +3,18 @@ package com.example.msp_app.feature.configuracion.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
+import com.example.msp_app.core.mapas.domain.EstadoDelExtracto
+import com.example.msp_app.core.mapas.domain.ExtractoDeMapa
+import com.example.msp_app.core.mapas.domain.port.ExtractoDeMapaPort
 import com.example.msp_app.core.settings.SettingsRepository
+import com.example.msp_app.core.speech.domain.EstadoDelModelo
+import com.example.msp_app.core.speech.domain.ModeloDeDictado
+import com.example.msp_app.core.speech.domain.port.ModeloDeDictadoPort
 import com.example.msp_app.feature.configuracion.domain.port.AppThemeMode
 import com.example.msp_app.feature.configuracion.domain.port.AppThemePort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -16,34 +23,73 @@ import kotlinx.coroutines.launch
 
 /**
  * Orquesta [SettingsRepository] (tamaño de letra, privacidad, reduce-motion) +
- * [AppThemePort] (tema global) en un único [StateFlow] observable, y expone
- * los setters que la pantalla llama al tocar cada control. Todos los setters
- * escriben de inmediato (sin un paso "aplicar" separado) — el mismo criterio
- * que el resto de los toggles globales de la app (spec §"la pantalla togglea
- * `ThemeController`… ya global").
+ * [AppThemePort] (tema global) + los dos puertos de descarga opcional en un
+ * único [StateFlow] observable, y expone los setters que la pantalla llama al
+ * tocar cada control. Todos los setters escriben de inmediato (sin un paso
+ * "aplicar" separado) — el mismo criterio que el resto de los toggles globales
+ * de la app (spec §"la pantalla togglea `ThemeController`… ya global").
+ *
+ * ## Por qué este ViewModel ve `:core:speech` y `:core:mapas`
+ *
+ * Ve los **puertos**, que viven en el `domain/` de cada módulo, y jamás sus
+ * adaptadores —donde están WorkManager, OkHttp y el `File`—. Es exactamente lo
+ * que el contrato hexagonal permite y para lo que esos puertos existen: su KDoc
+ * dice que están justificados por el caso 3 del Ruling BF, "el consumidor vive
+ * en una capa que no puede importar la de la implementación". No hace falta un
+ * puerto nuevo en `:feature:configuracion` que envuelva a los dos: sería una
+ * tercera interfaz con una sola implementación cuyo único trabajo sería
+ * delegar, o sea el triple-map ritual que el mismo Ruling prohíbe.
  */
 @HiltViewModel
 class ConfiguracionViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
-    private val themePort: AppThemePort
+    private val themePort: AppThemePort,
+    private val modeloPort: ModeloDeDictadoPort,
+    private val modelo: ModeloDeDictado,
+    private val extractoPort: ExtractoDeMapaPort,
+    private val paquete: ExtractoDeMapa?
 ) : ViewModel() {
+
+    /**
+     * Los dos renglones de la sección "Descargas", combinados **antes** del
+     * resto: `combine` llega hasta cinco flujos tipados y acá hay seis. Juntar
+     * primero los dos que pertenecen a la misma sección es lo que corresponde
+     * de todos modos — un renglón que cambia no tiene por qué recomponer el
+     * tamaño de letra.
+     */
+    private val descargas: Flow<List<FilaDeDescarga>> =
+        combine(modeloPort.estado(), extractoPort.estado()) { dictado, mapa ->
+            listOf(filaDelDictado(modelo, dictado), filaDelMapa(paquete, mapa))
+        }
 
     val state: StateFlow<ConfiguracionUiState> = combine(
         settingsRepository.fontSizeLevel,
         settingsRepository.privacyMasked,
         settingsRepository.reduceMotion,
-        themePort.themeMode
-    ) { fontSizeLevel, privacyMasked, reduceMotion, themeMode ->
+        themePort.themeMode,
+        descargas
+    ) { fontSizeLevel, privacyMasked, reduceMotion, themeMode, filas ->
         ConfiguracionUiState(
             fontSizeLevel = fontSizeLevel,
             privacyMasked = privacyMasked,
             reduceMotion = reduceMotion,
-            themeMode = themeMode
+            themeMode = themeMode,
+            descargas = filas
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-        initialValue = ConfiguracionUiState(themeMode = themePort.currentThemeMode())
+        initialValue = ConfiguracionUiState(
+            themeMode = themePort.currentThemeMode(),
+            // Los dos renglones desde el primer frame, y no una lista vacía: el
+            // peso y el origen salen de los paquetes, que se conocen sin
+            // preguntarle nada a nadie. Lo único que falta es el estado, y
+            // "Sin descargar" es el estado del que no bajó nada.
+            descargas = listOf(
+                filaDelDictado(modelo, EstadoDelModelo.Ausente),
+                filaDelMapa(paquete, EstadoDelExtracto.Ausente)
+            )
+        )
     )
 
     /** Elige el nivel de tamaño de letra — escrito de inmediato a [SettingsRepository]. */

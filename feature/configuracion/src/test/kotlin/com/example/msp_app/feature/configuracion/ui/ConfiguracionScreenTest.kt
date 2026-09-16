@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
@@ -16,6 +17,7 @@ import com.example.msp_app.feature.configuracion.ui.components.FONT_SIZE_OPTION_
 import com.example.msp_app.feature.configuracion.ui.components.MINI_REPORT_PREVIEW_TAG
 import com.example.msp_app.feature.configuracion.ui.components.PRIVACY_MASKED_TOGGLE_TAG
 import com.example.msp_app.feature.configuracion.ui.components.REDUCE_MOTION_TOGGLE_TAG
+import com.example.msp_app.feature.configuracion.ui.components.tagDeLaDescarga
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -52,7 +54,33 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
                     onSelectFontSize = onSelectFontSize,
                     onSelectThemeMode = onSelectThemeMode,
                     onPrivacyMaskedChanged = onPrivacyMaskedChanged,
-                    onReduceMotionChanged = onReduceMotionChanged
+                    onReduceMotionChanged = onReduceMotionChanged,
+                    onAbrirDescarga = {}
+                )
+            }
+        }
+    }
+
+    /**
+     * El montaje de la sección "Descargas". Va aparte de [setContent] y no como
+     * un séptimo parámetro suyo: siete lambdas sueltas es exactamente el umbral
+     * de `LongParameterList` que detekt aplica a este módulo, y una llamada de
+     * siete lambdas tampoco se lee.
+     */
+    private fun setDescargas(
+        descargas: List<FilaDeDescarga>,
+        onAbrirDescarga: (DescargaOpcional) -> Unit = {}
+    ) {
+        composeTestRule.setContent {
+            MspTheme(animateColors = false) {
+                ConfiguracionContent(
+                    state = ConfiguracionUiState(descargas = descargas),
+                    onBack = {},
+                    onSelectFontSize = {},
+                    onSelectThemeMode = {},
+                    onPrivacyMaskedChanged = {},
+                    onReduceMotionChanged = {},
+                    onAbrirDescarga = onAbrirDescarga
                 )
             }
         }
@@ -145,7 +173,8 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
                     onSelectFontSize = { level = it },
                     onSelectThemeMode = {},
                     onPrivacyMaskedChanged = {},
-                    onReduceMotionChanged = {}
+                    onReduceMotionChanged = {},
+                    onAbrirDescarga = {}
                 )
             }
         }
@@ -158,5 +187,102 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
             assertEquals(target, level)
             composeTestRule.onNodeWithTag(MINI_REPORT_PREVIEW_TAG).assertExists()
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // La sección "Descargas" — la puerta que las dos pantallas no tenían
+    // -----------------------------------------------------------------------
+
+    /**
+     * **La sección no se pinta cuando no hay renglones.** Un encabezado
+     * "Descargas" sobre cero filas se lee como algo que no cargó, que es
+     * exactamente el defecto que los goldens de esta rama ya destaparon una vez.
+     */
+    @Test
+    fun `sin renglones la seccion de descargas no existe`() {
+        setDescargas(emptyList())
+
+        composeTestRule.onNodeWithText("Descargas").assertDoesNotExist()
+    }
+
+    @Test
+    fun `cada renglon dice que es, que gana y cuanto ocupa`() {
+        setDescargas(LAS_DOS)
+
+        composeTestRule.onNodeWithText("Descargas").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Dictado por voz").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Dicta la nota sin señal").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Ocupa 43.5 MB").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Mapa de la ruta").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Ve las calles sin señal").performScrollTo().assertExists()
+    }
+
+    /**
+     * **El estado real de hoy.** El extracto no está publicado en ningún
+     * servidor, así que el renglón del mapa no puede anunciar un peso: si
+     * apareciera un "Ocupa … MB" ahí, sería un número inventado.
+     */
+    @Test
+    fun `sin origen el renglon del mapa lo dice y no anuncia megas`() {
+        setDescargas(LAS_DOS)
+
+        composeTestRule.onNodeWithText("Todavía no se puede").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Ocupa 25.5 MB").assertDoesNotExist()
+    }
+
+    @Test
+    fun `tocar un renglon informa CUAL descarga se abrió`() {
+        var abierta: DescargaOpcional? = null
+        setDescargas(LAS_DOS, onAbrirDescarga = { abierta = it })
+
+        composeTestRule.onNodeWithTag(tagDeLaDescarga(DescargaOpcional.MAPA))
+            .performScrollTo()
+            .performClick()
+
+        // El MAPA y no el dictado: si los dos renglones informaran lo mismo, la
+        // sección abriría siempre la misma pantalla y este test lo dice.
+        assertEquals(DescargaOpcional.MAPA, abierta)
+    }
+
+    /**
+     * **El toque, medido acá.** `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`
+     * barre el grafo de cobranza y Configuración no vive ahí, así que los >=50 dp
+     * que el repo exige por control los cobra este test sobre el renglón real.
+     * Si un día no llega, **sube la implementación** — no bajes este mínimo.
+     */
+    @Test
+    fun `cada renglon de descarga conserva sus 50dp tocables`() {
+        setDescargas(LAS_DOS)
+
+        val chicos = DescargaOpcional.entries.mapNotNull { cual ->
+            val alto = composeTestRule.onNodeWithTag(tagDeLaDescarga(cual))
+                .performScrollTo()
+                .fetchSemanticsNode()
+                .boundsInRoot
+                .height
+            val enDp = with(composeTestRule.density) { alto.toDp() }
+            if (enDp < TOQUE_MINIMO) "$cual mide $enDp" else null
+        }
+        assertEquals(
+            "estos renglones no llegan a los $TOQUE_MINIMO tocables del repo: el cobrador " +
+                "toca y el tap no entra",
+            emptyList<String>(),
+            chicos
+        )
+    }
+
+    private companion object {
+
+        /** El mínimo tocable del repo, más estricto que los 48 de Material. */
+        val TOQUE_MINIMO = 50.dp
+
+        /**
+         * Los dos renglones como se ven HOY: el dictado con su peso medido y el
+         * mapa sin origen publicado.
+         */
+        val LAS_DOS = listOf(
+            FilaDeDescarga(DescargaOpcional.DICTADO, "43.5", EstadoDeLaDescarga.AUSENTE),
+            FilaDeDescarga(DescargaOpcional.MAPA, null, EstadoDeLaDescarga.SIN_ORIGEN)
+        )
     }
 }

@@ -256,7 +256,8 @@ class DictadoMatrixScreenshotTest : SpeechScreenshotTest() {
                 modelo = MODELO,
                 estado = estado,
                 onDescargar = {},
-                onBorrar = {}
+                onBorrar = {},
+                onAtras = {}
             )
         }
     }

@@ -51,7 +51,7 @@ internal class EscanerDeFuentes {
      * repo usa (`java/` en `:app`, `kotlin/` en el resto). Un módulo nuevo —o un
      * grupo nuevo— entra el día que entra al build.
      */
-    val raices: List<File> = buildList {
+    private val raicesPorModulo: List<Pair<String, File>> = buildList {
         val settings = File(raiz, "settings.gradle.kts").readText()
         val modulos = INCLUDE.findAll(settings)
             .map { it.groupValues[1].trim(':').replace(':', '/') }
@@ -60,13 +60,33 @@ internal class EscanerDeFuentes {
             "no se leyó ningún include(...) de settings.gradle.kts: el escáner no miraría nada"
         }
         modulos.sorted().forEach { modulo ->
-            add(File(raiz, "$modulo/src/main/java"))
-            add(File(raiz, "$modulo/src/main/kotlin"))
+            add(modulo to File(raiz, "$modulo/src/main/java"))
+            add(modulo to File(raiz, "$modulo/src/main/kotlin"))
         }
-    }.filter { it.isDirectory }
+    }.filter { (_, dir) -> dir.isDirectory }
+
+    val raices: List<File> = raicesPorModulo.map { (_, dir) -> dir }
 
     val archivos: List<File> by lazy {
         raices.flatMap { it.walkTopDown().filter { f -> f.isFile && f.extension == "kt" } }
+    }
+
+    /**
+     * Los archivos de producción **agrupados por el módulo que los contiene**
+     * (`app`, `core/speech`, `feature/pagos`…), con el nombre tal como lo
+     * escribe `settings.gradle.kts` pero con `/` en vez de `:`.
+     *
+     * Lo necesita [CadaPantallaSeAlcanzaDesdeElGrafoTest], que arranca su
+     * recorrido en `:app` —la raíz del grafo de navegación— y exige el
+     * resultado sólo sobre `:core:*`/`:feature:*`, porque `:app` es legado
+     * (Ruling I) y tiene pantallas muertas de antes.
+     */
+    val archivosPorModulo: Map<String, List<File>> by lazy {
+        raicesPorModulo
+            .groupBy({ (modulo, _) -> modulo }) { (_, dir) ->
+                dir.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList()
+            }
+            .mapValues { (_, listas) -> listas.flatten() }
     }
 
     /**

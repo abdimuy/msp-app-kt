@@ -7,6 +7,8 @@ import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
+import com.example.msp_app.core.mapas.ui.MapasRutas
+import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
@@ -285,6 +287,35 @@ class ReglaDelOrigenTest {
         assertEquals(PagosRutas.LISTA_CLIENTES, ruta())
     }
 
+    /**
+     * Punto de entrada: el renglón "Dictado por voz" de la sección Descargas de
+     * Configuración. **Hasta este cambio no existía ninguno**: la pantalla
+     * estaba escrita, probada y con goldens, y sin una sola cadena que llevara a
+     * ella.
+     */
+    @Test
+    fun `desde configuracion se llega a la descarga del dictado`() {
+        nav.navigate(DictadoRutas.DESCARGA)
+        assertEquals(DictadoRutas.DESCARGA, ruta())
+    }
+
+    /** Punto de entrada: el renglón "Mapa de la ruta" de la misma sección. */
+    @Test
+    fun `desde configuracion se llega a la descarga del mapa`() {
+        nav.navigate(MapasRutas.DESCARGA)
+        assertEquals(MapasRutas.DESCARGA, ruta())
+    }
+
+    /**
+     * **Control negativo de las dos descargas**: son destinos distintos. Sin
+     * esto, las dos cadenas podrían ser la misma y los dos tests de arriba
+     * pasarían igual llevando siempre a la misma pantalla.
+     */
+    @Test
+    fun `las dos descargas NO son el mismo destino`() {
+        assertNotEquals(DictadoRutas.DESCARGA, MapasRutas.DESCARGA)
+    }
+
     // -----------------------------------------------------------------------
     // Ninguna ruta huérfana
     // -----------------------------------------------------------------------
@@ -311,7 +342,9 @@ class ReglaDelOrigenTest {
             PagosRutas.REGISTRAR_ABONO,
             PagosRutas.TICKET_PAGO,
             VisitasRutas.REGISTRAR,
-            VisitasRutas.TICKET
+            VisitasRutas.TICKET,
+            DictadoRutas.DESCARGA,
+            MapasRutas.DESCARGA
         ) + legados
         assertEquals(esperadas, registradas)
     }
@@ -322,7 +355,7 @@ class ReglaDelOrigenTest {
      * (`"visit_ticket/{saleId}"`) ya no existen: navegar ahí no resuelve.
      *
      * Su **control positivo** es el `assertEquals` de arriba: la misma búsqueda
-     * SÍ encuentra las nueve rutas vivas más las tres legadas, así que el `null`
+     * SÍ encuentra las once rutas vivas más las tres legadas, así que el `null`
      * de aquí abajo es una ausencia medida, no un método que no mira.
      */
     @Test

@@ -52,6 +52,9 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.androidx.compose.foundation)
+    // La flecha de volver de la pantalla de descarga (`Icons.AutoMirrored.Filled.ArrowBack`).
+    // El set `core` y no `extended`: la flecha está en el core y `extended` pesa megas.
+    implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.runtime.compose) // collectAsStateWithLifecycle
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.hilt.navigation.compose) // hiltViewModel() en el suelo

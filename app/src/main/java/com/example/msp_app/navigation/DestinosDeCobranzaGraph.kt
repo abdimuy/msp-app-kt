@@ -2,6 +2,11 @@ package com.example.msp_app.navigation
 
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.compose.composable
+import com.example.msp_app.core.mapas.ui.DescargaDelMapaConectada
+import com.example.msp_app.core.mapas.ui.MapasRutas
+import com.example.msp_app.core.speech.ui.DescargaDelDictadoConectada
+import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.destinoDeBitacora
 import com.example.msp_app.feature.pagos.ui.destinoDeDetalleCliente
@@ -14,8 +19,9 @@ import com.example.msp_app.feature.visitas.ui.destinoDeRegistrarVisita
 import com.example.msp_app.feature.visitas.ui.destinoDeTicketDeVisita
 
 /**
- * **Las siete pantallas de cobranza y visitas (Tasks 16-20), montadas en el
- * grafo** — el trabajo entero de la Task 21 en un solo lugar.
+ * **Los destinos de arquitectura nueva que `:app` monta** — las ocho pantallas
+ * de cobranza y visitas (Tasks 16-20, el trabajo de la Task 21) más las dos
+ * pantallas de descarga opcional.
  *
  * Vive fuera de `AppNavigation` por una razón de prueba, no de estética:
  * `AppNavigation` es un `@Composable` que levanta Firebase, Hilt y los
@@ -101,4 +107,45 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
     )
 
     destinoDeTicketDeVisita(onAtras = { navController.popBackStack() })
+
+    destinosDeDescargas(navController)
+}
+
+/**
+ * **Las dos descargas opcionales: el modelo de voz y el extracto de mapa.**
+ *
+ * ## El defecto que esto cierra
+ *
+ * Las dos pantallas existían, estaban probadas y con goldens, y **ninguna
+ * estaba registrada en el grafo**. O sea: el cobrador no podía llegar a bajar
+ * ni el mapa ni el dictado de alta fidelidad. Dos funciones completas y
+ * muertas, cada una copiando el precedente de la otra.
+ *
+ * ## Por qué se registran acá dentro y no aparte
+ *
+ * No son cobranza, y sin embargo van dentro de [destinosDeCobranza] a
+ * propósito: esa función es la que barren las cuatro redes de `:app`
+ * —`CadaDestinoDeCobranzaSeMontaTest` las compone de verdad con Hilt,
+ * `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest` les mide el inset y los
+ * 50 dp de cada control, `CadaPantallaMspProveeSuTemaTest` cuenta los destinos
+ * y `ReglaDelOrigenTest` verifica que ninguna ruta quede huérfana—. Un grafo
+ * hermano registrado por su cuenta se habría quedado fuera de las cuatro, que
+ * es exactamente la clase de hueco que este cambio vino a tapar.
+ *
+ * ## Por qué el `composable {}` vive en `:app` y no en el módulo
+ *
+ * Igual que `VersionBlockedScreen` de `:core:appgate`, que `:app` también
+ * monta: ningún `:core:*` depende de `androidx.navigation.compose` y ninguno
+ * tiene por qué. Lo que sí sale del módulo es **la cadena** (`DictadoRutas`,
+ * `MapasRutas`) y el composable ya cableado, para que el ViewModel y el peso
+ * anunciado se queden adentro.
+ */
+private fun NavGraphBuilder.destinosDeDescargas(navController: NavController) {
+    composable(DictadoRutas.DESCARGA) {
+        DescargaDelDictadoConectada(onAtras = { navController.popBackStack() })
+    }
+
+    composable(MapasRutas.DESCARGA) {
+        DescargaDelMapaConectada(onAtras = { navController.popBackStack() })
+    }
 }

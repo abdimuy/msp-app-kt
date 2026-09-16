@@ -162,7 +162,8 @@ class MapasMatrixScreenshotTest : MapasScreenshotTest() {
                 paquete = paquete,
                 estado = estado,
                 onDescargar = {},
-                onBorrar = {}
+                onBorrar = {},
+                onAtras = {}
             )
         }
     }

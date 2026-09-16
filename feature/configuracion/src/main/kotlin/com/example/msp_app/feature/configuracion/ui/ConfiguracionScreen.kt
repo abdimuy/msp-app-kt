@@ -30,8 +30,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.mapas.ui.MapasRutas
+import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.feature.configuracion.domain.port.AppThemeMode
 import com.example.msp_app.feature.configuracion.ui.components.AppearanceSection
+import com.example.msp_app.feature.configuracion.ui.components.DescargasSection
 import com.example.msp_app.feature.configuracion.ui.components.FontSizeSection
 
 /** `testTag` del botón de regreso del header. */
@@ -70,7 +73,18 @@ fun ConfiguracionScreen(
             onSelectFontSize = viewModel::selectFontSizeLevel,
             onSelectThemeMode = viewModel::selectThemeMode,
             onPrivacyMaskedChanged = viewModel::setPrivacyMasked,
-            onReduceMotionChanged = viewModel::setReduceMotion
+            onReduceMotionChanged = viewModel::setReduceMotion,
+            // Las cadenas las declaran `:core:speech` y `:core:mapas`, que es
+            // también de donde las lee `:app` al registrar los destinos. Una
+            // cadena escrita a mano acá sería un destino que no resuelve.
+            onAbrirDescarga = { cual ->
+                navController.navigate(
+                    when (cual) {
+                        DescargaOpcional.DICTADO -> DictadoRutas.DESCARGA
+                        DescargaOpcional.MAPA -> MapasRutas.DESCARGA
+                    }
+                )
+            }
         )
     }
 }
@@ -83,7 +97,8 @@ fun ConfiguracionContent(
     onSelectFontSize: (FontSizeLevel) -> Unit,
     onSelectThemeMode: (AppThemeMode) -> Unit,
     onPrivacyMaskedChanged: (Boolean) -> Unit,
-    onReduceMotionChanged: (Boolean) -> Unit
+    onReduceMotionChanged: (Boolean) -> Unit,
+    onAbrirDescarga: (DescargaOpcional) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -115,6 +130,16 @@ fun ConfiguracionContent(
                 onReduceMotionChanged = onReduceMotionChanged,
                 modifier = Modifier.fillMaxWidth()
             )
+            // La sección entera desaparece si no hay renglones: un encabezado
+            // "Descargas" sobre nada se lee como algo que no cargó.
+            if (state.descargas.isNotEmpty()) {
+                Spacer(Modifier.height(SECTION_GAP))
+                DescargasSection(
+                    descargas = state.descargas,
+                    onAbrir = onAbrirDescarga,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             Spacer(Modifier.height(MspTheme.spacing.lg))
         }
     }
