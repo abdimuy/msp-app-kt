@@ -153,11 +153,14 @@ class RegistrarAbonoFotosTest {
         advanceUntilIdle()
         camaraPort.fallaAlPreparar = IllegalStateException("camara ocupada por Victoria Flores")
 
-        vm.pedirFoto()
+        vm.onOrigen(OrigenDeLaFoto.CAMARA)
         advanceUntilIdle()
 
         assertNull("no quedo destino en vuelo", vm.state.value.destinoDeFoto)
-        assertEquals(FalloDeLaFoto.NO_SE_PUDO_TOMAR, vm.state.value.falloDeLaFoto)
+        assertEquals(
+            listOf(FalloDeLaFoto.NO_SE_PUDO_TOMAR),
+            vm.state.value.intentos.map { it.motivo }
+        )
         assertTrue("el abono NO se bloquea", vm.state.value.sePuedeRegistrar)
         assertNull("y el fallo del abono sigue limpio", vm.state.value.fallo)
 
@@ -185,14 +188,17 @@ class RegistrarAbonoFotosTest {
         advanceUntilIdle()
         camaraPort.fallaAlAceptar = OutOfMemoryError("comprimiendo")
 
-        vm.pedirFoto()
+        vm.onOrigen(OrigenDeLaFoto.CAMARA)
         advanceUntilIdle()
         vm.fotoTomada()
         advanceUntilIdle()
 
         assertEquals(emptyList<Any>(), vm.state.value.comprobantes)
         assertNull("el destino se suelta aunque falle", vm.state.value.destinoDeFoto)
-        assertEquals(FalloDeLaFoto.NO_SE_PUDO_TOMAR, vm.state.value.falloDeLaFoto)
+        assertEquals(
+            listOf(FalloDeLaFoto.NO_SE_PUDO_TOMAR),
+            vm.state.value.intentos.map { it.motivo }
+        )
 
         registrar(vm)
         assertEquals(ResultadoDelAbono.REGISTRADO, registroPort.resultado)
@@ -216,7 +222,10 @@ class RegistrarAbonoFotosTest {
         tomarFoto(vm)
 
         assertEquals("no se adjunto", emptyList<Any>(), vm.state.value.comprobantes)
-        assertEquals(FalloDeLaFoto.TIPO_NO_PERMITIDO, vm.state.value.falloDeLaFoto)
+        assertEquals(
+            listOf(FalloDeLaFoto.TIPO_NO_PERMITIDO),
+            vm.state.value.intentos.map { it.motivo }
+        )
         assertEquals(
             "el archivo rechazado se borra en vez de quedarse ocupando disco",
             listOf(camaraPort.aceptados.single().archivo),
@@ -247,7 +256,7 @@ class RegistrarAbonoFotosTest {
         tomarFoto(vm)
 
         assertEquals(1, vm.state.value.comprobantes.size)
-        assertNull(vm.state.value.falloDeLaFoto)
+        assertEquals(emptyList<FalloDeLaFoto>(), vm.state.value.intentos.map { it.motivo })
         assertEquals(emptyList<String>(), camaraPort.descartados)
     }
 
@@ -272,7 +281,7 @@ class RegistrarAbonoFotosTest {
     fun `una camara cancelada borra el crudo`() = runTest(testDispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
-        vm.pedirFoto()
+        vm.onOrigen(OrigenDeLaFoto.CAMARA)
         advanceUntilIdle()
 
         vm.fotoCancelada()
@@ -295,7 +304,7 @@ class RegistrarAbonoFotosTest {
         val vm = viewModel(handle)
         advanceUntilIdle()
         tomarFoto(vm)
-        vm.pedirFoto()
+        vm.onOrigen(OrigenDeLaFoto.CAMARA)
         advanceUntilIdle()
         val idsAntes = vm.state.value.comprobantes.map { it.id }
         val destinoAntes = vm.state.value.destinoDeFoto
@@ -333,7 +342,7 @@ class RegistrarAbonoFotosTest {
         repeat(Comprobantes.MAXIMO) { tomarFoto(vm) }
 
         assertFalse(vm.state.value.sePuedeAgregarFoto)
-        vm.pedirFoto()
+        vm.onOrigen(OrigenDeLaFoto.CAMARA)
         advanceUntilIdle()
 
         assertEquals(Comprobantes.MAXIMO, vm.state.value.comprobantes.size)
@@ -342,7 +351,7 @@ class RegistrarAbonoFotosTest {
             Comprobantes.MAXIMO,
             camaraPort.destinos.size
         )
-        assertEquals(FalloDeLaFoto.YA_NO_CABEN, vm.state.value.falloDeLaFoto)
+        assertEquals(listOf(FalloDeLaFoto.YA_NO_CABEN), vm.state.value.intentos.map { it.motivo })
     }
 
     /**
@@ -358,7 +367,7 @@ class RegistrarAbonoFotosTest {
         vm.pedirConfirmacion()
 
         assertFalse(vm.state.value.sePuedeAgregarFoto)
-        vm.pedirFoto()
+        vm.onOrigen(OrigenDeLaFoto.CAMARA)
         advanceUntilIdle()
         vm.quitarFoto(vm.state.value.comprobantes.single().id)
         advanceUntilIdle()
@@ -368,8 +377,208 @@ class RegistrarAbonoFotosTest {
     }
 
     /** Toma una foto entera: pide el destino, la cámara contesta, se adjunta. */
+    // ─── la galería y el archivo: lo que el selector devuelve ────────────────
+
+    /**
+     * **Varias de un tirón.** La hoja promete "puedes escoger varias", y las
+     * varias llegan hasta el puerto **en el orden en que se eligieron** — el
+     * orden es contrato, no presentación: es el `n` de `id_<n>` del multipart y
+     * el `ORDEN` con el que se persisten.
+     */
+    @Test
+    fun `de la galeria entran varias y en orden`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.archivosElegidos(listOf("content://media/1", "content://media/2"))
+        advanceUntilIdle()
+        registrar(vm)
+
+        assertEquals(listOf("content://media/1", "content://media/2"), camaraPort.importados)
+        assertEquals(
+            listOf("ARCH-001", "ARCH-002"),
+            registroPort.registrados.single().comprobantes.map { it.id }
+        )
+    }
+
+    /**
+     * **Las que caben entran; las que no, dejan SU cuadro.** Es el caso que el
+     * aviso suelto de antes no podía contar: con cuatro elegidas y hueco para
+     * dos, la pantalla tiene que decir cuáles dos no entraron, no "ese archivo no
+     * se acepta" una sola vez.
+     */
+    @Test
+    fun `lo que no cabe deja su propio cuadro ambar`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        repeat(Comprobantes.MAXIMO - 2) { tomarFoto(vm) }
+
+        vm.archivosElegidos((1..4).map { "content://media/$it" })
+        advanceUntilIdle()
+
+        assertEquals(Comprobantes.MAXIMO, vm.state.value.comprobantes.size)
+        assertEquals(
+            listOf(FalloDeLaFoto.YA_NO_CABEN, FalloDeLaFoto.YA_NO_CABEN),
+            vm.state.value.intentos.map { it.motivo }
+        )
+        assertTrue("el dinero no se entera", vm.state.value.sePuedeRegistrar)
+    }
+
+    /**
+     * **El tipo no permitido se rechaza DICIENDO CUÁL**: el cuadro ámbar lleva el
+     * id del archivo que se cayó, no un aviso suelto. Y el archivo se borra: nada
+     * lo va a subir nunca.
+     */
+    @Test
+    fun `un archivo de tipo no permitido deja su cuadro con su id y se borra`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+            camaraPort.mimeImportado = "application/zip"
+
+            vm.archivosElegidos(listOf("content://descargas/factura.zip"))
+            advanceUntilIdle()
+
+            assertEquals(emptyList<Any>(), vm.state.value.comprobantes)
+            val intento = vm.state.value.intentos.single()
+            assertEquals(FalloDeLaFoto.TIPO_NO_PERMITIDO, intento.motivo)
+            assertEquals("el cuadro dice CUÁL archivo se cayó: lleva su id", "ARCH-001", intento.id)
+            assertEquals(listOf("/tmp/fake/importado-1.jpg"), camaraPort.descartados)
+            assertTrue(
+                telemetria.recorded.any {
+                    it.type == TelemetryEventType.ERROR &&
+                        it.name == PagosTelemetria.CODE_ABONO_FOTO_TIPO_NO_PERMITIDO
+                }
+            )
+        }
+
+    /** Un fallo al importar deja su cuadro y **no toca el dinero**. */
+    @Test
+    fun `un fallo al importar no detiene el abono`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        camaraPort.fallaAlImportar = IllegalStateException("el proveedor no abrio nada")
+
+        vm.archivosElegidos(listOf("content://media/1"))
+        advanceUntilIdle()
+        registrar(vm)
+
+        assertEquals(
+            listOf(FalloDeLaFoto.NO_SE_PUDO_TOMAR),
+            vm.state.value.intentos.map { it.motivo }
+        )
+        assertNull("el fallo de la foto no es el fallo del abono", vm.state.value.fallo)
+        assertEquals(1, registroPort.registrados.size)
+    }
+
+    /** Salir del selector sin elegir **no es un error**: no anota nada. */
+    @Test
+    fun `cancelar el selector no anota nada`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.archivosElegidos(emptyList())
+        advanceUntilIdle()
+
+        assertEquals(emptyList<Any>(), vm.state.value.intentos)
+        assertEquals(emptyList<Any>(), camaraPort.importados)
+    }
+
+    /** La petición de selector se suelta al atenderla: nadie reabre el selector solo. */
+    @Test
+    fun `la peticion de selector se suelta al atenderla`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.onOrigen(OrigenDeLaFoto.ARCHIVO)
+        assertEquals(OrigenDeLaFoto.ARCHIVO, vm.state.value.selectorPedido)
+        vm.selectorAtendido()
+
+        assertNull(vm.state.value.selectorPedido)
+        assertFalse("y la hoja se cerró al elegir", vm.state.value.eligiendoOrigen)
+    }
+
+    // ─── la miniatura: es CÓMO se ve, no SI existe ───────────────────────────
+
+    /** La miniatura se pide por la ruta del comprobante y se cuelga por su id. */
+    @Test
+    fun `la miniatura se pide y se cuelga por el id del comprobante`() = runTest(testDispatcher) {
+        camaraPort.miniaturaDeCadaArchivo = AbonoFixtures.miniatura(0)
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        tomarFoto(vm)
+
+        assertEquals(listOf("/tmp/fake/comprobante-IMG-001.jpg"), camaraPort.miniaturasPedidas)
+        assertEquals(setOf("IMG-001"), vm.state.value.miniaturas.keys)
+    }
+
+    /**
+     * **Sin miniatura, el comprobante sigue adjunto.** La miniatura es cómo se
+     * ve, no si existe: un PDF nunca tiene una, y eso no es un fallo — por eso
+     * tampoco pinta ámbar.
+     */
+    @Test
+    fun `sin miniatura el comprobante sigue adjunto y no hay cuadro ambar`() =
+        runTest(testDispatcher) {
+            camaraPort.miniaturaDeCadaArchivo = null
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            tomarFoto(vm)
+            registrar(vm)
+
+            assertEquals(1, registroPort.registrados.single().comprobantes.size)
+            assertEquals(emptyMap<String, Any>(), vm.state.value.miniaturas)
+            assertEquals(emptyList<Any>(), vm.state.value.intentos)
+        }
+
+    /**
+     * Y si decodificar revienta, se reporta con **su propio código** —no con el
+     * de "la foto falló"— y el comprobante sigue adjunto. Un OOM al hacer una
+     * vista previa no puede convertirse en evidencia perdida.
+     */
+    @Test
+    fun `una miniatura que revienta se reporta sin pintar ambar`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        camaraPort.fallaAlPedirMiniatura = OutOfMemoryError("no hay heap")
+
+        tomarFoto(vm)
+
+        assertEquals(1, vm.state.value.comprobantes.size)
+        assertEquals(emptyList<Any>(), vm.state.value.intentos)
+        assertTrue(
+            telemetria.recorded.any {
+                it.type == TelemetryEventType.ERROR &&
+                    it.name == PagosTelemetria.CODE_ABONO_FOTO_SIN_MINIATURA
+            }
+        )
+    }
+
+    /** Quitar un cuadro ÁMBAR lo borra de la rejilla y no manda borrar ningún archivo. */
+    @Test
+    fun `quitar un cuadro ambar no borra ningun archivo`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        camaraPort.mimeImportado = "application/zip"
+        vm.archivosElegidos(listOf("content://descargas/factura.zip"))
+        advanceUntilIdle()
+        camaraPort.descartados.clear()
+
+        vm.quitarFoto(vm.state.value.intentos.single().id)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<Any>(), vm.state.value.intentos)
+        assertEquals(
+            "el archivo ya se había borrado al rechazarlo; no se borra dos veces",
+            emptyList<String>(),
+            camaraPort.descartados
+        )
+    }
+
     private fun TestScope.tomarFoto(vm: RegistrarAbonoViewModel) {
-        vm.pedirFoto()
+        vm.onOrigen(OrigenDeLaFoto.CAMARA)
         advanceUntilIdle()
         vm.fotoTomada()
         advanceUntilIdle()

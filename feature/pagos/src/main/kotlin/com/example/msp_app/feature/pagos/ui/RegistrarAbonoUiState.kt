@@ -9,6 +9,7 @@ import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.domain.model.Miniatura
 
 /**
  * Por qué el abono no quedó. Cuatro ramas y no un texto: al cobrador se le dice
@@ -78,6 +79,39 @@ data class ConfirmacionPendiente(
 )
 
 /**
+ * Un intento que **no llegó a ser comprobante**: ocupa su propio cuadro de la
+ * rejilla, en ámbar, al lado de las fotos que sí entraron.
+ *
+ * ## Por qué un cuadro y no un aviso suelto
+ *
+ * El aviso de antes decía "ese archivo no se acepta" **sin decir cuál**, y con
+ * una galería que deja escoger varias a la vez eso pasó de incómodo a inútil: el
+ * cobrador elige tres, una se cae, y la pantalla no dice cuál de las tres. El
+ * cuadro sí lo dice, porque **es** la que se cayó, en el lugar donde habría
+ * quedado.
+ *
+ * [id] es el que acuñó el puerto para ese intento: el de la cámara o el de la
+ * importación. Sirve para quitarlo con su tache, igual que a una foto puesta.
+ */
+data class IntentoFallido(val id: String, val motivo: FalloDeLaFoto)
+
+/**
+ * De dónde sale un comprobante. Las tres que ofrece la hoja del «+».
+ *
+ * Son tres y no dos porque las tres son distintas de verdad: la cámara escribe
+ * un archivo nuevo, la galería deja escoger **varias** de un tirón, y el
+ * explorador es el único que alcanza un PDF —el selector de fotos del sistema
+ * solo enseña imágenes y video, así que sin esta tercera un recibo en PDF sería
+ * inalcanzable, y cobranza acepta PDF a propósito porque los recibos SAT llegan
+ * así.
+ */
+enum class OrigenDeLaFoto {
+    CAMARA,
+    GALERIA,
+    ARCHIVO
+}
+
+/**
  * Estado observable de la pantalla de abono.
  *
  * [registrado] no nulo es el final del camino: el abono ya está escrito y la
@@ -104,14 +138,29 @@ data class RegistrarAbonoUiState(
      */
     val comprobantes: List<ComprobanteDelAbono> = emptyList(),
     /**
+     * Los píxeles ya reducidos de cada comprobante, por su id. Lo que falta —un
+     * PDF, o una decodificación que falló— pinta el cuadro con su glifo en vez de
+     * con la foto, y **no** es un fallo: el comprobante está adjunto y va a
+     * viajar con el abono igual.
+     */
+    val miniaturas: Map<String, Miniatura> = emptyMap(),
+    /** Los intentos que no entraron, cada uno con su cuadro ámbar. */
+    val intentos: List<IntentoFallido> = emptyList(),
+    /**
      * El destino ya preparado que espera a la cámara. No nulo **es** la petición
      * de abrir la cámara: la pantalla lo mira y dispara el intent. Vive también
      * en el `SavedStateHandle`, porque el proceso puede morir con la cámara
      * encima y la foto tiene que volver con el id que ya se le acuñó.
      */
     val destinoDeFoto: DestinoDeFoto? = null,
-    /** Por qué la última foto no se adjuntó. Nunca impide registrar el abono. */
-    val falloDeLaFoto: FalloDeLaFoto? = null,
+    /** La hoja del «+» está arriba, preguntando de dónde sale el comprobante. */
+    val eligiendoOrigen: Boolean = false,
+    /**
+     * Hay que abrir un selector del sistema. Nunca vale [OrigenDeLaFoto.CAMARA]
+     * — ésa viaja por [destinoDeFoto], que sí se persiste porque su id tiene que
+     * sobrevivir a la muerte del proceso.
+     */
+    val selectorPedido: OrigenDeLaFoto? = null,
     /**
      * El **cerrojo** de la verificación pendiente: la escritura no se pudo
      * comprobar y el guard anti-duplicado sigue puesto.
@@ -168,7 +217,14 @@ data class RegistrarAbonoUiState(
      * un botón mudo, que es exactamente lo que esta pantalla no hace.
      */
     val sePuedeAgregarFoto: Boolean
-        get() = sePuedeCapturar &&
-            destinoDeFoto == null &&
-            comprobantes.size < Comprobantes.MAXIMO
+        get() = sePuedeCapturar && destinoDeFoto == null && espaciosLibres > 0
+
+    /**
+     * Cuántos comprobantes más caben. Cuenta **solo los puestos**: un cuadro
+     * ámbar no ocupa lugar porque no hay ninguna foto detrás de él, y descontarlo
+     * dejaría al cobrador con un espacio menos por cada archivo que el servidor
+     * rechazó.
+     */
+    val espaciosLibres: Int
+        get() = (Comprobantes.MAXIMO - comprobantes.size).coerceAtLeast(0)
 }

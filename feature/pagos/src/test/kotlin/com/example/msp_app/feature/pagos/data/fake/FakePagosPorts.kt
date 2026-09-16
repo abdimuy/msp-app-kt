@@ -7,6 +7,7 @@ import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
+import com.example.msp_app.feature.pagos.domain.model.Miniatura
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
@@ -255,8 +256,24 @@ class FakeComprobantesPort : ComprobantesPort {
     /** Las rutas que se pidió borrar, en orden. Es lo que prueba que no se filtra disco. */
     val descartados: MutableList<String> = mutableListOf()
 
+    /** Los `content://` que se mandó importar, en orden. */
+    val importados: MutableList<String> = mutableListOf()
+
+    /** Las rutas de las que se pidió miniatura, en orden. */
+    val miniaturasPedidas: MutableList<String> = mutableListOf()
+
     /** El MIME que devolverá el próximo [aceptar]. Se cambia para el tipo no permitido. */
     var mime: String = "image/jpeg"
+
+    /** El MIME que devolverá el próximo [importar]. */
+    var mimeImportado: String = "image/jpeg"
+
+    /** Lo que devuelve [miniatura]. `null` = el cuadro se pinta sin vista previa. */
+    var miniaturaDeCadaArchivo: Miniatura? = null
+
+    var fallaAlImportar: Throwable? = null
+
+    var fallaAlPedirMiniatura: Throwable? = null
 
     var fallaAlPreparar: Throwable? = null
 
@@ -289,6 +306,25 @@ class FakeComprobantesPort : ComprobantesPort {
         )
         aceptados += comprobante
         return comprobante
+    }
+
+    override suspend fun importar(uri: String): ComprobanteDelAbono {
+        fallaAlImportar?.let { throw it }
+        importados += uri
+        siguiente += 1
+        // Acuña su propio id, igual que el adaptador real: la importación no
+        // pasa por un destino, así que nadie le acuñó uno antes.
+        return ComprobanteDelAbono(
+            id = "ARCH-%03d".format(siguiente),
+            archivo = "/tmp/fake/importado-$siguiente.jpg",
+            mime = mimeImportado
+        )
+    }
+
+    override suspend fun miniatura(archivo: String): Miniatura? {
+        miniaturasPedidas += archivo
+        fallaAlPedirMiniatura?.let { throw it }
+        return miniaturaDeCadaArchivo
     }
 
     override suspend fun descartar(archivo: String) {

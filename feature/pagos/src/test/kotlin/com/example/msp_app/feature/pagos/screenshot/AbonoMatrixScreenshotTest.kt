@@ -138,6 +138,8 @@ private fun Abono(state: RegistrarAbonoUiState) {
         onEditar = {},
         onRevisar = {},
         onAgregarFoto = {},
+        onOrigen = {},
+        onCerrarOrigenes = {},
         onQuitarFoto = {}
     )
 }

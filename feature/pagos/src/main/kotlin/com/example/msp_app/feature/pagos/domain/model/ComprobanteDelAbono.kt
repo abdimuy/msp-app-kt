@@ -56,3 +56,35 @@ data class DestinoDeFoto(
     val uriParaLaCamara: String,
     val archivoCrudo: String
 )
+
+/**
+ * Los píxeles ya reducidos de un comprobante, listos para pintar en la rejilla.
+ *
+ * ## Por qué esto existe en vez de un cargador de imágenes
+ *
+ * La rejilla enseña la foto, y enseñarla con `coil` volvería el golden de
+ * Roborazzi dependiente de una carga asíncrona con caché: el verde dejaría de
+ * significar "la pantalla no cambió" y pasaría a significar "esta vez la imagen
+ * llegó". Un archivo local decodificado con `BitmapFactory` + `inSampleSize`
+ * siempre da el mismo pixel.
+ *
+ * ## Por qué viaja como `IntArray` y no como un `Bitmap`
+ *
+ * `Bitmap` es `android.graphics`, y el dominio tiene prohibido importar Android.
+ * Lo que cruza es el buffer ARGB pelado; quien lo convierte en `ImageBitmap` es
+ * la capa `ui/`, que sí puede. Eso además deja la decodificación **fuera del
+ * hilo principal** —vive en el adaptador, que el ViewModel llama en su
+ * dispatcher de IO— y deja la rejilla como un composable puro sobre datos, que
+ * es lo que hace el golden determinista.
+ *
+ * El `require` no es decorativo: un buffer más corto que `ancho * alto` revienta
+ * dentro de `Bitmap.createBitmap`, o sea **dentro de una composición**, donde el
+ * fallo ya no se puede reportar sin tumbar la pantalla del dinero. Acá revienta
+ * en el adaptador, donde el `catch` con telemetría del ViewModel lo recoge.
+ */
+class Miniatura(val ancho: Int, val alto: Int, val pixeles: IntArray) {
+    init {
+        require(ancho > 0 && alto > 0) { "una miniatura sin lado no se puede pintar" }
+        require(pixeles.size >= ancho * alto) { "el buffer no alcanza para $ancho x $alto" }
+    }
+}

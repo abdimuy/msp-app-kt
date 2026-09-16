@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.ui
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.BloqueoDelAbono
+import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
@@ -37,6 +39,7 @@ import com.example.msp_app.feature.pagos.ui.components.BandaDeRegistrado
 import com.example.msp_app.feature.pagos.ui.components.ChipsSugeridos
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDelAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeConfirmacion
+import com.example.msp_app.feature.pagos.ui.components.HojaDeOrigenDelComprobante
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeComprobantes
 import com.example.msp_app.feature.pagos.ui.components.SelectorDeMetodo
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeCaptura
@@ -77,6 +80,26 @@ fun RegistrarAbonoScreen(
     val camara = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
         if (ok) viewModel.fotoTomada() else viewModel.fotoCancelada()
     }
+    // El selector de fotos del sistema. **No pide ningún permiso** —ni
+    // `READ_EXTERNAL_STORAGE` ni `READ_MEDIA_IMAGES`—: corre fuera del proceso y
+    // solo devuelve lo que el cobrador escogió. `PickMultipleVisualMedia` y no
+    // `PickVisualMedia` porque la hoja promete "puedes escoger varias", y una
+    // hoja que promete lo que el selector no hace es la forma que miente.
+    val galeria = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(Comprobantes.MAXIMO)
+    ) { uris ->
+        viewModel.archivosElegidos(uris.map(Uri::toString))
+    }
+    // El explorador de archivos (SAF). Es el único de los tres que alcanza un
+    // PDF: el selector de fotos solo enseña imágenes y video, y cobranza acepta
+    // PDF a propósito porque los recibos SAT llegan así. Tampoco pide permisos.
+    // Se lanza con `*/*` y NO con la whitelist: el tipo se decide por los BYTES
+    // del archivo (`Comprobantes.tipoDe`), y filtrar por el MIME que declara el
+    // proveedor sería confiar en el dato que este módulo decidió no creerle a
+    // nadie.
+    val archivo = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        viewModel.archivosElegidos(listOfNotNull(uri?.toString()))
+    }
     MspTheme {
         RegistrarAbonoContent(
             state = state,
@@ -90,7 +113,9 @@ fun RegistrarAbonoScreen(
             onConfirmar = viewModel::confirmar,
             onEditar = viewModel::descartarConfirmacion,
             onRevisar = viewModel::cargar,
-            onAgregarFoto = viewModel::pedirFoto,
+            onAgregarFoto = viewModel::abrirOrigenes,
+            onOrigen = viewModel::onOrigen,
+            onCerrarOrigenes = viewModel::cerrarOrigenes,
             onQuitarFoto = viewModel::quitarFoto,
             modifier = modifier
         )
@@ -103,6 +128,23 @@ fun RegistrarAbonoScreen(
     val destino = state.destinoDeFoto
     if (destino != null) {
         LaunchedEffect(destino.id) { camara.launch(Uri.parse(destino.uriParaLaCamara)) }
+    }
+    val selector = state.selectorPedido
+    if (selector != null) {
+        // Mismo patrón que la cámara, con la petición de clave: se lanza una vez
+        // y el ViewModel la suelta en el acto, así una recomposición no reabre el
+        // selector. La petición NO se persiste — si el proceso muere con el
+        // selector arriba no hay nada acuñado que proteger, y reponerla al volver
+        // lo reabriría solo.
+        LaunchedEffect(selector) {
+            when (selector) {
+                OrigenDeLaFoto.GALERIA -> galeria.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+                else -> archivo.launch("*/*")
+            }
+            viewModel.selectorAtendido()
+        }
     }
     val registrado = state.registrado
     if (registrado != null) {
@@ -139,6 +181,8 @@ fun RegistrarAbonoContent(
     onEditar: () -> Unit,
     onRevisar: () -> Unit,
     onAgregarFoto: () -> Unit,
+    onOrigen: (OrigenDeLaFoto) -> Unit,
+    onCerrarOrigenes: () -> Unit,
     onQuitarFoto: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -182,6 +226,13 @@ fun RegistrarAbonoContent(
             if (venta != null) {
                 DockDeRegistro(state = state, onRegistrar = onRegistrar)
             }
+        }
+        if (state.eligiendoOrigen) {
+            HojaDeOrigenDelComprobante(
+                espaciosLibres = state.espaciosLibres,
+                onOrigen = onOrigen,
+                onCerrar = onCerrarOrigenes
+            )
         }
         val confirmacion = state.confirmacion
         if (confirmacion != null && state.venta != null) {
@@ -235,13 +286,7 @@ private fun CuerpoDelAbono(
         if (state.registrado != null) BandaDeRegistrado()
         MensajeDeFallo(state = state, onRevisar = onRevisar)
         ChipsSugeridos(sugeridos = state.sugeridos, onSugerido = onSugerido)
-        SelectorDeMetodo(
-            seleccionado = state.metodo,
-            comprobantes = state.comprobantes.size,
-            puedeAgregarFoto = state.sePuedeAgregarFoto,
-            onMetodo = onMetodo,
-            onAgregarFoto = onAgregarFoto
-        )
+        SelectorDeMetodo(seleccionado = state.metodo, onMetodo = onMetodo)
         TecladoDeMontos(onDigito = onDigito, onPunto = onPunto, onBorrar = onBorrar)
         // La foto va DEBAJO del teclado, dentro de la columna que hace scroll:
         // el teclado es lo que el cobrador usa en cada abono y el comprobante
@@ -249,7 +294,8 @@ private fun CuerpoDelAbono(
         // el costo de la excepción.
         SeccionDeComprobantes(
             comprobantes = state.comprobantes,
-            fallo = state.falloDeLaFoto,
+            miniaturas = state.miniaturas,
+            intentos = state.intentos,
             puedeAgregar = state.sePuedeAgregarFoto,
             onAgregar = onAgregarFoto,
             onQuitar = onQuitarFoto

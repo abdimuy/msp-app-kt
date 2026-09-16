@@ -135,9 +135,40 @@ internal object AccionesIconos {
     /** El pin del mapa. */
     val Pin: ImageVector = trazo("pin", GROSOR_NORMAL, GOTA_DEL_PIN, OJO_DEL_PIN)
 
-    /** "Ver los N contactos" → chevron. */
+    /** "Ver los N contactos" → chevron; también cierra cada renglón de la hoja de orígenes. */
     val Chevron: ImageVector = trazo("chevron", GROSOR_NORMAL, PUNTA_DE_CHEVRON)
+
+    /**
+     * Los tres orígenes de la hoja del «+» del comprobante: cámara, galería y
+     * archivo. Paths del lienzo de mockups, verbatim, igual que el resto de este
+     * objeto.
+     */
+    val Camara: ImageVector = trazo("camara", GROSOR_NORMAL, CUERPO_DE_CAMARA, LENTE_DE_CAMARA)
+
+    /** Galería → marco con paisaje. Es la que deja escoger varias. */
+    val Galeria: ImageVector =
+        trazo("galeria", GROSOR_NORMAL, MARCO, SOL_DEL_MARCO, CERROS_DEL_MARCO)
+
+    /** Archivo → hoja con la esquina doblada. Es el único que alcanza un PDF. */
+    val Archivo: ImageVector = trazo("archivo", GROSOR_NORMAL, HOJA, ESQUINA_DE_LA_HOJA)
 }
+
+private const val CUERPO_DE_CAMARA =
+    "M3 8.5A2 2 0 0 1 5 6.5h2l1.2-2h7.6L17 6.5h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+
+private const val LENTE_DE_CAMARA = "M8.4 13a3.6 3.6 0 1 0 7.2 0a3.6 3.6 0 1 0-7.2 0"
+
+private const val MARCO =
+    "M5.5 4.5h13a2.5 2.5 0 0 1 2.5 2.5v10a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17V7" +
+        "a2.5 2.5 0 0 1 2.5-2.5z"
+
+private const val SOL_DEL_MARCO = "M6.9 10a1.6 1.6 0 1 0 3.2 0a1.6 1.6 0 1 0-3.2 0"
+
+private const val CERROS_DEL_MARCO = "M3.5 17l5-5 4.5 4.5 3-2.5 4.5 4"
+
+private const val HOJA = "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"
+
+private const val ESQUINA_DE_LA_HOJA = "M14 3v5h5"
 
 /**
  * Construye un glifo de 24×24 a trazo, con el grosor que le toca.

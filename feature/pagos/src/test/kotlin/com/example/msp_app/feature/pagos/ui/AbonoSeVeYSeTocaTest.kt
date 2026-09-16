@@ -3,9 +3,11 @@ package com.example.msp_app.feature.pagos.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -37,14 +39,16 @@ import com.example.msp_app.feature.pagos.ui.components.CONFIRMAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.DUPLICADO_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_TAG
 import com.example.msp_app.feature.pagos.ui.components.FALLO_FOTO_TAG
-import com.example.msp_app.feature.pagos.ui.components.FOTO_EN_LINEA_TAG
+import com.example.msp_app.feature.pagos.ui.components.HOJA_DE_ORIGEN_TAG
 import com.example.msp_app.feature.pagos.ui.components.HOJA_TAG
 import com.example.msp_app.feature.pagos.ui.components.METODOS_DE_CAPTURA
 import com.example.msp_app.feature.pagos.ui.components.METODO_TAG
+import com.example.msp_app.feature.pagos.ui.components.ORIGEN_TAG
 import com.example.msp_app.feature.pagos.ui.components.QUITAR_FOTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TECLA_BORRAR
 import com.example.msp_app.feature.pagos.ui.components.TECLA_PUNTO
 import com.example.msp_app.feature.pagos.ui.components.TECLA_TAG
+import com.example.msp_app.feature.pagos.ui.components.VELO_DE_ORIGEN_TAG
 import com.example.msp_app.feature.pagos.ui.components.VELO_TAG
 import com.example.msp_app.feature.pagos.ui.components.contenidoDelSugerido
 import com.example.msp_app.feature.pagos.ui.components.fondoDelSugerido
@@ -404,30 +408,87 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     // --- Los comprobantes (Task 22) ------------------------------------------
 
     /**
-     * El botón de la cámara es tocable de verdad. El plan pide >=50px y las
-     * Tasks 16 y 17 ya shipearon un control de 49.5dp y otro de ~38dp confiando
-     * en el modificador: aquí se mide.
+     * **El «+» es el ÚNICO afordante que agrega, y abre la hoja.** No toma la
+     * foto: pregunta de dónde. Antes había tres botones para lo mismo —el de la
+     * fila del método, la pastilla del pie y la lista— y un aviso de fallo que no
+     * podía decir cuál de los tres había fallado.
+     *
+     * El plan pide >=50dp tocables y las Tasks 16 y 17 ya shipearon un control de
+     * 49.5dp y otro de ~38dp confiando en el modificador: aquí se mide.
      */
     @Test
-    fun `el boton de agregar foto se toca y avisa`() {
+    fun `el mas abre la hoja de origenes y es el unico que agrega`() {
         pinta(AbonoFixtures.enCaptura())
         composeTestRule.onNodeWithTag(AGREGAR_FOTO_TAG).performScrollTo().performClick()
         assertEquals(1, fotosPedidas)
         assertTocable(AGREGAR_FOTO_TAG, "agregar foto")
+        // Control positivo del "único": el barrido cuenta TODO nodo con el tag de
+        // agregar, así que un segundo afordante que volviera a aparecer —en la
+        // fila del método, al pie o donde sea— pondría esto en rojo.
+        assertEquals(
+            1,
+            composeTestRule.onAllNodesWithTag(AGREGAR_FOTO_TAG).fetchSemanticsNodes().size
+        )
+    }
+
+    /** La hoja ofrece las TRES, cada una con su explicación, y cada una avisa cuál. */
+    @Test
+    fun `la hoja del mas ofrece camara galeria y archivo`() {
+        pinta(AbonoFixtures.eligiendoOrigen())
+
+        OrigenDeLaFoto.entries.forEach { origen ->
+            composeTestRule.onNodeWithTag(ORIGEN_TAG + origen.name)
+                .assertIsDisplayed()
+                .performClick()
+        }
+
+        assertEquals(OrigenDeLaFoto.entries.toList(), origenesElegidos)
     }
 
     /**
-     * Cada comprobante se enseña con su **posición**, no con su id: un UUID no
-     * le dice nada a nadie parado en una puerta. Y quitarlo manda el id de ESE
+     * **El velo cierra la hoja sin elegir**, y es hermano de la hoja, no su
+     * padre: con el velo envolviéndola su gesto se quedaría con el toque de los
+     * renglones — el defecto que `HojaDeConfirmacion` ya midió. Este test mide
+     * las dos mitades a la vez: el velo cierra Y los renglones siguen vivos.
+     */
+    @Test
+    fun `el velo cierra la hoja sin elegir`() {
+        pinta(AbonoFixtures.eligiendoOrigen())
+
+        composeTestRule.onNodeWithTag(VELO_DE_ORIGEN_TAG).performClick()
+
+        assertEquals(1, cierresDeOrigen)
+        assertEquals("y no se eligió ningún origen", emptyList<OrigenDeLaFoto>(), origenesElegidos)
+    }
+
+    /** Y dice cuántos espacios quedan, contados — no un número escrito a mano. */
+    @Test
+    fun `la hoja dice cuantos espacios quedan`() {
+        pinta(AbonoFixtures.eligiendoOrigen())
+
+        composeTestRule.onNodeWithTag(HOJA_DE_ORIGEN_TAG)
+            .assert(hasAnyDescendant(hasText("Quedan 4 espacios de 5")))
+    }
+
+    /** Llena la rejilla, el «+» no se pinta: un botón mudo es una mentira. */
+    @Test
+    fun `con la rejilla llena el mas desaparece`() {
+        pinta(AbonoFixtures.comprobantesLlenos())
+
+        assertEquals(
+            0,
+            composeTestRule.onAllNodesWithTag(AGREGAR_FOTO_TAG).fetchSemanticsNodes().size
+        )
+    }
+
+    /**
+     * Cada comprobante ocupa **su cuadro**, y quitarlo manda el id de ESE
      * comprobante, no el del otro.
      */
     @Test
-    fun `cada comprobante se enumera y se puede quitar`() {
+    fun `cada comprobante se puede quitar por su id`() {
         val state = AbonoFixtures.enCapturaConComprobantes()
         pinta(state)
-
-        composeTestRule.onNodeWithText("comprobante 1").performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("comprobante 2").performScrollTo().assertIsDisplayed()
 
         val segundo = state.comprobantes[1]
         composeTestRule.onNodeWithTag(QUITAR_FOTO_TAG + segundo.id).performScrollTo().performClick()
@@ -440,17 +501,24 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **La foto que falla avisa en ÁMBAR, y el CTA del dinero sigue vivo.**
+     * **La foto que falla se pinta en SU CUADRO, en ÁMBAR, y el CTA del dinero
+     * sigue vivo.**
      *
      * Es la regla que manda sobre esta tarea, medida en la pantalla: un aviso de
      * foto no puede leerse como "el abono no se puede registrar", que es lo que
-     * significa el rojo aquí.
+     * significa el rojo aquí. Y el cuadro lleva el id del intento, así que dice
+     * **cuál** de los archivos elegidos se cayó — que es lo que el aviso suelto
+     * de antes no podía decir.
      */
     @Test
-    fun `el aviso de la foto no apaga el CTA del abono`() {
-        pinta(AbonoFixtures.enFalloDeFoto())
+    fun `el cuadro fallido no apaga el CTA del abono`() {
+        val state = AbonoFixtures.enFalloDeFoto()
+        pinta(state)
 
-        composeTestRule.onNodeWithTag(FALLO_FOTO_TAG).performScrollTo().assertIsDisplayed()
+        val intento = state.intentos.single()
+        composeTestRule.onNodeWithTag(FALLO_FOTO_TAG + intento.id)
+            .performScrollTo()
+            .assertIsDisplayed()
         assertEquals(
             "un fallo de foto no pinta la banda roja del bloqueo",
             0,
@@ -461,15 +529,17 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **Control positivo del aviso.** Sin fallo no hay banda: la de arriba la
-     * enciende el estado, no un componente que se pinta siempre.
+     * **Control positivo del cuadro ámbar.** Sin intentos no hay cuadro: el de
+     * arriba lo enciende el estado, no un componente que se pinta siempre.
      */
     @Test
-    fun `control positivo - sin fallo de foto no hay aviso`() {
+    fun `control positivo - sin fallo de foto no hay cuadro ambar`() {
         pinta(AbonoFixtures.enCaptura())
         assertEquals(
             0,
-            composeTestRule.onAllNodesWithTag(FALLO_FOTO_TAG).fetchSemanticsNodes().size
+            composeTestRule.onAllNodesWithTag(
+                FALLO_FOTO_TAG + AbonoFixtures.enFalloDeFoto().intentos.single().id
+            ).fetchSemanticsNodes().size
         )
     }
 
@@ -494,43 +564,36 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **El punto de entrada que cierra la línea de flotación** (Ruling AQ).
-     *
-     * La sección de comprobantes vive debajo del teclado y no se ve sin scroll
-     * —medido en los goldens—. Este botón está en la fila del método, o sea
-     * **arriba**, visible sin mover nada. Se afirma que se ve sin `performScrollTo`
-     * a propósito: es la diferencia entera entre "cara de alcanzar" y "a un toque".
-     */
-    @Test
-    fun `el boton de foto en linea se ve sin scroll y abre la camara`() {
-        pinta(AbonoFixtures.enCaptura())
-
-        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).performClick()
-        assertEquals(1, fotosPedidas)
-        assertTocable(FOTO_EN_LINEA_TAG, "foto en linea")
-    }
-
-    /** Y enseña cuántas van: es también el indicador de que la evidencia está puesta. */
-    @Test
-    fun `el boton de foto en linea cuenta los comprobantes`() {
-        pinta(AbonoFixtures.enCapturaConComprobantes())
-        // Sobre el nodo del botón, no por texto suelto: "2" también aparece en
-        // la fila "comprobante 2" de la sección de abajo.
-        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).assertTextContains("foto 2")
-    }
-
-    /**
-     * Con la hoja de confirmación arriba el botón está apagado: lo que la hoja
+     * Con la hoja de confirmación arriba el «+» no dispara: lo que la hoja
      * enseña ("1 comprobante") tiene que ser lo que se registra. Es la misma
      * guarda que ya apaga el teclado, y aquí se mide por su consecuencia.
      */
     @Test
-    fun `con la hoja arriba el boton de foto en linea no dispara`() {
+    fun `con la hoja arriba el mas no dispara`() {
         pinta(AbonoFixtures.enConfirmacionConComprobante())
-        composeTestRule.onNodeWithTag(FOTO_EN_LINEA_TAG).performClick()
-        assertEquals("un boton apagado no puede abrir la camara", 0, fotosPedidas)
+        assertEquals(
+            "con la confirmacion arriba no hay nada que agregar",
+            0,
+            composeTestRule.onAllNodesWithTag(AGREGAR_FOTO_TAG).fetchSemanticsNodes().size
+        )
+        assertEquals("y la camara no se abrio", 0, fotosPedidas)
     }
+
+    /** Los tres renglones de la hoja de orígenes también se tocan: >=50dp de alto. */
+    @Test
+    fun `los renglones de la hoja miden al menos 50dp de alto`() {
+        pinta(AbonoFixtures.eligiendoOrigen())
+
+        OrigenDeLaFoto.entries.forEach { origen ->
+            assertTocable(ORIGEN_TAG + origen.name, "renglon de ${origen.name}")
+        }
+    }
+
+    /** Los orígenes que la hoja avisó, en orden. */
+    private val origenesElegidos = mutableListOf<OrigenDeLaFoto>()
+
+    /** Cuántas veces se pidió cerrar la hoja sin elegir. */
+    private var cierresDeOrigen = 0
 
     private fun assertTocable(tag: String, que: String) {
         val bordes = composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
@@ -565,6 +628,8 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
             onEditar = { ediciones += 1 },
             onRevisar = { revisiones += 1 },
             onAgregarFoto = { fotosPedidas += 1 },
+            onOrigen = { origenesElegidos += it },
+            onCerrarOrigenes = { cierresDeOrigen += 1 },
             onQuitarFoto = { fotosQuitadas += it }
         )
     }

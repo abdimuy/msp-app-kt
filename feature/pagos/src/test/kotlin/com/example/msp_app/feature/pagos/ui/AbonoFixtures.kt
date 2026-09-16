@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.ui
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
@@ -12,6 +13,7 @@ import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.HistorialDePagos
 import com.example.msp_app.feature.pagos.domain.model.MesDePagos
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.domain.model.Miniatura
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.ResumenDeRitmo
@@ -247,12 +249,64 @@ object AbonoFixtures {
      * una foto de otra en esta pantalla.
      */
     fun enCapturaConComprobantes(): RegistrarAbonoUiState = enCaptura().copy(
-        comprobantes = listOf(comprobante("IMG-1"), comprobante("IMG-2"))
+        comprobantes = listOf(
+            comprobante("IMG-1"),
+            comprobante("IMG-2"),
+            // El tercero es un PDF: no tiene miniatura que enseñar y su cuadro
+            // pinta el glifo. Va en el fixture porque es el caso que un golden de
+            // puras fotos nunca vería, y cobranza acepta PDF a propósito.
+            ComprobanteDelAbono("IMG-3", "/files/comprobante_pago_IMG-3.pdf", "application/pdf")
+        ),
+        miniaturas = mapOf("IMG-1" to miniatura(0), "IMG-2" to miniatura(1)),
+        intentos = listOf(IntentoFallido("ARCH-9", FalloDeLaFoto.TIPO_NO_PERMITIDO))
     )
 
-    /** El aviso ámbar de la foto que no se pudo adjuntar, sobre la captura sana. */
-    fun enFalloDeFoto(): RegistrarAbonoUiState =
-        enCaptura().copy(falloDeLaFoto = FalloDeLaFoto.NO_SE_PUDO_TOMAR)
+    /** La rejilla llena: sin «+», porque ya no caben más. */
+    fun comprobantesLlenos(): RegistrarAbonoUiState = enCaptura().copy(
+        comprobantes = (1..Comprobantes.MAXIMO).map { comprobante("IMG-$it") },
+        miniaturas = (1..Comprobantes.MAXIMO).associate { "IMG-$it" to miniatura(it) }
+    )
+
+    /** La hoja del «+» arriba, sobre la captura con una foto ya puesta. */
+    fun eligiendoOrigen(): RegistrarAbonoUiState = enCaptura().copy(
+        comprobantes = listOf(comprobante("IMG-1")),
+        miniaturas = mapOf("IMG-1" to miniatura(0)),
+        eligiendoOrigen = true
+    )
+
+    /** El cuadro ámbar de la foto que no se pudo adjuntar, sobre la captura sana. */
+    fun enFalloDeFoto(): RegistrarAbonoUiState = enCaptura().copy(
+        intentos = listOf(IntentoFallido("IMG-9", FalloDeLaFoto.NO_SE_PUDO_TOMAR))
+    )
+
+    /**
+     * Una miniatura **sintética y determinista**, para los goldens.
+     *
+     * Píxeles calculados, no leídos de un archivo: un golden que dependiera de
+     * decodificar un JPEG de disco dependería del decodificador de la máquina que
+     * lo grabó. Esta fórmula da el mismo buffer en cualquier parte, y el diagonal
+     * con dos tonos hace que un `ContentScale.Crop` mal puesto se note — un
+     * relleno liso se vería igual recortado que estirado.
+     */
+    fun miniatura(semilla: Int): Miniatura {
+        val lado = LADO_DE_LA_MINIATURA
+        val pixeles = IntArray(lado * lado) { indice ->
+            val x = indice % lado
+            val y = indice / lado
+            if (x + y < lado) TONOS[semilla % TONOS.size] else TONOS[(semilla + 1) % TONOS.size]
+        }
+        return Miniatura(ancho = lado, alto = lado, pixeles = pixeles)
+    }
+
+    /** Chico a propósito: el cuadro la escala, y 32x32 basta para ver el diagonal. */
+    private const val LADO_DE_LA_MINIATURA = 32
+
+    /** Tres ARGB opacos, escogidos para que se distingan en claro y en oscuro. */
+    private val TONOS = intArrayOf(
+        0xFF2563EB.toInt(),
+        0xFFB0C2B6.toInt(),
+        0xFFEDE8DC.toInt()
+    )
 
     /** La hoja de confirmación con un comprobante adjunto. */
     fun enConfirmacionConComprobante(): RegistrarAbonoUiState =

@@ -183,6 +183,18 @@ object PagosTelemetria {
     const val CODE_ABONO_FOTO_SIN_DESTINO: String = "pagos_abono_foto_sin_destino"
 
     /**
+     * No se pudieron sacar los píxeles de un comprobante para la rejilla.
+     *
+     * Código propio y **no** [CODE_ABONO_FOTO_FALLO]: acá no se perdió evidencia.
+     * El comprobante está adjunto, va a viajar con el abono y se va a subir
+     * igual; lo único que falta es la vista previa. Por eso tampoco pinta un
+     * cuadro ámbar — un aviso diría que algo se perdió, y no se perdió. Se
+     * reporta porque la norma no autoriza el silencio, ni siquiera para lo que no
+     * escala.
+     */
+    const val CODE_ABONO_FOTO_SIN_MINIATURA: String = "pagos_abono_foto_sin_miniatura"
+
+    /**
      * El abono quedó escrito pero **sus comprobantes no se pudieron guardar**.
      * El dinero no se toca: el resultado sigue siendo `REGISTRADO`, igual que
      * cuando falla la ubicación. Lo que se pierde es la foto, así que lleva

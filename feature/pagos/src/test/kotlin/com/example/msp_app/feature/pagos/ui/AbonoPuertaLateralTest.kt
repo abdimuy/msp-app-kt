@@ -203,7 +203,9 @@ class AbonoPuertaLateralTest : RobolectricTestBase() {
                     onConfirmar = vm::confirmar,
                     onEditar = vm::descartarConfirmacion,
                     onRevisar = vm::cargar,
-                    onAgregarFoto = vm::pedirFoto,
+                    onAgregarFoto = vm::abrirOrigenes,
+                    onOrigen = vm::onOrigen,
+                    onCerrarOrigenes = vm::cerrarOrigenes,
                     onQuitarFoto = vm::quitarFoto
                 )
             }
