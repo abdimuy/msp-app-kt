@@ -61,4 +61,20 @@ object SpeechTelemetria {
 
     /** El código HTTP de la descarga. */
     const val PROP_HTTP: String = "http"
+
+    /**
+     * El idioma que este teléfono rechazó y hubo que cambiar.
+     *
+     * Se emite como error —no como evento— a propósito: que el aparato no acepte el
+     * español que la app pide es el defecto que dejó el dictado muerto en el
+     * SM-A256E, y si vuelve a pasar en otro modelo hay que enterarse sin que nadie
+     * lo reporte a mano.
+     *
+     * **No es PII**: una etiqueta BCP-47 es un valor de catálogo del sistema, no un
+     * dato del cliente. El texto dictado no viaja nunca.
+     */
+    const val CODE_ANDROID_IDIOMA_CAMBIADO: String = "speech_android_idioma_cambiado"
+
+    /** La etiqueta de idioma elegida (`es-US`, `es-MX`…). */
+    const val PROP_IDIOMA: String = "idioma"
 }
