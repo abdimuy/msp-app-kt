@@ -71,9 +71,6 @@ const val GUARDAR_TAG: String = "visitas_guardar"
 /** `testTag` de la razón que explica el CTA apagado. */
 const val RAZON_TAG: String = "visitas_razon"
 
-/** `testTag` del campo de nota. */
-const val NOTA_TAG: String = "visitas_nota"
-
 /** `testTag` del campo de monto prometido. */
 const val MONTO_TAG: String = "visitas_monto"
 
@@ -686,43 +683,6 @@ fun CampoDeMonto(
                         campo()
                     }
                 }
-            )
-        }
-    }
-}
-
-/** El campo de nota libre (`.note` del mock). Nunca lleva fecha ni hora dentro. */
-@Composable
-fun CampoDeNota(
-    nota: String,
-    habilitado: Boolean,
-    onCambio: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = TOQUE),
-        shape = MspTheme.shapes.control,
-        color = MspTheme.colors.surface2
-    ) {
-        Column(modifier = Modifier.padding(MspTheme.spacing.sm)) {
-            Text(
-                text = "Nota — opcional",
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.onSurfaceMuted
-            )
-            BasicTextField(
-                value = nota,
-                onValueChange = onCambio,
-                enabled = habilitado,
-                textStyle = LocalTextStyle.current
-                    .merge(MspTheme.type.body)
-                    .merge(TextStyle(color = MspTheme.colors.onSurface)),
-                cursorBrush = SolidColor(MspTheme.colors.onSurface),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(NOTA_TAG)
             )
         }
     }

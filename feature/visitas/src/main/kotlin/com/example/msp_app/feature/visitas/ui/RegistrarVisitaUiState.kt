@@ -1,6 +1,8 @@
 package com.example.msp_app.feature.visitas.ui
 
 import com.example.msp_app.core.common.cobranza.domain.VisitScope
+import com.example.msp_app.core.speech.domain.EstadoDelDictado
+import com.example.msp_app.core.speech.domain.GrabacionDictada
 import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.model.BloqueoDeLaVisita
 import com.example.msp_app.feature.visitas.domain.model.CapturaDeVisita
@@ -137,7 +139,39 @@ data class RegistrarVisitaUiState(
      * [OrigenDeLaFoto.CAMARA] — ésa viaja por [destinoDeFoto], que sí se
      * persiste porque su id tiene que sobrevivir a la muerte del proceso.
      */
-    val selectorPedido: OrigenDeLaFoto? = null
+    val selectorPedido: OrigenDeLaFoto? = null,
+    /**
+     * Qué está haciendo el micrófono. Lo pinta el borde vivo del campo de nota.
+     *
+     * **La pantalla no sabe qué motor lo produce** — es la propiedad entera de
+     * `DictadoPort`: con el modelo descargado corre whisper y sin él corre el
+     * reconocedor de Android, y acá llega el mismo tipo en los dos casos.
+     */
+    val dictado: EstadoDelDictado = EstadoDelDictado.Reposo,
+    /**
+     * ¿Se pinta el micrófono? `false` cuando el teléfono no tiene motor o el
+     * permiso está negado: un afordante que no puede hacer nada es una mentira,
+     * y la nota se escribe a mano igual.
+     */
+    val sePuedeDictar: Boolean = false,
+    /** El aviso ámbar del dictado, o `null`. Ver `avisoDe` en `:core:speech`. */
+    val avisoDelDictado: String? = null,
+    /**
+     * **El audio de la nota, que se guarda siempre.**
+     *
+     * Vive FUERA de [captura] por el mismo motivo que [comprobantes]: cambiar de
+     * desenlace limpia la captura, y lo que el cliente dijo en la puerta no deja
+     * de haberse dicho porque el cobrador cambie de opinión sobre cómo
+     * clasificarlo.
+     *
+     * **No viaja en el multipart de la visita**, y eso NO es un olvido: la
+     * whitelist del servidor (`ComprobantesDeVisita.TIPOS_PERMITIDOS`, copiada
+     * de `visitas/domain.IsAllowedMime`) admite JPEG, PNG, GIF, WebP y PDF —
+     * ningún audio. Mandarlo haría que el handler conteste
+     * `imagen_mime_no_permitido` **para la visita entera**, o sea que el audio
+     * costaría el registro. Queda en el teléfono hasta que el API lo acepte.
+     */
+    val audioDeLaNota: GrabacionDictada? = null
 ) {
     /**
      * ¿El CTA está vivo? Si esto es `false` el botón se pinta apagado **y** no

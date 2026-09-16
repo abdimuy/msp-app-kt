@@ -1,6 +1,11 @@
 package com.example.msp_app.feature.visitas.data.fake
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.speech.domain.DictadoTerminado
+import com.example.msp_app.core.speech.domain.EstadoDelDictado
+import com.example.msp_app.core.speech.domain.MotorDeDictado
+import com.example.msp_app.core.speech.domain.port.DictadoPort
+import com.example.msp_app.core.speech.domain.port.DisponibilidadDelDictado
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
@@ -17,6 +22,8 @@ import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
 import com.example.msp_app.feature.visitas.domain.port.VisitaARegistrar
 import java.math.BigDecimal
 import java.time.Instant
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Fakes escritos a mano — **estado público + lista pública que graba las
@@ -269,5 +276,48 @@ class FakeComprobantesDeVisitaPort : ComprobantesDeVisitaPort {
     override suspend fun descartar(archivo: String) {
         descartados += archivo
         fallaAlDescartar?.let { throw it }
+    }
+}
+
+/**
+ * **El dictado, falso.** Estado público + lista que graba las llamadas, sin
+ * MockK, como el resto de los fakes del repo.
+ *
+ * Existe para que la pantalla de la visita se pruebe **sin micrófono y sin
+ * saber qué motor corre** — que es exactamente lo que `DictadoPort` promete. Un
+ * fake que expusiera el motor traicionaría el contrato dentro de los tests.
+ */
+class DictadoFalso(
+    var motor: MotorDeDictado? = MotorDeDictado.ANDROID,
+    var permisoConcedido: Boolean = true,
+    var alComenzar: Result<Unit> = Result.success(Unit),
+    var alTerminar: Result<DictadoTerminado> =
+        Result.success(DictadoTerminado("", null, MotorDeDictado.ANDROID))
+) : DictadoPort {
+
+    val llamadas: MutableList<String> = mutableListOf()
+
+    private val estado = MutableStateFlow<EstadoDelDictado>(EstadoDelDictado.Reposo)
+
+    override suspend fun disponibilidad(): DisponibilidadDelDictado =
+        DisponibilidadDelDictado(motor, permisoConcedido)
+
+    override fun estado(): Flow<EstadoDelDictado> = estado
+
+    override suspend fun comenzar(): Result<Unit> {
+        llamadas += "comenzar"
+        if (alComenzar.isSuccess) estado.value = EstadoDelDictado.Escuchando()
+        return alComenzar
+    }
+
+    override suspend fun terminar(): Result<DictadoTerminado> {
+        llamadas += "terminar"
+        estado.value = EstadoDelDictado.Reposo
+        return alTerminar
+    }
+
+    override suspend fun cancelar() {
+        llamadas += "cancelar"
+        estado.value = EstadoDelDictado.Reposo
     }
 }

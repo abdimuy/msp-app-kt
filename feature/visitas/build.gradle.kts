@@ -36,6 +36,10 @@ dependencies {
     // la regla del dia del cobro y el registro de impresiones, el MISMO stack que
     // adopto el reporte de cobranza.
     implementation(project(":core:printing"))
+    // Dictado por voz: el campo de nota se dicta, y el puerto vive en
+    // `:core:speech`. Esta pantalla ve el puerto y NUNCA el adaptador — no sabe
+    // si corre whisper o el reconocedor del teléfono, que es el punto entero.
+    implementation(project(":core:speech"))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

@@ -166,6 +166,11 @@ object VisitaFixtures {
         contexto = VisitasFixtures.victoria(),
         captura = captura,
         hoy = HOY,
-        bloqueos = ReglasDeLaVisita.bloqueosDe(captura, HOY)
+        bloqueos = ReglasDeLaVisita.bloqueosDe(captura, HOY),
+        // El teléfono del cobrador (SM-A256E, Android 13+) SÍ trae el
+        // reconocedor en-dispositivo, así que el micrófono se pinta. Un fixture
+        // con `false` dejaría los goldens enseñando una pantalla que ningún
+        // cobrador de la flota ve.
+        sePuedeDictar = true
     )
 }

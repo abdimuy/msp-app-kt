@@ -259,6 +259,13 @@ dependencies {
     // por `MainActivity` (override Opción C de `LocalDensity` + `LocalReduceMotion`
     // en la raíz de composición).
     implementation(project(":core:settings"))
+    // Dictado por voz (`:core:speech`). `:app` lo declara aunque quien lo usa sea
+    // `:feature:visitas`, y por dos razones concretas: los `@Module` de Hilt de
+    // un módulo transitivo no entran al grafo de la app por sí solos, y
+    // `NetworkKillSwitchGuardTest` exige que TODO `@Module` del árbol de fuentes
+    // llegue al classpath de prueba de `:app` — un módulo que la guarda no ve es
+    // un módulo sin guarda.
+    implementation(project(":core:speech"))
     // Piloto del reporte de cobranza unificado (Plan 5). `:app` provee el adapter
     // real de `UserCyclePort` (Firestore userData) en su composition root y monta
     // `CollectionReportScreen`/`...Tier2` en la ruta `daily_reports`.

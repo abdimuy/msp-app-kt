@@ -7,6 +7,7 @@ import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.visitas.application.AbrirRegistroDeVisita
 import com.example.msp_app.feature.visitas.application.RegistrarVisita
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
+import com.example.msp_app.feature.visitas.data.fake.DictadoFalso
 import com.example.msp_app.feature.visitas.data.fake.FakeComprobantesDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeRecomendacionesPort
@@ -62,6 +63,7 @@ class RegistrarVisitaFotosTest {
     private val recomendacionesPort = FakeRecomendacionesPort()
     private val registroPort = FakeRegistroDeVisitaPort()
     private val ubicacionPort = FakeUbicacionPort()
+    private val dictadoPort = DictadoFalso()
     private val camaraPort = FakeComprobantesDeVisitaPort()
 
     @Before
@@ -798,6 +800,7 @@ class RegistrarVisitaFotosTest {
         abrirRegistro = AbrirRegistroDeVisita(contextoPort, recomendacionesPort, telemetria),
         registrarVisita = RegistrarVisita(registroPort, ubicacionPort, telemetria),
         camara = camaraPort,
+        dictado = dictadoPort,
         telemetry = telemetria,
         clock = clock,
         io = testDispatcher

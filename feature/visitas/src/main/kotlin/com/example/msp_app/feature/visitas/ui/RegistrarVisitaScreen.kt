@@ -4,6 +4,8 @@
 
 package com.example.msp_app.feature.visitas.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -27,10 +29,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.speech.ui.CampoDictado
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
 import com.example.msp_app.feature.visitas.domain.DiasSugeridos
@@ -42,7 +47,6 @@ import com.example.msp_app.feature.visitas.ui.components.BarraDeVisita
 import com.example.msp_app.feature.visitas.ui.components.CHIP_TAG
 import com.example.msp_app.feature.visitas.ui.components.CalendarioDeVisita
 import com.example.msp_app.feature.visitas.ui.components.CampoDeMonto
-import com.example.msp_app.feature.visitas.ui.components.CampoDeNota
 import com.example.msp_app.feature.visitas.ui.components.ChipDeOpcion
 import com.example.msp_app.feature.visitas.ui.components.DockDeLaVisita
 import com.example.msp_app.feature.visitas.ui.components.ETIQUETA_TAG
@@ -108,6 +112,20 @@ fun RegistrarVisitaScreen(
     val archivo = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         viewModel.archivosElegidos(listOfNotNull(uri?.toString()))
     }
+    // **El permiso del micrófono (`RECORD_AUDIO`), que es NUEVO en la app.**
+    //
+    // Se pide al TOCAR el micrófono y no al abrir la pantalla: un diálogo de
+    // permiso que salta al entrar, antes de que el cobrador haya pedido nada,
+    // es el que se niega por reflejo. Y negarlo **no pierde la nota** — el
+    // ViewModel apaga el micrófono, pinta el aviso ámbar y el campo sigue
+    // recibiendo texto escrito a mano.
+    val permisoDeMicrofono = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { concedido ->
+        viewModel.onPermisoDeMicrofono(concedido)
+        if (concedido) viewModel.onMicrofono()
+    }
+    val contexto = LocalContext.current
     MspTheme {
         RegistrarVisitaContent(
             state = state,
@@ -117,6 +135,21 @@ fun RegistrarVisitaScreen(
                 onCambiarResultado = viewModel::limpiarResultado,
                 onEtiqueta = viewModel::onEtiqueta,
                 onNota = viewModel::onNota,
+                onMicrofono = {
+                    // El permiso se consulta con el sistema, no con una copia
+                    // en memoria: se puede revocar desde ajustes mientras la
+                    // app vive.
+                    val concedido = ContextCompat.checkSelfPermission(
+                        contexto,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (concedido) {
+                        viewModel.onMicrofono()
+                    } else {
+                        permisoDeMicrofono.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                onQuitarAudio = viewModel::quitarAudioDeLaNota,
                 onCuenta = viewModel::onCuenta,
                 onTodasLasCuentas = viewModel::onTodasLasCuentas,
                 onFechaPromesa = viewModel::onFechaPromesa,
@@ -184,6 +217,10 @@ data class AccionesDeLaVisita(
     val onCambiarResultado: () -> Unit,
     val onEtiqueta: (String) -> Unit,
     val onNota: (String) -> Unit,
+    /** Toca el micrófono: abre el dictado, o lo cierra si ya estaba abierto. */
+    val onMicrofono: () -> Unit,
+    /** Quita el audio adjunto de ESTA captura. */
+    val onQuitarAudio: () -> Unit,
     val onCuenta: (Int) -> Unit,
     val onTodasLasCuentas: () -> Unit,
     val onFechaPromesa: (LocalDate) -> Unit,
@@ -211,6 +248,8 @@ data class AccionesDeLaVisita(
             onCambiarResultado = {},
             onEtiqueta = {},
             onNota = {},
+            onMicrofono = {},
+            onQuitarAudio = {},
             onCuenta = {},
             onTodasLasCuentas = {},
             onFechaPromesa = {},
@@ -386,10 +425,21 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
                 else -> Unit
             }
         }
-        CampoDeNota(
-            nota = state.captura.nota,
+        // El campo de nota, que ahora se DICTA. Sigue siendo el mismo campo de
+        // texto —se toca y se corrige— y no sabe qué motor lo llena: eso es
+        // asunto de `DictadoPort`, y es la razón de que el puerto exista.
+        CampoDictado(
+            etiqueta = "Nota — opcional",
+            marcador = "Lo que dijo, en sus palabras",
+            texto = state.captura.nota,
+            estado = state.dictado,
+            puedeDictar = state.sePuedeDictar,
+            grabacion = state.audioDeLaNota,
+            aviso = state.avisoDelDictado,
             habilitado = state.sePuedeCapturar,
-            onCambio = acciones.onNota
+            onTexto = acciones.onNota,
+            onMicrofono = acciones.onMicrofono,
+            onQuitarAudio = acciones.onQuitarAudio
         )
         SeccionDeComprobantesDeVisita(
             comprobantes = state.comprobantes,

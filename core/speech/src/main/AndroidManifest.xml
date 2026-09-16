@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      RECORD_AUDIO es el ÚNICO permiso nuevo que trae el dictado, y vive aquí
+      —no en `:app`— por el mismo criterio que las de Bluetooth de
+      `:core:printing`: el permiso viaja con el módulo que lo necesita, así que
+      quitar el módulo quita el permiso.
+
+      Se declara SIN `<uses-feature android:name="android.hardware.microphone"
+      android:required="true">` a propósito: el dictado es una capacidad
+      degradable. Un teléfono sin micrófono —o con el permiso negado— instala,
+      corre, y la nota se escribe a mano. Marcarlo como requerido sacaría la app
+      del alcance de equipos que hoy la usan sin dictar.
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+</manifest>

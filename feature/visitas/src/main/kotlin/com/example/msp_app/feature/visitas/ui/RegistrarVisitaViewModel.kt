@@ -7,6 +7,11 @@ import com.example.msp_app.core.common.cobranza.domain.VisitScope
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.speech.domain.EstadoDelDictado
+import com.example.msp_app.core.speech.domain.FalloDelDictado
+import com.example.msp_app.core.speech.domain.port.DictadoFallido
+import com.example.msp_app.core.speech.domain.port.DictadoPort
+import com.example.msp_app.core.speech.ui.avisoDe
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.visitas.application.AbrirRegistroDeVisita
 import com.example.msp_app.feature.visitas.application.RegistrarVisita
@@ -32,6 +37,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -88,6 +94,7 @@ class RegistrarVisitaViewModel @Inject constructor(
     private val abrirRegistro: AbrirRegistroDeVisita,
     private val registrarVisita: RegistrarVisita,
     private val camara: ComprobantesDeVisitaPort,
+    private val dictado: DictadoPort,
     private val telemetry: Telemetry,
     private val clock: AppClock,
     @VisitasIoDispatcher private val io: CoroutineDispatcher
@@ -172,7 +179,125 @@ class RegistrarVisitaViewModel @Inject constructor(
     init {
         telemetry.screenView(VisitasTelemetria.PANTALLA)
         restaurarComprobantes()
+        escucharElDictado()
+        revisarElDictado()
         cargar()
+    }
+
+    // ── Dictado ─────────────────────────────────────────────────────────────
+
+    /**
+     * Enchufa el estado del micrófono al de la pantalla.
+     *
+     * Un `collect` y no un `combine`: el dictado es un hecho del teléfono y la
+     * captura es un hecho del cobrador, y mezclarlos en un solo flujo haría que
+     * cada `nivel` del micrófono recompusiera la pantalla entera.
+     */
+    private fun escucharElDictado() {
+        viewModelScope.launch {
+            dictado.estado().collect { estado ->
+                mutableState.update { it.copy(dictado = estado) }
+            }
+        }
+    }
+
+    /**
+     * Pregunta si hoy se puede dictar. Se llama al abrir la pantalla **y cada
+     * vez que el cobrador contesta el diálogo del permiso**: el permiso se
+     * concede y se revoca fuera de la app, así que una respuesta cacheada al
+     * arrancar pintaría un micrófono que ya no puede grabar.
+     */
+    fun revisarElDictado() {
+        viewModelScope.launch {
+            val disponible = dictado.disponibilidad()
+            mutableState.update {
+                it.copy(
+                    sePuedeDictar = disponible.sePuedeDictar && disponible.permisoConcedido,
+                    // Sin motor se avisa desde el arranque; sin permiso NO, porque
+                    // todavía no se le ha pedido a nadie. El aviso del permiso
+                    // aparece cuando el cobrador lo niega — ver `onPermisoDeMicrofono`.
+                    avisoDelDictado = if (disponible.motor == null) {
+                        avisoDe(FalloDelDictado.SIN_MOTOR)
+                    } else {
+                        it.avisoDelDictado
+                    }
+                )
+            }
+        }
+    }
+
+    /**
+     * El cobrador contestó el diálogo del sistema.
+     *
+     * Negarlo **no pierde la nota**: se apaga el micrófono, se pinta el aviso
+     * ámbar (nunca rojo — no se perdió trabajo) y el campo sigue recibiendo
+     * texto escrito a mano. Es la misma regla que "la foto nunca bloquea el
+     * guardado", aplicada a la voz.
+     */
+    fun onPermisoDeMicrofono(concedido: Boolean) {
+        if (concedido) {
+            mutableState.update { it.copy(avisoDelDictado = null) }
+            revisarElDictado()
+        } else {
+            mutableState.update {
+                it.copy(
+                    sePuedeDictar = false,
+                    avisoDelDictado = avisoDe(FalloDelDictado.SIN_PERMISO)
+                )
+            }
+        }
+    }
+
+    /**
+     * El botón del micrófono: abre si está cerrado, cierra si está abierto.
+     *
+     * **El texto se AGREGA al final**, nunca reemplaza: dictar dos veces es
+     * dictar dos frases. Y la grabación se guarda en [audioDeLaNota] aunque el
+     * texto venga vacío, que es la regla dura de esta tarea — si el motor se
+     * equivocó con un apodo, el hecho sigue ahí.
+     */
+    fun onMicrofono() {
+        viewModelScope.launch {
+            if (mutableState.value.dictado is EstadoDelDictado.Reposo) {
+                abrirElMicrofono()
+            } else {
+                cerrarElMicrofono()
+            }
+        }
+    }
+
+    private suspend fun abrirElMicrofono() {
+        dictado.comenzar().onFailure { error ->
+            mutableState.update {
+                it.copy(avisoDelDictado = avisoDe((error as? DictadoFallido)?.fallo))
+            }
+        }
+    }
+
+    private suspend fun cerrarElMicrofono() {
+        dictado.terminar().fold(
+            onSuccess = { terminado ->
+                editar { captura -> captura.copy(nota = pegado(captura.nota, terminado.texto)) }
+                mutableState.update {
+                    it.copy(
+                        // `?: it.audioDeLaNota`: una sesión que no produjo
+                        // archivo no borra el audio de la sesión anterior.
+                        audioDeLaNota = terminado.grabacion ?: it.audioDeLaNota,
+                        avisoDelDictado = null
+                    )
+                }
+            },
+            onFailure = { error ->
+                mutableState.update {
+                    it.copy(avisoDelDictado = avisoDe((error as? DictadoFallido)?.fallo))
+                }
+            }
+        )
+    }
+
+    /** Quita el audio de ESTA captura. No borra nada que ya se haya guardado. */
+    fun quitarAudioDeLaNota() {
+        mutableState.update { it.copy(audioDeLaNota = null) }
     }
 
     /**
@@ -295,6 +420,20 @@ class RegistrarVisitaViewModel @Inject constructor(
 
     /** Texto libre. Nunca lleva la fecha ni la hora dentro. */
     fun onNota(nota: String) = editar { it.copy(nota = nota) }
+
+    /**
+     * Pega lo dictado al final de lo que ya había, con un espacio en medio.
+     *
+     * Función pura y con su test: el borde que importa es el campo vacío —donde
+     * un separador dejaría la nota empezando con un espacio— y el dictado vacío,
+     * donde no hay nada que pegar y la nota no se puede tocar.
+     */
+    private fun pegado(nota: String, dictado: String): String {
+        val limpio = dictado.trim()
+        if (limpio.isEmpty()) return nota
+        if (nota.isBlank()) return limpio
+        return "${nota.trimEnd()} $limpio"
+    }
 
     /**
      * Toca la cuenta [ventaId]. **Alterna cuando el desenlace admite varias, y

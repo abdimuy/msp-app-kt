@@ -3,11 +3,15 @@ package com.example.msp_app.feature.visitas.ui
 import androidx.lifecycle.SavedStateHandle
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.speech.domain.DictadoTerminado
+import com.example.msp_app.core.speech.domain.GrabacionDictada
+import com.example.msp_app.core.speech.domain.MotorDeDictado
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.visitas.application.AbrirRegistroDeVisita
 import com.example.msp_app.feature.visitas.application.RegistrarVisita
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
+import com.example.msp_app.feature.visitas.data.fake.DictadoFalso
 import com.example.msp_app.feature.visitas.data.fake.FakeComprobantesDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeRecomendacionesPort
@@ -63,6 +67,7 @@ class RegistrarVisitaViewModelTest {
     private val recomendacionesPort = FakeRecomendacionesPort()
     private val registroPort = FakeRegistroDeVisitaPort()
     private var ubicacionPort = FakeUbicacionPort()
+    private val dictadoPort = DictadoFalso()
     private val camaraPort = FakeComprobantesDeVisitaPort()
 
     @Before
@@ -88,6 +93,7 @@ class RegistrarVisitaViewModelTest {
         abrirRegistro = AbrirRegistroDeVisita(contextoPort, recomendacionesPort, telemetria),
         registrarVisita = RegistrarVisita(registroPort, ubicacionPort, telemetria),
         camara = camaraPort,
+        dictado = dictadoPort,
         telemetry = telemetria,
         clock = clock,
         io = testDispatcher
@@ -137,6 +143,7 @@ class RegistrarVisitaViewModelTest {
             abrirRegistro = AbrirRegistroDeVisita(roto, recomendacionesPort, telemetria),
             registrarVisita = RegistrarVisita(registroPort, ubicacionPort, telemetria),
             camara = camaraPort,
+            dictado = dictadoPort,
             telemetry = telemetria,
             clock = clock,
             io = testDispatcher
@@ -628,5 +635,85 @@ class RegistrarVisitaViewModelTest {
 
         assertEquals("", vm.state.value.captura.nota)
         assertFalse(vm.state.value.eligiendoDia)
+    }
+
+    // ─── dictado ─────────────────────────────────────────────────────────────
+
+    /**
+     * **Negar el micrófono NO pierde la nota.** Es la regla dura de esta tarea,
+     * medida donde de verdad puede romperse: el ViewModel apaga el afordante,
+     * pinta el aviso ámbar, y el campo sigue recibiendo texto escrito a mano.
+     */
+    @Test
+    fun `sin permiso se apaga el microfono y la nota se escribe a mano`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            advanceUntilIdle()
+
+            vm.onPermisoDeMicrofono(concedido = false)
+            advanceUntilIdle()
+            vm.onNota("dijo que el sabado")
+
+            assertFalse("el microfono no puede quedar encendido", vm.state.value.sePuedeDictar)
+            assertEquals("Sin permiso del micrófono", vm.state.value.avisoDelDictado)
+            assertEquals("dijo que el sabado", vm.state.value.captura.nota)
+        }
+
+    /** Conceder el permiso vuelve a encender el micrófono y borra el aviso. */
+    @Test
+    fun `con el permiso concedido el microfono vuelve`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onPermisoDeMicrofono(concedido = false)
+        advanceUntilIdle()
+
+        vm.onPermisoDeMicrofono(concedido = true)
+        advanceUntilIdle()
+
+        assertTrue(vm.state.value.sePuedeDictar)
+        assertNull(vm.state.value.avisoDelDictado)
+    }
+
+    /**
+     * **Lo dictado se AGREGA al final.** Dictar dos veces es dictar dos frases;
+     * reemplazar perdería la primera, y el cobrador no tendría cómo saberlo
+     * hasta releer la nota.
+     */
+    @Test
+    fun `el dictado se pega al final de lo que ya habia`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        vm.onNota("no estaba")
+        dictadoPort.alTerminar = Result.success(
+            DictadoTerminado("preguntar por la mañana", null, MotorDeDictado.ANDROID)
+        )
+
+        vm.onMicrofono()
+        advanceUntilIdle()
+        vm.onMicrofono()
+        advanceUntilIdle()
+
+        assertEquals("no estaba preguntar por la mañana", vm.state.value.captura.nota)
+    }
+
+    /**
+     * **El audio se queda aunque el texto venga vacío.** Es la razón entera por
+     * la que se graba: si el motor no entendió el apodo, el hecho sigue ahí.
+     */
+    @Test
+    fun `el audio se adjunta aunque no haya texto`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        dictadoPort.alTerminar = Result.success(
+            DictadoTerminado("", GrabacionDictada("g-1", "/audio.wav", 8_000L), MotorDeDictado.ANDROID)
+        )
+
+        vm.onMicrofono()
+        advanceUntilIdle()
+        vm.onMicrofono()
+        advanceUntilIdle()
+
+        assertEquals("g-1", vm.state.value.audioDeLaNota?.id)
+        assertEquals("", vm.state.value.captura.nota)
     }
 }
