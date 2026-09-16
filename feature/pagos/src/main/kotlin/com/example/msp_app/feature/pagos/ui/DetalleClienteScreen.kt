@@ -33,6 +33,9 @@ import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.mapas.domain.PuntoDelMapa
+import com.example.msp_app.core.mapas.ui.SueloDeLaRutaConectado
+import com.example.msp_app.core.mapas.ui.hayMapaDeLaRuta
 import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
@@ -52,6 +55,7 @@ import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.Separador
+import com.example.msp_app.feature.pagos.ui.components.SueloSinMapa
 import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
 import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
 import com.example.msp_app.feature.pagos.ui.components.VerLosContactos
@@ -92,6 +96,7 @@ fun DetalleClienteScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val hayMapa = hayMapaDeLaRuta()
     MspTheme {
         DetalleClienteContent(
             state = state,
@@ -125,7 +130,27 @@ fun DetalleClienteScreen(
                 onNota = viewModel::escribirNota,
                 onGuardar = viewModel::guardarFicha
             ),
-            modifier = modifier
+            modifier = modifier,
+            // El suelo del bloque de mapa se cablea AQUI y no en el contenido, y
+            // esa linea es la que mantiene los goldens deterministas: quien
+            // fotografia es `DetalleClienteContent`, que se queda con el suelo
+            // liso. MapLibre necesita GL y en Robolectric no existe.
+            //
+            // El punto que se le pasa es el MISMO `ultimoCobroAqui` que decide si
+            // el bloque se pinta: un mapa centrado en cualquier otra cosa diria
+            // "es aqui" sobre una puerta que nadie midio.
+            suelo = {
+                SueloDeLaRutaConectado(
+                    punto = state.detalle?.ultimoCobroAqui?.let {
+                        PuntoDelMapa(lat = it.lat, lng = it.lng)
+                    }
+                )
+            },
+            // El suelo pinta el pin SOLO cuando tiene mapa, centrado en el
+            // objetivo de la camara. Cuando no lo tiene, el pin vuelve a la
+            // banda de esta feature. De las dos formas se pinta exactamente uno,
+            // y nunca uno que senale 24 metros al norte.
+            elSueloPintaElPin = hayMapa
         )
     }
 }
@@ -196,7 +221,9 @@ fun DetalleClienteContent(
     modifier: Modifier = Modifier,
     contacto: AccionesDeContacto = AccionesDeContacto(),
     abono: AccionesDelAbono = AccionesDelAbono(),
-    fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha()
+    fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
+    suelo: @Composable () -> Unit = { SueloSinMapa() },
+    elSueloPintaElPin: Boolean = false
 ) {
     Column(
         modifier = modifier
@@ -223,7 +250,9 @@ fun DetalleClienteContent(
                     onAlternarTema = onAlternarTema,
                     onAlternarPrivacidad = onAlternarPrivacidad,
                     contacto = contacto.copy(onComoLlegar = contacto.onComoLlegar),
-                    onEditarFicha = fichaDelCliente.onEditar
+                    onEditarFicha = fichaDelCliente.onEditar,
+                    suelo = suelo,
+                    elSueloPintaElPin = elSueloPintaElPin
                 )
             }
         }
@@ -298,7 +327,9 @@ private fun CuerpoDelCliente(
     onAlternarTema: () -> Unit,
     onAlternarPrivacidad: () -> Unit,
     contacto: AccionesDeContacto,
-    onEditarFicha: () -> Unit
+    onEditarFicha: () -> Unit,
+    suelo: @Composable () -> Unit,
+    elSueloPintaElPin: Boolean
 ) {
     Column(
         modifier = Modifier
@@ -315,7 +346,7 @@ private fun CuerpoDelCliente(
             onEditarFicha = onEditarFicha
         )
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-        HojaDeIdentidad(detalle, contacto, onEditarFicha)
+        HojaDeIdentidad(detalle, contacto, onEditarFicha, suelo, elSueloPintaElPin)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeDinero(detalle, ocultos)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
@@ -408,7 +439,9 @@ private fun EncabezadoDelCliente(
 private fun HojaDeIdentidad(
     detalle: DetalleCliente,
     contacto: AccionesDeContacto,
-    onEditarFicha: () -> Unit
+    onEditarFicha: () -> Unit,
+    suelo: @Composable () -> Unit,
+    elSueloPintaElPin: Boolean
 ) {
     val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
     HojaContinua {
@@ -428,7 +461,9 @@ private fun HojaDeIdentidad(
         if (detalle.ultimoCobroAqui != null) {
             MapaDelCliente(
                 ubicacion = detalle.ultimoCobroAqui,
-                onComoLlegar = contacto.onComoLlegar
+                onComoLlegar = contacto.onComoLlegar,
+                suelo = suelo,
+                elSueloPintaElPin = elSueloPintaElPin
             )
         }
         SeccionDeHoja {

@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
@@ -711,15 +712,30 @@ private val TOQUE_DE_ACCION = 50.dp
  * Sin [ubicacion] no hay pin ni pastilla: un pin en el centro del cuadro se
  * leería como "es aquí" cuando nadie lo sabe. "Cómo llegar" sí se queda — abre la
  * dirección escrita, que es lo que el cobrador tiene.
+ *
+ * ## [elSueloPintaElPin] — quién dibuja el pin, y por qué importa
+ *
+ * Sin mapa, el pin es un **símbolo**: dice "hay un punto medido", y va en la
+ * banda de arriba, que es donde no lo tapa el botón a ninguna escala.
+ *
+ * Con mapa, el pin es una **coordenada**: tiene que caer exactamente sobre el
+ * objetivo de la cámara. El único lugar donde eso es cierto es el centro del
+ * lienzo, y el único que lo sabe es el módulo que manda la cámara. Así que el
+ * suelo lo pinta él (`PinDelMapa` de `:core:mapas`) y esta pieza se aparta.
+ *
+ * No es un gusto: la primera versión dejaba el pin acá con el mapa detrás, y el
+ * golden midió **21 dp** entre el pin y el centro de la vista. A zoom 17 son
+ * ~24 metros — media cuadra, con pinta de dato exacto.
  */
 @Composable
 fun MapaDelCliente(
     ubicacion: UbicacionDelCobro?,
     onComoLlegar: () -> Unit,
     modifier: Modifier = Modifier,
-    suelo: @Composable () -> Unit = { SueloSinMapa() }
+    suelo: @Composable () -> Unit = { SueloSinMapa() },
+    elSueloPintaElPin: Boolean = false
 ) {
-    Box(modifier = modifier.fillMaxWidth().height(ALTO_DEL_MAPA)) {
+    Box(modifier = modifier.fillMaxWidth().height(altoDelMapa())) {
         suelo()
         // El pin y el pie viven en BANDAS, no anclados a las esquinas de la misma
         // caja. Anclados se montaban uno sobre otro: el botón crecía con la escala
@@ -731,7 +747,10 @@ fun MapaDelCliente(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                if (ubicacion != null) PinDelCobro()
+                // Con mapa el pin lo pinta el suelo, centrado en el objetivo
+                // de la cámara: es el ÚNICO lugar donde "es aquí" es cierto.
+                // Ver `PinDelMapa` de `:core:mapas`, y el defecto que lo movió.
+                if (ubicacion != null && !elSueloPintaElPin) PinDelCobro()
             }
             Row(
                 modifier = Modifier
@@ -799,12 +818,18 @@ fun MapaDelCliente(
     }
 }
 
-/** El suelo mientras no hay extracto de mapa: liso, sin calles inventadas. */
+/**
+ * El suelo mientras no hay extracto de mapa: liso, sin calles inventadas.
+ *
+ * Público porque es **el valor por omisión del slot** y `DetalleClienteScreen`
+ * lo nombra como tal: la degradación correcta tiene que poder escribirse desde
+ * afuera, no ser un secreto de este archivo.
+ */
 @Composable
-private fun SueloSinMapa() {
+fun SueloSinMapa() {
     Box(
         modifier = Modifier.fillMaxWidth().height(
-            ALTO_DEL_MAPA
+            altoDelMapa()
         ).background(MspTheme.colors.surface2)
     )
 }
@@ -828,8 +853,32 @@ private fun PinDelCobro(modifier: Modifier = Modifier) {
     }
 }
 
-/** El alto del cuadro de mapa — los 130 px del mock. */
-private val ALTO_DEL_MAPA = 130.dp
+/**
+ * El alto del cuadro de mapa: **130 dp del mock a escala normal, y más a las
+ * grandes**.
+ *
+ * ## Por qué crece, medido y no opinado
+ *
+ * Todo lo que vive dentro del cuadro escala con la fuente —el botón "cómo
+ * llegar" crece de ancho y de alto— menos el cuadro. A `MUY_GRANDE` el botón
+ * llega a ocupar el 60 % del ancho y sube hasta la mitad de la altura, y el
+ * golden `pagos_mapa_con_atribucion_light_2_0` lo mostró **tapando el pin**.
+ *
+ * Un cuadro fijo con contenido que escala es la receta del encimamiento
+ * (principio 9: antes de truncar, apilar; acá, antes de encimar, crecer). Los
+ * números salen de la geometría: el pin queda en el centro del cuadro con su
+ * halo de 34 dp, y la fila de abajo mide el botón más su aire. Para que no se
+ * toquen, el cuadro tiene que medir al menos el doble de (fila + medio halo).
+ *
+ * A `NORMAL` no cambia nada: los 130 dp del mock ya alcanzan porque a esa escala
+ * el botón no llega al centro horizontal, y el pin queda a su lado.
+ */
+@Composable
+private fun altoDelMapa(): Dp = when (LocalFontSizeLevel.current) {
+    FontSizeLevel.NORMAL -> 130.dp
+    FontSizeLevel.GRANDE -> 165.dp
+    FontSizeLevel.MUY_GRANDE -> 180.dp
+}
 
 /** El halo del pin. */
 private val HALO_DEL_PIN = 34.dp

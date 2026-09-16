@@ -266,6 +266,12 @@ dependencies {
     // llegue al classpath de prueba de `:app` — un módulo que la guarda no ve es
     // un módulo sin guarda.
     implementation(project(":core:speech"))
+    // Mapa de la ruta (`:core:mapas`, MapLibre + PMTiles). Lo declara `:app` por
+    // la misma razon que `:core:speech`: quien lo usa es `:feature:pagos`, pero
+    // sus `@Module` no entran al grafo de la app por transitividad y
+    // `NetworkKillSwitchGuardTest` exige que TODO `@Module` del arbol de fuentes
+    // llegue al classpath de prueba de `:app`.
+    implementation(project(":core:mapas"))
     // Piloto del reporte de cobranza unificado (Plan 5). `:app` provee el adapter
     // real de `UserCyclePort` (Firestore userData) en su composition root y monta
     // `CollectionReportScreen`/`...Tier2` en la ruta `daily_reports`.

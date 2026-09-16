@@ -32,6 +32,10 @@ playServicesLocation = "21.0.1"
 accompanistSystemuicontroller = "0.36.0"
 accompanistPermissions = "0.37.3"
 escposThermalPrinter = "3.4.0"
+# MapLibre Android, variante OpenGL ES. **13.0.2 y no la ultima**: desde 13.3.1
+# el POM arrastra `kotlin-stdlib` 2.2.10 y este build compila con Kotlin 2.0.21.
+# PMTiles esta soportado de forma nativa desde 11.8.0 (PR #2882).
+maplibre = "13.0.2"
 coilCompose = "2.4.0"
 commonsMath3 = "3.6.1"
 lifecycleViewmodelCompose = "2.9.2"
@@ -98,6 +102,7 @@ androidx-room-testing = { group = "androidx.room", name = "room-testing", versio
 # ── Networking ──
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-sse = { group = "com.squareup.okhttp3", name = "okhttp-sse", version.ref = "okhttp" }
+maplibre-android = { group = "org.maplibre.gl", name = "android-sdk-opengl", version.ref = "maplibre" }
 retrofit = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
 retrofit-converter-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }

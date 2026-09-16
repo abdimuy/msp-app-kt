@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      INTERNET es el único permiso que trae el mapa, y viaja con el módulo —no
+      con `:app`— por el mismo criterio que `RECORD_AUDIO` de `:core:speech` y
+      las de Bluetooth de `:core:printing`: quitar el módulo quita el permiso.
+
+      Lo usa **la descarga del extracto y nada más**. El mapa dibujado NO pide
+      red: las teselas salen del `.pmtiles` que ya está en el teléfono, y el
+      estilo no declara `glyphs` ni `sprite`, así que no hay un servidor de
+      tipografías al que MapLibre pueda llamar a espaldas de nadie. Es lo que
+      hace cierta la frase "después funciona sin señal, siempre".
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+</manifest>
