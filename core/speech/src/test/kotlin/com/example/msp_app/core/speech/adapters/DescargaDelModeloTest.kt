@@ -4,6 +4,7 @@ import com.example.msp_app.core.speech.application.SpeechTelemetria
 import com.example.msp_app.core.speech.domain.EstadoDelModelo
 import com.example.msp_app.core.speech.domain.ModeloDeDictado
 import com.example.msp_app.core.speech.fake.MODELO_DE_PRUEBA
+import com.example.msp_app.core.speech.fake.NativoFalso
 import com.example.msp_app.core.speech.fake.PlanificadorFalso
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import java.io.File
@@ -200,7 +201,8 @@ class DescargaDelModeloTest {
             almacen = almacen(),
             planificador = planificador,
             estado = EstadoDelModeloEnMemoria(),
-            modelo = MODELO_DE_PRUEBA
+            modelo = MODELO_DE_PRUEBA,
+            nativo = NativoFalso()
         )
 
         puerto.pedirLaDescarga()
@@ -222,7 +224,8 @@ class DescargaDelModeloTest {
             almacen = almacen(),
             planificador = PlanificadorFalso(),
             estado = EstadoDelModeloEnMemoria(),
-            modelo = MODELO_DE_PRUEBA
+            modelo = MODELO_DE_PRUEBA,
+            nativo = NativoFalso()
         )
 
         assertEquals(EstadoDelModelo.Listo, puerto.estado().first())
@@ -239,7 +242,8 @@ class DescargaDelModeloTest {
                 almacen,
                 planificador,
                 EstadoDelModeloEnMemoria(),
-                MODELO_DE_PRUEBA
+                MODELO_DE_PRUEBA,
+                NativoFalso()
             )
 
         puerto.cancelarYBorrar()

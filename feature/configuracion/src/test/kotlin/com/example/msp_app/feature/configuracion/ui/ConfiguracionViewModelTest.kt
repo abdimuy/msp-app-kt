@@ -39,6 +39,47 @@ class ConfiguracionViewModelTest {
         MODELO
     )
 
+    /**
+     * **Sin motor no se ofrece la descarga.** Es el caso REAL de hoy: whisper.cpp
+     * no se vendoró, así que `MotorWhisperNativo.cargada` es `false` en toda la
+     * flota y el renglón de 43.5 MB no se pinta.
+     *
+     * Ofrecerlo sería ofrecer una mentira: el cobrador gastaría sus datos para un
+     * motor que no puede cargar nada. El dictado sigue funcionando sin eso, con el
+     * reconocedor que Android ya trae.
+     *
+     * **Control de reversión:** quitar el `if (modeloPort.motorDisponible)` de
+     * `ConfiguracionViewModel.descargas` pone este test en ROJO.
+     */
+    @Test
+    fun `sin motor de whisper no se ofrece bajar el modelo`() = runTest {
+        val viewModel = viewModel(modeloPort = FakeModeloDeDictadoPort(motorDisponible = false))
+
+        viewModel.state.test {
+            assertEquals(
+                "no se puede ofrecer una descarga para un motor que no existe",
+                emptyList<Any>(),
+                awaitItem().descargas
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /**
+     * **Control positivo del de arriba.** Con el mismo montaje y el motor
+     * presente, el renglón SÍ aparece. Sin esto, un `descargas` roto que siempre
+     * saliera vacío dejaría pasar el test anterior sin probar nada.
+     */
+    @Test
+    fun `con motor de whisper si se ofrece bajar el modelo`() = runTest {
+        val viewModel = viewModel(modeloPort = FakeModeloDeDictadoPort(motorDisponible = true))
+
+        viewModel.state.test {
+            assertEquals(1, awaitItem().descargas.size)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     @Test
     fun `el estado inicial refleja los defaults de los fakes`() = runTest {
         val viewModel = viewModel()

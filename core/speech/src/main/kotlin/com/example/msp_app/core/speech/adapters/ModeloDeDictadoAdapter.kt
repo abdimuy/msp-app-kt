@@ -62,8 +62,17 @@ class ModeloDeDictadoAdapter @Inject constructor(
     private val almacen: AlmacenDelModelo,
     private val planificador: PlanificadorDeLaDescarga,
     private val estado: EstadoDelModeloEnMemoria,
-    private val modelo: ModeloDeDictado
+    private val modelo: ModeloDeDictado,
+    private val nativo: MotorWhisperNativo
 ) : ModeloDeDictadoPort {
+
+    /**
+     * Le pregunta al motor, no a una constante. `MotorWhisperNativo.cargada` es
+     * `false` mientras la librería no viaje en el APK —hoy, siempre— y pasa a
+     * `true` sola el día que exista, sin que nadie voltee una bandera.
+     */
+    override val motorDisponible: Boolean
+        get() = nativo.cargada
 
     init {
         estado.poner(

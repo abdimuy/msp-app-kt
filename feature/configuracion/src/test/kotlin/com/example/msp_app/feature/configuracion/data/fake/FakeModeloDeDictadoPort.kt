@@ -20,7 +20,15 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * (`MatchingDeclarationName`) pide que el archivo se llame como él.
  */
 class FakeModeloDeDictadoPort(
-    inicial: EstadoDelModelo = EstadoDelModelo.Ausente
+    inicial: EstadoDelModelo = EstadoDelModelo.Ausente,
+    /**
+     * Por defecto **`true`**, al revés que la app de hoy, y a propósito: casi
+     * todos los tests de esta sección existen para probar cómo se pinta el
+     * renglón, y con el default en `false` no habría renglón que probar. El caso
+     * real —motor ausente, renglón escondido— tiene su propio test que lo pone en
+     * `false` explícitamente, para que se lea como el caso que es.
+     */
+    override val motorDisponible: Boolean = true
 ) : ModeloDeDictadoPort {
 
     private val flujo = MutableStateFlow(inicial)

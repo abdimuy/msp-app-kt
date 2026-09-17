@@ -188,8 +188,9 @@ internal object SpeechModule {
         almacen: AlmacenDelModelo,
         planificador: PlanificadorDeLaDescarga,
         estado: EstadoDelModeloEnMemoria,
-        modelo: ModeloDeDictado
-    ): ModeloDeDictadoPort = ModeloDeDictadoAdapter(almacen, planificador, estado, modelo)
+        modelo: ModeloDeDictado,
+        nativo: MotorWhisperNativo
+    ): ModeloDeDictadoPort = ModeloDeDictadoAdapter(almacen, planificador, estado, modelo, nativo)
 }
 
 /** Las costuras con una sola implementación real. `@Binds` y nada más. */

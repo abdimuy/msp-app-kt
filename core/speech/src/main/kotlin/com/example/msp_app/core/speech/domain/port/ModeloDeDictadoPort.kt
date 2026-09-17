@@ -19,6 +19,34 @@ import kotlinx.coroutines.flow.Flow
  */
 interface ModeloDeDictadoPort {
 
+    /**
+     * **¿Existe el motor que usaría este modelo?**
+     *
+     * `false` mientras la librería nativa de whisper no viaje en el APK — que es
+     * el caso **hoy y en toda la flota**. Ver `MotorWhisperNativo`: whisper.cpp no
+     * se vendoró, y la decisión está razonada en su KDoc y en el commit que la
+     * tomó.
+     *
+     * ## Para qué sirve: esconder la descarga, no apagarla
+     *
+     * Configuración pinta el renglón del dictado **solo si esto es `true`**.
+     * Ofrecer bajar 43.5 MB para un motor que no puede cargar nada no es una
+     * función a medias: es **ofrecer una mentira**, y peor que no tenerla, porque
+     * el cobrador gasta sus datos y no gana nada.
+     *
+     * ## Por qué es un dato del puerto y no una bandera
+     *
+     * Podría ser un `const val MOSTRAR_DESCARGA = false` y sería una línea menos.
+     * Pero entonces alguien tendría que **acordarse** de voltearla el día que el
+     * `.so` exista, y ese día no hay nada que se lo recuerde. Preguntándole al
+     * puerto, el renglón **aparece solo** cuando el motor aparece, sin tocar
+     * código y sin que nadie tenga que recordar nada.
+     *
+     * Es el mismo criterio con el que el dictado elige motor: no se pregunta "¿qué
+     * dijo una constante?", se pregunta "¿qué hay en este teléfono?".
+     */
+    val motorDisponible: Boolean
+
     /** En qué punto está. Una sola fuente, y la pantalla no infiere nada aparte. */
     fun estado(): Flow<EstadoDelModelo>
 

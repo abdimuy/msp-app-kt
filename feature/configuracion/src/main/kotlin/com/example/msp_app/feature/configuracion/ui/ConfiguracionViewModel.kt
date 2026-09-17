@@ -52,8 +52,27 @@ class ConfiguracionViewModel @Inject constructor(
      * dos hasta que `:core:mapas` se fue, y el día que entre otra este flujo es
      * el único lugar que cambia.
      */
+    /**
+     * Los renglones de "Descargas".
+     *
+     * **El del dictado se pinta SOLO si el motor existe** ([ModeloDeDictadoPort.motorDisponible]).
+     * Hoy no existe —whisper.cpp no se vendoró, y el porqué está en el KDoc de ese
+     * puerto y en `MotorWhisperNativo`— así que la lista sale vacía y la sección
+     * entera no se pinta.
+     *
+     * Ofrecer bajar 43.5 MB para un motor que no puede cargar nada no es una
+     * función a medias: es ofrecer una mentira, y el cobrador gastaría sus datos
+     * para no ganar nada. El dictado **sigue funcionando** sin eso, con el
+     * reconocedor que Android ya trae — medido en el SM-A256E del dueño, dicta en
+     * español sin señal.
+     *
+     * No se esconde con una bandera: se le pregunta al puerto, así que el renglón
+     * **aparece solo** el día que la librería nativa viaje en el APK.
+     */
     private val descargas: Flow<List<FilaDeDescarga>> =
-        modeloPort.estado().map { dictado -> listOf(filaDelDictado(modelo, dictado)) }
+        modeloPort.estado().map { dictado ->
+            if (modeloPort.motorDisponible) listOf(filaDelDictado(modelo, dictado)) else emptyList()
+        }
 
     val state: StateFlow<ConfiguracionUiState> = combine(
         settingsRepository.fontSizeLevel,
@@ -78,7 +97,11 @@ class ConfiguracionViewModel @Inject constructor(
             // sale del paquete, que se conoce sin preguntarle nada a nadie. Lo
             // único que falta es el estado, y "Sin descargar" es el estado del
             // que no bajó nada.
-            descargas = listOf(filaDelDictado(modelo, EstadoDelModelo.Ausente))
+            descargas = if (modeloPort.motorDisponible) {
+                listOf(filaDelDictado(modelo, EstadoDelModelo.Ausente))
+            } else {
+                emptyList()
+            }
         )
     )
 
