@@ -27,9 +27,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Base de los goldens de `:feature:configuracion`. Mismo bring-up que
- * `MapasScreenshotTest` y `SpeechScreenshotTest` — esos bases viven en el
- * sourceset `test` de otro módulo y no cruzan, así que se reusa el patrón, no
- * el tipo.
+ * `SpeechScreenshotTest` — ese base vive en el sourceset `test` de otro módulo
+ * y no cruza, así que se reusa el patrón, no el tipo.
  *
  * Este módulo **no tenía un solo golden** hasta la sección "Descargas": sus dos
  * secciones anteriores se probaban solo con asserts, y un assert no ve un

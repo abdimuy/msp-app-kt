@@ -10,8 +10,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  * **La pantalla de descarga del dictado, cableada.** Es lo que `:app` monta en
  * el grafo, en la ruta [DictadoRutas.DESCARGA].
  *
- * Mismo reparto que `SueloDeLaRutaConectado` en `:core:mapas`: el ViewModel se
- * queda **dentro** del módulo, así que `:app` no tiene que conocer
+ * El reparto: el ViewModel se queda **dentro** del módulo, así que `:app` no
+ * tiene que conocer
  * [DescargaDelDictadoViewModel] ni saber que el peso sale de
  * `ModeloDeDictado.tamanoBytes`. Lo único que aporta el llamador es a dónde
  * vuelve la flecha.

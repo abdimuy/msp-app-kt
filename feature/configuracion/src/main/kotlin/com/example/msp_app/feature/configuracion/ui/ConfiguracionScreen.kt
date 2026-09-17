@@ -30,7 +30,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.core.mapas.ui.MapasRutas
 import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.feature.configuracion.domain.port.AppThemeMode
 import com.example.msp_app.feature.configuracion.ui.components.AppearanceSection
@@ -74,14 +73,13 @@ fun ConfiguracionScreen(
             onSelectThemeMode = viewModel::selectThemeMode,
             onPrivacyMaskedChanged = viewModel::setPrivacyMasked,
             onReduceMotionChanged = viewModel::setReduceMotion,
-            // Las cadenas las declaran `:core:speech` y `:core:mapas`, que es
-            // también de donde las lee `:app` al registrar los destinos. Una
-            // cadena escrita a mano acá sería un destino que no resuelve.
+            // La cadena la declara `:core:speech`, que es también de donde la
+            // lee `:app` al registrar el destino. Una cadena escrita a mano acá
+            // sería un destino que no resuelve.
             onAbrirDescarga = { cual ->
                 navController.navigate(
                     when (cual) {
                         DescargaOpcional.DICTADO -> DictadoRutas.DESCARGA
-                        DescargaOpcional.MAPA -> MapasRutas.DESCARGA
                     }
                 )
             }

@@ -8,24 +8,38 @@ import com.example.msp_app.feature.configuracion.ui.components.DescargasSection
 import org.junit.Test
 
 /**
- * La sección "Descargas" en la matriz: claro × oscuro × 1.0/1.5/2.0.
+ * La sección "Descargas": la geometría en la matriz de escalas y **cada estado
+ * en su color**.
+ *
+ * ## Un renglón por imagen, y por qué cambió
+ *
+ * Fueron dos renglones hasta que el del mapa se fue con `:core:mapas` —47.9 MB
+ * de `.so` que viajaban en el APK aunque nadie bajara las teselas—. Queda el del
+ * dictado, y **una sección con dos renglones "Dictado por voz" sería una foto de
+ * algo que no puede pasar** (principio 2: la forma dice la verdad), así que cada
+ * imagen lleva el único renglón que existe.
+ *
+ * Los cuatro estados que antes viajaban montados en el renglón del mapa tienen
+ * ahora cada uno su caso propio, que es más cobertura y no menos: `SIN_ORIGEN`
+ * era el quinto y se fue con el mapa, porque el dictado no puede caer ahí —su
+ * URL es una constante del módulo.
  *
  * ## Qué hay que mirar en estas imágenes
  *
- * 1. Que el renglón del mapa **no anuncie megas** en `sin_origen`: ahí no hay
- *    paquete, y un peso inventado en la sección que existe para decir la verdad
- *    sobre los megas sería el peor lugar para mentir.
- * 2. Que a escala 2.0 el estado de la derecha **no se encime** con el título ni
- *    empuje el texto a una columna de dos letras. Es el defecto exacto que el
- *    golden a 2.0 de la pantalla del dictado ya destapó una vez ("Descargan /
- *    do" con los megas encima).
- * 3. Que "Todavía no se puede" se lea **apagado** —`onSurfaceMuted`— y no como
- *    una alarma: no se perdió nada, simplemente todavía no hay archivo.
+ * 1. Que el renglón **anuncie siempre sus megas**: el número sale del paquete
+ *    del módulo, y ésta es la sección que existe para decir la verdad sobre los
+ *    megas.
+ * 2. Que a escala 2.0 el estado **no se encime** con el título ni empuje el
+ *    texto a una columna de dos letras. Es el defecto exacto que el golden a 2.0
+ *    de la pantalla del dictado ya destapó una vez ("Descargan / do" con los
+ *    megas encima).
+ * 3. Que "A medias" se lea **ámbar** y nunca rojo: una descarga cortada no
+ *    perdió lo bajado, se reanuda con `Range` (principio 14).
  * 4. Que "Listo" sea el único verde. El verde es estado, nunca acción.
- * 5. Que los dos renglones tengan el mismo alto cuando dicen lo mismo: si el
- *    del mapa se encoge por no traer peso, la sección se ve rota.
  */
 class DescargasMatrixScreenshotTest : ConfiguracionScreenshotTest() {
+
+    // El caso de HOY, en las tres escalas: es la geometría la que se mira.
 
     @Test
     fun `hoy light normal`() = seccion(HOY, "hoy", false, FontSizeLevel.NORMAL)
@@ -45,6 +59,9 @@ class DescargasMatrixScreenshotTest : ConfiguracionScreenshotTest() {
     @Test
     fun `hoy dark muy grande`() = seccion(HOY, "hoy", true, FontSizeLevel.MUY_GRANDE)
 
+    // "Descargando" es el estado de texto más largo: va también a 2.0, que es
+    // donde el golden del dictado vio partirse la palabra.
+
     @Test
     fun `bajando light normal`() = seccion(BAJANDO, "bajando", false, FontSizeLevel.NORMAL)
 
@@ -57,17 +74,26 @@ class DescargasMatrixScreenshotTest : ConfiguracionScreenshotTest() {
     @Test
     fun `bajando dark muy grande`() = seccion(BAJANDO, "bajando", true, FontSizeLevel.MUY_GRANDE)
 
-    @Test
-    fun `listas light normal`() = seccion(LISTAS, "listas", false, FontSizeLevel.NORMAL)
+    // Los tres restantes se miran por el COLOR de su estado, no por su
+    // geometría: a escala normal, claro y oscuro.
 
     @Test
-    fun `listas light muy grande`() = seccion(LISTAS, "listas", false, FontSizeLevel.MUY_GRANDE)
+    fun `esperando light normal`() = seccion(ESPERANDO, "esperando", false, FontSizeLevel.NORMAL)
 
     @Test
-    fun `listas dark normal`() = seccion(LISTAS, "listas", true, FontSizeLevel.NORMAL)
+    fun `esperando dark normal`() = seccion(ESPERANDO, "esperando", true, FontSizeLevel.NORMAL)
 
     @Test
-    fun `listas dark muy grande`() = seccion(LISTAS, "listas", true, FontSizeLevel.MUY_GRANDE)
+    fun `a medias light normal`() = seccion(A_MEDIAS, "a_medias", false, FontSizeLevel.NORMAL)
+
+    @Test
+    fun `a medias dark normal`() = seccion(A_MEDIAS, "a_medias", true, FontSizeLevel.NORMAL)
+
+    @Test
+    fun `lista light normal`() = seccion(LISTA, "lista", false, FontSizeLevel.NORMAL)
+
+    @Test
+    fun `lista dark normal`() = seccion(LISTA, "lista", true, FontSizeLevel.NORMAL)
 
     // -----------------------------------------------------------------------
 
@@ -87,42 +113,19 @@ class DescargasMatrixScreenshotTest : ConfiguracionScreenshotTest() {
         /** El peso del modelo de voz, medido: 43 537 433 B. */
         const val MEGAS_DEL_DICTADO = "43.5"
 
-        /** El peso del extracto, medido: 25 507 515 B. */
-        const val MEGAS_DEL_MAPA = "25.5"
-
-        /**
-         * **Lo que el cobrador ve HOY**, y por eso es el caso que va en las tres
-         * escalas y en los dos temas: el dictado se puede bajar y el mapa no
-         * tiene de dónde, porque el `.pmtiles` no está publicado en ningún
-         * servidor.
-         */
-        val HOY = listOf(
-            FilaDeDescarga(DescargaOpcional.DICTADO, MEGAS_DEL_DICTADO, EstadoDeLaDescarga.AUSENTE),
-            FilaDeDescarga(DescargaOpcional.MAPA, null, EstadoDeLaDescarga.SIN_ORIGEN)
+        fun fila(estado: EstadoDeLaDescarga) = listOf(
+            FilaDeDescarga(DescargaOpcional.DICTADO, MEGAS_DEL_DICTADO, estado)
         )
 
-        /** Una bajando y la otra cortada a medias: los dos estados "en curso". */
-        val BAJANDO = listOf(
-            FilaDeDescarga(
-                DescargaOpcional.DICTADO,
-                MEGAS_DEL_DICTADO,
-                EstadoDeLaDescarga.DESCARGANDO
-            ),
-            FilaDeDescarga(
-                DescargaOpcional.MAPA,
-                MEGAS_DEL_MAPA,
-                EstadoDeLaDescarga.INTERRUMPIDA
-            )
-        )
+        /** **Lo que el cobrador ve HOY**: el dictado sin bajar. */
+        val HOY = fila(EstadoDeLaDescarga.AUSENTE)
 
-        /** Las dos en el teléfono. El día que el extracto se publique, esto. */
-        val LISTAS = listOf(
-            FilaDeDescarga(DescargaOpcional.DICTADO, MEGAS_DEL_DICTADO, EstadoDeLaDescarga.LISTA),
-            FilaDeDescarga(
-                DescargaOpcional.MAPA,
-                MEGAS_DEL_MAPA,
-                EstadoDeLaDescarga.ESPERANDO_WIFI
-            )
-        )
+        val BAJANDO = fila(EstadoDeLaDescarga.DESCARGANDO)
+
+        val ESPERANDO = fila(EstadoDeLaDescarga.ESPERANDO_WIFI)
+
+        val A_MEDIAS = fila(EstadoDeLaDescarga.INTERRUMPIDA)
+
+        val LISTA = fila(EstadoDeLaDescarga.LISTA)
     }
 }

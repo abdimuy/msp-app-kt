@@ -38,11 +38,6 @@ dependencies {
     // esta dependencia porque el modulo no tenia consumidor todavia; esta tarea
     // trae el consumidor (el ticket de pago) junto con ella.
     implementation(project(":core:printing"))
-    // El suelo del bloque de mapa del detalle de cliente (`:core:mapas`). Entra
-    // por el slot `suelo` de `MapaDelCliente`, que ya existia: `DetalleClienteScreen`
-    // pone el suelo cableado y `DetalleClienteContent` —el que fotografian los
-    // goldens— se queda con el suelo liso.
-    implementation(project(":core:mapas"))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

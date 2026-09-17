@@ -1,45 +1,39 @@
 package com.example.msp_app.feature.configuracion.ui
 
-import com.example.msp_app.core.mapas.domain.EstadoDelExtracto
-import com.example.msp_app.core.mapas.domain.ExtractoDeMapa
-import com.example.msp_app.core.mapas.domain.megas as megasDelMapa
 import com.example.msp_app.core.speech.domain.EstadoDelModelo
 import com.example.msp_app.core.speech.domain.ModeloDeDictado
 import com.example.msp_app.core.speech.domain.megas as megasDelDictado
 
 /**
- * **Las dos descargas opcionales, en el vocabulario de una sola sección.**
+ * **La descarga opcional, en el vocabulario de la sección que la pinta.**
  *
- * `:core:speech` y `:core:mapas` tienen cada uno su `EstadoDel…`, y son
- * distintos a propósito: el mapa tiene un estado que el dictado no puede tener
- * (`SinOrigen`) y el suyo de "listo" carga el mapa ya abierto. Pero la sección
- * de Configuración pinta **dos renglones iguales**, y dos renglones iguales
- * necesitan un vocabulario común. Éste es ese vocabulario, y vive acá —del lado
- * del que pinta— y no en ninguno de los dos módulos: ninguno de los dos tiene
- * por qué saber que el otro existe.
+ * `:core:speech` tiene su propio `EstadoDelModelo`, con el vocabulario de quien
+ * baja un archivo. La sección de Configuración pinta **renglones**, y un
+ * renglón necesita el vocabulario del cobrador. Éste es ese vocabulario, y vive
+ * acá —del lado del que pinta— y no dentro del módulo: `:core:speech` no tiene
+ * por qué saber cómo se dibuja una sección de Configuración.
+ *
+ * ## Hubo un segundo renglón, y por qué ya no está
+ *
+ * El extracto de calles de `:core:mapas` era el otro. Ese módulo se fue entero:
+ * su renderizador (MapLibre) pesaba 47.9 MB de `.so` repartidos en cuatro ABIs y
+ * viajaba en el APK **aunque nadie bajara las teselas** — peso obligatorio por
+ * una función opcional, en una app que se reparte por descarga directa. Sin
+ * renderizador el `.pmtiles` no tiene consumidor, así que no hay qué ofrecer.
+ * "Cómo llegar" abre la app de mapas del teléfono, que además navega mejor.
+ *
+ * Con él se fue también el estado `SIN_ORIGEN`: era suyo —el `.pmtiles` nunca
+ * estuvo publicado en ningún servidor— y el dictado no puede caer ahí, porque su
+ * URL es una constante del módulo.
  */
 enum class DescargaOpcional {
 
     /** El modelo de alta fidelidad de `:core:speech`. */
-    DICTADO,
-
-    /** El extracto de calles de `:core:mapas`. */
-    MAPA
+    DICTADO
 }
 
-/**
- * En qué punto está una descarga opcional.
- *
- * [SIN_ORIGEN] es el estado que hoy tiene el mapa de verdad: el `.pmtiles` se
- * genera a mano y **no está publicado en ningún servidor**, así que no hay de
- * dónde bajarlo. Es un estado propio y no [AUSENTE] por la misma razón que en
- * `:core:mapas`: ofrecer una descarga que no puede ocurrir es mentir con un
- * afordante.
- */
+/** En qué punto está una descarga opcional. */
 enum class EstadoDeLaDescarga {
-
-    /** No hay de dónde bajarlo. Nada que ofrecer, y el renglón lo dice. */
-    SIN_ORIGEN,
 
     /** Hay de dónde, y no está en el teléfono. */
     AUSENTE,
@@ -60,13 +54,13 @@ enum class EstadoDeLaDescarga {
 /**
  * Un renglón de la sección: qué es, cuánto ocupa y en qué punto está.
  *
- * [megas] es **nulo cuando no hay paquete que anunciar** — el caso real del
- * mapa hoy. Un "0 MB" o un "—" en su lugar serían un número inventado, y el
- * principio 1 del brief dice que todo número sale del código.
+ * [megas] **no es nulo**: el peso sale del paquete que el módulo anuncia, y un
+ * módulo que no anuncia su paquete no tiene renglón que pintar. Fue nulo
+ * mientras existió el renglón del mapa, que no tenía paquete del cual sacarlo.
  */
 data class FilaDeDescarga(
     val cual: DescargaOpcional,
-    val megas: String?,
+    val megas: String,
     val estado: EstadoDeLaDescarga
 )
 
@@ -88,31 +82,5 @@ fun filaDelDictado(modelo: ModeloDeDictado, estado: EstadoDelModelo): FilaDeDesc
             is EstadoDelModelo.Descargando -> EstadoDeLaDescarga.DESCARGANDO
             is EstadoDelModelo.Interrumpido -> EstadoDeLaDescarga.INTERRUMPIDA
             EstadoDelModelo.Listo -> EstadoDeLaDescarga.LISTA
-        }
-    )
-
-/**
- * El renglón del mapa.
- *
- * Sin [paquete] no hay peso **y no hay origen**: los dos hechos vienen del
- * mismo `null` de `MapasModule.extracto()`, y por eso se derivan juntos en vez
- * de dejar que la sección los combine por su cuenta. El estado se impone sobre
- * el del puerto porque un paquete nulo no puede estar bajándose.
- */
-fun filaDelMapa(paquete: ExtractoDeMapa?, estado: EstadoDelExtracto): FilaDeDescarga =
-    FilaDeDescarga(
-        cual = DescargaOpcional.MAPA,
-        megas = paquete?.let { megasDelMapa(it.tamanoBytes) },
-        estado = if (paquete == null) {
-            EstadoDeLaDescarga.SIN_ORIGEN
-        } else {
-            when (estado) {
-                EstadoDelExtracto.SinOrigen -> EstadoDeLaDescarga.SIN_ORIGEN
-                EstadoDelExtracto.Ausente -> EstadoDeLaDescarga.AUSENTE
-                EstadoDelExtracto.EsperandoWifi -> EstadoDeLaDescarga.ESPERANDO_WIFI
-                is EstadoDelExtracto.Descargando -> EstadoDeLaDescarga.DESCARGANDO
-                is EstadoDelExtracto.Interrumpido -> EstadoDeLaDescarga.INTERRUMPIDA
-                is EstadoDelExtracto.Listo -> EstadoDeLaDescarga.LISTA
-            }
         }
     )

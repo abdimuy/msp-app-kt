@@ -263,10 +263,9 @@ private fun PieDeLosDosModos() {
  * Misma forma que `BarraDeDetalle` de `:feature:pagos` y no `MspTicketTopBar`
  * del design system: aquél lleva su propio título, y ponerlo aquí repetiría el
  * "Dictado por voz" que ya encabeza la pantalla (principio 5 — repetir no
- * jerarquiza). Se escribe aparte en cada uno de los dos módulos de descarga por
- * la misma razón que `AvanceDeLaDescarga`: hacer que `:core:speech` dependa de
- * `:core:mapas` (o al revés) para compartir quince líneas ataría el dictado al
- * mapa, que cuesta más.
+ * jerarquiza). Se escribe acá dentro y no en el design system por la misma
+ * razón que `AvanceDeLaDescarga`: sacar quince líneas a un módulo compartido
+ * ata esta pantalla a los cambios de todas las demás, que cuesta más.
  */
 @Composable
 private fun BarraDeVuelta(onAtras: () -> Unit) {

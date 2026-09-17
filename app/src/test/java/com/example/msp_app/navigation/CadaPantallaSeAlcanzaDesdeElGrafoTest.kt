@@ -10,12 +10,12 @@ import org.junit.Test
  *
  * ## El defecto que esta red existe para no repetir
  *
- * `DescargaDelDictadoScreen` (`:core:speech`) y `DescargaDelMapaScreen`
- * (`:core:mapas`) se escribieron enteras —con su dominio, su puerto, su
- * adaptador, sus pruebas y sus goldens— y **ninguna de las dos quedó registrada
- * en el grafo de navegación**. O sea: el cobrador no tenía forma de llegar a
- * bajar ni el modelo de voz ni el mapa. Dos funciones completas, probadas y sin
- * puerta, cada una copiando el precedente de la otra.
+ * `DescargaDelDictadoScreen` (`:core:speech`) se escribió entera —con su
+ * dominio, su puerto, su adaptador, sus pruebas y sus goldens— y **no quedó
+ * registrada en el grafo de navegación**. O sea: el cobrador no tenía forma de
+ * llegar a bajar el modelo de voz. Una función completa, probada y sin puerta.
+ * `DescargaDelMapaScreen` de `:core:mapas` era la gemela, y se fue con su
+ * módulo: sin renderizador dentro de la app no hay qué bajar.
  *
  * Nada en la compuerta lo veía, y no por descuido: cada red existente mira el
  * grafo **desde adentro**. [CadaDestinoDeCobranzaSeMontaTest] compone lo que
@@ -221,7 +221,6 @@ class CadaPantallaSeAlcanzaDesdeElGrafoTest {
             "RegistrarVisitaScreen",
             "TicketDeVisitaScreen",
             "DescargaDelDictadoScreen",
-            "DescargaDelMapaScreen",
             "ConfiguracionScreen",
             "CollectionReportScreen",
             "VersionBlockedScreen"

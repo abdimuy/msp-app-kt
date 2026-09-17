@@ -15,8 +15,7 @@ import kotlinx.coroutines.launch
 /**
  * **El estado del modelo de voz para la UI.**
  *
- * Existe por la misma razón que `MapaViewModel` en `:core:mapas`:
- * [DescargaDelDictadoScreen] es un Composable puro sobre
+ * Existe porque [DescargaDelDictadoScreen] es un Composable puro sobre
  * [EstadoDelModelo], y alguien tiene que leerlo del puerto. Sin esta pieza la
  * pantalla no se podía montar en el grafo — que es exactamente por lo que
  * estuvo construida y muerta.

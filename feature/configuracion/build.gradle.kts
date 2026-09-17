@@ -45,14 +45,12 @@ kover {
 dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:settings"))
-    // Las dos descargas opcionales. Se ven los PUERTOS (`domain/port`) y el
-    // paquete anunciado de cada módulo, NUNCA sus adaptadores — ahí viven
+    // La descarga opcional del dictado. Se ve el PUERTO (`domain/port`) y el
+    // paquete anunciado del módulo, NUNCA sus adaptadores — ahí viven
     // WorkManager, OkHttp y el `File`, y el contrato hexagonal prohíbe que `ui`
-    // los importe. Es el caso 3 del Ruling BF, escrito en el KDoc de los dos
-    // puertos: el consumidor vive en una capa que no puede ver la
-    // implementación.
+    // los importe. Es el caso 3 del Ruling BF, escrito en el KDoc del puerto:
+    // el consumidor vive en una capa que no puede ver la implementación.
     implementation(project(":core:speech"))
-    implementation(project(":core:mapas"))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

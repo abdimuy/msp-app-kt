@@ -206,15 +206,14 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `cada renglon dice que es, que gana y cuanto ocupa`() {
-        setDescargas(LAS_DOS)
+    fun `cada renglon dice que es, que gana, en que punto esta y cuanto ocupa`() {
+        setDescargas(LAS_DESCARGAS)
 
         composeTestRule.onNodeWithText("Descargas").performScrollTo().assertExists()
         composeTestRule.onNodeWithText("Dictado por voz").performScrollTo().assertExists()
+        composeTestRule.onNodeWithText("Sin descargar").performScrollTo().assertExists()
         composeTestRule.onNodeWithText("Dicta la nota sin señal").performScrollTo().assertExists()
         composeTestRule.onNodeWithText("Ocupa 43.5 MB").performScrollTo().assertExists()
-        composeTestRule.onNodeWithText("Mapa de la ruta").performScrollTo().assertExists()
-        composeTestRule.onNodeWithText("Ve las calles sin señal").performScrollTo().assertExists()
     }
 
     /**
@@ -223,25 +222,15 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
      * apareciera un "Ocupa … MB" ahí, sería un número inventado.
      */
     @Test
-    fun `sin origen el renglon del mapa lo dice y no anuncia megas`() {
-        setDescargas(LAS_DOS)
-
-        composeTestRule.onNodeWithText("Todavía no se puede").performScrollTo().assertExists()
-        composeTestRule.onNodeWithText("Ocupa 25.5 MB").assertDoesNotExist()
-    }
-
-    @Test
     fun `tocar un renglon informa CUAL descarga se abrió`() {
         var abierta: DescargaOpcional? = null
-        setDescargas(LAS_DOS, onAbrirDescarga = { abierta = it })
+        setDescargas(LAS_DESCARGAS, onAbrirDescarga = { abierta = it })
 
-        composeTestRule.onNodeWithTag(tagDeLaDescarga(DescargaOpcional.MAPA))
+        composeTestRule.onNodeWithTag(tagDeLaDescarga(DescargaOpcional.DICTADO))
             .performScrollTo()
             .performClick()
 
-        // El MAPA y no el dictado: si los dos renglones informaran lo mismo, la
-        // sección abriría siempre la misma pantalla y este test lo dice.
-        assertEquals(DescargaOpcional.MAPA, abierta)
+        assertEquals(DescargaOpcional.DICTADO, abierta)
     }
 
     /**
@@ -252,7 +241,7 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
      */
     @Test
     fun `cada renglon de descarga conserva sus 50dp tocables`() {
-        setDescargas(LAS_DOS)
+        setDescargas(LAS_DESCARGAS)
 
         val chicos = DescargaOpcional.entries.mapNotNull { cual ->
             val alto = composeTestRule.onNodeWithTag(tagDeLaDescarga(cual))
@@ -277,12 +266,11 @@ class ConfiguracionScreenTest : RobolectricTestBase() {
         val TOQUE_MINIMO = 50.dp
 
         /**
-         * Los dos renglones como se ven HOY: el dictado con su peso medido y el
-         * mapa sin origen publicado.
+         * La sección como se ve HOY: el dictado con su peso medido. Fueron dos
+         * renglones hasta que el del mapa se fue con `:core:mapas`.
          */
-        val LAS_DOS = listOf(
-            FilaDeDescarga(DescargaOpcional.DICTADO, "43.5", EstadoDeLaDescarga.AUSENTE),
-            FilaDeDescarga(DescargaOpcional.MAPA, null, EstadoDeLaDescarga.SIN_ORIGEN)
+        val LAS_DESCARGAS = listOf(
+            FilaDeDescarga(DescargaOpcional.DICTADO, "43.5", EstadoDeLaDescarga.AUSENTE)
         )
     }
 }

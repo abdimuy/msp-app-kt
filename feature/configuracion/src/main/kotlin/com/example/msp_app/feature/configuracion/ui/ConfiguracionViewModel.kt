@@ -3,9 +3,6 @@ package com.example.msp_app.feature.configuracion.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
-import com.example.msp_app.core.mapas.domain.EstadoDelExtracto
-import com.example.msp_app.core.mapas.domain.ExtractoDeMapa
-import com.example.msp_app.core.mapas.domain.port.ExtractoDeMapaPort
 import com.example.msp_app.core.settings.SettingsRepository
 import com.example.msp_app.core.speech.domain.EstadoDelModelo
 import com.example.msp_app.core.speech.domain.ModeloDeDictado
@@ -18,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -29,38 +27,33 @@ import kotlinx.coroutines.launch
  * "aplicar" separado) — el mismo criterio que el resto de los toggles globales
  * de la app (spec §"la pantalla togglea `ThemeController`… ya global").
  *
- * ## Por qué este ViewModel ve `:core:speech` y `:core:mapas`
+ * ## Por qué este ViewModel ve `:core:speech`
  *
- * Ve los **puertos**, que viven en el `domain/` de cada módulo, y jamás sus
+ * Ve el **puerto**, que vive en el `domain/` del módulo, y jamás sus
  * adaptadores —donde están WorkManager, OkHttp y el `File`—. Es exactamente lo
- * que el contrato hexagonal permite y para lo que esos puertos existen: su KDoc
- * dice que están justificados por el caso 3 del Ruling BF, "el consumidor vive
+ * que el contrato hexagonal permite y para lo que ese puerto existe: su KDoc
+ * dice que está justificado por el caso 3 del Ruling BF, "el consumidor vive
  * en una capa que no puede importar la de la implementación". No hace falta un
- * puerto nuevo en `:feature:configuracion` que envuelva a los dos: sería una
- * tercera interfaz con una sola implementación cuyo único trabajo sería
- * delegar, o sea el triple-map ritual que el mismo Ruling prohíbe.
+ * puerto nuevo en `:feature:configuracion` que lo envuelva: sería una segunda
+ * interfaz con una sola implementación cuyo único trabajo sería delegar, o sea
+ * el triple-map ritual que el mismo Ruling prohíbe.
  */
 @HiltViewModel
 class ConfiguracionViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val themePort: AppThemePort,
     private val modeloPort: ModeloDeDictadoPort,
-    private val modelo: ModeloDeDictado,
-    private val extractoPort: ExtractoDeMapaPort,
-    private val paquete: ExtractoDeMapa?
+    private val modelo: ModeloDeDictado
 ) : ViewModel() {
 
     /**
-     * Los dos renglones de la sección "Descargas", combinados **antes** del
-     * resto: `combine` llega hasta cinco flujos tipados y acá hay seis. Juntar
-     * primero los dos que pertenecen a la misma sección es lo que corresponde
-     * de todos modos — un renglón que cambia no tiene por qué recomponer el
-     * tamaño de letra.
+     * Los renglones de la sección "Descargas", derivados **antes** del resto y
+     * como lista: la sección pinta las descargas que haya, y hoy hay una. Fueron
+     * dos hasta que `:core:mapas` se fue, y el día que entre otra este flujo es
+     * el único lugar que cambia.
      */
     private val descargas: Flow<List<FilaDeDescarga>> =
-        combine(modeloPort.estado(), extractoPort.estado()) { dictado, mapa ->
-            listOf(filaDelDictado(modelo, dictado), filaDelMapa(paquete, mapa))
-        }
+        modeloPort.estado().map { dictado -> listOf(filaDelDictado(modelo, dictado)) }
 
     val state: StateFlow<ConfiguracionUiState> = combine(
         settingsRepository.fontSizeLevel,
@@ -81,14 +74,11 @@ class ConfiguracionViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
         initialValue = ConfiguracionUiState(
             themeMode = themePort.currentThemeMode(),
-            // Los dos renglones desde el primer frame, y no una lista vacía: el
-            // peso y el origen salen de los paquetes, que se conocen sin
-            // preguntarle nada a nadie. Lo único que falta es el estado, y
-            // "Sin descargar" es el estado del que no bajó nada.
-            descargas = listOf(
-                filaDelDictado(modelo, EstadoDelModelo.Ausente),
-                filaDelMapa(paquete, EstadoDelExtracto.Ausente)
-            )
+            // El renglón desde el primer frame, y no una lista vacía: el peso
+            // sale del paquete, que se conoce sin preguntarle nada a nadie. Lo
+            // único que falta es el estado, y "Sin descargar" es el estado del
+            // que no bajó nada.
+            descargas = listOf(filaDelDictado(modelo, EstadoDelModelo.Ausente))
         )
     )
 

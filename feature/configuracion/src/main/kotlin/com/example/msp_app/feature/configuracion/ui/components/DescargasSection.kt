@@ -37,34 +37,31 @@ fun tagDeLaDescarga(cual: DescargaOpcional): String = DESCARGA_TAG_PREFIJO + cua
 private val TOQUE_MINIMO = 50.dp
 
 /**
- * **Sección "Descargas": las dos cosas opcionales que ocupan megas.**
+ * **Sección "Descargas": lo opcional que ocupa megas.**
  *
  * ## Por qué vive en Configuración y no en el camino del dinero
  *
- * Bajar 43.5 MB de modelo de voz o 25.5 MB de mapa es una decisión que se toma
- * **una vez, con wifi, sentado** — no parado en una puerta con el cobro a
- * medias. Meterla en la lista de clientes o en el detalle le robaría alto a las
- * pantallas donde el alto es lo escaso, y le pondría al cobrador una decisión de
- * megas en el momento exacto en que no puede tomarla. Configuración ya es la
- * pantalla de "cosas del teléfono", ya tiene secciones y ya está en el grafo.
+ * Bajar 43.5 MB de modelo de voz es una decisión que se toma **una vez, con
+ * wifi, sentado** — no parado en una puerta con el cobro a medias. Meterla en la
+ * lista de clientes o en el detalle le robaría alto a las pantallas donde el
+ * alto es lo escaso, y le pondría al cobrador una decisión de megas en el
+ * momento exacto en que no puede tomarla. Configuración ya es la pantalla de
+ * "cosas del teléfono", ya tiene secciones y ya está en el grafo.
  *
  * ## Qué dice cada renglón, y por qué los tres datos
  *
  * **Cuánto ocupa** (el número sale del paquete del módulo, nunca escrito a
- * mano), **qué gana** (las dos frases terminan en "sin señal", que es lo único
- * que le importa a quien cobra en la calle) y **en qué punto está**. Los tres
- * juntos son la decisión completa; cualquiera de los tres solo obliga a entrar a
- * la pantalla para saber si vale la pena entrar.
+ * mano), **qué gana** (termina en "sin señal", que es lo único que le importa a
+ * quien cobra en la calle) y **en qué punto está**. Los tres juntos son la
+ * decisión completa; cualquiera de los tres solo obliga a entrar a la pantalla
+ * para saber si vale la pena entrar.
  *
- * ## El renglón sin origen
+ * ## Sigue siendo una LISTA con un solo renglón
  *
- * El extracto de mapa **no está publicado en ningún servidor** todavía, así que
- * hoy el renglón del mapa cae en [EstadoDeLaDescarga.SIN_ORIGEN]: sin peso —no
- * hay paquete del cual sacarlo— y con "Todavía no se puede" en lugar del estado.
- * El renglón **sigue abriendo** su pantalla, y eso no es ofrecer algo que no se
- * puede hacer: lo que hay detrás es la explicación (de dónde saldría, y que el
- * pin del cliente funciona igual sin mapa), no un botón de descarga. La pantalla
- * tampoco pinta uno.
+ * Hubo dos: el mapa era el otro, y se fue con `:core:mapas` —47.9 MB de `.so`
+ * que viajaban en el APK aunque nadie bajara las teselas—. La sección no se
+ * colapsó a un renglón escrito a mano porque la forma correcta no cambió: lo que
+ * pinta son las descargas que haya, y hoy hay una.
  */
 @Composable
 fun DescargasSection(
@@ -94,7 +91,8 @@ fun DescargasSection(
  * ## APILADO, nunca el estado a la derecha del título
  *
  * La primera versión ponía el título a la izquierda y el estado a la derecha, y
- * **el golden a escala 2.0 la mató**: "Todavía no se puede" se lleva el ancho
+ * **el golden a escala 2.0 la mató**: "Todavía no se puede" —el estado del
+ * renglón del mapa, que se fue con `:core:mapas`— se llevaba el ancho
  * que pide y le dejó al título una columna de tres letras —"Ma / pa / de / la /
  * rut / a"—, con "Ve las calles sin señal" partido en cuatro renglones debajo.
  * Es exactamente la lección que `TarjetaDelAvance` de `:core:speech` ya había
@@ -135,37 +133,32 @@ private fun RenglonDeDescarga(fila: FilaDeDescarga, onAbrir: () -> Unit) {
                 style = MspTheme.type.caption,
                 color = MspTheme.colors.onSurfaceMuted
             )
-            // Sin paquete no hay peso: un "0 MB" sería un número inventado, y
-            // ésta es la sección que existe para decir la verdad sobre los megas.
-            if (fila.megas != null) {
-                Text(
-                    text = "Ocupa ${fila.megas} MB",
-                    style = MspTheme.type.caption,
-                    color = MspTheme.colors.onSurfaceMuted
-                )
-            }
+            // El número sale del paquete que el módulo anuncia, nunca escrito a
+            // mano: ésta es la sección que existe para decir la verdad sobre los
+            // megas, y un peso inventado acá sería el peor lugar para mentir.
+            Text(
+                text = "Ocupa ${fila.megas} MB",
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted
+            )
         }
     }
 }
 
 private fun tituloDe(cual: DescargaOpcional): String = when (cual) {
     DescargaOpcional.DICTADO -> "Dictado por voz"
-    DescargaOpcional.MAPA -> "Mapa de la ruta"
 }
 
 /**
- * Qué gana el cobrador. Las dos frases terminan igual a propósito: lo que las
- * dos descargas compran es **la misma cosa**, que la app siga sirviendo donde no
- * hay señal.
+ * Qué gana el cobrador: **que la app siga sirviendo donde no hay señal**. Es lo
+ * único que una descarga opcional compra, y por eso la frase termina así.
  */
 private fun queGanaCon(cual: DescargaOpcional): String = when (cual) {
     DescargaOpcional.DICTADO -> "Dicta la nota sin señal"
-    DescargaOpcional.MAPA -> "Ve las calles sin señal"
 }
 
-/** Vocabulario del cobrador, no del programador: nadie sabe qué es "SinOrigen". */
+/** Vocabulario del cobrador, no del programador: nadie sabe qué es "Interrumpido". */
 private fun textoDelEstado(estado: EstadoDeLaDescarga): String = when (estado) {
-    EstadoDeLaDescarga.SIN_ORIGEN -> "Todavía no se puede"
     EstadoDeLaDescarga.AUSENTE -> "Sin descargar"
     EstadoDeLaDescarga.ESPERANDO_WIFI -> "Esperando wifi"
     EstadoDeLaDescarga.DESCARGANDO -> "Descargando"
@@ -188,5 +181,5 @@ private fun colorDelEstado(estado: EstadoDeLaDescarga): Color = when (estado) {
         MspTheme.colors.statusInfo
 
     EstadoDeLaDescarga.INTERRUMPIDA -> MspTheme.colors.statusPartial
-    EstadoDeLaDescarga.SIN_ORIGEN, EstadoDeLaDescarga.AUSENTE -> MspTheme.colors.onSurfaceMuted
+    EstadoDeLaDescarga.AUSENTE -> MspTheme.colors.onSurfaceMuted
 }
