@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -30,7 +29,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
@@ -43,7 +41,6 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.ResumenDelCliente
-import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.ui.AccionesIconos
 import java.time.LocalDate
@@ -52,11 +49,16 @@ import java.time.format.DateTimeFormatter
 /** `testTag` de la pastilla de atrasos del bloque de saldo. */
 const val ATRASOS_DEL_CLIENTE_TAG: String = "pagos_cliente_atrasos"
 
-/** `testTag` de cada acción de contacto (llamar / whatsapp / ficha). */
+/**
+ * `testTag` de cada acción de contacto (llamar / whatsapp / ficha / cómo llegar).
+ *
+ * **Las cuatro llevan el mismo**, que es el que deja contarlas y medirles el
+ * toque. A una acción concreta se la nombra por su etiqueta —`onNodeWithText`—,
+ * que es lo que el cobrador ve: hubo un `COMO_LLEGAR_TAG` aparte y no servía,
+ * porque se encadenaba con éste sobre el mismo nodo y uno de los dos quedaba sin
+ * efecto.
+ */
 const val ACCION_DE_CONTACTO_TAG: String = "pagos_cliente_accion"
-
-/** `testTag` del botón "cómo llegar" del mapa. */
-const val COMO_LLEGAR_TAG: String = "pagos_cliente_como_llegar"
 
 /** `testTag` de la cifra "pídele hoy" — la que manda la conversación. */
 const val PIDELE_HOY_TAG: String = "pagos_cliente_pidele_hoy"
@@ -192,12 +194,46 @@ fun BloqueDeIdentidad(
     }
 }
 
+/** Una acción de la fila: su etiqueta, su glifo y qué hace. */
+private data class AccionDelCliente(
+    val etiqueta: String,
+    val icono: ImageVector,
+    val onClick: () -> Unit
+)
+
 /**
- * Las tres acciones de contacto, como **iconos y no botones de texto**.
+ * Las cuatro acciones de contacto, como **iconos y no botones de texto**.
  *
- * Tres botones de texto en fila ("Llamar", "WhatsApp", "Ficha") a 360 dp dejan
- * cada uno con menos de 110 dp y el del medio parte la palabra. Como iconos con
- * su etiqueta debajo caben los tres holgados y la fila mide lo mismo.
+ * Cuatro botones de texto en fila ("Llamar", "WhatsApp", "Ficha", "Cómo llegar")
+ * a 360 dp dejan cada uno con menos de 85 dp y parten la palabra. Como iconos
+ * con su etiqueta debajo caben, y la fila mide lo mismo.
+ *
+ * ## "Cómo llegar" está SIEMPRE, y por qué cambió
+ *
+ * Antes era condicional: aparecía acá sólo cuando el bloque de mapa de arriba no
+ * se pintaba, porque con mapa el botón ya vivía dentro del cuadro. Ese bloque se
+ * fue con `:core:mapas` —el renderizador pesaba 47.9 MB de `.so` en cuatro ABIs
+ * y viajaba aunque nadie bajara las teselas—, así que ya no hay un segundo
+ * camino con el cual chocar: la acción es una sola y vive acá.
+ *
+ * Lo que abre es la app de mapas del teléfono, con la coordenada del último
+ * cobro cuando se midió una (`DetalleCliente.ultimoCobroAqui`) y la dirección
+ * escrita cuando no. Ver `IntentAccionesExternasAdapter`.
+ *
+ * ## Cuatro en una fila a 1.0, DOS POR RENGLÓN a las escalas grandes
+ *
+ * **Medido en el golden, no supuesto.** Con la cuarta acción, un cuarto del
+ * ancho deja ~71 dp por celda, y a 1.5 eso parte "whatsapp" —que no tiene
+ * espacio donde quebrarse— en `whatsap` + una `p` huérfana; a 2.0 queda
+ * `whats` + `app`. Una etiqueta partida a mitad de palabra no se lee como texto
+ * acomodado, se lee como una falta de ortografía de la app, que es exactamente
+ * lo que [AccionDeContacto] ya había decidido evitar cuando eligió dos renglones
+ * antes que un truncado.
+ *
+ * Así que antes de partir, **apilar** (principio 9): a `GRANDE` y `MUY_GRANDE`
+ * las cuatro se acomodan dos por renglón, cada celda pasa a ~146 dp y las cuatro
+ * etiquetas entran enteras. A `NORMAL` caben las cuatro en una fila —el golden
+ * `pagos_cliente_light_1_0` lo muestra con aire de sobra— y no se toca.
  *
  * El toque es de [TOQUE_DE_ACCION] y no de los 44 dp del mock: la regla del repo
  * son **50 dp mínimos** y es más estricta que los 48 de Material. Lo que crece es
@@ -209,25 +245,38 @@ fun AccionesDelCliente(
     onLlamar: () -> Unit,
     onWhatsApp: () -> Unit,
     onFicha: () -> Unit,
-    modifier: Modifier = Modifier,
-    onComoLlegar: (() -> Unit)? = null
+    onComoLlegar: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Row(
+    val acciones = listOf(
+        AccionDelCliente("llamar", AccionesIconos.Llamar, onLlamar),
+        AccionDelCliente("whatsapp", AccionesIconos.WhatsApp, onWhatsApp),
+        AccionDelCliente("ficha", AccionesIconos.Ficha, onFicha),
+        AccionDelCliente("cómo llegar", AccionesIconos.Pin, onComoLlegar)
+    )
+    val porRenglon = if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
+        acciones.size
+    } else {
+        acciones.size / 2
+    }
+    Column(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
-        AccionDeContacto("llamar", AccionesIconos.Llamar, onLlamar, Modifier.weight(1f))
-        AccionDeContacto("whatsapp", AccionesIconos.WhatsApp, onWhatsApp, Modifier.weight(1f))
-        AccionDeContacto("ficha", AccionesIconos.Ficha, onFicha, Modifier.weight(1f))
-        // Solo cuando NO hay mapa que pintar: ahí arriba el botón ya existe, y
-        // repetirlo sería dos caminos a lo mismo a diez dp de distancia.
-        if (onComoLlegar != null) {
-            AccionDeContacto(
-                etiqueta = "cómo llegar",
-                icono = AccionesIconos.Pin,
-                onClick = onComoLlegar,
-                modifier = Modifier.weight(1f).testTag(COMO_LLEGAR_TAG)
-            )
+        acciones.chunked(porRenglon).forEach { renglon ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+            ) {
+                renglon.forEach { accion ->
+                    AccionDeContacto(
+                        etiqueta = accion.etiqueta,
+                        icono = accion.icono,
+                        onClick = accion.onClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
     }
 }
@@ -682,206 +731,3 @@ private val GLIFO_DE_ACCION = 18.dp
  * Robolectric un golden no puede ver un área tocable.
  */
 private val TOQUE_DE_ACCION = 50.dp
-
-/**
- * El bloque del mapa: el suelo, el pin donde se cobró la última vez, la pastilla
- * de contexto y el botón "cómo llegar".
- *
- * ## El mapa entra por un slot, y por qué
- *
- * [suelo] es lo que dibuja el mapa de verdad. Llega por parámetro porque el
- * módulo que lo pinta (`:core:mapas`, MapLibre + PMTiles) es trabajo aparte y
- * **descargable**: el teléfono puede no tener el extracto todavía. Con el slot,
- * esta pantalla se ve igual con mapa y sin él, y el día que el extracto exista no
- * hay que tocar el detalle del cliente.
- *
- * Por defecto pinta un suelo liso del tema. No es un "mapa falso": no dibuja
- * calles inventadas ni una retícula que se pueda confundir con la traza real de
- * la colonia, que sería exactamente la clase de dato falso que esta pantalla
- * evita en todos lados.
- *
- * ## La pastilla NO dice a cuántos metros, y es a propósito
- *
- * El mock dice "a 320 m · último cobro aquí". Los 320 m exigen saber dónde está
- * el teléfono AHORA, y esta app no tiene una fuente de ubicación en vivo: el
- * único punto que existe es el del último abono. Escribir una distancia sin
- * medirla sería inventar un número —y un número a medias es un dato falso, no uno
- * incompleto—, así que la pastilla dice solo lo que sí se sabe. El hueco de la
- * distancia queda listo para cuando haya de dónde medirla.
- *
- * Sin [ubicacion] no hay pin ni pastilla: un pin en el centro del cuadro se
- * leería como "es aquí" cuando nadie lo sabe. "Cómo llegar" sí se queda — abre la
- * dirección escrita, que es lo que el cobrador tiene.
- *
- * ## [elSueloPintaElPin] — quién dibuja el pin, y por qué importa
- *
- * Sin mapa, el pin es un **símbolo**: dice "hay un punto medido", y va en la
- * banda de arriba, que es donde no lo tapa el botón a ninguna escala.
- *
- * Con mapa, el pin es una **coordenada**: tiene que caer exactamente sobre el
- * objetivo de la cámara. El único lugar donde eso es cierto es el centro del
- * lienzo, y el único que lo sabe es el módulo que manda la cámara. Así que el
- * suelo lo pinta él (`PinDelMapa` de `:core:mapas`) y esta pieza se aparta.
- *
- * No es un gusto: la primera versión dejaba el pin acá con el mapa detrás, y el
- * golden midió **21 dp** entre el pin y el centro de la vista. A zoom 17 son
- * ~24 metros — media cuadra, con pinta de dato exacto.
- */
-@Composable
-fun MapaDelCliente(
-    ubicacion: UbicacionDelCobro?,
-    onComoLlegar: () -> Unit,
-    modifier: Modifier = Modifier,
-    suelo: @Composable () -> Unit = { SueloSinMapa() },
-    elSueloPintaElPin: Boolean = false
-) {
-    Box(modifier = modifier.fillMaxWidth().height(altoDelMapa())) {
-        suelo()
-        // El pin y el pie viven en BANDAS, no anclados a las esquinas de la misma
-        // caja. Anclados se montaban uno sobre otro: el botón crecía con la escala
-        // de fuente y tapaba primero la pastilla (golden `..._light_2_0`) y luego
-        // el propio pin (`..._light_1_5`). Con la banda de arriba tomando el
-        // espacio que sobra, el encimamiento deja de ser posible a cualquier escala.
-        Column(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                // Con mapa el pin lo pinta el suelo, centrado en el objetivo
-                // de la cámara: es el ÚNICO lugar donde "es aquí" es cierto.
-                // Ver `PinDelMapa` de `:core:mapas`, y el defecto que lo movió.
-                if (ubicacion != null && !elSueloPintaElPin) PinDelCobro()
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(MspTheme.spacing.sm + MspTheme.spacing.xs),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-            ) {
-                // La pastilla solo cabe a escala normal. A las grandes desaparece en
-                // vez de recortarse: "último c…" no informa, y el pin ya dice dónde.
-                //
-                // **Sin `weight`**: con `weight(1f, fill = false)` peleaba contra el
-                // `Spacer(weight(1f))` de al lado —los dos se repartían la fila— y el
-                // texto salía recortado a "último …" hasta a escala 1.0, donde sobra
-                // espacio. Es literal fijo y corto: que mida lo que mide.
-                if (ubicacion != null && LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
-                    Text(
-                        text = "último cobro aquí",
-                        style = MspTheme.type.chipLabel,
-                        color = MspTheme.colors.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .clip(MspTheme.shapes.chip)
-                            .background(MspTheme.colors.surface)
-                            .padding(
-                                horizontal = MspTheme.spacing.sm + MspTheme.spacing.xs,
-                                vertical = MspTheme.spacing.xs + 2.dp
-                            )
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                Surface(
-                    onClick = onComoLlegar,
-                    shape = MspTheme.shapes.chip,
-                    color = MspTheme.colors.brand,
-                    modifier = Modifier
-                        .heightIn(min = TOQUE_DE_ACCION)
-                        .testTag(COMO_LLEGAR_TAG)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
-                        modifier = Modifier.padding(
-                            horizontal = MspTheme.spacing.md,
-                            vertical = MspTheme.spacing.sm
-                        )
-                    ) {
-                        Icon(
-                            imageVector = AccionesIconos.Pin,
-                            contentDescription = null,
-                            tint = MspTheme.colors.onBrand,
-                            modifier = Modifier.size(MspTheme.spacing.md)
-                        )
-                        Text(
-                            text = "cómo llegar",
-                            style = MspTheme.type.buttonSmall,
-                            color = MspTheme.colors.onBrand,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * El suelo mientras no hay extracto de mapa: liso, sin calles inventadas.
- *
- * Público porque es **el valor por omisión del slot** y `DetalleClienteScreen`
- * lo nombra como tal: la degradación correcta tiene que poder escribirse desde
- * afuera, no ser un secreto de este archivo.
- */
-@Composable
-fun SueloSinMapa() {
-    Box(
-        modifier = Modifier.fillMaxWidth().height(
-            altoDelMapa()
-        ).background(MspTheme.colors.surface2)
-    )
-}
-
-/** El pin: el punto de marca dentro de su halo. */
-@Composable
-private fun PinDelCobro(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(HALO_DEL_PIN)
-            .clip(MspTheme.shapes.chip)
-            .background(MspTheme.colors.brandTint),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(PUNTO_DEL_PIN)
-                .clip(MspTheme.shapes.chip)
-                .background(MspTheme.colors.brand)
-        )
-    }
-}
-
-/**
- * El alto del cuadro de mapa: **130 dp del mock a escala normal, y más a las
- * grandes**.
- *
- * ## Por qué crece, medido y no opinado
- *
- * Todo lo que vive dentro del cuadro escala con la fuente —el botón "cómo
- * llegar" crece de ancho y de alto— menos el cuadro. A `MUY_GRANDE` el botón
- * llega a ocupar el 60 % del ancho y sube hasta la mitad de la altura, y el
- * golden `pagos_mapa_con_atribucion_light_2_0` lo mostró **tapando el pin**.
- *
- * Un cuadro fijo con contenido que escala es la receta del encimamiento
- * (principio 9: antes de truncar, apilar; acá, antes de encimar, crecer). Los
- * números salen de la geometría: el pin queda en el centro del cuadro con su
- * halo de 34 dp, y la fila de abajo mide el botón más su aire. Para que no se
- * toquen, el cuadro tiene que medir al menos el doble de (fila + medio halo).
- *
- * A `NORMAL` no cambia nada: los 130 dp del mock ya alcanzan porque a esa escala
- * el botón no llega al centro horizontal, y el pin queda a su lado.
- */
-@Composable
-private fun altoDelMapa(): Dp = when (LocalFontSizeLevel.current) {
-    FontSizeLevel.NORMAL -> 130.dp
-    FontSizeLevel.GRANDE -> 165.dp
-    FontSizeLevel.MUY_GRANDE -> 180.dp
-}
-
-/** El halo del pin. */
-private val HALO_DEL_PIN = 34.dp
-
-/** El punto de marca dentro del halo. */
-private val PUNTO_DEL_PIN = 14.dp

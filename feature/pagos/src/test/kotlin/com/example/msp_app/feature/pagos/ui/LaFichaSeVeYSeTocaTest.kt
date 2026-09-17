@@ -65,9 +65,9 @@ import org.robolectric.annotation.Config
  * venta era la frontera del dinero visible.
  *
  * En la variante B —la que el dueño eligió— entre el encabezado y las ventas hay
- * ahora mapa, saldo, las tres cifras y el ritmo, así que **la primera venta cae
- * bajo la línea de flotación por construcción**. Eso no se puede "arreglar" sin
- * deshacer la pantalla que se pidió.
+ * ahora identidad, acciones, saldo, las tres cifras y el ritmo, así que **la
+ * primera venta cae bajo la línea de flotación por construcción**. Eso no se
+ * puede "arreglar" sin deshacer la pantalla que se pidió.
  *
  * Lo que el punto 2 siempre estuvo protegiendo no era el renglón de venta: era
  * que **un dato de conocimiento no tape el dinero**. Ese dinero ahora es el saldo

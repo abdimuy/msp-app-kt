@@ -33,9 +33,6 @@ import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.core.mapas.domain.PuntoDelMapa
-import com.example.msp_app.core.mapas.ui.SueloDeLaRutaConectado
-import com.example.msp_app.core.mapas.ui.hayMapaDeLaRuta
 import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
@@ -48,14 +45,12 @@ import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
 import com.example.msp_app.feature.pagos.ui.components.HojaContinua
 import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.MapaDelCliente
 import com.example.msp_app.feature.pagos.ui.components.ProductoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.RitmoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.Separador
-import com.example.msp_app.feature.pagos.ui.components.SueloSinMapa
 import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
 import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
 import com.example.msp_app.feature.pagos.ui.components.VerLosContactos
@@ -96,7 +91,6 @@ fun DetalleClienteScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val hayMapa = hayMapaDeLaRuta()
     MspTheme {
         DetalleClienteContent(
             state = state,
@@ -130,27 +124,7 @@ fun DetalleClienteScreen(
                 onNota = viewModel::escribirNota,
                 onGuardar = viewModel::guardarFicha
             ),
-            modifier = modifier,
-            // El suelo del bloque de mapa se cablea AQUI y no en el contenido, y
-            // esa linea es la que mantiene los goldens deterministas: quien
-            // fotografia es `DetalleClienteContent`, que se queda con el suelo
-            // liso. MapLibre necesita GL y en Robolectric no existe.
-            //
-            // El punto que se le pasa es el MISMO `ultimoCobroAqui` que decide si
-            // el bloque se pinta: un mapa centrado en cualquier otra cosa diria
-            // "es aqui" sobre una puerta que nadie midio.
-            suelo = {
-                SueloDeLaRutaConectado(
-                    punto = state.detalle?.ultimoCobroAqui?.let {
-                        PuntoDelMapa(lat = it.lat, lng = it.lng)
-                    }
-                )
-            },
-            // El suelo pinta el pin SOLO cuando tiene mapa, centrado en el
-            // objetivo de la camara. Cuando no lo tiene, el pin vuelve a la
-            // banda de esta feature. De las dos formas se pinta exactamente uno,
-            // y nunca uno que senale 24 metros al norte.
-            elSueloPintaElPin = hayMapa
+            modifier = modifier
         )
     }
 }
@@ -186,7 +160,9 @@ data class AccionesDeContacto(
  *  - **"Más completa"** eran datos que la base YA tenía y nadie pintaba:
  *    `IMPORTE_PAGO_PROMEDIO` ("suele dar"), `FECHA_ULT_PAGO`,
  *    `NUM_PAGOS_ATRASADOS`, el día de la ruta y los productos con su importe.
- *  - **"App cara"** es el mapa y las acciones como iconos.
+ *  - **"App cara"** son las acciones como iconos. El cuadro de mapa que también
+ *    respondía a esa frase se fue con `:core:mapas`, y "cómo llegar" quedó como
+ *    la cuarta de esas acciones.
  *
  * ## Sin botón de volver, y el nombre como título
  *
@@ -221,9 +197,7 @@ fun DetalleClienteContent(
     modifier: Modifier = Modifier,
     contacto: AccionesDeContacto = AccionesDeContacto(),
     abono: AccionesDelAbono = AccionesDelAbono(),
-    fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
-    suelo: @Composable () -> Unit = { SueloSinMapa() },
-    elSueloPintaElPin: Boolean = false
+    fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha()
 ) {
     Column(
         modifier = modifier
@@ -249,10 +223,8 @@ fun DetalleClienteContent(
                     onVerContactos = onVerContactos,
                     onAlternarTema = onAlternarTema,
                     onAlternarPrivacidad = onAlternarPrivacidad,
-                    contacto = contacto.copy(onComoLlegar = contacto.onComoLlegar),
-                    onEditarFicha = fichaDelCliente.onEditar,
-                    suelo = suelo,
-                    elSueloPintaElPin = elSueloPintaElPin
+                    contacto = contacto,
+                    onEditarFicha = fichaDelCliente.onEditar
                 )
             }
         }
@@ -327,9 +299,7 @@ private fun CuerpoDelCliente(
     onAlternarTema: () -> Unit,
     onAlternarPrivacidad: () -> Unit,
     contacto: AccionesDeContacto,
-    onEditarFicha: () -> Unit,
-    suelo: @Composable () -> Unit,
-    elSueloPintaElPin: Boolean
+    onEditarFicha: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -346,7 +316,7 @@ private fun CuerpoDelCliente(
             onEditarFicha = onEditarFicha
         )
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-        HojaDeIdentidad(detalle, contacto, onEditarFicha, suelo, elSueloPintaElPin)
+        HojaDeIdentidad(detalle, contacto, onEditarFicha)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeDinero(detalle, ocultos)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
@@ -439,9 +409,7 @@ private fun EncabezadoDelCliente(
 private fun HojaDeIdentidad(
     detalle: DetalleCliente,
     contacto: AccionesDeContacto,
-    onEditarFicha: () -> Unit,
-    suelo: @Composable () -> Unit,
-    elSueloPintaElPin: Boolean
+    onEditarFicha: () -> Unit
 ) {
     val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
     HojaContinua {
@@ -454,24 +422,23 @@ private fun HojaDeIdentidad(
                     .joinToString(" · ")
             )
         }
-        // El cuadro del mapa se pinta SOLO con un punto medido. Sin él quedaban
-        // 130 dp de nada con un botón encima —se vio en el golden— y una banda
-        // vacía se lee como una pantalla a medio cargar. Sin punto, "cómo llegar"
-        // sigue existiendo: baja a la fila de acciones y abre la dirección escrita.
-        if (detalle.ultimoCobroAqui != null) {
-            MapaDelCliente(
-                ubicacion = detalle.ultimoCobroAqui,
-                onComoLlegar = contacto.onComoLlegar,
-                suelo = suelo,
-                elSueloPintaElPin = elSueloPintaElPin
-            )
-        }
+        // "Cómo llegar" es una acción más de la fila, permanente. Antes vivía
+        // arriba, dentro de un cuadro de mapa de 130 dp que pintaba `:core:mapas`
+        // — y ese módulo se fue: su renderizador ocupaba 47.9 MB de `.so` en
+        // cuatro ABIs y viajaba en el APK aunque nadie bajara las teselas. Sin
+        // renderizador el cuadro sería un rectángulo gris que no enseña nada.
+        //
+        // Lo que NO se fue es `ultimoCobroAqui`: sigue alimentando el `geo:` que
+        // arma `IntentAccionesExternasAdapter`, así que la app de mapas del
+        // teléfono abre en la coordenada donde de verdad se cobró y no en una
+        // dirección geocodificada. En una colonia sin numeración esa es la
+        // diferencia entre llegar a la puerta y llegar a la calle.
         SeccionDeHoja {
             AccionesDelCliente(
                 onLlamar = contacto.onLlamar,
                 onWhatsApp = contacto.onWhatsApp,
                 onFicha = onEditarFicha,
-                onComoLlegar = contacto.onComoLlegar.takeIf { detalle.ultimoCobroAqui == null }
+                onComoLlegar = contacto.onComoLlegar
             )
         }
     }
