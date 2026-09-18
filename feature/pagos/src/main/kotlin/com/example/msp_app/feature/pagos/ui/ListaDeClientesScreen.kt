@@ -32,9 +32,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
-import com.example.msp_app.core.designsystem.theme.LocalReduceMotion
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.core.designsystem.theme.rememberReducedMotionEnabled
+import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
 import com.example.msp_app.feature.pagos.ui.components.SegmentadoDeCobranza
@@ -97,15 +96,9 @@ fun ListaDeClientesScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    // Las DOS señales de reduce-motion, combinadas acá y no en un helper: es el mismo criterio
-    // que `rememberReportReducedMotion()` (accesibilidad del SO **o** "Deshabilitar
-    // animaciones" de Configuración) pero ese vive en `:feature:collectionReport`, que este
-    // módulo no importa. Una línea en el único call site, en vez de una abstracción nueva —
-    // cuando aparezca el tercer caller, esto sí gana su lugar en `:core:designsystem`.
-    val reduceMotion = rememberReducedMotionEnabled() || LocalReduceMotion.current
     MspThemeRevealHost(
         onToggleTheme = viewModel::alternarTema,
-        reducedMotion = reduceMotion,
+        reducedMotion = rememberMspReducedMotion(),
         tema = { animateColors, contenido ->
             // `darkTheme` queda en su default (`appDarkTheme()` → `LocalAppDarkTheme` →
             // `ThemeController.isDarkMode`): el tema lo manda la app, no esta pantalla.

@@ -13,6 +13,7 @@ import com.example.msp_app.feature.pagos.application.CargarTicketDePago
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
 import com.example.msp_app.feature.pagos.domain.model.TicketDePago
+import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import com.example.msp_app.feature.pagos.printing.TicketDePagoFormatter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -57,6 +58,7 @@ class TicketDePagoViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val cargarTicket: CargarTicketDePago,
     private val impresion: TicketPrinting,
+    private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -79,6 +81,27 @@ class TicketDePagoViewModel @Inject constructor(
             mutableState.value = mutableState.value.copy(cargando = true, error = null)
             mutableState.value = leer()
         }
+    }
+
+    /**
+     * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
+     * mueven la lista, el detalle, el cajón legado, Configuración y el reporte de
+     * cobranza—, y por eso persiste: sobrevive a navegar y a que muera el
+     * proceso. Calcado de `ListaDeClientesViewModel.alternarTema`.
+     *
+     * **Lo llama `MspThemeRevealHost`, no un botón de esta pantalla.** El ticket
+     * no pinta el glifo sol/luna todavía; instala el host para que el mecanismo
+     * esté donde tiene que estar, y el host es quien pide el flip justo después
+     * de grabar el frame viejo.
+     *
+     * **No toca la fase de impresión.** No pasa por [enFase] ni publica estado:
+     * cambiar el color de la pantalla no puede mover el flujo del papel. El
+     * `alternar()` real es síncrono (solo escribe `SharedPreferences`), así que
+     * tampoco lanza una corrutina que corriera junto a una impresión en curso.
+     */
+    fun alternarTema() {
+        telemetry.tap(PANTALLA, ACCION_TEMA)
+        tema.alternar()
     }
 
     /**
@@ -290,5 +313,8 @@ class TicketDePagoViewModel @Inject constructor(
 
     private companion object {
         const val PANTALLA = "pagos_ticket"
+
+        /** Id de la acción del tema en telemetría — mismo nombre que usa la lista. */
+        const val ACCION_TEMA = "theme_toggle"
     }
 }

@@ -34,7 +34,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.core.speech.ui.CampoDictado
 import com.example.msp_app.feature.visitas.domain.CatalogoDeResultados
 import com.example.msp_app.feature.visitas.domain.ComprobantesDeVisita
@@ -77,6 +79,15 @@ import java.time.LocalTime
  * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
  * de `:app`, y cuál es la compuerta— está en el KDoc de
  * `feature.pagos.ui.ListaDeClientesScreen`.
+ *
+ * **Y el tema lo envuelve [MspThemeRevealHost], no un `MspTheme` pelado.** Si
+ * no, el mismo botón sol/luna se sentiría distinto en dos pantallas de esta app:
+ * el del reporte de cobranza anima una reveal circular y el de acá haría un
+ * crossfade. Montar el host en la raíz de `:app` está prohibido por la misma
+ * Ruling BJ, así que **cada pantalla Msp lo instala sobre sí misma**. El
+ * mecanismo es UNO (`:core:designsystem`); lo que cambia por pantalla es qué tema
+ * envuelve. Esta **todavía no pinta el glifo**: el host se instala igual, para
+ * que el día que lo pinte no lo pinte con otra animación.
  */
 @Composable
 fun RegistrarVisitaScreen(
@@ -126,7 +137,15 @@ fun RegistrarVisitaScreen(
         if (concedido) viewModel.onMicrofono()
     }
     val contexto = LocalContext.current
-    MspTheme {
+    MspThemeRevealHost(
+        onToggleTheme = viewModel::alternarTema,
+        reducedMotion = rememberMspReducedMotion(),
+        tema = { animateColors, contenido ->
+            // `darkTheme` queda en su default (`appDarkTheme()` → `LocalAppDarkTheme` →
+            // `ThemeController.isDarkMode`): el tema lo manda la app, no esta pantalla.
+            MspTheme(animateColors = animateColors, content = contenido)
+        }
+    ) {
         RegistrarVisitaContent(
             state = state,
             acciones = AccionesDeLaVisita(

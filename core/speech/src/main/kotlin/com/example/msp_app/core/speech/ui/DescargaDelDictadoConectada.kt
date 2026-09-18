@@ -29,6 +29,9 @@ fun DescargaDelDictadoConectada(
         onDescargar = viewModel::descargar,
         onBorrar = viewModel::borrar,
         onAtras = onAtras,
+        // Lo pide `MspThemeRevealHost` DESPUÉS de grabar el frame viejo, no un
+        // botón de la pantalla: todavía no pinta el glifo sol/luna.
+        onAlternarTema = viewModel::alternarTema,
         modifier = modifier
     )
 }

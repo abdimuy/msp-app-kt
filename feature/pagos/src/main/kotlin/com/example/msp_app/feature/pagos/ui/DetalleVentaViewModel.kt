@@ -7,6 +7,7 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -28,6 +29,7 @@ import kotlinx.coroutines.withContext
 class DetalleVentaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val cargarDetalleVenta: CargarDetalleVenta,
+    private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -50,6 +52,27 @@ class DetalleVentaViewModel @Inject constructor(
             mutableState.value = DetalleVentaUiState(cargando = true)
             mutableState.value = leer()
         }
+    }
+
+    /**
+     * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
+     * mueven la lista, el detalle de cliente, el cajón legado, Configuración y el
+     * reporte de cobranza—, y por eso persiste: sobrevive a navegar y a que muera
+     * el proceso. Calcado de `ListaDeClientesViewModel.alternarTema`.
+     *
+     * **Lo llama `MspThemeRevealHost`, no un botón de esta pantalla.** El detalle
+     * de venta no pinta el glifo sol/luna todavía; instala el host para que el
+     * mecanismo esté donde tiene que estar, y el host es quien pide el flip justo
+     * después de grabar el frame viejo.
+     *
+     * No escribe estado aquí: esta pantalla no tiene `temaOscuro` en su `UiState`
+     * porque no dibuja nada que dependa del tema vigente. El `alternar()` real es
+     * síncrono (solo escribe `SharedPreferences`), así que no hace falta lanzar
+     * una corrutina.
+     */
+    fun alternarTema() {
+        telemetry.tap(PANTALLA, ACCION_TEMA)
+        tema.alternar()
     }
 
     @Suppress(
@@ -75,5 +98,8 @@ class DetalleVentaViewModel @Inject constructor(
 
     private companion object {
         const val PANTALLA = "pagos_detalle_venta"
+
+        /** Id de la acción del tema en telemetría — mismo nombre que usa la lista. */
+        const val ACCION_TEMA = "theme_toggle"
     }
 }

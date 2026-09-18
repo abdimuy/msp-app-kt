@@ -17,6 +17,7 @@ import com.example.msp_app.feature.visitas.domain.port.ContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.RecomendacionesPort
 import com.example.msp_app.feature.visitas.domain.port.RegistroDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
+import com.example.msp_app.feature.visitas.domain.port.TemaDeLaAppPort
 import com.example.msp_app.feature.visitas.domain.port.UbicacionDeLaVisita
 import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
 import com.example.msp_app.feature.visitas.domain.port.VisitaARegistrar
@@ -319,5 +320,26 @@ class DictadoFalso(
     override suspend fun cancelar() {
         llamadas += "cancelar"
         estado.value = EstadoDelDictado.Reposo
+    }
+}
+
+/**
+ * El tema GLOBAL de la app, fingido — gemelo del `FakeTemaDeLaAppPort` de
+ * `:feature:pagos`, escrito a mano y **sin MockK**, como el resto de los fakes
+ * del repo (se reescribe y no se importa: un módulo de test de otro feature no
+ * cruza, igual que no cruza el puerto).
+ *
+ * **Cuenta las alternaciones** en vez de solo existir: lo que hay que poder
+ * probar es que `MspThemeRevealHost` pide el flip UNA vez, no que el ViewModel
+ * compila con el parámetro puesto.
+ */
+class FakeTemaDeLaAppPort : TemaDeLaAppPort {
+
+    /** Cuántas veces se pidió alternar, en orden de llegada. */
+    var alternaciones: Int = 0
+        private set
+
+    override fun alternar() {
+        alternaciones++
     }
 }

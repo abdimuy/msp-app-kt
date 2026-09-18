@@ -17,6 +17,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeImpresoraPreferida
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePrintLog
 import com.example.msp_app.feature.pagos.data.fake.FakePrinterPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
@@ -106,6 +107,7 @@ class TicketDePagoViewModelTest {
             evaluar = EvaluatePrintPermission(log, reloj),
             imprimirYRegistrar = PrintTicketUseCase(printer, log, reloj)
         ),
+        tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
         io = testDispatcher
     )

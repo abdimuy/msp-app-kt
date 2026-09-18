@@ -22,8 +22,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspProgressBar
+import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
@@ -59,6 +61,15 @@ private val FECHA_DE_VENTA: DateTimeFormatter = DateTimeFormatter.ofPattern(
  * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
  * razonamiento completo —por qué en el `*Screen` y no en la ruta ni en la raíz
  * de `:app`, y cuál es la compuerta— está en el KDoc de [ListaDeClientesScreen].
+ *
+ * **Y el tema lo envuelve [MspThemeRevealHost], no un `MspTheme` pelado.** Si
+ * no, el mismo botón sol/luna se sentiría distinto en dos pantallas de esta app:
+ * el del reporte de cobranza anima una reveal circular y el de acá haría un
+ * crossfade. Montar el host en la raíz de `:app` está prohibido por la misma
+ * Ruling BJ, así que **cada pantalla Msp lo instala sobre sí misma**. El
+ * mecanismo es UNO (`:core:designsystem`); lo que cambia por pantalla es qué tema
+ * envuelve. Esta **todavía no pinta el glifo**: el host se instala igual, para
+ * que el día que lo pinte no lo pinte con otra animación.
  */
 @Composable
 fun DetalleVentaScreen(
@@ -72,7 +83,15 @@ fun DetalleVentaScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val detalle = state.detalle
-    MspTheme {
+    MspThemeRevealHost(
+        onToggleTheme = viewModel::alternarTema,
+        reducedMotion = rememberMspReducedMotion(),
+        tema = { animateColors, contenido ->
+            // `darkTheme` queda en su default (`appDarkTheme()` → `LocalAppDarkTheme` →
+            // `ThemeController.isDarkMode`): el tema lo manda la app, no esta pantalla.
+            MspTheme(animateColors = animateColors, content = contenido)
+        }
+    ) {
         DetalleVentaContent(
             state = state,
             onAtras = onAtras,

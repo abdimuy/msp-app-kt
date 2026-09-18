@@ -14,6 +14,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +77,7 @@ class DetalleVentaViewModelTest {
             ),
             clock = clock
         ),
+        tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
         io = testDispatcher
     )

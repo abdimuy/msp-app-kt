@@ -21,6 +21,7 @@ import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
+import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.util.UUID
 import javax.inject.Inject
@@ -85,7 +86,8 @@ import kotlinx.coroutines.withContext
 @HiltViewModel
 @Suppress(
     "TooManyFunctions",
-    // Siete dependencias: las seis de la Task 18 mas el puerto de la camara.
+    // Ocho dependencias: las seis de la Task 18, el puerto de la camara y el del
+    // tema global (lo pide `MspThemeRevealHost`, no un boton de la pantalla).
     // Agruparlas en un holder solo escondería el wiring —mismo criterio que
     // `CollectionReportViewModel`—, y el puerto no puede vivir en otro tipo
     // inyectado sin partir en dos el estado único de la pantalla.
@@ -96,6 +98,7 @@ class RegistrarAbonoViewModel @Inject constructor(
     private val cargarDetalleVenta: CargarDetalleVenta,
     private val registrarAbono: RegistrarAbono,
     private val camara: ComprobantesPort,
+    private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     private val clock: AppClock,
     @PagosIoDispatcher private val io: CoroutineDispatcher
@@ -192,6 +195,28 @@ class RegistrarAbonoViewModel @Inject constructor(
             mutableState.value = conLoCapturado(RegistrarAbonoUiState(cargando = true))
             mutableState.value = conLoCapturado(leer())
         }
+    }
+
+    /**
+     * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
+     * mueven la lista, el detalle, el cajón legado, Configuración y el reporte de
+     * cobranza—, y por eso persiste: sobrevive a navegar y a que muera el
+     * proceso. Calcado de `ListaDeClientesViewModel.alternarTema`.
+     *
+     * **Lo llama `MspThemeRevealHost`, no un botón de esta pantalla.** La captura
+     * del abono no pinta el glifo sol/luna todavía; instala el host para que el
+     * mecanismo esté donde tiene que estar, y el host es quien pide el flip justo
+     * después de grabar el frame viejo.
+     *
+     * **No toca nada del abono en vuelo.** No pasa por [editar], no publica un
+     * estado nuevo y no lee el `SavedStateHandle`: cambiar el color de la
+     * pantalla no puede mover un peso de lo capturado. El `alternar()` real es
+     * síncrono (solo escribe `SharedPreferences`), así que tampoco lanza una
+     * corrutina que pudiera correr carrera contra el guardado.
+     */
+    fun alternarTema() {
+        telemetry.tap(PANTALLA, ACCION_TEMA)
+        tema.alternar()
     }
 
     /**
@@ -946,6 +971,9 @@ class RegistrarAbonoViewModel @Inject constructor(
 
     private companion object {
         const val PANTALLA = "pagos_registrar_abono"
+
+        /** Id de la acción del tema en telemetría — mismo nombre que usa la lista. */
+        const val ACCION_TEMA = "theme_toggle"
 
         /** Llaves del `SavedStateHandle`. Sobreviven rotación y muerte de proceso. */
         const val CLAVE_ABONO_ID = "pagos_abono_id"

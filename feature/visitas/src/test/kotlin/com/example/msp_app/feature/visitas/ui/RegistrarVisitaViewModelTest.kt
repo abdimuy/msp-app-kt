@@ -16,6 +16,7 @@ import com.example.msp_app.feature.visitas.data.fake.FakeComprobantesDeVisitaPor
 import com.example.msp_app.feature.visitas.data.fake.FakeContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeRecomendacionesPort
 import com.example.msp_app.feature.visitas.data.fake.FakeRegistroDeVisitaPort
+import com.example.msp_app.feature.visitas.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.visitas.data.fake.FakeUbicacionPort
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.IdsDeLaVisita
@@ -94,6 +95,7 @@ class RegistrarVisitaViewModelTest {
         registrarVisita = RegistrarVisita(registroPort, ubicacionPort, telemetria),
         camara = camaraPort,
         dictado = dictadoPort,
+        tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
         clock = clock,
         io = testDispatcher
@@ -144,6 +146,7 @@ class RegistrarVisitaViewModelTest {
             registrarVisita = RegistrarVisita(registroPort, ubicacionPort, telemetria),
             camara = camaraPort,
             dictado = dictadoPort,
+            tema = FakeTemaDeLaAppPort(),
             telemetry = telemetria,
             clock = clock,
             io = testDispatcher

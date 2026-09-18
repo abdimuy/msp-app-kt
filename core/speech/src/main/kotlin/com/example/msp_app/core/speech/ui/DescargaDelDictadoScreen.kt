@@ -27,7 +27,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
+import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.core.speech.domain.EstadoDelModelo
 import com.example.msp_app.core.speech.domain.ModeloDeDictado
 import com.example.msp_app.core.speech.domain.megas
@@ -62,6 +64,21 @@ const val ATRAS_DEL_DICTADO_TAG: String = "dictado_atras"
  *
  * Provee su propio [MspTheme] porque se abre desde el `NavHost` de `:app`, que
  * no lo pone (ver `CadaPantallaMspProveeSuTemaTest`).
+ *
+ * ## Y el tema lo envuelve [MspThemeRevealHost], no un `MspTheme` pelado
+ *
+ * Si no, el mismo botón sol/luna se sentiría distinto en dos pantallas de esta
+ * app: el del reporte de cobranza anima una reveal circular y el de acá haría un
+ * crossfade. Montar el host en la raíz de `:app` está prohibido (Ruling BJ:
+ * `MspTheme` alrededor de `AppNavigation` repintaría la app legada), así que
+ * **cada pantalla Msp lo instala sobre sí misma**. El mecanismo es UNO
+ * (`:core:designsystem`); lo que cambia por pantalla es qué tema envuelve.
+ *
+ * [onAlternarTema] es **del host, no de un control de esta pantalla** — no pinta
+ * el glifo todavía. Es un parámetro y no una lectura de un ViewModel porque este
+ * composable es puro a propósito: lo cablea [DescargaDelDictadoConectada] con
+ * `DescargaDelDictadoViewModel.alternarTema`, y así los goldens siguen montando
+ * [DescargaDelDictadoContenido] sin Hilt.
  */
 @Composable
 fun DescargaDelDictadoScreen(
@@ -70,9 +87,18 @@ fun DescargaDelDictadoScreen(
     onDescargar: () -> Unit,
     onBorrar: () -> Unit,
     onAtras: () -> Unit,
+    onAlternarTema: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    MspTheme {
+    MspThemeRevealHost(
+        onToggleTheme = onAlternarTema,
+        reducedMotion = rememberMspReducedMotion(),
+        tema = { animateColors, contenido ->
+            // `darkTheme` queda en su default (`appDarkTheme()` → `LocalAppDarkTheme` →
+            // `ThemeController.isDarkMode`): el tema lo manda la app, no esta pantalla.
+            MspTheme(animateColors = animateColors, content = contenido)
+        }
+    ) {
         Box(
             modifier = modifier
                 .fillMaxSize()

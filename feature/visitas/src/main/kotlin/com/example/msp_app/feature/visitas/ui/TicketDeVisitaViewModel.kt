@@ -13,6 +13,7 @@ import com.example.msp_app.feature.visitas.application.CargarTicketDeVisita
 import com.example.msp_app.feature.visitas.application.VisitasTelemetria
 import com.example.msp_app.feature.visitas.di.VisitasIoDispatcher
 import com.example.msp_app.feature.visitas.domain.model.TicketDeVisita
+import com.example.msp_app.feature.visitas.domain.port.TemaDeLaAppPort
 import com.example.msp_app.feature.visitas.printing.TicketDeVisitaFormatter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -45,6 +46,7 @@ class TicketDeVisitaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val cargarTicket: CargarTicketDeVisita,
     private val impresion: TicketPrinting,
+    private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     @VisitasIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -67,6 +69,27 @@ class TicketDeVisitaViewModel @Inject constructor(
             mutableState.value = mutableState.value.copy(cargando = true, error = null)
             mutableState.value = leer()
         }
+    }
+
+    /**
+     * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
+     * mueven la lista de clientes, el cajón legado, Configuración y el reporte de
+     * cobranza—, y por eso persiste: sobrevive a navegar y a que muera el
+     * proceso. Calcado de `feature.pagos.ui.ListaDeClientesViewModel.alternarTema`.
+     *
+     * **Lo llama `MspThemeRevealHost`, no un botón de esta pantalla.** El ticket
+     * de visita no pinta el glifo sol/luna todavía; instala el host para que el
+     * mecanismo esté donde tiene que estar, y el host es quien pide el flip justo
+     * después de grabar el frame viejo.
+     *
+     * **No toca la fase de impresión.** No pasa por [enFase] ni publica estado:
+     * cambiar el color de la pantalla no puede mover el flujo del papel. El
+     * `alternar()` real es síncrono (solo escribe `SharedPreferences`), así que
+     * tampoco lanza una corrutina que corriera junto a una impresión en curso.
+     */
+    fun alternarTema() {
+        telemetry.tap(VisitasTelemetria.PANTALLA_TICKET, ACCION_TEMA)
+        tema.alternar()
     }
 
     /** Imprime en la impresora recordada, o abre el picker si no hay ninguna. */
@@ -264,5 +287,10 @@ class TicketDeVisitaViewModel @Inject constructor(
         is PrintError.ConnectionFailed -> "no se pudo conectar"
         is PrintError.WriteFailed -> "no se envió el ticket"
         else -> "no se pudo imprimir"
+    }
+
+    private companion object {
+        /** Id de la acción del tema en telemetría — mismo nombre que usa la lista. */
+        const val ACCION_TEMA = "theme_toggle"
     }
 }

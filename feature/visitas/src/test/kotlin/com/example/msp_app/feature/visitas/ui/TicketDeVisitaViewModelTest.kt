@@ -17,6 +17,7 @@ import com.example.msp_app.feature.visitas.data.fake.FakeContextoDeVisitaPort
 import com.example.msp_app.feature.visitas.data.fake.FakeImpresoraPreferida
 import com.example.msp_app.feature.visitas.data.fake.FakePrintLog
 import com.example.msp_app.feature.visitas.data.fake.FakePrinterPort
+import com.example.msp_app.feature.visitas.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.visitas.data.fake.FakeVisitaImpresaPort
 import com.example.msp_app.feature.visitas.data.fake.VisitasFixtures
 import com.example.msp_app.feature.visitas.domain.model.VisitaRegistrada
@@ -95,6 +96,7 @@ class TicketDeVisitaViewModelTest {
                 evaluar = EvaluatePrintPermission(log, reloj),
                 imprimirYRegistrar = PrintTicketUseCase(printer, log, reloj)
             ),
+            tema = FakeTemaDeLaAppPort(),
             telemetry = telemetria,
             io = testDispatcher
         )

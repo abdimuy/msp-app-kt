@@ -27,6 +27,7 @@ import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.visitas.domain.model.ResultadoDeVisita
 import com.example.msp_app.feature.visitas.domain.port.ComprobantesDeVisitaPort
 import com.example.msp_app.feature.visitas.domain.port.ResultadoDelRegistro
+import com.example.msp_app.feature.visitas.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
 import java.time.LocalTime
@@ -85,8 +86,9 @@ import kotlinx.coroutines.withContext
 @HiltViewModel
 @Suppress(
     "TooManyFunctions",
-    // Septima dependencia: el puerto de camara (Task 23). Precedente:
-    // RegistrarAbonoViewModel y CollectionReportViewModel.
+    // Septima dependencia: el puerto de camara (Task 23). Octava: el puerto del
+    // tema global, que pide `MspThemeRevealHost` y no un boton de la pantalla.
+    // Precedente: RegistrarAbonoViewModel y CollectionReportViewModel.
     "LongParameterList"
 ) // una funcion por control de la captura; agruparlas escondería cuál toca qué campo.
 class RegistrarVisitaViewModel @Inject constructor(
@@ -95,6 +97,7 @@ class RegistrarVisitaViewModel @Inject constructor(
     private val registrarVisita: RegistrarVisita,
     private val camara: ComprobantesDeVisitaPort,
     private val dictado: DictadoPort,
+    private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     private val clock: AppClock,
     @VisitasIoDispatcher private val io: CoroutineDispatcher
@@ -182,6 +185,28 @@ class RegistrarVisitaViewModel @Inject constructor(
         escucharElDictado()
         revisarElDictado()
         cargar()
+    }
+
+    /**
+     * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
+     * mueven la lista de clientes, el cajón legado, Configuración y el reporte de
+     * cobranza—, y por eso persiste: sobrevive a navegar y a que muera el
+     * proceso. Calcado de `feature.pagos.ui.ListaDeClientesViewModel.alternarTema`.
+     *
+     * **Lo llama `MspThemeRevealHost`, no un botón de esta pantalla.** El registro
+     * de visita no pinta el glifo sol/luna todavía; instala el host para que el
+     * mecanismo esté donde tiene que estar, y el host es quien pide el flip justo
+     * después de grabar el frame viejo.
+     *
+     * **No toca la captura en vuelo.** No pasa por `editar`, no publica estado y
+     * no escribe el `SavedStateHandle`: cambiar el color de la pantalla no puede
+     * mover una nota, una promesa ni una foto. El `alternar()` real es síncrono
+     * (solo escribe `SharedPreferences`), así que tampoco lanza una corrutina que
+     * corriera carrera contra el guardado.
+     */
+    fun alternarTema() {
+        telemetry.tap(VisitasTelemetria.PANTALLA, ACCION_TEMA)
+        tema.alternar()
     }
 
     // ── Dictado ─────────────────────────────────────────────────────────────
@@ -1069,6 +1094,9 @@ class RegistrarVisitaViewModel @Inject constructor(
     }
 
     private companion object {
+        /** Id de la acción del tema en telemetría — mismo nombre que usa la lista. */
+        const val ACCION_TEMA = "theme_toggle"
+
         const val CLAVE_VISITA_ID = "visitas_visita_id"
         const val CLAVE_YA_SE_ENCOLO = "visitas_ya_se_encolo"
         const val CLAVE_DESTINO = "visitas_destino_de_foto"

@@ -59,3 +59,47 @@ fun rememberReducedMotionEnabled(): Boolean {
         scale == 0f
     }
 }
+
+/**
+ * **El interruptor de movimiento reducido EFECTIVO de una pantalla Msp** —
+ * reducido si CUALQUIERA de las dos señales lo pide:
+ *
+ * 1. [rememberReducedMotionEnabled] — la señal de **accesibilidad del sistema
+ *    operativo** (`Settings.Global.ANIMATOR_DURATION_SCALE == 0f`). Es la que el
+ *    cobrador enciende en Ajustes de Android, fuera de esta app.
+ * 2. [LocalReduceMotion] — la **preferencia propia de la app**, la casilla
+ *    "Deshabilitar animaciones" de Configuración, provista por la raíz de
+ *    composición que cablea la pantalla.
+ *
+ * Son señales distintas y ninguna implica a la otra: el KDoc de
+ * [LocalReduceMotion] lo dice explícitamente. Una animación que solo consulta la
+ * primera ignora la casilla que el propio cobrador marcó dentro de la app; una
+ * que solo consulta la segunda ignora el ajuste de accesibilidad del teléfono.
+ *
+ * ## Por qué AHORA sí vive en `:core:designsystem`
+ *
+ * Vivió deliberadamente fuera hasta ahora. El KDoc de [LocalReduceMotion]
+ * declaraba que combinar ambas señales "es trabajo de la raíz de composición
+ * cuando cablee la pantalla — no de este módulo", y `ListaDeClientesScreen`
+ * cargaba la combinación en una línea con el comentario "cuando aparezca el
+ * tercer caller, esto sí gana su lugar en `:core:designsystem`".
+ *
+ * Aparecieron **ocho**: las ocho pantallas Msp nuevas instalan
+ * [com.example.msp_app.core.designsystem.component.MspThemeRevealHost] y todas
+ * le tienen que pasar el MISMO criterio. Ocho copias de un `||` es la forma
+ * exacta en que dos de ellas terminan divergiendo —una consultando una señal y
+ * otra las dos— y esa divergencia no la ve ningún golden: el defecto solo
+ * aparece en el teléfono de quien tiene el ajuste puesto.
+ *
+ * ## Lo que esta función NO reemplaza
+ *
+ * `feature.collectionreport.ui.theme.rememberReportReducedMotion()` **no se
+ * unifica con ésta y no se toca.** Su KDoc explica que es el criterio propio del
+ * reporte de cobranza y que no se centralizó a propósito, "porque no toda
+ * pantalla migrada quiere necesariamente el mismo criterio de combinación". Que
+ * hoy los dos cuerpos coincidan no es razón para atarlos: el día que el reporte
+ * cambie el suyo, esta función no tiene por qué moverse con él.
+ */
+@Composable
+fun rememberMspReducedMotion(): Boolean =
+    rememberReducedMotionEnabled() || LocalReduceMotion.current

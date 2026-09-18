@@ -14,6 +14,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -58,6 +59,7 @@ class BitacoraViewModelTest {
             )
         ),
         privacidad = FakePrivacidadPort(),
+        tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
         io = testDispatcher
     )
@@ -119,6 +121,25 @@ class BitacoraViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Victoria Flores Olmedo", checkNotNull(vm.state.value.bitacora).nombre)
+    }
+
+    /**
+     * **Y de qué puerta es.** La dirección no la pinta esta pantalla: la pinta el
+     * mapa que se abre al tocar un renglón, al pie, para decir de qué puerta se
+     * trata. Sale de la misma fila representante del cliente de la que ya salía el
+     * nombre, así que no cuesta una lectura más.
+     */
+    @Test
+    fun `la bitacora sabe de que puerta es`() = runTest(testDispatcher) {
+        ventasPort.ventas = PagosFixtures.datosDeVentas()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            "sin dirección, el mapa de un contacto se abre sin decir de quién es la puerta",
+            "C. Hidalgo 214, Centro",
+            checkNotNull(vm.state.value.bitacora).direccion
+        )
     }
 
     /** Un cliente que el teléfono no tiene se dice, no se pinta como "nunca pasó nada". */

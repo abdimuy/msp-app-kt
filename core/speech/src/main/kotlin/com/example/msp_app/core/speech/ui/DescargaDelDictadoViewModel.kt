@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.speech.domain.EstadoDelModelo
 import com.example.msp_app.core.speech.domain.ModeloDeDictado
 import com.example.msp_app.core.speech.domain.port.ModeloDeDictadoPort
+import com.example.msp_app.core.speech.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,6 +33,13 @@ import kotlinx.coroutines.launch
 class DescargaDelDictadoViewModel @Inject constructor(
     private val modeloPort: ModeloDeDictadoPort,
     /**
+     * El tema GLOBAL de la app. No lo pide un botón de esta pantalla —no pinta
+     * el glifo sol/luna— sino `MspThemeRevealHost`, que instala
+     * [DescargaDelDictadoScreen] y que necesita poder pedir el flip DESPUÉS de
+     * haber grabado el frame viejo.
+     */
+    private val tema: TemaDeLaAppPort,
+    /**
      * El paquete anunciado. Lo necesita la pantalla para decir **cuánto pesa**
      * antes de bajarlo, y sale del módulo —no de un número escrito a mano.
      */
@@ -50,5 +58,26 @@ class DescargaDelDictadoViewModel @Inject constructor(
 
     fun borrar() {
         viewModelScope.launch { modeloPort.cancelarYBorrar() }
+    }
+
+    /**
+     * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
+     * mueven la lista de clientes, el cajón legado, Configuración y el reporte de
+     * cobranza—, y por eso persiste: sobrevive a navegar y a que muera el
+     * proceso. Calcado de `feature.pagos.ui.ListaDeClientesViewModel.alternarTema`.
+     *
+     * **Sin telemetría, al revés que el calco.** Este ViewModel no inyecta
+     * [com.example.msp_app.core.telemetry.Telemetry] y el módulo no emite ni
+     * siquiera `screenView` para esta pantalla: agregar la dependencia entera
+     * para un solo `tap` sería inventar el primer evento de UI de `:core:speech`
+     * de paso, en un cambio que es de animación. Cuando la pantalla pinte el
+     * glifo y el tap sea una acción real del cobrador, se agrega entonces.
+     *
+     * Ni corrutina ni estado: el `alternar()` real es síncrono (solo escribe
+     * `SharedPreferences`) y esta pantalla no dibuja nada que dependa del tema
+     * vigente — el color lo resuelve `MspTheme` leyendo `LocalAppDarkTheme`.
+     */
+    fun alternarTema() {
+        tema.alternar()
     }
 }
