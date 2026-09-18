@@ -222,11 +222,19 @@ private data class AccionDelCliente(
 )
 
 /**
- * Las cuatro acciones de contacto, como **iconos y no botones de texto**.
+ * Las tres acciones de contacto, como **iconos y no botones de texto**.
  *
- * Cuatro botones de texto en fila ("Llamar", "WhatsApp", "Ficha", "Cómo llegar")
- * a 360 dp dejan cada uno con menos de 85 dp y parten la palabra. Como iconos
- * con su etiqueta debajo caben, y la fila mide lo mismo.
+ * Botones de texto en fila ("Llamar", "WhatsApp", "Cómo llegar") a 360 dp dejan
+ * cada uno poco ancho y parten la palabra. Como iconos con su etiqueta debajo
+ * caben, y la fila mide lo mismo.
+ *
+ * ## Eran cuatro: "Ficha" se fue al dock
+ *
+ * El dueño pidió que las Notas de la puerta se noten, y el dock tenía su tercer
+ * espacio **diseñado y vacío** desde el rediseño (`onMasAcciones` en `null` para
+ * esta pantalla). Mudarlas ahí cuesta **cero dp verticales** —el dock ya existe—
+ * y de paso gana el distintivo, que esta fila de iconos no podía dar: acá el
+ * botón se ve igual con la puerta en blanco y con algo anotado.
  *
  * ## "Cómo llegar" está SIEMPRE, y por qué cambió
  *
@@ -264,20 +272,23 @@ private data class AccionDelCliente(
 fun AccionesDelCliente(
     onLlamar: () -> Unit,
     onWhatsApp: () -> Unit,
-    onFicha: () -> Unit,
     onComoLlegar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val acciones = listOf(
-        AccionDelCliente("llamar", AccionesIconos.Llamar, onLlamar),
-        AccionDelCliente("whatsapp", AccionesIconos.WhatsApp, onWhatsApp),
-        AccionDelCliente("ficha", AccionesIconos.Ficha, onFicha),
-        AccionDelCliente("cómo llegar", AccionesIconos.Pin, onComoLlegar)
+        AccionDelCliente("Llamar", AccionesIconos.Llamar, onLlamar),
+        AccionDelCliente("WhatsApp", AccionesIconos.WhatsApp, onWhatsApp),
+        AccionDelCliente("Cómo llegar", AccionesIconos.Pin, onComoLlegar)
     )
+    // DOS por renglón fijo, no `size / 2`. Con cuatro acciones las dos fórmulas
+    // daban lo mismo; con tres, `size / 2` da UNA por renglón y la fila pasa de
+    // dos renglones a TRES — más alto, que es lo único que no sobra en esta
+    // pantalla. Con el dos fijo, 4 se parte en [2,2] y 3 en [2,1]: dos renglones
+    // en los dos casos, el mismo alto de siempre.
     val porRenglon = if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
         acciones.size
     } else {
-        acciones.size / 2
+        POR_RENGLON_APILADO
     }
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -296,6 +307,10 @@ fun AccionesDelCliente(
                         modifier = Modifier.weight(1f)
                     )
                 }
+                // El renglón incompleto se rellena con aire, no se deja corto:
+                // sin esto la única celda de [2,1] se comería el ancho entero y
+                // "Cómo llegar" quedaría del doble de ancho que "Llamar".
+                repeat(porRenglon - renglon.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -545,7 +560,7 @@ fun RitmoDelCliente(
  */
 private fun diaDeLaRuta(dia: String, frecuencia: String): String {
     val partes = listOfNotNull(
-        dia.takeIf { it.isNotBlank() }?.let { "su día es ${it.lowercase(BUSINESS_LOCALE)}" },
+        dia.takeIf { it.isNotBlank() }?.let { "Su día es ${it.lowercase(BUSINESS_LOCALE)}" },
         frecuencia.takeIf { it.isNotBlank() }?.lowercase(BUSINESS_LOCALE)
     )
     return partes.joinToString(" · ")
@@ -748,7 +763,7 @@ fun VerLosContactos(cuantos: Int, onVer: () -> Unit, modifier: Modifier = Modifi
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
         ) {
             Text(
-                text = "ver los $cuantos contactos",
+                text = "Ver los $cuantos contactos",
                 style = MspTheme.type.captionStrong,
                 color = MspTheme.colors.brand
             )
@@ -781,6 +796,16 @@ private val GLIFO_DE_ACCION = 18.dp
  * Robolectric un golden no puede ver un área tocable.
  */
 private val TOQUE_DE_ACCION = 50.dp
+
+/**
+ * Cuántas acciones caben por renglón cuando la escala obliga a apilar.
+ *
+ * Dos, y **fijo**: ver el comentario en [AccionesDelCliente]. Es lo que mantiene
+ * la fila en dos renglones con tres acciones y con cuatro. La fórmula anterior
+ * —`acciones.size / 2`— daba lo mismo con cuatro y **una por renglón** con tres,
+ * o sea tres renglones y una fila más alta.
+ */
+private const val POR_RENGLON_APILADO = 2
 
 /**
  * **El cuadro de la puerta: el mapa cuando se puede, el dibujo cuando no.**
@@ -988,12 +1013,12 @@ fun DatosDeLaPuerta(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
-        DatoDeLaPuerta("aval o responsable", aval)
-        telefonoAval?.let { DatoDeLaPuerta("teléfono del aval", it) }
+        DatoDeLaPuerta("Aval o responsable", aval)
+        telefonoAval?.let { DatoDeLaPuerta("Teléfono del aval", it) }
         // `d MMM`, el mismo formato corto que ya usan el último contacto y el
         // último pago de esta hoja. Una fecha larga competiría con el saldo.
         DatoDeLaPuerta(
-            clave = "última visita",
+            clave = "Última visita",
             valor = ultimaVisita?.let { DIA_Y_MES.format(it) } ?: SIN_DATO
         )
     }
@@ -1046,7 +1071,22 @@ private fun DatoDeLaPuerta(clave: String, valor: String, modifier: Modifier = Mo
  * identidad empuja la hoja del dinero, que es por lo que el cobrador abrió esta
  * pantalla, y `LaFichaSeVeYSeTocaTest` lo cobra en dp: con los 130 fijos el
  * dinero terminaba en 690 dp contra un dock que empieza en 672 —**18 dp
- * tapado**— a `GRANDE` y a `MUY_GRANDE`. Con [CUADRO_APRETADO] sobran 20.
+ * tapado**— a `GRANDE` y a `MUY_GRANDE`.
+ *
+ * ## Por qué [CUADRO_APRETADO] bajó otra vez, de 96 a 56
+ *
+ * Porque el dock creció, y creció por una razón que no se puede deshacer: con
+ * **tres** celdas —"Registrar abono", "Visita" y "Notas"— el texto no cabe en
+ * una fila a escalas grandes. No es cuestión de repartir mejor el ancho: a 2.0,
+ * sólo "Registrar" mide ~178 dp y "Visita" ~119, y los 360 dp de pantalla no
+ * alcanzan para los tres ni con cero aire. Así que el dock **apila** (principio
+ * 9, antes de partir apilar) y eso costó 44 dp, medidos: el dinero terminaba en
+ * 652 contra un dock que empezaba en 608.
+ *
+ * Esos 44 dp salen de aquí, que es donde este KDoc ya había decidido que salen:
+ * **la decoración cede antes que el dinero**. A 56 dp el cuadro sigue mostrando
+ * su pin y su casa —a escalas grandes nunca llevó texto—, y el saldo vuelve a
+ * verse sin desplazar en los tres niveles.
  *
  * El número no sale de un gusto: sale de esa medición. Subirlo vuelve a tapar el
  * saldo, y la regla del repo es subir la implementación, no bajar el test.
@@ -1061,7 +1101,7 @@ private fun altoDelCuadro(): Dp = when (LocalFontSizeLevel.current) {
 private val CUADRO_DEL_MOCK = 130.dp
 
 /** Lo que mide a `GRANDE` y `MUY_GRANDE`, donde el cuadro ya no lleva texto. */
-private val CUADRO_APRETADO = 96.dp
+private val CUADRO_APRETADO = 56.dp
 
 /**
  * La casa: grande y en el gris del texto secundario.

@@ -121,7 +121,10 @@ class CargarDetalleCliente @Inject constructor(
             notaDeLaVenta = primera.notas.takeIf { it.isNotBlank() },
             ficha = fichaPort.fichaDe(clienteId),
             liquidacion = cobranza.liquidacionTotal(),
-            ultimaVisita = cobranza.visitas.maxByOrNull { it.fecha }?.fecha
+            ultimaVisita = cobranza.visitas.maxByOrNull { it.fecha }?.fecha,
+            // El "hoy" que la pantalla necesita para decir "hace 3 días", tomado
+            // del reloj inyectado. Ver el KDoc de `DetalleCliente.hoy`.
+            hoy = AppTime.todayInBusinessZone(clock)
         )
     }
 

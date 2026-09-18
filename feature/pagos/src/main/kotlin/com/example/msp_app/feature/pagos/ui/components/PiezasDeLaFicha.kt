@@ -26,13 +26,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.AppTime
-import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.common.time.TiempoRelativo
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.etiquetaDe
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.PesoDeLaSenal
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
-import java.time.format.DateTimeFormatter
+import java.time.LocalDate
 
 /** `testTag` de la tarjeta de la ficha — la sección "lo que hay que saber". */
 const val TARJETA_DE_LA_FICHA_TAG: String = "pagos_ficha_tarjeta"
@@ -66,6 +66,9 @@ const val CHIP_DE_FICHA_TAG: String = "pagos_ficha_chip_"
 
 /** `testTag` del CTA que guarda la ficha. */
 const val GUARDAR_FICHA_TAG: String = "pagos_ficha_guardar"
+
+/** `testTag` de la edad de la nota dentro de la hoja de edición. */
+const val EDAD_DE_LA_NOTA_TAG: String = "pagos_ficha_edad"
 
 /**
  * Alto mínimo tocable. Copia deliberada del `TOQUE` privado de los vecinos de
@@ -112,10 +115,10 @@ fun AfordanteDeLaFicha(
     val colors = MspTheme.colors
     val advertencia = ficha?.advertencias?.firstOrNull()
     val texto = when {
-        ficha == null -> "ficha ilegible"
+        ficha == null -> "Notas ilegibles"
         advertencia != null -> etiquetaDe(advertencia)
-        ficha.vacia -> "anotar ficha"
-        else -> "ver ficha"
+        ficha.vacia -> "Anotar"
+        else -> "Ver notas"
     }
     val contenido = when {
         ficha == null -> colors.onSurfaceMuted
@@ -216,10 +219,11 @@ fun SeccionDeLaFicha(
     ficha: FichaDelCliente?,
     notaDeLaVenta: String?,
     onEditar: () -> Unit,
+    hoy: LocalDate,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        LabelDeSeccion("lo que hay que saber")
+        LabelDeSeccion("Notas")
         Tarjeta(
             modifier = Modifier.testTag(TARJETA_DE_LA_FICHA_TAG),
             onClick = if (ficha == null) null else onEditar
@@ -227,13 +231,13 @@ fun SeccionDeLaFicha(
             Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)) {
                 when {
                     ficha == null -> Text(
-                        text = "no se pudo leer la ficha",
+                        text = "No se pudieron leer las notas",
                         style = MspTheme.type.body,
                         color = MspTheme.colors.statusPartial
                     )
 
                     ficha.vacia -> Text(
-                        text = "sin ficha — anota lo que sirva mañana",
+                        text = "Sin notas — anota lo que sirva mañana",
                         style = MspTheme.type.body,
                         color = MspTheme.colors.onSurfaceMuted
                     )
@@ -261,11 +265,20 @@ fun SeccionDeLaFicha(
                 }
                 ficha?.actualizada?.let { cuando ->
                     // Cuándo se anotó, y no quién: el nombre del cobrador no
-                    // está en esta pantalla y la fecha es lo que decide si el
-                    // dato todavía sirve. Una ficha de hace dos años se lee
-                    // distinto que la de la semana pasada.
+                    // está en esta pantalla, y qué tan vieja es la nota es lo
+                    // que decide si el dato todavía sirve.
+                    //
+                    // **Relativo y no "anotada el 3 sep".** Una fecha obliga a
+                    // restar de cabeza parado en una puerta para contestar la
+                    // única pregunta que importa —*¿esto todavía vale?*—, y a
+                    // los seis meses "3 sep" no dice ni de qué año es. El "hoy"
+                    // llega por parámetro desde el reloj inyectado: pedirlo aquí
+                    // volvería el texto distinto en cada recomposición.
                     Text(
-                        text = "anotada el " + DIA_Y_MES.format(AppTime.toBusinessDate(cuando)),
+                        text = "Anotada " + TiempoRelativo.de(
+                            AppTime.toBusinessDate(cuando),
+                            hoy
+                        ),
                         style = MspTheme.type.caption,
                         color = MspTheme.colors.onSurfaceMuted
                     )
@@ -273,7 +286,7 @@ fun SeccionDeLaFicha(
                 notaDeLaVenta?.let {
                     Separador()
                     Text(
-                        text = "de la venta",
+                        text = "De la venta",
                         style = MspTheme.type.caption,
                         color = MspTheme.colors.onSurfaceMuted
                     )
@@ -323,9 +336,16 @@ private fun FilaDeSenales(senales: List<SenalDeFicha>) {
     }
 }
 
-/** El color del contenido de una señal — lo decide su [SenalDeFicha.peso]. */
+/**
+ * El color del contenido de una señal — lo decide su [SenalDeFicha.peso].
+ *
+ * `internal` y no privada porque la comparte `PiezasDeLasNotas.kt`, que pinta
+ * las casillas que la prosa sugiere con el mismo acento que el catálogo. Que
+ * dos piezas de la misma hoja decidieran el color por su cuenta es cómo se
+ * empieza a ver distinto lo que significa lo mismo.
+ */
 @Composable
-private fun contenidoDe(senal: SenalDeFicha): Color =
+internal fun contenidoDe(senal: SenalDeFicha): Color =
     if (senal.peso == PesoDeLaSenal.ADVIERTE) MspTheme.colors.danger else MspTheme.colors.brand
 
 /** El fondo de una señal — lo decide su [SenalDeFicha.peso]. */
@@ -354,7 +374,8 @@ fun CuerpoDeLaFicha(
     onSenal: (SenalDeFicha) -> Unit,
     onNota: (String) -> Unit,
     onGuardar: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    anotada: String? = null
 ) {
     Column(
         modifier = modifier
@@ -363,29 +384,47 @@ fun CuerpoDeLaFicha(
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         Text(
-            text = "lo que hay que saber",
+            text = "Notas",
             style = MspTheme.type.cardTitle,
             color = MspTheme.colors.onSurface
         )
+        AvisoDeLasNotas()
         // "la app" y no "la máquina": el conteo por ventana horaria todavía no
         // existe, y prometerle al cobrador un lector que no está escrito es la
         // misma falsedad que un KDoc inventado. Lo que SÍ lee estas señales hoy
         // es la pantalla — la pastilla de la barra y el color del chip.
         Text(
-            text = "esto lo lee la app",
+            text = "Esto lo lee la app",
             style = MspTheme.type.caption,
             color = MspTheme.colors.onSurfaceMuted
         )
         CatalogoDeSenales(senales = senales, habilitado = !guardando, onSenal = onSenal)
         Text(
-            text = "esto lo lee quien venga mañana",
+            text = "Esto lo lee quien venga mañana",
             style = MspTheme.type.caption,
             color = MspTheme.colors.onSurfaceMuted
         )
         CampoDeLaNota(nota = nota, habilitado = !guardando, onCambio = onNota)
+        // Qué tan vieja es la nota, TAMBIÉN al editar. Antes sólo se veía en la
+        // tarjeta, y editar es justo el momento en que hay que decidir si lo
+        // escrito todavía vale o se reemplaza.
+        if (anotada != null) {
+            Text(
+                text = "Anotada $anotada",
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted,
+                modifier = Modifier.testTag(EDAD_DE_LA_NOTA_TAG)
+            )
+        }
+        CasillasQueLaNotaSugiere(
+            nota = nota,
+            senales = senales,
+            habilitado = !guardando,
+            onSenal = onSenal
+        )
         if (fallo) {
             Text(
-                text = "no se pudo guardar",
+                text = "No se pudo guardar",
                 style = MspTheme.type.bodyStrong,
                 color = MspTheme.colors.statusOverdue
             )
@@ -488,7 +527,7 @@ private fun CampoDeLaNota(nota: String, habilitado: Boolean, onCambio: (String) 
                 decorationBox = { campo ->
                     if (nota.isEmpty()) {
                         Text(
-                            text = "trabaja de noche, atiende la suegra…",
+                            text = "Trabaja de noche, atiende la suegra…",
                             style = MspTheme.type.body,
                             color = MspTheme.colors.onSurfaceMuted
                         )
@@ -527,7 +566,7 @@ private fun BotonDeGuardarFicha(guardando: Boolean, onGuardar: () -> Unit) {
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
-                text = if (guardando) "guardando" else "guardar",
+                text = if (guardando) "Guardando" else "Guardar",
                 style = MspTheme.type.buttonLarge,
                 color = if (guardando) MspTheme.colors.onSurfaceMuted else MspTheme.colors.onBrand
             )
@@ -540,6 +579,3 @@ private const val RENGLONES_DE_ASOMO = 4
 
 /** Cuántos caracteres antes del tope aparece el contador. */
 private const val AVISO_DE_TOPE = 50
-
-/** `d MMM` — el mismo formato corto que ya usa el pie del saldo. */
-private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", BUSINESS_LOCALE)

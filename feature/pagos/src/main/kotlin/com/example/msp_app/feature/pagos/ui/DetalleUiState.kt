@@ -81,5 +81,16 @@ data class EdicionDeLaFicha(
     val nota: String = "",
     val guardando: Boolean = false,
     /** El último guardado falló. Se dice en la hoja y la hoja NO se cierra. */
-    val fallo: Boolean = false
+    val fallo: Boolean = false,
+    /**
+     * Qué tan vieja es la nota que se está editando —*"hace 3 días"*—, ya
+     * redactada, o `null` si nunca se escribió.
+     *
+     * Llega hecha y no como fecha porque la hoja **no puede preguntar la hora**:
+     * el "hoy" sale del reloj inyectado del caso de uso (`DetalleCliente.hoy`) y
+     * no de dentro de un `@Composable`. Hasta ahora la edad sólo se veía en la
+     * tarjeta; al editar no se veía, que es justo cuando decide si lo que está
+     * escrito todavía sirve o hay que reemplazarlo.
+     */
+    val anotada: String? = null
 )

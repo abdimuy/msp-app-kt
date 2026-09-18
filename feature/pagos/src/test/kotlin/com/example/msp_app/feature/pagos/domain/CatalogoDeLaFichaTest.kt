@@ -43,12 +43,12 @@ class CatalogoDeLaFichaTest {
     )
 
     private val etiquetas = mapOf(
-        SenalDeFicha.NO_IR_SOLO to "no ir solo",
-        SenalDeFicha.HAY_PERRO to "hay perro",
-        SenalDeFicha.ESTA_EN_LA_MANANA to "está en la mañana",
-        SenalDeFicha.ESTA_EN_LA_TARDE to "está en la tarde",
-        SenalDeFicha.ESTA_EN_LA_NOCHE to "está en la noche",
-        SenalDeFicha.ATIENDE_OTRA_PERSONA to "atiende otra persona"
+        SenalDeFicha.NO_IR_SOLO to "No ir solo",
+        SenalDeFicha.HAY_PERRO to "Hay perro",
+        SenalDeFicha.ESTA_EN_LA_MANANA to "Está en la mañana",
+        SenalDeFicha.ESTA_EN_LA_TARDE to "Está en la tarde",
+        SenalDeFicha.ESTA_EN_LA_NOCHE to "Está en la noche",
+        SenalDeFicha.ATIENDE_OTRA_PERSONA to "Atiende otra persona"
     )
 
     @Test
@@ -129,11 +129,30 @@ class CatalogoDeLaFichaTest {
         assertEquals(vistas.size, vistas.toSet().size)
     }
 
+    /**
+     * **Este test cobraba lo contrario, y por eso se invierte en vez de
+     * corregirse.**
+     *
+     * Decía `la etiqueta respeta la norma de texto - minusculas y sin punto
+     * final` y afirmaba `etiqueta.lowercase() == etiqueta`. La norma del repo
+     * —principio 10 del brief, y `CLAUDE.md`— es **mayúscula inicial**. Un test
+     * que protege el defecto no se afloja: se da vuelta.
+     *
+     * Se mide **la primera letra y no el primer carácter**, porque una etiqueta
+     * podría abrir con `¿` o con `¡` y ésos no son la letra. Hoy ninguna de las
+     * seis lo hace, así que eso es una propiedad del criterio, no del catálogo:
+     * si mañana entra una pregunta al catálogo, el test ya la acepta.
+     */
     @Test
-    fun `la etiqueta respeta la norma de texto - minusculas y sin punto final`() {
+    fun `la etiqueta respeta la norma de texto - mayuscula inicial y sin punto final`() {
         SenalDeFicha.entries.forEach { senal ->
             val etiqueta = etiquetaDe(senal)
-            assertEquals("$senal en mayusculas", etiqueta.lowercase(), etiqueta)
+            val primeraLetra = etiqueta.firstOrNull { it.isLetter() }
+            assertNotNull("$senal no tiene una sola letra que medir", primeraLetra)
+            assertTrue(
+                "$senal empieza en minuscula: \"$etiqueta\"",
+                primeraLetra!!.isUpperCase()
+            )
             assertFalse("$senal termina en punto", etiqueta.endsWith("."))
         }
     }

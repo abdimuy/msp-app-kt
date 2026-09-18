@@ -26,6 +26,7 @@ import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.AFORDANTE_TEXTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_FICHA_TAG
+import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_PRIMARIO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_FICHA_TAG
@@ -245,14 +246,14 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `la advertencia se ve SIN desplazar, en la barra`() {
         cliente(ficha = PagosFixtures.fichaConAdvertencia())
-        afordante().assertIsDisplayed().assertTextEquals("hay perro")
+        afordante().assertIsDisplayed().assertTextEquals("Hay perro")
     }
 
     /**
      * **Sin advertencia, la pastilla no está.**
      *
-     * Antes decía "ver ficha", y eso era el MISMO camino dos veces: la ficha ya
-     * tiene su icono en la fila de acciones. La pastilla se quedaba con el ancho
+     * Antes decía "ver ficha", y eso era el MISMO camino dos veces: las Notas ya
+     * tienen su botón en el dock. La pastilla se quedaba con el ancho
      * del nombre del cliente para no decir nada nuevo — medido en el golden, el
      * título se recortaba a "Victoria Fl…".
      *
@@ -263,7 +264,10 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     fun `control positivo - sin advertencia no hay pastilla, pero si hay camino`() {
         cliente()
         composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).assertDoesNotExist()
-        composeTestRule.onNodeWithText("ficha").assertIsDisplayed()
+        // El camino ya no es el icono de la fila de acciones: las Notas se
+        // fueron al dock, que se ve sin desplazar. Lo que este test protege no
+        // cambió — que el camino NO se pierda cuando la pastilla no está.
+        composeTestRule.onNodeWithTag(CTA_NOTAS_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -273,7 +277,7 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
                 senales = setOf(SenalDeFicha.HAY_PERRO, SenalDeFicha.NO_IR_SOLO)
             )
         )
-        afordante().assertTextEquals("no ir solo")
+        afordante().assertTextEquals("No ir solo")
     }
 
     @Test
@@ -292,7 +296,10 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     fun `sin ficha tampoco hay pastilla, y el camino sigue`() {
         cliente(ficha = FichaDelCliente())
         composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).assertDoesNotExist()
-        composeTestRule.onNodeWithText("ficha").assertIsDisplayed()
+        // El camino ya no es el icono de la fila de acciones: las Notas se
+        // fueron al dock, que se ve sin desplazar. Lo que este test protege no
+        // cambió — que el camino NO se pierda cuando la pastilla no está.
+        composeTestRule.onNodeWithTag(CTA_NOTAS_TAG).assertIsDisplayed()
     }
 
     // --- El afordante --------------------------------------------------------
@@ -314,11 +321,11 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `si no se pudo leer se dice, y NO hay nada que tocar`() {
         cliente(ficha = null)
-        afordante().assertTextEquals("ficha ilegible")
+        afordante().assertTextEquals("Notas ilegibles")
         composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).performClick()
         composeTestRule.onNodeWithTag(TARJETA_DE_LA_FICHA_TAG).performScrollTo().performClick()
         assertEquals("una pastilla muerta no puede abrir el editor", 0, abrio)
-        composeTestRule.onNodeWithText("no se pudo leer la ficha").assertIsDisplayed()
+        composeTestRule.onNodeWithText("No se pudieron leer las notas").assertIsDisplayed()
     }
 
     // --- Los tres estados de la tarjeta --------------------------------------
@@ -328,14 +335,14 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         cliente()
         chip(SenalDeFicha.ESTA_EN_LA_NOCHE).performScrollTo().assertIsDisplayed()
         chip(SenalDeFicha.ATIENDE_OTRA_PERSONA).assertIsDisplayed()
-        composeTestRule.onNodeWithText("está en la noche", useUnmergedTree = true)
+        composeTestRule.onNodeWithText("Está en la noche", useUnmergedTree = true)
             .assertIsDisplayed()
     }
 
     @Test
     fun `sin ficha se invita a anotar`() {
         cliente(ficha = FichaDelCliente())
-        composeTestRule.onNodeWithText("sin ficha — anota lo que sirva mañana")
+        composeTestRule.onNodeWithText("Sin notas — anota lo que sirva mañana")
             .performScrollTo()
             .assertIsDisplayed()
     }
@@ -343,7 +350,7 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `la nota de la VENTA se pinta aparte y con su propia etiqueta`() {
         cliente()
-        composeTestRule.onNodeWithText("de la venta").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("De la venta").performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText("entrega en la puerta de atrás").assertIsDisplayed()
     }
 

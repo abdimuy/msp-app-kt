@@ -180,6 +180,10 @@ object PagosFixtures {
     private fun detalleCliente(ventasDelCliente: List<VentaDelCliente>): DetalleCliente =
         DetalleCliente(
             clienteId = CLIENTE_ID,
+            // El "hoy" de la pantalla, FIJO: es lo que hace que la edad de la
+            // nota —"hace 3 días"— se pinte igual hoy y dentro de un año, y que
+            // los goldens de `pagos_ficha_*` no cambien de texto solos.
+            hoy = HOY,
             nombre = "Victoria Flores Olmedo",
             telefono = "238 162 7597",
             direccion = "C. Hidalgo 214, Centro",

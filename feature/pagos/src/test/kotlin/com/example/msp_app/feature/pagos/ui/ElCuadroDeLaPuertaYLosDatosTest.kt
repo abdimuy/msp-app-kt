@@ -257,9 +257,9 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
 
     private companion object {
         const val SUELO_DE_PRUEBA = "suelo_de_prueba"
-        const val ETIQUETA_AVAL = "aval o responsable"
-        const val ETIQUETA_TELEFONO_AVAL = "teléfono del aval"
-        const val ETIQUETA_VISITA = "última visita"
+        const val ETIQUETA_AVAL = "Aval o responsable"
+        const val ETIQUETA_TELEFONO_AVAL = "Teléfono del aval"
+        const val ETIQUETA_VISITA = "Última visita"
         const val AVAL = "Rosa María Ramírez"
         const val TELEFONO_DEL_AVAL = "238 118 4402"
         val COORDENADA = UbicacionDelCobro(lat = 18.4609, lng = -97.3926)

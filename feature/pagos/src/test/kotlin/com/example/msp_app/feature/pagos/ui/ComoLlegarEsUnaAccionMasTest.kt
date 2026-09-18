@@ -35,7 +35,10 @@ import org.robolectric.annotation.Config
  * `.so` en cuatro ABIs del APK y viajaba aunque nadie bajara las teselas—, así
  * que ahora la acción es una sola y está siempre. Estos tests son lo que impide
  * que vuelva a depender del dato: **con coordenada y sin ella, la fila tiene las
- * mismas cuatro acciones y una sola "cómo llegar"**.
+ * mismas tres acciones y una sola "Cómo llegar"**.
+ *
+ * Eran cuatro hasta que las **Notas** se fueron al dock, donde se ven sin
+ * desplazar y pueden llevar distintivo. Lo que este archivo mide no cambió.
  *
  * Lo que la coordenada sigue decidiendo —y que no se toca acá— es el `geo:` que
  * arma `IntentAccionesExternasAdapter`: con `ultimoCobroAqui` abre la app de
@@ -43,9 +46,11 @@ import org.robolectric.annotation.Config
  *
  * ## El toque, en las tres escalas
  *
- * Con la cuarta acción, un cuarto del ancho parte "whatsapp" a mitad de palabra
- * (`whatsap` + una `p` a 1.5), así que la implementación acomoda dos por renglón
- * a las escalas grandes. Cambiar el reparto cambia el alto de cada celda, y lo
+ * Con la cuarta acción, un cuarto del ancho partía "whatsapp" a mitad de palabra
+ * (`whatsap` + una `p` a 1.5), así que la implementación acomoda **dos por
+ * renglón** a las escalas grandes — dos fijo, no `size / 2`, que con tres daría
+ * una por renglón y un renglón más de alto. Cambiar el reparto cambia el alto
+ * de cada celda, y lo
  * que se mide acá es que **ninguna caiga por debajo de los 50 dp** del repo. Que
  * la etiqueta entre entera lo miran los goldens `pagos_cliente_*`, que un assert
  * no puede ver.
@@ -57,7 +62,7 @@ class ComoLlegarEsUnaAccionMasTest : RobolectricTestBase() {
     val composeTestRule = createComposeRule()
 
     @Test
-    fun `con coordenada medida hay cuatro acciones y una sola como llegar`() {
+    fun `con coordenada medida hay tres acciones y una sola como llegar`() {
         monta(conCoordenada = true)
 
         assertEquals(ACCIONES, cuantasAcciones())
@@ -71,7 +76,7 @@ class ComoLlegarEsUnaAccionMasTest : RobolectricTestBase() {
      * pantalla.
      */
     @Test
-    fun `sin coordenada hay exactamente las mismas cuatro acciones`() {
+    fun `sin coordenada hay exactamente las mismas tres acciones`() {
         monta(conCoordenada = false)
 
         assertEquals(ACCIONES, cuantasAcciones())
@@ -89,15 +94,15 @@ class ComoLlegarEsUnaAccionMasTest : RobolectricTestBase() {
     }
 
     /**
-     * Control positivo del conteo: las cuatro no sólo existen en el árbol, se
-     * ven. Un `fetchSemanticsNodes` de cuatro nodos apilados fuera de la
+     * Control positivo del conteo: las tres no sólo existen en el árbol, se
+     * ven. Un `fetchSemanticsNodes` de tres nodos apilados fuera de la
      * pantalla daría el mismo número.
      */
     @Test
-    fun `las cuatro acciones se ven sin desplazar`() {
+    fun `las tres acciones se ven sin desplazar`() {
         monta(conCoordenada = true)
 
-        listOf("llamar", "whatsapp", "ficha", COMO_LLEGAR).forEach {
+        listOf("Llamar", "WhatsApp", COMO_LLEGAR).forEach {
             composeTestRule.onNodeWithText(it).assertIsDisplayed()
         }
     }
@@ -172,8 +177,8 @@ class ComoLlegarEsUnaAccionMasTest : RobolectricTestBase() {
     }
 
     private companion object {
-        const val ACCIONES = 4
-        const val COMO_LLEGAR = "cómo llegar"
+        const val ACCIONES = 3
+        const val COMO_LLEGAR = "Cómo llegar"
 
         /** El mínimo tocable del repo, más estricto que los 48 de Material. */
         val TOQUE_MINIMO = 50.dp

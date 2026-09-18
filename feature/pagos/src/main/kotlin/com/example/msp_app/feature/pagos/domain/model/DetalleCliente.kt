@@ -68,6 +68,20 @@ data class DetalleCliente(
     val liquidacion: Liquidacion?,
     val ultimaVisita: Instant?,
     /**
+     * El día de negocio en que se cargó esta pantalla.
+     *
+     * Existe para que la **edad de la nota** —*"hace 3 días"*— se calcule con un
+     * "hoy" que viene del [com.example.msp_app.core.common.time.AppClock] del
+     * caso de uso y **no de dentro de un `@Composable`**. Una pantalla que
+     * preguntara la hora por su cuenta haría que los goldens cambiaran de texto
+     * cada día que pasa, y que el mismo estado se pintara distinto en dos
+     * recomposiciones.
+     *
+     * No tiene default a propósito: un default sería `LocalDate.now()` escrito
+     * en otro lado, que es justo lo que esto evita.
+     */
+    val hoy: LocalDate,
+    /**
      * El día de la semana en que le toca la ruta — `DIA_TEMPORAL_COBRANZA` si
      * alguien lo movió esta vuelta, y si no `DIA_COBRANZA`. Ver
      * [DatosDeVenta.diaDeRuta], que es donde vive esa precedencia.

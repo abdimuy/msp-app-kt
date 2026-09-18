@@ -3,6 +3,8 @@ package com.example.msp_app.feature.pagos.ui
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.time.TiempoRelativo
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarDetalleCliente
 import com.example.msp_app.feature.pagos.application.GuardarFichaDelCliente
@@ -262,11 +264,18 @@ class DetalleClienteViewModel @Inject constructor(
      * [com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort.fichaDe].
      */
     fun editarFicha() {
-        val ficha = mutableState.value.detalle?.ficha ?: return
+        val detalle = mutableState.value.detalle ?: return
+        val ficha = detalle.ficha ?: return
         mutableState.value = mutableState.value.copy(
             edicionDeLaFicha = EdicionDeLaFicha(
                 senales = ficha.senales,
-                nota = ficha.nota.orEmpty()
+                nota = ficha.nota.orEmpty(),
+                // El "hoy" sale del detalle, que lo trajo del reloj inyectado.
+                // Calcularlo en la hoja obligaría a la pantalla a preguntar la
+                // hora, y entonces el mismo estado se pintaría distinto mañana.
+                anotada = ficha.actualizada?.let {
+                    TiempoRelativo.de(AppTime.toBusinessDate(it), detalle.hoy)
+                }
             )
         )
     }

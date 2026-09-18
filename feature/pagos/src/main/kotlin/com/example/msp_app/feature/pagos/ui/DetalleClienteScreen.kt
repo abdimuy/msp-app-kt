@@ -39,6 +39,7 @@ import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
+import com.example.msp_app.feature.pagos.ui.components.AccionDeNotas
 import com.example.msp_app.feature.pagos.ui.components.AccionesDelCliente
 import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.BloqueDeIdentidad
@@ -306,11 +307,25 @@ fun DetalleClienteContent(
         }
         if (detalle != null) {
             DockDeAcciones(
-                textoPrimario = "registrar abono",
+                textoPrimario = "Registrar abono",
                 onPrimario = onRegistrarAbono,
                 onVisita = onRegistrarVisita,
                 // Sin "⋯": ya no hay camino a la pantalla legada desde aquí.
-                onMasAcciones = null
+                onMasAcciones = null,
+                // El tercer espacio del dock, que el rediseño dejó diseñado y
+                // vacío. Las Notas viven aquí y no en la fila de iconos porque
+                // aquí se ven sin desplazar y pueden llevar el distintivo: hoy
+                // no se puede saber si una puerta tiene algo anotado sin abrirla.
+                //
+                // Con la ficha ILEGIBLE el botón sigue abriendo: `HojaDeLaFicha`
+                // no monta nada si el estado no trae edición, así que el camino
+                // ya está cerrado donde tiene que estarlo, y apagarlo aquí
+                // también dejaría un control muerto sin decir por qué.
+                notas = AccionDeNotas(
+                    onAbrir = fichaDelCliente.onEditar,
+                    conContenido = detalle.ficha?.vacia == false,
+                    advierte = detalle.ficha?.advertencias?.isNotEmpty() == true
+                )
             )
         }
     }
@@ -395,7 +410,7 @@ private fun CuerpoDelCliente(
             onEditarFicha = onEditarFicha
         )
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-        HojaDeIdentidad(detalle, contacto, onEditarFicha, onVerUbicacion, suelo)
+        HojaDeIdentidad(detalle, contacto, onVerUbicacion, suelo)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeDinero(detalle, ocultos)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
@@ -416,7 +431,8 @@ private fun CuerpoDelCliente(
         SeccionDeLaFicha(
             ficha = detalle.ficha,
             notaDeLaVenta = detalle.notaDeLaVenta,
-            onEditar = onEditarFicha
+            onEditar = onEditarFicha,
+            hoy = detalle.hoy
         )
         Spacer(Modifier.height(MspTheme.spacing.lg))
     }
@@ -488,7 +504,6 @@ private fun EncabezadoDelCliente(
 private fun HojaDeIdentidad(
     detalle: DetalleCliente,
     contacto: AccionesDeContacto,
-    onEditarFicha: () -> Unit,
     onVerUbicacion: (() -> Unit)?,
     suelo: (@Composable (onTocar: () -> Unit) -> Unit)?
 ) {
@@ -542,10 +557,11 @@ private fun HojaDeIdentidad(
         // una colonia sin numeración esa es la diferencia entre llegar a la puerta
         // y llegar a la calle. Ver `IntentAccionesExternasAdapter`.
         SeccionDeHoja {
+            // Sin "Ficha": las Notas se fueron al dock, donde se ven sin
+            // desplazar y pueden llevar su distintivo. Ver `AccionesDelCliente`.
             AccionesDelCliente(
                 onLlamar = contacto.onLlamar,
                 onWhatsApp = contacto.onWhatsApp,
-                onFicha = onEditarFicha,
                 onComoLlegar = contacto.onComoLlegar
             )
         }
@@ -640,14 +656,14 @@ internal fun MensajeDeError(error: ErrorDeDetalle?, onAtras: () -> Unit) {
     ) {
         Text(
             text = when (error) {
-                ErrorDeDetalle.NO_ESTA_EN_EL_TELEFONO -> "no está en el teléfono"
-                else -> "no se pudo abrir"
+                ErrorDeDetalle.NO_ESTA_EN_EL_TELEFONO -> "No está en el teléfono"
+                else -> "No se pudo abrir"
             },
             style = MspTheme.type.cardTitle,
             color = MspTheme.colors.onSurface
         )
         Spacer(Modifier.height(MspTheme.spacing.sm))
-        VerTodos("volver", onAtras)
+        VerTodos("Volver", onAtras)
     }
 }
 

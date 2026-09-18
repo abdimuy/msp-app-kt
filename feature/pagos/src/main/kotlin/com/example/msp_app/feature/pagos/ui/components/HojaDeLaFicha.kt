@@ -50,7 +50,8 @@ fun HojaDeLaFicha(
             fallo = edicion.fallo,
             onSenal = onSenal,
             onNota = onNota,
-            onGuardar = onGuardar
+            onGuardar = onGuardar,
+            anotada = edicion.anotada
         )
     }
 }
