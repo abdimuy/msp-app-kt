@@ -171,48 +171,107 @@ fun TituloDeHoja(texto: String, modifier: Modifier = Modifier) {
  * tener que desplazar. Es la misma razón por la que en la LISTA sí se quitó: allá
  * el racimo y los chips compartían tarjeta.
  *
- * Zona y dirección van en un solo renglón, recortado con elipsis: es contexto, y
- * partirlo en dos líneas le daría el peso de un dato principal.
+ * ## La dirección tiene su propio renglón, y ya no es "contexto"
+ *
+ * Aquí decía que zona y dirección iban juntas en un renglón recortado *"porque
+ * es contexto, y partirlo en dos líneas le daría el peso de un dato
+ * principal"*. **Estaba mal**, y el dueño lo vio en vidrio: *"la dirección
+ * cuando se entra en detalles del cliente ni se ve casi"*.
+ *
+ * Tres cosas fallaban a la vez, y las tres son la misma:
+ *
+ * 1. Iban **pegadas en una sola cadena** con la dirección AL FINAL, así que la
+ *    elipsis se comía justo la dirección y dejaba la zona entera — al revés de
+ *    lo que sirve.
+ * 2. `maxLines = 1` no le dejaba dónde caber. A `GRANDE` quedaba
+ *    *"ruta 25 · centro · C. Hi…"*.
+ * 3. Iba en `caption` sobre `onSurfaceMuted`: la letra más chica y más apagada
+ *    de la pantalla, para el dato con el que se encuentra la casa.
+ *
+ * La dirección **no es contexto**: es lo que contesta *"¿es aquí?"* parado en la
+ * banqueta, y esta pantalla se abre justamente parado en la banqueta. La zona sí
+ * lo es —dice de qué ruta es la puerta, no dónde está—, así que se queda chica y
+ * apagada al lado del racimo, y la dirección baja a su renglón en
+ * `captionStrong` sobre `onSurface`, con **dos líneas** para las colonias con
+ * nombre largo.
+ *
+ * ## Cuesta un renglón, y de dónde sale
+ *
+ * Un renglón de `captionStrong`. `LaFichaSeVeYSeTocaTest` lo cobra: todo lo que
+ * crece aquí empuja la hoja del dinero. Se midió antes de darlo por bueno.
  */
 @Composable
 fun BloqueDeIdentidad(
     estados: List<androidx.compose.ui.graphics.vector.ImageVector>,
     colores: List<Pair<Color, Color>>,
-    zonaYDireccion: String,
+    zona: String,
+    direccion: String,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    Column(
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
-        estados.forEachIndexed { indice, icono ->
-            val (fondo, contenido) = colores[indice]
-            Box(
-                modifier = Modifier
-                    .size(CUADRO_DEL_RACIMO)
-                    .clip(MspTheme.shapes.chip9)
-                    .background(fondo),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icono,
-                    contentDescription = null,
-                    tint = contenido,
-                    modifier = Modifier.size(CUADRO_DEL_RACIMO * 0.6f)
-                )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            estados.forEachIndexed { indice, icono ->
+                val (fondo, contenido) = colores[indice]
+                Box(
+                    modifier = Modifier
+                        .size(CUADRO_DEL_RACIMO)
+                        .clip(MspTheme.shapes.chip9)
+                        .background(fondo),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icono,
+                        contentDescription = null,
+                        tint = contenido,
+                        modifier = Modifier.size(CUADRO_DEL_RACIMO * 0.6f)
+                    )
+                }
             }
+            // La zona SÍ es contexto: dice de qué ruta es la puerta, no dónde
+            // está. Se queda chica, apagada y de un solo renglón.
+            Text(
+                text = zona.ifBlank { SIN_DATO },
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
+        // Y la dirección en su propio renglón, a todo el ancho: acá ya no
+        // compite con el racimo por los ~110 dp que éste se lleva.
+        //
+        // DOS líneas y no una: "C. Miguel Hidalgo y Costilla 214, Col. Centro"
+        // no entra en un renglón ni a escala normal, y media dirección no es
+        // una dirección incompleta — es una dirección equivocada.
         Text(
-            text = zonaYDireccion.ifBlank { SIN_DATO },
-            style = MspTheme.type.caption,
-            color = MspTheme.colors.onSurfaceMuted,
-            maxLines = 1,
+            text = direccion.ifBlank { SIN_DATO },
+            style = MspTheme.type.captionStrong,
+            color = MspTheme.colors.onSurface,
+            maxLines = RENGLONES_DE_LA_DIRECCION,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(DIRECCION_TAG)
         )
     }
 }
+
+/**
+ * `testTag` de la dirección del domicilio.
+ *
+ * Aparte del racimo y de la zona porque lo que hay que poder afirmar es que la
+ * dirección **entera** se ve: el defecto que esto mata era que compartía renglón
+ * con la zona y se recortaba justo ella.
+ */
+const val DIRECCION_TAG: String = "pagos_direccion"
 
 /** Una acción de la fila: su etiqueta, su glifo y qué hace. */
 private data class AccionDelCliente(
@@ -808,6 +867,15 @@ private val TOQUE_DE_ACCION = 50.dp
 private const val POR_RENGLON_APILADO = 2
 
 /**
+ * Cuántas líneas se le dan a la dirección.
+ *
+ * Dos. Una no alcanza para una calle con nombre compuesto más la colonia, y
+ * tres empiezan a empujar el dinero sin ganar direcciones nuevas: las que no
+ * entran en dos tampoco entran en tres.
+ */
+private const val RENGLONES_DE_LA_DIRECCION = 2
+
+/**
  * **El cuadro de la puerta: el mapa cuando se puede, el dibujo cuando no.**
  *
  * ## Por qué vuelve, y por qué vuelve sin botón adentro
@@ -937,6 +1005,13 @@ fun CuadroDeLaPuerta(
  */
 @Composable
 private fun DibujoDeLaPuerta(ubicacion: UbicacionDelCobro?) {
+    // Los dos glifos se miden como FRACCIÓN del cuadro, no en dp fijos. Con los
+    // 56 y 28 fijos de antes, el cuadro apretado de las escalas grandes dejaba
+    // la casa recortada por la mitad y el pin saliéndose por arriba: en el
+    // golden a 2.0 se leía como un error de render, no como un dibujo. Las
+    // fracciones son las del cuadro del mock (56/130 y 28/130), así que a
+    // escala normal no cambia un solo píxel y los goldens de 1.0 no se mueven.
+    val alto = altoDelCuadro()
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center,
@@ -947,7 +1022,7 @@ private fun DibujoDeLaPuerta(ubicacion: UbicacionDelCobro?) {
                 imageVector = AccionesIconos.Pin,
                 contentDescription = null,
                 tint = MspTheme.colors.brand,
-                modifier = Modifier.size(PIN_DEL_CUADRO)
+                modifier = Modifier.size(alto * PIN_DEL_CUADRO)
             )
             Spacer(Modifier.height(MspTheme.spacing.xs))
         }
@@ -955,7 +1030,7 @@ private fun DibujoDeLaPuerta(ubicacion: UbicacionDelCobro?) {
             imageVector = AccionesIconos.Casa,
             contentDescription = null,
             tint = MspTheme.colors.onSurfaceMuted,
-            modifier = Modifier.size(CASA_DEL_CUADRO)
+            modifier = Modifier.size(alto * CASA_DEL_CUADRO)
         )
     }
 }
@@ -1088,6 +1163,20 @@ private fun DatoDeLaPuerta(clave: String, valor: String, modifier: Modifier = Mo
  * su pin y su casa —a escalas grandes nunca llevó texto—, y el saldo vuelve a
  * verse sin desplazar en los tres niveles.
  *
+ * ## Y bajó una tercera vez, de 56 a 40, por la dirección
+ *
+ * El dueño vio el release y dijo que *"la dirección ni se ve casi"*. Darle su
+ * propio renglón —ver [BloqueDeIdentidad]— cuesta un renglón de `captionStrong`,
+ * y medido eran **13.5 dp de más**: el dinero terminaba en 633.5 contra un dock
+ * que empieza en 620.
+ *
+ * Sale de aquí por tercera vez y por la misma razón, que ya no es una opinión
+ * sino el criterio de esta hoja: **entre un dibujo y un dato, cede el dibujo**.
+ * La dirección es con lo que se encuentra la casa; el cuadro es con lo que se
+ * confirma que es ésa, y para eso 40 dp de pin todavía alcanzan. Lo que NO
+ * alcanzaría es media dirección: media dirección no es una dirección incompleta,
+ * es una dirección equivocada.
+ *
  * El número no sale de un gusto: sale de esa medición. Subirlo vuelve a tapar el
  * saldo, y la regla del repo es subir la implementación, no bajar el test.
  */
@@ -1101,23 +1190,29 @@ private fun altoDelCuadro(): Dp = when (LocalFontSizeLevel.current) {
 private val CUADRO_DEL_MOCK = 130.dp
 
 /** Lo que mide a `GRANDE` y `MUY_GRANDE`, donde el cuadro ya no lleva texto. */
-private val CUADRO_APRETADO = 56.dp
+private val CUADRO_APRETADO = 40.dp
 
 /**
- * La casa: grande y en el gris del texto secundario.
+ * La casa, como **fracción del alto del cuadro**: los 56 dp del mock sobre sus
+ * 130. Grande y en el gris del texto secundario.
  *
  * Se probó primero con `colors.outline` —el color del hairline— y en el golden
  * la casa **desaparecía**: quedaba una mancha que se lee como un artefacto del
  * render, no como un dibujo. Un dibujo que no se ve no responde a *"tiene que
  * ser un mapa o un dibujo"*.
+ *
+ * Es fracción y no dp fijos porque el cuadro cambia de alto con la escala (ver
+ * [altoDelCuadro]): con 56 dp fijos dentro de un cuadro de 40, la casa salía
+ * cortada.
  */
-private val CASA_DEL_CUADRO = 56.dp
+private const val CASA_DEL_CUADRO = 56f / 130f
 
 /**
- * El pin: más chico que la casa y en el color de marca.
+ * El pin, también como fracción: 28 dp sobre los 130 del mock. Más chico que la
+ * casa y en el color de marca.
  *
  * El tamaño y el color son los que lo hacen leerse como una **marca sobre** la
  * casa y no como un segundo dibujo al lado. Es el único elemento del cuadro que
  * depende de un dato.
  */
-private val PIN_DEL_CUADRO = 28.dp
+private const val PIN_DEL_CUADRO = 28f / 130f

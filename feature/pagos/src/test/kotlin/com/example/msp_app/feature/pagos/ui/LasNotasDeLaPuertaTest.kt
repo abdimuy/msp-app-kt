@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -24,6 +25,7 @@ import com.example.msp_app.feature.pagos.ui.components.ACCION_DE_CONTACTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AVISO_DE_LAS_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
+import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
 import com.example.msp_app.feature.pagos.ui.components.DISTINTIVO_DE_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDAD_DE_LA_NOTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
@@ -163,6 +165,53 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
         assertEquals(1, renglones())
     }
 
+    // --- La dirección, que es con lo que se encuentra la casa ----------------
+
+    /**
+     * **El defecto: la dirección se recortaba justo ella.**
+     *
+     * Iba pegada a la zona en una sola cadena, con la dirección AL FINAL y
+     * `maxLines = 1`. A escala grande el renglón decía *"ruta 25 · centro · C.
+     * Hi…"*: la zona entera y media dirección. El dueño lo vio en vidrio.
+     *
+     * Ahora la dirección tiene su propio renglón, a todo el ancho y con dos
+     * líneas. Esto se pone rojo si alguien vuelve a juntarlas: con la cadena
+     * pegada no existe un nodo cuyo texto sea la dirección sola.
+     */
+    @Test
+    fun `la direccion se ve completa y en su propio renglon`() {
+        cliente()
+
+        composeTestRule.onNodeWithTag(DIRECCION_TAG)
+            .assertIsDisplayed()
+            .assertTextEquals(DIRECCION)
+    }
+
+    /**
+     * Y en las tres escalas, que es donde se rompía. Un `assertTextEquals` mide
+     * el texto del nodo, no los píxeles pintados, así que esto sólo prueba que
+     * la dirección **llega entera al nodo**; que quepa sin elipsis lo miran los
+     * goldens `pagos_cliente_*`, que un assert no puede ver.
+     */
+    @Test
+    fun `la direccion llega entera tambien a escala muy grande`() {
+        cliente(nivel = FontSizeLevel.MUY_GRANDE)
+
+        composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
+    }
+
+    /**
+     * Control positivo del de arriba: la **zona** sigue existiendo y sigue
+     * siendo otra cosa. Sin esto, un `BloqueDeIdentidad` que hubiera tirado la
+     * zona a la basura para hacerle lugar a la dirección pasaría en verde.
+     */
+    @Test
+    fun `la zona sigue estando, y aparte`() {
+        cliente()
+
+        composeTestRule.onNodeWithText(ZONA).assertIsDisplayed()
+    }
+
     // --- La hoja -------------------------------------------------------------
 
     @Test
@@ -275,6 +324,11 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
         .map { it.boundsInRoot.top }
         .distinct()
         .size
+
+    private companion object {
+        const val DIRECCION = "C. Hidalgo 214, Centro"
+        const val ZONA = "ruta 25 · centro"
+    }
 
     private fun cliente(
         ficha: FichaDelCliente? = FichaDelCliente(),

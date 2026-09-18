@@ -513,9 +513,8 @@ private fun HojaDeIdentidad(
             BloqueDeIdentidad(
                 estados = visuales.map { it.icono },
                 colores = visuales.map { it.fondo to it.contenido },
-                zonaYDireccion = listOf(detalle.zona, detalle.direccion)
-                    .filter { it.isNotBlank() }
-                    .joinToString(" · ")
+                zona = detalle.zona,
+                direccion = detalle.direccion
             )
             // Los dos datos que el rediseño perdió sin que nadie lo notara, DENTRO
             // de esta sección y no en una propia: todo lo que se agrega a la hoja
