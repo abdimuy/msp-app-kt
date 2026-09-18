@@ -143,7 +143,24 @@ object EstadoCuentaUi {
         else -> true
     }
 
-    /** El texto corto del estado. Minúsculas, sin punto final. */
+    /**
+     * El texto corto del estado. Mayúscula inicial, sin punto final.
+     *
+     * ## Por qué [TratoDelEstado.SIN_TRABAJAR] no se llama "Sin trabajar"
+     *
+     * Las otras nueve etiquetas están en la voz del cobrador y cuentan **qué
+     * pasó en la puerta**: "Pagó esta semana", "Visité, vuelvo", "Se negó", "No
+     * estaba". "Sin trabajar" era la única que hablaba del pendiente del
+     * cobrador, y sobre la única cuenta a la que nadie ha ido todavía: se leía
+     * como reproche por algo que aún no tocaba hacer.
+     *
+     * "Falta pasar" dice el mismo hecho desde la ruta —esa puerta queda por
+     * visitar— sin acusar a nadie. El dueño lo cazó en el teléfono.
+     *
+     * El enum sigue siendo `SIN_TRABAJAR` a propósito: ese es el nombre del
+     * trato en el DOMINIO, no el texto que lee el cobrador. Los dos no tienen
+     * por qué coincidir.
+     */
     fun etiquetaDe(estado: EstadoDelPeriodo): String = when (tratoDe(estado)) {
         TratoDelEstado.PAGADO -> "Pagó esta semana"
         TratoDelEstado.PARCIAL -> "Abonó parcial"
@@ -157,10 +174,18 @@ object EstadoCuentaUi {
         // Aquí `horaCita` ya no puede ser null: sin hora, `tratoDe` mandó a REGRESAS.
         TratoDelEstado.CITA -> "Cita " + HORA.format(estado.horaCita)
         TratoDelEstado.NADIE -> "No estaba"
-        TratoDelEstado.SIN_TRABAJAR -> "Sin trabajar"
+        TratoDelEstado.SIN_TRABAJAR -> "Falta pasar"
     }
 
-    /** La línea que explica qué hacer. Minúsculas, sin punto final. */
+    /**
+     * La línea que explica qué hacer. Mayúscula inicial, sin punto final.
+     *
+     * "Nadie la ha trabajado" cargaba el mismo reproche que la etiqueta vieja y
+     * además nombraba al culpable, cuando esta línea existe para decirle al
+     * cobrador qué le toca. "Todavía no vas" hace eso. El porqué completo está
+     * en [etiquetaDe]; cambian juntas porque la lista y el detalle leen de aquí
+     * y una misma cuenta no puede llamarse distinto en dos pantallas.
+     */
     fun detalleDe(estado: EstadoDelPeriodo): String = when (tratoDe(estado)) {
         TratoDelEstado.PAGADO -> "No hace falta volver"
         TratoDelEstado.PARCIAL -> "Falta por confirmar"
@@ -173,7 +198,7 @@ object EstadoCuentaUi {
         TratoDelEstado.ESCALAR -> "Escalar esta cuenta"
         TratoDelEstado.CITA -> "Quedaron de verse"
         TratoDelEstado.NADIE -> "Regresas esta semana"
-        TratoDelEstado.SIN_TRABAJAR -> "Nadie la ha trabajado"
+        TratoDelEstado.SIN_TRABAJAR -> "Todavía no vas"
     }
 
     /**

@@ -185,6 +185,36 @@ class EstadoCuentaUiTest {
         assertNotEquals(EstadoCuentaUi.etiquetaDe(noEstaba), EstadoCuentaUi.etiquetaDe(sinTocar))
     }
 
+    /**
+     * **La cuenta a la que nadie ha ido se nombra desde la ruta, no como reproche.**
+     *
+     * Las otras nueve etiquetas cuentan qué pasó en la puerta; "Sin trabajar" era
+     * la única que hablaba del pendiente del cobrador, y su línea de apoyo
+     * ("Nadie la ha trabajado") hasta nombraba al culpable. El dueño lo cazó en
+     * el teléfono.
+     *
+     * Etiqueta y detalle se cobran JUNTOS porque la lista y el detalle leen de
+     * las mismas dos funciones: la misma cuenta no puede llamarse distinto en dos
+     * pantallas.
+     *
+     * Las dos últimas aserciones son el **control positivo**: estos mismos dos
+     * métodos, sobre un estado que NO cambió, siguen devolviendo su texto. Sin
+     * ellas, un fallo arriba podría ser igual de bien un `etiquetaDe` que dejó de
+     * ver el estado que le pasan.
+     */
+    @Test
+    fun `la cuenta que nadie visito dice que falta pasar, no que esta sin trabajar`() {
+        val sinTocar = EstadoDelPeriodo(EstadoCuenta.SIN_TOCAR, Money.ZERO, Money.ZERO)
+        assertEquals(TratoDelEstado.SIN_TRABAJAR, EstadoCuentaUi.tratoDe(sinTocar))
+        assertEquals("Falta pasar", EstadoCuentaUi.etiquetaDe(sinTocar))
+        assertEquals("Todavía no vas", EstadoCuentaUi.detalleDe(sinTocar))
+
+        // Control positivo: los mismos métodos sí encuentran una etiqueta intacta.
+        val noEstaba = EstadoDelPeriodo(EstadoCuenta.NO_ESTABA, Money.ZERO, Money.ZERO)
+        assertEquals("No estaba", EstadoCuentaUi.etiquetaDe(noEstaba))
+        assertEquals("Regresas esta semana", EstadoCuentaUi.detalleDe(noEstaba))
+    }
+
     @Test
     fun `se nego es el unico relleno solido y usa el par del Task 2`() {
         assertTrue(EstadoCuentaUi.esRelleno(TratoDelEstado.ESCALAR))
