@@ -132,7 +132,7 @@ fun DetalleClienteScreen(
     onVerContactos: (Int) -> Unit,
     onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
     modifier: Modifier = Modifier,
-    suelo: (@Composable (UbicacionDelCobro?) -> Unit)? = null
+    suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     MspThemeRevealHost(
@@ -192,7 +192,9 @@ fun DetalleClienteScreen(
             onVerUbicacionDelContacto = { punto ->
                 state.detalle?.let { onVerUbicacion(punto, it.direccion) }
             },
-            suelo = suelo?.let { puesto -> { puesto(state.detalle?.ultimoCobroAqui) } }
+            suelo = suelo?.let { puesto ->
+                { tocar -> puesto(state.detalle?.ultimoCobroAqui, tocar) }
+            }
         )
     }
 }
@@ -268,7 +270,7 @@ fun DetalleClienteContent(
     fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
     onVerUbicacion: (() -> Unit)? = null,
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
-    suelo: (@Composable () -> Unit)? = null
+    suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -376,7 +378,7 @@ private fun CuerpoDelCliente(
     onEditarFicha: () -> Unit,
     onVerUbicacion: (() -> Unit)?,
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?,
-    suelo: (@Composable () -> Unit)?
+    suelo: (@Composable (onTocar: () -> Unit) -> Unit)?
 ) {
     Column(
         modifier = Modifier
@@ -488,7 +490,7 @@ private fun HojaDeIdentidad(
     contacto: AccionesDeContacto,
     onEditarFicha: () -> Unit,
     onVerUbicacion: (() -> Unit)?,
-    suelo: (@Composable () -> Unit)?
+    suelo: (@Composable (onTocar: () -> Unit) -> Unit)?
 ) {
     val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
     HojaContinua {

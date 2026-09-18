@@ -73,7 +73,7 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
             // El mapa chico del cuadro. Su default es no pintar nada, así el
             // cuadro se queda con su dibujo y los goldens del módulo siguen
             // fotografiando algo que no depende de la red.
-            suelo = { punto -> SueloDelUltimoCobro(punto) }
+            suelo = { punto, tocar -> SueloDelUltimoCobro(punto, tocar) }
         )
     )
 

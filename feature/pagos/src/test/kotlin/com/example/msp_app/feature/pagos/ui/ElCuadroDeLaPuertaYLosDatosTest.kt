@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -132,6 +133,52 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
     }
 
     @Test
+    fun `el suelo recibe el toque, porque el mapa se lo come al cuadro`() {
+        // El defecto medido en el SM-A256E: en `liteMode` el SDK de Google trae
+        // de fábrica su propio manejo del toque —abrir la app de Google Maps— y
+        // el `clickable` del cuadro queda DEBAJO del mapa, así que nunca se
+        // entera. Salía un `act=VIEW dat=geo:` disparado por el SDK.
+        //
+        // El arreglo es que el cuadro le PASE al suelo qué significa un toque,
+        // para que el suelo lo cablee donde el SDK sí escucha (`onMapClick`).
+        // Esto cobra esa costura: si el cuadro volviera a pasar un `{}`, el
+        // toque del suelo dejaría de llevar a ninguna parte y este test se pone
+        // rojo. Lo que NO se puede cobrar desde aquí es que el SDK respete el
+        // `onMapClick`: eso vive en `:app` y necesita red y GL.
+        var abierto = 0
+        monta(conCoordenada = true, onVerUbicacion = { abierto++ }) { onTocar ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { onTocar() }
+                    .testTag(SUELO_DE_PRUEBA)
+            )
+        }
+
+        composeTestRule.onNodeWithTag(SUELO_DE_PRUEBA).performScrollTo().performClick()
+        assertEquals("tocar el suelo no abrió el mapa completo", 1, abierto)
+    }
+
+    @Test
+    fun `sin a donde ir, el toque del suelo no truena`() {
+        // Control del borde: `onVerUbicacion` en `null` significa que no hay
+        // pantalla a la que llevar. El cuadro le pasa al suelo un toque que no
+        // hace nada en vez de no pasarle nada, porque el tipo del suelo pide una
+        // función y no una opcional — así `:app` cablea `onMapClick` una sola
+        // vez y no tiene que decidir si existe.
+        monta(conCoordenada = true, onVerUbicacion = null) { onTocar ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { onTocar() }
+                    .testTag(SUELO_DE_PRUEBA)
+            )
+        }
+
+        composeTestRule.onNodeWithTag(SUELO_DE_PRUEBA).performScrollTo().performClick()
+    }
+
+    @Test
     fun `el aval y la ultima visita se ven`() {
         monta(conCoordenada = true)
 
@@ -178,7 +225,7 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
     private fun monta(
         conCoordenada: Boolean,
         onVerUbicacion: (() -> Unit)? = null,
-        suelo: (@Composable () -> Unit)? = null
+        suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
     ) {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalFontSizeLevel provides FontSizeLevel.NORMAL) {

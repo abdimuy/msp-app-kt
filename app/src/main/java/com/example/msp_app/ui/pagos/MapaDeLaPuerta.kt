@@ -80,9 +80,18 @@ import com.google.maps.android.compose.rememberCameraPositionState
  * no hace gestos y no compone un `SurfaceView` por cada apertura. Es el modo que
  * Android documenta para exactamente este caso. El zoom vive en
  * [UbicacionDelClienteScreen], que es a donde lleva el toque.
+ *
+ * Pero "no interactivo" **no** quiere decir que ignore el toque: apagar los
+ * gestos en [MapUiSettings] no apaga el comportamiento de fábrica del modo lite,
+ * que es abrir la app de Google Maps. Por eso [onTocar] se cablea a `onMapClick`
+ * y no basta con envolver el cuadro en un `clickable`.
  */
 @Composable
-fun SueloDelUltimoCobro(punto: UbicacionDelCobro?, modifier: Modifier = Modifier) {
+fun SueloDelUltimoCobro(
+    punto: UbicacionDelCobro?,
+    onTocar: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     if (punto == null) return
     val destino = remember(punto) { LatLng(punto.lat, punto.lng) }
     val camara = rememberCameraPositionState(key = "${punto.lat},${punto.lng}") {
@@ -95,7 +104,14 @@ fun SueloDelUltimoCobro(punto: UbicacionDelCobro?, modifier: Modifier = Modifier
         cameraPositionState = camara,
         properties = propiedadesDelMapa(),
         uiSettings = SIN_CONTROLES,
-        onMapLoaded = { pinto = true }
+        onMapLoaded = { pinto = true },
+        // **Sin esto el cuadro se va a la app de Google Maps.** En `liteMode` el
+        // SDK trae de fábrica su propio manejo del toque: si nadie escucha, abre
+        // la app de Maps. El `clickable` que `CuadroDeLaPuerta` pone alrededor
+        // queda DEBAJO del mapa y nunca se entera — medido en el SM-A256E, el
+        // intent que salía era `act=VIEW dat=geo:` disparado por el SDK, no por
+        // la app. Escuchando acá, el toque va a la pantalla de adentro.
+        onMapClick = { onTocar() }
     ) {
         Marker(state = MarkerState(position = destino))
     }

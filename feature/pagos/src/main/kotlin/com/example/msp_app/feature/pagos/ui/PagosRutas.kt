@@ -162,7 +162,7 @@ fun NavGraphBuilder.destinosDePagos(
 @Immutable
 data class UbicacionEnElDetalle(
     val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
-    val suelo: (@Composable (UbicacionDelCobro?) -> Unit)? = null
+    val suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
 )
 
 /**

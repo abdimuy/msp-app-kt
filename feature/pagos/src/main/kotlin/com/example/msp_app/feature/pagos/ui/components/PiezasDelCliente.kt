@@ -821,6 +821,19 @@ private val TOQUE_DE_ACCION = 50.dp
  * `SueloDelUltimoCobro` en `:app`): se mantiene invisible hasta que el SDK avisa
  * que terminó de renderizar. Sin temporizadores y sin adivinar.
  *
+ * ## Por qué el toque se le PASA al suelo, y no basta el `clickable` de acá
+ *
+ * Porque el mapa se lo come. En `liteMode` el SDK de Google trae de fábrica su
+ * propio manejo del toque —abrir la app de Google Maps— y el `clickable` que
+ * esta pieza pone alrededor queda DEBAJO del mapa: nunca se entera. Medido en el
+ * SM-A256E: tocar el cuadro salía de la app con un `act=VIEW dat=geo:` que
+ * disparaba el SDK, no la app, y eso es justo el destino equivocado — para salir
+ * a navegar ya está "cómo llegar".
+ *
+ * Así que el suelo recibe qué significa un toque y lo cablea donde el SDK sí
+ * escucha. El `clickable` de acá se queda para cuando NO hay suelo: sobre el
+ * dibujo no hay nadie que compita.
+ *
  * ## El mapa vive en `:app` y entra por una ranura
  *
  * `:feature:pagos` no declara `play-services-maps` y no debe declararla: vive en
@@ -860,7 +873,7 @@ fun CuadroDeLaPuerta(
     ubicacion: UbicacionDelCobro?,
     modifier: Modifier = Modifier,
     onVerUbicacion: (() -> Unit)? = null,
-    suelo: (@Composable () -> Unit)? = null
+    suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
 ) {
     val abrir = onVerUbicacion.takeIf { ubicacion != null }
     Box(
@@ -883,7 +896,7 @@ fun CuadroDeLaPuerta(
         // El mapa, encima del dibujo y solo con punto medido. Sin punto no hay
         // dónde centrarlo, y centrarlo en cualquier otra cosa diría "es aquí"
         // sobre una puerta que nadie midió.
-        if (ubicacion != null) suelo?.invoke()
+        if (ubicacion != null) suelo?.invoke(abrir ?: {})
     }
 }
 
