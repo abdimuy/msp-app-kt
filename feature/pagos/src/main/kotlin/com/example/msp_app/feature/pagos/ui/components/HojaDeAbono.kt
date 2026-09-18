@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -70,6 +71,30 @@ const val CONTINUAR_CON_LA_CUENTA_TAG: String = "pagos_hoja_abono_continuar"
  * una alarma.
  *
  * El velo consume el toque y equivale a cancelar: nada se registra.
+ *
+ * ## Por qué esta hoja pide su propio `navigationBarsPadding()`
+ *
+ * Es la **única rota de las cinco de la pantalla**, y lo fue por caer entre dos
+ * redes. Tres hojas heredan el `systemBarsPadding()` de `DetalleClienteContent`
+ * porque se invocan DENTRO de ese `Column` padeado; `HojaDeLaFicha` se salva
+ * sola porque el `ModalBottomSheet` de M3 1.3.0 ya aplica
+ * `safeDrawing.only(Bottom)`. Esta no es M3 y se invoca **fuera** del `Column`
+ * —que cierra antes de la llamada—, así que arrancaba pegada a `y = alto` con la
+ * ventana de navegación de SystemUI encima: en el SM-A256E el dueño lo vio en
+ * vidrio, **"Continuar" queda debajo de la barra y no se puede tocar**. No es que
+ * el toque no haga nada: el evento ni siquiera entra al proceso.
+ *
+ * **El padding va DESPUÉS del `.background(...)`, a propósito.** El precedente
+ * exacto es `BlurredActionBar.kt:126` (`:feature:collectionReport`): el fondo se
+ * pinta ANTES del padding, así que son los botones —no el fondo— los que suben.
+ * Al revés, el fondo se encogería con el contenido y quedaría una franja del color
+ * de la PANTALLA debajo de la hoja, justo encima de la barra: la hoja dejaría de
+ * estar pegada al borde de abajo.
+ *
+ * **Y es `navigationBarsPadding()`, no `systemBarsPadding()`.** La hoja arranca
+ * pegada abajo y nunca toca la barra de estado; el inset de arriba solo le metería
+ * una franja muerta encima del título — separación que nadie pidió en una hoja que
+ * no llega ahí. La compuerta es `LaHojaDelAbonoNoQuedaBajoLaBarraTest`.
  */
 @Composable
 fun HojaDeAbono(
@@ -99,6 +124,11 @@ fun HojaDeAbono(
                 // La hoja se come el toque para que nada de abajo se alcance
                 // mientras está arriba: la mitad de "ninguna ruta guarda dos veces".
                 .pointerInput(Unit) { detectTapGestures { } }
+                // DESPUÉS del `background` y ANTES del `padding`, como
+                // `BlurredActionBar.kt:126`: el fondo ya se pintó, así que suben
+                // los botones y no el fondo. Antes del `background` dejaría una
+                // franja del color de la pantalla debajo de la hoja.
+                .navigationBarsPadding()
                 .padding(MspTheme.spacing.md)
                 .testTag(HOJA_DE_ABONO_TAG)
         ) {
@@ -109,7 +139,7 @@ fun HojaDeAbono(
             )
             Spacer(Modifier.height(MspTheme.spacing.xs))
             Text(
-                text = "el abono entra completo a una",
+                text = "El abono entra completo a una",
                 style = MspTheme.type.caption,
                 color = MspTheme.colors.onSurfaceMuted
             )
@@ -125,7 +155,7 @@ fun HojaDeAbono(
             }
             Spacer(Modifier.height(MspTheme.spacing.xs))
             MspPrimaryFieldButton(
-                text = "continuar",
+                text = "Continuar",
                 onClick = onContinuar,
                 enabled = elegida != null,
                 modifier = Modifier
