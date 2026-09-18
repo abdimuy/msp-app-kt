@@ -43,6 +43,31 @@ No se relitigan. Cada uno salió de un error real, no de una preferencia.
 9. **Un número a medias es un dato FALSO, no incompleto.** Antes de truncar, apilar.
 10. **Mayúscula inicial** en todo texto de usuario. Español, sin punto final, 2–4 palabras.
     **Nunca digas "ciclo"** en la UI — se dice "semana". El nombre interno sí puede ser ciclo.
+
+    Tal como lo fija el brief vinculante (2026-09-15): *"**Mayúscula inicial** en todo texto
+    de usuario. Español, sin punto final, 2-4 palabras."* Se mide sobre **la primera letra,
+    no el primer carácter**: `"¿A cuál cuenta?"` y `"¡Listo!"` cumplen, porque `¿` y `¡` no
+    son la letra. Un texto que **arranca con una interpolación o con una cifra**
+    (`"$monto de abono"`, `"3 atrasos"`) queda fuera: no tiene primera letra que medir.
+    **La única excepción, y tiene nombre, es el sumidero que aplica versalitas:**
+    `LabelDeSeccion`, `TituloDeHoja` y las demás piezas que pintan con
+    `.uppercase(BUSINESS_LOCALE)` transforman el literal antes de dibujarlo, así que lo que
+    pasa por ahí no necesita mayúscula inicial — se la pone el sumidero. No es "a veces no
+    aplica": es ese camino y ningún otro.
+
+    **La fuente de verdad es el brief, no un KDoc.** Esta regla ya se escribió al revés
+    dentro del código y ahí se quedó ocho meses: el KDoc de
+    `feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/domain/EtiquetasDeFicha.kt`
+    afirmaba *"Minúsculas y sin punto final, como todo el texto de usuario de este plan"*, y
+    `CatalogoDeLaFichaTest` lo fijó con `la etiqueta respeta la norma de texto - minusculas y
+    sin punto final`. Un test que protege lo contrario del principio es §3.1 otra vez: ese
+    test no se aflojó, **se invirtió**, y el KDoc quedó corregido con la historia escrita
+    adentro para que el siguiente que lo lea sepa por qué dice lo que dice. Pudo
+    pasar porque el brief vivía sólo en `.superpowers/`, que git no guarda (§0): dentro del
+    repo la única versión escrita de la regla era la invertida, y el release llegó al teléfono
+    del dueño con *"registrar abono"*, *"visita"*, *"continuar"* y *"otra hora"*. Por eso
+    ahora la cobra una compuerta automática, que vive junto a las que barren todo el grafo en
+    `app/src/test/java/com/example/msp_app/navigation/`.
 11. **Toques ≥ 50 dp** — regla del repo, más estricta que los 48 de Material. **No se baja
     nunca:** si un test la cobra, sube la implementación, no bajes el test.
 12. **Nada salta.** Una animación que empuja el contenido de abajo se siente barata.

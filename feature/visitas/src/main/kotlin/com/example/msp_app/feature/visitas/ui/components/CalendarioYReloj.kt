@@ -80,11 +80,11 @@ fun CalendarioDeVisita(
                     }
                 }
             ) {
-                Text(text = "elegir día")
+                Text(text = "Elegir día")
             }
         },
         dismissButton = {
-            TextButton(onClick = onCerrar) { Text(text = "cancelar") }
+            TextButton(onClick = onCerrar) { Text(text = "Cancelar") }
         }
     ) {
         DatePicker(state = estado)
@@ -108,11 +108,11 @@ fun RelojDeLaCita(inicial: LocalTime, onElegir: (LocalTime) -> Unit, onCerrar: (
         modifier = Modifier.testTag(RELOJ_TAG),
         confirmButton = {
             TextButton(onClick = { onElegir(LocalTime.of(estado.hour, estado.minute)) }) {
-                Text(text = "elegir hora")
+                Text(text = "Elegir hora")
             }
         },
         dismissButton = {
-            TextButton(onClick = onCerrar) { Text(text = "cancelar") }
+            TextButton(onClick = onCerrar) { Text(text = "Cancelar") }
         },
         text = { TimePicker(state = estado) }
     )

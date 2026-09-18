@@ -325,7 +325,7 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(GUARDAR_TAG).assertIsEnabled()
         composeTestRule
             .onNodeWithTag(RAZON_TAG)
-            .assert(hasText("se guardan 2 visitas, una por cuenta"))
+            .assert(hasText("Se guardan 2 visitas, una por cuenta"))
     }
 
     // ─── la recomendación se ve ──────────────────────────────────────────────

@@ -17,17 +17,17 @@ import java.time.LocalDate
 /** Por qué la pantalla no pudo abrirse. */
 enum class ErrorDeLaVisita(val mensaje: String) {
     /** El teléfono ya no tiene cuentas de ese cliente. */
-    CLIENTE_NO_ESTA("ese cliente no está"),
+    CLIENTE_NO_ESTA("Ese cliente no está"),
 
     /** Room falló al leer. Se ofrece reintentar. */
-    FALLO_LA_CARGA("no se pudo cargar")
+    FALLO_LA_CARGA("No se pudo cargar")
 }
 
 /** Por qué la visita no quedó registrada. */
 enum class FalloDeLaVisita(val mensaje: String) {
-    CLIENTE_NO_ESTA("ese cliente ya no está"),
-    SIN_COBRADOR("falta el cobrador"),
-    NO_SE_PUDO_GUARDAR("no se pudo guardar")
+    CLIENTE_NO_ESTA("Ese cliente ya no está"),
+    SIN_COBRADOR("Falta el cobrador"),
+    NO_SE_PUDO_GUARDAR("No se pudo guardar")
 }
 
 /**
@@ -247,15 +247,15 @@ data class RegistrarVisitaUiState(
             razonDelBloqueo != null -> razonDelBloqueo
             registrada != null -> null
             captura.resultado?.alcance == VisitScope.CLIENTE -> aplicaATodaLaPuerta()
-            captura.cuentas.size > 1 -> "se guardan ${captura.cuentas.size} visitas, una por cuenta"
-            captura.cuentas.size == 1 -> "se guarda 1 visita, de esa cuenta"
+            captura.cuentas.size > 1 -> "Se guardan ${captura.cuentas.size} visitas, una por cuenta"
+            captura.cuentas.size == 1 -> "Se guarda 1 visita, de esa cuenta"
             else -> null
         }
 
     /** "Aplica a sus 3 cuentas" — el alcance del desenlace, contado. */
     private fun aplicaATodaLaPuerta(): String {
         val cuantas = contexto?.ventas?.size ?: 0
-        return if (cuantas == 1) "aplica a su única cuenta" else "aplica a sus $cuantas cuentas"
+        return if (cuantas == 1) "Aplica a su única cuenta" else "Aplica a sus $cuantas cuentas"
     }
 }
 

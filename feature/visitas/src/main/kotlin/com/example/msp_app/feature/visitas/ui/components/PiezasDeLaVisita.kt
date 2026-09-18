@@ -133,7 +133,7 @@ fun BarraDeVisita(onAtras: () -> Unit, modifier: Modifier = Modifier) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = "atrás",
+                    contentDescription = "Atrás",
                     tint = MspTheme.colors.onSurface,
                     modifier = Modifier.size(20.dp)
                 )
@@ -183,7 +183,7 @@ fun TiraDelCliente(contexto: ContextoDeVisita, modifier: Modifier = Modifier) {
                     color = MspTheme.colors.onSurface
                 )
                 Text(
-                    text = "saldo total",
+                    text = "Saldo total",
                     style = MspTheme.type.caption,
                     color = MspTheme.colors.onSurfaceMuted
                 )
@@ -365,7 +365,7 @@ fun TituloDeSeccion(texto: String, modifier: Modifier = Modifier) {
  * derecha, **todas o ninguna**.
  *
  * El atajo dice lo que va a pasar al tocarlo, no el estado actual: con todo
- * marcado ofrece "ninguna", y al revés. Un botón que anuncia su efecto no
+ * marcado ofrece "Ninguna", y al revés. Un botón que anuncia su efecto no
  * necesita que nadie recuerde qué significaba.
  */
 @Composable
@@ -401,7 +401,7 @@ fun EncabezadoDeCuentas(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (todasMarcadas) "ninguna" else "todas",
+                    text = if (todasMarcadas) "Ninguna" else "Todas",
                     style = MspTheme.type.chipLabel,
                     color = MspTheme.colors.brand,
                     maxLines = 1
@@ -562,7 +562,7 @@ fun FilaDeCuenta(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "le toca ${formatMoneyMxn(venta.parcialidad.amount)}",
+                    text = "Le toca ${formatMoneyMxn(venta.parcialidad.amount)}",
                     style = MspTheme.type.caption,
                     color = MspTheme.colors.onSurfaceMuted,
                     maxLines = 1
@@ -675,7 +675,7 @@ fun CampoDeMonto(
                     Box(contentAlignment = Alignment.CenterEnd) {
                         if (digitos.isEmpty()) {
                             Text(
-                                text = "sin monto",
+                                text = "Sin monto",
                                 style = MspTheme.type.caption,
                                 color = MspTheme.colors.onSurfaceMuted
                             )

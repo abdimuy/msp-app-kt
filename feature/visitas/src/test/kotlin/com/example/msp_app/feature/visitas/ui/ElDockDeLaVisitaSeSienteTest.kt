@@ -45,7 +45,7 @@ class ElDockDeLaVisitaSeSienteTest : RobolectricTestBase() {
             MspTheme(animateColors = false) {
                 CompositionLocalProvider(LocalHapticFeedback provides hapticoGrabador) {
                     DockDeLaVisita(
-                        texto = "guardar visita",
+                        texto = "Guardar visita",
                         habilitado = habilitado,
                         pie = if (habilitado) null else "elige un resultado",
                         onGuardar = {}

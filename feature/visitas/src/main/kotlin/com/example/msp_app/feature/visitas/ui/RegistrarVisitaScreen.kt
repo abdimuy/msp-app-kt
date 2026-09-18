@@ -339,7 +339,7 @@ fun RegistrarVisitaContent(
             }
             if (contexto != null) {
                 DockDeLaVisita(
-                    texto = if (state.registrada == null) "guardar visita" else "visita guardada",
+                    texto = if (state.registrada == null) "Guardar visita" else "Visita guardada",
                     habilitado = state.sePuedeGuardar,
                     pie = state.pieDelCta,
                     onGuardar = acciones.onGuardar
@@ -374,12 +374,12 @@ private fun MensajeDeError(state: RegistrarVisitaUiState, acciones: AccionesDeLa
     ) {
         BarraDeVisita(onAtras = acciones.onAtras)
         Text(
-            text = state.error?.mensaje ?: "no se pudo cargar",
+            text = state.error?.mensaje ?: "No se pudo cargar",
             style = MspTheme.type.bodyStrong,
             color = MspTheme.colors.onSurface
         )
         ChipDeOpcion(
-            texto = "volver a cargar",
+            texto = "Volver a cargar",
             activo = false,
             habilitado = true,
             onElegir = acciones.onReintentar,
@@ -400,7 +400,7 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
     ) {
         BarraDeVisita(onAtras = acciones.onAtras)
         Text(
-            text = "visita",
+            text = "Visita",
             style = MspTheme.type.screenTitle,
             color = MspTheme.colors.onSurface
         )
@@ -610,7 +610,7 @@ private fun SeccionDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeL
             )
         }
         ChipDeOpcion(
-            texto = "otra hora",
+            texto = "Otra hora",
             activo = false,
             habilitado = state.sePuedeCapturar,
             onElegir = acciones.onAbrirReloj,
