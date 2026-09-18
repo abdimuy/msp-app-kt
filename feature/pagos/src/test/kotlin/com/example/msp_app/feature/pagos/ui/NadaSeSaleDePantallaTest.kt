@@ -3,8 +3,12 @@ package com.example.msp_app.feature.pagos.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -17,6 +21,8 @@ import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
+import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
+import com.example.msp_app.feature.pagos.ui.components.FILTRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TARJETA_DE_GARANTIA_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -84,7 +90,7 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
     @Test
     fun `las filas tocables respetan el piso de 50px del plan`() {
         ventaA(FontSizeLevel.NORMAL)
-        val fila = bordesDe("ver los 6 abonos")
+        val fila = bordesDe("Ver los 6 abonos")
         assertTrue(
             "la fila mide " + (fila.bottom - fila.top) + ", bajo el piso de " + PISO_TOCABLE,
             (fila.bottom - fila.top) >= PISO_TOCABLE
@@ -116,7 +122,7 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
      * mayúscula se queda en la pantalla.
      *
      * Es un helper aparte y no un `.uppercase()` dentro de [bordesDe] porque
-     * [bordesDe] también localiza texto que NO va en versalitas —"ver los 6
+     * [bordesDe] también localiza texto que NO va en versalitas —"Ver los 6
      * abonos", el enlace del riel— y uppercasearlo ahí lo dejaba sin nodo. La
      * primera versión de este arreglo hizo exactamente eso.
      */
@@ -164,6 +170,52 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
         assertEquals(abonos.left, frecuencia.left)
     }
 
+    // --- El alcance de la línea se desplaza, como sus vecinas ----------------
+
+    /**
+     * **La fila del alcance se puede desplazar a lo ancho.**
+     *
+     * El defecto que esto cierra: `AlcanceDeLaLinea` era `fillMaxWidth()` **sin**
+     * `horizontalScroll`, al revés que la fila de filtros que va pegada abajo.
+     * Medido a 360 dp, a `MUY_GRANDE` la segunda pastilla va de 164 a 344 dp y
+     * toca el borde; sin desplazamiento no hay a dónde ir, así que *"Todo el
+     * cliente"* quedaba recortado **para siempre** en *"Todo el"* — el cobrador
+     * leía una opción que no existe.
+     *
+     * Se afirma la **semántica de desplazamiento** y no el ancho del texto: en
+     * este entorno el texto no se mide de verdad (ver el KDoc de arriba), pero
+     * `horizontalScroll` sí publica `HorizontalScrollAxisRange` en el árbol, y
+     * eso es exactamente lo que el arreglo agregó.
+     *
+     * **Lo que este test NO ve:** la elipsis. `overflow = TextOverflow.Ellipsis`
+     * —la otra mitad del arreglo— es cosa del render y la cobran los goldens
+     * `pagos_venta_*`.
+     */
+    @Test
+    fun `la fila del alcance se desplaza a lo ancho`() {
+        ventaA(FontSizeLevel.MUY_GRANDE)
+
+        composeTestRule.onNode(
+            seDesplazaALoAncho and hasAnyDescendant(hasTestTag(ALCANCE_TAG + true))
+        ).assertExists()
+    }
+
+    /**
+     * **Control positivo del de arriba.** La MISMA consulta encuentra la fila de
+     * filtros, que ya se desplazaba desde el principio. Sin esto, un matcher mal
+     * escrito —o un `assertExists` que se cumpliera por cualquier ancestro
+     * desplazable— daría el mismo verde con el arreglo y sin él.
+     */
+    @Test
+    fun `control positivo - la misma consulta encuentra la fila de filtros`() {
+        ventaA(FontSizeLevel.MUY_GRANDE)
+
+        composeTestRule.onNode(
+            seDesplazaALoAncho and
+                hasAnyDescendant(hasTestTag(FILTRO_TAG + FiltroDeContactos.TODOS.name))
+        ).assertExists()
+    }
+
     private companion object {
         /**
          * El piso de toque del plan: ">=50px". Se mide sobre el alto real del
@@ -171,5 +223,13 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
          * layout, no una medición de texto — ver el KDoc de arriba).
          */
         val PISO_TOCABLE = 50.dp
+
+        /**
+         * El nodo que `Modifier.horizontalScroll` marca. El `verticalScroll` de
+         * la pantalla entera **no** publica esta propiedad, así que la consulta
+         * no se lo lleva por error.
+         */
+        val seDesplazaALoAncho: SemanticsMatcher =
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange)
     }
 }

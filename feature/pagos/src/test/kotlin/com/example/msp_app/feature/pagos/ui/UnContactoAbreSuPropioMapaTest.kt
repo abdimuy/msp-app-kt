@@ -20,8 +20,7 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.BitacoraCompleta
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
-import com.example.msp_app.feature.pagos.ui.components.CONTACTO_EN_LA_HOJA_TAG
-import com.example.msp_app.feature.pagos.ui.components.FILA_DE_CONTACTO_TAG
+import com.example.msp_app.feature.pagos.ui.components.CONTACTO_EN_LINEA_TAG
 import java.math.BigDecimal
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -64,7 +63,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
     fun `en la bitacora, la fila con punto abre el mapa en SU punto`() {
         bitacora()
 
-        composeTestRule.onAllNodesWithTag(FILA_DE_CONTACTO_TAG)[CON_PUNTO]
+        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
             .assertHasClickAction()
             .performClick()
 
@@ -75,7 +74,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
     fun `en la bitacora, la fila sin punto no se puede tocar`() {
         bitacora()
 
-        composeTestRule.onAllNodesWithTag(FILA_DE_CONTACTO_TAG)[SIN_PUNTO]
+        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[SIN_PUNTO]
             .assertHasNoClickAction()
     }
 
@@ -83,7 +82,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
     fun `la fila de la bitacora respeta el toque minimo`() {
         bitacora()
 
-        val alto = composeTestRule.onAllNodesWithTag(FILA_DE_CONTACTO_TAG)[CON_PUNTO]
+        val alto = composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
             .getUnclippedBoundsInRoot()
             .height
         assertTrue(
@@ -98,7 +97,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
     fun `en el detalle, el contacto con punto abre el mapa en SU punto`() {
         detalle()
 
-        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LA_HOJA_TAG)[CON_PUNTO]
+        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
             .performScrollTo()
             .assertHasClickAction()
             .performClick()
@@ -116,7 +115,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
     fun `en el detalle, el contacto sin punto no se puede tocar`() {
         detalle()
 
-        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LA_HOJA_TAG)[SIN_PUNTO]
+        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[SIN_PUNTO]
             .performScrollTo()
             .assertHasNoClickAction()
     }
@@ -125,7 +124,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
     fun `el contacto del detalle respeta el toque minimo`() {
         detalle()
 
-        val alto = composeTestRule.onAllNodesWithTag(CONTACTO_EN_LA_HOJA_TAG)[CON_PUNTO]
+        val alto = composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
             .performScrollTo()
             .getUnclippedBoundsInRoot()
             .height
@@ -214,7 +213,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
             ),
             ContactoDeCobranza(
                 fecha = Instant.parse("2026-08-03T17:10:00Z"),
-                etiqueta = "cobré",
+                etiqueta = "Cobré",
                 nota = null,
                 estado = EstadoCuenta.PAGO,
                 importe = Money.of(BigDecimal("350.00")),

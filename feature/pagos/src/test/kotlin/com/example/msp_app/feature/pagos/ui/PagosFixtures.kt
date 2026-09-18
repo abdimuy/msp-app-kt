@@ -22,6 +22,7 @@ import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.ResumenDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
+import com.example.msp_app.feature.pagos.domain.model.TipoDeContacto
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
@@ -43,6 +44,15 @@ object PagosFixtures {
     val AHORA: Instant = Instant.parse("2026-09-01T18:00:00Z")
 
     val HOY: LocalDate = AppTime.toBusinessDate(AHORA)
+
+    /**
+     * Quién registró los contactos. Todo contacto que produce el adaptador trae
+     * cobrador —sale de la columna `COBRADOR` de la fila, tanto en visitas
+     * (`RoomVisitasAdapter`) como en abonos (`RoomPagosAdapter`)—, así que un
+     * contacto de fixture con el cobrador vacío es un contacto que la app no
+     * puede producir.
+     */
+    const val COBRADOR: String = "Marisol Vega"
 
     const val CLIENTE_ID: Int = 5021
     const val VENTA_PAGADA: Int = 77021
@@ -153,6 +163,76 @@ object PagosFixtures {
         categoria = "precio a 4 meses"
     )
 
+    /**
+     * **La bitácora del domicilio**, tal como la arma `BitacoraDelCliente.de`.
+     *
+     * Vive aparte y la comparten el detalle de cliente y el de venta porque en
+     * producción es **la misma lista**: las dos pantallas la piden al mismo
+     * caso de uso (`CargarDetalleCliente` y `CargarDetalleVenta`, que llaman al
+     * mismo mezclador). Dos listas distintas en el fixture dejarían que una
+     * pantalla se probara contra hechos que la otra no puede ver.
+     *
+     * Los tres contactos llevan `tipo` y `cobrador`, y el abono además `metodo`,
+     * **porque eso es lo que produce el adaptador** — ver la nota de
+     * `telefonoAval`: un fixture que no siembra lo que el adaptador SÍ produce
+     * esconde defectos igual de bien que uno que siembra lo imposible. Aquí
+     * escondía dos, y los dos salían en los goldens de bitácora: el default de
+     * `tipo` es VISITA, así que el abono de $350 no contaba como cobro y el
+     * encabezado del mes salía **sin subtotal** con un cobro debajo; y sin
+     * `metodo` ni `cobrador` el renglón de meta —justo lo que la fila nueva vino
+     * a agregar— no se pintaba en ninguna de las seis fotos. De pilón, la
+     * pastilla "Cobros" sobre esta línea daba cero filas.
+     */
+    fun bitacoraDelDomicilio(): List<ContactoDeCobranza> = listOf(
+        ContactoDeCobranza(
+            fecha = Instant.parse("2026-08-24T17:00:00Z"),
+            etiqueta = "no responde aunque está",
+            nota = null,
+            estado = EstadoCuenta.VISITE_VUELVO,
+            importe = null,
+            tipo = TipoDeContacto.VISITA,
+            // `metodo` se queda en null en TODA visita, y no por
+            // descuido: la columna de cable siempre trae 0 y
+            // `MetodoDeCobro.de(0)` cae a EFECTIVO, así que leerla
+            // pintaría "efectivo" sobre una puerta donde no se cobró.
+            cobrador = COBRADOR
+        ),
+        ContactoDeCobranza(
+            fecha = Instant.parse("2026-08-10T17:00:00Z"),
+            etiqueta = "pidió reagendar visita",
+            nota = "el viernes que cobre mi esposo",
+            estado = EstadoCuenta.PROMETIO_PROXIMA,
+            importe = null,
+            tipo = TipoDeContacto.VISITA,
+            cobrador = COBRADOR
+        ),
+        // El ÚNICO con punto medido, y es el mismo par que
+        // `ultimoCobroAqui`: en la app ese campo sale del abono más
+        // reciente que traiga coordenadas (`CargarDetalleCliente.kt`), así
+        // que si este fixture pusiera dos pares distintos estaría sembrando
+        // un estado que el caso de uso no puede producir. Los otros dos
+        // contactos van sin punto a propósito: las dos mitades del
+        // afordante —la fila que lleva al mapa y la que no— tienen que
+        // verse en el mismo golden.
+        //
+        // Es el MISMO hecho que el abono `COB-A-10388` de
+        // `pagosDeLaVenta()` —misma fecha, mismo importe—, así que viaja
+        // con lo que ese abono trae: es un COBRO, fue en efectivo y lo
+        // registró un cobrador con nombre.
+        ContactoDeCobranza(
+            fecha = Instant.parse("2026-08-03T17:10:00Z"),
+            etiqueta = "Cobré",
+            nota = null,
+            estado = EstadoCuenta.PAGO,
+            importe = dinero("350"),
+            tipo = TipoDeContacto.COBRO,
+            metodo = MetodoDeCobro.EFECTIVO,
+            cobrador = COBRADOR,
+            ventaId = VENTA_EN_PROMESA,
+            ubicacion = PUNTO_DEL_ULTIMO_COBRO
+        )
+    )
+
     /** El detalle de cliente del mock. [estadoDeLaSegunda] permite variar la promesa. */
     fun detalleCliente(
         estadoDeLaSegunda: EstadoDelPeriodo = estadoPromesaConFecha()
@@ -198,38 +278,7 @@ object PagosFixtures {
             telefonoAval = null,
             saldoTotal = dinero("3550"),
             ventas = ventasDelCliente,
-            contactos = listOf(
-                ContactoDeCobranza(
-                    fecha = Instant.parse("2026-08-24T17:00:00Z"),
-                    etiqueta = "no responde aunque está",
-                    nota = null,
-                    estado = EstadoCuenta.VISITE_VUELVO,
-                    importe = null
-                ),
-                ContactoDeCobranza(
-                    fecha = Instant.parse("2026-08-10T17:00:00Z"),
-                    etiqueta = "pidió reagendar visita",
-                    nota = "el viernes que cobre mi esposo",
-                    estado = EstadoCuenta.PROMETIO_PROXIMA,
-                    importe = null
-                ),
-                // El ÚNICO con punto medido, y es el mismo par que
-                // `ultimoCobroAqui`: en la app ese campo sale del abono más
-                // reciente que traiga coordenadas (`CargarDetalleCliente.kt`), así
-                // que si este fixture pusiera dos pares distintos estaría sembrando
-                // un estado que el caso de uso no puede producir. Los otros dos
-                // contactos van sin punto a propósito: las dos mitades del
-                // afordante —la fila que lleva al mapa y la que no— tienen que
-                // verse en el mismo golden.
-                ContactoDeCobranza(
-                    fecha = Instant.parse("2026-08-03T17:10:00Z"),
-                    etiqueta = "cobré",
-                    nota = null,
-                    estado = EstadoCuenta.PAGO,
-                    importe = dinero("350"),
-                    ubicacion = PUNTO_DEL_ULTIMO_COBRO
-                )
-            ),
+            contactos = bitacoraDelDomicilio(),
             totalContactos = 27,
             diaDeRuta = "jueves",
             frecuencia = "semanal",
@@ -326,6 +375,14 @@ object PagosFixtures {
             estado = estado,
             productos = listOf(ProductoDeVenta("Refrigerador Mabe 14'", total)),
             historial = historial(),
+            // La MISMA bitácora que el detalle de cliente, y no una lista vacía:
+            // `CargarDetalleVenta` llena este campo con `BitacoraDelCliente.de`
+            // sobre la cobranza entera del domicilio, así que un `detalleVenta()`
+            // sin contactos es un estado que la app no produce — y mientras lo
+            // fue, la sección "lo que ha pasado" salía en "Sin movimientos" en
+            // todos los goldens y las pastillas de alcance no se fotografiaban
+            // con nada debajo.
+            contactos = bitacoraDelDomicilio(),
             liquidacion = liquidacionDeLaVenta(),
             garantia = garantiaDeLaVenta()
         )

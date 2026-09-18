@@ -3,6 +3,7 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.RielDePagos
 import com.example.msp_app.feature.pagos.domain.RitmoDePagos
@@ -78,6 +79,10 @@ class CargarDetalleVenta @Inject constructor(
                 meses = RielDePagos.de(pagos),
                 totalPagos = pagos.size
             ),
+            // La línea del CLIENTE entero, no la de esta cuenta: `cobranza` ya
+            // la traía reunida para derivar el estado y se estaba tirando. Ver
+            // el KDoc de `DetalleVenta.contactos`.
+            contactos = BitacoraDelCliente.de(cobranza.visitas, cobranza.pagos),
             liquidacion = cobranza.liquidaciones[ventaId],
             garantia = garantiasPort.garantiaDe(venta.creditoId)
         )

@@ -17,11 +17,13 @@ import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
+import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -110,7 +112,7 @@ class BitacoraViewModelTest {
             contactos.map { it.fecha }
         )
         assertTrue("faltan las visitas", contactos.any { it.etiqueta == "no estaba" })
-        assertTrue("faltan los abonos", contactos.any { it.etiqueta == "cobré" })
+        assertTrue("faltan los abonos", contactos.any { it.etiqueta == "Cobré" })
     }
 
     /** El nombre viaja con la bitácora: la pantalla se abre sola y tiene que titularse. */
@@ -176,5 +178,106 @@ class BitacoraViewModelTest {
         )
         // Anti-PII: el id del cliente no viaja.
         assertTrue(error.props.values.none { it.contains(PagosFixtures.CLIENTE_ID.toString()) })
+    }
+
+    // --- El filtro vive sobre lo cargado -------------------------------------
+
+    /**
+     * **La pastilla cambia lo que se enseña, y NADA más.**
+     *
+     * El hueco que esto cierra: `LaLineaDiceQuienComoYCuandoTest` prueba la
+     * pastilla con el estado en el propio test, así que una `BitacoraScreen`
+     * que pasara `onFiltrar = {}` dejaría todo en verde. Aquí se cobra el otro
+     * extremo del cable: que `filtrar(...)` llegue a `state.filtro`.
+     *
+     * Y se cobra **la mitad que cuesta dinero**: que filtrar no dispare otra
+     * lectura. El filtro es una decisión de qué mirar sobre lo que ya está en
+     * memoria; si rearmara la bitácora, cada toque de pastilla sería una vuelta
+     * a Room —cuatro puertos— en un teléfono de gama baja parado en una puerta,
+     * y además la lista parpadearía en blanco entre `cargando = true` y el
+     * resultado. Se mide con los contadores de los fakes, no con el reloj.
+     *
+     * El `TODOS` de arranque se afirma antes de tocar nada: sin eso, un
+     * `state.filtro` clavado en `COBROS` pasaría la aserción de abajo sin que
+     * `filtrar` hiciera nada.
+     */
+    @Test
+    fun `filtrar cambia el filtro del estado y no vuelve a leer nada`() = runTest(
+        testDispatcher
+    ) {
+        sembrarLaBitacora()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            "el arranque ya no es TODOS, así que la aserción de abajo no prueba nada",
+            FiltroDeContactos.TODOS,
+            vm.state.value.filtro
+        )
+        val lecturasDeLaCarga = lecturas()
+        val cargado = checkNotNull(vm.state.value.bitacora)
+
+        vm.filtrar(FiltroDeContactos.COBROS)
+        advanceUntilIdle()
+
+        assertEquals(FiltroDeContactos.COBROS, vm.state.value.filtro)
+        assertEquals(
+            "filtrar volvió a leer: eran $lecturasDeLaCarga consultas después de cargar y " +
+                "ahora son ${lecturas()}. El filtro tiene que vivir sobre lo ya cargado, " +
+                "no dispararle otra consulta a Room a cada toque de pastilla",
+            lecturasDeLaCarga,
+            lecturas()
+        )
+        assertSame(
+            "filtrar rearmó la bitácora: el estado trae otro objeto, así que la pantalla " +
+                "se recompuso entera en vez de sólo cambiar qué se enseña",
+            cargado,
+            vm.state.value.bitacora
+        )
+    }
+
+    /**
+     * **Control positivo del de arriba.** El mismo [lecturas] sí se mueve
+     * cuando una recarga de verdad ocurre. Sin esto, la ausencia de arriba no
+     * prueba nada: unos contadores que no contaran —o unos fakes que nadie
+     * tocara— darían la misma cifra con y sin recarga, y el test se quedaría
+     * verde para siempre.
+     */
+    @Test
+    fun `control positivo - una recarga de verdad si mueve los contadores`() = runTest(
+        testDispatcher
+    ) {
+        sembrarLaBitacora()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val lecturasDeLaCarga = lecturas()
+        vm.cargar()
+        advanceUntilIdle()
+
+        assertTrue(
+            "los contadores no detectan ni una recarga explícita ($lecturasDeLaCarga antes, " +
+                "${lecturas()} después): el test de arriba no está midiendo nada",
+            lecturas() > lecturasDeLaCarga
+        )
+    }
+
+    /**
+     * Las consultas que la bitácora le hace al teléfono, sumadas. Son **listas
+     * que graban**, no las semillas: cada elemento es una llamada que de verdad
+     * ocurrió.
+     */
+    private fun lecturas(): Int = ventasPort.clientesConsultados.size +
+        visitasPort.clientesConsultados.size +
+        pagosPort.ventasConsultadas.size
+
+    /** La misma semilla de los tests de arriba: cobros y visitas mezclados. */
+    private fun sembrarLaBitacora() {
+        ventasPort.ventas = PagosFixtures.datosDeVentas()
+        visitasPort.visitas = listOf(
+            PagosFixtures.visita("No estaba", fechaIso = "2026-09-01T16:00:00Z"),
+            PagosFixtures.visita("Pidió reagendar visita", fechaIso = "2026-08-18T16:00:00Z")
+        )
+        pagosPort.pagos = PagosFixtures.pagosDeLaVenta()
     }
 }

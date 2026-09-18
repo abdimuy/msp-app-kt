@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,15 +10,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
@@ -26,14 +32,18 @@ import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
+import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
+import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
+import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
+import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.EstadoEnGrande
 import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
+import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
 import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
-import com.example.msp_app.feature.pagos.ui.components.RielDeMeses
 import com.example.msp_app.feature.pagos.ui.components.RitmoDeSemanas
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
 import com.example.msp_app.feature.pagos.ui.components.Tarjeta
@@ -105,6 +115,12 @@ fun DetalleVentaScreen(
             onMasAcciones = { onMasAcciones(viewModel.ventaId) },
             onUsarLiquidacion = { onRegistrarAbono(viewModel.ventaId) },
             onVerAbonos = { onMasAcciones(viewModel.ventaId) },
+            linea = AccionesDeLaLinea(
+                filtro = state.filtro,
+                soloEstaVenta = state.soloEstaVenta,
+                onFiltrar = viewModel::filtrar,
+                onAlcance = viewModel::alcance
+            ),
             // El flujo de garantías de `:app` está indexado por VENTA
             // (`getGuaranteeSaleById(DOCTO_CC_ID)`), no por el `EXTERNAL_ID` de la
             // garantía: se manda el crédito, que es la llave que ese flujo entiende.
@@ -131,7 +147,8 @@ fun DetalleVentaContent(
     onUsarLiquidacion: () -> Unit,
     onVerAbonos: () -> Unit,
     onVerGarantia: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    linea: AccionesDeLaLinea = AccionesDeLaLinea()
 ) {
     Column(
         modifier = modifier
@@ -159,7 +176,8 @@ fun DetalleVentaContent(
                     onAtras = onAtras,
                     onUsarLiquidacion = onUsarLiquidacion,
                     onVerAbonos = onVerAbonos,
-                    onVerGarantia = onVerGarantia
+                    onVerGarantia = onVerGarantia,
+                    linea = linea
                 )
             }
         }
@@ -180,7 +198,8 @@ private fun CuerpoDeLaVenta(
     onAtras: () -> Unit,
     onUsarLiquidacion: () -> Unit,
     onVerAbonos: () -> Unit,
-    onVerGarantia: () -> Unit
+    onVerGarantia: () -> Unit,
+    linea: AccionesDeLaLinea
 ) {
     Column(
         modifier = Modifier
@@ -239,20 +258,8 @@ private fun CuerpoDeLaVenta(
         LabelDeSeccion("ritmo · últimas 12 semanas")
         RitmoDeSemanas(detalle.historial)
 
-        LabelDeSeccion("pagos")
-        if (detalle.historial.meses.isEmpty()) {
-            Tarjeta {
-                Text(
-                    text = "sin abonos todavía",
-                    style = MspTheme.type.body,
-                    color = MspTheme.colors.onSurfaceMuted
-                )
-            }
-        } else {
-            RielDeMeses(detalle.historial.meses)
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-            VerTodos("ver los ${detalle.historial.totalPagos} abonos", onVerAbonos)
-        }
+        LabelDeSeccion("lo que ha pasado")
+        LineaDeLaVenta(detalle = detalle, linea = linea, onVerAbonos = onVerAbonos)
 
         if (detalle.productos.isNotEmpty()) {
             LabelDeSeccion("productos")
@@ -324,3 +331,174 @@ private fun DatoDelPie(clave: String, valor: String, modifier: Modifier = Modifi
         )
     }
 }
+
+/**
+ * Las cuatro cosas que la línea de contactos de esta pantalla necesita, juntas.
+ *
+ * En una bolsa y no en cuatro parámetros sueltos por lo mismo que
+ * `AccionesDeLaFicha` en el detalle de cliente: [DetalleVentaContent] ya recibe
+ * muchas lambdas y detekt corta ahí.
+ */
+@Immutable
+data class AccionesDeLaLinea(
+    val filtro: FiltroDeContactos = FiltroDeContactos.TODOS,
+    val soloEstaVenta: Boolean = true,
+    val onFiltrar: (FiltroDeContactos) -> Unit = {},
+    val onAlcance: (Boolean) -> Unit = {}
+)
+
+/**
+ * **Lo que ha pasado con esta cuenta**, dentro de la línea del cliente entero.
+ *
+ * Antes esta sección decía "pagos" y listaba **sólo los abonos de esta venta**.
+ * El dueño la quiso como la del detalle de cliente y con más contexto, así que
+ * ahora es la misma línea de tiempo: cobros y visitas, agrupados por mes, con
+ * el subtotal cobrado de cada uno.
+ *
+ * ## Dos ejes, y son distintos a propósito
+ *
+ * - **El alcance** —*"Esta venta"* / *"Todo el cliente"*— contesta *de quién*
+ *   es lo que veo. Arranca angostado: la pantalla se llama detalle de VENTA.
+ * - **El filtro** —Cobros, Visitas, Promesas— contesta *qué* de eso veo.
+ *
+ * Se aplican en ese orden y no al revés: angostar después de filtrar daría los
+ * mismos renglones pero dejaría encabezados de meses vacíos.
+ *
+ * Con el alcance abierto, lo de ESTA venta sigue distinguiéndose con la barra
+ * del borde de [ContactoEnLinea]: ensanchar no puede significar perder de vista
+ * cuál era la cuenta que se abrió.
+ *
+ * ## `internal` y no `private`, sólo para que tenga golden propio
+ *
+ * La sección vive muy por debajo del pliegue —después del saldo, el ritmo y la
+ * liquidación— así que los `pagos_venta_*` de pantalla completa nunca la
+ * retratan; es el mismo motivo por el que la garantía y el historial tienen los
+ * suyos. Sin esa foto, lo que Robolectric no puede cobrar —que la pastilla
+ * apagada se vea como control y que *"Todo el cliente"* quepa entero— no lo
+ * cobra nadie.
+ */
+@Composable
+internal fun LineaDeLaVenta(
+    detalle: DetalleVenta,
+    linea: AccionesDeLaLinea,
+    onVerAbonos: () -> Unit
+) {
+    val delAlcance = if (linea.soloEstaVenta) {
+        detalle.contactos.filter { it.ventaId == detalle.ventaId }
+    } else {
+        detalle.contactos
+    }
+    val visibles = delAlcance.filter(linea.filtro::deja)
+    AlcanceDeLaLinea(soloEstaVenta = linea.soloEstaVenta, onAlcance = linea.onAlcance)
+    FiltrosDeContacto(elegido = linea.filtro, onElegir = linea.onFiltrar)
+    if (visibles.isEmpty()) {
+        Tarjeta {
+            Text(
+                text = if (linea.soloEstaVenta) {
+                    "Sin movimientos en esta cuenta"
+                } else {
+                    "Nada en “${linea.filtro.etiqueta}”"
+                },
+                style = MspTheme.type.body,
+                color = MspTheme.colors.onSurfaceMuted
+            )
+        }
+    } else {
+        GruposDeContactos.porMes(visibles).forEach { grupo ->
+            EncabezadoDeGrupo(grupo)
+            grupo.contactos.forEach { contacto ->
+                ContactoEnLinea(
+                    contacto = contacto,
+                    deEstaVenta = contacto.ventaId == detalle.ventaId
+                )
+            }
+        }
+    }
+    // FUERA de la rama de arriba a propósito: este enlace lleva a la pantalla
+    // de abonos y **no depende del filtro puesto**. Colgado del `else` se iba
+    // en cuanto alguien filtraba por "Visitas" —o cuando la línea venía
+    // vacía—, y entonces la única puerta a los abonos desaparecía sin que
+    // nada la hubiera cerrado.
+    if (detalle.historial.totalPagos > 0) {
+        Spacer(Modifier.height(MspTheme.spacing.sm))
+        VerTodos("Ver los ${detalle.historial.totalPagos} abonos", onVerAbonos)
+    }
+}
+
+/**
+ * El interruptor de alcance: de quién es lo que se está viendo.
+ *
+ * ## Se desplaza a lo ancho, igual que la fila de filtros de abajo
+ *
+ * El defecto que esto cierra: la fila era `fillMaxWidth()` **sin**
+ * `horizontalScroll`, al revés que `FiltrosDeContacto`. Medido a 360 dp, a
+ * `MUY_GRANDE` la segunda pastilla va de 164 a 344 dp — toca el borde. Sin
+ * desplazamiento no hay a dónde ir, así que la etiqueta quedaba cortada **para
+ * siempre** en *"Todo el"*, y el cobrador leía una opción que no existe.
+ *
+ * ## Y el texto elide en vez de cortar a media palabra
+ *
+ * `maxLines = 1` sin `overflow` cae al default `Clip`: corta al píxel, sin
+ * elipsis, de modo que una etiqueta mutilada se ve igual que una etiqueta
+ * completa. Con `Ellipsis` el recorte **se anuncia**. Son las dos mitades del
+ * mismo defecto y por eso van juntas: el scroll da a dónde ir, la elipsis avisa
+ * cuando aun así no cupo.
+ *
+ * ## La pastilla apagada usa `surface2`, no transparente
+ *
+ * Apagada quedaba texto pelón sobre el fondo, justo encima de una fila de
+ * filtros cuyas pastillas apagadas sí traen `surface2`: dos filas de controles
+ * pegadas hablando dos idiomas, y la de arriba sin decir que era tocable. Lo
+ * que separa encendido de apagado sigue siendo el color de marca, no la
+ * existencia de la pastilla.
+ */
+@Composable
+private fun AlcanceDeLaLinea(soloEstaVenta: Boolean, onAlcance: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(top = MspTheme.spacing.xs),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+    ) {
+        listOf(true to "Esta venta", false to "Todo el cliente").forEach { (solo, etiqueta) ->
+            val activo = solo == soloEstaVenta
+            Surface(
+                onClick = { onAlcance(solo) },
+                shape = MspTheme.shapes.chip,
+                color = if (activo) MspTheme.colors.brandTint else MspTheme.colors.surface2,
+                modifier = Modifier
+                    .heightIn(min = ALTO_DEL_ALCANCE)
+                    .testTag(ALCANCE_TAG + solo)
+            ) {
+                Box(
+                    modifier = Modifier.padding(horizontal = MspTheme.spacing.md),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = etiqueta,
+                        style = MspTheme.type.captionStrong,
+                        color = if (activo) {
+                            MspTheme.colors.brand
+                        } else {
+                            MspTheme.colors.onSurfaceMuted
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Prefijo del `testTag` de cada opción de alcance, más si angosta o no. */
+const val ALCANCE_TAG: String = "pagos_venta_alcance_"
+
+/**
+ * Alto mínimo de una pastilla de alcance.
+ *
+ * 50 dp por lo mismo que la pastilla de filtro: es el piso tocable del repo y
+ * no se baja por gusto visual. Ver `ALTO_DEL_FILTRO` en `LineaDeContactos`.
+ */
+private val ALTO_DEL_ALCANCE = 50.dp

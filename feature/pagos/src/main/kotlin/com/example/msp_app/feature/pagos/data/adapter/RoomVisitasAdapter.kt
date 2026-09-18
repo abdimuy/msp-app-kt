@@ -95,6 +95,7 @@ private fun VisitEntity.aVisitaDelCliente(horaDe: (String?) -> LocalTime?): Visi
         fecha = fecha,
         tipoVisita = TIPO_VISITA,
         nota = NOTA?.takeIf { it.isNotBlank() },
+        cobrador = COBRADOR,
         fechaPromesa = AppTime.parseWireDateOrNull(PROMESA_FECHA),
         // `CITA_FECHA` existe desde la migración de la Task 26 y hasta ahora
         // NADIE la leía: el modelo cargaba solo la hora. Sin el día, la lista

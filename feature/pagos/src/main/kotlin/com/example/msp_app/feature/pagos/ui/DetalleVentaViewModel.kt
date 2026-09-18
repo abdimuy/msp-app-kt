@@ -7,6 +7,7 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -44,6 +45,16 @@ class DetalleVentaViewModel @Inject constructor(
     init {
         telemetry.screenView(PANTALLA)
         cargar()
+    }
+
+    /** Cambia qué se enseña de la línea. No recarga: el filtro vive sobre lo cargado. */
+    fun filtrar(filtro: FiltroDeContactos) {
+        mutableState.value = mutableState.value.copy(filtro = filtro)
+    }
+
+    /** Angosta la línea a esta cuenta, o la abre al cliente entero. */
+    fun alcance(soloEstaVenta: Boolean) {
+        mutableState.value = mutableState.value.copy(soloEstaVenta = soloEstaVenta)
     }
 
     /** Vuelve a leer. Cada llamada es UNA sincronización. */

@@ -33,6 +33,20 @@ data class DetalleVenta(
     override val estado: EstadoDelPeriodo,
     val productos: List<ProductoDeVenta>,
     val historial: HistorialDePagos,
+    /**
+     * **Todo lo que pasó con este cliente**, cobros y visitas, no sólo lo de
+     * esta cuenta.
+     *
+     * El dueño lo pidió así, y no cuesta una consulta nueva: el caso de uso ya
+     * reunía la cobranza COMPLETA para poder derivar el estado —una visita de
+     * alcance cliente se propaga a todas sus ventas— y hasta ahora la angostaba
+     * y tiraba el resto.
+     *
+     * Lo de ESTA venta se distingue por [ContactoDeCobranza.ventaId], que la
+     * pantalla marca con una barra al borde. No se filtra aquí: quién decide
+     * qué mirar es el cobrador, con las pastillas.
+     */
+    val contactos: List<ContactoDeCobranza> = emptyList(),
     override val liquidacion: Liquidacion?,
     val garantia: GarantiaDeLaVenta?
 ) : CuentaCobrable

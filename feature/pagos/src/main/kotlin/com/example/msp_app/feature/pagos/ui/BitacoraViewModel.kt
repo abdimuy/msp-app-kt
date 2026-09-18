@@ -8,6 +8,7 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarBitacoraDelCliente
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.model.BitacoraCompleta
 import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
@@ -30,7 +31,13 @@ data class BitacoraUiState(
     val bitacora: BitacoraCompleta? = null,
     val error: ErrorDeDetalle? = null,
     /** "Esconder cantidades" — la misma preferencia global que la lista y el detalle. */
-    val montosOcultos: Boolean = false
+    val montosOcultos: Boolean = false,
+    /**
+     * Qué se está enseñando. Vive en el estado y no en un `remember` de la
+     * pantalla para que sobreviva a la muerte del proceso detrás de la cámara,
+     * igual que el resto de lo que esta pantalla decide.
+     */
+    val filtro: FiltroDeContactos = FiltroDeContactos.TODOS
 )
 
 /**
@@ -73,6 +80,11 @@ class BitacoraViewModel @Inject constructor(
     init {
         telemetry.screenView(PANTALLA)
         cargar()
+    }
+
+    /** Cambia qué se enseña. No recarga nada: el filtro vive sobre lo cargado. */
+    fun filtrar(filtro: FiltroDeContactos) {
+        mutableState.value = mutableState.value.copy(filtro = filtro)
     }
 
     /** Vuelve a leer. */

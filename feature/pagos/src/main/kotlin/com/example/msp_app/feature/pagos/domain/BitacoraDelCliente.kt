@@ -4,6 +4,7 @@ import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
+import com.example.msp_app.feature.pagos.domain.model.TipoDeContacto
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 
 /**
@@ -48,6 +49,12 @@ object BitacoraDelCliente {
                 fecha = visita.fecha,
                 etiqueta = visita.tipoVisita.lowercase(),
                 nota = visita.nota?.takeIf { it.isNotBlank() },
+                tipo = TipoDeContacto.VISITA,
+                // `metodo` se queda en null A PROPÓSITO: ver su KDoc. La columna
+                // de la visita siempre trae 0 y leerla diría "efectivo" sobre
+                // una puerta donde no se cobró.
+                cobrador = visita.cobrador,
+                ventaId = visita.ventaId,
                 // El MISMO par (literal, ¿trae día de cita?) que usa el deriver:
                 // una cita en la bitácora tiene que verse como cita, no como el
                 // "vuelvo" de su literal de cable.
@@ -63,6 +70,10 @@ object BitacoraDelCliente {
                 nota = pago.nota,
                 estado = EstadoCuenta.PAGO,
                 importe = pago.importe,
+                tipo = TipoDeContacto.COBRO,
+                metodo = pago.metodo,
+                cobrador = pago.cobrador,
+                ventaId = pago.ventaId,
                 ubicacion = pago.ubicacion
             )
         }
@@ -72,6 +83,6 @@ object BitacoraDelCliente {
     /** Cuántos contactos se pintan en el detalle antes del "ver los N". */
     const val VISIBLES_EN_EL_DETALLE: Int = 3
 
-    /** Etiqueta estática del abono en la bitácora. Minúsculas, sin punto final. */
-    private const val ETIQUETA_COBRE = "cobré"
+    /** Etiqueta estática del abono en la bitácora. */
+    private const val ETIQUETA_COBRE = "Cobré"
 }

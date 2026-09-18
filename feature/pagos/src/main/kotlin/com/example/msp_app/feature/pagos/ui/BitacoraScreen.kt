@@ -20,10 +20,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
+import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
+import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.BitacoraCompleta
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
-import com.example.msp_app.feature.pagos.ui.components.FilaDeContacto
+import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
+import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
+import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
 
 /** `testTag` del título de la bitácora. */
 const val TITULO_DE_BITACORA_TAG: String = "pagos_titulo_bitacora"
@@ -95,6 +99,7 @@ fun BitacoraScreen(
             state = state,
             onAtras = onAtras,
             modifier = modifier,
+            onFiltrar = viewModel::filtrar,
             // La dirección que viaja al mapa es la del CLIENTE, no una del
             // contacto: la app no guarda una calle por abono ni por visita. Ver
             // el KDoc de `BitacoraCompleta.direccion`.
@@ -117,6 +122,7 @@ fun BitacoraContent(
     state: BitacoraUiState,
     onAtras: () -> Unit,
     modifier: Modifier = Modifier,
+    onFiltrar: (FiltroDeContactos) -> Unit = {},
     onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
 ) {
     Column(
@@ -131,7 +137,14 @@ fun BitacoraContent(
         when {
             state.cargando -> Cargando()
             bitacora == null -> MensajeDeError(state.error, onAtras)
-            else -> Contactos(bitacora, state.montosOcultos, onAtras, onVerUbicacion)
+            else -> Contactos(
+                bitacora = bitacora,
+                ocultos = state.montosOcultos,
+                filtro = state.filtro,
+                onFiltrar = onFiltrar,
+                onAtras = onAtras,
+                onVerUbicacion = onVerUbicacion
+            )
         }
     }
 }
@@ -140,6 +153,8 @@ fun BitacoraContent(
 private fun Contactos(
     bitacora: BitacoraCompleta,
     ocultos: Boolean,
+    filtro: FiltroDeContactos,
+    onFiltrar: (FiltroDeContactos) -> Unit,
     onAtras: () -> Unit,
     onVerUbicacion: ((UbicacionDelCobro) -> Unit)?
 ) {
@@ -166,27 +181,67 @@ private fun Contactos(
     if (bitacora.contactos.isEmpty()) {
         SinContactos()
     } else {
+        // El filtro se aplica ANTES de agrupar: si se agrupara primero,
+        // quedarían encabezados de meses cuyas filas el filtro se llevó, y un
+        // "AGOSTO 2026" sin nada debajo se lee como un error de carga.
+        val visibles = bitacora.contactos.filter(filtro::deja)
+        val grupos = GruposDeContactos.porMes(visibles)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = MspTheme.spacing.md)
         ) {
-            items(
-                items = bitacora.contactos,
-                // La llave es el instante MÁS la etiqueta: dos abonos del mismo
-                // día a la misma hora existen (dos cuentas, una visita), así que
-                // el instante solo no es único y Compose reciclaría mal la fila.
-                key = { "${it.fecha.toEpochMilli()}:${it.etiqueta}:${it.importe?.amount}" }
-            ) { contacto ->
-                // La fila decide sola si se puede tocar: con `ubicacion` en
-                // `null` no monta el `clickable`. Aquí no se repite la pregunta.
-                FilaDeContacto(
-                    contacto = contacto,
-                    ocultos = ocultos,
-                    onVerUbicacion = onVerUbicacion
-                )
+            item(key = "filtros") {
+                FiltrosDeContacto(elegido = filtro, onElegir = onFiltrar)
+            }
+            if (visibles.isEmpty()) {
+                item(key = "vacio") { SinContactosConEseFiltro(filtro) }
+            }
+            grupos.forEach { grupo ->
+                item(key = "grupo:${grupo.titulo}") {
+                    EncabezadoDeGrupo(grupo = grupo, ocultos = ocultos)
+                }
+                items(
+                    items = grupo.contactos,
+                    // La llave es el instante MÁS la etiqueta: dos abonos del
+                    // mismo día a la misma hora existen (dos cuentas, una
+                    // visita), así que el instante solo no es único y Compose
+                    // reciclaría mal la fila.
+                    key = { "${it.fecha.toEpochMilli()}:${it.etiqueta}:${it.importe?.amount}" }
+                ) { contacto ->
+                    // La fila decide sola si se puede tocar: con `ubicacion` en
+                    // `null` no monta el `clickable`. Aquí no se repite.
+                    ContactoEnLinea(
+                        contacto = contacto,
+                        ocultos = ocultos,
+                        onVerUbicacion = onVerUbicacion
+                    )
+                }
             }
         }
+    }
+}
+
+/**
+ * Hay contactos, pero ninguno pasa el filtro puesto.
+ *
+ * Es **otro estado** que [SinContactos] y por eso se dice distinto: ahí nunca
+ * se tocó esa puerta, aquí sí y el filtro los escondió. Aplanarlos haría que el
+ * cobrador creyera que nunca fue, con la pastilla "Cobros" encendida arriba.
+ */
+@Composable
+private fun SinContactosConEseFiltro(filtro: FiltroDeContactos) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(MspTheme.spacing.lg),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "Nada en “${filtro.etiqueta}”",
+            style = MspTheme.type.body,
+            color = MspTheme.colors.onSurfaceMuted
+        )
     }
 }
 

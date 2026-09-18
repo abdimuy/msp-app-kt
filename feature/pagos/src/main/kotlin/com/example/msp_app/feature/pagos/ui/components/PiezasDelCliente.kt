@@ -43,7 +43,6 @@ import com.example.msp_app.core.designsystem.component.MspProgressBar
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.ResumenDelCliente
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
@@ -74,9 +73,6 @@ const val FILA_DE_PRODUCTO_TAG: String = "pagos_cliente_producto"
 
 /** `testTag` del "ver los N contactos" al pie de la bitácora. */
 const val VER_LOS_CONTACTOS_TAG: String = "pagos_cliente_ver_contactos"
-
-/** `testTag` de un renglón de contacto dentro de la hoja del detalle. */
-const val CONTACTO_EN_LA_HOJA_TAG: String = "pagos_cliente_contacto"
 
 /** `testTag` del cuadro de la puerta — el mapa, o el dibujo cuando no hay mapa. */
 const val CUADRO_DE_LA_PUERTA_TAG: String = "pagos_cliente_cuadro_puerta"
@@ -742,66 +738,6 @@ fun ProductoDelCliente(producto: ProductoDeVenta, modifier: Modifier = Modifier)
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth()
         )
-    }
-}
-
-/**
- * Un contacto de la bitácora dentro de la hoja: qué pasó, cuándo, y el pin
- * cuando de esa vez se sabe dónde.
- *
- * Es la hermana chica de [FilaDeContacto] —la de la bitácora completa— y hace lo
- * mismo con el toque: [onVerUbicacion] abre el mapa grande centrado en el punto
- * de ESTE contacto, y **sin punto el `clickable` no existe**. Las razones —por
- * qué no un `onClick` vacío, por qué el pin va en `brand`, y por qué su hueco se
- * reserva aunque no haya pin— están escritas una sola vez, en el KDoc de
- * [FilaDeContacto].
- *
- * Lo único que difiere es el piso de alto: aquí es [TOQUE_DE_ACCION], los 50 dp
- * que esta pantalla ya declara para todo lo tocable, y no los 56 de la bitácora.
- * No es aflojar la regla —50 es la regla del repo, más estricta que los 48 de
- * Material— sino no gastar 18 dp de más en la hoja que compite con el dinero, que
- * es lo que `LaFichaSeVeYSeTocaTest` mide.
- */
-@Composable
-fun ContactoEnLaHoja(
-    contacto: ContactoDeCobranza,
-    fecha: LocalDate,
-    modifier: Modifier = Modifier,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
-) {
-    val abrir = abridorDe(contacto, onVerUbicacion)
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (abrir != null) {
-                    Modifier
-                        .clickable(onClick = abrir)
-                        .semantics { contentDescription = VER_DONDE_FUE }
-                } else {
-                    Modifier
-                }
-            )
-            .heightIn(min = TOQUE_DE_ACCION)
-            .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm + 4.dp)
-            .testTag(CONTACTO_EN_LA_HOJA_TAG),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-    ) {
-        Text(
-            text = contacto.etiqueta.replaceFirstChar { it.titlecase(BUSINESS_LOCALE) },
-            style = MspTheme.type.listTitle,
-            color = MspTheme.colors.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = DIA_Y_MES.format(fecha),
-            style = MspTheme.type.caption,
-            color = MspTheme.colors.onSurfaceMuted
-        )
-        PinDelContacto(hayPunto = contacto.ubicacion != null)
     }
 }
 

@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.runtime.Immutable
+import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
@@ -60,7 +61,18 @@ data class EleccionDeCuenta(val elegida: Int?)
 data class DetalleVentaUiState(
     val cargando: Boolean = true,
     val detalle: DetalleVenta? = null,
-    val error: ErrorDeDetalle? = null
+    val error: ErrorDeDetalle? = null,
+    /** Qué se enseña de la línea de contactos. Ver [FiltroDeContactos]. */
+    val filtro: FiltroDeContactos = FiltroDeContactos.TODOS,
+    /**
+     * `true` mientras la línea se angosta a lo de ESTA venta.
+     *
+     * Arranca en `true` porque la pantalla se llama "detalle de venta": lo
+     * primero que tiene que contestar es lo de esta cuenta. Abrirla mostrando
+     * la vida entera del cliente cambiaría de qué habla la pantalla sin que
+     * nadie lo pidiera; ensancharla es un toque.
+     */
+    val soloEstaVenta: Boolean = true
 )
 
 /**

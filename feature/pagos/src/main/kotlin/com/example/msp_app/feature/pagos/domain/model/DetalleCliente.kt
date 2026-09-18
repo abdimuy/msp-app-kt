@@ -200,6 +200,23 @@ data class VentaDelCliente(
 ) : CuentaCobrable
 
 /**
+ * Qué clase de hecho es una línea de la bitácora.
+ *
+ * Existe porque los **filtros** lo necesitan y porque derivarlo de otra cosa
+ * era frágil: hasta ahora "es un cobro" se podía adivinar por
+ * `importe != null` o por la etiqueta `"cobré"`, y las dos adivinanzas se
+ * rompen solas — una visita con promesa podría traer monto algún día, y la
+ * etiqueta es texto de usuario que este mismo plan ya cambió una vez.
+ */
+enum class TipoDeContacto {
+    /** Entró dinero. Trae [ContactoDeCobranza.importe] y método. */
+    COBRO,
+
+    /** Se tocó la puerta. Nunca trae método — ver [ContactoDeCobranza.metodo]. */
+    VISITA
+}
+
+/**
  * Una línea de la bitácora "últimos contactos". [estado] viene del catálogo de
  * ocho aplicado al literal de `TIPO_VISITA` — otra vez, consumido, no derivado
  * en la pantalla.
@@ -210,6 +227,32 @@ data class ContactoDeCobranza(
     val nota: String?,
     val estado: EstadoCuenta,
     val importe: Money?,
+    /** Cobro o visita. Lo que los filtros preguntan. */
+    val tipo: TipoDeContacto = TipoDeContacto.VISITA,
+    /**
+     * Con qué se pagó, o `null` cuando no hubo pago.
+     *
+     * **Siempre `null` en una visita, y no por falta de ganas.** La columna
+     * `FORMA_COBRO_ID` existe en `VisitEntity`, pero el escritor de producción
+     * la deja fija: *"el diálogo de hoy tampoco tiene selector de forma de cobro
+     * para las visitas: el contrato de cable lleva el campo y siempre viaja en
+     * 0"* (`RegistroDeVisitaAdapter`). Y `MetodoDeCobro.de(0)` cae a EFECTIVO,
+     * así que leerla pintaría **"efectivo" sobre un "no estaba"** — un cobro que
+     * nunca ocurrió, en una pantalla de dinero.
+     *
+     * Su ausencia en la visita dice algo cierto: ahí no se cobró.
+     */
+    val metodo: MetodoDeCobro? = null,
+    /** Quién lo registró. Vacío cuando la fila no lo trae. */
+    val cobrador: String = "",
+    /**
+     * De qué cuenta fue, o `null` cuando el hecho es del domicilio y no de una
+     * venta —una visita que el cobrador registró sin elegir cuenta—.
+     *
+     * Lo usa el detalle de VENTA para destacar lo suyo dentro de la línea de
+     * tiempo del cliente sin mentir sobre lo que no le pertenece.
+     */
+    val ventaId: Int? = null,
     /**
      * Dónde pasó **este** contacto, cuando el teléfono lo pudo medir.
      *

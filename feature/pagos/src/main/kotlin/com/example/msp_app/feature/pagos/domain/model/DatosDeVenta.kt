@@ -133,6 +133,22 @@ data class VisitaDelCliente(
     val fecha: Instant,
     val tipoVisita: String,
     val nota: String?,
+    /**
+     * Quién registró esta visita (`VisitEntity.COBRADOR`).
+     *
+     * La columna existía y **nadie la mapeaba**: el dato se escribía en cada
+     * visita —`RegistroDeVisitaAdapter` lo toma de `venta.NOMBRE_COBRADOR`— y
+     * se tiraba al cruzar al dominio, igual que pasó con `LAT`/`LNG`.
+     *
+     * Ojo con lo que este nombre significa: es el cobrador **asignado a la
+     * venta**, no el usuario que traía el teléfono (ése es `COBRADOR_ID`). En
+     * una ruta de un solo cobrador son la misma persona; el día que dos se
+     * cubran, este campo dirá de quién es la ruta, no quién tocó la puerta.
+     * Se pinta igual porque es exactamente lo que el ticket de pago ya imprime.
+     *
+     * Vacío cuando la fila no lo trae.
+     */
+    val cobrador: String = "",
     val fechaPromesa: LocalDate? = null,
     val montoPrometido: Money? = null,
     /** El DÍA de la cita (`CITA_FECHA`). Sin él, [horaCita] no dice cuándo. */

@@ -36,6 +36,7 @@ import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
+import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
@@ -44,10 +45,11 @@ import com.example.msp_app.feature.pagos.ui.components.AccionesDelCliente
 import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.BloqueDeIdentidad
 import com.example.msp_app.feature.pagos.ui.components.CifrasDelCliente
-import com.example.msp_app.feature.pagos.ui.components.ContactoEnLaHoja
+import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
+import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.HojaContinua
 import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
@@ -421,7 +423,7 @@ private fun CuerpoDelCliente(
         }
         if (detalle.contactos.isNotEmpty()) {
             Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-            HojaDeContactos(detalle, onVerContactos, onVerUbicacionDelContacto)
+            HojaDeContactos(detalle, ocultos, onVerContactos, onVerUbicacionDelContacto)
         }
         // La ficha vive AL FONDO, donde la puso la Task 16 y donde no empuja un
         // solo dp de lo que está arriba — que es el dinero, por lo que el
@@ -614,23 +616,47 @@ private fun HojaDeProductos(detalle: DetalleCliente) {
     }
 }
 
+/**
+ * **La línea de contactos del detalle**, agrupada por cercanía.
+ *
+ * Por cercanía y no por mes porque aquí se enseñan tres: con tres filas el mes
+ * casi siempre da UN solo encabezado, o sea un separador que no separa nada.
+ * *"Hoy / Esta semana / Antes"* sí parte, y es como se habla parado en la
+ * puerta. La lista completa —"ver los N"— sí va por mes, con su subtotal.
+ *
+ * **Sin filtros, a propósito.** Unas pastillas arriba de tres filas ocuparían
+ * más alto que las filas que filtran, en la pantalla que ya pelea cada dp
+ * contra el saldo. Viven en las listas largas — ver `FiltroDeContactos`.
+ *
+ * ## [ocultos] baja hasta la fila, y no es opcional
+ *
+ * El defecto que esto cierra: esta hoja no recibía el ojo de privacidad y sus
+ * piezas caían al default `ocultos = false`. Con "esconder cantidades" puesto,
+ * el saldo de arriba se enmascaraba y el `Cobré · $350` de acá abajo seguía a
+ * la vista **en la misma pantalla** — o sea que el ojo mentía justo donde el
+ * cobrador lo prende: parado frente a alguien que está mirando el teléfono.
+ * `BitacoraScreen` ya lo cableaba bien; aquí se copia.
+ */
 @Composable
 private fun HojaDeContactos(
     detalle: DetalleCliente,
+    ocultos: Boolean,
     onVerContactos: () -> Unit,
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?
 ) {
     HojaContinua {
         TituloDeHoja("últimos contactos")
-        detalle.contactos.forEachIndexed { indice, contacto ->
-            if (indice > 0) Separador()
-            // Sin punto la fila no monta el `clickable` — ver `FilaDeContacto`.
-            // La pregunta no se repite acá.
-            ContactoEnLaHoja(
-                contacto = contacto,
-                fecha = AppTime.toBusinessDate(contacto.fecha),
-                onVerUbicacion = onVerUbicacionDelContacto
-            )
+        Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
+            GruposDeContactos.porCercania(detalle.contactos, detalle.hoy).forEach { grupo ->
+                EncabezadoDeGrupo(grupo = grupo, ocultos = ocultos)
+                grupo.contactos.forEach { contacto ->
+                    ContactoEnLinea(
+                        contacto = contacto,
+                        ocultos = ocultos,
+                        onVerUbicacion = onVerUbicacionDelContacto
+                    )
+                }
+            }
         }
         Separador()
         VerLosContactos(cuantos = detalle.totalContactos, onVer = onVerContactos)
