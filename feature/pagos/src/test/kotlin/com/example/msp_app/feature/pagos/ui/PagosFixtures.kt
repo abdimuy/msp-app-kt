@@ -185,7 +185,13 @@ object PagosFixtures {
             direccion = "C. Hidalgo 214, Centro",
             zona = "ruta 25 · centro",
             aval = "Rosa María Ramírez",
-            telefonoAval = "238 118 4402",
+            // `null`, y NO un teléfono inventado: el adaptador real no puede
+            // traer otra cosa (`RoomVentasAdapter.kt:78`, porque la columna no
+            // existe — ver el KDoc de `DetalleCliente.telefonoAval`). Un fixture
+            // que siembra lo que el adaptador no puede producir es exactamente
+            // lo que escondió el defecto de los atrasos siempre en cero: la
+            // pantalla se veía bien en el test y vacía en el teléfono.
+            telefonoAval = null,
             saldoTotal = dinero("3550"),
             ventas = ventasDelCliente,
             contactos = listOf(
@@ -203,12 +209,21 @@ object PagosFixtures {
                     estado = EstadoCuenta.PROMETIO_PROXIMA,
                     importe = null
                 ),
+                // El ÚNICO con punto medido, y es el mismo par que
+                // `ultimoCobroAqui`: en la app ese campo sale del abono más
+                // reciente que traiga coordenadas (`CargarDetalleCliente.kt`), así
+                // que si este fixture pusiera dos pares distintos estaría sembrando
+                // un estado que el caso de uso no puede producir. Los otros dos
+                // contactos van sin punto a propósito: las dos mitades del
+                // afordante —la fila que lleva al mapa y la que no— tienen que
+                // verse en el mismo golden.
                 ContactoDeCobranza(
                     fecha = Instant.parse("2026-08-03T17:10:00Z"),
                     etiqueta = "cobré",
                     nota = null,
                     estado = EstadoCuenta.PAGO,
-                    importe = dinero("350")
+                    importe = dinero("350"),
+                    ubicacion = PUNTO_DEL_ULTIMO_COBRO
                 )
             ),
             totalContactos = 27,
@@ -219,7 +234,7 @@ object PagosFixtures {
                 ProductoDeVenta("Sala 3 piezas + base", dinero("6300")),
                 ProductoDeVenta("Refrigerador Mabe 14'", dinero("4950"))
             ),
-            ultimoCobroAqui = UbicacionDelCobro(lat = 18.4609, lng = -97.3926),
+            ultimoCobroAqui = PUNTO_DEL_ULTIMO_COBRO,
             notaDeLaVenta = "entrega en la puerta de atrás",
             ficha = fichaDelCliente(),
             liquidacion = liquidacionDelCliente(),
@@ -345,7 +360,8 @@ object PagosFixtures {
         entidad = "Puebla",
         zona = "ruta 25 · centro",
         aval = "Rosa María Ramírez",
-        telefonoAval = "238 118 4402",
+        // Ver la nota de `detalleCliente`: el adaptador no puede traerlo.
+        telefonoAval = null,
         notas = "Trabaja de noche — antes de las 10 am",
         descripcion = descripcion,
         fechaVenta = LocalDate.of(2026, 5, 4),
@@ -391,6 +407,16 @@ object PagosFixtures {
             semanasCumplidas = RitmoDePagos.resumen(semanas).cumplidas
         )
     }
+
+    /**
+     * El punto del abono más reciente con coordenadas de este cliente. Uno solo,
+     * compartido por `ultimoCobroAqui` y por el contacto del que sale — ver el
+     * comentario en la lista de contactos.
+     */
+    val PUNTO_DEL_ULTIMO_COBRO: UbicacionDelCobro = UbicacionDelCobro(
+        lat = 18.4609,
+        lng = -97.3926
+    )
 
     /** Un abono con coordenadas, para el pin del mapa del detalle. */
     fun pagoConUbicacion(lat: Double, lng: Double): PagoDelHistorial = PagoDelHistorial(

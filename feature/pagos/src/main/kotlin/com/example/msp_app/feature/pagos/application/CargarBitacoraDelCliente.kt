@@ -26,7 +26,12 @@ class CargarBitacoraDelCliente @Inject constructor(
         val primera = cobranza.ventas.firstOrNull() ?: return null
         return BitacoraCompleta(
             clienteId = clienteId,
+            // Nombre y dirección salen de la MISMA fila representante, que es la
+            // que el detalle ya usa para lo mismo. La dirección viaja porque el
+            // mapa que se abre desde un renglón la pinta al pie — ver el KDoc de
+            // [BitacoraCompleta].
             nombre = primera.clienteNombre,
+            direccion = primera.direccion,
             contactos = BitacoraDelCliente.de(cobranza.visitas, cobranza.pagos)
         )
     }

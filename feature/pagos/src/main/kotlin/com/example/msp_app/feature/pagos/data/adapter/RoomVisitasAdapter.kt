@@ -7,6 +7,7 @@ import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
+import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.VisitasPort
 import java.math.BigDecimal
@@ -31,6 +32,10 @@ import java.time.format.DateTimeParseException
  *
  * La fecha/hora libres NO se reconstruyen desde `NOTA`. Ese parseo es
  * exactamente el defecto que este plan vino a arreglar.
+ *
+ * `LAT`/`LNG` cruzan por [UbicacionDelCobro.medida] y no directo al modelo: en
+ * esta tabla son `Double` **no nulos**, así que una visita registrada sin señal
+ * trae `0.0, 0.0`, que es un punto real en el Golfo de Guinea y no una ausencia.
  */
 class RoomVisitasAdapter(
     private val visitDao: VisitDao,
@@ -96,7 +101,13 @@ private fun VisitEntity.aVisitaDelCliente(horaDe: (String?) -> LocalTime?): Visi
         // no puede distinguir la cita de hoy de la del lunes pasado.
         fechaCita = AppTime.parseWireDateOrNull(CITA_FECHA),
         montoPrometido = PROMESA_MONTO_CENTAVOS?.let { Money.of(BigDecimal.valueOf(it, CENTAVOS)) },
-        horaCita = horaDe(CITA_HORA)
+        horaCita = horaDe(CITA_HORA),
+        // `LAT`/`LNG` son `Double` NO NULOS en esta tabla, así que "sin señal"
+        // llega como el par en cero y no como ausencia. Quién decide que ese par
+        // no es un lugar es `UbicacionDelCobro.medida`, y a propósito es el mismo
+        // objeto que ya decide qué es media coordenada: una sola regla, un solo
+        // dueño, para el abono y para la visita.
+        ubicacion = UbicacionDelCobro.medida(LAT, LNG)
     )
 }
 

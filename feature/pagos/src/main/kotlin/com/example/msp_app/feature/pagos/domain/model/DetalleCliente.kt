@@ -195,7 +195,20 @@ data class ContactoDeCobranza(
     val etiqueta: String,
     val nota: String?,
     val estado: EstadoCuenta,
-    val importe: Money?
+    val importe: Money?,
+    /**
+     * Dónde pasó **este** contacto, cuando el teléfono lo pudo medir.
+     *
+     * Es lo que hace que tocar un renglón de la bitácora abra el mapa en el
+     * punto de ese abono o de esa visita, y no en el del último cobro del
+     * cliente: el cobrador pregunta *"¿dónde fue ESA vez?"*, y contestarle
+     * siempre con la misma puerta sería contestarle otra cosa.
+     *
+     * `null` en todo contacto que se registró sin señal o sin permiso, y en todo
+     * el histórico anterior a que se guardara. Un renglón sin punto **no se
+     * puede tocar**: no hay nada que abrir.
+     */
+    val ubicacion: UbicacionDelCobro? = null
 )
 
 /**

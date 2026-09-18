@@ -151,21 +151,52 @@ data class PagoDelHistorial(
 )
 
 /**
- * El punto donde se cobró un abono.
+ * El punto donde se cobró un abono, o donde se hizo una visita.
  *
  * **Existe como un solo valor, y no como dos `Double?` sueltos, a propósito.**
  * Media coordenada no ubica nada: una latitud sin longitud pintaría un pin en el
- * meridiano cero, o sea un dato FALSO en vez de un dato ausente. [de] es la
- * única puerta de entrada y solo deja pasar el par completo.
+ * meridiano cero, o sea un dato FALSO en vez de un dato ausente.
+ *
+ * ## Las dos formas de no tener punto, y por qué la regla vive aquí
+ *
+ * Hay DOS maneras de que una fila no traiga punto, y las dos tienen que dar
+ * `null`:
+ *
+ *  - **Falta la mitad** — columna nula. La cubre [de], que es la puerta de las
+ *    tablas cuyas columnas admiten nulos (`Payment.LAT`/`LNG`).
+ *  - **El par en cero** — `VisitEntity.LAT`/`LNG` son `Double` **no nulos**, así
+ *    que una visita registrada con el GPS apagado no guarda "nada": guarda
+ *    `0.0, 0.0`. Ese par es un punto de verdad —está en el Golfo de Guinea, a
+ *    unos 9 000 km de la ruta— y pintarlo sería exactamente el mismo dato falso
+ *    que media coordenada. La cubre [medida].
+ *
+ * Las dos puertas comparten la misma regla porque [de] delega en [medida]: si
+ * cada una llevara su criterio, un abono en `(0, 0)` pasaría y una visita en
+ * `(0, 0)` no, y el mismo hecho contaría dos historias según la tabla de donde
+ * salió. La pantalla legada `SaleMapScreen.kt:52-65` ya descarta ese par al
+ * dibujar pines de PAGOS, lo cual dice que el cero también llega por ese lado.
  */
 data class UbicacionDelCobro(val lat: Double, val lng: Double) {
 
     companion object {
-        /** El par, o `null` si falta cualquiera de los dos. */
+        /** El par, o `null` si falta cualquiera de los dos o si no se midió. */
         fun de(lat: Double?, lng: Double?): UbicacionDelCobro? =
-            if (lat != null && lng != null) UbicacionDelCobro(lat, lng) else null
+            if (lat != null && lng != null) medida(lat, lng) else null
+
+        /**
+         * El par de una columna que **no admite nulos**, o `null` cuando es el
+         * par en cero — o sea, cuando nadie lo midió. Ver el KDoc de la clase.
+         */
+        fun medida(lat: Double, lng: Double): UbicacionDelCobro? =
+            if (lat == SIN_MEDIR && lng == SIN_MEDIR) null else UbicacionDelCobro(lat, lng)
     }
 }
+
+/**
+ * Lo que guarda una columna de coordenada que no admite nulos cuando no hubo
+ * señal: el cero del tipo, no un lugar.
+ */
+private const val SIN_MEDIR = 0.0
 
 /**
  * Cómo entró el dinero. Solo los tres que `VentanaCobro.FORMAS_COBRO_COBRANZA`

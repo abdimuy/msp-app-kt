@@ -93,7 +93,7 @@ internal object PagosIconos {
     val NoEstaba: ImageVector =
         trazo("no_estaba", GROSOR_NORMAL, TECHO, PAREDES, TACHADURA)
 
-    /** Sin trabajar → anillo vacío. */
+    /** Falta pasar → anillo vacío: la cuenta está, y todavía no se fue. */
     val SinTocar: ImageVector = trazo("sin_tocar", GROSOR_NORMAL, CIRCULO)
 }
 
@@ -134,6 +134,17 @@ internal object AccionesIconos {
 
     /** El pin del mapa. */
     val Pin: ImageVector = trazo("pin", GROSOR_NORMAL, GOTA_DEL_PIN, OJO_DEL_PIN)
+
+    /**
+     * La casa del respaldo del cuadro de ubicación — ver `SueloDibujado`.
+     *
+     * Son los MISMOS dos trazos de [PagosIconos.NoEstaba] sin la tachadura, y
+     * eso es a propósito: allá la casa tachada dice "fui y no estaba"; acá la
+     * casa sola dice "una puerta", que es todo lo que se sabe cuando ningún
+     * abono trajo coordenadas. Sin pin y sin calles, porque no hay punto medido
+     * que señalar ni traza que dibujar.
+     */
+    val Casa: ImageVector = trazo("casa", GROSOR_NORMAL, TECHO, PAREDES)
 
     /** "Ver los N contactos" → chevron; también cierra cada renglón de la hoja de orígenes. */
     val Chevron: ImageVector = trazo("chevron", GROSOR_NORMAL, PUNTA_DE_CHEVRON)

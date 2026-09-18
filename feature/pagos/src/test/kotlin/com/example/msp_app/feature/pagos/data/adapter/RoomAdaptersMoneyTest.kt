@@ -139,12 +139,23 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
         NOMBRE_CLIENTE = "Victoria Flores Olmedo"
     )
 
+    /**
+     * El par de coordenadas de una visita, junto.
+     *
+     * Van en un objeto y no en dos parámetros sueltos porque con ellos el
+     * ayudante llega a los siete que detekt corta (`LongParameterList`), y
+     * además nunca se pasa uno sin el otro: en esta tabla son dos `Double` NO
+     * NULOS y lo que significa "sin señal" es el PAR en cero.
+     */
+    private data class Punto(val lat: Double, val lng: Double)
+
     private fun visita(
         id: String,
         tipo: String = "Pidió reagendar visita",
         centavos: Long? = null,
         horaCita: String? = null,
-        ventaLigada: Int = VENTA
+        ventaLigada: Int = VENTA,
+        punto: Punto = Punto(lat = 18.46, lng = -97.39)
     ) = VisitEntity(
         ID = id,
         CLIENTE_ID = CLIENTE,
@@ -152,8 +163,12 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
         COBRADOR_ID = 12,
         FECHA = "2026-09-01T16:00:00Z",
         FORMA_COBRO_ID = EFECTIVO,
-        LAT = 18.46,
-        LNG = -97.39,
+        // `Double` NO NULOS en esta tabla: el "sin señal" del teléfono se guarda
+        // como el par en cero, no como ausencia. Por eso el default es una
+        // coordenada real y el cero se pide explícito — es lo que el aparato
+        // escribe de verdad, no un caso inventado.
+        LAT = punto.lat,
+        LNG = punto.lng,
         NOTA = null,
         TIPO_VISITA = tipo,
         ZONA_CLIENTE_ID = 25,
@@ -485,6 +500,42 @@ class RoomAdaptersMoneyTest : RoomTestBase() {
         db.visitDao().insertVisit(visita("v1", horaCita = "16:30"))
         assertEquals(LocalTime.of(16, 30), visitas.visitasDelCliente(CLIENTE).single().horaCita)
         assertTrue(telemetria.recorded.none { it.type == TelemetryEventType.ERROR })
+    }
+
+    /**
+     * **Dónde se hizo la visita.** `VisitEntity.LAT`/`LNG` ya viajaban en la tabla
+     * y nadie las mapeaba: es el mismo hueco que la Task anterior cerró para el
+     * abono. Sin esto, tocar una visita en la bitácora no podría abrir ningún
+     * mapa.
+     *
+     * **Control de reversión:** quitar `ubicacion = UbicacionDelCobro.medida(LAT, LNG)`
+     * del mapeo pone este test en ROJO.
+     */
+    @Test
+    fun `la visita trae el punto donde se hizo`() = runTest {
+        db.visitDao().insertVisit(visita("v1"))
+
+        val ubicacion = visitas.visitasDelCliente(CLIENTE).single().ubicacion!!
+
+        assertEquals(18.46, ubicacion.lat, 0.0)
+        assertEquals(-97.39, ubicacion.lng, 0.0)
+    }
+
+    /**
+     * **El par en cero no es un lugar.** Con el GPS apagado la fila trae
+     * `0.0, 0.0`, que cae en el Golfo de Guinea: pintarlo sería un dato FALSO, no
+     * uno ausente. La pantalla legada `SaleMapScreen.kt:52-65` ya descartaba ese
+     * par; la regla vive ahora en un solo dueño, `UbicacionDelCobro.medida`.
+     *
+     * El caso de arriba es su **control positivo**: prueba que esta misma consulta
+     * SÍ ve una coordenada cuando la hay, así que el `null` de acá es el cero y no
+     * un mapeo que se perdió.
+     */
+    @Test
+    fun `una visita sin senal no deja un pin en el meridiano cero`() = runTest {
+        db.visitDao().insertVisit(visita("v1", punto = Punto(lat = 0.0, lng = 0.0)))
+
+        assertNull(visitas.visitasDelCliente(CLIENTE).single().ubicacion)
     }
 
     @Test

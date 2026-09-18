@@ -71,6 +71,50 @@ class DetalleMatrixScreenshotTest : PagosScreenshotTest() {
     @Test
     fun `venta promesa sin fecha dark`() = ventaPromesaSinFecha(dark = true)
 
+    // --- El cuadro de ubicación: sus DOS estados ------------------------------------------
+
+    /**
+     * Sin punto medido: el respaldo dibujado, sin pin y sin la pastilla.
+     *
+     * Es la mitad que los `pagos_cliente_*` no fotografían, porque su fixture SÍ
+     * trae `ultimoCobroAqui`. Los dos estados existen en la app y los dos tienen
+     * que verse: uno dice "aquí se cobró", el otro dice "esta puerta no se midió".
+     *
+     * El estado con punto se fotografía con el MISMO respaldo, no con el mapa: un
+     * mapa real trae red y bitmaps, y ninguno entra a `captureRoboImage`. Lo que
+     * cambia entre los dos goldens es la pastilla, que es lo que este módulo
+     * dibuja encima del suelo. El suelo de verdad lo cablea `:app`.
+     */
+    @Test
+    fun `cliente sin punto medido light`() = clienteSinPunto(dark = false)
+
+    @Test
+    fun `cliente sin punto medido dark`() = clienteSinPunto(dark = true)
+
+    private fun clienteSinPunto(dark: Boolean) = capture(
+        name = "pagos_cliente_sin_punto_${tema(dark)}",
+        dark = dark
+    ) {
+        // Sin punto es sin punto en toda la puerta, y por eso también se le
+        // quita el pin al contacto del abono: `ultimoCobroAqui` sale del abono
+        // MÁS RECIENTE que traiga coordenadas
+        // (`CargarDetalleCliente.kt`), así que un cliente con ese campo en `null`
+        // no puede tener un contacto de abono con punto. Dejárselo sembraría un
+        // estado que el caso de uso no puede producir — que es cómo un fixture
+        // esconde un defecto en vez de destaparlo.
+        //
+        // (Una VISITA con punto sí convive con `ultimoCobroAqui` nulo: las visitas
+        // no alimentan ese campo. La fixture no tiene ninguna, así que aquí el
+        // único pin en juego es el del abono.)
+        val detalle = PagosFixtures.detalleCliente()
+        Cliente(
+            detalle.copy(
+                ultimoCobroAqui = null,
+                contactos = detalle.contactos.map { it.copy(ubicacion = null) }
+            )
+        )
+    }
+
     private fun cliente(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_cliente_${tema(dark)}_${sufijoDe(nivel)}",
         dark = dark,

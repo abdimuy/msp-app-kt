@@ -31,16 +31,21 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
+import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
+import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.AccionesDelCliente
 import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.BloqueDeIdentidad
 import com.example.msp_app.feature.pagos.ui.components.CifrasDelCliente
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLaHoja
+import com.example.msp_app.feature.pagos.ui.components.CuadroDeLaPuerta
+import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
 import com.example.msp_app.feature.pagos.ui.components.HojaContinua
 import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
@@ -79,6 +84,43 @@ const val TITULO_DE_CLIENTE_TAG: String = "pagos_titulo_cliente"
  * la primera lectura de `MspTheme.colors` revienta con
  * `IllegalStateException("MspTheme ausente")` al abrir la pantalla. El
  * razonamiento completo está en el KDoc de [ListaDeClientesScreen].
+ *
+ * ## Y lo provee por [MspThemeRevealHost], no por `MspTheme` pelado
+ *
+ * **Éste era el defecto.** El dueño tocó el sol/luna acá y el tema cambió en
+ * seco, sin la reveal circular que sí anima en la lista: el mismo control se
+ * sentía distinto en dos pantallas de la misma app, que es justo la incoherencia
+ * que el KDoc de [MspThemeRevealHost] documenta y que ninguna captura muestra.
+ * La lista instalaba el host (`ListaDeClientesScreen.kt:106`) y esta pantalla no,
+ * aunque pinta el MISMO [MspThemeToggle] dos renglones abajo.
+ *
+ * El mecanismo es UNO y vive en `:core:designsystem`; lo que cambia por pantalla
+ * es qué tema envuelve. La compuerta que impide la próxima omisión es
+ * `CadaPantallaConTemaAnimaElCambioTest` de `:app`, que barre las fuentes de
+ * todos los módulos y no tiene lista de nombres.
+ *
+ * ## El suelo del cuadro de ubicación entra por [suelo]
+ *
+ * Se cablea acá y no dentro del contenido, y esa línea es la que mantiene
+ * deterministas los goldens: quien fotografía es [DetalleClienteContent], que se
+ * queda con el respaldo dibujado. Un mapa de verdad trae red y bitmaps, y
+ * ninguna de las dos cosas entra a `captureRoboImage`.
+ *
+ * El punto que recibe es el MISMO `ultimoCobroAqui` que decide si hay pin: un
+ * mapa centrado en cualquier otra cosa diría "es aquí" sobre una puerta que
+ * nadie midió.
+ *
+ * ## Un renglón de "últimos contactos" también abre el mapa
+ *
+ * El dueño lo pidió así: *"cuando se dé click en un pago o visita se debe abrir
+ * el mapa también, pero solo con la ubicación de ese pago o visita en
+ * particular"*. Un renglón CON punto abre el mapa en el punto de ESE contacto;
+ * uno sin punto no se puede tocar.
+ *
+ * Reusa [onVerUbicacion] —el mismo destino y los mismos dos argumentos— en vez de
+ * pedirle a `:app` un callback nuevo: lo que cambia entre el cuadro y el renglón
+ * es el punto, no la operación. La dirección que viaja sigue siendo la del
+ * cliente: es la puerta, y el abono se cobró y la visita se hizo ahí.
  */
 @Composable
 fun DetalleClienteScreen(
@@ -88,10 +130,21 @@ fun DetalleClienteScreen(
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
     onVerContactos: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
+    modifier: Modifier = Modifier,
+    suelo: (@Composable (UbicacionDelCobro?) -> Unit)? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    MspTheme {
+    MspThemeRevealHost(
+        onToggleTheme = viewModel::alternarTema,
+        // Las DOS señales de movimiento reducido (principio 13): la de
+        // accesibilidad del sistema operativo **o** la preferencia propia de la
+        // app. Un solo criterio para las ocho pantallas — ver su KDoc.
+        reducedMotion = rememberMspReducedMotion(),
+        tema = { animateColors, contenido ->
+            MspTheme(animateColors = animateColors, content = contenido)
+        }
+    ) {
         DetalleClienteContent(
             state = state,
             onAtras = onAtras,
@@ -124,7 +177,22 @@ fun DetalleClienteScreen(
                 onNota = viewModel::escribirNota,
                 onGuardar = viewModel::guardarFicha
             ),
-            modifier = modifier
+            modifier = modifier,
+            onVerUbicacion = {
+                val detalle = state.detalle
+                detalle?.ultimoCobroAqui?.let { punto ->
+                    onVerUbicacion(punto, detalle.direccion)
+                }
+            },
+            // El MISMO callback del cuadro, con otro punto. No hace falta un
+            // destino nuevo ni un miembro nuevo en `UbicacionEnElDetalle`: "abrir
+            // el mapa en este punto, con esta dirección" es UNA operación, y
+            // duplicarla dejaría dos lambdas que `:app` tendría que cablear a la
+            // misma ruta (principio 5).
+            onVerUbicacionDelContacto = { punto ->
+                state.detalle?.let { onVerUbicacion(punto, it.direccion) }
+            },
+            suelo = suelo?.let { puesto -> { puesto(state.detalle?.ultimoCobroAqui) } }
         )
     }
 }
@@ -197,7 +265,10 @@ fun DetalleClienteContent(
     modifier: Modifier = Modifier,
     contacto: AccionesDeContacto = AccionesDeContacto(),
     abono: AccionesDelAbono = AccionesDelAbono(),
-    fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha()
+    fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
+    onVerUbicacion: (() -> Unit)? = null,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
+    suelo: (@Composable () -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -224,7 +295,10 @@ fun DetalleClienteContent(
                     onAlternarTema = onAlternarTema,
                     onAlternarPrivacidad = onAlternarPrivacidad,
                     contacto = contacto,
-                    onEditarFicha = fichaDelCliente.onEditar
+                    onEditarFicha = fichaDelCliente.onEditar,
+                    onVerUbicacion = onVerUbicacion,
+                    onVerUbicacionDelContacto = onVerUbicacionDelContacto,
+                    suelo = suelo
                 )
             }
         }
@@ -299,7 +373,10 @@ private fun CuerpoDelCliente(
     onAlternarTema: () -> Unit,
     onAlternarPrivacidad: () -> Unit,
     contacto: AccionesDeContacto,
-    onEditarFicha: () -> Unit
+    onEditarFicha: () -> Unit,
+    onVerUbicacion: (() -> Unit)?,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?,
+    suelo: (@Composable () -> Unit)?
 ) {
     Column(
         modifier = Modifier
@@ -316,7 +393,7 @@ private fun CuerpoDelCliente(
             onEditarFicha = onEditarFicha
         )
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-        HojaDeIdentidad(detalle, contacto, onEditarFicha)
+        HojaDeIdentidad(detalle, contacto, onEditarFicha, onVerUbicacion, suelo)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeDinero(detalle, ocultos)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
@@ -327,7 +404,7 @@ private fun CuerpoDelCliente(
         }
         if (detalle.contactos.isNotEmpty()) {
             Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-            HojaDeContactos(detalle, onVerContactos)
+            HojaDeContactos(detalle, onVerContactos, onVerUbicacionDelContacto)
         }
         // La ficha vive AL FONDO, donde la puso la Task 16 y donde no empuja un
         // solo dp de lo que está arriba — que es el dinero, por lo que el
@@ -409,7 +486,9 @@ private fun EncabezadoDelCliente(
 private fun HojaDeIdentidad(
     detalle: DetalleCliente,
     contacto: AccionesDeContacto,
-    onEditarFicha: () -> Unit
+    onEditarFicha: () -> Unit,
+    onVerUbicacion: (() -> Unit)?,
+    suelo: (@Composable () -> Unit)?
 ) {
     val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
     HojaContinua {
@@ -421,18 +500,45 @@ private fun HojaDeIdentidad(
                     .filter { it.isNotBlank() }
                     .joinToString(" · ")
             )
+            // Los dos datos que el rediseño perdió sin que nadie lo notara, DENTRO
+            // de esta sección y no en una propia: todo lo que se agrega a la hoja
+            // de identidad empuja la hoja del dinero, y una sección aparte costaba
+            // 88 dp de más — medidos con `LaFichaSeVeYSeTocaTest` en rojo. Ver el
+            // KDoc de `DatosDeLaPuerta`.
+            Spacer(Modifier.height(MspTheme.spacing.xs))
+            DatosDeLaPuerta(
+                aval = detalle.aval,
+                telefonoAval = detalle.telefonoAval,
+                ultimaVisita = detalle.ultimaVisita?.let(AppTime::toBusinessDate)
+            )
         }
-        // "Cómo llegar" es una acción más de la fila, permanente. Antes vivía
-        // arriba, dentro de un cuadro de mapa de 130 dp que pintaba `:core:mapas`
-        // — y ese módulo se fue: su renderizador ocupaba 47.9 MB de `.so` en
-        // cuatro ABIs y viajaba en el APK aunque nadie bajara las teselas. Sin
-        // renderizador el cuadro sería un rectángulo gris que no enseña nada.
+        // El cuadro de ubicación, **a sangre**: sin el padding de `SeccionDeHoja`,
+        // porque un mapa con margen se lee como una foto pegada encima de la hoja
+        // y no como una banda de la hoja. Su hairline lo pone el `Separador` de
+        // arriba, que es el mismo que usa cualquier otra sección.
         //
-        // Lo que NO se fue es `ultimoCobroAqui`: sigue alimentando el `geo:` que
-        // arma `IntentAccionesExternasAdapter`, así que la app de mapas del
-        // teléfono abre en la coordenada donde de verdad se cobró y no en una
-        // dirección geocodificada. En una colonia sin numeración esa es la
-        // diferencia entre llegar a la puerta y llegar a la calle.
+        // Se pinta SIEMPRE, con punto medido y sin él. Antes era condicional y sin
+        // punto quedaba un hueco: el dueño lo vio en vidrio y pidió lo contrario
+        // —*"tiene que ser un mapa o un dibujo"*—. Lo que cambia entre los dos
+        // casos es el suelo, no si hay banda: con coordenada el suelo es el mapa
+        // de verdad que cablea `:app`, y sin ella el respaldo dibujado, que se lee
+        // como ilustración y no como un mapa que no cargó.
+        Separador()
+        CuadroDeLaPuerta(
+            ubicacion = detalle.ultimoCobroAqui,
+            onVerUbicacion = onVerUbicacion,
+            suelo = suelo
+        )
+        // "Cómo llegar" es una acción más de la fila, permanente, y NO vuelve a
+        // vivir dentro del cuadro. Cuando vivía ahí, cuál de los dos caminos se
+        // pintaba lo decidía un dato —había cobro con GPS o no había—, así que el
+        // cobrador veía una pantalla distinta para una acción que siempre se puede
+        // hacer. Lo cerró `5417e65e` y se queda cerrado.
+        //
+        // Lo que abre es la app de mapas del teléfono, con la coordenada del
+        // último cobro cuando se midió una y la dirección escrita cuando no. En
+        // una colonia sin numeración esa es la diferencia entre llegar a la puerta
+        // y llegar a la calle. Ver `IntentAccionesExternasAdapter`.
         SeccionDeHoja {
             AccionesDelCliente(
                 onLlamar = contacto.onLlamar,
@@ -492,12 +598,22 @@ private fun HojaDeProductos(detalle: DetalleCliente) {
 }
 
 @Composable
-private fun HojaDeContactos(detalle: DetalleCliente, onVerContactos: () -> Unit) {
+private fun HojaDeContactos(
+    detalle: DetalleCliente,
+    onVerContactos: () -> Unit,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?
+) {
     HojaContinua {
         TituloDeHoja("últimos contactos")
         detalle.contactos.forEachIndexed { indice, contacto ->
             if (indice > 0) Separador()
-            ContactoEnLaHoja(contacto = contacto, fecha = AppTime.toBusinessDate(contacto.fecha))
+            // Sin punto la fila no monta el `clickable` — ver `FilaDeContacto`.
+            // La pregunta no se repite acá.
+            ContactoEnLaHoja(
+                contacto = contacto,
+                fecha = AppTime.toBusinessDate(contacto.fecha),
+                onVerUbicacion = onVerUbicacionDelContacto
+            )
         }
         Separador()
         VerLosContactos(cuantos = detalle.totalContactos, onVer = onVerContactos)

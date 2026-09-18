@@ -1,11 +1,16 @@
 package com.example.msp_app.navigation
 
+import android.net.Uri
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavType
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.example.msp_app.core.speech.ui.DescargaDelDictadoConectada
 import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.feature.pagos.ui.PagosRutas
+import com.example.msp_app.feature.pagos.ui.UbicacionEnElDetalle
+import com.example.msp_app.feature.pagos.ui.UbicacionEnLaBitacora
 import com.example.msp_app.feature.pagos.ui.destinoDeBitacora
 import com.example.msp_app.feature.pagos.ui.destinoDeDetalleCliente
 import com.example.msp_app.feature.pagos.ui.destinoDeListaDeClientes
@@ -15,6 +20,8 @@ import com.example.msp_app.feature.pagos.ui.destinosDePagos
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import com.example.msp_app.feature.visitas.ui.destinoDeRegistrarVisita
 import com.example.msp_app.feature.visitas.ui.destinoDeTicketDeVisita
+import com.example.msp_app.ui.pagos.SueloDelUltimoCobro
+import com.example.msp_app.ui.pagos.UbicacionDelClienteScreen
 
 /**
  * **Los destinos de arquitectura nueva que `:app` monta** — las ocho pantallas
@@ -54,10 +61,37 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         onRegistrarVisita = { clienteId, ventaId ->
             navController.navigate(VisitasRutas.registrar(clienteId, ventaId))
         },
-        onVerContactos = { clienteId -> navController.navigate(PagosRutas.bitacora(clienteId)) }
+        onVerContactos = { clienteId -> navController.navigate(PagosRutas.bitacora(clienteId)) },
+        // Ver la puerta con zoom es un destino de `:app`: el mapa completo
+        // necesita `play-services-maps`, que se declara acá y no en el feature.
+        ubicacion = UbicacionEnElDetalle(
+            onVer = { punto, direccion ->
+                navController.navigate(
+                    RutasDelMapa.ubicacion(punto.lat, punto.lng, direccion)
+                )
+            },
+            // El mapa chico del cuadro. Su default es no pintar nada, así el
+            // cuadro se queda con su dibujo y los goldens del módulo siguen
+            // fotografiando algo que no depende de la red.
+            suelo = { punto -> SueloDelUltimoCobro(punto) }
+        )
     )
 
-    destinoDeBitacora(onAtras = { navController.popBackStack() })
+    destinoDeLaUbicacion(navController)
+
+    destinoDeBitacora(
+        onAtras = { navController.popBackStack() },
+        // El MISMO destino que abre el cuadro de la puerta del detalle, con otro
+        // punto: el del abono o el de la visita que se tocó. Traducir id → ruta es
+        // todo lo que pasa aquí; cuál punto viaja lo decidió la fila.
+        ubicacion = UbicacionEnLaBitacora(
+            onVer = { punto, direccion ->
+                navController.navigate(
+                    RutasDelMapa.ubicacion(punto.lat, punto.lng, direccion)
+                )
+            }
+        )
+    )
 
     destinosDePagos(
         onAtras = { navController.popBackStack() },
@@ -144,5 +178,79 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
 private fun NavGraphBuilder.destinosDeDescargas(navController: NavController) {
     composable(DictadoRutas.DESCARGA) {
         DescargaDelDictadoConectada(onAtras = { navController.popBackStack() })
+    }
+}
+
+/**
+ * **Las rutas del mapa grande.** Viven en `:app` y no en `PagosRutas` porque la
+ * pantalla que las consume vive en `:app`: ningún `:feature:*` declara
+ * `play-services-maps` ni debe hacerlo. Mismo reparto que `DictadoRutas`, que sí
+ * sale de su módulo porque la pantalla también es del módulo.
+ *
+ * Las coordenadas viajan como **texto** y no como `FloatType`: un `Float` tiene
+ * ~7 dígitos significativos y una latitud con cinco decimales ya los gasta, así
+ * que redondear la ruta movería el pin metros — justo el error que el pin de
+ * esta app existe para no cometer.
+ */
+object RutasDelMapa {
+
+    /** Argumento de latitud del mapa grande. */
+    const val ARG_LAT: String = "lat"
+
+    /** Argumento de longitud del mapa grande. */
+    const val ARG_LNG: String = "lng"
+
+    /** Argumento opcional con la dirección escrita de la puerta. */
+    const val ARG_DIRECCION: String = "direccion"
+
+    /** La ubicación de una puerta, a pantalla completa. */
+    const val UBICACION: String =
+        "pagos/ubicacion/{$ARG_LAT}/{$ARG_LNG}?$ARG_DIRECCION={$ARG_DIRECCION}"
+
+    /** La ruta concreta hacia [UBICACION]. */
+    fun ubicacion(lat: Double, lng: Double, direccion: String): String =
+        "pagos/ubicacion/$lat/$lng?$ARG_DIRECCION=" + Uri.encode(direccion)
+}
+
+/**
+ * Registra el **mapa grande** en el grafo.
+ *
+ * La ruta lleva las dos coordenadas y **la dirección escrita**, codificada con
+ * `Uri.encode` —una ruta es una URL y una calle mexicana trae acentos, comas y
+ * a veces diagonales—. La dirección viaja porque la hoja al pie la necesita: una
+ * coordenada suelta no le dice a nadie de qué puerta se trata.
+ *
+ * El **nombre del cliente NO viaja**, y ésa es la diferencia: en esta pantalla no
+ * aporta nada —el cobrador acaba de tocar el cuadro dentro del detalle de ese
+ * cliente— y es dato personal en un lugar donde no hace falta.
+ *
+ * Una coordenada ilegible vuelve atrás en vez de abrir un mapa en el meridiano
+ * cero. Es el mismo criterio que `UbicacionDelCobro.de` aplica al leer Room:
+ * media coordenada es un dato falso, no uno incompleto.
+ */
+private fun NavGraphBuilder.destinoDeLaUbicacion(navController: NavController) {
+    composable(
+        route = RutasDelMapa.UBICACION,
+        arguments = listOf(
+            navArgument(RutasDelMapa.ARG_LAT) { type = NavType.StringType },
+            navArgument(RutasDelMapa.ARG_LNG) { type = NavType.StringType },
+            navArgument(RutasDelMapa.ARG_DIRECCION) {
+                type = NavType.StringType
+                defaultValue = ""
+            }
+        )
+    ) { entrada ->
+        val lat = entrada.arguments?.getString(RutasDelMapa.ARG_LAT)?.toDoubleOrNull()
+        val lng = entrada.arguments?.getString(RutasDelMapa.ARG_LNG)?.toDoubleOrNull()
+        if (lat == null || lng == null) {
+            navController.popBackStack()
+            return@composable
+        }
+        UbicacionDelClienteScreen(
+            lat = lat,
+            lng = lng,
+            direccion = entrada.arguments?.getString(RutasDelMapa.ARG_DIRECCION).orEmpty(),
+            onAtras = { navController.popBackStack() }
+        )
     }
 }

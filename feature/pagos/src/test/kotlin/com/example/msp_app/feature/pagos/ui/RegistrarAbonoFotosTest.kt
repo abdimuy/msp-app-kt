@@ -17,6 +17,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
 import com.example.msp_app.feature.pagos.data.fake.FakeRegistroDeAbonoPort
+import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.domain.Comprobantes
@@ -720,6 +721,7 @@ class RegistrarAbonoFotosTest {
         ),
         registrarAbono = RegistrarAbono(registroPort, telemetria),
         camara = camaraPort,
+        tema = FakeTemaDeLaAppPort(),
         telemetry = telemetria,
         clock = clock,
         io = testDispatcher

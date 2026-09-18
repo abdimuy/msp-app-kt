@@ -5,12 +5,14 @@
 package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -27,8 +29,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
@@ -41,6 +46,7 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.ContactoDeCobranza
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.model.ResumenDelCliente
+import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.ui.AccionesIconos
 import java.time.LocalDate
@@ -68,6 +74,20 @@ const val FILA_DE_PRODUCTO_TAG: String = "pagos_cliente_producto"
 
 /** `testTag` del "ver los N contactos" al pie de la bitácora. */
 const val VER_LOS_CONTACTOS_TAG: String = "pagos_cliente_ver_contactos"
+
+/** `testTag` de un renglón de contacto dentro de la hoja del detalle. */
+const val CONTACTO_EN_LA_HOJA_TAG: String = "pagos_cliente_contacto"
+
+/** `testTag` del cuadro de la puerta — el mapa, o el dibujo cuando no hay mapa. */
+const val CUADRO_DE_LA_PUERTA_TAG: String = "pagos_cliente_cuadro_puerta"
+
+/**
+ * Lo que anuncia el cuadro cuando se puede tocar.
+ *
+ * Un `clickable` sin etiqueta es un control invisible para TalkBack, y este no
+ * tiene texto propio del cual heredarla: son dos glifos decorativos.
+ */
+private const val VER_LA_UBICACION = "Ver la ubicación"
 
 private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", BUSINESS_LOCALE)
 
@@ -651,17 +671,46 @@ fun ProductoDelCliente(producto: ProductoDeVenta, modifier: Modifier = Modifier)
     }
 }
 
-/** Un contacto de la bitácora dentro de la hoja: qué pasó y cuándo. */
+/**
+ * Un contacto de la bitácora dentro de la hoja: qué pasó, cuándo, y el pin
+ * cuando de esa vez se sabe dónde.
+ *
+ * Es la hermana chica de [FilaDeContacto] —la de la bitácora completa— y hace lo
+ * mismo con el toque: [onVerUbicacion] abre el mapa grande centrado en el punto
+ * de ESTE contacto, y **sin punto el `clickable` no existe**. Las razones —por
+ * qué no un `onClick` vacío, por qué el pin va en `brand`, y por qué su hueco se
+ * reserva aunque no haya pin— están escritas una sola vez, en el KDoc de
+ * [FilaDeContacto].
+ *
+ * Lo único que difiere es el piso de alto: aquí es [TOQUE_DE_ACCION], los 50 dp
+ * que esta pantalla ya declara para todo lo tocable, y no los 56 de la bitácora.
+ * No es aflojar la regla —50 es la regla del repo, más estricta que los 48 de
+ * Material— sino no gastar 18 dp de más en la hoja que compite con el dinero, que
+ * es lo que `LaFichaSeVeYSeTocaTest` mide.
+ */
 @Composable
 fun ContactoEnLaHoja(
     contacto: ContactoDeCobranza,
     fecha: LocalDate,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
 ) {
+    val abrir = abridorDe(contacto, onVerUbicacion)
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm + 4.dp),
+            .then(
+                if (abrir != null) {
+                    Modifier
+                        .clickable(onClick = abrir)
+                        .semantics { contentDescription = VER_DONDE_FUE }
+                } else {
+                    Modifier
+                }
+            )
+            .heightIn(min = TOQUE_DE_ACCION)
+            .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm + 4.dp)
+            .testTag(CONTACTO_EN_LA_HOJA_TAG),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
@@ -678,6 +727,7 @@ fun ContactoEnLaHoja(
             style = MspTheme.type.caption,
             color = MspTheme.colors.onSurfaceMuted
         )
+        PinDelContacto(hayPunto = contacto.ubicacion != null)
     }
 }
 
@@ -731,3 +781,290 @@ private val GLIFO_DE_ACCION = 18.dp
  * Robolectric un golden no puede ver un área tocable.
  */
 private val TOQUE_DE_ACCION = 50.dp
+
+/**
+ * **El cuadro de la puerta: el mapa cuando se puede, el dibujo cuando no.**
+ *
+ * ## Por qué vuelve, y por qué vuelve sin botón adentro
+ *
+ * El bloque se fue entero con `:core:mapas` (`5417e65e`) porque sin renderizador
+ * habría quedado un rectángulo gris de 130 dp que no enseña nada. El dueño lo
+ * vio en vidrio y pidió lo contrario: *"tiene que ser un mapa o un dibujo"*. Una
+ * banda vacía en medio de la hoja se lee como una pantalla a medio cargar.
+ *
+ * Vuelve **sin el botón "cómo llegar" adentro**. Aquél era el segundo camino al
+ * mismo intent, y cuál se pintaba lo decidía un dato: el cobrador veía una
+ * pantalla distinta según si el abono anterior se registró con ubicación o sin
+ * ella, para una acción que siempre se puede hacer. `5417e65e` lo cerró dejándolo
+ * como cuarta acción permanente de [AccionesDelCliente], y eso se conserva.
+ *
+ * [onVerUbicacion] **no es ese segundo camino**: "cómo llegar" sale de la app a
+ * navegar, y esto abre el mapa completo DENTRO de la app, para ver la puerta con
+ * zoom antes de arrancar. Son dos trabajos distintos y dos destinos distintos.
+ * Solo se puede tocar cuando hay punto medido: sin él no hay nada que mostrar.
+ *
+ * ## Las DOS capas, y por qué el dibujo va abajo y no "en vez de"
+ *
+ * El dibujo se pinta **siempre**, como piso. [suelo] —el mapa de verdad, que
+ * cablea `:app`— se pinta encima y solo cuando hay [ubicacion]. Si el mapa
+ * pinta, tapa el dibujo; si no pinta, el dibujo queda a la vista.
+ *
+ * Eso no es defensa por si acaso: **está medido**. Instalado en el SM-A256E, el
+ * mapa no pintó ni una tesela —`Authorization failure … StatusCode=
+ * INVALID_ARGUMENT`, la llave no autorizaba el paquete de esa build— y lo que se
+ * veía era la retícula gris con el logo de Google, o sea *un mapa que no cargó*,
+ * que es exactamente lo que este cuadro existe para no ser. El mismo caso se da
+ * en la calle sin señal la primera vez que se abre una puerta nueva. Con el
+ * dibujo abajo, el peor caso es el estado aceptable y no el prohibido.
+ *
+ * Quien decide cuándo el mapa se deja ver es el propio [suelo] (ver
+ * `SueloDelUltimoCobro` en `:app`): se mantiene invisible hasta que el SDK avisa
+ * que terminó de renderizar. Sin temporizadores y sin adivinar.
+ *
+ * ## El mapa vive en `:app` y entra por una ranura
+ *
+ * `:feature:pagos` no declara `play-services-maps` y no debe declararla: vive en
+ * `:app` (`app/build.gradle.kts:348-350`), igual que la llave del manifiesto.
+ * Principio 17 del brief: cuando el adaptador necesita algo que solo vive en
+ * `:app`, la ranura se queda en el módulo y quien la cierra es `:app`.
+ *
+ * Y es lo que mantiene **deterministas los goldens**: un mapa real trae red y
+ * bitmaps, y ninguno de los dos entra a `captureRoboImage`. El golden fotografía
+ * el dibujo, que es lo que este módulo dibuja de verdad.
+ *
+ * ## El pin del dibujo es un SÍMBOLO, no una coordenada
+ *
+ * Con [ubicacion] medida el dibujo lleva un pin sobre la casa. No dice *dónde*
+ * está la puerta —sobre un dibujo no hay dónde— sino que **hay un punto medido**,
+ * y eso el cobrador lo usa: "cómo llegar" lo va a dejar en la puerta exacta y no
+ * en la calle. Es la distinción que el KDoc del bloque viejo ya dejó escrita, y
+ * la razón por la que con teselas el pin lo pinta el mapa: ahí un pin que no cae
+ * exacto sobre el objetivo de la cámara miente, y el golden midió **21 dp** de
+ * corrimiento, unos 24 metros a zoom 17.
+ *
+ * ## Qué NO dibuja
+ *
+ * **Nada de calles ni de retícula.** El mock resolvía este cuadro con un
+ * degradado, una cuadrícula de 34 px y una barra rotada -7° haciendo de calle
+ * (`docs/design/mocks/cliente-y-venta.html:151-156`). Una retícula se confunde
+ * con la traza real de la colonia y una barra rotada se lee como una avenida que
+ * existe: las dos son dato falso dibujado, y además indistinguibles de un mapa
+ * roto. El dibujo tiene que **verse como dibujo**.
+ *
+ * **Y no dice "a 320 m".** Esa distancia exige saber dónde está el teléfono
+ * AHORA y la app no tiene ubicación en vivo. Un número a medias es un dato
+ * falso, no uno incompleto (principio 9).
+ */
+@Composable
+fun CuadroDeLaPuerta(
+    ubicacion: UbicacionDelCobro?,
+    modifier: Modifier = Modifier,
+    onVerUbicacion: (() -> Unit)? = null,
+    suelo: (@Composable () -> Unit)? = null
+) {
+    val abrir = onVerUbicacion.takeIf { ubicacion != null }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(altoDelCuadro())
+            .background(MspTheme.colors.surface2)
+            .then(
+                if (abrir != null) {
+                    Modifier
+                        .clickable(onClick = abrir)
+                        .semantics { contentDescription = VER_LA_UBICACION }
+                } else {
+                    Modifier
+                }
+            )
+            .testTag(CUADRO_DE_LA_PUERTA_TAG)
+    ) {
+        DibujoDeLaPuerta(ubicacion)
+        // El mapa, encima del dibujo y solo con punto medido. Sin punto no hay
+        // dónde centrarlo, y centrarlo en cualquier otra cosa diría "es aquí"
+        // sobre una puerta que nadie midió.
+        if (ubicacion != null) suelo?.invoke()
+    }
+}
+
+/**
+ * El dibujo: una casa, y un pin encima cuando la puerta tiene punto medido.
+ *
+ * Los dos glifos son [androidx.compose.ui.graphics.vector.ImageVector]
+ * construidos a mano con el mismo helper que el resto de los iconos del módulo,
+ * así que pesan lo que pesan unas constantes `String`. No es un detalle de
+ * estilo: el único PNG decorativo del repo (`res/drawable-nodpi/map_layout.png`,
+ * el "mapa ilustrado" de la pantalla legada de venta) ocupa **1 863 417 B**, el
+ * 15 % de un APK de release de 11.59 MB — más que todo el SDK de Maps junto.
+ */
+@Composable
+private fun DibujoDeLaPuerta(ubicacion: UbicacionDelCobro?) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (ubicacion != null) {
+            Icon(
+                imageVector = AccionesIconos.Pin,
+                contentDescription = null,
+                tint = MspTheme.colors.brand,
+                modifier = Modifier.size(PIN_DEL_CUADRO)
+            )
+            Spacer(Modifier.height(MspTheme.spacing.xs))
+        }
+        Icon(
+            imageVector = AccionesIconos.Casa,
+            contentDescription = null,
+            tint = MspTheme.colors.onSurfaceMuted,
+            modifier = Modifier.size(CASA_DEL_CUADRO)
+        )
+    }
+}
+
+/**
+ * Los datos de la puerta que la hoja de identidad perdió en el rediseño: **el
+ * aval y la última visita**.
+ *
+ * ## Por qué esto es un arreglo y no una función nueva
+ *
+ * La versión anterior de la pantalla los pintaba en una sección "datos del
+ * cliente" (`git show ec47f007:…/DetalleClienteScreen.kt`, líneas 300-309). El
+ * rediseño a hoja continua siguió un mock que ya los había perdido, y se fueron
+ * sin que nadie lo notara:
+ * [com.example.msp_app.feature.pagos.domain.model.DetalleCliente.aval] y
+ * `ultimaVisita` quedaron con **cero usos** en la pantalla. Los dos contestan
+ * preguntas que se hacen parado en la puerta: *"¿a quién le llamo si no
+ * contesta?"* y *"¿hace cuánto vine?"*.
+ *
+ * Es el mismo error que el principio 25 del brief manda evitar —leer el KDoc
+ * antes de rediseñar— cometido por la otra puerta: leyendo el mock en vez del
+ * modelo.
+ *
+ * ## Por qué renglones compactos y NO filas clave/valor con hairline
+ *
+ * **Medido, no elegido por gusto.** La primera versión usaba [FilaClaveValor]
+ * dentro de su propia [SeccionDeHoja], que es la anatomía normal de esta hoja.
+ * Costaba ~161 dp a `MUY_GRANDE` —32 de padding de sección, 24 de padding
+ * vertical por fila y el texto escalado— y con eso `LaFichaSeVeYSeTocaTest` se
+ * puso rojo: *"el dinero termina en 760.0.dp y el dock empieza en 672.0.dp"*,
+ * **88 dp tapado** a `GRANDE` y a `MUY_GRANDE`.
+ *
+ * Todo lo que se agrega a la hoja de identidad empuja la hoja del dinero, que
+ * es por lo que el cobrador abrió esta pantalla. Así que estos dos datos viven
+ * **dentro de la sección de identidad**, en el mismo registro tipográfico que
+ * zona y dirección: un renglón cada uno, etiqueta apagada y valor encima del
+ * texto. Cuestan un tercio y dicen lo mismo.
+ *
+ * ## El teléfono del aval solo cuando existe
+ *
+ * Hoy es `null` siempre: no existe la columna, y su KDoc lo documenta con la
+ * consulta que lo verificó. Una fila permanentemente en "—" es exactamente el
+ * ruido que este rediseño quitó, así que la fila no se pinta mientras el dato no
+ * exista, en vez de rellenarla con el teléfono del CLIENTE —que ya está en el
+ * encabezado y no es a quien se llama—.
+ */
+@Composable
+fun DatosDeLaPuerta(
+    aval: String,
+    telefonoAval: String?,
+    ultimaVisita: LocalDate?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+    ) {
+        DatoDeLaPuerta("aval o responsable", aval)
+        telefonoAval?.let { DatoDeLaPuerta("teléfono del aval", it) }
+        // `d MMM`, el mismo formato corto que ya usan el último contacto y el
+        // último pago de esta hoja. Una fecha larga competiría con el saldo.
+        DatoDeLaPuerta(
+            clave = "última visita",
+            valor = ultimaVisita?.let { DIA_Y_MES.format(it) } ?: SIN_DATO
+        )
+    }
+}
+
+/**
+ * Un dato de la puerta en UN renglón: la etiqueta apagada, el valor con el peso.
+ *
+ * Sin columna de ancho fijo (los 140 dp de [FilaClaveValor]): a `MUY_GRANDE` esa
+ * columna se come más de un tercio del ancho y deja el valor partido. Acá la
+ * etiqueta mide lo que mide y el valor toma lo que sobra.
+ */
+@Composable
+private fun DatoDeLaPuerta(clave: String, valor: String, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+    ) {
+        Text(
+            text = clave,
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted,
+            maxLines = 1
+        )
+        Text(
+            text = valor.ifBlank { SIN_DATO },
+            style = MspTheme.type.captionStrong,
+            color = MspTheme.colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * El alto del cuadro de ubicación: **130 dp del mock, y MENOS a las escalas
+ * grandes**.
+ *
+ * ## Por qué encoge, al revés que su antecesor
+ *
+ * Aquél *crecía* con la escala porque tenía dentro un botón "cómo llegar" que
+ * escalaba con la tipografía y llegaba a tapar el pin a `MUY_GRANDE` (golden
+ * `pagos_mapa_con_atribucion_light_2_0`). Ese botón ya no vive aquí —es la
+ * cuarta acción de la fila de abajo— y la pastilla se esconde fuera de `NORMAL`,
+ * así que a las escalas grandes **dentro del cuadro no queda nada que leer**: es
+ * decoración.
+ *
+ * Y la decoración es lo que tiene que ceder. Todo lo que vive en la hoja de
+ * identidad empuja la hoja del dinero, que es por lo que el cobrador abrió esta
+ * pantalla, y `LaFichaSeVeYSeTocaTest` lo cobra en dp: con los 130 fijos el
+ * dinero terminaba en 690 dp contra un dock que empieza en 672 —**18 dp
+ * tapado**— a `GRANDE` y a `MUY_GRANDE`. Con [CUADRO_APRETADO] sobran 20.
+ *
+ * El número no sale de un gusto: sale de esa medición. Subirlo vuelve a tapar el
+ * saldo, y la regla del repo es subir la implementación, no bajar el test.
+ */
+@Composable
+private fun altoDelCuadro(): Dp = when (LocalFontSizeLevel.current) {
+    FontSizeLevel.NORMAL -> CUADRO_DEL_MOCK
+    else -> CUADRO_APRETADO
+}
+
+/** Los 130 dp del mock, a escala normal. */
+private val CUADRO_DEL_MOCK = 130.dp
+
+/** Lo que mide a `GRANDE` y `MUY_GRANDE`, donde el cuadro ya no lleva texto. */
+private val CUADRO_APRETADO = 96.dp
+
+/**
+ * La casa: grande y en el gris del texto secundario.
+ *
+ * Se probó primero con `colors.outline` —el color del hairline— y en el golden
+ * la casa **desaparecía**: quedaba una mancha que se lee como un artefacto del
+ * render, no como un dibujo. Un dibujo que no se ve no responde a *"tiene que
+ * ser un mapa o un dibujo"*.
+ */
+private val CASA_DEL_CUADRO = 56.dp
+
+/**
+ * El pin: más chico que la casa y en el color de marca.
+ *
+ * El tamaño y el color son los que lo hacen leerse como una **marca sobre** la
+ * casa y no como un segundo dibujo al lado. Es el único elemento del cuadro que
+ * depende de un dato.
+ */
+private val PIN_DEL_CUADRO = 28.dp

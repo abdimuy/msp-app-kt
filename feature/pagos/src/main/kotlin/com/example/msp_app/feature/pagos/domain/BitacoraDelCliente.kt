@@ -24,6 +24,17 @@ import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
  * El estado de cada visita sale de [TipoVisitaCatalogo.estadoDe], que es
  * **consumirlo, no re-derivarlo**: la clasificación literal→estado tiene un solo
  * dueño en el repo y es ese objeto.
+ *
+ * ## El punto viaja con el contacto, y no se inventa el que falta
+ *
+ * Cada contacto se lleva la ubicación de SU hecho —la del abono si fue abono, la
+ * de la visita si fue visita— y `null` cuando ese hecho no trajo punto. No se
+ * rellena con el punto del contacto anterior ni con el del último cobro: eso
+ * pondría un pin sobre una puerta que ese día nadie midió, que es la clase de
+ * dato falso que [ContactoDeCobranza.ubicacion] existe para no afirmar. Aquí
+ * tampoco se decide qué par es válido: eso ya lo decidió
+ * [com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro], del lado
+ * del adaptador, y la mezcla solo copia.
  */
 object BitacoraDelCliente {
 
@@ -41,7 +52,8 @@ object BitacoraDelCliente {
                 // una cita en la bitácora tiene que verse como cita, no como el
                 // "vuelvo" de su literal de cable.
                 estado = TipoVisitaCatalogo.estadoDe(visita.tipoVisita, visita.fechaCita != null),
-                importe = null
+                importe = null,
+                ubicacion = visita.ubicacion
             )
         }
         val dePagos = pagos.map { pago ->
@@ -50,7 +62,8 @@ object BitacoraDelCliente {
                 etiqueta = ETIQUETA_COBRE,
                 nota = pago.nota,
                 estado = EstadoCuenta.PAGO,
-                importe = pago.importe
+                importe = pago.importe,
+                ubicacion = pago.ubicacion
             )
         }
         return (deVisitas + dePagos).sortedByDescending { it.fecha }

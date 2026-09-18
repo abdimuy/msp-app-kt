@@ -1,10 +1,13 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 
 /**
  * Las rutas de `:feature:pagos`.
@@ -137,6 +140,32 @@ fun NavGraphBuilder.destinosDePagos(
 }
 
 /**
+ * **El mapa del detalle de cliente: quién lo dibuja y a dónde lleva el toque.**
+ *
+ * Las dos cosas viven del lado de `:app` porque `play-services-maps` está
+ * declarada ahí (`app/build.gradle.kts:348-350`) y este módulo no la declara ni
+ * debe declararla — mismo reparto del principio 17 que ya usan `TemaDeLaAppPort`
+ * y `LiquidacionPort`.
+ *
+ * [suelo] es el mapa chico del cuadro de la puerta. **Opcional, y `null`
+ * significa "nadie la cerró"**: ahí el cuadro se queda con su dibujo, que es la
+ * degradación correcta y no una pantalla rota. Así un `@Preview`, un test o un
+ * host futuro montan esta ruta sin tener que saber que existe un mapa.
+ *
+ * [onVer] es el destino que abre ese mapa completo, con zoom, y solo se dispara
+ * cuando hay un punto medido. Recibe el punto **y la dirección escrita**: el
+ * mapa enseña dónde, y la hoja al pie tiene que decir de qué puerta se trata —
+ * una coordenada suelta no se lo dice a nadie. No compite con "cómo llegar":
+ * aquélla sale de la app a navegar por un `geo:`, ésta enseña la puerta dentro
+ * de la app.
+ */
+@Immutable
+data class UbicacionEnElDetalle(
+    val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
+    val suelo: (@Composable (UbicacionDelCobro?) -> Unit)? = null
+)
+
+/**
  * Registra el **detalle de cliente** en el grafo.
  *
  * Va aparte de [destinosDePagos] por la misma razón que la lista y el abono: la
@@ -153,13 +182,21 @@ fun NavGraphBuilder.destinosDePagos(
  * [onRegistrarAbono] recibe **siempre un `ventaId`**: el abono es de una cuenta,
  * nunca de una persona. Cuál cuenta lo decide la pantalla — directo cuando hay
  * una sola, y preguntando en una hoja cuando hay varias.
+ *
+ * ## [ubicacion] — lo único que este destino le pide a `:app`
+ *
+ * Ver [UbicacionEnElDetalle]. Va en un objeto y no en dos parámetros sueltos
+ * porque con ellos esta función llega a los siete que detekt corta
+ * (`LongParameterList`), que es el mismo motivo por el que el contenido de la
+ * pantalla agrupa sus lambdas en `AccionesDeContacto` y `AccionesDeLaFicha`.
  */
 fun NavGraphBuilder.destinoDeDetalleCliente(
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
-    onVerContactos: (Int) -> Unit
+    onVerContactos: (Int) -> Unit,
+    ubicacion: UbicacionEnElDetalle = UbicacionEnElDetalle()
 ) {
     composable(
         route = PagosRutas.DETALLE_CLIENTE,
@@ -171,10 +208,40 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
             onAbrirVenta = onAbrirVenta,
             onRegistrarAbono = onRegistrarAbono,
             onRegistrarVisita = onRegistrarVisita,
-            onVerContactos = onVerContactos
+            onVerContactos = onVerContactos,
+            onVerUbicacion = ubicacion.onVer,
+            suelo = ubicacion.suelo
         )
     }
 }
+
+/**
+ * **El mapa de UN contacto de la bitácora: a dónde lleva tocar un renglón.**
+ *
+ * Vive del lado de `:app` por lo mismo que [UbicacionEnElDetalle]: el mapa
+ * completo necesita `play-services-maps`, que se declara allá y no en este módulo
+ * (principio 17).
+ *
+ * [onVer] recibe el punto de **ese** abono o de **esa** visita —no el del último
+ * cobro del cliente, que es otra puerta y otro día— y la dirección escrita del
+ * cliente, porque la hoja al pie del mapa tiene que decir de qué puerta se trata.
+ *
+ * ## Por qué un objeto y no una lambda suelta
+ *
+ * No es por el umbral de detekt: este destino tiene dos parámetros, no siete. Es
+ * para que los dos destinos que abren el mapa se lean igual en el grafo de `:app`
+ * —`ubicacion = …` en los dos— y para que el día que la bitácora quiera su propio
+ * mapa chico, como el del detalle, entre como miembro de este objeto en vez de
+ * como un parámetro más de la función.
+ *
+ * Es un objeto **propio** y no [UbicacionEnElDetalle] reusado: aquél trae `suelo`,
+ * la ranura del mapa chico del cuadro de la puerta, y esta pantalla no dibuja
+ * ningún cuadro. Un miembro que siempre se ignora es una promesa falsa.
+ */
+@Immutable
+data class UbicacionEnLaBitacora(
+    val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> }
+)
 
 /**
  * Registra la **bitácora** del cliente en el grafo.
@@ -182,13 +249,25 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
  * Es el destino que libera al "⋯" de su doble vida: ese botón abría la pantalla
  * legada y era también el único camino a "ver los N contactos". Ahora la bitácora
  * tiene su propia casa y el "⋯" se pudo quitar sin perder nada.
+ *
+ * [ubicacion] es lo único que este destino le pide a `:app` — ver
+ * [UbicacionEnLaBitacora]. Su default no navega a ninguna parte, que es lo que
+ * deja montar esta ruta en un `@Preview` o en un test sin saber que existe un
+ * mapa.
  */
-fun NavGraphBuilder.destinoDeBitacora(onAtras: () -> Unit) {
+fun NavGraphBuilder.destinoDeBitacora(
+    onAtras: () -> Unit,
+    ubicacion: UbicacionEnLaBitacora = UbicacionEnLaBitacora()
+) {
     composable(
         route = PagosRutas.BITACORA,
         arguments = listOf(navArgument(PagosRutas.ARG_CLIENTE_ID) { type = NavType.IntType })
     ) {
-        BitacoraScreen(viewModel = hiltViewModel(), onAtras = onAtras)
+        BitacoraScreen(
+            viewModel = hiltViewModel(),
+            onAtras = onAtras,
+            onVerUbicacion = ubicacion.onVer
+        )
     }
 }
 

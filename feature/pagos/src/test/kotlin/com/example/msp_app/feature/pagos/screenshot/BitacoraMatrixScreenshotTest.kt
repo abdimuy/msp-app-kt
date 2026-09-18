@@ -71,6 +71,7 @@ class BitacoraMatrixScreenshotTest : PagosScreenshotTest() {
         return BitacoraCompleta(
             clienteId = detalle.clienteId,
             nombre = detalle.nombre,
+            direccion = detalle.direccion,
             contactos = detalle.contactos
         )
     }

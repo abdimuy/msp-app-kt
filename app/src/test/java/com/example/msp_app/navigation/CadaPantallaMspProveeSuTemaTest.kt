@@ -5,7 +5,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
-import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -105,15 +104,41 @@ class CadaPantallaMspProveeSuTemaTest {
 
     // -----------------------------------------------------------------------
 
-    /** Una función de nivel superior con su texto: la unidad de análisis. */
-    private data class Declaracion(val nombre: String, val texto: String)
+    /**
+     * Las pantallas que este gate vigila.
+     *
+     * ## Por qué el módulo `app` se mira con otra regla
+     *
+     * Para `:core:*` y `:feature:*` basta con que el **módulo** use `MspTheme`:
+     * son módulos Msp enteros, y ahí toda pantalla tiene que proveer su tema.
+     *
+     * `:app` es legado (Ruling I) y tiene veintiséis pantallas que viven en
+     * `MspappTheme` —el Material de siempre, un sistema de composición distinto—
+     * y que no leen un solo token Msp. El filtro por módulo las arrastraba a
+     * todas en cuanto UNA pantalla Msp aterrizaba en `:app`, y eso pasó:
+     * `UbicacionDelClienteScreen` —el mapa grande, que vive ahí porque
+     * `play-services-maps` se declara ahí— puso este test en rojo con 26
+     * pantallas que no tienen nada que ver.
+     *
+     * Marcarlas como excepción habría sido una lista de nombres a mano. La regla
+     * correcta es más simple y más fina: en `:app`, una pantalla entra al gate
+     * **cuando ella misma usa el tema Msp**, leyéndolo o montándolo. Una pantalla
+     * legada que no lo toca no es una pantalla Msp, y la número veintisiete
+     * tampoco lo será. La que sí lo sea entra sola el día que se escribe.
+     */
+    private fun pantallasDeModulosMsp(): List<Declaracion> =
+        escaner.archivosPorModulo.flatMap { (modulo, archivos) ->
+            val moduloUsaElTema = archivos.any { LEE_TEMA.containsMatchIn(codigoDe(it)) }
+            if (!moduloUsaElTema) return@flatMap emptyList()
+            archivos
+                .flatMap { declaracionesDe(codigoDe(it)) }
+                .filter { ES_PANTALLA.matches(it.nombre) }
+                .filter { modulo != MODULO_LEGADO || usaElTema(it) }
+        }
 
-    private fun pantallasDeModulosMsp(): List<Declaracion> = escaner.raices
-        .map { raiz -> raiz.walkTopDown().filter { it.isFile && it.extension == "kt" }.toList() }
-        .filter { archivos -> archivos.any { LEE_TEMA.containsMatchIn(codigo(it)) } }
-        .flatten()
-        .flatMap { declaraciones(codigo(it)) }
-        .filter { ES_PANTALLA.matches(it.nombre) }
+    /** La pantalla misma lee `MspTheme.algo` o monta `MspTheme { }`. */
+    private fun usaElTema(pantalla: Declaracion): Boolean =
+        LEE_TEMA.containsMatchIn(pantalla.texto) || INVOCA_TEMA.containsMatchIn(pantalla.texto)
 
     private fun proveeTema(pantalla: Declaracion): Boolean =
         INVOCA_TEMA.containsMatchIn(pantalla.texto) ||
@@ -133,7 +158,7 @@ class CadaPantallaMspProveeSuTemaTest {
      */
     private val proveedores: Set<String> by lazy {
         val candidatos = escaner.archivos
-            .flatMap { declaraciones(codigo(it)) }
+            .flatMap { declaracionesDe(codigoDe(it)) }
             .filter { RANURA.containsMatchIn(it.texto) }
         val encontrados = mutableSetOf<String>()
         var creció = true
@@ -154,6 +179,9 @@ class CadaPantallaMspProveeSuTemaTest {
 
         const val RAIZ_DE_PRUEBA = "raiz_de_prueba"
 
+        /** El módulo legado (Ruling I), donde el gate se aplica por pantalla. */
+        const val MODULO_LEGADO = "app"
+
         /**
          * Control positivo: las nueve que hoy registra el grafo. No es la lista
          * que gobierna el test —esa sale del escaneo— sino la prueba de que el
@@ -172,65 +200,11 @@ class CadaPantallaMspProveeSuTemaTest {
             "TicketDePagoScreen",
             "RegistrarVisitaScreen",
             "TicketDeVisitaScreen",
-            "DescargaDelDictadoScreen"
+            "DescargaDelDictadoScreen",
+            "UbicacionDelClienteScreen"
         )
-
-        /** `MspTheme(...)` o `MspTheme { ... }` — las DOS formas de llamada. */
-        val INVOCA_TEMA = Regex("""(?<![.A-Za-z0-9_])MspTheme\s*[({]""")
 
         /** `MspTheme.colors` y hermanos: leer el tema, no proveerlo. */
         val LEE_TEMA = Regex("""(?<![A-Za-z0-9_])MspTheme\.""")
-
-        /** La ranura de contenido que distingue un envoltorio de una hoja. */
-        val RANURA = Regex("""@Composable\s*\(\s*\)\s*->\s*Unit""")
-
-        val ES_PANTALLA = Regex("""[A-Z][A-Za-z0-9]*Screen""")
-
-        /** Arranque de una declaración de nivel superior (columna cero). */
-        val DECLARACION = Regex("""^(?:internal |private |public )?fun ([A-Za-z][A-Za-z0-9]*)\(""")
-
-        /** Cualquier otra cosa de nivel superior: cierra la declaración anterior. */
-        val OTRO_NIVEL_SUPERIOR = Regex(
-            """^(?:@|(?:internal |private |public |abstract |open |data |sealed )*""" +
-                """(?:val|var|class|object|interface|enum|typealias|fun)\b)"""
-        )
-
-        fun invocacionDe(nombre: String) =
-            Regex("(?<![A-Za-z0-9_])" + Regex.escape(nombre) + """\s*[({]""")
-
-        /**
-         * Parte [codigo] en declaraciones de nivel superior. Se hace por
-         * **función** y no por archivo a propósito: por archivo, una pantalla sin
-         * envolver escrita al lado de una envuelta pasaba en verde.
-         */
-        fun declaraciones(codigo: String): List<Declaracion> {
-            val declaraciones = mutableListOf<Declaracion>()
-            var nombre: String? = null
-            val cuerpo = StringBuilder()
-            codigo.lineSequence().forEach { linea ->
-                val inicio = DECLARACION.find(linea)
-                if (inicio != null || OTRO_NIVEL_SUPERIOR.containsMatchIn(linea)) {
-                    nombre?.let { declaraciones += Declaracion(it, cuerpo.toString()) }
-                    cuerpo.setLength(0)
-                    nombre = inicio?.groupValues?.get(1)
-                }
-                if (nombre != null) cuerpo.appendLine(linea)
-            }
-            nombre?.let { declaraciones += Declaracion(it, cuerpo.toString()) }
-            return declaraciones
-        }
-
-        /**
-         * El código sin comentarios ni KDoc. Este plan documenta en el código los
-         * defectos que mató —el KDoc de `CollectionReportScreen` NOMBRA a
-         * `MspTheme` sin llamarlo—, así que contar comentarios volvería verde a
-         * una pantalla por explicar el bug en vez de arreglarlo.
-         */
-        fun codigo(archivo: File): String = archivo.readLines()
-            .filterNot { linea ->
-                val limpia = linea.trim()
-                limpia.startsWith("//") || limpia.startsWith("*") || limpia.startsWith("/*")
-            }
-            .joinToString("\n")
     }
 }

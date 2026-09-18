@@ -298,6 +298,23 @@ class ReglaDelOrigenTest {
         assertEquals(DictadoRutas.DESCARGA, ruta())
     }
 
+    /**
+     * **El mapa grande tiene punto de entrada, y es el cuadro de la puerta.**
+     *
+     * El cuadro del detalle de cliente es `liteMode`: un bitmap estático sin
+     * zoom. Tocarlo abre esta pantalla, que es la que sí lo tiene. No compite
+     * con "cómo llegar": aquélla sale de la app a navegar por un `geo:`, ésta
+     * enseña la puerta dentro de la app antes de arrancar.
+     *
+     * Sin este test la ruta quedaría registrada y huérfana, que es exactamente
+     * el defecto que la descarga del dictado tuvo durante toda una tarea.
+     */
+    @Test
+    fun `desde el cuadro del detalle se llega al mapa de la puerta`() {
+        nav.navigate(RutasDelMapa.ubicacion(LAT_DE_PRUEBA, LNG_DE_PRUEBA, DIRECCION_DE_PRUEBA))
+        assertEquals(RutasDelMapa.UBICACION, ruta())
+    }
+
     // -----------------------------------------------------------------------
     // Ninguna ruta huérfana
     // -----------------------------------------------------------------------
@@ -325,7 +342,8 @@ class ReglaDelOrigenTest {
             PagosRutas.TICKET_PAGO,
             VisitasRutas.REGISTRAR,
             VisitasRutas.TICKET,
-            DictadoRutas.DESCARGA
+            DictadoRutas.DESCARGA,
+            RutasDelMapa.UBICACION
         ) + legados
         assertEquals(esperadas, registradas)
     }
@@ -453,6 +471,15 @@ class ReglaDelOrigenTest {
 
     private companion object {
         const val RAIZ = "raiz_de_prueba"
+
+        /** Una coordenada cualquiera: lo que se prueba es la ruta, no el punto. */
+        const val LAT_DE_PRUEBA = 18.4609
+
+        /** Idem. */
+        const val LNG_DE_PRUEBA = -97.3926
+
+        /** Con coma y acento a propósito: la ruta la codifica con `Uri.encode`. */
+        const val DIRECCION_DE_PRUEBA = "C. Hidalgo 214, Centro"
 
         /** `CLIENTE_ID`. Distinto de [VENTA] y [CREDITO] a propósito. */
         const val CLIENTE = 9011

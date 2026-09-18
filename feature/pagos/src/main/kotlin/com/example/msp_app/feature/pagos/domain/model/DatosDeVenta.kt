@@ -137,5 +137,18 @@ data class VisitaDelCliente(
     val montoPrometido: Money? = null,
     /** El DÍA de la cita (`CITA_FECHA`). Sin él, [horaCita] no dice cuándo. */
     val fechaCita: LocalDate? = null,
-    val horaCita: LocalTime? = null
+    val horaCita: LocalTime? = null,
+    /**
+     * Dónde se paró el cobrador cuando registró esta visita.
+     *
+     * `VisitEntity.LAT`/`LNG` ya viajaban en la tabla y nadie las mapeaba, igual
+     * que pasaba con las del abono. Es lo que deja abrir el mapa en el punto de
+     * ESA visita —"aquí toqué y no estaba"— en vez de mandar siempre al punto
+     * del último cobro, que es otra puerta y otro día.
+     *
+     * `null` cuando el teléfono no lo pudo tomar. Ojo: en esa tabla la columna
+     * **no admite nulos**, así que "no lo pudo tomar" llega como el par en cero
+     * y lo traduce [UbicacionDelCobro.medida] — ver su KDoc.
+     */
+    val ubicacion: UbicacionDelCobro? = null
 )
