@@ -94,7 +94,9 @@ const val FILTRO_TAG: String = "pagos_filtro_"
  *
  * Una diferencia con el mock, a propósito: **Cuánto** vive en el renglón del
  * título, no en una columna de alto completo, para que el renglón de abajo
- * corra por debajo del importe. Ver el comentario en el cuerpo.
+ * corra por debajo del importe. Ver el comentario en el cuerpo. Y el renglón
+ * de abajo no se recorta: se parte por segmentos enteros
+ * ([RenglonPorSegmentos]).
  *
  * Así era antes, y ése era el defecto: la hora, el punto y el pin se empujaban
  * cada uno con su margen —`sm + xs`, `md × escala`, `sm`— persiguiendo a mano
@@ -240,16 +242,15 @@ fun ContactoEnLinea(
                     )
                 }
             }
-            val meta = renglonDeAbajo(contacto)
-            if (meta.isNotEmpty()) {
-                Text(
-                    text = meta,
+            val segmentos = renglonDeAbajo(contacto)
+            if (segmentos.isNotEmpty()) {
+                // Por segmentos y no un solo Text con elipsis: a escala grande
+                // baja un segmento ENTERO al renglón siguiente en vez de dejar
+                // "Maris…". Ver RenglonPorSegmentos.
+                RenglonPorSegmentos(
+                    segmentos = segmentos,
                     style = estiloDeProsa(),
-                    color = MspTheme.colors.onSurfaceMuted,
-                    // Dos renglones y no uno: a escala grande, en uno solo la
-                    // cuenta se come al método y al cobrador.
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    color = MspTheme.colors.onSurfaceMuted
                 )
             }
             contacto.nota?.let {
@@ -266,24 +267,18 @@ fun ContactoEnLinea(
 }
 
 /**
- * El renglón de abajo: `cuenta · método · cobrador`, con lo que haya.
+ * Los segmentos del renglón de abajo: `cuenta`, `método`, `cobrador`, con lo
+ * que haya y en ese orden.
  *
- * Lo ausente se omite —con su separador—, nunca se rellena: una cuenta `null`
- * no es "sin cuenta", es que ese dato no llegó.
+ * Lo ausente se omite, nunca se rellena: una cuenta `null` no es "sin
+ * cuenta", es que ese dato no llegó. El cobrador va tal como llega — el
+ * nombre no se normaliza ni se acorta (decisión del dueño).
  */
-private fun renglonDeAbajo(contacto: ContactoDeCobranza): String = listOfNotNull(
+private fun renglonDeAbajo(contacto: ContactoDeCobranza): List<String> = listOfNotNull(
     contacto.cuenta?.takeIf { it.isNotBlank() },
     contacto.metodo?.etiqueta,
     contacto.cobrador.takeIf { it.isNotBlank() }
-).joinToString(SEPARADOR_DEL_RENGLON)
-
-/**
- * El punto medio entre las piezas del renglón de abajo. El espacio de ANTES es
- * no separable: cuando el renglón se parte en dos —a escala grande pasa—, el
- * punto se queda al final del primer renglón con su pieza y no abre el
- * segundo como `· Transferencia`.
- */
-internal const val SEPARADOR_DEL_RENGLON: String = "\u00A0· "
+)
 
 /**
  * `caption` con cifras **proporcionales**, para el renglón de abajo y la nota.

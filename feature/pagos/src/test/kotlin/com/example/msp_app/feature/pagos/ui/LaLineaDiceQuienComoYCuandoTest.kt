@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -36,7 +37,7 @@ import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.FILTRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
 import com.example.msp_app.feature.pagos.ui.components.PUNTO_DEL_ESTADO_TAG
-import com.example.msp_app.feature.pagos.ui.components.SEPARADOR_DEL_RENGLON
+import com.example.msp_app.feature.pagos.ui.components.SEGMENTO_DEL_RENGLON_TAG
 import java.math.BigDecimal
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -114,13 +115,10 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
             .assertIsDisplayed()
         composeTestRule.onNodeWithText(ETIQUETA_DEL_COBRO, useUnmergedTree = true)
             .assertIsDisplayed()
-        // Forma de pago y cobrador comparten el renglón de meta, separados por
-        // el punto medio. Se afirma el renglón entero: así el test también
-        // cobra que no se pinte uno sin el otro.
-        composeTestRule.onNodeWithText(
-            "${MetodoDeCobro.EFECTIVO.etiqueta}$SEPARADOR_DEL_RENGLON$COBRADOR",
-            useUnmergedTree = true
-        ).assertIsDisplayed()
+        // Forma de pago y cobrador comparten el renglón de meta. Se afirman los
+        // segmentos juntos: así el test también cobra que no se pinte uno sin
+        // el otro.
+        assertEquals(listOf(MetodoDeCobro.EFECTIVO.etiqueta, COBRADOR), segmentosPintados())
         composeTestRule.onNodeWithText("“$NOTA”", useUnmergedTree = true)
             .assertIsDisplayed()
         composeTestRule.onNodeWithText(IMPORTE_PINTADO, useUnmergedTree = true)
@@ -134,33 +132,29 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
      *
      * Es lo que separa dos abonos del mismo minuto a dos ventas distintas (mock
      * `fila-de-contactos.html`, sección 02): sin la cuenta se leían como un
-     * cobro repetido. Se afirma el renglón entero para cobrar también el ORDEN
-     * —cuenta, método, cobrador— y el separador.
+     * cobro repetido. Se afirman los segmentos en orden de lectura para
+     * cobrar también el ORDEN —cuenta, método, cobrador—.
      */
     @Test
     fun `un abono con cuenta pinta cuenta, metodo y cobrador en ese orden`() {
         fila(COBRO.copy(cuenta = CUENTA, metodo = MetodoDeCobro.TRANSFERENCIA))
 
-        composeTestRule.onNodeWithText(
-            listOf(CUENTA, MetodoDeCobro.TRANSFERENCIA.etiqueta, COBRADOR)
-                .joinToString(SEPARADOR_DEL_RENGLON),
-            useUnmergedTree = true
-        ).assertIsDisplayed()
+        assertEquals(
+            listOf(CUENTA, MetodoDeCobro.TRANSFERENCIA.etiqueta, COBRADOR),
+            segmentosPintados()
+        )
     }
 
     /**
-     * **Sin cuenta no se rellena nada**: ni un "sin cuenta", ni un separador
-     * huérfano al principio. El renglón es exactamente el de antes de que la
-     * cuenta existiera.
+     * **Sin cuenta no se rellena nada**: ni un "sin cuenta", ni un segmento
+     * vacío. Los segmentos son exactamente los de antes de que la cuenta
+     * existiera.
      */
     @Test
     fun `un abono sin cuenta pinta solo metodo y cobrador`() {
         fila(COBRO.copy(cuenta = null))
 
-        composeTestRule.onNodeWithText(
-            "${MetodoDeCobro.EFECTIVO.etiqueta}$SEPARADOR_DEL_RENGLON$COBRADOR",
-            useUnmergedTree = true
-        ).assertTextEquals("${MetodoDeCobro.EFECTIVO.etiqueta}$SEPARADOR_DEL_RENGLON$COBRADOR")
+        assertEquals(listOf(MetodoDeCobro.EFECTIVO.etiqueta, COBRADOR), segmentosPintados())
     }
 
     /**
@@ -537,6 +531,13 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
     private fun cuantosDicen(texto: String): Int =
         composeTestRule.onAllNodes(hasText(texto, substring = true), useUnmergedTree = true)
             .fetchSemanticsNodes().size
+
+    /** Los segmentos del renglón de abajo, en orden de lectura (renglón, luego izquierda). */
+    private fun segmentosPintados(): List<String> =
+        composeTestRule.onAllNodesWithTag(SEGMENTO_DEL_RENGLON_TAG, useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .sortedWith(compareBy({ it.boundsInRoot.top }, { it.boundsInRoot.left }))
+            .map { nodo -> nodo.config[SemanticsProperties.Text].joinToString("") { it.text } }
 
     private fun cuantasFilas(): Int =
         composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG).fetchSemanticsNodes().size
