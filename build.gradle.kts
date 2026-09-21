@@ -104,26 +104,25 @@ val legacyDateApiAllowlist = setOf(
     "app/src/main/java/com/example/msp_app/features/visit/screens/VisitTicketScreen.kt",
 )
 
-// Content-based allowlist (NOT file-level) for the three actively-edited
-// MONEY ViewModels flagged by fix round 1/5 review: file-level allowlisting
+// Content-based allowlist (NOT file-level) for actively-edited MONEY
+// ViewModels flagged by fix round 1/5 review: file-level allowlisting
 // them would hide a NEW/different forbidden call added later in the SAME
 // file, and these are the files most likely to keep changing (live sale/
 // payment ViewModels). Instead of allowlisting the whole file, this
 // allowlists only the EXACT (comment-stripped, trimmed) text of the one
 // known pre-existing violation in each — any OTHER hit in these files,
-// including a second one, still fails the build. All three are REAL DEBT:
-// a persisted date/timestamp field written from the DEVICE clock
+// including a second one, still fails the build. Both remaining entries are
+// REAL DEBT: a persisted date/timestamp field written from the DEVICE clock
 // (`java.time.Instant.now()`/`LocalDate.now()`) instead of `AppClock`.
+// (A third entry, `EditLocalSaleViewModel.kt`, was removed here when Task 5
+// of "Corregir una venta antes de que suba" deleted that file — its
+// `FECHA_SUBIDA` violation went with it, not left as a dead allowlist row.)
 // Trade-off: if this exact line is ever reformatted (e.g. ktlint rewraps
 // it) without a code change, the guard fires a false positive on an
 // unrelated formatting diff. Judged acceptable: a false positive here is
 // loud and immediately obvious at the point of the reformat, unlike a
 // silently-widened file-level hole in a money ViewModel.
 val legacyDateApiContentAllowlist = mapOf(
-    // FECHA_SUBIDA persisted for a sale-edit image (device clock).
-    "app/src/main/java/com/example/msp_app/features/sales/viewmodels/EditLocalSaleViewModel.kt" to setOf(
-        "java.time.Instant.now().toString()"
-    ),
     // `saleDate` persisted for a NEW sale (device clock) — the most
     // money-sensitive of the three.
     "app/src/main/java/com/example/msp_app/features/sales/viewmodels/NewSaleFormViewModel.kt" to setOf(
@@ -238,6 +237,63 @@ tasks.register("checkNoLegacyDateApi") {
             throw GradleException(
                 "checkNoLegacyDateApi: uso directo de API de fecha/hora legado fuera del " +
                     "allowlist — usar AppTime/AppClock de :core:common en su lugar:\n" +
+                    violations.joinToString("\n") { "  - $it" }
+            )
+        }
+    }
+}
+
+// Task 5 (plan "Corregir una venta antes de que suba"): guarda de arquitectura calcada de
+// `checkNoLegacyDateApi` de arriba — mismo mecanismo (grep-equivalent sobre `:app/src/main`,
+// comentarios/strings ya despojados antes de comparar, para no reventar por la propia
+// documentación de este defecto), un único nombre prohibido. `enqueueLocalSaleUpdate`
+// (`app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt`) es
+// el punto de entrada al backend LEGADO de edición de ventas locales (`PUT
+// ventas-locales/{id}`, vía `LocalSaleSyncWorker`): apunta a un servidor que ya no es la fuente
+// de verdad, rota la `Idempotency-Key` de quien lo llame y no conoce el candado de corrección de
+// este plan. `EditLocalSaleViewModel.kt` (el único llamador) se BORRÓ en esta misma tarea; su
+// reemplazo, `CorreccionVentaViewModel` (`:feature:ventaCorreccion`), nunca lo nombra. Esta
+// guarda es lo que impide que alguien lo reconecte por accidente — o a propósito, sin darse
+// cuenta de por qué está prohibido — en el futuro.
+//
+// El propio archivo que DEFINE la función (`LocalSaleSyncExtensions.kt`) se allowlistea por
+// archivo completo: no es una reintroducción, es la definición que se queda dormida (fuera de
+// alcance de este plan borrarla del todo — ver "Fuera de alcance" #4 del plan). Cualquier OTRO
+// archivo de `:app/src/main` que la nombre, sea llamándola o reexportándola, hace fallar el
+// build.
+val legacySaleEditAllowlist = setOf(
+    "app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt"
+)
+
+tasks.register("checkNoLegacySaleEdit") {
+    group = "verification"
+    description = "Task 5 (editar-venta-antes-de-subir): falla si :app nombra " +
+        "enqueueLocalSaleUpdate fuera de su propia definición — el camino legado de edición " +
+        "de ventas locales no se revive."
+
+    val appMainDir = layout.projectDirectory.dir("app/src/main")
+    val repoRoot = layout.projectDirectory.asFile
+
+    inputs.files(fileTree(appMainDir) { include("**/*.kt") })
+
+    doLast {
+        val violations = mutableListOf<String>()
+        fileTree(appMainDir) { include("**/*.kt") }.forEach { file ->
+            val relativePath = file.relativeTo(repoRoot).invariantSeparatorsPath
+            if (relativePath in legacySaleEditAllowlist) return@forEach
+            val stripped = stripKotlinCommentsAndStrings(file.readText())
+            stripped.lineSequence().forEachIndexed { index, line ->
+                if (line.contains("enqueueLocalSaleUpdate")) {
+                    violations += "$relativePath:${index + 1}: nombra `enqueueLocalSaleUpdate` " +
+                        "(backend legado de edición de ventas locales)"
+                }
+            }
+        }
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "checkNoLegacySaleEdit: la edición de ventas locales no puede volver al " +
+                    "backend legado — usar CorreccionVentaViewModel " +
+                    "(:feature:ventaCorreccion) en su lugar:\n" +
                     violations.joinToString("\n") { "  - $it" }
             )
         }
@@ -397,6 +453,10 @@ tasks.register("prePushCheck") {
         gradle.includedBuild("build-logic").task(":ktlintCheck"),
         ":app:ktlintCheck",
         "checkNoLegacyDateApi",
+        // Task 5 (plan "Corregir una venta antes de que suba"): mismo criterio que
+        // `checkNoLegacyDateApi` justo arriba — una guarda de arquitectura barata que corre
+        // siempre, no sólo cuando alguien recuerda revisarla.
+        "checkNoLegacySaleEdit",
         ":core:common:ktlintCheck",
         ":core:database:ktlintCheck",
         ":core:designsystem:ktlintCheck",
@@ -422,10 +482,11 @@ tasks.register("prePushCheck") {
         // `:feature:ventaCorreccion` nace en la Task 2 del plan "Corregir una
         // venta antes de que suba" YA DENTRO de la compuerta, el mismo día
         // que el módulo entra a `settings.gradle.kts` — no se repite el
-        // hueco de `:feature:configuracion` documentado arriba. Sólo
-        // ktlint/tests/detekt: `verifyRoborazziDebug` y `koverVerifyDebug`
-        // esperan a que haya goldens (Task 5) / cobertura medida (Task 7)
-        // que agregar sin inventar un umbral.
+        // hueco de `:feature:configuracion` documentado arriba. Task 5 suma
+        // `verifyRoborazziDebug` (ver más abajo, junto al de
+        // `:feature:collectionReport`) ahora que existen goldens reales
+        // (`BotonCorregir`/`AvisoNoCorregible`). `koverVerifyDebug` sigue
+        // fuera hasta que Task 7 mida un piso real, no inventado.
         ":feature:ventaCorreccion:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
@@ -510,6 +571,15 @@ tasks.register("prePushCheck") {
         // "agregarlos antes haría fallar el gate por falta de
         // capturas/umbral"), esos goldens ya están committeados.
         ":feature:collectionReport:verifyRoborazziDebug",
+        // Task 5 (plan "Corregir una venta antes de que suba"): goldens de
+        // `BotonCorregir`/`AvisoNoCorregible` — dos textos representativos
+        // (el más corto, el más largo) × claro/oscuro × las tres escalas de
+        // letra que ya usa el catálogo de `:core:designsystem`
+        // (`CorreccionScreenshotTest`). Mismo criterio que
+        // `:core:designsystem`/`:feature:collectionReport` arriba: entra al
+        // gate ahora porque ya hay goldens de referencia committeados, no
+        // antes.
+        ":feature:ventaCorreccion:verifyRoborazziDebug",
         ":app:assembleDevlocalDebug",
     )
 }

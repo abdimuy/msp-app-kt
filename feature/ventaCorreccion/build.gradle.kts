@@ -19,9 +19,19 @@ android {
 // `msp.kover` (mismo patrón que `:feature:collectionReport` y
 // `:feature:configuracion` al nacer). Task 7 mide y fija el piso real una
 // vez que exista más que dominio puro — antes sería un número inventado.
-// `verifyRoborazziDebug` tampoco entra al `prePushCheck` de la raíz todavía:
-// sin goldens grabados (no hay UI hasta Task 5) el gate fallaría por falta
-// de capturas, no por un defecto real.
+// `verifyRoborazziDebug` SÍ entra al `prePushCheck` de la raíz desde Task 5:
+// ya hay goldens grabados (`BotonCorregir`/`AvisoNoCorregible`, matriz
+// tema × escala en `CorreccionScreenshotTest`).
+
+// Mismo heap/metaspace que `:core:designsystem`/`:feature:collectionReport`
+// (`msp.detekt`/`msp.test` no lo dan por default aquí): Task 5 graba la
+// primera matriz de goldens Roborazzi de este módulo en la misma JVM de
+// test — sin este bump el render de Robolectric Native Graphics se queda
+// corto de memoria.
+tasks.withType<Test> {
+    maxHeapSize = "2g"
+    jvmArgs("-XX:MaxMetaspaceSize=1g")
+}
 
 dependencies {
     implementation(project(":core:database"))
@@ -37,4 +47,10 @@ dependencies {
 
     testImplementation(project(":core:testing")) // FakeClock + fakes (api)
     testImplementation(libs.androidx.ui.test.junit4)
+    // roborazzi-compose declara androidx.activity:activity-compose como
+    // compileOnly (no viene transitivo vía el `api` de :core:testing) — lo
+    // necesita en runtime para hostear el composable en un ComponentActivity
+    // real al capturar goldens (Task 5, `CorreccionScreenshotTest`). Mismo
+    // gotcha que `:feature:collectionReport`.
+    testImplementation(libs.androidx.activity.compose)
 }
