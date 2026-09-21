@@ -1,8 +1,11 @@
 package com.example.msp_app.core.sync.pendingwork.di
 
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SessionSyncGate
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.GuaranteeEventsWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.GuaranteesWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.LocalSalesWorkManagerEnqueuer
@@ -24,9 +27,36 @@ object PendingWorkSyncFactory {
 
     private val singletonGate: SessionSyncGate = InMemorySessionSyncGate()
 
+    /**
+     * Qué ventas ve el barrido. `getUploadableSales`, NO `getPendingSales`:
+     * el barrido reencola con `replace = true` en CADA apertura de sesión,
+     * así que con la lista cruda de no-enviadas se llevaría por delante la
+     * venta que el dueño está corrigiendo en ese momento —reseteando el
+     * backoff y peleándose con el candado del subidor—. Una venta reclamada
+     * vuelve a la lista sola en cuanto su arrendamiento vence.
+     *
+     * Es una función con nombre, y no la lambda pegada abajo, para que la
+     * prueba del barrido ejerza ESTA decisión y no una copia suya: si alguien
+     * la devuelve a `getPendingSales`, la prueba se pone roja.
+     */
+    @VisibleForTesting
+    internal suspend fun ventasParaElBarrido(
+        localSalesDataSource: LocalSaleDataSource,
+        clock: AppClock
+    ): List<LocalSaleEntity> = localSalesDataSource.getUploadableSales(clock.now().toEpochMilli())
+
+    /**
+     * [clock] alimenta el predicado de expiración del candado de
+     * `local_sale` (Task 4 del plan "Corregir una venta antes de que suba").
+     * Se inyecta —en vez de leer el reloj dentro del barrido— porque el
+     * arrendamiento es una regla de negocio con prueba propia, y con el reloj
+     * escondido no habría forma de probar "con candado vivo no se reencola,
+     * con candado vencido sí" sin esperar tres minutos de verdad.
+     */
     fun createUseCase(
         context: Context,
-        gate: SessionSyncGate = singletonGate
+        gate: SessionSyncGate = singletonGate,
+        clock: AppClock = AppClock.System
     ): SyncAllPendingWorkUseCase {
         val appContext = context.applicationContext
 
@@ -36,7 +66,7 @@ object PendingWorkSyncFactory {
         val guaranteesDataSource = GuaranteesLocalDataSource(appContext)
 
         val localSalesSynchronizer = LocalSalesPendingSynchronizer(
-            fetchPending = { localSalesDataSource.getPendingSales() },
+            fetchPending = { ventasParaElBarrido(localSalesDataSource, clock) },
             enqueuer = LocalSalesWorkManagerEnqueuer(appContext)
         )
         val paymentsSynchronizer = PaymentsPendingSynchronizer(

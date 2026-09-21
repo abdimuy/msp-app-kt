@@ -180,6 +180,11 @@ class SaleProductLocalDataSourceTest : RoomTestBase() {
                 articuloId: Int,
                 serverUuid: String
             ) = Unit
+
+            override suspend fun deleteProductsByArticuloIds(
+                saleId: String,
+                articuloIds: List<Int>
+            ) = Unit
         }
 
     // ─── equivalencia inyectado ⇔ puente context ──────────────────────────────

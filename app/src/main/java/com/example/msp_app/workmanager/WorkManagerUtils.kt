@@ -103,6 +103,14 @@ fun enqueuePendingGuaranteeEventsWorker(context: Context) {
         .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
+/**
+ * Nombre del trabajo único de WorkManager para la subida de una venta local — FUENTE ÚNICA
+ * (Minor #4 de la ronda 1 de arreglo de Task 3: antes este literal estaba duplicado en
+ * `WorkManagerReencolarSubidaAdapter.cancelarTrabajoEncolado`; renombrar en un lado sin el otro
+ * dejaba de cancelar SIN que nada fallara — ni un test, ni un error de compilación).
+ */
+fun localSaleUniqueWorkName(localSaleId: String): String = "sync_pending_local_sale_$localSaleId"
+
 fun enqueuePendingLocalSalesWorker(context: Context, localSaleId: String, userEmail: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -118,10 +126,8 @@ fun enqueuePendingLocalSalesWorker(context: Context, localSaleId: String, userEm
         .setInputData(input)
         .build()
 
-    val uniqueName = "sync_pending_local_sale_$localSaleId"
-
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
+        .enqueueUniqueWork(localSaleUniqueWorkName(localSaleId), ExistingWorkPolicy.KEEP, request)
 }
 
 /** Nombre del trabajo único que reconcilia **ya**, al abrir la app. */

@@ -279,6 +279,11 @@ dependencies {
     // reales de `LiquidacionPort` (el cálculo de liquidación que ya vive aquí) y de
     // `PeriodoDeCobroPort` (`FECHA_CARGA_INICIAL` de Firestore) en su composition root.
     implementation(project(":feature:pagos"))
+    // Corregir una venta local antes de que suba (plan 2026-09-20). `:app` provee el
+    // adapter real de `ReencolarSubidaPort` (WorkManager, necesita `PendingLocalSalesWorker`
+    // — no visible desde el feature module) y, en Task 5, monta `CorreccionVentaViewModel`
+    // en `EditSaleScreen`.
+    implementation(project(":feature:ventaCorreccion"))
     // Registrar visita (Plan 5, Task 19). `:app` provee los adapters reales de
     // `RegistroDeVisitaPort` (la escritura que ya corre en producción,
     // `VisitsLocalDataSource.saveVisitAndEnqueue`) y de `UbicacionPort`

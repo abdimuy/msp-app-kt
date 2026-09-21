@@ -34,4 +34,48 @@ interface LocalSaleComboDao {
             insertAllCombos(combos)
         }
     }
+
+    @Query(
+        "DELETE FROM local_sale_combos WHERE LOCAL_SALE_ID = :saleId AND COMBO_ID IN (:comboIds)"
+    )
+    suspend fun deleteCombosByIds(saleId: String, comboIds: List<String>)
+
+    /**
+     * Merge que CONSERVA `SERVER_UUID` — mismo criterio que
+     * `LocalSaleProductDao.mergeProductsForSale`, aquí con la clave
+     * `(COMBO_ID, LOCAL_SALE_ID)`: el combo que sobrevive es el que llega con
+     * el MISMO `COMBO_ID` que ya tenía (el llamador lo conserva al editar); un
+     * combo genuinamente nuevo trae un `COMBO_ID` fresco. LA BASE MANDA: un
+     * combo que sobrevive conserva el `SERVER_UUID` que ya tenía en la fila,
+     * sin importar qué traiga `combos` (el editor no lo conoce).
+     * `replaceCombosForSale` (borrar-todo-reinsertar) sigue siendo la ruta
+     * correcta para la venta NUEVA, donde no hay `SERVER_UUID` previo que
+     * perder.
+     *
+     * `require`: [combos] no puede traer `COMBO_ID` repetido — mismo
+     * argumento que en `mergeProductsForSale`.
+     */
+    @Transaction
+    suspend fun mergeCombosForSale(saleId: String, combos: List<LocalSaleComboEntity>) {
+        require(combos.size == combos.distinctBy { it.COMBO_ID }.size) {
+            "combos trae COMBO_ID repetido para la venta $saleId"
+        }
+
+        val existing = getCombosForSale(saleId)
+        val existingUuidByComboId = existing.associate { it.COMBO_ID to it.SERVER_UUID }
+        val incomingComboIds = combos.map { it.COMBO_ID }.toSet()
+        val removedComboIds = existing.map { it.COMBO_ID }.filterNot { it in incomingComboIds }
+
+        if (removedComboIds.isNotEmpty()) {
+            deleteCombosByIds(saleId, removedComboIds)
+        }
+
+        val merged = combos.map { combo ->
+            val survives = existingUuidByComboId.containsKey(combo.COMBO_ID)
+            combo.copy(
+                SERVER_UUID = if (survives) existingUuidByComboId[combo.COMBO_ID] else combo.SERVER_UUID
+            )
+        }
+        insertAllCombos(merged)
+    }
 }
