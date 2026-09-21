@@ -733,4 +733,119 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         val sale = saleDataSource.getSaleById(saleId)
         assertFalse("ENVIADO must stay false when no camioneta", sale!!.ENVIADO)
     }
+
+    // ─── el candado de subida (Task 4) ───────────────────────────────────
+    //
+    // Los escenarios adversariales de la carrera (editor vs. subidor, latido,
+    // divergencia) viven en `CorreccionCarreraTest`. Aquí queda lo que este
+    // archivo ya cubría y que el candado cambió: por dónde SALE el worker y en
+    // qué estado deja la fila.
+
+    @Test
+    fun upload_v2_exitoso_cierra_el_candado_sin_marcar_divergencia() = runTest {
+        val saleId = seedHappySale("sale-cierra-candado")
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(saleId = saleId))
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assert(sale.ENVIADO)
+        assertEquals(
+            "el candado no puede quedar huérfano sobre una venta enviada",
+            null,
+            sale.CLAIM_ID
+        )
+        assertEquals(null, sale.CLAIM_KIND)
+        assertEquals(null, sale.CLAIMED_AT)
+        assertFalse(
+            "nadie corrigió nada: no hay divergencia que marcar",
+            sale.CORRECCION_NO_ENVIADA
+        )
+    }
+
+    @Test
+    fun upload_v2_venta_ya_enviada_no_se_vuelve_a_subir() = runTest {
+        // El candado no se puede tomar sobre una venta con ENVIADO = 1. Antes
+        // de la Task 4 el worker la habría vuelto a subir; ahora termina en
+        // success sin red — reintentar eternamente una venta terminada sería
+        // peor todavía.
+        val saleId = seedHappySale("sale-ya-enviada")
+        saleDataSource.changeSaleStatus(saleId, true)
+
+        var apiCalled = false
+        val result = buildAndRunWorker(
+            saleId = saleId,
+            api = fakeApi(crear = { _, _, _ ->
+                apiCalled = true
+                fakeVentaDTO
+            })
+        )
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertFalse("una venta ya enviada no se vuelve a mandar", apiCalled)
+    }
+
+    @Test
+    fun upload_v2_venta_inexistente_sigue_siendo_failure() = runTest {
+        var apiCalled = false
+        val result = buildAndRunWorker(
+            saleId = "sale-que-no-existe",
+            api = fakeApi(crear = { _, _, _ ->
+                apiCalled = true
+                fakeVentaDTO
+            })
+        )
+
+        assertEquals(ListenableWorker.Result.failure(), result)
+        assertFalse(apiCalled)
+    }
+
+    @Test
+    fun upload_v2_fallo_permanente_suelta_el_candado() = runTest {
+        val saleId = seedHappySale("sale-permanente-suelta")
+
+        val api = fakeApi(
+            crear = { _, _, _ ->
+                throw httpErrorConCabeceras(
+                    code = 422,
+                    body = """{"code":"plazo_invalido","detail":"el plazo en meses debe ser mayor a cero"}""",
+                    intentCaptured = "3f2a1c7e-0000-4000-8000-000000000002"
+                )
+            },
+            obtener = { throw notFound() }
+        )
+
+        assertEquals(
+            ListenableWorker.Result.failure(),
+            buildAndRunWorker(saleId = saleId, api = api)
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertEquals(true, sale.LAST_UPLOAD_PERMANENT)
+        assertEquals(
+            "salga por donde salga, el subidor suelta el candado: nadie retiene una venta",
+            null,
+            sale.CLAIM_ID
+        )
+    }
+
+    @Test
+    fun upload_v2_error_de_red_suelta_el_candado() = runTest {
+        val saleId = seedHappySale("sale-red-suelta")
+
+        assertEquals(
+            ListenableWorker.Result.retry(),
+            buildAndRunWorker(
+                saleId = saleId,
+                api = fakeApi(crear = { _, _, _ -> throw IOException("sin señal") })
+            )
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertFalse(sale.ENVIADO)
+        assertEquals(
+            "tras un intento fallido la venta queda corregible YA, sin esperar el arrendamiento",
+            null,
+            sale.CLAIM_ID
+        )
+    }
 }

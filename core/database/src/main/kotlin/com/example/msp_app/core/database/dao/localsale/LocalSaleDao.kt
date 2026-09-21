@@ -313,6 +313,35 @@ interface LocalSaleDao {
     ): Int
 
     /**
+     * RENUEVA el arrendamiento del candado de SUBIDA sin cambiar de dueño —
+     * el LATIDO del subidor ("Pendiente de la Task 4" del paso 4 del
+     * mecanismo, ahora implementado en `PendingLocalSalesWorker`). Mientras
+     * el `POST` sigue en vuelo, el worker llama esto cada
+     * [LocalSaleClaimLeases.UPLOAD_HEARTBEAT_MS] para que una subida lenta
+     * pero VIVA no deje caducar su propio candado: el cliente HTTP no tiene
+     * tope total (ver el KDoc de esa constante), así que sin esto los 180 s
+     * se agotan con el cuerpo todavía subiendo, el editor toma la fila, y el
+     * 2xx vuelve tarde trayendo el cuerpo VIEJO.
+     *
+     * Lo único que toca es `CLAIMED_AT`, y sólo si el candado SIGUE siendo
+     * suyo: `CLAIM_ID = :claimId AND CLAIM_KIND = 'UPLOAD'`. Devuelve 0
+     * cuando ya no lo es (caducó y el editor se lo llevó, o la subida ya
+     * terminó y el candado se cerró). Ese 0 NO se recupera reclamando de
+     * nuevo: el latido JAMÁS re-toma un candado ajeno — eso le robaría la
+     * fila al editor, exactamente lo contrario de lo que este mecanismo
+     * defiende. El subidor sólo deja de latir; si el POST triunfa de todas
+     * formas, la divergencia la marca [markSentAndCloseEdit] con
+     * `CORRECCION_NO_ENVIADA`.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET CLAIMED_AT = :now
+        WHERE LOCAL_SALE_ID = :saleId AND CLAIM_ID = :claimId AND CLAIM_KIND = 'UPLOAD'
+        """
+    )
+    suspend fun renewUploadClaim(saleId: String, claimId: String, now: Long): Int
+
+    /**
      * Suelta el candado (cancelar la corrección, o el subidor al terminar
      * sin éxito). Funciona para cualquier tipo de candado: la propiedad se
      * decide por `CLAIM_ID`, no por `CLAIM_KIND`. Sólo el dueño del candado

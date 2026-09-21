@@ -35,7 +35,37 @@ object LocalSaleClaimLeases {
      * de `UPLOAD_LEASE_MS` en `LocalSaleClaimDaoTest`, y "Qué pasa si la
      * subida ya empezó" en el plan). Es el valor que se usa para decidir si
      * el candado de subida venció; renovarlo mientras el POST sigue en
-     * vuelo es trabajo de la Task 4, no de esta constante.
+     * vuelo es trabajo de la Task 4 — ver [UPLOAD_HEARTBEAT_MS].
      */
     const val UPLOAD_LEASE_MS: Long = 180 * 1000L
+
+    /**
+     * Período del LATIDO del subidor (Task 4): cada cuánto renueva su propio
+     * `CLAIMED_AT` el worker mientras el `POST` sigue en vuelo
+     * ([LocalSaleDao.renewUploadClaim]).
+     *
+     * 60 s = [UPLOAD_LEASE_MS] / 3. El porqué del latido, medido: el cliente
+     * HTTP NO fija `callTimeout` ni `writeTimeout` (`RetrofitClientFactory.kt`
+     * sólo fija `connect` y `read`, y ambos miden INACTIVIDAD entre bytes, no
+     * duración total), así que una subida con fotos por una red lenta **pero
+     * que avanza** puede durar 340 s sin que salte nada — más que el
+     * arrendamiento entero. Sin latido el candado de subida vence con el POST
+     * en vuelo y la carrera que todo este mecanismo existe para cerrar se
+     * reabre sola en cualquier red mala.
+     *
+     * Un TERCIO, no la mitad ni el arrendamiento completo, porque un latido
+     * puede perderse sin que nada esté roto: Doze congela el proceso unos
+     * segundos, la escritura a SQLite se encola detrás de una transacción
+     * larga, el hilo se retrasa. Con un tercio hacen falta DOS latidos
+     * perdidos seguidos para que el arrendamiento caduque; con la mitad basta
+     * uno. El costo de esa holgura es un `UPDATE` de una fila por minuto
+     * mientras dura una subida — irrelevante en batería y en E/S.
+     *
+     * Y no se sube el arrendamiento en vez de latir: el arrendamiento corto es
+     * justo lo que libera la venta cuando el proceso muere DE VERDAD a media
+     * subida (ahí no hay latido posible y el dueño no puede corregir hasta que
+     * caduque). El latido deja el arrendamiento corto para el caso muerto y lo
+     * vuelve irrelevante para el caso vivo.
+     */
+    const val UPLOAD_HEARTBEAT_MS: Long = UPLOAD_LEASE_MS / 3
 }
