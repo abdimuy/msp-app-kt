@@ -30,6 +30,14 @@ class FakeVentaLocalCorreccionPort : VentaLocalCorreccionPort {
 
     private val filas = mutableMapOf<String, Fila>()
 
+    /**
+     * Si no es `null`, [guardarCorreccion] lo lanza en vez de aplicar el cambio — simula un
+     * error NO clasificable como [com.example.msp_app.feature.ventacorreccion.domain.usecase.GuardadoRechazadoException]
+     * (p. ej. `IllegalArgumentException` de `LocalSaleProductDao.mergeProductsForSale` ante un
+     * `ARTICULO_ID` repetido, Minor #1 de la ronda 1 de arreglo).
+     */
+    var lanzarEnGuardar: Throwable? = null
+
     fun siembra(
         saleId: String,
         campos: CamposVentaCorregidos,
@@ -78,6 +86,7 @@ class FakeVentaLocalCorreccionPort : VentaLocalCorreccionPort {
         productos: List<LocalSaleProductEntity>,
         combos: List<LocalSaleComboEntity>
     ): Boolean {
+        lanzarEnGuardar?.let { throw it }
         val fila = filas[saleId] ?: return false
         if (fila.enviado || fila.claimId != claimId) return false
         fila.campos = campos

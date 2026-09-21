@@ -22,12 +22,14 @@ import com.example.msp_app.feature.ventacorreccion.domain.port.VentaLocalCorrecc
  * [db] es necesaria además de los tres DAOs porque [guardarCorreccion] envuelve guardia +
  * campos + merge de líneas + `clearUploadFailure` en UNA sola transacción (`db.withTransaction`,
  * mismo patrón que `CobranzaSyncManager`/`CobranzaReconciler` en `:app`). El guardia
- * (`commitEditGuard`) va PRIMERO: si devuelve 0 filas, la función retorna `false` de inmediato
- * SIN ejecutar ninguna otra escritura — no hace falta revertir nada porque nada se alcanzó a
- * escribir. Si el guardia se moviera al final (el mutante que el brief de Task 3 pide sembrar),
- * los demás `UPDATE`/merge correrían y quedarían commiteados aunque el guardia hubiera fallado
- * — la transacción de Room sólo revierte ante una excepción, no ante un `return` con valor
- * `false`.
+ * (`commitEditGuard`) va PRIMERO y, si falla, LANZA [GuardiaCommitFallidoException] dentro de
+ * la transacción — capturada afuera para devolver `false` (Important #4 de la ronda 1 de
+ * arreglo). No basta con `return@withTransaction false` sin lanzar: eso deja el invariante "el
+ * guardia revierte todo" sostenido SÓLO por el orden en que está escrito el código de hoy — una
+ * escritura que alguien agregue por delante del guardia en el futuro commitearía en silencio,
+ * porque Room únicamente revierte una transacción ante una excepción, nunca ante un valor de
+ * retorno. Lanzar hace que el invariante se sostenga por la MECÁNICA de la transacción, no por
+ * la disciplina de quien edite este archivo después.
  */
 class RoomVentaLocalCorreccionAdapter(
     private val db: AppDatabase,
@@ -68,18 +70,36 @@ class RoomVentaLocalCorreccionAdapter(
         localSaleDao.releaseClaim(saleId, claimId)
     }
 
+    // `GuardiaCommitFallidoException` es una señal interna sin información propia (no lleva
+    // mensaje ni causa) — convertirla a `false` ES el manejo completo, no hay nada que loguear
+    // ni una causa real que perder. Mismo criterio que otros `@Suppress("SwallowedException")`
+    // deliberados del repo (p. ej. `DurableTelemetryQueue.enqueue`).
+    @Suppress("SwallowedException")
     override suspend fun guardarCorreccion(
         saleId: String,
         claimId: String,
         campos: CamposVentaCorregidos,
         productos: List<LocalSaleProductEntity>,
         combos: List<LocalSaleComboEntity>
+    ): Boolean = try {
+        guardarCorreccionOLanzar(saleId, claimId, campos, productos, combos)
+    } catch (rechazo: GuardiaCommitFallidoException) {
+        false
+    }
+
+    private suspend fun guardarCorreccionOLanzar(
+        saleId: String,
+        claimId: String,
+        campos: CamposVentaCorregidos,
+        productos: List<LocalSaleProductEntity>,
+        combos: List<LocalSaleComboEntity>
     ): Boolean = db.withTransaction {
-        // El guardia va PRIMERO: si falla, cortamos aquí sin tocar nada más. Ver el comentario
-        // de clase — mover esto al final es exactamente el mutante que Task 3 pide sembrar.
+        // El guardia va PRIMERO: si falla, LANZA — ver el comentario de clase. Mover esto al
+        // final es exactamente el mutante que Task 3 pide sembrar; quitar el `throw` (dejando
+        // sólo un `return` temprano) es el mutante de la ronda 1 de arreglo.
         val guardiaOk = localSaleDao.commitEditGuard(saleId, claimId) == 1
         if (!guardiaOk) {
-            return@withTransaction false
+            throw GuardiaCommitFallidoException()
         }
 
         localSaleDao.updateSaleFields(
@@ -100,6 +120,14 @@ class RoomVentaLocalCorreccionAdapter(
             tiempoACortoPlazoMeses = campos.tiempoACortoPlazoMeses,
             montoACortoPlazo = campos.montoACortoPlazo,
             montoDeContado = campos.montoDeContado,
+            // Minor #2 de la ronda 1 de arreglo: a diferencia de
+            // `EditLocalSaleViewModel.kt:290` (que ponía `ENVIADO = false` A
+            // CIEGAS, sin ningún guardia, pudiendo pisar una venta que el
+            // servidor YA tenía), este `false` es la única rama alcanzable:
+            // el guardia de arriba (`commitEditGuard`) ya exigió
+            // `ENVIADO = 0` en su propio `WHERE`, DENTRO de la misma
+            // transacción, sin ninguna ventana entre leer y escribir. No es
+            // una suposición — es lo que el guardia acaba de confirmar.
             enviado = false,
             numero = campos.numero,
             colonia = campos.colonia,
@@ -120,6 +148,14 @@ class RoomVentaLocalCorreccionAdapter(
         true
     }
 }
+
+/**
+ * Señal interna de que `commitEditGuard` devolvió 0 filas — nunca sale de [RoomVentaLocalCorreccionAdapter];
+ * existe únicamente para que Room revierta la transacción por MECÁNICA (una excepción), no por
+ * la disciplina de quien escriba el código después. Ver el comentario de clase de
+ * [RoomVentaLocalCorreccionAdapter].
+ */
+private class GuardiaCommitFallidoException : Exception()
 
 private fun LocalSaleEntity.aCampos() = CamposVentaCorregidos(
     nombreCliente = NOMBRE_CLIENTE,

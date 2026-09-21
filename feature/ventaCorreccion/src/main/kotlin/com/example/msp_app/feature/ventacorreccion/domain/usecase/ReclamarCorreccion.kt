@@ -61,7 +61,22 @@ class ReclamarCorreccion @Inject constructor(
         // Cortesía, nunca un requisito: si esto lanza, el candado ya se tomó igual.
         runCatching { reencolar.cancelarTrabajoEncolado(saleId) }
 
-        val venta = port.leerVenta(saleId) ?: return ResultadoReclamo.NoExiste
-        return ResultadoReclamo.Reclamada(claimId, venta)
+        // Important #1 de la ronda 1 de arreglo: si leerVenta LANZA o devuelve
+        // null, el candado ya está puesto — sin este try/finally quedaría
+        // huérfano (nadie más lo tiene, pero tampoco nadie lo soltó) hasta que
+        // su propio arrendamiento venza, 30 minutos en los que la venta no
+        // sube (`claimForUpload`/`getUploadableSales` la excluyen mientras el
+        // candado siga vigente). Se recupera solo gracias a la reentrancia de
+        // `claimForEdit`, pero eso no es excusa para dejarlo huérfano.
+        var venta: VentaLocalParaCorregir? = null
+        try {
+            venta = port.leerVenta(saleId)
+        } finally {
+            if (venta == null) {
+                runCatching { port.soltar(saleId, claimId) }
+            }
+        }
+
+        return venta?.let { ResultadoReclamo.Reclamada(claimId, it) } ?: ResultadoReclamo.NoExiste
     }
 }

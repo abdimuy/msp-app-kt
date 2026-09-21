@@ -1,7 +1,7 @@
 package com.example.msp_app.feature.ventacorreccion.domain
 
 /**
- * Las cinco cadenas de usuario de la corrección de venta, en un solo lugar
+ * Las seis cadenas de usuario de la corrección de venta, en un solo lugar
  * (plan "Corregir una venta antes de que suba", corrección 1 del
  * orquestador: MAYÚSCULA INICIAL, no minúscula — el dueño lo pidió
  * explícitamente el 2026-09-20 y la rama `feat/pagos-y-visitas` ya cerró
@@ -11,6 +11,13 @@ package com.example.msp_app.feature.ventacorreccion.domain
  *
  * Regla de forma, verificada en `TextosCorreccionTest.kt`: 2 a 4 palabras,
  * arranca con mayúscula, sin punto final, nunca la palabra "ciclo".
+ *
+ * [NO_SE_PUDO_GUARDAR] se agregó en la ronda 1 de arreglo de Task 3: antes,
+ * un guardado rechazado con [EstadoCorreccion.Corregible] (el caso "candado
+ * ajeno pero reentrante" — otra sesión de EDICIÓN ganó la fila entre el
+ * guardia y la relectura) mostraba [CORREGIR_VENTA], mintiendo justo en el
+ * único caso alcanzable de esa rama. Ver
+ * `CorreccionVentaViewModel.aTextoDeRechazoDeGuardado`.
  */
 object TextosCorreccion {
     /** Botón para entrar a corregir una venta [EstadoCorreccion.Corregible]. */
@@ -27,4 +34,13 @@ object TextosCorreccion {
 
     /** Confirmación tras guardar una corrección exitosamente. */
     const val CORRECCION_GUARDADA = "Corrección guardada"
+
+    /**
+     * Un guardado se rechazó y la razón no es ninguno de los tres estados
+     * terminales (ya se envió / se está enviando / lo revisa la oficina) —
+     * el candado del llamador ya no era el vigente. Nunca se usa para
+     * decidir si se PUEDE corregir (eso es [CORREGIR_VENTA]); sólo explica
+     * por qué un guardado en curso no se pudo completar.
+     */
+    const val NO_SE_PUDO_GUARDAR = "No se pudo guardar"
 }

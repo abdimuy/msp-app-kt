@@ -95,6 +95,14 @@ fun enqueuePendingGuaranteeEventsWorker(context: Context, replace: Boolean = fal
         .enqueueUniqueWork(uniqueName, policy, request)
 }
 
+/**
+ * Nombre del trabajo único de WorkManager para la subida de una venta local — FUENTE ÚNICA
+ * (Minor #4 de la ronda 1 de arreglo de Task 3: antes este literal estaba duplicado en
+ * `WorkManagerReencolarSubidaAdapter.cancelarTrabajoEncolado`; renombrar en un lado sin el otro
+ * dejaba de cancelar SIN que nada fallara — ni un test, ni un error de compilación).
+ */
+fun localSaleUniqueWorkName(localSaleId: String): String = "sync_pending_local_sale_$localSaleId"
+
 fun enqueuePendingLocalSalesWorker(
     context: Context,
     localSaleId: String,
@@ -116,10 +124,9 @@ fun enqueuePendingLocalSalesWorker(
         .build()
 
     val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
-    val uniqueName = "sync_pending_local_sale_$localSaleId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(localSaleUniqueWorkName(localSaleId), policy, request)
 }
 
 /** Nombre del trabajo único que reconcilia **ya**, al abrir la app. */

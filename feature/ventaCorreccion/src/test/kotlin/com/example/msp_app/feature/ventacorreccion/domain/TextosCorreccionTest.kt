@@ -6,11 +6,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Forma de las cinco cadenas de [TextosCorreccion] (plan "Corregir una venta
+ * Forma de las seis cadenas de [TextosCorreccion] (plan "Corregir una venta
  * antes de que suba", corrección 1 del orquestador): 2 a 4 palabras, arranca
  * con mayúscula, sin punto final, nunca la palabra "ciclo"
  * (`feedback_ui_nunca_decir_ciclo`) — como PRUEBA, no como comentario que
- * nadie vuelve a leer.
+ * nadie vuelve a leer. [TextosCorreccion.NO_SE_PUDO_GUARDAR] se agregó en la
+ * ronda 1 de arreglo de Task 3.
  */
 class TextosCorreccionTest {
 
@@ -19,12 +20,13 @@ class TextosCorreccionTest {
         "SE_ESTA_ENVIANDO" to TextosCorreccion.SE_ESTA_ENVIANDO,
         "YA_SE_ENVIO" to TextosCorreccion.YA_SE_ENVIO,
         "LA_REVISA_LA_OFICINA" to TextosCorreccion.LA_REVISA_LA_OFICINA,
-        "CORRECCION_GUARDADA" to TextosCorreccion.CORRECCION_GUARDADA
+        "CORRECCION_GUARDADA" to TextosCorreccion.CORRECCION_GUARDADA,
+        "NO_SE_PUDO_GUARDAR" to TextosCorreccion.NO_SE_PUDO_GUARDAR
     )
 
     @Test
-    fun `hay exactamente cinco cadenas`() {
-        assertEquals(5, todasLasCadenas.size)
+    fun `hay exactamente seis cadenas`() {
+        assertEquals(6, todasLasCadenas.size)
     }
 
     @Test
@@ -76,5 +78,6 @@ class TextosCorreccionTest {
         assertEquals("Ya se envió", TextosCorreccion.YA_SE_ENVIO)
         assertEquals("La revisa la oficina", TextosCorreccion.LA_REVISA_LA_OFICINA)
         assertEquals("Corrección guardada", TextosCorreccion.CORRECCION_GUARDADA)
+        assertEquals("No se pudo guardar", TextosCorreccion.NO_SE_PUDO_GUARDAR)
     }
 }

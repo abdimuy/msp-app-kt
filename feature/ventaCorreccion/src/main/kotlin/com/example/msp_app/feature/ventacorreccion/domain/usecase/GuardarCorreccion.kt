@@ -12,13 +12,18 @@ import javax.inject.Inject
 
 /**
  * Se lanza cuando el guardado se rechaza — SIEMPRE porque el guardia (`commitEditGuard`, dentro
- * de [VentaLocalCorreccionPort.guardarCorreccion]) devolvió `false`: la venta ya se envió, tuvo
- * un fallo permanente, o el candado ya no es el del llamador (venció y alguien más lo tomó).
+ * de [VentaLocalCorreccionPort.guardarCorreccion]) devolvió `false`. `commitEditGuard` sólo mira
+ * `ENVIADO = 0 AND CLAIM_ID = :claimId` — NO mira `LAST_UPLOAD_PERMANENT` (ese chequeo vive en
+ * `claimForEdit`, no aquí; corregido en la ronda 1 de arreglo de Task 3, este KDoc antes decía
+ * lo contrario). Las únicas dos razones reales de un rechazo son: la venta ya se envió, o el
+ * candado ya no es el del llamador (venció y alguien más lo tomó — de cualquier tipo).
  * [estado] clasifica la razón, releída INMEDIATAMENTE después del rechazo — puede ser
  * [EstadoCorreccion.Corregible] en el caso "candado ajeno pero la fila sigue abierta" (otra
  * sesión de EDICIÓN, reentrante, ganó la fila entre el guardia y esta lectura); en ese caso la
  * UI debe tratarlo igual que cualquier otro rechazo (la corrección de ESTE llamador no se
- * escribió), no como luz verde para reintentar con el mismo `claimId` vencido.
+ * escribió), no como luz verde para reintentar con el mismo `claimId` vencido — ver
+ * `CorreccionVentaViewModel.aTextoDeRechazoDeGuardado`, que usa
+ * `TextosCorreccion.NO_SE_PUDO_GUARDAR` para esa rama en vez de `CORREGIR_VENTA`.
  */
 class GuardadoRechazadoException(val estado: EstadoCorreccion) :
     Exception("No se pudo guardar la corrección: $estado")

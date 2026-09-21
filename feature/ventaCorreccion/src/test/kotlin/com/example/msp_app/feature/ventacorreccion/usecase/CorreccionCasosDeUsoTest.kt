@@ -10,6 +10,7 @@ import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReencolar
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReloj
 import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
 import com.example.msp_app.feature.ventacorreccion.domain.EstadoCorreccion
+import com.example.msp_app.feature.ventacorreccion.domain.VentaLocalParaCorregir
 import com.example.msp_app.feature.ventacorreccion.domain.port.VentaLocalCorreccionPort
 import com.example.msp_app.feature.ventacorreccion.domain.usecase.CancelarCorreccion
 import com.example.msp_app.feature.ventacorreccion.domain.usecase.GuardadoRechazadoException
@@ -351,12 +352,17 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
     fun `guardar_con_reclamo_ajeno_no_escribe_nada`() = runTest {
         insertSale(freeSale())
         insertProducts(listOf(producto(articuloId = 1, cantidad = 1, serverUuid = "uuid-1")))
+        // Minor #3 de la ronda 1 de arreglo: la prueba original no sembraba combos, así que un
+        // mutante que sólo protegiera productos y dejara escapar el merge de combos hubiera
+        // pasado igual.
+        insertCombos(listOf(combo(comboId = "combo-1", serverUuid = "uuid-combo-1")))
         val reclamo = reclamar(SALE_ID)
         check(reclamo is ResultadoReclamo.Reclamada)
 
         val saleAntes = db.localSaleDao().getSaleById(SALE_ID)
         assertNotNull(saleAntes)
         val productosAntes = db.localSaleProduct().getProductsForSale(SALE_ID)
+        val combosAntes = db.localSaleComboDao().getCombosForSale(SALE_ID)
 
         var excepcion: GuardadoRechazadoException? = null
         try {
@@ -365,7 +371,7 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
                 "claim-ajeno-que-nunca-se-tomo",
                 campos(nombreCliente = "Este nombre NUNCA debe quedar"),
                 listOf(producto(articuloId = 1, cantidad = 999)),
-                emptyList(),
+                listOf(combo(comboId = "combo-nuevo-que-nunca-debe-quedar")),
                 EMAIL
             )
         } catch (rechazo: GuardadoRechazadoException) {
@@ -378,6 +384,7 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
         assertNotNull(saleDespues)
         assertSaleUnchanged(saleAntes!!, saleDespues!!)
         assertEquals(productosAntes, db.localSaleProduct().getProductsForSale(SALE_ID))
+        assertEquals(combosAntes, db.localSaleComboDao().getCombosForSale(SALE_ID))
     }
 
     // ─── Guardar sobre venta ya enviada ─────────────────────────────────
@@ -527,5 +534,48 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
             assertEquals("sin filas huerfanas", 1, productos.size)
             assertEquals(9, productos.single().CANTIDAD)
             assertEquals("uuid-1", productos.single().SERVER_UUID)
+        }
+
+    // ─── El candado no queda huérfano si la lectura posterior falla ────
+
+    /** Decorador que delega todo en [delegado] excepto [leerVenta], que SIEMPRE lanza. */
+    private class PortQueLanzaAlLeerVenta(
+        private val delegado: VentaLocalCorreccionPort
+    ) : VentaLocalCorreccionPort by delegado {
+        override suspend fun leerVenta(saleId: String): VentaLocalParaCorregir? {
+            error("Room fallo leyendo productos, simulado")
+        }
+    }
+
+    /**
+     * Important #1 de la ronda 1 de arreglo: si `leerVenta` lanza DESPUÉS de tomar el candado,
+     * antes de este fix el candado quedaba huérfano — nadie más lo tenía, pero tampoco nadie lo
+     * soltó, así que la venta no subía durante los 30 minutos del arrendamiento
+     * (`claimForUpload`/`getUploadableSales` la excluyen mientras el candado siga vigente).
+     */
+    @Test
+    fun `reclamar suelta el candado si la lectura de la venta lanza (no lo deja huerfano)`() =
+        runTest {
+            insertSale(freeSale())
+            val reclamarConLecturaRota =
+                ReclamarCorreccion(PortQueLanzaAlLeerVenta(port), FakeReloj(clock), reencolar)
+
+            var excepcion: Throwable? = null
+            try {
+                reclamarConLecturaRota(SALE_ID)
+            } catch (e: IllegalStateException) {
+                excepcion = e
+            }
+
+            assertNotNull("el error real debe propagarse, no tragarselo", excepcion)
+
+            val sale = db.localSaleDao().getSaleById(SALE_ID)
+            assertNull("el candado NO debe quedar huerfano", sale?.CLAIM_ID)
+            assertNull(sale?.CLAIM_KIND)
+            assertNull(sale?.CLAIMED_AT)
+
+            // Y la venta sí se puede volver a reclamar de inmediato — no quedó retenida.
+            val siguienteIntento = reclamar(SALE_ID)
+            assertTrue(siguienteIntento is ResultadoReclamo.Reclamada)
         }
 }
