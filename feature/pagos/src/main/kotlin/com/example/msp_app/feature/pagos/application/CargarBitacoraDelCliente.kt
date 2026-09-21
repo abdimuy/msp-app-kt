@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.application
 
 import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
 import com.example.msp_app.feature.pagos.domain.model.BitacoraCompleta
+import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import javax.inject.Inject
 
 /**
@@ -18,7 +19,8 @@ import javax.inject.Inject
  * cascarón vacío se leería como "nunca pasó nada aquí", que es otra cosa.
  */
 class CargarBitacoraDelCliente @Inject constructor(
-    private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente
+    private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
+    private val productosPort: ProductosPort
 ) {
 
     suspend operator fun invoke(clienteId: Int): BitacoraCompleta? {
@@ -32,7 +34,14 @@ class CargarBitacoraDelCliente @Inject constructor(
             // [BitacoraCompleta].
             nombre = primera.clienteNombre,
             direccion = primera.direccion,
-            contactos = BitacoraDelCliente.de(cobranza.visitas, cobranza.pagos)
+            // TODAS las ventas del cliente, no solo la que encabeza: la
+            // bitácora completa mezcla los contactos de todas sus cuentas, así
+            // que cada una necesita poder nombrarse. Ver `cuentasDeLasVentas`.
+            contactos = BitacoraDelCliente.de(
+                visitas = cobranza.visitas,
+                pagos = cobranza.pagos,
+                cuentas = cuentasDeLasVentas(cobranza.ventas, productosPort)
+            )
         )
     }
 }

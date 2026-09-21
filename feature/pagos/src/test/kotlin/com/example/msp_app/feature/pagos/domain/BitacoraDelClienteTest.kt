@@ -138,6 +138,91 @@ class BitacoraDelClienteTest {
         assertEquals("No estaba", contactos.single().etiqueta)
     }
 
+    /**
+     * **El par que prueba el join** (`task-2-brief.md`, sección "Verificación"):
+     * dos pagos del MISMO cliente, a cuentas distintas, caen con nombres de
+     * cuenta distintos.
+     *
+     * Es el caso real que originó la tarea: el dueño vio $400 y $100 cobrados
+     * al mismo minuto y pensó que era un pago repetido. No lo es — son dos
+     * ventas abiertas del mismo cliente — y lo que faltaba era que la fila
+     * dijera a cuál cuenta se abonó cada uno.
+     */
+    @Test
+    fun `dos pagos del mismo cliente a cuentas distintas caen con nombres de cuenta distintos`() {
+        val contactos = BitacoraDelCliente.de(
+            visitas = emptyList(),
+            pagos = listOf(
+                pago(
+                    "p-recamara",
+                    DIA_DE_LA_VISITA,
+                    ubicacion = null
+                ).copy(ventaId = VENTA_RECAMARA),
+                pago("p-bocina", DIA_DEL_ABONO, ubicacion = null).copy(ventaId = VENTA_BOCINA)
+            ),
+            cuentas = mapOf(
+                VENTA_RECAMARA to "Recamara cantaro king size chocolate",
+                VENTA_BOCINA to "Bocina profesional 8'' audiobahn"
+            )
+        )
+        val porVenta = contactos.associateBy { it.ventaId }
+
+        assertEquals(
+            "Recamara cantaro king size chocolate",
+            porVenta.getValue(VENTA_RECAMARA).cuenta
+        )
+        assertEquals(
+            "Bocina profesional 8'' audiobahn",
+            porVenta.getValue(VENTA_BOCINA).cuenta
+        )
+        assertEquals(
+            "los dos pagos son cuentas distintas: la cuenta que sale también tiene que serlo",
+            2,
+            contactos.map { it.cuenta }.distinct().size
+        )
+    }
+
+    /**
+     * **El caso sin producto** (`task-2-brief.md`, sección "Verificación"): una
+     * cuenta sin renglones en `products` —posible en un teléfono recién
+     * sincronizado— no pinta cuenta. `null`, nunca "Sin producto" ni el folio
+     * de repuesto.
+     */
+    @Test
+    fun `un pago de una cuenta sin producto sincronizado no pinta cuenta`() {
+        val contactos = BitacoraDelCliente.de(
+            visitas = emptyList(),
+            pagos = listOf(pago("p1", DIA_DEL_ABONO, ubicacion = null)),
+            // El mapa no trae la llave de VENTA: es justo la cuenta sin
+            // renglones todavía sincronizados.
+            cuentas = emptyMap()
+        )
+        assertNull(
+            "una cuenta sin producto sincronizado no puede afirmar un nombre",
+            contactos.single().cuenta
+        )
+    }
+
+    /**
+     * **Una visita nunca lleva cuenta**, decisión cerrada del dueño, igual que
+     * nunca lleva [com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro].
+     * Ni siquiera cuando el mapa SÍ tiene la cuenta de su [VisitaDelCliente.ventaId]:
+     * si la visita la tomara, un cambio futuro que le sumara el campo por
+     * descuido pasaría en silencio.
+     */
+    @Test
+    fun `una visita no lleva cuenta aunque el mapa la tenga para su venta`() {
+        val contactos = BitacoraDelCliente.de(
+            visitas = listOf(visita("v1", DIA_DE_LA_VISITA, ubicacion = null)),
+            pagos = emptyList(),
+            cuentas = mapOf(VENTA to "Recamara cantaro king size chocolate")
+        )
+        assertNull(
+            "la visita tomó la cuenta de su venta, y la decisión del dueño es que nunca la lleve",
+            contactos.single().cuenta
+        )
+    }
+
     /** Media coordenada sigue sin ubicar nada — la regla vieja no se perdió. */
     @Test
     fun `media coordenada no es una ubicacion`() {
@@ -184,6 +269,10 @@ class BitacoraDelClienteTest {
     private companion object {
         const val CLIENTE = 5021
         const val VENTA = 77188
+
+        /** ACR 12845224 y ACR 14431255 del caso real (`task-2-brief.md`). */
+        const val VENTA_RECAMARA = 12_845_224
+        const val VENTA_BOCINA = 14_431_255
 
         /** Dos instantes distintos: son la llave con la que el test elige renglón. */
         const val DIA_DE_LA_VISITA = "2026-09-01T16:00:00Z"

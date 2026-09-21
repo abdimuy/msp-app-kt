@@ -86,7 +86,15 @@ class CargarDetalleCliente @Inject constructor(
         // lista pintada— sale de esta misma lista ya ordenada.
         val ventas = cobranza.ventas.sortedWith(ORDEN_DE_SUS_VENTAS)
         val primera = ventas.firstOrNull() ?: return null
-        val contactos = BitacoraDelCliente.de(cobranza.visitas, cobranza.pagos)
+        // UNA consulta por venta, reusada para "productos" (todos los
+        // renglones) y para la cuenta de cada contacto (solo el primero por
+        // POSICION, normalizado) — ver el KDoc de `productosPorVenta`.
+        val productosPorVenta = productosPort.productosPorVenta(ventas)
+        val contactos = BitacoraDelCliente.de(
+            visitas = cobranza.visitas,
+            pagos = cobranza.pagos,
+            cuentas = productosPorVenta.aCuentas()
+        )
         val filas = ventas.map {
             it.aVentaDelCliente(
                 estado = cobranza.estados[it.ventaId],
@@ -109,7 +117,10 @@ class CargarDetalleCliente @Inject constructor(
             diaDeRuta = primera.diaDeRuta,
             frecuencia = primera.frecuencia,
             resumen = resumenDe(filas, cobranza.pagos),
-            productos = ventas.flatMap { productosPort.productosDe(it.folio) },
+            // `.values` conserva el orden de `ventas` (ya ordenada arriba):
+            // `productosPorVenta` sale de `associate`, que arma un
+            // LinkedHashMap con el orden de inserción.
+            productos = productosPorVenta.values.flatten(),
             // El pin sale del abono MÁS RECIENTE que traiga coordenadas, no del
             // más reciente a secas: si el último se capturó sin señal, el
             // anterior sigue siendo una puerta donde de verdad se cobró.

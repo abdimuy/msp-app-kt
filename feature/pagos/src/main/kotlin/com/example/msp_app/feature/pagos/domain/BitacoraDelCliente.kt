@@ -36,13 +36,35 @@ import com.example.msp_app.feature.pagos.domain.model.VisitaDelCliente
  * tampoco se decide qué par es válido: eso ya lo decidió
  * [com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro], del lado
  * del adaptador, y la mezcla solo copia.
+ *
+ * ## La cuenta viaja igual que el punto, salvo que la visita nunca la lleva
+ *
+ * [cuentas] llega YA resuelto —`ventaId → nombre de cuenta`— porque este
+ * mezclador es dominio puro y no puede llamar a
+ * [com.example.msp_app.feature.pagos.domain.port.ProductosPort] (un puerto de
+ * `application/`); quien lo arma es
+ * [com.example.msp_app.feature.pagos.application.cuentasDeLasVentas]. Un pago
+ * SÍ busca su cuenta en el mapa por [PagoDelHistorial.ventaId]; una visita
+ * NUNCA la busca, ni siquiera cuando el mapa trae la cuenta de su propia
+ * [VisitaDelCliente.ventaId] — es la misma decisión cerrada que ya vale para
+ * [com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro], y por la
+ * misma razón: el diálogo de visita no elige cuenta, así que afirmar una ahí
+ * sería inventar un dato que el cobrador nunca dio.
  */
 object BitacoraDelCliente {
 
-    /** Todo lo que pasó en ese domicilio, de lo más reciente a lo más viejo. */
+    /**
+     * Todo lo que pasó en ese domicilio, de lo más reciente a lo más viejo.
+     *
+     * @param cuentas `ventaId → nombre de cuenta`, ya normalizado. Vacío por
+     *   defecto: los llamadores que no resuelven cuentas (o los tests que no
+     *   la necesitan) siguen compilando y cada [ContactoDeCobranza.cuenta]
+     *   sale en `null`.
+     */
     fun de(
         visitas: List<VisitaDelCliente>,
-        pagos: List<PagoDelHistorial>
+        pagos: List<PagoDelHistorial>,
+        cuentas: Map<Int, String> = emptyMap()
     ): List<ContactoDeCobranza> {
         val deVisitas = visitas.map { visita ->
             ContactoDeCobranza(
@@ -79,6 +101,11 @@ object BitacoraDelCliente {
                 metodo = pago.metodo,
                 cobrador = pago.cobrador,
                 ventaId = pago.ventaId,
+                // `null` cuando la cuenta no está en el mapa: una venta sin
+                // renglones de `products` sincronizados todavía. Nunca un
+                // texto de relleno ni el folio de repuesto — ver el KDoc de
+                // ContactoDeCobranza.cuenta.
+                cuenta = cuentas[pago.ventaId],
                 ubicacion = pago.ubicacion
             )
         }

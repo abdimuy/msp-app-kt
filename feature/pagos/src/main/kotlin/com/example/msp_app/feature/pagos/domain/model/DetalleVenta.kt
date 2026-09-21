@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.domain.model
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import java.time.LocalDate
 
 /**
@@ -56,3 +57,26 @@ data class ProductoDeVenta(
     val nombre: String,
     val importe: Money?
 )
+
+/**
+ * La única regla que convierte `ARTICULO` en texto de usuario (`task-2-brief.md`).
+ *
+ * **Microsip lo guarda en MAYÚSCULAS**, y de ahí sale [ProductoDeVenta.nombre]
+ * crudo — [com.example.msp_app.feature.pagos.data.adapter.RoomProductosAdapter]
+ * no lo toca. La sección "productos" del detalle de venta sigue pintando ese
+ * crudo (fuera de alcance de esta tarea): lo único que pasa por acá es el
+ * nombre que identifica la CUENTA en la bitácora
+ * ([ContactoDeCobranza.cuenta]), y pasa por un solo lugar para que la regla no
+ * se reparta entre los llamadores.
+ *
+ * **Sentencia, no título.** Una mayúscula inicial y el resto en minúsculas —la
+ * misma convención de texto de usuario del repo (`CLAUDE.md` §3: mayúscula
+ * inicial, nunca "Title Case" por palabra, que capitalizaría también "King" y
+ * "Chocolate" como si fueran nombres propios).
+ */
+object NombreDeProducto {
+    fun normaliza(nombreCrudo: String): String {
+        val sentencia = nombreCrudo.trim().lowercase(BUSINESS_LOCALE)
+        return sentencia.replaceFirstChar { it.titlecase(BUSINESS_LOCALE) }
+    }
+}

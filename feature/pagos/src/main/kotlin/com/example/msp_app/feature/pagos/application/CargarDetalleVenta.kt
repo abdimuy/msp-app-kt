@@ -81,8 +81,14 @@ class CargarDetalleVenta @Inject constructor(
             ),
             // La línea del CLIENTE entero, no la de esta cuenta: `cobranza` ya
             // la traía reunida para derivar el estado y se estaba tirando. Ver
-            // el KDoc de `DetalleVenta.contactos`.
-            contactos = BitacoraDelCliente.de(cobranza.visitas, cobranza.pagos),
+            // el KDoc de `DetalleVenta.contactos`. Por lo mismo, `cuentas` sale
+            // de TODAS sus ventas y no solo de `venta.folio` — un contacto de
+            // OTRA cuenta del mismo cliente también necesita poder nombrarse.
+            contactos = BitacoraDelCliente.de(
+                visitas = cobranza.visitas,
+                pagos = cobranza.pagos,
+                cuentas = cuentasDeLasVentas(cobranza.ventas, productosPort)
+            ),
             liquidacion = cobranza.liquidaciones[ventaId],
             garantia = garantiasPort.garantiaDe(venta.creditoId)
         )

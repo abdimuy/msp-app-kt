@@ -14,6 +14,7 @@ import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
 import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
+import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
@@ -51,14 +52,15 @@ class BitacoraViewModelTest {
     private fun viewModel(clienteId: Int = PagosFixtures.CLIENTE_ID) = BitacoraViewModel(
         savedStateHandle = SavedStateHandle(mapOf(PagosRutas.ARG_CLIENTE_ID to clienteId)),
         cargarBitacoraDelCliente = CargarBitacoraDelCliente(
-            ReunirCobranzaDelCliente(
+            reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,
                 visitasPort = visitasPort,
                 liquidacionPort = FakeLiquidacionPort(),
                 resolverVentanaDeCobro = ResolverVentanaDeCobro(FakePeriodoDeCobroPort(), clock),
                 derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria)
-            )
+            ),
+            productosPort = FakeProductosPort()
         ),
         privacidad = FakePrivacidadPort(),
         tema = FakeTemaDeLaAppPort(),

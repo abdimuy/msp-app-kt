@@ -254,6 +254,40 @@ data class ContactoDeCobranza(
      */
     val ventaId: Int? = null,
     /**
+     * Cómo se llama la cuenta: el nombre del PRIMER producto de la venta, por
+     * `POSICION` (`task-2-brief.md`). Decisión del dueño: la cuenta se
+     * identifica SIEMPRE con el nombre del producto, nunca con el folio — el
+     * folio es un dato de sistema, no algo que el cobrador reconozca parado en
+     * la puerta.
+     *
+     * **Por qué el primero por `POSICION` y no el de mayor precio**, cuando la
+     * cuenta trae varios artículos. `POSICION` es el orden de captura y es
+     * exactamente el que
+     * [com.example.msp_app.feature.pagos.domain.port.ProductosPort] ya
+     * promete devolver — no hace falta un segundo criterio, ni comparar
+     * [Money] (que traería su propio desempate cuando dos renglones cuestan lo
+     * mismo). En el caso real que originó la tarea (folio `Y00001786`) el
+     * primer renglón capturado es la recámara, el mueble principal de la
+     * venta; "base de cama" es el complemento que la sigue.
+     *
+     * **`null`, y nunca un texto de relleno ni el folio de repuesto.** Dos
+     * caminos aterrizan aquí, y los dos son el hecho, no un error:
+     * - Este contacto es una VISITA. [tipo] == [TipoDeContacto.VISITA] nunca
+     *   lleva cuenta, igual que nunca lleva [metodo] — decisión cerrada del
+     *   dueño, aunque la visita sí traiga [ventaId] (una visita se puede
+     *   registrar apuntando a una cuenta sin que por eso "sea" esa cuenta).
+     * - Este contacto es un COBRO de una cuenta cuyos renglones de `products`
+     *   todavía no sincronizaron — posible en un teléfono recién instalado,
+     *   ver el KDoc de
+     *   [com.example.msp_app.feature.pagos.domain.port.ProductosPort].
+     *
+     * **El nombre ya llega normalizado.** Microsip guarda `ARTICULO` en
+     * MAYÚSCULAS; la regla que lo vuelve texto de usuario vive en un solo
+     * lugar, [NombreDeProducto.normaliza], y ya corrió sobre este valor antes
+     * de que llegara aquí.
+     */
+    val cuenta: String? = null,
+    /**
      * Dónde pasó **este** contacto, cuando el teléfono lo pudo medir.
      *
      * Es lo que hace que tocar un renglón de la bitácora abra el mapa en el
