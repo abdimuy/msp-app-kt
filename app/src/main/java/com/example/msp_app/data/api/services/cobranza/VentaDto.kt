@@ -157,3 +157,36 @@ private fun weekdayName(date: LocalDate): String {
         .replace('Á', 'A').replace('É', 'E').replace('Í', 'I')
         .replace('Ó', 'O').replace('Ú', 'U')
 }
+
+/**
+ * Devuelve la venta con el saldo del servidor **menos los pagos que el
+ * servidor todavía no ha visto**.
+ *
+ * El invariante que sostiene esto se puede decir en una línea, y por eso es
+ * comprobable:
+ *
+ * > El saldo mostrado nunca es un valor local; es el del servidor menos los
+ * > pagos que el servidor no ha reconocido.
+ *
+ * De ahí salen las cuatro propiedades que importan:
+ *
+ *  - **converge**: en cuanto el servidor reconoce el pago, el colapso del
+ *    gemelo borra la fila local, `enVuelo` baja a cero y el saldo es
+ *    exactamente el del servidor;
+ *  - **no cuenta doble**: el descuento sale de las filas locales vivas, no de
+ *    restarle el pago a un saldo que quizá ya lo incluya;
+ *  - **no se desincroniza**: cada tick parte del valor que llega, así que una
+ *    cancelación de oficina o el pago de otro cobrador entran igual, con o sin
+ *    pagos en vuelo;
+ *  - **con internet el desfase máximo es un tick**, y sólo por lo que de
+ *    verdad está en vuelo.
+ *
+ * `coerceAtLeast(0.0)` es defensa, no lógica: si por lo que sea el descuento
+ * excediera el saldo, un negativo en pantalla sería peor que un cero. La regla
+ * de verdad vive en el predicado de la consulta.
+ */
+fun SaleEntity.conSaldoAjustadoPorPagosEnVuelo(enVuelo: Double): SaleEntity = if (enVuelo <= 0.0) {
+    this
+} else {
+    copy(SALDO_REST = (SALDO_REST - enVuelo).coerceAtLeast(0.0))
+}
