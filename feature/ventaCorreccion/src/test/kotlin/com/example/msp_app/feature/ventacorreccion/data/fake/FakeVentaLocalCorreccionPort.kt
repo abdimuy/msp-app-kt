@@ -38,6 +38,21 @@ class FakeVentaLocalCorreccionPort : VentaLocalCorreccionPort {
      */
     var lanzarEnGuardar: Throwable? = null
 
+    // Contadores de invocación (ronda de arreglo 1 de Task 5): [ConsultarEstadoCorreccionTest]
+    // los usa para blindar "sólo lee, nunca reclama" — una prueba que mire sólo el VALOR
+    // devuelto no distingue una consulta de sólo lectura de una que además reclamó el candado
+    // por dentro.
+    var leerEstadoCallCount = 0
+        private set
+    var leerVentaCallCount = 0
+        private set
+    var reclamarParaEditarCallCount = 0
+        private set
+    var soltarCallCount = 0
+        private set
+    var guardarCorreccionCallCount = 0
+        private set
+
     fun siembra(
         saleId: String,
         campos: CamposVentaCorregidos,
@@ -48,21 +63,28 @@ class FakeVentaLocalCorreccionPort : VentaLocalCorreccionPort {
         filas[saleId] = Fila(campos, productos, combos, enviado = enviado)
     }
 
-    override suspend fun leerEstado(saleId: String): EstadoVentaLocal? = filas[saleId]?.let {
-        EstadoVentaLocal(
-            enviado = it.enviado,
-            permanente = it.permanente,
-            correccionNoEnviada = it.correccionNoEnviada,
-            claimKind = it.claimKind,
-            claimedAt = if (it.claimKind != null) 0L else null
-        )
+    override suspend fun leerEstado(saleId: String): EstadoVentaLocal? {
+        leerEstadoCallCount++
+        return filas[saleId]?.let {
+            EstadoVentaLocal(
+                enviado = it.enviado,
+                permanente = it.permanente,
+                correccionNoEnviada = it.correccionNoEnviada,
+                claimKind = it.claimKind,
+                claimedAt = if (it.claimKind != null) 0L else null
+            )
+        }
     }
 
-    override suspend fun leerVenta(saleId: String): VentaLocalParaCorregir? = filas[saleId]?.let {
-        VentaLocalParaCorregir(it.campos, it.productos, it.combos)
+    override suspend fun leerVenta(saleId: String): VentaLocalParaCorregir? {
+        leerVentaCallCount++
+        return filas[saleId]?.let {
+            VentaLocalParaCorregir(it.campos, it.productos, it.combos)
+        }
     }
 
     override suspend fun reclamarParaEditar(saleId: String, claimId: String, ahora: Long): Boolean {
+        reclamarParaEditarCallCount++
         val fila = filas[saleId] ?: return false
         if (fila.enviado || fila.permanente) return false
         if (fila.claimKind == "UPLOAD") return false
@@ -72,6 +94,7 @@ class FakeVentaLocalCorreccionPort : VentaLocalCorreccionPort {
     }
 
     override suspend fun soltar(saleId: String, claimId: String) {
+        soltarCallCount++
         val fila = filas[saleId] ?: return
         if (fila.claimId == claimId) {
             fila.claimId = null
@@ -86,6 +109,7 @@ class FakeVentaLocalCorreccionPort : VentaLocalCorreccionPort {
         productos: List<LocalSaleProductEntity>,
         combos: List<LocalSaleComboEntity>
     ): Boolean {
+        guardarCorreccionCallCount++
         lanzarEnGuardar?.let { throw it }
         val fila = filas[saleId] ?: return false
         if (fila.enviado || fila.claimId != claimId) return false

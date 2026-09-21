@@ -1,5 +1,6 @@
 package com.example.msp_app.features.sales.screens
 
+import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,11 +62,15 @@ import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
 import com.example.msp_app.feature.ventacorreccion.domain.TextosCorreccion
 import com.example.msp_app.feature.ventacorreccion.ui.CorreccionUiState
 import com.example.msp_app.feature.ventacorreccion.ui.CorreccionVentaViewModel
+import com.example.msp_app.feature.ventacorreccion.ui.components.AvisoNoCorregible
+import com.example.msp_app.features.productsInventory.components.CarouselItem
+import com.example.msp_app.features.productsInventory.components.CarrouselImage
 import com.example.msp_app.features.sales.components.cityselector.CitySelector
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
 import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
+import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.NewSaleFormState
 import com.example.msp_app.features.sales.viewmodels.NewSaleFormValidator
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
@@ -93,8 +98,12 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     val warehouseViewModel: WarehouseViewModel = hiltViewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
+    // Sólo para VER las fotos de la venta (ronda de arreglo 1) — mismo viewmodel/componente que
+    // `SaleDescriptionScreen`, sin conectarlo al guardado de la corrección.
+    val imagesViewModel: NewLocalSaleViewModel = viewModel()
 
     val correccionState by correccionViewModel.state.collectAsState()
+    val saleImages by imagesViewModel.saleImages.collectAsState()
 
     var showProductSheet by remember { mutableStateOf(false) }
     var showCreateComboDialog by remember { mutableStateOf(false) }
@@ -188,6 +197,12 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     // mismo teléfono; una venta ajena/ya subida/en vuelo cae en `CorreccionUiState.NoCorregible`).
     LaunchedEffect(localSaleId) {
         correccionViewModel.reclamar(localSaleId)
+    }
+
+    // Carga las fotos para VERLAS (ronda de arreglo 1) — independiente del candado de corrección:
+    // una consulta de sólo lectura, no forma parte de `CorreccionUiState`.
+    LaunchedEffect(localSaleId) {
+        imagesViewModel.loadImagesBySaleId(localSaleId)
     }
 
     // Suelta el candado al salir de la pantalla, por CUALQUIER camino (flecha de regreso, gesto
@@ -563,7 +578,9 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                     .fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text(noCorregible.mensaje)
+                // Mismo componente que `SaleDescriptionScreen` (`EntradaCorreccion`,
+                // `:feature:ventaCorreccion`) — el mismo estado se ve igual en las dos pantallas.
+                AvisoNoCorregible(mensaje = noCorregible.mensaje)
             }
         } else if (editando == null) {
             Box(
@@ -1036,6 +1053,32 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
                     Spacer(Modifier.height(16.dp))
 
+                    // Fotos en SÓLO LECTURA (ronda de arreglo 1, decisión del orquestador): el
+                    // plan prohíbe EDITARLAS aquí, no VERLAS — el vendedor debe poder confirmar
+                    // qué fotos lleva la venta que está corrigiendo. `NewLocalSaleViewModel` +
+                    // `CarrouselImage` son los MISMOS que ya usa `SaleDescriptionScreen`; sin
+                    // botones de agregar/borrar y sin tocar `CorreccionUiState` ni el guardado.
+                    val carouselItems = remember(saleImages) {
+                        saleImages.mapIndexed { index, image ->
+                            CarouselItem(
+                                id = index,
+                                imagePath = if (image.IMAGE_URI is String) {
+                                    image.IMAGE_URI as String
+                                } else {
+                                    (image.IMAGE_URI as Uri).path ?: ""
+                                },
+                                description = "Imagen ${index + 1}"
+                            )
+                        }
+                    }
+                    if (carouselItems.isNotEmpty()) {
+                        CarrouselImage(carouselItems = carouselItems)
+                    } else {
+                        Text(text = "No hay imágenes registradas")
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
                     ProductSaleSummary(
                         saleProductsViewModel = saleProductsViewModel,
                         productosCamioneta = productosCamioneta,
@@ -1069,7 +1112,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(
-                        "Guardar corrección",
+                        TextosCorreccion.GUARDAR_CORRECCION,
                         color = Color.White
                     )
                 }

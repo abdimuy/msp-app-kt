@@ -1,7 +1,7 @@
 package com.example.msp_app.feature.ventacorreccion.domain
 
 /**
- * Las seis cadenas de usuario de la corrección de venta, en un solo lugar
+ * Las siete cadenas de usuario de la corrección de venta, en un solo lugar
  * (plan "Corregir una venta antes de que suba", corrección 1 del
  * orquestador: MAYÚSCULA INICIAL, no minúscula — el dueño lo pidió
  * explícitamente el 2026-09-20 y la rama `feat/pagos-y-visitas` ya cerró
@@ -18,6 +18,13 @@ package com.example.msp_app.feature.ventacorreccion.domain
  * guardia y la relectura) mostraba [CORREGIR_VENTA], mintiendo justo en el
  * único caso alcanzable de esa rama. Ver
  * `CorreccionVentaViewModel.aTextoDeRechazoDeGuardado`.
+ *
+ * [GUARDAR_CORRECCION] se agregó en la ronda de arreglo 1 de Task 5: era un
+ * literal suelto dentro de `EditSaleScreen.kt` (`:app`), el ÚNICO texto de
+ * usuario de esa pantalla sin ninguna red — `:app` no aplica Roborazzi, así
+ * que nada impedía que alguien lo recortara, le pusiera punto final o le
+ * metiera "ciclo" sin que ninguna prueba se enterara. Aquí sí lo cubre
+ * `TextosCorreccionTest`.
  */
 object TextosCorreccion {
     /** Botón para entrar a corregir una venta [EstadoCorreccion.Corregible]. */
@@ -43,4 +50,7 @@ object TextosCorreccion {
      * por qué un guardado en curso no se pudo completar.
      */
     const val NO_SE_PUDO_GUARDAR = "No se pudo guardar"
+
+    /** Botón que envía el formulario de corrección (`EditSaleScreen`, `:app`). */
+    const val GUARDAR_CORRECCION = "Guardar corrección"
 }
