@@ -419,6 +419,14 @@ tasks.register("prePushCheck") {
         // enterara. Sus cuatro tareas pasan hoy tal cual (cobertura medida:
         // 87.78% LINE), así que sumarlas no arrastra deuda nueva.
         ":feature:configuracion:ktlintCheck",
+        // `:feature:ventaCorreccion` nace en la Task 2 del plan "Corregir una
+        // venta antes de que suba" YA DENTRO de la compuerta, el mismo día
+        // que el módulo entra a `settings.gradle.kts` — no se repite el
+        // hueco de `:feature:configuracion` documentado arriba. Sólo
+        // ktlint/tests/detekt: `verifyRoborazziDebug` y `koverVerifyDebug`
+        // esperan a que haya goldens (Task 5) / cobertura medida (Task 7)
+        // que agregar sin inventar un umbral.
+        ":feature:ventaCorreccion:ktlintCheck",
         ":build-tools:detekt-rules:ktlintCheck",
         ":app:testDevlocalDebugUnitTest",
         ":core:common:testDebugUnitTest",
@@ -433,6 +441,7 @@ tasks.register("prePushCheck") {
         ":core:settings:testDebugUnitTest",
         ":feature:collectionReport:testDebugUnitTest",
         ":feature:configuracion:testDebugUnitTest", // ver "HUECO CERRADO" arriba
+        ":feature:ventaCorreccion:testDebugUnitTest",
         ":build-tools:detekt-rules:test",
         ":core:common:koverVerify",
         // `koverVerifyDebug`, no el agregado `koverVerify`: el agregado también
@@ -490,6 +499,7 @@ tasks.register("prePushCheck") {
         ":core:settings:detekt",
         ":feature:collectionReport:detekt",
         ":feature:configuracion:detekt", // ver "HUECO CERRADO" arriba
+        ":feature:ventaCorreccion:detekt",
         ":build-tools:detekt-rules:detekt",
         ":core:designsystem:verifyRoborazziDebug",
         // Task 11 (Plan 5, cierre del piloto): el gate de fidelidad visual
