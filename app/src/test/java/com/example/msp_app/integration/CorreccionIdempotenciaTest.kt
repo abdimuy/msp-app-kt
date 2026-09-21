@@ -337,18 +337,27 @@ class CorreccionIdempotenciaTest : RoomTestBase() {
             )
             assertNull(filaFinal.LAST_UPLOAD_HTTP_CODE)
 
-            // Lo que la reconciliación por GET NO puede saber: el servidor tiene el cuerpo
-            // ORIGINAL de la corrida 1 (la corrección nunca viajó, porque el segundo POST fue
-            // rechazado antes de que su cuerpo importara). `CORRECCION_NO_ENVIADA` sólo compara
-            // la REVISION del snapshot tomado al reclamar la corrida 2 (ya con la corrección
-            // adentro) contra la REVISION en el momento de marcar enviada — y entre esos dos
-            // instantes no cambió nada, así que la divergencia real (teléfono corregido,
-            // servidor con el original) queda SIN marcar. Ver el reporte de la tarea: esto no es
-            // observable con el mecanismo actual, se deja documentado aquí en vez de silenciado.
-            assertFalse(
-                "CORRECCION_NO_ENVIADA no detecta la divergencia entre corridas via GET " +
-                    "(alcance del mecanismo, ver el reporte)",
+            // EL HUECO QUE LA TASK 6B CIERRA — la aserción más importante de este archivo.
+            //
+            // El servidor se quedó con el cuerpo ORIGINAL de la corrida 1: la corrección nunca
+            // viajó (el segundo POST fue rechazado con 409 antes de que su cuerpo importara) y
+            // el GET sólo probó que LA VENTA existe, no QUÉ cuerpo tiene. Hasta la Task 6 esto
+            // quedaba en silencio —la comparación se hacía contra el snapshot de la corrida 2,
+            // que ya traía la corrección adentro, así que dentro de esa corrida nada divergía— y
+            // esta misma prueba lo afirmaba al revés, con un `assertFalse`, documentando el hueco.
+            //
+            // Ahora la comparación se ancla a `REVISION_POSTEADA`: el PRIMER cuerpo emitido fue
+            // el de REVISION=0 y la fila ya va en REVISION=1. Difieren, y la marca se pone. Si
+            // alguien quita el ancla, esta aserción es la que se pone roja.
+            assertTrue(
+                "el servidor tiene el cuerpo original y el teléfono enseña la corrección: " +
+                    "la divergencia tiene que quedar marcada, no en silencio",
                 filaFinal.CORRECCION_NO_ENVIADA
+            )
+            assertEquals(
+                "el ancla es la REVISION del PRIMER cuerpo posteado, no la de la corrida actual",
+                0,
+                filaFinal.REVISION_POSTEADA
             )
             assertEquals(
                 "la corrección SÍ queda escrita localmente, aunque el servidor no la tenga",

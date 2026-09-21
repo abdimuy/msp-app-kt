@@ -227,9 +227,11 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
         claimId: String
     ): Result {
         // El `REVISION` de ESTE instante, con el candado recién tomado. Es el
-        // que se le pasa a `markSentAndCloseEdit` cuando vuelva el 2xx: si
-        // para entonces ya no coincide, una corrección se coló mientras el
-        // POST volaba y la divergencia se marca en vez de perderse.
+        // `REVISION` que el cuerpo va a llevar (el candado de subida impide
+        // que nadie commitee mientras se arma), así que es el que se ancla
+        // con `recordPostedRevisionIfAbsent` justo antes del POST — y, sólo
+        // como respaldo para una fila sin ancla, el que se le pasa a
+        // `markSentAndCloseEdit`.
         val revisionAlReclamar = localSaleStore.getSaleClaimSnapshot(saleId)?.REVISION ?: 0
 
         val sale = localSaleStore.getSaleById(saleId)
@@ -406,6 +408,26 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 return Result.retry()
             }
 
+            // El ANCLA (Task 6b): la `REVISION` del cuerpo que está a punto
+            // de salir queda persistida, y sólo la primera vez — un segundo
+            // intento no la pisa. Va AQUÍ, después de la revalidación y
+            // pegada al POST, porque a partir de esta línea el servidor
+            // PUEDE haber recibido el cuerpo aunque nosotros nunca nos
+            // enteremos (una respuesta que se pierde es indistinguible de un
+            // POST que no llegó). Sin este ancla, ese caso —el "2xx
+            // perdido"— era invisible: el dueño corrige, el siguiente
+            // intento recibe 409, la reconciliación por GET marca ENVIADO=1,
+            // y la comparación de `markSentAndCloseEdit` contra el snapshot
+            // de ESA corrida no ve nada raro, aunque el servidor se quedó
+            // con el cuerpo viejo.
+            //
+            // Es conservador a propósito: si el POST ni siquiera sale del
+            // teléfono, el ancla queda puesta igual y una corrección
+            // posterior que SÍ viaja puede terminar marcada. Un falso
+            // positivo cuesta una revisión de oficina; un falso negativo
+            // cuesta despachar una venta que el cliente no pidió.
+            localSaleStore.recordPostedRevisionIfAbsent(saleId, revisionAlReclamar)
+
             val response = ventasApi.crearVenta(
                 idempotencyKey = idempotencyKey,
                 datos = datosRequestBody,
@@ -475,6 +497,13 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             }
 
             if (existeEnServer == true) {
+                // El GET prueba que el servidor tiene LA VENTA, no que tenga
+                // ESTE cuerpo: puede ser el de un POST anterior cuyo 2xx se
+                // perdió. `markSentAndCloseEdit` compara contra
+                // `REVISION_POSTEADA` (el PRIMER cuerpo que se emitió), así
+                // que si entre aquel POST y ahora se commiteó una corrección,
+                // la divergencia se marca aquí también — no sólo en el camino
+                // del 2xx directo.
                 localSaleStore.markSentAndCloseEdit(saleId, revisionAlReclamar)
                 uploadFailureRepository.clearFailure(saleId)
                 logger.info(

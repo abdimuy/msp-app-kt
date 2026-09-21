@@ -122,7 +122,7 @@ cuando vuelve la señal sube **corregida** y **una sola vez**.
 > revisión encontró una carrera adicional entre editar y SUBIR que ese diseño no cerraba. Lo que sigue es lo
 > que el código realmente implementa.
 
-Cinco columnas nuevas en `local_sale`:
+Seis columnas nuevas en `local_sale` (la sexta la agregó la Task 6b, en la misma migración):
 
 | columna | tipo | significado |
 |---|---|---|
@@ -130,7 +130,8 @@ Cinco columnas nuevas en `local_sale`:
 | `CLAIM_KIND` | `TEXT` nullable | `'EDIT'` o `'UPLOAD'`. Dice qué arrendamiento aplica para decidir si `CLAIM_ID` venció (cada tipo tiene el suyo). |
 | `CLAIMED_AT` | `INTEGER` nullable | epoch ms en que se acuñó el candado. |
 | `REVISION` | `INTEGER NOT NULL DEFAULT 0` | correcciones commiteadas. Sólo sube. |
-| `CORRECCION_NO_ENVIADA` | `INTEGER NOT NULL DEFAULT 0` | ver "Qué pasa si la subida ya empezó" abajo — marca la divergencia cuando el 2xx de una subida vuelve con el cuerpo viejo porque una corrección se commiteó mientras el POST seguía en vuelo. |
+| `CORRECCION_NO_ENVIADA` | `INTEGER NOT NULL DEFAULT 0` | marca que **lo que el servidor tiene no es lo que el teléfono enseña**. NO cubre sólo la ventana del vuelo: ver "La regla de la divergencia" abajo. |
+| `REVISION_POSTEADA` | `INTEGER` nullable | **(Task 6b)** la `REVISION` del cuerpo que viajó en el **primer** `POST` emitido para esa venta. Se escribe una sola vez y nunca se pisa. `NULL` = todavía no ha salido ningún POST. Es la referencia contra la que se decide la divergencia. |
 
 Los predicados de expiración necesitan **los dos arrendamientos** (`editLeaseMs`, `uploadLeaseMs`) en las tres
 sentencias que los usan: el candado vigente en la fila puede ser de cualquiera de los dos tipos, así que
@@ -217,14 +218,22 @@ Kotlin):
        CLAIM_KIND = NULL,
        CLAIMED_AT = NULL,
        CORRECCION_NO_ENVIADA = CASE
-           WHEN REVISION != :revisionAtClaim THEN 1
+           WHEN REVISION != COALESCE(REVISION_POSTEADA, :revisionAtClaim) THEN 1
            ELSE CORRECCION_NO_ENVIADA
        END
    WHERE LOCAL_SALE_ID = :id
    ```
-   `revisionAtClaim` es el `REVISION` del snapshot que el worker tomó en el paso 4, ANTES del POST. Siempre
-   marca `ENVIADO = 1` (el 2xx prueba que el servidor tiene la venta) y siempre cierra el candado, **sea de
-   quien sea** — ver "Qué pasa si la subida ya empezó" abajo para el porqué.
+   Siempre marca `ENVIADO = 1` (el 2xx o el `GET` prueban que el servidor tiene la venta) y siempre cierra el
+   candado, **sea de quien sea** — ver "Qué pasa si la subida ya empezó" abajo para el porqué. La referencia de
+   la comparación es `REVISION_POSTEADA`, no el snapshot de la corrida: ver "La regla de la divergencia".
+   `revisionAtClaim` (el `REVISION` del snapshot del paso 4) queda sólo como respaldo para una fila sin ancla.
+
+   **Ancla del cuerpo posteado** (`recordPostedRevisionIfAbsent`, el `UPDATE` que la escribe), llamado por el
+   worker inmediatamente ANTES de `crearVenta`:
+   ```sql
+   UPDATE local_sale SET REVISION_POSTEADA = :revision
+   WHERE LOCAL_SALE_ID = :id AND REVISION_POSTEADA IS NULL
+   ```
 
 7. **Soltar** al cancelar: `UPDATE ... SET CLAIM_ID = NULL, CLAIM_KIND = NULL, CLAIMED_AT = NULL WHERE
    LOCAL_SALE_ID = :id AND CLAIM_ID = :claimId`. Funciona para cualquier tipo de candado.
@@ -248,12 +257,11 @@ Kotlin):
   una foto de ~3.4 MB a 10 KB/s tarda ~340 s sin que salte nada). El arrendamiento de subida puede vencer con
   el POST **todavía en vuelo**. Si eso pasa, el editor puede tomar el candado (`claimForEdit`) y commitear
   ANTES de que vuelva el 2xx — y el 2xx que llega después trae el cuerpo **VIEJO**.
-- `markSentAndCloseEdit` (paso 6) cierra esta ventana sin perder el caso en silencio: compara `REVISION`
-  contra `revisionAtClaim` (el snapshot previo al POST). Si coinciden, nada divergió — `ENVIADO=1`, candado
-  cerrado, sin marca. Si NO coinciden, alguien commiteó mientras el POST volaba: se marca
-  `CORRECCION_NO_ENVIADA = 1` en la MISMA sentencia. La fila queda con `ENVIADO=1` (el servidor sí tiene la
-  venta — no marcarlo la subiría otra vez) **y** la divergencia visible, nunca pisada en silencio. Quién
-  muestra `CORRECCION_NO_ENVIADA` en pantalla y cómo se resuelve es de tareas posteriores a Task 1.
+- `markSentAndCloseEdit` (paso 6) cierra esta ventana sin perder el caso en silencio: si la `REVISION` actual
+  ya no es la del cuerpo que se posteó, se marca `CORRECCION_NO_ENVIADA = 1` en la MISMA sentencia. La fila
+  queda con `ENVIADO=1` (el servidor sí tiene la venta — no marcarlo la subiría otra vez) **y** la divergencia
+  visible, nunca pisada en silencio. Quién muestra `CORRECCION_NO_ENVIADA` en pantalla y cómo se resuelve es
+  de tareas posteriores a Task 1.
 - Si el candado lo tomó el editor pero AÚN no commiteó (`REVISION` sin cambiar cuando vuelve el 2xx): sin
   marca — el guardado posterior del editor va a fallar solo, por su propio guardia (paso 5 lee `ENVIADO=1` y
   devuelve 0 filas), y el usuario ve `Ya se envió`.
@@ -262,6 +270,51 @@ Kotlin):
   lenta pero viva no dispare esta carrera en la práctica. `CORRECCION_NO_ENVIADA` es la red de seguridad para
   cuando, aun así, ocurra. Decisión ya tomada: **no** agregar un `callTimeout` — un tope total haría fallar
   para siempre una subida lenta que sí avanza, cambiando una carrera por una venta que nunca llega.
+
+### La regla de la divergencia (decidida en la Task 6b, no se relitiga)
+
+> **La marca NO cubre sólo el vuelo.** Quien lea la sección de arriba y se quede con "`CORRECCION_NO_ENVIADA`
+> es lo del arrendamiento que vence con el POST en el aire" va a asumir mal. Esta subsección es la regla
+> vigente; la de arriba es el caso que la motivó primero.
+
+La Task 6 encontró un segundo camino a la misma divergencia, y lo dejó documentado como aserción negativa en
+`CorreccionIdempotenciaTest` (escenario D). Ocurre en campo:
+
+1. El teléfono manda la venta. El servidor **sí** la recibe, pero la respuesta se pierde (mala señal).
+2. El vendedor corrige. `REVISION` sube.
+3. El siguiente intento manda otra vez con la **misma** `Idempotency-Key`; el servidor responde `409`, y el
+   teléfono **reconcilia por `GET`**: la encuentra y marca `ENVIADO=1`.
+4. Comparar contra el snapshot de **esa** corrida no detectaba nada: dentro de la corrida 2 la `REVISION`
+   nunca cambió. El servidor se quedó con el cuerpo **original**, el teléfono enseña la **corrección**, y nadie
+   se enteraba.
+
+La regla, en tres frases:
+
+- **Se persiste la `REVISION` del cuerpo la primera vez que se emite un `POST` para esa venta**, y sólo la
+  primera (`REVISION_POSTEADA`; si ya hay una guardada, no se pisa).
+- **En `markSent`, por cualquiera de los dos caminos** —2xx directo o reconciliación por `GET`—, si la
+  `REVISION` actual difiere de esa primera revisión posteada, se marca `CORRECCION_NO_ENVIADA = 1`.
+- **La marca se conserva**: nunca se borra por un segundo `markSent` (`ELSE CORRECCION_NO_ENVIADA`).
+
+**Es conservador a propósito.** El ancla se escribe ANTES del `POST`, porque desde el teléfono "el POST no
+salió" y "llegó y se perdió la respuesta" son el mismo `IOException`. Consecuencia aceptada: una corrección
+hecha tras un intento que nunca llegó a ningún lado también queda marcada. Un falso positivo cuesta que la
+oficina revise una venta que estaba bien; un falso negativo cuesta que la oficina despache **una venta que el
+cliente no pidió**. No son comparables. Probado con nombre propio en
+`CorreccionDivergenciaTest.corregir tras un POST que nunca llego tambien queda marcada, y es deliberado` — y
+por eso dos aserciones de `CorreccionCarreraTest` (Task 4) cambiaron de `assertFalse` a `assertTrue`: daban por
+hecho que un `IOException` significaba que el servidor no tenía nada, y eso no se puede saber.
+
+**Lo que esta regla NO cubre** (medido al implementarla, no supuesto):
+
+- Un **fallo permanente con `X-Intent-Captured`** deja el intento resguardado en el servidor con el cuerpo que
+  llevaba, la fila local en `ENVIADO=0` y `LAST_UPLOAD_PERMANENT=1` — que además la vuelve no corregible. Si la
+  corrección se commiteó ANTES de ese fallo permanente, la oficina puede reproducir un cuerpo viejo y nada lo
+  marca, porque ese camino no pasa por `markSentAndCloseEdit`. Cerrarlo es trabajo del lado servidor
+  (`MSP_FAILED_INTENTS`), no de esta columna.
+- El camino **legado** `LocalSaleSyncHandler.changeSaleStatus(id, true)` marca `ENVIADO=1` sin pasar por
+  `markSentAndCloseEdit`. Está fuera de alcance y cerrado con una guarda de build, pero si alguien lo
+  reviviera, la divergencia volvería a ser invisible por ahí.
 
 ### Por qué no las otras opciones
 

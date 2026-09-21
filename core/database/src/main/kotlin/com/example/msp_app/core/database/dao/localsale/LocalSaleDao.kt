@@ -388,6 +388,44 @@ interface LocalSaleDao {
     suspend fun commitEditGuard(saleId: String, claimId: String): Int
 
     /**
+     * Ancla la `REVISION` del cuerpo que va a viajar, la PRIMERA vez que se
+     * emite un `POST` para esta venta — y sólo la primera: el
+     * `REVISION_POSTEADA IS NULL` del `WHERE` hace que un segundo intento no
+     * pise el valor original. Devuelve 1 la vez que ancla, 0 después (y 0 no
+     * es un error: significa que ya había ancla, que es justo lo que se
+     * quiere).
+     *
+     * Lo llama `PendingLocalSalesWorker` inmediatamente ANTES de
+     * `ventasApi.crearVenta`, con el `REVISION` del snapshot que tomó al
+     * reclamar (que es el que el cuerpo lleva: el candado de subida impide
+     * que nadie commitee entre el reclamo y el POST).
+     *
+     * Por qué existe, en una línea: sin ella, el camino del "2xx perdido" no
+     * era observable. El servidor recibe el cuerpo original y la respuesta se
+     * pierde; el dueño corrige; el siguiente intento recibe `409` y la
+     * reconciliación por `GET` marca `ENVIADO=1` — y como la comparación de
+     * [markSentAndCloseEdit] se hacía contra el snapshot de ESA segunda
+     * corrida (que ya traía la corrección adentro), no había nada que marcar:
+     * el teléfono enseñaba la corrección, el servidor tenía el original, y
+     * nadie se enteraba. Anclado al PRIMER cuerpo posteado, los dos caminos
+     * (2xx directo y reconciliación por `GET`) ven la misma divergencia.
+     *
+     * Deliberadamente CONSERVADOR: se ancla antes de mandar, así que un
+     * `POST` que ni siquiera salió del teléfono (sin señal) también deja
+     * ancla, y una corrección posterior que SÍ viajó puede terminar marcada.
+     * Un falso positivo cuesta que la oficina revise una venta que estaba
+     * bien; un falso negativo cuesta despachar una venta que el cliente no
+     * pidió.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET REVISION_POSTEADA = :revision
+        WHERE LOCAL_SALE_ID = :saleId AND REVISION_POSTEADA IS NULL
+        """
+    )
+    suspend fun recordPostedRevisionIfAbsent(saleId: String, revision: Int): Int
+
+    /**
      * Lo llama el subidor cuando el POST triunfa: marca `ENVIADO=1` y cierra
      * CUALQUIER candado que la fila tenga (edición o subida) en la MISMA
      * sentencia (un solo `UPDATE`, así que es atómico sin necesitar
@@ -396,20 +434,41 @@ interface LocalSaleDao {
      * tiene la venta — no marcar `ENVIADO=1` la haría subir otra vez, sea de
      * quien sea el candado que la fila tenga ahora.
      *
-     * [revisionAtClaim] es el `REVISION` que el snapshot del subidor traía
-     * ANTES del POST (`getSaleClaimSnapshot`, mecanismo paso 3). Cierra la
-     * carrera nueva que la ronda 2 de revisión encontró: el arrendamiento de
-     * subida puede vencer con el POST TODAVÍA en vuelo (subir un cuerpo
-     * multipart no tiene tope real de OkHttp — ver el comentario de
-     * `UPLOAD_LEASE_MS` en `LocalSaleClaimDaoTest.kt`), el editor toma el
-     * candado y commitea, y LUEGO vuelve el 2xx con el cuerpo VIEJO. Si
-     * `REVISION` ya no coincide con [revisionAtClaim], eso fue lo que pasó:
-     * se marca `CORRECCION_NO_ENVIADA = 1` en la MISMA sentencia — la
-     * divergencia queda VISIBLE en la fila, nunca pisada en silencio.
+     * **Contra qué se compara la `REVISION` (Task 6b, la regla vigente).** La
+     * referencia es `REVISION_POSTEADA`: la `REVISION` del cuerpo que viajó
+     * en el PRIMER `POST` emitido para esta venta
+     * ([recordPostedRevisionIfAbsent]). Si la `REVISION` actual difiere de
+     * ella, lo que el servidor tiene NO es lo que el teléfono enseña, y se
+     * marca `CORRECCION_NO_ENVIADA = 1` en la MISMA sentencia — la
+     * divergencia queda VISIBLE en la fila, nunca pisada en silencio. Eso
+     * cubre los DOS caminos por los que esta sentencia se llama:
+     *
+     * - **2xx directo**: el arrendamiento de subida puede vencer con el POST
+     *   TODAVÍA en vuelo (subir un cuerpo multipart no tiene tope real de
+     *   OkHttp — ver el comentario de `UPLOAD_LEASE_MS` en
+     *   `LocalSaleClaimDaoTest.kt`), el editor toma el candado y commitea, y
+     *   LUEGO vuelve el 2xx con el cuerpo VIEJO.
+     * - **Reconciliación por `GET`**: el primer POST SÍ llegó al servidor
+     *   pero su respuesta se perdió; el dueño corrigió; el segundo intento
+     *   recibió `409` y el `GET` encontró la venta. El servidor se quedó con
+     *   el cuerpo original. Anclando a `REVISION_POSTEADA` esto se marca; con
+     *   el snapshot de la corrida en curso (la regla anterior) quedaba
+     *   invisible, porque dentro de ESA corrida nada cambiaba.
+     *
+     * [revisionAtClaim] —el `REVISION` del snapshot que el subidor tomó al
+     * reclamar (`getSaleClaimSnapshot`)— queda como RESPALDO, vía
+     * `COALESCE`: sólo se usa si la fila no tiene ancla, que en el camino del
+     * subidor no puede pasar (se ancla justo antes del POST) pero mantiene la
+     * sentencia con un comportamiento seguro si alguna vez se la llama desde
+     * un camino que no posteó.
+     *
      * Si el candado lo tomó el editor pero AÚN no commiteó (`REVISION` sin
      * cambiar), no hay marca: el guardado posterior del editor va a fallar
      * solo, por su propio guardia (`commitEditGuard` lee `ENVIADO=1` y
      * devuelve 0) — eso ya funciona sin ayuda de esta sentencia.
+     *
+     * La marca NUNCA se borra: el `ELSE CORRECCION_NO_ENVIADA` conserva una
+     * divergencia ya señalada aunque ESTE `markSent` coincida.
      *
      * Quién enseña `CORRECCION_NO_ENVIADA` en pantalla, y cómo se resuelve
      * (reintentar, avisar al dueño), es de tareas posteriores; este método
@@ -434,7 +493,7 @@ interface LocalSaleDao {
             CLAIM_KIND = NULL,
             CLAIMED_AT = NULL,
             CORRECCION_NO_ENVIADA = CASE
-                WHEN REVISION != :revisionAtClaim THEN 1
+                WHEN REVISION != COALESCE(REVISION_POSTEADA, :revisionAtClaim) THEN 1
                 ELSE CORRECCION_NO_ENVIADA
             END
         WHERE LOCAL_SALE_ID = :saleId

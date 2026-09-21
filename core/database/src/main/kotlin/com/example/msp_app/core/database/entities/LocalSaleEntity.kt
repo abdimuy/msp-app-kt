@@ -78,10 +78,33 @@ class LocalSaleEntity(
     // vuelo. Si eso pasa, el editor puede tomar el candado y commitear ANTES
     // de que vuelva el 2xx — y el 2xx que llega después trae el cuerpo
     // VIEJO. `markSentAndCloseEdit` detecta el caso (compara `REVISION`
-    // contra el snapshot que el subidor tenía antes del POST) y marca esta
-    // columna en la MISMA sentencia: la divergencia queda visible en la
-    // fila en vez de perderse en silencio. `@ColumnInfo(defaultValue = "0")`
-    // por el mismo argumento que `REVISION`.
+    // contra `REVISION_POSTEADA`, ver abajo) y marca esta columna en la
+    // MISMA sentencia: la divergencia queda visible en la fila en vez de
+    // perderse en silencio. `@ColumnInfo(defaultValue = "0")` por el mismo
+    // argumento que `REVISION`.
     @ColumnInfo(defaultValue = "0")
-    val CORRECCION_NO_ENVIADA: Boolean = false
+    val CORRECCION_NO_ENVIADA: Boolean = false,
+    // La `REVISION` del cuerpo que viajó en el PRIMER `POST` emitido para
+    // esta venta. Se escribe UNA sola vez
+    // (`LocalSaleDao.recordPostedRevisionIfAbsent`, un `UPDATE` guardado por
+    // `REVISION_POSTEADA IS NULL`) y nunca se pisa. `NULL` = todavía no ha
+    // salido ningún `POST`.
+    //
+    // Existe porque `CORRECCION_NO_ENVIADA` comparaba contra el snapshot de
+    // la corrida EN CURSO, y así el camino del "2xx perdido" quedaba ciego:
+    // el servidor recibe el cuerpo original, la respuesta se pierde, el
+    // dueño corrige, el siguiente intento recibe `409` y la reconciliación
+    // por `GET` marca `ENVIADO=1` — todo dentro de una corrida en la que la
+    // `REVISION` nunca cambió, así que no había divergencia que marcar
+    // aunque el servidor se quedara con el cuerpo VIEJO. Anclando la
+    // comparación al primer cuerpo POSTEADO, los dos caminos (2xx directo y
+    // reconciliación por `GET`) ven la misma divergencia.
+    //
+    // Es CONSERVADOR a propósito: se escribe justo ANTES del `POST`, así que
+    // un `POST` que nunca llegó a salir del teléfono también queda
+    // registrado, y una corrección posterior que SÍ viajó puede marcarse
+    // como no enviada. Ese falso positivo cuesta que la oficina revise una
+    // venta que estaba bien; el falso negativo cuesta despachar una venta
+    // que el cliente no pidió. No son comparables.
+    val REVISION_POSTEADA: Int? = null
 )

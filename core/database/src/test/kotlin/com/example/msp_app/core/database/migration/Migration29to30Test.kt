@@ -1,7 +1,9 @@
 package com.example.msp_app.core.database.migration
 
 import android.content.Context
+import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.msp_app.core.database.AppDatabase
@@ -9,6 +11,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 import com.example.msp_app.core.testing.RobolectricTestBase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -29,13 +32,14 @@ private const val SEEDED_IMAGE_ID = "img-migracion-001"
  * captura sin señal — se aplica la `Migration` REAL, y Room valida el
  * esquema resultante contra el `30.json`.
  *
- * Agrega cinco columnas nuevas a `local_sale` para el plan "Corregir una
+ * Agrega seis columnas nuevas a `local_sale` para el plan "Corregir una
  * venta antes de que suba" (candado único de la fila, con arrendamiento):
  * `CLAIM_ID`, `CLAIM_KIND`, `CLAIMED_AT` (las tres nullable, nadie tiene la
  * fila todavía), `REVISION` (`NOT NULL DEFAULT 0`, cero correcciones
- * commiteadas) y `CORRECCION_NO_ENVIADA` (`NOT NULL DEFAULT 0`, ronda 3: sin
- * divergencia todavía). Todo `ALTER TABLE ADD COLUMN`: ninguna tabla se
- * recrea.
+ * commiteadas), `CORRECCION_NO_ENVIADA` (`NOT NULL DEFAULT 0`, ronda 3: sin
+ * divergencia todavía) y `REVISION_POSTEADA` (nullable, Task 6b: ninguna
+ * venta preexistente tiene un cuerpo posteado que anclar). Todo
+ * `ALTER TABLE ADD COLUMN`: ninguna tabla se recrea.
  *
  * Qué rompería si este test fallara: cualquier edición a la migración (una
  * columna con NOT NULL sin default, un tipo equivocado) que Room rechazara al
@@ -53,7 +57,7 @@ class Migration29to30Test : RobolectricTestBase() {
     )
 
     @Test
-    fun `las cinco columnas del candado existen y arrancan libres tras migrar`() {
+    fun `las seis columnas del candado existen y arrancan libres tras migrar`() {
         seedPendingSaleWithChildren()
 
         val migrated = migrationTestHelper.runMigrationsAndValidate(
@@ -65,7 +69,8 @@ class Migration29to30Test : RobolectricTestBase() {
 
         migrated.query(
             """
-            SELECT CLAIM_ID, CLAIM_KIND, CLAIMED_AT, REVISION, CORRECCION_NO_ENVIADA
+            SELECT CLAIM_ID, CLAIM_KIND, CLAIMED_AT, REVISION, CORRECCION_NO_ENVIADA,
+                   REVISION_POSTEADA
             FROM local_sale WHERE LOCAL_SALE_ID = ?
             """.trimIndent(),
             arrayOf(SEEDED_SALE_ID)
@@ -84,8 +89,69 @@ class Migration29to30Test : RobolectricTestBase() {
                 0,
                 cursor.getInt(4)
             )
+            assertTrue(
+                "REVISION_POSTEADA debe quedar VACIA: la fila migrada no ha emitido ningun POST " +
+                    "desde que existe la columna, y un 0 se confundiria con 'el primer cuerpo ya viajo'",
+                cursor.isNull(5)
+            )
         }
         migrated.close()
+    }
+
+    /**
+     * El otro lado de la misma regla (Task 6b): una instalación NUEVA no pasa
+     * por la migración —usa el `CREATE TABLE` que Room genera de la entidad—
+     * y también tiene que nacer sin ancla. Si alguien le pusiera
+     * `@ColumnInfo(defaultValue = "0")` a `REVISION_POSTEADA` para "que se
+     * parezca a `REVISION`", toda venta nueva arrancaría afirmando que su
+     * primer cuerpo ya viajó con `REVISION = 0`, y una corrección hecha ANTES
+     * del primer POST quedaría marcada como no enviada sin serlo.
+     */
+    @Test
+    fun `una instalacion nueva tambien nace sin ancla y sin default`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val fresh = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+
+        val columna = try {
+            leerColumna(fresh.openHelper.readableDatabase, "REVISION_POSTEADA")
+        } finally {
+            fresh.close()
+        }
+
+        assertNotNull("la columna REVISION_POSTEADA debe existir", columna)
+        assertEquals("INTEGER", columna!!.tipo)
+        assertEquals(
+            "REVISION_POSTEADA debe ser NULLABLE: NULL significa 'no ha salido ningun POST'",
+            0,
+            columna.notNull
+        )
+        assertTrue(
+            "no debe tener default: un 0 por defecto mentiria diciendo que ya hubo POST",
+            columna.default == null
+        )
+    }
+
+    private data class ColumnaSqlite(val tipo: String, val notNull: Int, val default: String?)
+
+    /** `PRAGMA table_info(local_sale)` reducido a la fila de una columna. */
+    private fun leerColumna(db: SupportSQLiteDatabase, nombre: String): ColumnaSqlite? {
+        db.query("PRAGMA table_info(local_sale)").use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(cursor.getColumnIndexOrThrow("name")) != nombre) continue
+                val defaultIndex = cursor.getColumnIndexOrThrow("dflt_value")
+                val tipo = cursor.getString(cursor.getColumnIndexOrThrow("type"))
+                val notNull = cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+                val default = if (cursor.isNull(defaultIndex)) {
+                    null
+                } else {
+                    cursor.getString(defaultIndex)
+                }
+                return ColumnaSqlite(tipo = tipo, notNull = notNull, default = default)
+            }
+        }
+        return null
     }
 
     /**

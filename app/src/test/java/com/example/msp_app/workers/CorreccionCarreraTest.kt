@@ -447,8 +447,23 @@ class CorreccionCarreraTest : RoomTestBase() {
             val fila = saleDataSource.getSaleById(SALE_ID)!!
             assertTrue(fila.ENVIADO)
             assertEquals(NOMBRE_CORREGIDO, fila.NOMBRE_CLIENTE)
-            assertFalse(
-                "el servidor recibió la corrección: no hay divergencia que marcar",
+            // Cambió en la Task 6b, y el cambio ES el punto. Esta prueba
+            // afirmaba que aquí NO había divergencia, dando por hecho que un
+            // POST que murió con `IOException` no dejó nada en el servidor.
+            // Eso no se puede saber desde el teléfono: la señal se cayó A
+            // MEDIA subida, así que el servidor pudo haberse quedado con el
+            // cuerpo ORIGINAL. Y el 2xx de la corrida 2 tampoco lo desmiente:
+            // llevaba la MISMA `Idempotency-Key`, y un servidor idempotente
+            // responde a una llave repetida replicando la respuesta guardada
+            // del primer intento, sin mirar el cuerpo nuevo.
+            //
+            // El ancla (`REVISION_POSTEADA`) dice que el primer cuerpo
+            // emitido fue el de `REVISION=0` y la fila ya va en 1: se marca.
+            // Falso positivo posible, aceptado a propósito — la oficina
+            // revisa una venta que quizá estaba bien, en vez de despachar una
+            // que el cliente no pidió.
+            assertTrue(
+                "no se puede saber si aquel POST a medias llegó: la duda se marca",
                 fila.CORRECCION_NO_ENVIADA
             )
         }
@@ -594,7 +609,18 @@ class CorreccionCarreraTest : RoomTestBase() {
         val fila = saleDataSource.getSaleById(SALE_ID)!!
         assertTrue(fila.ENVIADO)
         assertEquals(NOMBRE_CORREGIDO, fila.NOMBRE_CLIENTE)
-        assertFalse(fila.CORRECCION_NO_ENVIADA)
+        // Task 6b, mismo cambio que en la prueba 2 de este archivo: el ancla
+        // del primer cuerpo emitido (REVISION=0) ya no coincide con la fila
+        // (REVISION=1). "Sin señal" y "el servidor la recibió y se perdió la
+        // respuesta" son el MISMO `IOException` desde aquí, así que la duda
+        // se marca. La corrección sí viajó en la corrida 2 — probablemente
+        // este sea un falso positivo — y aun así se marca: el costo de
+        // equivocarse al revés es despachar una venta que el cliente no
+        // pidió.
+        assertTrue(
+            "primer cuerpo posteado sin confirmar + corrección posterior: se marca por si acaso",
+            fila.CORRECCION_NO_ENVIADA
+        )
         assertNull("el registro de fallo quedó limpio", fila.LAST_UPLOAD_ERROR_CODE)
         assertNull(fila.LAST_UPLOAD_HTTP_CODE)
         assertEquals("una sola venta, con su UUID de siempre", 1, cuantasVentas())

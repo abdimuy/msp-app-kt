@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Cinco columnas nuevas en `local_sale` para el plan "Corregir una venta
+ * Seis columnas nuevas en `local_sale` para el plan "Corregir una venta
  * antes de que suba" (`docs/superpowers/plans/2026-09-20-editar-venta-antes-de-subir.md`,
  * sección "El mecanismo de la carrera" + la ronda 2 de revisión que cierra una
  * carrera adicional entre editar y subir): el dueño puede corregir una venta
@@ -33,6 +33,18 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *   `markSentAndCloseEdit` marca esta columna en vez de pisar la corrección
  *   en silencio. 0 para toda fila preexistente: no hay divergencia que
  *   señalar todavía.
+ * - `REVISION_POSTEADA` (nullable, sin default): la `REVISION` del cuerpo que
+ *   viajó en el PRIMER `POST` emitido para esa venta. `NULL` para toda fila
+ *   preexistente (y para toda venta que aún no ha intentado subir): ninguna
+ *   de ellas tiene un cuerpo posteado que anclar. Es contra ESTE valor —no
+ *   contra el snapshot de la corrida en curso— que `markSentAndCloseEdit`
+ *   decide si hay divergencia, y por eso el camino del "2xx perdido"
+ *   (respuesta perdida → corrección → `409` → reconciliación por `GET`) deja
+ *   de ser invisible.
+ *
+ * Esta rama todavía no salió, así que la columna nueva entra en la MISMA
+ * migración 29→30 en vez de abrir una 30→31: sigue siendo aditiva y ningún
+ * teléfono tiene todavía una v30 vieja que quedaría a medias.
  *
  * Solo agrega columnas: ninguna tabla se recrea, así que las ventas
  * pendientes del dueño (y sus productos/combos/imágenes) quedan intactas.
@@ -46,5 +58,6 @@ val MIGRATION_29_30 = object : Migration(29, 30) {
         db.execSQL(
             "ALTER TABLE local_sale ADD COLUMN CORRECCION_NO_ENVIADA INTEGER NOT NULL DEFAULT 0"
         )
+        db.execSQL("ALTER TABLE local_sale ADD COLUMN REVISION_POSTEADA INTEGER")
     }
 }

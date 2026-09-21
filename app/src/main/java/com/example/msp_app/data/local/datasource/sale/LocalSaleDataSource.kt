@@ -128,11 +128,23 @@ class LocalSaleDataSource @Inject constructor(
     }
 
     /**
+     * Ancla la `REVISION` del cuerpo que va a viajar, la PRIMERA vez que se
+     * emite un `POST` para esta venta. Si ya había ancla no la pisa (y
+     * devuelve 0, que no es error). Contra ESE valor compara después
+     * [markSentAndCloseEdit] para decidir si hubo divergencia.
+     */
+    suspend fun recordPostedRevisionIfAbsent(saleId: String, revision: Int): Int {
+        return localSaleDao.recordPostedRevisionIfAbsent(saleId, revision)
+    }
+
+    /**
      * Marca la venta enviada y cierra cualquier candado en UNA sola
-     * sentencia. Si la `REVISION` actual ya no es [revisionAtClaim] (alguien
-     * commiteó una corrección mientras el POST volaba), marca además
-     * `CORRECCION_NO_ENVIADA = 1`: la divergencia queda visible, nunca
-     * pisada en silencio.
+     * sentencia. Si la `REVISION` actual ya no es la del PRIMER cuerpo
+     * posteado (`REVISION_POSTEADA`; [revisionAtClaim] sólo se usa como
+     * respaldo si no hay ancla), marca además `CORRECCION_NO_ENVIADA = 1`:
+     * la divergencia queda visible, nunca pisada en silencio — tanto si el
+     * 2xx llegó directo como si la venta se reconcilió por `GET` tras un
+     * `409`.
      */
     suspend fun markSentAndCloseEdit(saleId: String, revisionAtClaim: Int) {
         localSaleDao.markSentAndCloseEdit(saleId, revisionAtClaim)
