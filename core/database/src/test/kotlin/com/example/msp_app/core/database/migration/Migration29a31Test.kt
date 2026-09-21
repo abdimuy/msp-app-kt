@@ -180,9 +180,14 @@ class Migration29a31Test : RobolectricTestBase() {
      * en su `addMigrations`, Room no encontraría ruta de 29 a 31 y `.build()`
      * tronaría al primer acceso — exactamente la falla que vería un teléfono
      * con ventas pendientes adentro.
+     *
+     * El destino esperado es la versión VIGENTE de `AppDatabase` (32), no
+     * `V31`: el camino real corre TODA la cadena registrada, y desde
+     * `MIGRATION_31_32` (columna `NOMBRE_NORMALIZADO` del buscador de
+     * clientes) una base v29 abierta así llega hasta v32.
      */
     @Test
-    fun `abrir por el camino de produccion lleva una base v29 hasta v31`() {
+    fun `abrir por el camino de produccion lleva una base v29 hasta la version vigente`() {
         seedV29()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val dbPath = context.getDatabasePath(MIGRATION_DB).path
@@ -193,8 +198,8 @@ class Migration29a31Test : RobolectricTestBase() {
 
         try {
             assertEquals(
-                "abrir por el camino real de produccion debe terminar en v31",
-                V31,
+                "abrir por el camino real de produccion debe terminar en la version vigente",
+                32,
                 abierta.openHelper.readableDatabase.version
             )
 

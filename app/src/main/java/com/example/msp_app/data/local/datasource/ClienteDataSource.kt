@@ -30,6 +30,11 @@ class ClienteDataSource @Inject constructor(
         return clienteDao.searchByPrefix(prefix)
     }
 
+    /** `word` debe llegar ya normalizado — ver el KDoc de [ClienteDao.searchByNormalizedWord]. */
+    suspend fun searchByNormalizedWord(word: String): List<ClienteEntity> {
+        return clienteDao.searchByNormalizedWord(word)
+    }
+
     suspend fun getCount(): Int {
         return clienteDao.getCount()
     }

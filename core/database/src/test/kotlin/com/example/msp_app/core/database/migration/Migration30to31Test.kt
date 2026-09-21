@@ -173,6 +173,14 @@ class Migration30to31Test : RobolectricTestBase() {
      * esa lista, Room no encuentra ruta de 30 a 31 y `.build()` truena al
      * primer acceso — que es exactamente la falla real que un dispositivo
      * vería.
+     *
+     * El destino esperado es la versión VIGENTE de `AppDatabase` (32), no
+     * `NEW_VERSION` (31, el literal de ESTA migración): el camino real de
+     * producción corre TODA la cadena registrada, y desde que existe
+     * `MIGRATION_31_32` (columna `NOMBRE_NORMALIZADO` del buscador de
+     * clientes) una base v30 abierta así llega hasta v32, no se detiene en
+     * v31. Se actualiza a mano en cada bump de `AppDatabase.version`, igual
+     * que `AppDatabaseTest`.
      */
     @Test
     fun `MIGRATION_30_31 esta registrada en la configuracion real que usa produccion`() {
@@ -186,8 +194,8 @@ class Migration30to31Test : RobolectricTestBase() {
 
         try {
             assertEquals(
-                "abrir por el camino real de produccion debe terminar en v31",
-                NEW_VERSION,
+                "abrir por el camino real de produccion debe terminar en la version vigente",
+                32,
                 opened.openHelper.readableDatabase.version
             )
 

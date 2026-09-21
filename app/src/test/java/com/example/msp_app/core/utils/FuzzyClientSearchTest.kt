@@ -92,6 +92,19 @@ class FuzzyClientSearchTest {
     }
 
     @Test
+    fun `normalizeForSearch collapses leading, trailing and doubled spaces`() {
+        assertEquals(
+            "maria guadalupe",
+            normalizeForSearch("  Maria   Guadalupe  ")
+        )
+    }
+
+    @Test
+    fun `normalizeForSearch folds the ene with tilde to a plain ene`() {
+        assertEquals("guadalupe pena", normalizeForSearch("Guadalupe Peña"))
+    }
+
+    @Test
     fun `searchSimilarItems should work with empty items list`() {
         val result = searchSimilarItems(
             query = "test",
