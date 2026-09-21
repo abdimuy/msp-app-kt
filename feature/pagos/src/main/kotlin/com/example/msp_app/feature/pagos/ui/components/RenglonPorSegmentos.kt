@@ -8,6 +8,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.constrainHeight
@@ -60,7 +61,9 @@ internal fun RenglonPorSegmentos(
                     text = SEPARADOR,
                     style = style,
                     color = color,
-                    modifier = Modifier.clearAndSetSemantics { }
+                    // Sin texto para TalkBack; el tag sólo existe para que un test
+                    // pueda medir dónde quedó cada separador.
+                    modifier = Modifier.clearAndSetSemantics { testTag = SEPARADOR_DEL_RENGLON_TAG }
                 )
             }
         },
@@ -88,6 +91,9 @@ internal fun RenglonPorSegmentos(
 
 /** `testTag` de cada segmento del renglón de abajo, para leerlos en orden. */
 const val SEGMENTO_DEL_RENGLON_TAG: String = "pagos_contacto_segmento"
+
+/** `testTag` de cada separador, para cobrar que nunca quede al borde de un renglón. */
+const val SEPARADOR_DEL_RENGLON_TAG: String = "pagos_contacto_separador"
 
 /** El texto del separador. Ver "Dónde vive el punto medio" en [RenglonPorSegmentos]. */
 private const val SEPARADOR = " · "
