@@ -11,10 +11,7 @@ import java.time.Duration
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -33,19 +30,20 @@ private const val EDIT_LEASE_MS = 30 * 60 * 1000L
 // (queda el default de OkHttp: 10 s) ni `callTimeout` (default: 0, SIN
 // límite) — ninguno de los dos aparece en todo el repo. Y en OkHttp esos
 // timeouts miden INACTIVIDAD entre bytes, no un total acumulado: mientras
-// el envío del cuerpo multipart siga avanciendo, aunque sea lento (una foto
+// el envío del cuerpo multipart siga avanzando, aunque sea lento (una foto
 // de ~3.4 MB a 10 KB/s tarda ~340 s), NINGÚN timeout salta. Es decir: el
 // envío del cuerpo de la venta NO tiene un tope real hoy, y el "120 s" de
 // la ronda 2 nunca lo incluyó — sólo cubría conectar + leer la respuesta,
 // no mandar el cuerpo.
 //
 // Consecuencia que esto deja abierta, y que `markSentAndCloseEdit` existe
-// para cerrar sin perder el caso en silencio (ver `LocalSaleDao.kt`): el
-// arrendamiento de subida puede vencer con el POST TODAVÍA en vuelo. El
-// editor toma entonces el candado y commitea, y LUEGO vuelve el 2xx con el
-// cuerpo VIEJO. `markSentAndCloseEdit` lo detecta comparando `REVISION`
-// contra el snapshot que el subidor tenía antes del POST, y marca
-// `CORRECCION_NO_ENVIADA` en la fila en vez de pisar la corrección callada.
+// para cerrar sin perder el caso en silencio (ver `LocalSaleDao.kt` y
+// `LocalSaleClaimLifecycleDaoTest.kt`): el arrendamiento de subida puede
+// vencer con el POST TODAVÍA en vuelo. El editor toma entonces el candado y
+// commitea, y LUEGO vuelve el 2xx con el cuerpo VIEJO. `markSentAndCloseEdit`
+// lo detecta comparando `REVISION` contra el snapshot que el subidor tenía
+// antes del POST, y marca `CORRECCION_NO_ENVIADA` en la fila en vez de pisar
+// la corrección callada.
 //
 // Los 180 s de abajo NO son, entonces, un tope verdadero — no existe uno en
 // el cliente hoy. Es el valor que usan las pruebas de este archivo, elegido
@@ -63,13 +61,19 @@ private const val CLAIM_ID_A = "claim-uuid-aaaa"
 private const val CLAIM_ID_B = "claim-uuid-bbbb"
 
 /**
- * Cubre el DAO atómico del candado único de la fila (plan "Corregir una venta
- * antes de que suba", "El mecanismo de la carrera" + ronda 2 de revisión: la
- * fila tiene UN candado que puede tomar la edición o la subida, nunca las
- * dos — mutua exclusión por construcción, una sola columna `CLAIM_ID`). Cada
- * método del DAO es un solo `UPDATE`, así que la atomicidad la da SQLite, no
- * un mutex de Kotlin. El tiempo SIEMPRE viene de [FakeClock] — nunca reloj
- * real, para que "el candado venció" sea determinista.
+ * Cubre el reclamo/liberación del candado único de la fila (plan "Corregir
+ * una venta antes de que suba", "El mecanismo de la carrera" + ronda 2 de
+ * revisión: la fila tiene UN candado que puede tomar la edición o la
+ * subida, nunca las dos — mutua exclusión por construcción, una sola
+ * columna `CLAIM_ID`): `claimForEdit`, `claimForUpload`, `releaseClaim`,
+ * `commitEditGuard`. Lo que pasa DESPUÉS de que el candado se resuelve
+ * (`markSentAndCloseEdit`, `getUploadableSales`, `getSaleClaimSnapshot`)
+ * vive en [LocalSaleClaimLifecycleDaoTest] — se separó en la ronda 3 porque
+ * un solo archivo con las dos mitades disparaba `detekt.LargeClass`.
+ *
+ * Cada método del DAO es un solo `UPDATE`, así que la atomicidad la da
+ * SQLite, no un mutex de Kotlin. El tiempo SIEMPRE viene de [FakeClock] —
+ * nunca reloj real, para que "el candado venció" sea determinista.
  *
  * También mide la "Duda a resolver" del brief original de Task 1: si Room
  * 2.6.1 devuelve `Int` (filas afectadas) de un `@Query` UPDATE `suspend fun`.
@@ -549,304 +553,15 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
         )
     }
 
-    // ─── markSentAndCloseEdit ───────────────────────────────────────────
+    // ─── CLAIM_KIND nulo/vacío/desconocido en el reclamo (hermano del
+    // hallazgo 6, ronda 3) ─────────────────────────────────────────────
     //
-    // Ronda 3: markSentAndCloseEdit recibe la REVISION que el subidor tenia
-    // en su snapshot ANTES del POST (revisionAtClaim). Si la REVISION
-    // ACTUAL de la fila ya no coincide, una correccion se commiteo MIENTRAS
-    // el POST seguia en vuelo (el arrendamiento de subida vencio antes de
-    // que volviera el 2xx — ver el comentario de UPLOAD_LEASE_MS arriba) y
-    // el 2xx que acaba de volver trae el cuerpo VIEJO. Ese caso se marca con
-    // CORRECCION_NO_ENVIADA=1 en la MISMA sentencia, visible en la fila.
-
-    @Test
-    fun `marcar enviada cierra el candado de EDICION`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = now))
-
-        database.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 0)
-
-        // Leidos en la MISMA lectura (una sola fila), no en dos consultas
-        // separadas que pudieran ver estados distintos.
-        val sale = database.localSaleDao().getSaleById(SALE_ID)
-        assertNotNull(sale)
-        assertTrue("ENVIADO debe quedar en 1", sale!!.ENVIADO)
-        assertNull("el candado debe quedar cerrado", sale.CLAIM_ID)
-        assertNull(sale.CLAIM_KIND)
-        assertNull(sale.CLAIMED_AT)
-    }
-
-    /**
-     * Bloque C, el requisito mínimo explícito: `markSentAndCloseEdit` cierra
-     * CUALQUIER candado, no solo el de edición — en este punto el propio
-     * subidor es quien tiene el candado de SUBIDA (lo tomó con
-     * `claimForUpload` antes del POST) y debe soltarse a sí mismo al marcar
-     * la venta enviada.
-     */
-    @Test
-    fun `marcar enviada cierra el candado de SUBIDA del propio subidor`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "UPLOAD", claimedAt = now))
-
-        database.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 0)
-
-        val sale = database.localSaleDao().getSaleById(SALE_ID)
-        assertTrue(sale!!.ENVIADO)
-        assertNull("el candado de subida tambien debe quedar cerrado", sale.CLAIM_ID)
-        assertNull(sale.CLAIM_KIND)
-        assertNull(sale.CLAIMED_AT)
-    }
-
-    @Test
-    fun `marcar enviada sin candado vigente tambien deja ENVIADO en 1`() = runTest {
-        insert(freeSale())
-
-        database.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 0)
-
-        val sale = database.localSaleDao().getSaleById(SALE_ID)
-        assertTrue(sale!!.ENVIADO)
-        assertNull(sale.CLAIM_ID)
-    }
-
-    /**
-     * Ronda 3, caso 1 del bloque markSent: la REVISION que vuelve con el
-     * 2xx (via el snapshot que el subidor tomo antes del POST) coincide con
-     * la REVISION actual de la fila — nadie commiteo una correccion
-     * mientras el POST estaba en vuelo. Sin marca de divergencia.
-     */
-    @Test
-    fun `marcar enviada con REVISION igual no marca divergencia`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "UPLOAD", claimedAt = now, revision = 5))
-
-        database.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 5)
-
-        val sale = database.localSaleDao().getSaleById(SALE_ID)
-        assertTrue(sale!!.ENVIADO)
-        assertNull(sale.CLAIM_ID)
-        assertFalse(
-            "REVISION sin cambios: el 2xx trae el cuerpo correcto, no hay nada que señalar",
-            sale.CORRECCION_NO_ENVIADA
-        )
-    }
-
-    /**
-     * Ronda 3, caso 2 del bloque markSent (la carrera nueva que esta ronda
-     * cierra): la REVISION actual YA NO coincide con la del snapshot previo
-     * al POST — el editor commiteo una correccion mientras la subida seguia
-     * en vuelo, y el 2xx que acaba de volver trae el cuerpo VIEJO. Se marca
-     * CORRECCION_NO_ENVIADA=1 en la MISMA sentencia que cierra el candado.
-     */
-    @Test
-    fun `marcar enviada con REVISION distinta marca la divergencia`() = runTest {
-        val now = clock.now().toEpochMilli()
-        // El editor ya tomo el candado y commiteo: REVISION subio a 1 y el
-        // candado de edicion (tomado despues de que vencio el de subida) ya
-        // se cerro por commitEditGuard. El subidor, que arranco con
-        // REVISION=0 en su snapshot, llega tarde con el 2xx.
-        insert(freeSale(claimId = null, claimKind = null, claimedAt = null, revision = 1))
-
-        database.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 0)
-
-        val sale = database.localSaleDao().getSaleById(SALE_ID)
-        assertTrue(
-            "el 2xx prueba que el servidor tiene la venta: ENVIADO=1 de todos modos",
-            sale!!.ENVIADO
-        )
-        assertNull(sale.CLAIM_ID)
-        assertTrue(
-            "REVISION cambio mientras el POST estaba en vuelo: el 2xx trae el cuerpo viejo",
-            sale.CORRECCION_NO_ENVIADA
-        )
-    }
-
-    /**
-     * Ronda 3, caso 3: el candado de subida vencio y el editor lo tomo
-     * (CLAIM_KIND paso a EDIT), pero AUN no commitea — REVISION sigue en el
-     * mismo valor que el snapshot del subidor. markSentAndCloseEdit no debe
-     * marcar divergencia (nada diverge todavia), y el guardado POSTERIOR
-     * del editor debe fallar solo por su propio guardia: commitEditGuard ya
-     * no encuentra el CLAIM_ID que el snapshot del editor tenia (
-     * markSentAndCloseEdit lo cerro), asi que devuelve 0 sin ayuda extra de
-     * esta prueba.
-     */
-    @Test
-    fun `candado robado por la edicion sin commit no marca divergencia y el commit posterior falla solo`() =
-        runTest {
-            val editClaimId = "claim-editor-tardio"
-            val now = clock.now().toEpochMilli()
-            // El editor tomo el candado de EDICION (el de subida ya habia
-            // vencido) pero el usuario aun no le da "guardar".
-            insert(
-                freeSale(claimId = editClaimId, claimKind = "EDIT", claimedAt = now, revision = 0)
-            )
-
-            // El subidor, que traia REVISION=0 en su snapshot previo al POST,
-            // llega con el 2xx.
-            database.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 0)
-
-            val sale = database.localSaleDao().getSaleById(SALE_ID)
-            assertTrue(sale!!.ENVIADO)
-            assertNull("el candado del editor tambien se cierra: sea de quien sea", sale.CLAIM_ID)
-            assertFalse(
-                "REVISION no cambio (el editor no habia commiteado): sin marca de divergencia",
-                sale.CORRECCION_NO_ENVIADA
-            )
-
-            // El editor, ajeno a que su candado ya se cerro, intenta guardar.
-            val commitRows = database.localSaleDao().commitEditGuard(SALE_ID, editClaimId)
-            assertEquals(
-                "el guardado del editor debe fallar solo, por su propio guardia — sin ayuda extra",
-                0,
-                commitRows
-            )
-        }
-
-    // ─── getUploadableSales ─────────────────────────────────────────────
-
-    private suspend fun getUploadableSales(now: Long = clock.now().toEpochMilli()) =
-        database.localSaleDao().getUploadableSales(now, EDIT_LEASE_MS, UPLOAD_LEASE_MS)
-
-    @Test
-    fun `getUploadableSales excluye ventas ya enviadas`() = runTest {
-        insert(freeSale(saleId = "sale-a", enviado = true))
-        insert(freeSale(saleId = "sale-b", enviado = false))
-
-        val uploadable = getUploadableSales()
-
-        assertEquals(setOf("sale-b"), uploadable.map { it.LOCAL_SALE_ID }.toSet())
-    }
-
-    @Test
-    fun `getUploadableSales excluye una venta con candado de EDICION vigente`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(
-            freeSale(saleId = "sale-a", claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = now)
-        )
-        insert(freeSale(saleId = "sale-b"))
-
-        val uploadable = getUploadableSales(now)
-
-        assertEquals(
-            "la venta con candado vigente no debe entrar al barrido mientras el dueño escribe",
-            setOf("sale-b"),
-            uploadable.map { it.LOCAL_SALE_ID }.toSet()
-        )
-    }
-
-    @Test
-    fun `getUploadableSales excluye una venta con candado de SUBIDA vigente`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(
-            freeSale(saleId = "sale-a", claimId = CLAIM_ID_A, claimKind = "UPLOAD", claimedAt = now)
-        )
-        insert(freeSale(saleId = "sale-b"))
-
-        val uploadable = getUploadableSales(now)
-
-        assertEquals(setOf("sale-b"), uploadable.map { it.LOCAL_SALE_ID }.toSet())
-    }
-
-    @Test
-    fun `getUploadableSales incluye una venta con candado de EDICION vencido`() = runTest {
-        val claimedAt = clock.now().toEpochMilli()
-        insert(
-            freeSale(
-                saleId = "sale-a",
-                claimId = CLAIM_ID_A,
-                claimKind = "EDIT",
-                claimedAt = claimedAt
-            )
-        )
-
-        clock.advance(Duration.ofMillis(EDIT_LEASE_MS))
-
-        val uploadable = getUploadableSales()
-
-        assertEquals(
-            "un candado vencido no debe retener la venta para siempre",
-            setOf("sale-a"),
-            uploadable.map { it.LOCAL_SALE_ID }.toSet()
-        )
-    }
-
-    @Test
-    fun `getUploadableSales incluye una venta con candado de SUBIDA vencido`() = runTest {
-        val claimedAt = clock.now().toEpochMilli()
-        insert(
-            freeSale(
-                saleId = "sale-a",
-                claimId = CLAIM_ID_A,
-                claimKind = "UPLOAD",
-                claimedAt = claimedAt
-            )
-        )
-
-        clock.advance(Duration.ofMillis(UPLOAD_LEASE_MS))
-
-        val uploadable = getUploadableSales()
-
-        assertEquals(setOf("sale-a"), uploadable.map { it.LOCAL_SALE_ID }.toSet())
-    }
-
-    /**
-     * Hallazgo 1 de la ronda 3: `getUploadableSales` sólo tenía la frontera
-     * EXACTA (arriba); faltaba el "1 ms antes" — el lado que de verdad
-     * distingue `<=` de `<` en la dirección de "todavía vigente".
-     */
-    @Test
-    fun `getUploadableSales excluye una venta con candado de EDICION que vence en 1 ms mas`() =
-        runTest {
-            val claimedAt = clock.now().toEpochMilli()
-            insert(
-                freeSale(
-                    saleId = "sale-a",
-                    claimId = CLAIM_ID_A,
-                    claimKind = "EDIT",
-                    claimedAt = claimedAt
-                )
-            )
-
-            clock.advance(Duration.ofMillis(EDIT_LEASE_MS - 1))
-
-            val uploadable = getUploadableSales()
-
-            assertTrue(
-                "un milisegundo antes de vencer, el candado de edicion sigue vigente: fuera del barrido",
-                uploadable.none { it.LOCAL_SALE_ID == "sale-a" }
-            )
-        }
-
-    @Test
-    fun `getUploadableSales excluye una venta con candado de SUBIDA que vence en 1 ms mas`() =
-        runTest {
-            val claimedAt = clock.now().toEpochMilli()
-            insert(
-                freeSale(
-                    saleId = "sale-a",
-                    claimId = CLAIM_ID_A,
-                    claimKind = "UPLOAD",
-                    claimedAt = claimedAt
-                )
-            )
-
-            clock.advance(Duration.ofMillis(UPLOAD_LEASE_MS - 1))
-
-            val uploadable = getUploadableSales()
-
-            assertTrue(
-                "un milisegundo antes de vencer, el candado de subida sigue vigente: fuera del barrido",
-                uploadable.none { it.LOCAL_SALE_ID == "sale-a" }
-            )
-        }
-
-    // ─── CLAIM_KIND nulo o desconocido (hermano del hallazgo 6, ronda 3) ─
-    //
-    // Con CLAIM_ID puesto, CLAIMED_AT puesto y CLAIM_KIND nulo (o un valor
-    // que no es 'EDIT' ni 'UPLOAD'), ninguna de las dos ramas del CASE se
-    // cumplía y la venta quedaba retenida para siempre — el mismo argumento
-    // de "una captura nunca se retiene para siempre" que ya cubre
-    // CLAIMED_AT nulo, aplicado a CLAIM_KIND.
+    // Con CLAIM_ID puesto, CLAIMED_AT puesto y CLAIM_KIND nulo, vacío, o un
+    // valor que no es 'EDIT' ni 'UPLOAD', ninguna de las dos ramas del CASE
+    // se cumplía y la venta quedaba retenida para siempre — el mismo
+    // argumento de "una captura nunca se retiene para siempre" que ya cubre
+    // CLAIMED_AT nulo, aplicado a CLAIM_KIND. (El caso de `getUploadableSales`
+    // vive en [LocalSaleClaimLifecycleDaoTest].)
 
     @Test
     fun `claimForEdit acepta si CLAIM_KIND es nulo`() = runTest {
@@ -876,6 +591,28 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
         )
     }
 
+    /**
+     * Minor de la ronda 3: cadena VACÍA, no sólo `NULL` y un valor no vacío
+     * ("BOGUS"). Distingue de `NULL` porque `COALESCE(CLAIM_KIND, '')`
+     * convierte un `CLAIM_KIND` nulo en `''` — sin esta prueba, un
+     * `COALESCE(CLAIM_KIND, 'EDIT')` (que también "arregla" el caso nulo,
+     * pero mal, tratando el nulo como si fuera edición) hubiera pasado las
+     * otras dos pruebas de fallback sin que ninguna lo notara.
+     */
+    @Test
+    fun `claimForEdit acepta si CLAIM_KIND es cadena vacia`() = runTest {
+        val now = clock.now().toEpochMilli()
+        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "", claimedAt = now))
+
+        val rows = claimForEdit(CLAIM_ID_B, now)
+
+        assertEquals(
+            "CLAIM_KIND en cadena vacia tampoco debe retener la venta para siempre",
+            1,
+            rows
+        )
+    }
+
     @Test
     fun `claimForUpload acepta si CLAIM_KIND es nulo o desconocido`() = runTest {
         val now = clock.now().toEpochMilli()
@@ -885,63 +622,6 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
 
         assertEquals(1, rows)
     }
-
-    @Test
-    fun `getUploadableSales incluye una venta con CLAIM_KIND nulo o desconocido`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(
-            freeSale(saleId = "sale-a", claimId = CLAIM_ID_A, claimKind = "BOGUS", claimedAt = now)
-        )
-
-        val uploadable = getUploadableSales(now)
-
-        assertEquals(setOf("sale-a"), uploadable.map { it.LOCAL_SALE_ID }.toSet())
-    }
-
-    // ─── getSaleClaimSnapshot ───────────────────────────────────────────
-
-    @Test
-    fun `getSaleClaimSnapshot refleja el estado real de la fila`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(
-            freeSale(
-                claimId = CLAIM_ID_A,
-                claimKind = "EDIT",
-                claimedAt = now,
-                revision = 2,
-                enviado = false
-            )
-        )
-
-        val snapshot = database.localSaleDao().getSaleClaimSnapshot(SALE_ID)
-
-        assertNotNull(snapshot)
-        assertEquals(CLAIM_ID_A, snapshot!!.CLAIM_ID)
-        assertEquals(2, snapshot.REVISION)
-        assertFalse(snapshot.ENVIADO)
-    }
-
-    @Test
-    fun `getSaleClaimSnapshot cambia tras markSentAndCloseEdit, justo lo que revalida el subidor antes del POST`() =
-        runTest {
-            val now = clock.now().toEpochMilli()
-            insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = now))
-            val before = database.localSaleDao().getSaleClaimSnapshot(SALE_ID)
-
-            database.localSaleDao().markSentAndCloseEdit(
-                SALE_ID,
-                revisionAtClaim = before!!.REVISION
-            )
-            val after = database.localSaleDao().getSaleClaimSnapshot(SALE_ID)
-
-            assertEquals(CLAIM_ID_A, before?.CLAIM_ID)
-            assertFalse(before!!.ENVIADO)
-            assertNull(
-                "tras marcar enviada, el snapshot debe reflejar el candado cerrado",
-                after?.CLAIM_ID
-            )
-            assertTrue(after!!.ENVIADO)
-        }
 
     // ─── Corregir dos veces seguidas (el caso que más preocupa al dueño) ─
 

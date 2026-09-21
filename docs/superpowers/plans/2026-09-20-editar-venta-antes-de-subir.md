@@ -139,7 +139,7 @@ decidir si venció exige mirar `CLAIM_KIND` y aplicar el que corresponde. Defens
 vencido — "una captura nunca se retiene para siempre" cubre también un estado corrupto, no sólo el vencimiento
 normal.
 
-Seis sentencias, cada una **un solo UPDATE/SELECT** (SQLite las serializa; ahí está la atomicidad, no en
+Nueve sentencias, cada una **un solo UPDATE/SELECT** (SQLite las serializa; ahí está la atomicidad, no en
 Kotlin):
 
 1. **Reclamar para EDICIÓN** (al abrir el editor):
@@ -159,22 +159,34 @@ Kotlin):
    Devuelve filas afectadas. **0 = no se puede corregir** (venta enviada, fallo permanente, o candado de
    CUALQUIER tipo vigente) → el editor ni se abre, se muestra el aviso.
 
-2. **Reclamar para SUBIDA** (`claimForUpload`, simétrico): lo toma el subidor justo antes del `POST` (paso 3
-   abajo). Mismo predicado de expiración que (1), invertido: rechaza si hay un candado de EDICIÓN vigente
-   (la corrección gana, el subidor se frena con `Result.retry()`); acepta si el candado vigente venció, sea
-   del tipo que sea.
+2. **Reclamar para SUBIDA** (`claimForUpload`, simétrico): lo toma el subidor justo AL ENTRAR, ANTES de leer
+   nada de la venta (paso 4 abajo — el orden importa, ver ahí el porqué). Mismo predicado de expiración que
+   (1), invertido: rechaza si hay CUALQUIER candado vigente — un candado de EDICIÓN (la corrección gana, el
+   subidor se frena con `Result.retry()`) o un candado de SUBIDA de otro intento en vuelo (evita que dos
+   intentos del mismo worker, o un reintento superpuesto, pisen la misma venta); acepta si el candado vigente
+   venció, sea del tipo que sea.
 
 3. **Frenar al subidor por edición**: `PendingLocalSalesWorker.doWork()`, justo después de cargar la venta
    (`PendingLocalSalesWorker.kt:110-119`), si hay candado de EDICIÓN vivo → `Result.retry()` **sin tocar la
    red**. `retry` y no `failure`: WorkManager conserva el trabajo y su backoff; la venta nunca se suelta.
 
-4. **Revalidar antes del POST, con candado de SUBIDA**: el worker lee productos, combos e imágenes en
-   momentos distintos (`:133`, `:169-170`, `:221-222`) y arma el cuerpo en `:224-231`. Antes de
-   `ventasApi.crearVenta` (`:263`) toma `claimForUpload` — si falla (0 filas), hay una edición en curso,
-   `Result.retry()` sin POST. Si el candado se tomó, el snapshot `(CLAIM_ID, REVISION, ENVIADO)` que el
-   worker leyó al entrar es el que se pasará a `markSentAndCloseEdit` (paso 6) cuando vuelva el 2xx. Esto
-   reemplaza la revalidación "sólo relectura" de la versión original del plan: ahora el subidor **posee la
-   fila** mientras arma y manda el cuerpo, no sólo revisa que nadie más la haya tocado en un instante.
+4. **El orden correcto: candado ANTES de leer el cuerpo.** `claimForUpload` → snapshot (`REVISION`) → leer
+   productos/combos/imágenes y armar el cuerpo → `POST` → `markSentAndCloseEdit(revisionAtClaim)`. Si
+   `claimForUpload` devuelve 0, `Result.retry()` **sin tocar la red** — ni siquiera se leen productos/combos.
+   Este orden reemplaza al de la versión original del plan (que leía el cuerpo primero y reclamaba justo
+   antes del `POST`, después de armarlo): con ese orden viejo el editor podía commitear MIENTRAS el worker
+   arma el cuerpo, y el `POST` salía con un cuerpo viejo o mezclado — una divergencia evitable. Con el
+   candado tomado ANTES de leer, el editor no puede commitear mientras el cuerpo se arma (su propio
+   `claimForEdit` lo rechazaría), así que la única divergencia posible que queda es la del arrendamiento de
+   subida venciendo con el `POST` YA en vuelo — la que `CORRECCION_NO_ENVIADA` hace visible (paso 6, y "Qué
+   pasa si la subida ya empezó" abajo). El snapshot `(CLAIM_ID, REVISION, ENVIADO)` que el worker toma justo
+   después de `claimForUpload` es el que se pasará a `markSentAndCloseEdit` cuando vuelva el 2xx.
+
+   **Pendiente de la Task 4, no de Task 1**: el subidor debe RENOVAR el arrendamiento de subida (latido
+   periódico desde el worker mientras el `POST` sigue en vuelo) — sin esto, los 180 s del arrendamiento
+   vencen en cualquier subida que tarde más que eso, y toda subida lenta (no sólo una colgada) dispara la
+   carrera que `CORRECCION_NO_ENVIADA` detecta. `CORRECCION_NO_ENVIADA` es la red de seguridad para cuando,
+   aun con el latido, algo se cuela; no es el reemplazo del latido.
 
 5. **Guardar** (guardia va **primero**, en la misma transacción):
    ```sql
