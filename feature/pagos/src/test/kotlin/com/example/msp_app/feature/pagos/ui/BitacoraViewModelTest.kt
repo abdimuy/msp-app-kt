@@ -116,7 +116,7 @@ class BitacoraViewModelTest {
         // Mayúscula inicial, tal como llega del catálogo cerrado — la mezcla ya
         // no fuerza `.lowercase()` (Task 1, principio 10).
         assertTrue("faltan las visitas", contactos.any { it.etiqueta == "No estaba" })
-        assertTrue("faltan los abonos", contactos.any { it.etiqueta == "Cobré" })
+        assertTrue("faltan los abonos", contactos.any { it.etiqueta == "Abono" })
     }
 
     /** El nombre viaja con la bitácora: la pantalla se abre sola y tiene que titularse. */

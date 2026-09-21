@@ -6,9 +6,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -23,10 +21,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -43,6 +47,7 @@ import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.EstadoCuentaUi
 import com.example.msp_app.feature.pagos.ui.TratoDelEstado
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /** `testTag` de una fila de la línea de contactos. */
@@ -65,6 +70,9 @@ const val COBRADO_DEL_GRUPO_TAG: String = "pagos_grupo_cobrado"
  */
 const val PUNTO_DEL_ESTADO_TAG: String = "pagos_contacto_punto"
 
+/** `testTag` del pin de una fila — existe para medir dónde cae. */
+const val PIN_DEL_CONTACTO_TAG: String = "pagos_contacto_pin"
+
 /** Prefijo del `testTag` de cada pastilla de filtro, más el `name` del filtro. */
 const val FILTRO_TAG: String = "pagos_filtro_"
 
@@ -76,25 +84,46 @@ const val FILTRO_TAG: String = "pagos_filtro_"
  * fecha, así que cuatro contactos distintos se veían como cuatro renglones
  * iguales — ése era el defecto, no el espaciado.
  *
- * ## La hora va al margen, en columna
+ * ## Cuatro pistas y una sola regla (mock `fila-de-contactos.html`, 03 y 04)
  *
- * Y no dentro del renglón, para que la columna de horas se lea de corrido: el
- * cobrador reconstruye su día por la hora, no por la etiqueta. Es tabular
- * ([MspTheme] ya lo resuelve en `caption`) así que los dígitos alinean y la
- * columna no baila entre `09:20` y `18:05`.
+ * **Cuándo · Estado · Qué pasó · Cuánto.** La regla es una: **la primera línea
+ * del título manda**. El día y el importe se alinean por su `FirstBaseline`
+ * contra la del título; el punto y el pin, que no tienen letra, se centran en
+ * el renglón de esa misma línea ([EnElRenglonDelTitulo]). Ningún elemento lleva
+ * un `padding(top)` propio.
  *
- * ## La forma de pago no aparece en las visitas, y es lo correcto
+ * Una diferencia con el mock, a propósito: **Cuánto** vive en el renglón del
+ * título, no en una columna de alto completo, para que el renglón de abajo
+ * corra por debajo del importe. Ver el comentario en el cuerpo.
  *
- * `ContactoDeCobranza.metodo` llega en `null` en toda visita —ver su KDoc: la
- * columna existe pero el escritor la deja en 0 y eso se leería como
- * *"efectivo"*—. Aquí eso no se rellena con nada: su ausencia dice que ahí no
- * se cobró.
+ * Así era antes, y ése era el defecto: la hora, el punto y el pin se empujaban
+ * cada uno con su margen —`sm + xs`, `md × escala`, `sm`— persiguiendo a mano
+ * la primera línea del título. Cuando la letra crecía o el título se iba a dos
+ * renglones, los tres se despegaban. Con una línea base compartida no hay nada
+ * que recalcular: lo cobra `LaFilaCaeSobreUnaSolaLineaBaseTest`, midiendo.
+ *
+ * ## El día arriba, la hora abajo, al margen
+ *
+ * Dentro de un tramo mensual la hora sola no contesta *cuándo* fue. El día va
+ * en negrita y la hora debajo, alineados a la derecha y tabulares
+ * ([MspTheme] ya lo resuelve en `caption`), así la columna se lee de corrido y
+ * no baila entre `09:20` y `18:05`.
+ *
+ * ## El renglón de abajo: cuenta · método · cobrador
+ *
+ * La cuenta es lo que distingue dos abonos del mismo minuto a dos ventas
+ * distintas (mock, sección 02). Cuando `cuenta` es `null` se pinta sólo lo que
+ * sí hay — nunca un texto de relleno. La forma de pago no aparece en las
+ * visitas, y es lo correcto: `ContactoDeCobranza.metodo` llega en `null` en
+ * toda visita —ver su KDoc: la columna existe pero el escritor la deja en 0 y
+ * eso se leería como *"efectivo"*—. El cobrador se conserva tal como llega.
  *
  * ## [deEstaVenta] sólo lo usa el detalle de venta
  *
  * Marca las filas que sí son de la cuenta abierta dentro de la línea de tiempo
  * del cliente entero. Es un borde de marca, no un fondo: un relleno haría que
- * media lista pareciera seleccionada.
+ * media lista pareciera seleccionada. Se dibuja detrás de la fila y su canalón
+ * se reserva siempre, marcada o no, para que marcar no corra el contenido.
  */
 @Composable
 fun ContactoEnLinea(
@@ -105,10 +134,10 @@ fun ContactoEnLinea(
     onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
 ) {
     val abrir = abridorDe(contacto, onVerUbicacion)
+    val marca = if (deEstaVenta) MspTheme.colors.brand else Color.Transparent
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(IntrinsicSize.Min)
             .then(
                 if (abrir != null) {
                     Modifier
@@ -119,90 +148,153 @@ fun ContactoEnLinea(
                 }
             )
             .heightIn(min = ALTO_TOCABLE)
+            // La marca de "esto es de la venta abierta": una barra al BORDE de
+            // la fila y de su alto completo. Se DIBUJA detrás en vez de ser un
+            // hijo del Row porque un hijo de alto completo obligaba a medir la
+            // fila con `IntrinsicSize.Min`, y la medición intrínseca no conoce
+            // la alineación por línea base: la fila quedaba más baja que su
+            // contenido alineado y pisaba a la siguiente.
+            .drawBehind {
+                drawRoundRect(
+                    color = marca,
+                    size = Size(MARCA_DE_LA_VENTA.toPx(), size.height),
+                    cornerRadius = CornerRadius(MARCA_DE_LA_VENTA.toPx() / 2f)
+                )
+            }
+            .padding(start = MARCA_DE_LA_VENTA + MspTheme.spacing.sm)
+            .padding(vertical = MspTheme.spacing.sm)
             .testTag(CONTACTO_EN_LINEA_TAG),
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        // La marca de "esto es de la venta abierta": una barra al BORDE de la
-        // fila y de su alto completo. Flotando entre el importe y el pin se leía
-        // como un artefacto de render; al borde es el patrón que cualquiera
-        // reconoce y además no depende de que la fila traiga importe.
-        Box(
+        val cuando = AppTime.toBusinessDateTime(contacto.fecha)
+        // Cuándo. Cada texto a lo ancho de la columna: el ancho fijo es de la
+        // PISTA, y así la pista se mide igual en los dos renglones.
+        Column(
             modifier = Modifier
-                .width(MARCA_DE_LA_VENTA)
-                .fillMaxHeight()
-                .clip(MspTheme.shapes.chip)
-                .background(
-                    if (deEstaVenta) MspTheme.colors.brand else Color.Transparent
-                )
-        )
-        Text(
-            text = HORA.format(AppTime.toBusinessDateTime(contacto.fecha)),
-            style = MspTheme.type.caption,
-            color = MspTheme.colors.onSurfaceMuted,
-            maxLines = 1,
-            modifier = Modifier
-                .width(anchoDeLaHora())
-                .padding(top = MspTheme.spacing.sm + MspTheme.spacing.xs)
-        )
-        Box(
-            modifier = Modifier
-                .padding(top = altoDelPuntoDelEstado())
-                .size(puntoDelEstado())
-                .clip(RoundedCornerShape(percent = 50))
-                .background(acentoDe(contacto))
-                .testTag(PUNTO_DEL_ESTADO_TAG)
-        )
+                .width(anchoDeCuando())
+                .alignBy(FirstBaseline),
+            horizontalAlignment = Alignment.End
+        ) {
+            Text(
+                text = diaDe(cuando),
+                style = MspTheme.type.captionStrong,
+                color = MspTheme.colors.onSurface,
+                maxLines = 1,
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Text(
+                text = HORA.format(cuando),
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = 1,
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        // Estado.
+        EnElRenglonDelTitulo(modifier = Modifier.alignBy(FirstBaseline)) {
+            Box(
+                modifier = Modifier
+                    .size(puntoDelEstado())
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(acentoDe(contacto))
+                    .testTag(PUNTO_DEL_ESTADO_TAG)
+            )
+        }
+        // Qué pasó y Cuánto. El importe y el pin van en el renglón del título
+        // y no en una columna propia de alto completo: así el renglón de
+        // abajo corre a todo lo ancho, por debajo del importe. En una columna
+        // aparte (la rejilla literal del mock) a `MUY_GRANDE` la cuenta
+        // quedaba en "Refrigera…" — la cuenta es justo lo que esta fila vino
+        // a decir.
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(vertical = MspTheme.spacing.sm)
+                .alignBy(FirstBaseline)
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
+            Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)) {
                 Text(
                     text = contacto.etiqueta,
-                    style = MspTheme.type.bodyStrong,
+                    style = estiloDelTitulo(),
                     color = MspTheme.colors.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .alignBy(FirstBaseline)
                 )
                 if (contacto.importe != null) {
                     MspMoneyText(
                         amount = contacto.importe.amount,
                         masked = ocultos,
                         style = MspTheme.type.amountInline,
-                        color = MspTheme.colors.onSurface
+                        color = MspTheme.colors.onSurface,
+                        modifier = Modifier.alignBy(FirstBaseline)
+                    )
+                }
+                EnElRenglonDelTitulo(modifier = Modifier.alignBy(FirstBaseline)) {
+                    PinDelContacto(
+                        hayPunto = contacto.ubicacion != null,
+                        modifier = Modifier.testTag(PIN_DEL_CONTACTO_TAG)
                     )
                 }
             }
-            val meta = listOfNotNull(
-                contacto.metodo?.etiqueta,
-                contacto.cobrador.takeIf { it.isNotBlank() }
-            )
+            val meta = renglonDeAbajo(contacto)
             if (meta.isNotEmpty()) {
                 Text(
-                    text = meta.joinToString(" · "),
-                    style = MspTheme.type.caption,
+                    text = meta,
+                    style = estiloDeProsa(),
                     color = MspTheme.colors.onSurfaceMuted,
-                    maxLines = 1,
+                    // Dos renglones y no uno: a escala grande, en uno solo la
+                    // cuenta se come al método y al cobrador.
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
             contacto.nota?.let {
                 Text(
                     text = "“$it”",
-                    style = MspTheme.type.caption,
+                    style = estiloDeProsa(),
                     color = MspTheme.colors.onSurfaceMuted,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
-        Box(modifier = Modifier.padding(top = MspTheme.spacing.sm)) {
-            PinDelContacto(hayPunto = contacto.ubicacion != null)
-        }
     }
 }
+
+/**
+ * El renglón de abajo: `cuenta · método · cobrador`, con lo que haya.
+ *
+ * Lo ausente se omite —con su separador—, nunca se rellena: una cuenta `null`
+ * no es "sin cuenta", es que ese dato no llegó.
+ */
+private fun renglonDeAbajo(contacto: ContactoDeCobranza): String = listOfNotNull(
+    contacto.cuenta?.takeIf { it.isNotBlank() },
+    contacto.metodo?.etiqueta,
+    contacto.cobrador.takeIf { it.isNotBlank() }
+).joinToString(SEPARADOR_DEL_RENGLON)
+
+/**
+ * El punto medio entre las piezas del renglón de abajo. El espacio de ANTES es
+ * no separable: cuando el renglón se parte en dos —a escala grande pasa—, el
+ * punto se queda al final del primer renglón con su pieza y no abre el
+ * segundo como `· Transferencia`.
+ */
+internal const val SEPARADOR_DEL_RENGLON: String = "\u00A0· "
+
+/**
+ * `caption` con cifras **proporcionales**, para el renglón de abajo y la nota.
+ *
+ * `caption` trae cifras tabulares, que es lo correcto en una columna de horas
+ * y un defecto en prosa: con la cuenta en el renglón llegan nombres de
+ * producto con números, y en tabular `Refrigerador Mabe 14'` se pintaba
+ * `1 4'` — un número partido.
+ */
+@Composable
+private fun estiloDeProsa(): TextStyle = MspTheme.type.caption.copy(fontFeatureSettings = "lnum")
 
 /**
  * El encabezado de un tramo: su nombre y, a la derecha, lo que entró.
@@ -340,10 +432,27 @@ private val HORA: DateTimeFormatter =
     DateTimeFormatter.ofPattern(AppTime.Formats.TIME_24H, BUSINESS_LOCALE)
 
 /**
- * El ancho de la columna de la hora, **escalado con la letra**.
+ * `18 feb`: el día con dos cifras y el mes abreviado, en minúscula y **sin
+ * punto**.
  *
- * Fijo por fila y no `wrapContent`: si cada una midiera lo suyo, `09:20` y
- * `18:05` darían anchos distintos y el punto de estado bailaría de renglón en
+ * El mes sale de una tabla propia y no de `DateTimeFormatter("MMM")`: el
+ * abreviado de `es-MX` depende de los datos CLDR de cada teléfono —`feb.` con
+ * punto, `sept.` con cuatro letras— y la columna tiene que leerse igual en
+ * todos. Es el mismo criterio de `TiempoRelativo`: nada que un locale decida.
+ */
+internal fun diaDe(fecha: LocalDateTime): String =
+    "%02d %s".format(BUSINESS_LOCALE, fecha.dayOfMonth, MESES_ABREVIADOS[fecha.monthValue - 1])
+
+private val MESES_ABREVIADOS = listOf(
+    "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"
+)
+
+/**
+ * El ancho de la pista **Cuándo** —el día y la hora—, **escalado con la
+ * letra**.
+ *
+ * Fijo por fila y no `wrapContent`: si cada una midiera lo suyo, `09 feb` y
+ * `18 feb` darían anchos distintos y el punto de estado bailaría de renglón en
  * renglón.
  *
  * Pero fijo en dp ABSOLUTOS era un defecto: a escala 1.5 la hora salía cortada
@@ -352,14 +461,14 @@ private val HORA: DateTimeFormatter =
  * el cuadro de la puerta.
  */
 @Composable
-private fun anchoDeLaHora(): Dp = ANCHO_BASE_DE_LA_HORA * LocalFontSizeLevel.current.nominalScale
+private fun anchoDeCuando(): Dp = ANCHO_BASE_DE_CUANDO * LocalFontSizeLevel.current.nominalScale
 
-/** Lo que mide `HH:mm` en `caption` a escala normal, con su aire. */
-private val ANCHO_BASE_DE_LA_HORA = 38.dp
+/** Lo que mide `18 feb` en `captionStrong` a escala normal, con su aire. */
+private val ANCHO_BASE_DE_CUANDO = 40.dp
 
 /**
  * El punto de estado, **escalado con la letra** — mismo patrón que
- * [anchoDeLaHora].
+ * [anchoDeCuando].
  *
  * Era 6 dp fijos, y ése era el defecto: a `MUY_GRANDE` la etiqueta duplica su
  * tamaño y se va a dos renglones mientras el punto se queda de 6 dp flotando
@@ -369,18 +478,6 @@ private val ANCHO_BASE_DE_LA_HORA = 38.dp
  */
 @Composable
 private fun puntoDelEstado(): Dp = PUNTO_BASE_DEL_ESTADO * LocalFontSizeLevel.current.nominalScale
-
-/**
- * Y su desplazamiento vertical, escalado igual.
- *
- * Tiene que crecer con el punto: el `top` es lo que lo alinea con la primera
- * línea de la etiqueta, y esa línea baja cuando la letra crece. Fijo en dp, a
- * 2.0 el punto quedaba pegado al borde de arriba de un bloque de dos renglones
- * — huérfano de la fila que describe.
- */
-@Composable
-private fun altoDelPuntoDelEstado(): Dp =
-    MspTheme.spacing.md * LocalFontSizeLevel.current.nominalScale
 
 /** Lo que mide el punto a escala normal. Ver [puntoDelEstado]. */
 private val PUNTO_BASE_DEL_ESTADO = 6.dp

@@ -217,7 +217,7 @@ class GruposYFiltrosDeContactosTest {
 
         fun cobro(cuando: String, cuanto: String) = ContactoDeCobranza(
             fecha = Instant.parse(cuando),
-            etiqueta = "Cobré",
+            etiqueta = "Abono",
             nota = null,
             estado = EstadoCuenta.PAGO,
             importe = dinero(cuanto),

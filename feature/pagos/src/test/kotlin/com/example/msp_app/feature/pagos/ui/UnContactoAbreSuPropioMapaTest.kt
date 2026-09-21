@@ -213,7 +213,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
             ),
             ContactoDeCobranza(
                 fecha = Instant.parse("2026-08-03T17:10:00Z"),
-                etiqueta = "Cobré",
+                etiqueta = "Abono",
                 nota = null,
                 estado = EstadoCuenta.PAGO,
                 importe = Money.of(BigDecimal("350.00")),

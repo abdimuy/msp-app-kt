@@ -58,6 +58,13 @@ object PagosFixtures {
     const val VENTA_PAGADA: Int = 77021
     const val VENTA_EN_PROMESA: Int = 77188
 
+    /**
+     * Una venta vieja del mismo cliente, ya fuera de sus dos cuentas abiertas,
+     * cuyos renglones de `products` no están en el teléfono: su abono llega
+     * con `cuenta = null`. Ver `bitacoraDelDomicilio`.
+     */
+    const val VENTA_SIN_PRODUCTOS: Int = 76540
+
     private fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
 
     /**
@@ -172,7 +179,8 @@ object PagosFixtures {
      * mismo mezclador). Dos listas distintas en el fixture dejarían que una
      * pantalla se probara contra hechos que la otra no puede ver.
      *
-     * Los tres contactos llevan `tipo` y `cobrador`, y el abono además `metodo`,
+     * Todos los contactos llevan `tipo` y `cobrador`, y los abonos además `metodo`
+     * y —salvo uno, a propósito— `cuenta`,
      * **porque eso es lo que produce el adaptador** — ver la nota de
      * `telefonoAval`: un fixture que no siembra lo que el adaptador SÍ produce
      * esconde defectos igual de bien que uno que siembra lo imposible. Aquí
@@ -225,7 +233,7 @@ object PagosFixtures {
         // registró un cobrador con nombre.
         ContactoDeCobranza(
             fecha = Instant.parse("2026-08-03T17:10:00Z"),
-            etiqueta = "Cobré",
+            etiqueta = "Abono",
             nota = null,
             estado = EstadoCuenta.PAGO,
             importe = dinero("350"),
@@ -233,7 +241,43 @@ object PagosFixtures {
             metodo = MetodoDeCobro.EFECTIVO,
             cobrador = COBRADOR,
             ventaId = VENTA_EN_PROMESA,
+            // El nombre del producto de SU venta —el mismo que `ventasDelDetalle`
+            // le da a VENTA_EN_PROMESA—, como lo resuelve `cuentasDeLasVentas`.
+            cuenta = "Refrigerador Mabe 14'",
             ubicacion = PUNTO_DEL_ULTIMO_COBRO
+        ),
+        // El caso del mock (sección 02): dos abonos a dos cuentas distintas
+        // casi al mismo minuto. Sin la cuenta en el renglón de abajo se leían
+        // como un cobro repetido. Va un minuto ANTES que el de $350 para que
+        // los tres primeros —los que enseña el detalle de cliente— sigan
+        // siendo los de siempre.
+        ContactoDeCobranza(
+            fecha = Instant.parse("2026-08-03T17:09:00Z"),
+            etiqueta = "Abono",
+            nota = null,
+            estado = EstadoCuenta.PAGO,
+            importe = dinero("100"),
+            tipo = TipoDeContacto.COBRO,
+            metodo = MetodoDeCobro.TRANSFERENCIA,
+            cobrador = COBRADOR,
+            ventaId = VENTA_PAGADA,
+            cuenta = "Sala 3 piezas + base"
+        ),
+        // Un abono SIN cuenta: el de una venta vieja cuyos renglones de
+        // `products` no están en el teléfono. `cuenta = null` es lo que el
+        // adaptador produce ahí, y el golden tiene que enseñar que el renglón
+        // de abajo se queda con el método solo — sin texto de relleno.
+        ContactoDeCobranza(
+            fecha = Instant.parse("2026-07-20T18:30:00Z"),
+            etiqueta = "Abono",
+            nota = null,
+            estado = EstadoCuenta.PAGO,
+            importe = dinero("350"),
+            tipo = TipoDeContacto.COBRO,
+            metodo = MetodoDeCobro.EFECTIVO,
+            cobrador = COBRADOR,
+            ventaId = VENTA_SIN_PRODUCTOS,
+            cuenta = null
         )
     )
 

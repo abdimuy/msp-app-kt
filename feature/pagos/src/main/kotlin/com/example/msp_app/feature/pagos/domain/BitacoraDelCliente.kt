@@ -93,7 +93,7 @@ object BitacoraDelCliente {
         val dePagos = pagos.map { pago ->
             ContactoDeCobranza(
                 fecha = pago.fecha,
-                etiqueta = ETIQUETA_COBRE,
+                etiqueta = ETIQUETA_DEL_ABONO,
                 nota = pago.nota,
                 estado = EstadoCuenta.PAGO,
                 importe = pago.importe,
@@ -115,6 +115,12 @@ object BitacoraDelCliente {
     /** Cuántos contactos se pintan en el detalle antes del "ver los N". */
     const val VISIBLES_EN_EL_DETALLE: Int = 3
 
-    /** Etiqueta estática del abono en la bitácora. */
-    private const val ETIQUETA_COBRE = "Cobré"
+    /**
+     * Etiqueta estática del abono en la bitácora.
+     *
+     * "Abono" y no "Cobré": es la palabra del botón que lo registra y no está
+     * conjugada — la fila dice qué pasó, no quién habla (decisión del dueño,
+     * mock `fila-de-contactos.html`, sección 05).
+     */
+    private const val ETIQUETA_DEL_ABONO = "Abono"
 }

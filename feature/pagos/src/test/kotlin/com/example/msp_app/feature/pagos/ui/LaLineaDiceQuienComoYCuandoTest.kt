@@ -16,7 +16,6 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
@@ -37,6 +36,7 @@ import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.FILTRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
 import com.example.msp_app.feature.pagos.ui.components.PUNTO_DEL_ESTADO_TAG
+import com.example.msp_app.feature.pagos.ui.components.SEPARADOR_DEL_RENGLON
 import java.math.BigDecimal
 import java.time.Instant
 import org.junit.Assert.assertEquals
@@ -69,8 +69,8 @@ import org.robolectric.annotation.Config
  * **Dos — el color del punto de estado.** Robolectric no tiene píxeles.
  *
  * **Tres — la barra que marca la venta abierta.** Ver el KDoc de
- * `la marca de la venta no corre el contenido de la fila`: es un `Box` con
- * fondo y sin semántica, así que en el árbol **no existe**. Se declara el
+ * `la marca de la venta no corre el contenido de la fila`: se dibuja detrás
+ * de la fila y no tiene semántica, así que en el árbol **no existe**. Se declara el
  * límite en vez de inventarle un assert.
  *
  * **Cuatro — que la letra crezca de verdad.** [MspTheme] no lee
@@ -82,6 +82,8 @@ import org.robolectric.annotation.Config
  *
  * - `GruposYFiltrosDeContactosTest` — que `porMes`/`porCercania` partan bien y
  *   que `deja` filtre. Es dominio puro.
+ * - `LaFilaCaeSobreUnaSolaLineaBaseTest` — que el día, el punto, el importe y
+ *   el pin caigan en la primera línea del título, a las tres escalas.
  * - `UnContactoAbreSuPropioMapaTest` — que la fila con punto abra SU mapa, que
  *   la fila sin `ubicacion` no monte `clickable`, y el piso de 50 dp de la fila.
  */
@@ -116,13 +118,69 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
         // el punto medio. Se afirma el renglón entero: así el test también
         // cobra que no se pinte uno sin el otro.
         composeTestRule.onNodeWithText(
-            "${MetodoDeCobro.EFECTIVO.etiqueta} · $COBRADOR",
+            "${MetodoDeCobro.EFECTIVO.etiqueta}$SEPARADOR_DEL_RENGLON$COBRADOR",
             useUnmergedTree = true
         ).assertIsDisplayed()
         composeTestRule.onNodeWithText("“$NOTA”", useUnmergedTree = true)
             .assertIsDisplayed()
         composeTestRule.onNodeWithText(IMPORTE_PINTADO, useUnmergedTree = true)
             .assertIsDisplayed()
+    }
+
+    // --- La cuenta y el día ---------------------------------------------------
+
+    /**
+     * **Un abono con cuenta dice a cuál cuenta fue, antes que el método.**
+     *
+     * Es lo que separa dos abonos del mismo minuto a dos ventas distintas (mock
+     * `fila-de-contactos.html`, sección 02): sin la cuenta se leían como un
+     * cobro repetido. Se afirma el renglón entero para cobrar también el ORDEN
+     * —cuenta, método, cobrador— y el separador.
+     */
+    @Test
+    fun `un abono con cuenta pinta cuenta, metodo y cobrador en ese orden`() {
+        fila(COBRO.copy(cuenta = CUENTA, metodo = MetodoDeCobro.TRANSFERENCIA))
+
+        composeTestRule.onNodeWithText(
+            listOf(CUENTA, MetodoDeCobro.TRANSFERENCIA.etiqueta, COBRADOR)
+                .joinToString(SEPARADOR_DEL_RENGLON),
+            useUnmergedTree = true
+        ).assertIsDisplayed()
+    }
+
+    /**
+     * **Sin cuenta no se rellena nada**: ni un "sin cuenta", ni un separador
+     * huérfano al principio. El renglón es exactamente el de antes de que la
+     * cuenta existiera.
+     */
+    @Test
+    fun `un abono sin cuenta pinta solo metodo y cobrador`() {
+        fila(COBRO.copy(cuenta = null))
+
+        composeTestRule.onNodeWithText(
+            "${MetodoDeCobro.EFECTIVO.etiqueta}$SEPARADOR_DEL_RENGLON$COBRADOR",
+            useUnmergedTree = true
+        ).assertTextEquals("${MetodoDeCobro.EFECTIVO.etiqueta}$SEPARADOR_DEL_RENGLON$COBRADOR")
+    }
+
+    /**
+     * **El día va arriba de la hora.** Dentro de un tramo mensual la hora sola
+     * no contesta *cuándo* fue. Dos cifras y el mes sin punto: `11 sep`, no
+     * `11 sept.` —el abreviado del locale cambia de teléfono en teléfono—.
+     */
+    @Test
+    fun `la fila pinta el dia arriba de la hora`() {
+        fila(COBRO)
+
+        val dia = composeTestRule.onNodeWithText(DIA_DEL_COBRO, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        val hora = composeTestRule.onNodeWithText(HORA_DEL_COBRO, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        assertTrue(
+            "el día termina en ${dia.bottom} y la hora empieza en ${hora.top}: el día tiene " +
+                "que ir arriba",
+            dia.bottom.value <= hora.top.value + TOLERANCIA_DE_PIXEL
+        )
     }
 
     // --- La visita calla la forma de pago ------------------------------------
@@ -235,23 +293,23 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
     /**
      * **El punto de estado crece con la letra — el otro arreglo, medido.**
      *
-     * Era `6.dp` fijos, con un `padding(top)` fijo también, mientras la etiqueta
-     * de al lado duplica su tamaño y se va a dos renglones. A `MUY_GRANDE` el
-     * punto quedaba flotando arriba de un bloque de dos líneas y se leía como un
-     * píxel sucio — y el punto es el **único** portador del estado en la fila,
-     * justo en la escala que existe para quien ve mal.
+     * Era `6.dp` fijos mientras la etiqueta de al lado duplica su tamaño. A
+     * `MUY_GRANDE` era una mota junto a un título del doble de alto — y el
+     * punto es el **único** portador del estado en la fila, justo en la escala
+     * que existe para quien ve mal.
      *
-     * Se miden el **ancho** (el punto) y el **alto** (el punto más su
-     * desplazamiento vertical) porque el defecto tenía esas dos mitades: un
-     * arreglo que escalara sólo el tamaño dejaría el punto del tamaño correcto y
-     * en el renglón equivocado.
+     * Aquí se cobra sólo el **tamaño**. **Dónde** cae —centrado en la primera
+     * línea del título, a las tres escalas y con el título en dos renglones— lo
+     * mide `LaFilaCaeSobreUnaSolaLineaBaseTest`, con la letra creciendo de
+     * verdad; antes esa mitad se cobraba aquí con el alto de un `padding(top)`
+     * que ya no existe.
      *
      * Se afirma la proporción y no dp, y con holgura de 1.9, por lo mismo que la
      * columna de la hora: el valor base es privado de la pieza y la densidad
      * redondea a píxeles.
      */
     @Test
-    fun `el punto de estado se agranda y baja con el nivel de letra`() {
+    fun `el punto de estado se agranda con el nivel de letra`() {
         tresEscalas()
 
         val puntos = composeTestRule.onAllNodesWithTag(PUNTO_DEL_ESTADO_TAG, useUnmergedTree = true)
@@ -263,12 +321,6 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
                 "muy grande: no se está multiplicando por nominalScale, así que a 2.0 es " +
                 "una mota junto a una etiqueta del doble de alto",
             muyGrande.width.value >= normal.width.value * CRECIMIENTO_MINIMO
-        )
-        assertTrue(
-            "el punto arranca a ${normal.height} del tope de la fila y a ${muyGrande.height} " +
-                "a muy grande: su desplazamiento vertical sigue fijo, así que queda pegado " +
-                "al borde de arriba de un bloque de dos renglones",
-            muyGrande.height.value >= normal.height.value * CRECIMIENTO_MINIMO
         )
     }
 
@@ -360,7 +412,7 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
      * **La marca de la venta abierta NO se puede afirmar, y se dice en vez de
      * fingirlo.**
      *
-     * `deEstaVenta` pinta un `Box` de 3 dp con `background(brand)` y **sin
+     * `deEstaVenta` dibuja una barra de 3 dp detrás de la fila y **sin
      * semántica**: ni `testTag`, ni texto, ni `contentDescription`. En el árbol
      * de semántica no existe, así que ningún `onNode*` lo alcanza — y en
      * Robolectric no hay píxeles que leer. Cualquier assert que se escribiera
@@ -368,8 +420,8 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
      * Quien tenga que cobrar el color: los goldens del detalle de venta.
      *
      * Lo único medible es esto, y sí vale: **la marca no corre el contenido**.
-     * El `Box` se compone siempre —`Color.Transparent` cuando la fila no es de
-     * la venta— justamente para que el canalón esté reservado. Una
+     * El canalón se reserva siempre —la barra se dibuja `Color.Transparent`
+     * cuando la fila no es de la venta— justamente para eso. Una
      * "optimización" que lo montara sólo al marcar correría la fila marcada 3 dp
      * (más el `spacedBy`) respecto de sus vecinas, y la columna de horas —que
      * existe para leerse de corrido— quedaría en zigzag.
@@ -512,7 +564,7 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
 
         const val COBRADOR = "Marisol Vega"
         const val NOTA = "dejo la mitad, vuelvo el viernes"
-        const val ETIQUETA_DEL_COBRO = "Cobré"
+        const val ETIQUETA_DEL_COBRO = "Abono"
 
         /** `$#,##0` sobre 350 — lo que `MspMoneyText` pinta. */
         const val IMPORTE_PINTADO = "$350"
@@ -520,6 +572,8 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
         // Las horas van en zona de negocio (America/Mexico_City, UTC-6 todo el
         // año desde 2022), que es la que la fila usa para formatear.
         const val HORA_DEL_COBRO = "16:45"
+        const val DIA_DEL_COBRO = "11 sep"
+        const val CUENTA = "Recámara Cántaro King Size"
         const val HORA_DE_LA_VISITA = "08:05"
 
         /** `10:20` y `18:05`: las dos horas que el defecto cortaba a `10:4` y `18:0`. */
