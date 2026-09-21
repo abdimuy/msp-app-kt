@@ -60,14 +60,18 @@ const val FILA_DE_CLIENTE_TAG: String = "pagos_fila_cliente"
  * `ListaSeVeYSeTocaTest`: la Task 16 shipeó un control de 49.5dp y tuvo que
  * corregirlo. Se toma el número del repo, que es el más estricto.
  *
- * ## Por qué a escala grande vuelve a rodar
+ * ## Por qué a escala grande pasa a una rejilla
  *
  * Repartir los 328dp de la pantalla entre cuatro segmentos da 79dp a cada uno.
- * A `MUY_GRANDE` (2.0) "sin visitar" no cabe ni de lejos, así que el control
- * deja de repartir el ancho y **rueda en horizontal**. Es el mismo criterio que
- * [EncabezadoDeCliente] aplica al monto, y por la misma razón: un dato que se
- * sale de la pantalla es información perdida, y el rótulo que se corta es justo
- * el que más trabajo esconde.
+ * A `MUY_GRANDE` (2.0) "sin visitar" no cabe ni de lejos — y antes el control
+ * dejaba de repartir el ancho y rodaba en horizontal, lo que sacaba el borde y
+ * los márgenes del lado derecho fuera de la pantalla. Ahora [ControlSegmentado]
+ * **mide** si las cuatro opciones caben en una fila y, si no, pasa a una rejilla
+ * de dos renglones (2×2) que nunca rueda: el detalle completo, con el porqué
+ * del cambio, vive en su KDoc. Es el mismo criterio que [EncabezadoDeCliente]
+ * aplica al monto, y por la misma razón: un dato que se sale de la pantalla es
+ * información perdida, y el rótulo que se corta es justo el que más trabajo
+ * esconde.
  *
  * El área tocable **no** se puede probar con un golden. La cobran dos tests, y
  * miden cosas distintas: `ListaSeVeYSeTocaTest` mide el componente suelto, y

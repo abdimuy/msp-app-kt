@@ -2,16 +2,13 @@ package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,12 +16,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
-import com.example.msp_app.core.designsystem.theme.FontSizeLevel
-import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /**
@@ -37,10 +35,42 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
  * esconde "Hoy" mientras `HOY_VISIBLE` esté apagado; `FiltroDeContactos`
  * siempre enseña sus cuatro, cero incluido, por decisión del dueño— y
  * **cómo** se etiqueta y se marca cada una. La tinta, el alto tocable de
- * 50dp y el comportamiento de ancho/scroll son UN solo control: compartirlo
- * no obliga a parametrizar nada que no fuera ya distinto entre los dos
+ * 50dp y el acomodo de fila-o-rejilla son UN solo control: compartirlo no
+ * obliga a parametrizar nada que no fuera ya distinto entre los dos
  * filtros — es justo lo que ya recibían por parámetro (`seleccionado`,
  * `conteos`, `onElegir`).
+ *
+ * ## Fila si caben, rejilla de dos renglones si no — nunca scroll ni recorte
+ *
+ * La versión anterior repartía el ancho por igual a escala NORMAL y, para
+ * cualquier otra escala, dejaba de repartir y montaba la fila entera dentro
+ * de un `horizontalScroll`. A letra grande eso rompía el control: la
+ * `Surface` ya no llenaba el ancho de la pantalla (su tamaño natural es el de
+ * la fila completa, más ancha que la pantalla), así que el borde y los
+ * márgenes del lado derecho quedaban fuera de vista y la foto —el golden— solo
+ * enseñaba la posición inicial del scroll, con la última opción cortada a la
+ * mitad. Que la opción siguiera alcanzable deslizando no bastaba: la que se
+ * esconde es justo la que el conteo existe para avisar, y un dato a medias es
+ * un dato falso.
+ *
+ * Ahora la decisión es de **medición**, no de escala de letra — una escala
+ * grande en un teléfono ancho puede caber igual en una fila, y no hay forma
+ * de saberlo sin medir: [SubcomposeLayout] compone cada opción una vez sin
+ * marco ([ContenidoDelSegmento], sin `testTag` para no duplicar el nodo
+ * semántico de [Segmento]) y la mide SIN restricción de ancho — su rótulo y su
+ * conteo en una sola línea, sin comprimir. "Caben" no es que la SUMA de esos
+ * anchos quepa: es que NINGUNA opción, ya medida, necesite más ancho del que
+ * le tocaría al repartir el control entero entre todas — la suma cabiendo no
+ * evita que la más larga se comprima y su rótulo baje a dos renglones
+ * partiendo una palabra a la mitad. Si todas caben en su porción, las
+ * opciones van en una sola fila, repartiendo el ancho por igual (el mismo
+ * cálculo que antes hacía `weight(1f)`). Si no, el control pasa a una rejilla de
+ * **dos renglones** —con cuatro opciones, 2×2; con otro número, las que quepan
+ * por renglón, repartidas parejo (`ceil(n/2)` arriba, el resto abajo)— y cada
+ * renglón reparte el ancho completo entre sus propias opciones, no entre las
+ * cuatro. El control **nunca** rueda: la `Surface` siempre llena el ancho
+ * disponible ([fillMaxWidth] incondicional), así que su borde y sus márgenes
+ * quedan enteros en cualquier escala.
  *
  * Vive en su propio archivo — y no dentro de `PiezasDeLaLista.kt`, donde
  * nació— por dos razones: `TooManyFunctions` de detekt (el archivo de la
@@ -62,38 +92,154 @@ internal fun <T> ControlSegmentado(
     onElegir: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val reparteElAncho = LocalFontSizeLevel.current == FontSizeLevel.NORMAL
-    val rueda = if (reparteElAncho) {
-        Modifier
-    } else {
-        Modifier.horizontalScroll(rememberScrollState())
-    }
-    Box(modifier = modifier.then(rueda)) {
-        Surface(
-            modifier = if (reparteElAncho) Modifier.fillMaxWidth() else Modifier,
-            color = MspTheme.colors.surface,
-            shape = MspTheme.shapes.control,
-            border = BorderStroke(GROSOR_DEL_BORDE, MspTheme.colors.outline)
-        ) {
-            Row(
-                // Sin padding vertical a propósito: el alto del control ES el
-                // alto tocable del segmento, no una franja pintada alrededor.
-                modifier = Modifier.padding(horizontal = SANGRIA_DEL_SEGMENTADO),
-                horizontalArrangement = Arrangement.spacedBy(SEPARACION_DE_SEGMENTOS),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Surface(
+        modifier = modifier.fillMaxWidth().testTag(CONTROL_SEGMENTADO_TAG),
+        color = MspTheme.colors.surface,
+        shape = MspTheme.shapes.control,
+        border = BorderStroke(GROSOR_DEL_BORDE, MspTheme.colors.outline)
+    ) {
+        SubcomposeLayout(
+            // Sin padding vertical a propósito: el alto del control ES el
+            // alto tocable de sus segmentos, no una franja pintada alrededor.
+            // `selectableGroup`: las opciones son mutuamente excluyentes,
+            // como un grupo de radio — es lo que anuncia el lector de
+            // pantalla al entrar al control (equivalente de `role="group"`
+            // del mock).
+            modifier = Modifier
+                .padding(horizontal = SANGRIA_DEL_SEGMENTADO)
+                .selectableGroup()
+        ) { restricciones ->
+            val separacionPx = SEPARACION_DE_SEGMENTOS.roundToPx()
+            val altoMinimoPx = ALTO_TOCABLE_DEL_SEGMENTO.roundToPx()
+            val anchoDisponible = restricciones.maxWidth
+
+            // Paso 1: el ancho que cada opción pide para su rótulo y su
+            // conteo en una sola línea, SIN comprimir — decide si caben en
+            // una fila. Nunca se coloca: sólo mide.
+            val medicion = subcompose(SLOT_DE_MEDICION) {
                 opciones.forEach { opcion ->
-                    Segmento(
+                    ContenidoDelSegmento(
                         etiqueta = etiquetaDe(opcion),
                         cuantos = conteos[opcion] ?: 0,
-                        activo = opcion == seleccionado,
-                        onElegir = { onElegir(opcion) },
-                        tag = tagDe(opcion),
-                        modifier = if (reparteElAncho) Modifier.weight(1f) else Modifier
+                        activo = false
                     )
                 }
             }
+            val anchosNaturales = medicion.map { it.measure(Constraints()).width }
+            // "Caben" quiere decir que NINGUNA opción necesitaría más ancho
+            // del que le toca al repartir el control entero entre todas —no
+            // que la suma quepa: la suma cabiendo no evita que la más larga
+            // se comprima y su rótulo baje a dos renglones partiendo una
+            // palabra a la mitad. Comparar contra la propia porción es lo que
+            // hace que a GRANDE el control pase a rejilla en vez de apretar.
+            val anchoPorSegmentoEnUnaFila =
+                (anchoDisponible - separacionPx * (opciones.size - 1).coerceAtLeast(0)) /
+                    opciones.size.coerceAtLeast(1)
+            val cabenEnUnaFila = opciones.size <= 1 ||
+                anchosNaturales.all { it <= anchoPorSegmentoEnUnaFila }
+
+            val filas = if (cabenEnUnaFila) {
+                listOf(opciones)
+            } else {
+                // "Las que quepan por renglón, repartidas parejo": la mitad
+                // de arriba (redondeando hacia arriba) y el resto abajo. Con
+                // cuatro opciones esto es 2×2.
+                val primerRenglon = (opciones.size + 1) / 2
+                listOf(opciones.take(primerRenglon), opciones.drop(primerRenglon))
+            }
+
+            // Paso 2: ya con el acomodo decidido, mide de verdad — esta vez
+            // con marco, tag y el ancho fijo que le toca a cada opción dentro
+            // de SU renglón (repartido entre las opciones de ese renglón, no
+            // entre las cuatro).
+            val placeablesPorFila = filas.mapIndexed { i, fila ->
+                val opcionesEnElRenglon = fila.size.coerceAtLeast(1)
+                val anchoPorSegmento =
+                    (anchoDisponible - separacionPx * (fila.size - 1).coerceAtLeast(0)) /
+                        opcionesEnElRenglon
+                val restriccionDelSegmento = Constraints(
+                    minWidth = anchoPorSegmento,
+                    maxWidth = anchoPorSegmento,
+                    minHeight = altoMinimoPx
+                )
+                subcompose(SLOT_DE_FILA_PREFIX + i) {
+                    fila.forEach { opcion ->
+                        Segmento(
+                            etiqueta = etiquetaDe(opcion),
+                            cuantos = conteos[opcion] ?: 0,
+                            activo = opcion == seleccionado,
+                            onElegir = { onElegir(opcion) },
+                            tag = tagDe(opcion)
+                        )
+                    }
+                }.map { it.measure(restriccionDelSegmento) }
+            }
+
+            val altosPorFila = placeablesPorFila.map { fila -> fila.maxOf { it.height } }
+            val altoTotal = altosPorFila.sum() +
+                SEPARACION_ENTRE_RENGLONES.roundToPx() * (filas.size - 1).coerceAtLeast(0)
+
+            layout(anchoDisponible, altoTotal) {
+                var y = 0
+                filas.indices.forEach { i ->
+                    var x = 0
+                    placeablesPorFila[i].forEach { placeable ->
+                        placeable.placeRelative(x, y)
+                        x += placeable.width + separacionPx
+                    }
+                    y += altosPorFila[i] + SEPARACION_ENTRE_RENGLONES.roundToPx()
+                }
+            }
         }
+    }
+}
+
+/**
+ * El rótulo y el conteo de un segmento, apilados — sin marco, sin clic, sin
+ * `testTag`. [ControlSegmentado] la usa dos veces con dos propósitos:
+ * "midiendo" (aquí, para decidir fila-o-rejilla — nunca se coloca, así que
+ * nunca aparece en el árbol de semántica) y dentro de [Segmento] (con marco y
+ * el ancho real que le tocó). El color no afecta el ancho, así que la
+ * medición siempre usa `activo = false`.
+ *
+ * `tagDeLaEtiqueta` sólo lo pasa `Segmento` (la pasada real): el rótulo es el
+ * único texto que se comprime cuando el acomodo se equivoca, así que es el
+ * único que necesita su propio `testTag` para que un test lea su
+ * `TextLayoutResult` y cobre "sin elipsis, sin recorte" — igual que
+ * `RenglonPorSegmentos` con `SEGMENTO_DEL_RENGLON_TAG`. La pasada de medición
+ * lo deja en `null`: si llevara el mismo tag habría dos nodos con el mismo
+ * `testTag` en el árbol.
+ */
+@Composable
+private fun ContenidoDelSegmento(
+    etiqueta: String,
+    cuantos: Int,
+    activo: Boolean,
+    tagDeLaEtiqueta: String? = null
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = etiqueta,
+            style = MspTheme.type.chipLabel,
+            color = if (activo) MspTheme.colors.onBrand else MspTheme.colors.onSurfaceMuted,
+            maxLines = RENGLONES_DEL_ROTULO,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = if (tagDeLaEtiqueta != null) Modifier.testTag(tagDeLaEtiqueta) else Modifier
+        )
+        Text(
+            text = cuantos.toString(),
+            style = MspTheme.type.captionStrong,
+            // El conteo acompaña al rótulo, no compite con él: sobre el
+            // relleno de marca baja a tres cuartos de opacidad.
+            color = if (activo) {
+                MspTheme.colors.onBrand.copy(alpha = OPACIDAD_DEL_CONTEO)
+            } else {
+                MspTheme.colors.onSurfaceMuted
+            },
+            maxLines = 1,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -107,15 +253,13 @@ internal fun <T> ControlSegmentado(
  * siguen cabiendo dentro de los 48dp tocables, así que partir no agranda el
  * control.
  *
- * A escala grande el control deja de repartir el ancho y rueda en horizontal
- * ([ControlSegmentado]) — ahí cada segmento mide su propio ancho sin
- * restricción, así que en la práctica el segundo renglón nunca hace falta.
- * Es la misma razón por la que la Task 4 no tuvo que resolver un recorte real
- * en las cuatro etiquetas de una palabra de `FiltroDeContactos`: el corte que
- * el límite de dos renglones + elipsis evita es el de NORMAL con ancho
- * repartido, no el de MUY_GRANDE — y a MUY_GRANDE el control rueda en vez de
- * cortar, verificado en los goldens `pagos_bitacora_*_2_0` y
- * `pagos_venta_linea_*_2_0`.
+ * `.selectable(selected = activo, role = Role.RadioButton, …)` reemplaza el
+ * `.clickable` de antes: el contenedor entero (`ControlSegmentado`) es un
+ * `selectableGroup`, así que cada segmento se anuncia con su rol y su estado
+ * elegido — un lector de pantalla ya sabe cuál opción está activa, no sólo
+ * que hay algo que tocar. `selectable`, como `clickable`, fusiona el texto de
+ * sus descendientes en un solo nodo: el lector lee "Promesas, 0", no dos
+ * fragmentos sueltos.
  */
 @Composable
 private fun Segmento(
@@ -133,34 +277,21 @@ private fun Segmento(
             // El segmento activo va en `brand` — es el control protagónico de la
             // pantalla. Nunca en `statusPaid`: el verde es solo estado.
             .background(if (activo) MspTheme.colors.brand else Color.Transparent)
-            .clickable(onClick = onElegir)
+            .selectable(
+                selected = activo,
+                role = Role.RadioButton,
+                onClick = onElegir
+            )
             .padding(horizontal = MspTheme.spacing.xs)
             .testTag(tag),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = etiqueta,
-                style = MspTheme.type.chipLabel,
-                color = if (activo) MspTheme.colors.onBrand else MspTheme.colors.onSurfaceMuted,
-                maxLines = RENGLONES_DEL_ROTULO,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = cuantos.toString(),
-                style = MspTheme.type.captionStrong,
-                // El conteo acompaña al rótulo, no compite con él: sobre el
-                // relleno de marca baja a tres cuartos de opacidad.
-                color = if (activo) {
-                    MspTheme.colors.onBrand.copy(alpha = OPACIDAD_DEL_CONTEO)
-                } else {
-                    MspTheme.colors.onSurfaceMuted
-                },
-                maxLines = 1,
-                textAlign = TextAlign.Center
-            )
-        }
+        ContenidoDelSegmento(
+            etiqueta = etiqueta,
+            cuantos = cuantos,
+            activo = activo,
+            tagDeLaEtiqueta = ETIQUETA_DEL_SEGMENTO_TAG
+        )
     }
 }
 
@@ -175,8 +306,31 @@ private val SANGRIA_DEL_SEGMENTADO = 3.dp
 
 private val SEPARACION_DE_SEGMENTOS = 2.dp
 
+/** Separación vertical entre los dos renglones de la rejilla — el mismo valor que entre columnas. */
+private val SEPARACION_ENTRE_RENGLONES = SEPARACION_DE_SEGMENTOS
+
 private val GROSOR_DEL_BORDE = 1.dp
 
 private const val RENGLONES_DEL_ROTULO = 2
 
 private const val OPACIDAD_DEL_CONTEO = 0.75f
+
+/** Slot de [SubcomposeLayout] para la pasada de medición — nunca se coloca. */
+private const val SLOT_DE_MEDICION = "control_segmentado_medicion"
+
+/** Prefijo del slot de [SubcomposeLayout] de cada renglón real — `"…0"`, `"…1"`. */
+private const val SLOT_DE_FILA_PREFIX = "control_segmentado_fila_"
+
+/**
+ * `testTag` del control entero — existe para medir sus bordes y cobrar que
+ * ningún segmento quede fuera de ellos, en fila o en rejilla.
+ */
+const val CONTROL_SEGMENTADO_TAG: String = "control_segmentado"
+
+/**
+ * `testTag` del rótulo de un segmento — el único texto que se comprime
+ * cuando el acomodo se equivoca. Existe para leer su `TextLayoutResult` y
+ * cobrar que nunca lleve elipsis ni se desborde, el mismo patrón que
+ * [SEGMENTO_DEL_RENGLON_TAG] en [RenglonPorSegmentos].
+ */
+const val ETIQUETA_DEL_SEGMENTO_TAG: String = "control_segmentado_etiqueta"

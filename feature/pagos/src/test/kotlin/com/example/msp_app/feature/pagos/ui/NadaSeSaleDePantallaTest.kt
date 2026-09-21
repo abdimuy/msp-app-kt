@@ -1,8 +1,14 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
@@ -21,8 +27,6 @@ import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
-import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
-import com.example.msp_app.feature.pagos.ui.components.FILTRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TARJETA_DE_GARANTIA_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -201,18 +205,31 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
     }
 
     /**
-     * **Control positivo del de arriba.** La MISMA consulta encuentra la fila de
-     * filtros, que ya se desplazaba desde el principio. Sin esto, un matcher mal
+     * **Control positivo del de arriba.** La MISMA consulta encuentra un
+     * descendiente de un `horizontalScroll` de verdad. Sin esto, un matcher mal
      * escrito —o un `assertExists` que se cumpliera por cualquier ancestro
      * desplazable— daría el mismo verde con el arreglo y sin él.
+     *
+     * **Ya no reutiliza la fila de filtros** (`FiltrosDeContacto`): la Ronda de
+     * arreglo 1 de la Task 4 le quitó el `horizontalScroll` — a letra grande
+     * ahora pasa a una rejilla de dos renglones en vez de rodar, y por eso ya no
+     * sirve como referencia conocida de "esto sí se desplaza". La referencia
+     * pasa a ser un `Row` sintético, compuesto aquí mismo, cuyo único trabajo es
+     * desplazarse — prueba la consulta, no una pantalla real, que es exactamente
+     * lo que este test necesita.
      */
     @Test
-    fun `control positivo - la misma consulta encuentra la fila de filtros`() {
-        ventaA(FontSizeLevel.MUY_GRANDE)
+    fun `control positivo - la misma consulta encuentra un descendiente que si se desplaza`() {
+        composeTestRule.setContent {
+            MspTheme(darkTheme = false, animateColors = false) {
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    Box(modifier = Modifier.testTag(REFERENCIA_QUE_SI_SE_DESPLAZA))
+                }
+            }
+        }
 
         composeTestRule.onNode(
-            seDesplazaALoAncho and
-                hasAnyDescendant(hasTestTag(FILTRO_TAG + FiltroDeContactos.TODOS.name))
+            seDesplazaALoAncho and hasAnyDescendant(hasTestTag(REFERENCIA_QUE_SI_SE_DESPLAZA))
         ).assertExists()
     }
 
@@ -231,5 +248,8 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
          */
         val seDesplazaALoAncho: SemanticsMatcher =
             SemanticsMatcher.keyIsDefined(SemanticsProperties.HorizontalScrollAxisRange)
+
+        /** `testTag` del nodo sintético del control positivo — no existe en producción. */
+        const val REFERENCIA_QUE_SI_SE_DESPLAZA = "test_referencia_que_si_se_desplaza"
     }
 }

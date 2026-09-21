@@ -11,6 +11,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -90,6 +92,43 @@ class ElFiltroDeContactosEsUnControlSegmentadoTest : RobolectricTestBase() {
         composeTestRule
             .onNodeWithTag(FILTRO_TAG + FiltroDeContactos.PROMESAS.name)
             .assertTextContains("0")
+    }
+
+    /**
+     * **Ronda de arreglo 1, Task 4 — accesibilidad.** El contenedor es un
+     * grupo de selección (`selectableGroup`, sobre `ControlSegmentado`) y
+     * cada opción expone su propio `selected`: un lector de pantalla sabe
+     * cuál está elegida sin depender del color. `Segmento` usaba antes
+     * `.clickable` sin rol ni estado — el mock pedía el equivalente de
+     * `role="group"` + `aria-pressed`, y esto es lo más cercano en Compose
+     * (`Role.RadioButton` + `selected`, sobre `selectableGroup`).
+     */
+    @Test
+    fun `el filtro elegido expone seleccionado y los demas no`() {
+        pinta()
+        composeTestRule.onNodeWithTag(FILTRO_TAG + FiltroDeContactos.TODOS.name)
+            .assertIsSelected()
+        FiltroDeContactos.entries.filter { it != FiltroDeContactos.TODOS }.forEach { filtro ->
+            composeTestRule.onNodeWithTag(FILTRO_TAG + filtro.name).assertIsNotSelected()
+        }
+    }
+
+    /**
+     * **Una sola cosa, no dos fragmentos sueltos.** `.selectable()` fusiona
+     * el texto de sus descendientes en el mismo nodo semántico que antes
+     * fusionaba `.clickable()` — el lector de pantalla lee "Promesas, 0", no
+     * "Promesas" y "0" por separado. Se afirma sobre el nodo MERGED (por
+     * defecto, sin `useUnmergedTree`): si algún día el rótulo o el conteo
+     * quedaran en un nodo aparte sin fusionar, esto se pone rojo.
+     */
+    @Test
+    fun `cada segmento se lee como una sola cosa - etiqueta y conteo juntos`() {
+        pinta()
+        FiltroDeContactos.entries.forEach { filtro ->
+            val nodo = composeTestRule.onNodeWithTag(FILTRO_TAG + filtro.name)
+            nodo.assertTextContains(filtro.etiqueta)
+            nodo.assertTextContains((FiltroDeContactos.conteos(CONTACTOS)[filtro] ?: 0).toString())
+        }
     }
 
     @Test

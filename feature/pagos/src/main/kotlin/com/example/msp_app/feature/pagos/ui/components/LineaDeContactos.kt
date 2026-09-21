@@ -361,10 +361,11 @@ fun EncabezadoDeGrupo(
  * que sí esconde "Hoy" mientras [com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE]
  * esté apagado.
  *
- * A escala de letra grande el control deja de repartir el ancho entre las
- * cuatro y rueda en horizontal — la misma regla de `SegmentadoDeCobranza`, y
- * por la misma razón: apilarlas fijaría dos renglones de alto en una pantalla
- * que ya pelea cada dp contra el saldo.
+ * A escala de letra grande, si las cuatro no caben repartiendo el ancho entre
+ * todas, el control pasa a una rejilla de dos renglones (2×2) — nunca rueda:
+ * la misma regla de `SegmentadoDeCobranza`, ver el KDoc de [ControlSegmentado]
+ * para el porqué (Ronda de arreglo 1, Task 4 — rodar dejaba el borde y los
+ * márgenes del lado derecho fuera de la pantalla).
  */
 @Composable
 fun FiltrosDeContacto(

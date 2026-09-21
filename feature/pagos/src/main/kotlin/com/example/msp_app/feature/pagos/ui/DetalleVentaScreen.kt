@@ -432,13 +432,20 @@ internal fun LineaDeLaVenta(
 /**
  * El interruptor de alcance: de quién es lo que se está viendo.
  *
- * ## Se desplaza a lo ancho, igual que la fila de filtros de abajo
+ * ## Se desplaza a lo ancho
  *
  * El defecto que esto cierra: la fila era `fillMaxWidth()` **sin**
- * `horizontalScroll`, al revés que `FiltrosDeContacto`. Medido a 360 dp, a
- * `MUY_GRANDE` la segunda pastilla va de 164 a 344 dp — toca el borde. Sin
- * desplazamiento no hay a dónde ir, así que la etiqueta quedaba cortada **para
- * siempre** en *"Todo el"*, y el cobrador leía una opción que no existe.
+ * `horizontalScroll`. Medido a 360 dp, a `MUY_GRANDE` la segunda pastilla va
+ * de 164 a 344 dp — toca el borde. Sin desplazamiento no hay a dónde ir, así
+ * que la etiqueta quedaba cortada **para siempre** en *"Todo el"*, y el
+ * cobrador leía una opción que no existe.
+ *
+ * **Ya no es "igual que la fila de filtros de abajo".** Hasta la Ronda de
+ * arreglo 1 de la Task 4, `FiltrosDeContacto` también rodaba a escala grande
+ * — y ESE scroll era el defecto que sacaba su borde y sus márgenes de la
+ * pantalla (ver el KDoc de `ControlSegmentado`). Esta pastilla de dos
+ * opciones es un caso distinto: sólo dos etiquetas cortas, nunca necesita
+ * rejilla, y el scroll aquí sigue siendo la solución correcta.
  *
  * ## Y el texto elide en vez de cortar a media palabra
  *
