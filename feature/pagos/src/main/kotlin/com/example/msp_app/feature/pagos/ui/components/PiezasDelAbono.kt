@@ -63,11 +63,17 @@ const val METODO_TAG: String = "pagos_abono_metodo_"
 /** Prefijo del `testTag` de cada tecla del teclado. */
 const val TECLA_TAG: String = "pagos_abono_tecla_"
 
-/** Etiqueta interna de la tecla de punto decimal. */
-const val TECLA_PUNTO: String = "punto"
+/**
+ * Clave interna de la tecla de punto decimal — nunca se pinta, sólo entra al
+ * `testTag` que arma [TECLA_TAG]. Mayúscula inicial por lo mismo que
+ * cualquier otra constante de este archivo: nadie la lee, pero
+ * `CadaTextoDeUsuarioEmpiezaEnMayusculaTest` mide el literal de la
+ * declaración, no si algo la pinta.
+ */
+const val TECLA_PUNTO: String = "Punto"
 
-/** Etiqueta interna de la tecla de borrado. */
-const val TECLA_BORRAR: String = "borrar"
+/** Clave interna de la tecla de borrado. Ver el KDoc de [TECLA_PUNTO]. */
+const val TECLA_BORRAR: String = "Borrar"
 
 /**
  * Alto mínimo tocable. El plan pide >=50px; el token del design system (56dp)
@@ -115,7 +121,7 @@ fun EncabezadoDelAbono(cliente: String, onAtras: () -> Unit, modifier: Modifier 
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Filled.ArrowBack,
-                    contentDescription = "atrás",
+                    contentDescription = "Atrás",
                     tint = MspTheme.colors.onSurface,
                     modifier = Modifier.size(20.dp)
                 )
@@ -123,7 +129,7 @@ fun EncabezadoDelAbono(cliente: String, onAtras: () -> Unit, modifier: Modifier 
         }
         Column {
             Text(
-                text = "abono",
+                text = "Abono",
                 style = MspTheme.type.screenTitle,
                 color = MspTheme.colors.onSurface
             )
@@ -151,9 +157,9 @@ fun TiraDeContexto(folio: String, producto: String, saldo: Money, modifier: Modi
     Tarjeta(modifier = modifier) {
         Text(
             text = buildAnnotatedString {
-                append("venta ")
+                append("Venta ")
                 withStyle(fuerte) { append(folio) }
-                append(" · $producto · saldo ")
+                append(" · $producto · Saldo ")
                 withStyle(fuerte) { append(formatMoneyMxn(saldo.amount)) }
             },
             style = MspTheme.type.contextNote,
@@ -550,7 +556,7 @@ private fun TeclaDeBorrado(onClick: () -> Unit, modifier: Modifier = Modifier) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = Icons.Filled.Clear,
-                contentDescription = "borrar",
+                contentDescription = "Borrar",
                 tint = MspTheme.colors.onSurfaceMuted,
                 modifier = Modifier.size(22.dp)
             )
@@ -577,7 +583,7 @@ fun BandaDeRegistrado(modifier: Modifier = Modifier) {
             modifier = Modifier.size(18.dp)
         )
         Text(
-            text = "abono registrado",
+            text = "Abono registrado",
             style = MspTheme.type.bodyStrong,
             color = colors.statusPaid
         )

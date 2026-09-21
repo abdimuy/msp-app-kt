@@ -111,18 +111,26 @@ object PagosRutas {
  * - [onRegistrarVisita] recibe **`clienteId` y `ventaId`**, el segundo nulo
  *   cuando se entró por el cliente: se visita una puerta, y la cuenta abierta
  *   es contexto opcional (`VisitasRutas.SIN_VENTA`).
- * - [onMasAcciones] recibe el `ventaId` de la cuenta cuyo "⋯" se abrió: ahí
- *   vive la condonación, que es dinero de UNA cuenta.
+ * - [onVerAbonos] recibe el `ventaId` de la cuenta cuyo "Ver los N abonos" se
+ *   tocó. Hasta hoy es el MISMO destino que el extinto "⋯" abría —la pantalla
+ *   legada, donde vive la condonación—, y sigue siéndolo: quitar el "⋯" sólo
+ *   cerró esa puerta, no ésta.
  * - [onVerGarantia] recibe el `DOCTO_CC_ID` de la venta —no el id de la
  *   garantía—, porque el flujo de garantías de `:app` está indexado por venta
  *   (`GuaranteesViewModel.getGuaranteeSaleById`), no por `EXTERNAL_ID`.
+ *
+ * [ubicacion] es el mapa de un renglón de la línea de tiempo de la venta —el
+ * mismo destino y el mismo objeto que ya usa [destinoDeBitacora] (Ver
+ * [UbicacionEnLaBitacora]). La venta no dibuja un cuadro de puerta propio,
+ * así que no hace falta el `suelo` de [UbicacionEnElDetalle].
  */
 fun NavGraphBuilder.destinosDePagos(
     onAtras: () -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
-    onMasAcciones: (Int) -> Unit,
-    onVerGarantia: (Int) -> Unit
+    onVerAbonos: (Int) -> Unit,
+    onVerGarantia: (Int) -> Unit,
+    ubicacion: UbicacionEnLaBitacora = UbicacionEnLaBitacora()
 ) {
     composable(
         route = PagosRutas.DETALLE_VENTA,
@@ -133,8 +141,9 @@ fun NavGraphBuilder.destinosDePagos(
             onAtras = onAtras,
             onRegistrarAbono = onRegistrarAbono,
             onRegistrarVisita = onRegistrarVisita,
-            onMasAcciones = onMasAcciones,
-            onVerGarantia = onVerGarantia
+            onVerAbonos = onVerAbonos,
+            onVerGarantia = onVerGarantia,
+            onVerUbicacion = ubicacion.onVer
         )
     }
 }
@@ -169,10 +178,10 @@ data class UbicacionEnElDetalle(
  * Registra el **detalle de cliente** en el grafo.
  *
  * Va aparte de [destinosDePagos] por la misma razón que la lista y el abono: la
- * pantalla dejó de compartir callbacks con el detalle de venta. Ya no recibe
- * `onMasAcciones` —el "⋯" se fue— y en cambio recibe [onVerContactos], que es el
- * destino nuevo de la bitácora; meterlos en la función compartida habría dejado
- * dos parámetros que solo uno de los dos destinos usa.
+ * pantalla dejó de compartir callbacks con el detalle de venta. Nunca recibió
+ * el "⋯" —se fue de las dos pantallas— y en cambio recibe [onVerContactos], que
+ * es el destino nuevo de la bitácora; meterlos en la función compartida habría
+ * dejado dos parámetros que solo uno de los dos destinos usa.
  *
  * **No recibe las acciones que salen de la app** (llamar, WhatsApp, cómo llegar):
  * las resuelve el ViewModel por `AccionesExternasPort`. `:app` no tiene por qué

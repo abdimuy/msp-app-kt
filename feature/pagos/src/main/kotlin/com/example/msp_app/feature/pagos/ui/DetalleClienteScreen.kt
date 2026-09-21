@@ -312,8 +312,6 @@ fun DetalleClienteContent(
                 textoPrimario = "Registrar abono",
                 onPrimario = onRegistrarAbono,
                 onVisita = onRegistrarVisita,
-                // Sin "⋯": ya no hay camino a la pantalla legada desde aquí.
-                onMasAcciones = null,
                 // El tercer espacio del dock, que el rediseño dejó diseñado y
                 // vacío. Las Notas viven aquí y no en la fila de iconos porque
                 // aquí se ven sin desplazar y pueden llevar el distintivo: hoy

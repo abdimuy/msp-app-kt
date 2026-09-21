@@ -203,7 +203,7 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     fun `la banda del bloqueo dice el maximo, que es el saldo`() {
         pinta(AbonoFixtures.enBloqueo())
         composeTestRule.onNodeWithText(
-            "el abono excede el saldo · máximo $1,450"
+            "El abono excede el saldo · máximo $1,450"
         ).assertIsDisplayed()
     }
 
@@ -218,7 +218,7 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         // Y hay salida sin abandonar la pantalla.
         composeTestRule.onNodeWithTag(REVISAR_DE_NUEVO_TAG).performClick()
         assertEquals(1, revisiones)
-        assertTocable(REVISAR_DE_NUEVO_TAG, "volver a revisar")
+        assertTocable(REVISAR_DE_NUEVO_TAG, "Volver a revisar")
     }
 
     @Test

@@ -36,14 +36,6 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 /** `testTag` del botón "atrás". */
 const val ATRAS_TAG: String = "pagos_atras"
 
-/**
- * `testTag` del "⋯" del dock — donde vive la condonación, cuya lógica NO se
- * toca. Lo lleva **un solo nodo** en toda la pantalla: dos nodos con el mismo
- * tag hacen que `onNodeWithTag` truene por ambigüedad, y además la condonación
- * es dinero y no debe tener dos puertas.
- */
-const val MAS_ACCIONES_TAG: String = "pagos_mas_acciones"
-
 /** `testTag` del CTA primario del dock. */
 const val CTA_PRIMARIO_TAG: String = "pagos_cta_primario"
 
@@ -160,40 +152,38 @@ private fun BotonCircular(
 
 /**
  * El dock del mock (`.dock`): CTA primario en `brand` (nunca en verde — el
- * verde `statusPaid` es solo estado), acción de visita en superficie y el "⋯"
- * donde vive la condonación.
+ * verde `statusPaid` es solo estado) y acción de visita en superficie.
  *
  * **El slot primario es [MspPrimaryFieldButton], no [BotonDelDock]
  * (corrección de la ronda 1).** Se pintaba a mano con la receta exacta del
  * componente compartido —`heightIn(min = 56dp)` + `shapes.button` +
  * `type.buttonLarge` + `brand`/`onBrand`— y al hacerlo se perdía lo que no es
- * cosmético: **el haptic**. El CTA de esta pantalla es "abonar $NNN", una
+ * cosmético: **el haptic**. El CTA de esta pantalla es "Abonar $NNN", una
  * acción de dinero, y el design system lo declara regla dura — *"las acciones
  * de dinero deben sentirse físicas"* (spec §8.4, KDoc de
  * `PrimaryFieldButton`): cada tap dispara `HapticFeedbackType.LongPress`. Con
  * el `Surface` local no vibraba. También llegan la sombra de 8dp tintada a
  * marca y el estado apagado plano del sistema.
  *
- * [BotonDelDock] se queda para los otros dos slots, que **no** son variantes
- * del compartido: van rellenos de `surface` y `MspPrimaryFieldButton` solo
- * ofrece `Primary` (fill marca), `Danger` (fill rojo) y `Ghost` (outline sin
+ * [BotonDelDock] se queda para el otro slot, que **no** es una variante del
+ * compartido: va relleno de `surface` y `MspPrimaryFieldButton` solo ofrece
+ * `Primary` (fill marca), `Danger` (fill rojo) y `Ghost` (outline sin
  * relleno). Forzar `Ghost` cambiaría el peso visual del dock.
  *
- * ## El tercer espacio: "⋯" en la venta, **Notas** en el cliente
+ * ## El tercer espacio: **Notas**, ya sin el "⋯"
  *
- * Los dos son opcionales y `null` significa que no existe.
+ * Aquí vivía el "⋯" que abría la pantalla legada — la condonación, el mapa de
+ * la venta, los productos y el historial completo. El dueño lo quitó ("no
+ * quiero volver a verla nunca más"): "Ver los N abonos", dentro de la línea de
+ * tiempo, sigue llevando a esa misma pantalla, así que quitar el botón no le
+ * cerró ninguna función al cobrador, sólo esta puerta directa.
  *
- * El detalle del CLIENTE pasa el "⋯" en `null`: ahí abría la pantalla legada y
- * lo único que llevaba —"ver los N contactos"— tiene ahora su propio destino,
- * así que quitarlo no borró ninguna función. El detalle de VENTA lo conserva,
- * porque ahí sigue viviendo la condonación.
- *
- * Ese hueco es donde entran las **Notas de la puerta** ([AccionDeNotas]).
- * Estaban en la fila de iconos de la hoja de identidad, cuatro acciones abajo
+ * El hueco que dejó es donde viven las **Notas de la puerta**
+ * ([AccionDeNotas]), opcional y `null` cuando no existe. Estaban en la fila de
+ * iconos de la hoja de identidad del detalle de cliente, cuatro acciones abajo
  * del pliegue; el dueño pidió que se noten. A escala NORMAL cuestan **cero dp
  * verticales** —el dock ya existe y le sobraba una celda— y ganan el
- * distintivo, que en la fila de iconos no cabía. El detalle de VENTA las deja
- * en `null`.
+ * distintivo, que en la fila de iconos no cabía.
  *
  * ## A escala grande el dock se apila, y eso SÍ toca a la venta
  *
@@ -203,12 +193,12 @@ private fun BotonCircular(
  * aplica al dock, no a una pantalla, así que el detalle de VENTA también se
  * apila a escalas grandes. Sus goldens de 1.5 y 2.0 cambian; los de 1.0, no.
  *
- * Se decidió así a propósito en vez de apilar sólo cuando hay tres celdas: el
+ * Se decidió así a propósito en vez de apilar sólo cuando hay dos celdas: el
  * mismo control no puede acomodarse distinto en dos pantallas de la misma app
  * —es el argumento con el que se unificó la reveal del tema—, y la venta tenía
- * el mismo defecto de texto partido, sólo que con dos celdas en vez de tres.
+ * el mismo defecto de texto partido.
  *
- * Los dos son `(() -> Unit)?` / objeto opcional y no un `Boolean` aparte a
+ * [notas] es `AccionDeNotas?` / objeto opcional y no un `Boolean` aparte a
  * propósito: con dos parámetros se puede pedir el botón sin darle a dónde ir, y
  * el síntoma sería un control que se ve, se toca y no hace nada. Así el tipo no
  * deja escribir ese estado.
@@ -218,7 +208,6 @@ fun DockDeAcciones(
     textoPrimario: String,
     onPrimario: () -> Unit,
     onVisita: () -> Unit,
-    onMasAcciones: (() -> Unit)?,
     modifier: Modifier = Modifier,
     notas: AccionDeNotas? = null
 ) {
@@ -262,7 +251,7 @@ fun DockDeAcciones(
                         .weight(if (apilado) 1f else PESO_DEL_CTA)
                         .testTag(CTA_PRIMARIO_TAG)
                 )
-                if (!apilado) AccionesDelDock(onVisita, notas, onMasAcciones)
+                if (!apilado) AccionesDelDock(onVisita, notas)
             }
             if (apilado) {
                 Row(
@@ -270,7 +259,7 @@ fun DockDeAcciones(
                     horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AccionesDelDock(onVisita, notas, onMasAcciones)
+                    AccionesDelDock(onVisita, notas)
                 }
             }
         }
@@ -283,11 +272,7 @@ fun DockDeAcciones(
  * lugares era la forma segura de que una ganara un botón y la otra no.
  */
 @Composable
-private fun RowScope.AccionesDelDock(
-    onVisita: () -> Unit,
-    notas: AccionDeNotas?,
-    onMasAcciones: (() -> Unit)?
-) {
+private fun RowScope.AccionesDelDock(onVisita: () -> Unit, notas: AccionDeNotas?) {
     BotonDelDock(
         texto = "Visita",
         relleno = MspTheme.colors.surface,
@@ -315,17 +300,6 @@ private fun RowScope.AccionesDelDock(
             modifier = Modifier
                 .weight(1f)
                 .testTag(CTA_NOTAS_TAG)
-        )
-    }
-    if (onMasAcciones != null) {
-        BotonDelDock(
-            texto = "⋯",
-            relleno = MspTheme.colors.surface,
-            contenido = MspTheme.colors.onSurfaceMuted,
-            onClick = onMasAcciones,
-            modifier = Modifier
-                .size(TOQUE)
-                .testTag(MAS_ACCIONES_TAG)
         )
     }
 }

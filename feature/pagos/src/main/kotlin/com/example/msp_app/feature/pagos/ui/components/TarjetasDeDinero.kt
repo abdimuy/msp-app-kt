@@ -99,8 +99,8 @@ fun TarjetaDeLiquidacion(
                 )
                 Text(
                     text = liquidacion.vigenteHasta
-                        ?.let { "vigente hasta el " + VIGENCIA.format(it) }
-                        ?: "sin fecha de vigencia",
+                        ?.let { "Vigente hasta el " + VIGENCIA.format(it) }
+                        ?: "Sin fecha de vigencia",
                     style = MspTheme.type.caption,
                     color = MspTheme.colors.onSurfaceMuted
                 )
@@ -114,7 +114,7 @@ fun TarjetaDeLiquidacion(
                     .testTag(USAR_LIQUIDACION_TAG)
             ) {
                 Text(
-                    text = "usar",
+                    text = "Usar",
                     style = MspTheme.type.buttonSmall,
                     color = MspTheme.colors.onBrand,
                     modifier = Modifier.padding(

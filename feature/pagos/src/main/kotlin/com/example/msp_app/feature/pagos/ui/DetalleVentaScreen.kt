@@ -35,6 +35,7 @@ import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
+import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
@@ -87,8 +88,9 @@ fun DetalleVentaScreen(
     onAtras: () -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
-    onMasAcciones: (Int) -> Unit,
+    onVerAbonos: (Int) -> Unit,
     onVerGarantia: (Int) -> Unit,
+    onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -112,9 +114,8 @@ fun DetalleVentaScreen(
             onRegistrarVisita = {
                 detalle?.let { onRegistrarVisita(it.clienteId, viewModel.ventaId) }
             },
-            onMasAcciones = { onMasAcciones(viewModel.ventaId) },
             onUsarLiquidacion = { onRegistrarAbono(viewModel.ventaId) },
-            onVerAbonos = { onMasAcciones(viewModel.ventaId) },
+            onVerAbonos = { onVerAbonos(viewModel.ventaId) },
             linea = AccionesDeLaLinea(
                 filtro = state.filtro,
                 soloEstaVenta = state.soloEstaVenta,
@@ -125,6 +126,12 @@ fun DetalleVentaScreen(
             // (`getGuaranteeSaleById(DOCTO_CC_ID)`), no por el `EXTERNAL_ID` de la
             // garantía: se manda el crédito, que es la llave que ese flujo entiende.
             onVerGarantia = { detalle?.let { onVerGarantia(it.creditoId) } },
+            // El MISMO destino que abre el mapa desde el detalle de cliente y la
+            // bitácora, con el punto de ESE renglón. La venta no trae una
+            // dirección propia —a diferencia del cliente, no es un domicilio—,
+            // así que viaja vacía y la hoja del mapa la enseña como ausente
+            // (`HojaDeLaUbicacion`, `direccion.ifBlank { SIN_DIRECCION }`).
+            onVerUbicacionDelContacto = { punto -> onVerUbicacion(punto, "") },
             modifier = modifier
         )
     }
@@ -143,12 +150,12 @@ fun DetalleVentaContent(
     onAtras: () -> Unit,
     onRegistrarAbono: () -> Unit,
     onRegistrarVisita: () -> Unit,
-    onMasAcciones: () -> Unit,
     onUsarLiquidacion: () -> Unit,
     onVerAbonos: () -> Unit,
     onVerGarantia: () -> Unit,
     modifier: Modifier = Modifier,
-    linea: AccionesDeLaLinea = AccionesDeLaLinea()
+    linea: AccionesDeLaLinea = AccionesDeLaLinea(),
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null
 ) {
     Column(
         modifier = modifier
@@ -177,16 +184,25 @@ fun DetalleVentaContent(
                     onUsarLiquidacion = onUsarLiquidacion,
                     onVerAbonos = onVerAbonos,
                     onVerGarantia = onVerGarantia,
-                    linea = linea
+                    linea = linea,
+                    onVerUbicacionDelContacto = onVerUbicacionDelContacto
                 )
             }
         }
         if (detalle != null) {
             DockDeAcciones(
-                textoPrimario = "abonar " + formatMoneyMxn(detalle.parcialidad.amount),
+                textoPrimario = "Abonar " + formatMoneyMxn(detalle.parcialidad.amount),
                 onPrimario = onRegistrarAbono,
-                onVisita = onRegistrarVisita,
-                onMasAcciones = onMasAcciones
+                onVisita = onRegistrarVisita
+                // El "⋯" que llevaba a la pantalla legada ya no existe: el
+                // dueño no lo quiere ver más. "Ver los N abonos", más abajo en
+                // LineaDeLaVenta, sigue abriendo esa misma pantalla — es una
+                // puerta distinta, que él no pidió cerrar.
+                //
+                // Sin `notas`: a diferencia del detalle de cliente, la nota de
+                // esta pantalla es de sólo lectura (`TarjetaDeNotaDeLaVenta`,
+                // al fondo) y no tiene editor que abrir desde el dock — no hay
+                // a dónde llevar un botón aquí.
             )
         }
     }
@@ -199,7 +215,8 @@ private fun CuerpoDeLaVenta(
     onUsarLiquidacion: () -> Unit,
     onVerAbonos: () -> Unit,
     onVerGarantia: () -> Unit,
-    linea: AccionesDeLaLinea
+    linea: AccionesDeLaLinea,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null
 ) {
     Column(
         modifier = Modifier
@@ -229,7 +246,7 @@ private fun CuerpoDeLaVenta(
         Text(
             text = listOfNotNull(
                 detalle.folio,
-                "crédito ${detalle.creditoId}",
+                "Crédito ${detalle.creditoId}",
                 detalle.fechaVenta?.let { FECHA_DE_VENTA.format(it) }
             ).joinToString(" · "),
             style = MspTheme.type.subtitle,
@@ -259,7 +276,12 @@ private fun CuerpoDeLaVenta(
         RitmoDeSemanas(detalle.historial)
 
         LabelDeSeccion("lo que ha pasado")
-        LineaDeLaVenta(detalle = detalle, linea = linea, onVerAbonos = onVerAbonos)
+        LineaDeLaVenta(
+            detalle = detalle,
+            linea = linea,
+            onVerAbonos = onVerAbonos,
+            onVerUbicacion = onVerUbicacionDelContacto
+        )
 
         if (detalle.productos.isNotEmpty()) {
             LabelDeSeccion("productos")
@@ -278,17 +300,69 @@ private fun CuerpoDeLaVenta(
 
         LabelDeSeccion("datos de la venta")
         FilaClaveValor(
-            "fecha de venta",
+            "Fecha de venta",
             detalle.fechaVenta?.let { FECHA_DE_VENTA.format(it) } ?: SIN_DATO
         )
-        FilaClaveValor("total venta", formatMoneyMxn(detalle.totalVenta.amount))
-        FilaClaveValor("precio de contado", formatMoneyMxn(detalle.precioContado.amount))
-        FilaClaveValor("enganche", formatMoneyMxn(detalle.enganche.amount))
-        FilaClaveValor("abonado", formatMoneyMxn(detalle.abonado.amount))
-        FilaClaveValor("vendedor", detalle.vendedor)
+        FilaClaveValor("Total venta", formatMoneyMxn(detalle.totalVenta.amount))
+        FilaClaveValor("Precio de contado", formatMoneyMxn(detalle.precioContado.amount))
+        FilaClaveValor("Enganche", formatMoneyMxn(detalle.enganche.amount))
+        FilaClaveValor("Abonado", formatMoneyMxn(detalle.abonado.amount))
+        FilaClaveValor("Vendedor", detalle.vendedor)
+
+        // AL FONDO, como la ficha del detalle de cliente: no empuja un solo dp
+        // del dinero, que es por lo que el cobrador abrió la pantalla. Ver el
+        // KDoc de TarjetaDeNotaDeLaVenta para por qué esto NO es la ficha del
+        // cliente reusada tal cual.
+        TarjetaDeNotaDeLaVenta(nota = detalle.nota)
         Spacer(Modifier.height(MspTheme.spacing.lg))
     }
 }
+
+/**
+ * **La nota de ESTA venta**, tal como la trae el servidor — de sólo lectura.
+ *
+ * El dueño pidió que el detalle de venta tuviera notas, "como en detalles de
+ * cliente". Ahí viven DOS notas distintas ([SeccionDeLaFicha]): la ficha del
+ * cliente —catálogo cerrado, nota libre, editable, local— y la que la venta
+ * trae en su columna `NOTAS`, sólo de lectura. Esta pantalla es de una CUENTA,
+ * así que lo que el cobrador espera ver aquí es lo que aplica a esa cuenta: la
+ * nota de la venta, no la ficha del domicilio entero.
+ *
+ * La ficha no se trae a esta pantalla a propósito — ver el KDoc de
+ * [com.example.msp_app.feature.pagos.domain.model.DetalleVenta.nota] y el de
+ * `CargarDetalleCliente` sobre por qué esa lectura no entra a
+ * `ReunirCobranzaDelCliente`, que este detalle sí comparte: traerla sería una
+ * consulta de más en una pantalla que no la usa, y editarla desde aquí
+ * confundiría el dato de la cuenta con el del domicilio.
+ *
+ * Reusa [Tarjeta] y [LabelDeSeccion] — las mismas piezas con las que
+ * [SeccionDeLaFicha] arma su propia sección de notas — y no ese composable
+ * completo, que exige una [com.example.msp_app.feature.pagos.domain.model.FichaDelCliente]
+ * que esta pantalla no tiene y no debe simular.
+ *
+ * Sin nota es sin nota: se dice, no se rellena — mismo patrón que el "Sin
+ * notas" del detalle de cliente.
+ */
+@Composable
+internal fun TarjetaDeNotaDeLaVenta(nota: String?, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        LabelDeSeccion("Notas")
+        Tarjeta(modifier = Modifier.testTag(NOTA_DE_LA_VENTA_TAG)) {
+            Text(
+                text = nota ?: "Sin notas de esta venta",
+                style = MspTheme.type.body,
+                color = if (nota == null) {
+                    MspTheme.colors.onSurfaceMuted
+                } else {
+                    MspTheme.colors.onSurface
+                }
+            )
+        }
+    }
+}
+
+/** `testTag` de la tarjeta de notas del detalle de venta. */
+const val NOTA_DE_LA_VENTA_TAG: String = "pagos_venta_nota"
 
 @Composable
 private fun PieDeLaVenta(detalle: DetalleVenta) {
@@ -381,7 +455,8 @@ data class AccionesDeLaLinea(
 internal fun LineaDeLaVenta(
     detalle: DetalleVenta,
     linea: AccionesDeLaLinea,
-    onVerAbonos: () -> Unit
+    onVerAbonos: () -> Unit,
+    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
 ) {
     val delAlcance = if (linea.soloEstaVenta) {
         detalle.contactos.filter { it.ventaId == detalle.ventaId }
@@ -413,7 +488,8 @@ internal fun LineaDeLaVenta(
             grupo.contactos.forEach { contacto ->
                 ContactoEnLinea(
                     contacto = contacto,
-                    deEstaVenta = contacto.ventaId == detalle.ventaId
+                    deEstaVenta = contacto.ventaId == detalle.ventaId,
+                    onVerUbicacion = onVerUbicacion
                 )
             }
         }

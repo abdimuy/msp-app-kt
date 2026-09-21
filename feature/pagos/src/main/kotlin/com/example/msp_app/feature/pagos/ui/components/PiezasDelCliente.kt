@@ -286,8 +286,9 @@ private data class AccionDelCliente(
  * ## Eran cuatro: "Ficha" se fue al dock
  *
  * El dueño pidió que las Notas de la puerta se noten, y el dock tenía su tercer
- * espacio **diseñado y vacío** desde el rediseño (`onMasAcciones` en `null` para
- * esta pantalla). Mudarlas ahí cuesta **cero dp verticales** —el dock ya existe—
+ * espacio **diseñado y vacío** desde el rediseño (el "⋯" que ocupaba ese hueco
+ * en el detalle de venta era el único que lo usaba, y ya se quitó). Mudarlas
+ * ahí cuesta **cero dp verticales** —el dock ya existe—
  * y de paso gana el distintivo, que esta fila de iconos no podía dar: acá el
  * botón se ve igual con la puerta en blanco y con algo anotado.
  *

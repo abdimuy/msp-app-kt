@@ -245,9 +245,13 @@ class ReglaDelOrigenTest {
         assertEquals(VisitasRutas.SIN_VENTA, argInt(VisitasRutas.ARG_VENTA_ID))
     }
 
-    /** Punto de entrada: el "⋯" de las dos pantallas de detalle. */
+    /**
+     * Punto de entrada: "Ver los N abonos" del detalle de venta. El "⋯" que
+     * abría la MISMA ruta se quitó (el dueño no lo quiere ver más); esta
+     * puerta sigue abierta porque nadie pidió cerrarla.
+     */
     @Test
-    fun `el mas acciones abre el detalle legado de ESA venta, donde vive la condonacion`() {
+    fun `ver los abonos abre el detalle legado de ESA venta, donde vive la condonacion`() {
         nav.navigate(Screen.SaleDetails.createRoute(VENTA))
         assertEquals(Screen.SaleDetails.route, ruta())
         assertEquals(VENTA.toString(), argString("saleId"))

@@ -101,10 +101,12 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         onRegistrarVisita = { clienteId, ventaId ->
             navController.navigate(VisitasRutas.registrar(clienteId, ventaId))
         },
-        // El "⋯" abre el detalle legado: ahí vive la condonación, cuya
-        // lógica este plan declaró intacta, y con ella el mapa de la
-        // venta, los productos y el historial completo de abonos.
-        onMasAcciones = { ventaId ->
+        // "Ver los N abonos" abre el detalle legado: ahí vive la condonación,
+        // cuya lógica este plan declaró intacta, y con ella el mapa de la
+        // venta, los productos y el historial completo de abonos. El "⋯" que
+        // abría la MISMA pantalla se quitó (el dueño no lo quiere ver más);
+        // esta puerta se queda porque nadie pidió cerrarla.
+        onVerAbonos = { ventaId ->
             navController.navigate(Screen.SaleDetails.createRoute(ventaId))
         },
         // El flujo de garantías está indexado por CRÉDITO
@@ -112,7 +114,16 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         // misma ruta y el mismo id que ya usa `GuaranteeSection`.
         onVerGarantia = { creditoId ->
             navController.navigate(Screen.Guarantee.createRoute(creditoId.toString()))
-        }
+        },
+        // El MISMO destino que abre el cuadro de la puerta del detalle de
+        // cliente y la bitácora, con el punto de ESE renglón.
+        ubicacion = UbicacionEnLaBitacora(
+            onVer = { punto, direccion ->
+                navController.navigate(
+                    RutasDelMapa.ubicacion(punto.lat, punto.lng, direccion)
+                )
+            }
+        )
     )
 
     destinoDeRegistrarAbono(

@@ -92,6 +92,52 @@ import org.junit.Test
  * corrigieron con esta tarea — dejar dos en rojo habría significado inventar
  * una excepción escrita a mano para que el barrido pasara, que es la trampa que
  * este archivo entero existe para cerrar.
+ *
+ * ## El Arreglo B (21-sep): la lista a mano era el `etiqueta` del molde, no sólo de [ALCANCE]
+ *
+ * El dueño encontró en su teléfono "no estaba", "visité, vuelvo" y "prometió
+ * pagar" en minúscula — el catálogo de desenlaces de una visita,
+ * `ResultadoDeVisita`. El molde de la Task 1 debió atraparlo y no lo hizo:
+ * exigía que el parámetro se llamara **literalmente** `etiqueta`, y
+ * `ResultadoDeVisita` lo llama `titulo` (con `detalle` al lado). Era la MISMA
+ * lista a mano que el resto de esta clase ya rechaza, sólo que escrita como el
+ * nombre de un parámetro en vez de como una ruta de archivo — y por eso
+ * tardó exactamente igual en encontrarse: nadie se acordó de agregarlo.
+ *
+ * Un segundo defecto, independiente, escondía a `ResultadoDeVisita` incluso si
+ * el nombre hubiera coincidido: su constructor pone un KDoc arriba de CADA
+ * parámetro (`/** Título del renglón... */`), así que nunca cabe en una sola
+ * línea, y [ENUM_HEADER] exigía eso. [parametrosDelConstructor] ya no lo exige
+ * — sigue la profundidad de paréntesis, como ya hacía [literalesMedibles] para
+ * los sumideros de varias líneas.
+ *
+ * El arreglo real no fue agregar `ResultadoDeVisita` a una lista: fue quitarle
+ * el nombre exacto a [indicesDeTextoDeUsuario], que ahora acepta CUALQUIER
+ * parámetro `String` salvo los de [NOMBRES_SIN_PROSA] (`id`, `code`, `crudo`...).
+ * Medido sobre el repo completo con el molde ya corregido, aparecieron
+ * **cuatro** enums más con el mismo defecto — `BloqueoDeLaVisita.razon`,
+ * `ErrorDelTicketDeVisita.mensaje` y `ErrorDelTicket.mensaje` (dos, uno por
+ * pantalla de ticket) — y los cuatro se corrigieron aquí, igual que los tres
+ * de la Task 1.
+ *
+ * ## Lo que [etiquetasDeEnum] SÍ descubre solo, y lo que [ALCANCE] sigue sin descubrir
+ *
+ * [etiquetasDeEnum] es, desde este arreglo, genuinamente "por declaración": un
+ * enum nuevo con un parámetro `String` que no esté en [NOMBRES_SIN_PROSA] entra
+ * al barrido el día que se escribe, en cualquier módulo, sin tocar este
+ * archivo. [ALCANCE], en cambio, **sigue siendo una lista a mano** — el dueño
+ * pidió "barrer el detalle de venta y la pantalla de agregar pago", así que se
+ * agregaron `DetalleVentaScreen.kt`, `RegistrarAbonoScreen.kt` y sus piezas
+ * directas (`PiezasDelAbono.kt`, `TarjetasDeDinero.kt`), pero seguir
+ * derivando ESTA lista sola —"todo archivo bajo `ui/`", por ejemplo— se probó
+ * y se descartó: `LineaDeContactos.kt` tiene `MESES_ABREVIADOS` (`"ene"`,
+ * `"feb"`...), abreviaturas de mes que van en minúscula a propósito dentro de
+ * una fecha compuesta (`"18 feb"`, ver su KDoc), y un barrido por carpeta las
+ * habría marcado en rojo por una razón que no es la de esta tarea. La frontera
+ * que sí se cerró para siempre es la de la interpolación fuera de posición
+ * cero (ver el KDoc de [empiezaEnMayuscula]), que es la que de verdad
+ * escondía falsos positivos; la de "qué archivo entra a [ALCANCE]" se queda
+ * como decisión del dueño, declarada aquí y no implícita.
  */
 class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
 
@@ -157,6 +203,33 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
     }
 
     /**
+     * El control positivo del Arreglo B (Task del 21-sep): una interpolación
+     * que NO va al principio también deja el literal fuera de alcance. Antes
+     * de este arreglo, `" · $producto · saldo "` medía la **p** de `producto`
+     * —el nombre de la variable— y `"“$it”"` medía la **i** de `it`; los dos
+     * son el defecto real que escondió `TiraDeContexto` y la nota entre
+     * comillas de `ContactoEnLinea` del barrido original.
+     */
+    @Test
+    fun `la interpolacion se perdona aunque no vaya al principio`() {
+        assertEquals(
+            "el separador y la variable no tienen letra propia que medir",
+            null,
+            empiezaEnMayuscula(" · \$producto · saldo ")
+        )
+        assertEquals(
+            "la comilla no es la variable: sigue sin haber letra que medir",
+            null,
+            empiezaEnMayuscula("“\$it”")
+        )
+        assertEquals(
+            "con texto real ANTES de la interpolación sí hay letra que medir",
+            false,
+            empiezaEnMayuscula("vigente hasta el \$dia")
+        )
+    }
+
+    /**
      * El control positivo del sumidero: si la derivación devolviera un conjunto
      * vacío, el barrido dejaría de perdonar las versalitas y se llenaría de
      * rojos falsos; si devolviera medio repo, perdonaría todo y daría verde
@@ -191,15 +264,39 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
         )
         assertTrue(
             "MetodoDeCobro.EFECTIVO tiene que aparecer: es el defecto medido de la Task 1",
-            etiquetasDeEnum.any { (quien, _) -> quien == "MetodoDeCobro.EFECTIVO" }
+            etiquetasDeEnum.any { (quien, _) -> quien == "MetodoDeCobro.EFECTIVO.etiqueta" }
         )
     }
 
     /**
-     * La extensión de la Task 1. Ver el KDoc de la clase: un `enum class` con
-     * parámetro `etiqueta: String` es un catálogo cerrado de texto de usuario,
-     * así que cada literal en esa posición lleva mayúscula inicial igual que
-     * cualquier otro texto de usuario.
+     * El control positivo del Arreglo B: [etiquetasDeEnum] tiene que
+     * descubrir `ResultadoDeVisita.NO_ESTABA` por su parámetro `titulo` —no
+     * `etiqueta`— y pese a que su constructor nunca cabe en una sola línea
+     * (cada parámetro lleva su propio KDoc arriba). Si esta prueba se pusiera
+     * roja, la siguiente pasaría en verde por no medir nada — la misma
+     * mentira que los demás controles positivos de esta clase existen para
+     * impedir.
+     */
+    @Test
+    fun `se descubre un enum con parametro no llamado etiqueta y constructor en varias lineas`() {
+        assertTrue(
+            "ResultadoDeVisita.NO_ESTABA.titulo tiene que aparecer: es el defecto real " +
+                "que el dueño vio en su teléfono (Arreglo B)",
+            etiquetasDeEnum.any { (quien, _) -> quien == "ResultadoDeVisita.NO_ESTABA.titulo" }
+        )
+        assertTrue(
+            "ResultadoDeVisita.NO_ESTABA.detalle también, en la MISMA entrada: un enum " +
+                "puede tener más de un parámetro de prosa",
+            etiquetasDeEnum.any { (quien, _) -> quien == "ResultadoDeVisita.NO_ESTABA.detalle" }
+        )
+    }
+
+    /**
+     * La extensión de la Task 1 y del Arreglo B. Ver el KDoc de la clase: un
+     * `enum class` con un parámetro `String` que no esté en [NOMBRES_SIN_PROSA]
+     * es un catálogo cerrado de texto de usuario, así que cada literal en esa
+     * posición lleva mayúscula inicial igual que cualquier otro texto de
+     * usuario.
      */
     @Test
     fun `ninguna etiqueta de un enum de usuario empieza en minuscula`() {
@@ -210,7 +307,8 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
         assertEquals(
             "las etiquetas de un enum de usuario llevan mayúscula inicial (principio 10 " +
                 "del brief, y CLAUDE.md). El barrido del 18-sep no las vio porque su alcance " +
-                "era una lista de pantallas, no de declaraciones: ver el KDoc de esta clase",
+                "era una lista de pantallas, no de declaraciones, y el del 21-sep exigía que " +
+                "el parámetro se llamara literalmente `etiqueta`: ver el KDoc de esta clase",
             emptyList<String>(),
             enMinuscula
         )
@@ -249,44 +347,124 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
         escaner.archivos.firstOrNull { it.path.replace('\\', '/').endsWith(ruta) }
 
     /**
-     * `("$nombreDeLaEntrada", "$literalDeSuEtiqueta")` de cada entrada de cada
-     * `enum class` con parámetro `etiqueta: String`, en TODO el repo — ver el
-     * KDoc de la clase para por qué es por declaración y no por archivo.
+     * `("$enum.$entrada.$parametro", "$literal")` de cada entrada de cada
+     * `enum class` con al menos un parámetro `String` que no sea de la lista
+     * [NOMBRES_SIN_PROSA], en TODO el repo — ver el KDoc de la clase para por
+     * qué es por declaración y no por archivo, y por qué YA NO exige que el
+     * parámetro se llame literalmente `etiqueta`.
      */
     private val etiquetasDeEnum: List<Pair<String, String>> by lazy {
         escaner.archivos.flatMap { etiquetasDeEnumsEn(it) }
     }
 
-    /** [etiquetasDeEnum], pero de un solo archivo. */
+    /**
+     * [etiquetasDeEnum], pero de un solo archivo.
+     *
+     * Recorre línea por línea buscando `enum class Nombre(`; el constructor
+     * puede cerrar en la MISMA línea (`MetodoDeCobro`) o varias líneas después
+     * —un parámetro por renglón, con su propio KDoc arriba, como
+     * `ResultadoDeVisita`—, así que [parametrosDelConstructor] sigue la
+     * profundidad de paréntesis en vez de exigir que todo quepa en un renglón.
+     */
     private fun etiquetasDeEnumsEn(archivo: File): List<Pair<String, String>> {
         val lineas = codigoDe(archivo).lines()
         val encontradas = mutableListOf<Pair<String, String>>()
-        lineas.forEachIndexed { i, linea ->
-            val header = ENUM_CON_ETIQUETA.find(linea) ?: return@forEachIndexed
-            val enumNombre = header.groupValues[1]
-            val indice = indiceDeEtiqueta(header.groupValues[2]) ?: return@forEachIndexed
-            for (j in (i + 1) until lineas.size) {
-                val candidata = lineas[j]
-                if (candidata.isBlank()) continue
-                val entrada = ENTRADA_DE_ENUM.find(candidata) ?: break
-                val (entryNombre, argumentos) = entrada.destructured
-                val literal = literalEnPosicion(argumentos, indice)
-                if (literal != null) encontradas += "$enumNombre.$entryNombre" to literal
+        var i = 0
+        while (i < lineas.size) {
+            val header = ENUM_HEADER.find(lineas[i])
+            if (header == null) {
+                i++
+                continue
             }
+            val enumNombre = header.groupValues[1]
+            val (parametros, ultimaLinea) =
+                parametrosDelConstructor(lineas, i, header.range.last + 1)
+            val indices = indicesDeTextoDeUsuario(parametros)
+            if (indices.isNotEmpty()) {
+                for (j in (ultimaLinea + 1) until lineas.size) {
+                    val candidata = lineas[j]
+                    if (candidata.isBlank()) continue
+                    val entrada = ENTRADA_DE_ENUM.find(candidata) ?: break
+                    val (entryNombre, argumentos) = entrada.destructured
+                    indices.forEach { (indice, nombreParam) ->
+                        val literal = literalEnPosicion(argumentos, indice)
+                        if (literal != null) {
+                            encontradas += "$enumNombre.$entryNombre.$nombreParam" to literal
+                        }
+                    }
+                }
+            }
+            i = ultimaLinea + 1
         }
         return encontradas
     }
 
     /**
-     * En qué posición del constructor de un `enum class` va el parámetro
-     * llamado `etiqueta`, o `null` si ese enum no tiene uno.
+     * El texto de los parámetros del constructor de un `enum class`, desde
+     * [desde] en la línea [inicio] hasta que su paréntesis cierra — sin
+     * importar cuántas líneas tome. Devuelve ese texto y el índice de la
+     * ÚLTIMA línea consumida, para que [etiquetasDeEnumsEn] sepa dónde seguir
+     * buscando las entradas.
+     *
+     * Cuenta paréntesis carácter por carácter en vez de con una regex de una
+     * sola línea: es lo que permite que `ResultadoDeVisita` —cuyo constructor
+     * pone un KDoc arriba de cada parámetro y por eso nunca cabe en un
+     * renglón— se descubra igual que `MetodoDeCobro`, que sí cabe.
      */
-    private fun indiceDeEtiqueta(parametros: String): Int? {
-        val nombres = parametros.split(',').map {
-            it.substringBefore(':').trim().substringAfterLast(' ')
+    private fun parametrosDelConstructor(
+        lineas: List<String>,
+        inicio: Int,
+        desde: Int
+    ): Pair<String, Int> {
+        val texto = StringBuilder()
+        var profundidad = 1
+        var j = inicio
+        var pos = desde
+        while (j < lineas.size) {
+            val linea = lineas[j]
+            while (pos < linea.length) {
+                val caracter = linea[pos]
+                if (caracter == '(') profundidad++
+                if (caracter == ')') {
+                    profundidad--
+                    if (profundidad == 0) return texto.toString() to j
+                }
+                texto.append(caracter)
+                pos++
+            }
+            texto.append('\n')
+            j++
+            pos = 0
         }
-        val indice = nombres.indexOf("etiqueta")
-        return indice.takeIf { it >= 0 }
+        return texto.toString() to (lineas.size - 1)
+    }
+
+    /**
+     * De [parametros] —el texto crudo entre los paréntesis del constructor—,
+     * el `(índice, nombre)` de cada parámetro `String` que **no** está en
+     * [NOMBRES_SIN_PROSA].
+     *
+     * La lista es una lista de EXCLUSIÓN y no de inclusión, y esa dirección
+     * importa: un parámetro `String` es prosa hasta que su nombre demuestre lo
+     * contrario (`id`, `code`, `crudo`...), así que un enum nuevo con un
+     * parámetro `titulo` o `mensaje` —cualquier nombre que no esté en la
+     * lista— entra al barrido el día que se escribe, sin tocar este archivo.
+     * Al revés —una lista de nombres permitidos— es la misma lista a mano que
+     * escondió `ResultadoDeVisita.titulo`: sólo protege al parámetro que
+     * alguien se acordó de escribir.
+     */
+    private fun indicesDeTextoDeUsuario(parametros: String): List<Pair<Int, String>> {
+        val partes = splitArgumentosDeNivelSuperior(parametros)
+        val resultado = mutableListOf<Pair<Int, String>>()
+        partes.forEachIndexed { indice, parte ->
+            val sinModificador = parte.trim().removePrefix("val ").removePrefix("var ").trim()
+            val nombre = sinModificador.substringBefore(':').trim()
+            val tipo = sinModificador.substringAfter(':', "").trim()
+            if (tipo == "String" && nombre.isNotEmpty() && nombre !in NOMBRES_SIN_PROSA) {
+                resultado += indice to nombre
+            }
+        }
+        return resultado
     }
 
     /**
@@ -345,12 +523,21 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
      * los literales que no se pintan (`testTag`, patrones de fecha) y los que
      * viajan dentro de una llamada a un sumidero, que puede abarcar varias
      * líneas y por eso se sigue por profundidad de paréntesis.
+     *
+     * `ofPattern` entra a la misma lista que los sumideros, aunque no aplique
+     * versalitas: un patrón de fecha (`"d MMM yyyy"`) tampoco es prosa, y
+     * cuando el `DateTimeFormatter.ofPattern(...)` se escribe en varias
+     * líneas —como en `DetalleVentaScreen.FECHA_DE_VENTA`— [NO_SE_PINTA] no lo
+     * ve, porque esa regex mide una línea a la vez y `"d MMM yyyy"` vive en la
+     * línea de ABAJO de `ofPattern(`. El mismo seguimiento por profundidad de
+     * paréntesis que ya protege a los sumideros resuelve esto sin duplicar
+     * mecanismo.
      */
     private fun literalesMedibles(archivo: File): List<String> {
         check(sumideros.isNotEmpty()) { "sin sumideros derivados el barrido mentiría" }
         val invocaSumidero = Regex(
             "(?<![A-Za-z0-9_])(" +
-                sumideros.joinToString("|") { Regex.escape(it) } +
+                (sumideros + "ofPattern").joinToString("|") { Regex.escape(it) } +
                 ")\\s*\\("
         )
         val encontrados = mutableListOf<String>()
@@ -380,9 +567,17 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
     private companion object {
 
         /**
-         * **El detalle de cliente y la visita** — el alcance que el dueño eligió.
-         * Ver el KDoc de la clase: crece cuando el barrido crezca, y
-         * [el alcance existe entero] falla si una ruta se pudre.
+         * **El detalle de cliente, el de venta, el abono y la visita** — el
+         * alcance que el dueño eligió, ampliado el 21-sep para cubrir el
+         * defecto que vio en su teléfono. Ver el KDoc de la clase: crece
+         * cuando el barrido crezca, y [el alcance existe entero] falla si una
+         * ruta se pudre.
+         *
+         * Sigue siendo una lista a mano — eso NO cambió con la Task del
+         * 21-sep, y el KDoc de la clase explica por qué (falsos positivos como
+         * `MESES_ABREVIADOS`). Lo que sí dejó de ser una lista a mano es
+         * [etiquetasDeEnum], que ahora barre TODO el repo por estructura y no
+         * necesita que nadie agregue un archivo aquí.
          */
         val ALCANCE: List<String> = listOf(
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
@@ -390,7 +585,11 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/DetalleClienteScreen.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
+                "ui/DetalleVentaScreen.kt",
+            "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/DetalleUiState.kt",
+            "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
+                "ui/RegistrarAbonoScreen.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/HojaDeAbono.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
@@ -400,7 +599,11 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/PiezasDeLaFicha.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
+                "ui/components/PiezasDelAbono.kt",
+            "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/PiezasDelCliente.kt",
+            "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
+                "ui/components/TarjetasDeDinero.kt",
             "feature/visitas/src/main/kotlin/com/example/msp_app/feature/visitas/" +
                 "ui/RegistrarVisitaScreen.kt",
             "feature/visitas/src/main/kotlin/com/example/msp_app/feature/visitas/" +
@@ -424,17 +627,27 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
         /** El sumidero de versalitas, tal como lo escribe este repo. */
         val APLICA_VERSALITAS = Regex("""\.uppercase\(BUSINESS_LOCALE\)""")
 
-        /** Literales que nadie ve: tags de test y patrones de fecha. */
+        /** Literales que nadie ve: tags de test y patrones de fecha de una sola línea. */
         val NO_SE_PINTA = Regex("""testTag\(|_TAG|ofPattern\(""")
 
         /**
-         * El encabezado de un `enum class` con constructor, en la forma en la
-         * que este repo lo escribe (una sola línea): `enum class Nombre(params)`.
-         * No exige que `etiqueta` esté entre los parámetros — eso lo decide
-         * [indiceDeEtiqueta] sobre el grupo 2 — así que un enum con constructor
-         * y SIN `etiqueta` simplemente no aporta entradas.
+         * El encabezado de un `enum class` con constructor, hasta el paréntesis
+         * que lo abre. [parametrosDelConstructor] sigue desde ahí — ya no hace
+         * falta que el resto quepa en la misma línea.
          */
-        val ENUM_CON_ETIQUETA = Regex("""enum class (\w+)\(([^)]*)\)""")
+        val ENUM_HEADER = Regex("""enum class (\w+)\(""")
+
+        /**
+         * Nombres de parámetro que, aunque sean `String`, no son prosa por
+         * construcción: un identificador, una clave, una ruta o un patrón no
+         * son texto que el dueño haya escrito para que alguien lo lea. Es una
+         * lista de EXCLUSIÓN — ver el KDoc de [indicesDeTextoDeUsuario] para
+         * por qué esa dirección es la que importa.
+         */
+        val NOMBRES_SIN_PROSA = setOf(
+            "id", "code", "key", "crudo", "wireValue", "route", "path",
+            "pattern", "format", "mimeType", "url", "uri", "tag", "icon"
+        )
 
         /**
          * Una entrada de enum: `NOMBRE(argumentos)`, con `,` o `;` opcional al
@@ -466,10 +679,28 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
  *
  * Se mira **la primera letra y no el primer `Char`** porque el español abre
  * preguntas y exclamaciones con `¿` y `¡`: *"¿A cuál cuenta?"* cumple.
+ *
+ * ## La interpolación se perdona donde aparezca, no sólo al principio
+ *
+ * La versión anterior sólo miraba el primer `Char` del literal: `"$monto de
+ * abono"` se perdonaba, pero `" · $producto · saldo "` NO — el `$` va después
+ * de un separador, así que la vieja regla caía directo a "busca la primera
+ * letra" y encontraba la **p** de `producto`, el nombre de la variable, y la
+ * reportaba como si fuera prosa en minúscula. Es el mismo defecto que
+ * `"“$it”"` (la nota entrecomillada de `ContactoEnLinea`): la **i** de `it` se
+ * leía como si fuera la primera letra del texto.
+ *
+ * Por eso ahora se recorre [literal] carácter por carácter, saltando
+ * separadores (espacios, puntuación, comillas), y el primer carácter que
+ * **importa** decide: una letra mide su mayúscula, una cifra o un `$` dejan
+ * todo el literal fuera de alcance —lo que venga después de un `$` es una
+ * variable, no una palabra que el dueño haya escrito—. Si no aparece ninguno
+ * de los tres, tampoco hay nada que medir.
  */
 internal fun empiezaEnMayuscula(literal: String): Boolean? {
-    val primero = literal.firstOrNull() ?: return null
-    if (primero == '$' || primero.isDigit()) return null
-    val primeraLetra = literal.firstOrNull { it.isLetter() } ?: return null
-    return primeraLetra.isUpperCase()
+    for (caracter in literal) {
+        if (caracter.isLetter()) return caracter.isUpperCase()
+        if (caracter.isDigit() || caracter == '$') return null
+    }
+    return null
 }

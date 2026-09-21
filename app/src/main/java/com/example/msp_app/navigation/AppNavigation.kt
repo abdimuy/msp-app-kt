@@ -84,17 +84,19 @@ sealed class Screen(val route: String) {
     /**
      * El detalle de venta **legado**.
      *
-     * Desde la Task 21 ya no es la puerta de ninguna lista: se llega por el "⋯"
-     * de las pantallas de detalle nuevas, que es donde vive la **condonación**
-     * —cuya lógica este plan declaró intacta— junto con el mapa de la venta, los
-     * productos, la garantía y el historial completo.
+     * Desde la Task 21 ya no es la puerta de ninguna lista. Hasta hace poco se
+     * llegaba también por el "⋯" del detalle de venta nuevo; el dueño lo quitó
+     * ("no quiero volver a verla nunca más") y la única puerta que queda es "Ver
+     * los N abonos" dentro de esa misma pantalla — donde vive la
+     * **condonación** —cuya lógica este plan declaró intacta— junto con el mapa
+     * de la venta, los productos, la garantía y el historial completo.
      *
      * ## Qué id espera esta ruta, y quién le manda otro
      *
      * `SaleDetailsScreen` resuelve su argumento con `SaleDao.getById`, que filtra
      * **`DOCTO_CC_ACR_ID`** (la llave primaria de `sales`). Eso es lo que la ruta
-     * necesita, y lo que le mandan los llamadores nuevos —`destinosDeCobranza`,
-     * en el `onMasAcciones` de `:feature:pagos`—.
+     * necesita, y lo que le manda el llamador nuevo —`destinosDeCobranza`, en el
+     * `onVerAbonos` de `:feature:pagos`—.
      *
      * La lista "otras ventas del cliente" (`SaleDetailsScreen`) navegaba con
      * `saleItem.DOCTO_CC_ID`; ahora pasa por

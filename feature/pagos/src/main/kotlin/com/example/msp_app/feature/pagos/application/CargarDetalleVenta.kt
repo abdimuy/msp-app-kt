@@ -106,7 +106,12 @@ class CargarDetalleVenta @Inject constructor(
                 cuentas = productosPorVenta.aCuentas()
             ),
             liquidacion = cobranza.liquidaciones[ventaId],
-            garantia = garantiasPort.garantiaDe(venta.creditoId)
+            garantia = garantiasPort.garantiaDe(venta.creditoId),
+            // La nota de ESTA cuenta, no la de la primera del domicilio: a
+            // diferencia de `CargarDetalleCliente.notaDeLaVenta` —una
+            // aproximación, la de la cuenta que encabeza— aquí no hace falta
+            // aproximar nada, la venta ya está resuelta.
+            nota = venta.notas.takeIf { it.isNotBlank() }
         )
     }
 

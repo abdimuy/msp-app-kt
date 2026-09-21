@@ -26,25 +26,25 @@ import com.example.msp_app.core.common.cobranza.domain.VisitScope
  */
 enum class ResultadoDeVisita(
     val estado: EstadoCuenta,
-    /** Título del renglón. Español, minúsculas, sin punto final, 2-4 palabras. */
+    /** Título del renglón. Español, mayúscula inicial, sin punto final, 2-4 palabras. */
     val titulo: String,
     /** La línea de abajo, en el mismo registro que [titulo]. */
     val detalle: String
 ) {
     /** No había quién atendiera. Se propaga a todas las cuentas del cliente. */
-    NO_ESTABA(EstadoCuenta.NO_ESTABA, "no estaba", "nadie atendió"),
+    NO_ESTABA(EstadoCuenta.NO_ESTABA, "No estaba", "Nadie atendió"),
 
     /** Pasaste y no se resolvió. Sigue en la lista de esta semana. */
-    VISITE_VUELVO(EstadoCuenta.VISITE_VUELVO, "visité, vuelvo", "no se resolvió"),
+    VISITE_VUELVO(EstadoCuenta.VISITE_VUELVO, "Visité, vuelvo", "No se resolvió"),
 
     /** Dijo cuándo y cuánto. **El único camino que difiere trabajo.** */
-    PROMETIO(EstadoCuenta.PROMETIO_PROXIMA, "prometió pagar", "dijo cuándo y cuánto"),
+    PROMETIO(EstadoCuenta.PROMETIO_PROXIMA, "Prometió pagar", "Dijo cuándo y cuánto"),
 
     /** Quedaron de verse. Es del domicilio, así que aplica a todas sus cuentas. */
-    CITA(EstadoCuenta.CITA_A_UNA_HORA, "cita a una hora", "quedaron de verse"),
+    CITA(EstadoCuenta.CITA_A_UNA_HORA, "Cita a una hora", "Quedaron de verse"),
 
     /** Se niega o hay conflicto: la cuenta se escala. */
-    SE_NEGO(EstadoCuenta.SE_NEGO, "se negó", "hay conflicto");
+    SE_NEGO(EstadoCuenta.SE_NEGO, "Se negó", "Hay conflicto");
 
     /** ¿El desenlace es del domicilio o de una deuda? Lo dice el catálogo. */
     val alcance: VisitScope get() = estado.alcance
