@@ -25,6 +25,7 @@ import org.junit.Test
 // el porqué medido de `UPLOAD_LEASE_MS`.
 private const val EDIT_LEASE_MS = 30 * 60 * 1000L
 private const val UPLOAD_LEASE_MS = 180 * 1000L
+private const val REMOTE_LEASE_MS = 180 * 1000L
 
 private const val SALE_ID = "sale-reclamo-001"
 private const val CLAIM_ID_A = "claim-uuid-aaaa"
@@ -101,7 +102,8 @@ class LocalSaleClaimLifecycleDaoTest : RobolectricTestBase() {
     private suspend fun insert(sale: LocalSaleEntity) = database.localSaleDao().insertSale(sale)
 
     private suspend fun getUploadableSales(now: Long = clock.now().toEpochMilli()) =
-        database.localSaleDao().getUploadableSales(now, EDIT_LEASE_MS, UPLOAD_LEASE_MS)
+        database.localSaleDao()
+            .getUploadableSales(now, EDIT_LEASE_MS, UPLOAD_LEASE_MS, REMOTE_LEASE_MS)
 
     // ─── markSentAndCloseEdit ───────────────────────────────────────────
     //
@@ -453,6 +455,68 @@ class LocalSaleClaimLifecycleDaoTest : RobolectricTestBase() {
 
         assertEquals(setOf("sale-a"), uploadable.map { it.LOCAL_SALE_ID }.toSet())
     }
+
+    /**
+     * El tercer tipo de candado (nivel 2, eje 5): una venta con un candado
+     * `REMOTE` vigente tampoco debe entrar al barrido de SUBIDA — en la
+     * práctica no debería ocurrir (REMOTE sólo se acuña con ENVIADO=1, y
+     * este barrido es de ENVIADO=0), pero el predicado la excluye por la
+     * misma defensa en profundidad que ya aplica a EDIT/UPLOAD.
+     */
+    @Test
+    fun `getUploadableSales excluye una venta con candado REMOTE vigente`() = runTest {
+        val now = clock.now().toEpochMilli()
+        insert(
+            freeSale(saleId = "sale-a", claimId = CLAIM_ID_A, claimKind = "REMOTE", claimedAt = now)
+        )
+        insert(freeSale(saleId = "sale-b"))
+
+        val uploadable = getUploadableSales(now)
+
+        assertEquals(setOf("sale-b"), uploadable.map { it.LOCAL_SALE_ID }.toSet())
+    }
+
+    @Test
+    fun `getUploadableSales incluye una venta con candado REMOTE vencido`() = runTest {
+        val claimedAt = clock.now().toEpochMilli()
+        insert(
+            freeSale(
+                saleId = "sale-a",
+                claimId = CLAIM_ID_A,
+                claimKind = "REMOTE",
+                claimedAt = claimedAt
+            )
+        )
+
+        clock.advance(Duration.ofMillis(REMOTE_LEASE_MS))
+
+        val uploadable = getUploadableSales()
+
+        assertEquals(setOf("sale-a"), uploadable.map { it.LOCAL_SALE_ID }.toSet())
+    }
+
+    @Test
+    fun `getUploadableSales excluye una venta con candado REMOTE que vence en 1 ms mas`() =
+        runTest {
+            val claimedAt = clock.now().toEpochMilli()
+            insert(
+                freeSale(
+                    saleId = "sale-a",
+                    claimId = CLAIM_ID_A,
+                    claimKind = "REMOTE",
+                    claimedAt = claimedAt
+                )
+            )
+
+            clock.advance(Duration.ofMillis(REMOTE_LEASE_MS - 1))
+
+            val uploadable = getUploadableSales()
+
+            assertTrue(
+                "un milisegundo antes de vencer, el candado remoto sigue vigente: fuera del barrido",
+                uploadable.none { it.LOCAL_SALE_ID == "sale-a" }
+            )
+        }
 
     // ─── getSaleClaimSnapshot ───────────────────────────────────────────
 

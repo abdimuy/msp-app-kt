@@ -109,7 +109,8 @@ class CorreccionMuerteEntreGuardarYReencolarTest : RoomTestBase() {
                     db.localSaleDao().getUploadableSales(
                         now = clock.now().toEpochMilli(),
                         editLeaseMs = LocalSaleClaimLeases.EDIT_LEASE_MS,
-                        uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS
+                        uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+                        remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
                     )
                 },
                 enqueuer = enqueuer

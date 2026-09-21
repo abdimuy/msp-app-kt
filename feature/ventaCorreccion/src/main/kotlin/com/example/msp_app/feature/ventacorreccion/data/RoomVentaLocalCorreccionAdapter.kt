@@ -63,7 +63,8 @@ class RoomVentaLocalCorreccionAdapter(
             saleId = saleId,
             claimId = claimId,
             now = ahora,
-            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS
+            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+            remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
         ) == 1
 
     override suspend fun soltar(saleId: String, claimId: String) {

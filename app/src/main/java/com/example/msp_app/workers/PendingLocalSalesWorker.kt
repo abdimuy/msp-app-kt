@@ -101,7 +101,9 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
     internal val latidoDeSubidaMs: Long = LocalSaleClaimLeases.UPLOAD_HEARTBEAT_MS,
     /**
      * La renovación del arrendamiento, como costurón propio. Por defecto es
-     * `renewUploadClaim` del DAO — el mismo SQL que corre en el teléfono.
+     * `renewClaim` del DAO (generalizado en el nivel 2 desde
+     * `renewUploadClaim` — mismo `CLAIM_ID`, ya no filtra por `CLAIM_KIND`,
+     * ver su KDoc) — el mismo SQL que corre en el teléfono.
      *
      * Es un costurón (y no una llamada directa a [localSaleStore]) porque el
      * latido es la única parte de este worker que ocurre EN PARALELO al
@@ -118,7 +120,7 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
         now: Long
     ) -> Int = { saleId, claimId, now ->
         AppDatabase.getInstance(appContext).localSaleDao()
-            .renewUploadClaim(saleId, claimId, now)
+            .renewClaim(saleId, claimId, now)
     },
     /**
      * Acuña el `CLAIM_ID` del candado de subida. Inyectable para que una
@@ -730,7 +732,7 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
      * No se pone un `callTimeout` para acotarla (decisión del dueño): un tope
      * total cambiaría una carrera por una venta que NUNCA llega.
      *
-     * El latido nunca re-RECLAMA: si `renewUploadClaim` devuelve 0 el candado
+     * El latido nunca re-RECLAMA: si `renewClaim` devuelve 0 el candado
      * ya no es nuestro y el latido se detiene — retomarlo le robaría la fila
      * al editor. El caso que queda entonces (2xx tardío sobre una fila ya
      * corregida) lo marca `markSentAndCloseEdit` con `CORRECCION_NO_ENVIADA`.

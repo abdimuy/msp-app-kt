@@ -68,4 +68,24 @@ object LocalSaleClaimLeases {
      * vuelve irrelevante para el caso vivo.
      */
     const val UPLOAD_HEARTBEAT_MS: Long = UPLOAD_LEASE_MS / 3
+
+    /**
+     * Arrendamiento del tercer tipo de candado, `'REMOTE'` (plan "Corregir
+     * una venta DESPUÉS de que subió", nivel 2, eje 5): el que toma
+     * `RemoteSaleCorrectionWorker` mientras corre la secuencia de tres
+     * peticiones (`GET` + `PUT /lineas` + `PATCH /cliente` + `PATCH /{id}`)
+     * contra una venta ya enviada. Mismo valor y mismo argumento que
+     * [UPLOAD_LEASE_MS]: tres peticiones sobre una red mala tardan más que
+     * una sola, pero no hay razón para que tarden MÁS que una subida con
+     * fotos — 180 s es el mismo "tiempo razonable" ya medido para ese caso.
+     */
+    const val REMOTE_LEASE_MS: Long = 180 * 1000L
+
+    /**
+     * Período del latido del worker de corrección remota mientras la
+     * secuencia de tres peticiones sigue en vuelo — mismo argumento que
+     * [UPLOAD_HEARTBEAT_MS] (un tercio, no la mitad: un latido puede
+     * perderse sin que nada esté roto).
+     */
+    const val REMOTE_HEARTBEAT_MS: Long = REMOTE_LEASE_MS / 3
 }

@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 import com.example.msp_app.core.database.migrations.MIGRATION_30_31
+import com.example.msp_app.core.database.migrations.MIGRATION_31_32
 import com.example.msp_app.core.testing.RobolectricTestBase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -15,44 +16,47 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-private const val MIGRATION_DB = "migration-29-a-31-test.db"
+private const val MIGRATION_DB = "migration-29-a-32-test.db"
 private const val V29 = 29
-private const val V31 = 31
+private const val V32 = 32
 
-private const val SEEDED_SALE_ID = "sale-migracion-29-a-31"
+private const val SEEDED_SALE_ID = "sale-migracion-29-a-32"
 private const val SEEDED_PRODUCT_ARTICULO_ID = 4821
-private const val SEEDED_COMBO_ID = "combo-migracion-29-a-31"
-private const val SEEDED_IMAGE_ID = "img-migracion-29-a-31"
-private const val SEEDED_VISIT_ID = "visita-migracion-29-a-31"
+private const val SEEDED_COMBO_ID = "combo-migracion-29-a-32"
+private const val SEEDED_IMAGE_ID = "img-migracion-29-a-32"
+private const val SEEDED_VISIT_ID = "visita-migracion-29-a-32"
 private const val SEEDED_SALE_CLIENTE = "Rosa Elena Martinez Vazquez"
 
 /**
- * **La cadena completa: v29 → v31, pasando por las DOS migraciones.**
+ * **La cadena completa: v29 → v32, pasando por las TRES migraciones.**
  *
- * Es la prueba que la integración del 2026-09-21 exige y que ninguna de las
- * dos ramas podía escribir por separado: cada una probaba SU 29→30 contra el
- * `30.json` que ella misma exportaba. Tras renumerar (ver el KDoc de
- * `MIGRATION_30_31`) existe por primera vez un salto de dos tramos, y el
- * teléfono que el dueño va a actualizar hoy está justamente en v29 — ninguna
- * de las dos v30 salió nunca a la flota, así que **v29 → v31 es el único
- * camino que la actualización va a recorrer de verdad**.
+ * Extiende (no duplica) la prueba que la integración del 2026-09-21 exigió
+ * para v29→v31 — se llamaba `Migration29a31Test`; se renombra a este archivo
+ * al sumarle el tramo del nivel 2 en vez de escribir un archivo hermano, para
+ * no tener dos pruebas afirmando la misma supervivencia con nombres
+ * distintos. El teléfono que el dueño actualiza hoy sigue estando en v29, así
+ * que **v29 → v32 es el único camino que la actualización recorre de
+ * verdad**.
  *
  * Lo que se afirma:
  *
  * 1. Una venta capturada sin señal, con su producto, su combo y su foto —lo
- *    que un teléfono trae encima cuando el dueño actualiza— sobrevive los dos
- *    tramos con cada campo intacto. Es el peor daño posible de este dominio:
- *    dinero cobrado en la calle que desaparece al actualizar la app.
- * 2. Las columnas de las DOS migraciones existen al final: las de `Visit`
- *    (promesa y cita, tramo 29→30) y las de `local_sale` (el candado, tramo
- *    30→31), más las cinco tablas nuevas del primer tramo.
+ *    que un teléfono trae encima cuando el dueño actualiza— sobrevive los
+ *    tres tramos con cada campo intacto. Es el peor daño posible de este
+ *    dominio: dinero cobrado en la calle que desaparece al actualizar la app.
+ * 2. Las columnas de las TRES migraciones existen al final: las de `Visit`
+ *    (promesa y cita, tramo 29→30), las del candado único de `local_sale`
+ *    (tramo 30→31, nivel 1) y las del estado del servidor + cola de
+ *    correcciones remotas de `local_sale` (tramo 31→32, nivel 2), más las
+ *    cinco tablas nuevas del primer tramo.
  * 3. El salto funciona también por el camino REAL de producción
  *    (`AppDatabase.buildDatabase`), que es quien tiene que encontrar la ruta
- *    de 29 a 31 con las dos migraciones registradas. Una de las dos fuera de
- *    `addMigrations` deja la app sin abrir en un teléfono con ventas adentro,
- *    y las pruebas que pasan las migraciones a mano no lo verían.
+ *    de 29 a 32 con las tres migraciones registradas. Cualquiera de las tres
+ *    fuera de `addMigrations` deja la app sin abrir en un teléfono con
+ *    ventas adentro, y las pruebas que pasan las migraciones a mano no lo
+ *    verían.
  */
-class Migration29a31Test : RobolectricTestBase() {
+class Migration29a32Test : RobolectricTestBase() {
 
     @get:Rule
     val migrationTestHelper = MigrationTestHelper(
@@ -61,10 +65,10 @@ class Migration29a31Test : RobolectricTestBase() {
     )
 
     @Test
-    fun `una venta pendiente y sus hijos sobreviven los dos tramos de v29 a v31`() {
+    fun `una venta pendiente y sus hijos sobreviven los tres tramos de v29 a v32`() {
         seedV29()
 
-        val migrada = migrarHastaV31()
+        val migrada = migrarHastaV32()
 
         migrada.query(
             """
@@ -73,7 +77,7 @@ class Migration29a31Test : RobolectricTestBase() {
             """.trimIndent(),
             arrayOf(SEEDED_SALE_ID)
         ).use { cursor ->
-            assertTrue("la venta sembrada en v29 debe seguir ahí en v31", cursor.moveToFirst())
+            assertTrue("la venta sembrada en v29 debe seguir ahí en v32", cursor.moveToFirst())
             assertEquals(SEEDED_SALE_CLIENTE, cursor.getString(0))
             assertEquals(6800.0, cursor.getDouble(1), 0.0)
             assertEquals("ENVIADO no debe mutar por efecto de migrar", 0, cursor.getInt(2))
@@ -87,7 +91,7 @@ class Migration29a31Test : RobolectricTestBase() {
             arrayOf(SEEDED_SALE_ID, SEEDED_PRODUCT_ARTICULO_ID)
         ).use { cursor ->
             assertTrue(
-                "el producto de la venta debe sobrevivir los dos tramos",
+                "el producto de la venta debe sobrevivir los tres tramos",
                 cursor.moveToFirst()
             )
             assertEquals("Colchon Queen", cursor.getString(0))
@@ -98,7 +102,7 @@ class Migration29a31Test : RobolectricTestBase() {
             "SELECT NOMBRE_COMBO FROM local_sale_combos WHERE LOCAL_SALE_ID = ? AND COMBO_ID = ?",
             arrayOf(SEEDED_SALE_ID, SEEDED_COMBO_ID)
         ).use { cursor ->
-            assertTrue("el combo de la venta debe sobrevivir los dos tramos", cursor.moveToFirst())
+            assertTrue("el combo de la venta debe sobrevivir los tres tramos", cursor.moveToFirst())
             assertEquals("Combo Recamara Completa", cursor.getString(0))
         }
 
@@ -106,7 +110,7 @@ class Migration29a31Test : RobolectricTestBase() {
             "SELECT IMAGE_URI FROM sale_image WHERE LOCAL_SALE_ID = ? AND LOCAL_SALE_IMAGE_ID = ?",
             arrayOf(SEEDED_SALE_ID, SEEDED_IMAGE_ID)
         ).use { cursor ->
-            assertTrue("la foto de la venta debe sobrevivir los dos tramos", cursor.moveToFirst())
+            assertTrue("la foto de la venta debe sobrevivir los tres tramos", cursor.moveToFirst())
             assertEquals("content://images/evidencia-001.jpg", cursor.getString(0))
         }
 
@@ -114,12 +118,24 @@ class Migration29a31Test : RobolectricTestBase() {
     }
 
     @Test
-    fun `al final de la cadena existen las columnas de las DOS migraciones`() {
+    fun `al final de la cadena existen las columnas de las TRES migraciones`() {
         seedV29()
 
-        val migrada = migrarHastaV31()
+        val migrada = migrarHastaV32()
 
-        // Tramo 29→30 (plan `pagos-y-visitas`): promesa y cita sobre `Visit`.
+        assertColumnasDelTramo29a30(migrada)
+        val columnasDeVenta = nombresDeColumna(migrada, "local_sale")
+        assertColumnasDelTramo30a31(columnasDeVenta)
+        assertColumnasDelTramo31a32(columnasDeVenta)
+        assertTablasNuevasDelTramo29a30(migrada)
+        assertVisitaSembradaSobrevive(migrada)
+        assertVentaSembradaEstrenaColumnasDelNivel2(migrada)
+
+        migrada.close()
+    }
+
+    // Tramo 29→30 (plan `pagos-y-visitas`): promesa y cita sobre `Visit`.
+    private fun assertColumnasDelTramo29a30(migrada: SupportSQLiteDatabase) {
         val columnasDeVisit = nombresDeColumna(migrada, "Visit")
         listOf(
             "PROMESA_VENTA_ID",
@@ -130,9 +146,10 @@ class Migration29a31Test : RobolectricTestBase() {
         ).forEach {
             assertTrue("falta $it: el tramo 29→30 no corrió", it in columnasDeVisit)
         }
+    }
 
-        // Tramo 30→31 (plan "Corregir una venta antes de que suba"): el candado.
-        val columnasDeVenta = nombresDeColumna(migrada, "local_sale")
+    // Tramo 30→31 (plan "Corregir una venta antes de que suba", nivel 1): el candado.
+    private fun assertColumnasDelTramo30a31(columnasDeVenta: List<String>) {
         listOf(
             "CLAIM_ID",
             "CLAIM_KIND",
@@ -143,8 +160,26 @@ class Migration29a31Test : RobolectricTestBase() {
         ).forEach {
             assertTrue("falta $it: el tramo 30→31 no corrió", it in columnasDeVenta)
         }
+    }
 
-        // Y las cinco tablas nuevas del primer tramo, que el segundo no toca.
+    // Tramo 31→32 (plan "Corregir una venta DESPUÉS de que subió", nivel 2):
+    // estado del servidor + cola de correcciones remotas.
+    private fun assertColumnasDelTramo31a32(columnasDeVenta: List<String>) {
+        listOf(
+            "SERVER_SITUACION",
+            "SERVER_SINCRONIZACION",
+            "SERVER_VERSION",
+            "SERVER_STATE_AT",
+            "CORRECCION_REMOTA_PENDIENTE",
+            "CORRECCION_REMOTA_ESTADO",
+            "REVISION_REMOTA_ENVIADA"
+        ).forEach {
+            assertTrue("falta $it: el tramo 31→32 no corrió", it in columnasDeVenta)
+        }
+    }
+
+    // Las cinco tablas nuevas del primer tramo, que los otros dos no tocan.
+    private fun assertTablasNuevasDelTramo29a30(migrada: SupportSQLiteDatabase) {
         listOf(
             "visita_imagenes",
             "pago_imagenes",
@@ -159,8 +194,10 @@ class Migration29a31Test : RobolectricTestBase() {
                 assertTrue("falta la tabla $tabla del tramo 29→30", cursor.moveToFirst())
             }
         }
+    }
 
-        // La visita sembrada conserva su nota y estrena las columnas nuevas vacías.
+    // La visita sembrada conserva su nota y estrena las columnas nuevas vacías.
+    private fun assertVisitaSembradaSobrevive(migrada: SupportSQLiteDatabase) {
         migrada.query(
             "SELECT NOTA, PROMESA_FECHA, CITA_FECHA FROM Visit WHERE ID = ?",
             arrayOf(SEEDED_VISIT_ID)
@@ -170,19 +207,37 @@ class Migration29a31Test : RobolectricTestBase() {
             assertTrue("PROMESA_FECHA estrena NULL", cursor.isNull(1))
             assertTrue("CITA_FECHA estrena NULL", cursor.isNull(2))
         }
+    }
 
-        migrada.close()
+    // La venta sembrada estrena las siete columnas del nivel 2 vacías/en su default.
+    private fun assertVentaSembradaEstrenaColumnasDelNivel2(migrada: SupportSQLiteDatabase) {
+        migrada.query(
+            """
+            SELECT SERVER_SITUACION, CORRECCION_REMOTA_PENDIENTE, REVISION_REMOTA_ENVIADA
+            FROM local_sale WHERE LOCAL_SALE_ID = ?
+            """.trimIndent(),
+            arrayOf(SEEDED_SALE_ID)
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertTrue("SERVER_SITUACION estrena NULL: nunca se leyó el servidor", cursor.isNull(0))
+            assertEquals(
+                "CORRECCION_REMOTA_PENDIENTE estrena 0",
+                0,
+                cursor.getInt(1)
+            )
+            assertTrue("REVISION_REMOTA_ENVIADA estrena NULL", cursor.isNull(2))
+        }
     }
 
     /**
      * El camino REAL: `AppDatabase.buildDatabase` es la única fuente de verdad
-     * del builder de producción. Si cualquiera de las dos migraciones faltara
-     * en su `addMigrations`, Room no encontraría ruta de 29 a 31 y `.build()`
-     * tronaría al primer acceso — exactamente la falla que vería un teléfono
-     * con ventas pendientes adentro.
+     * del builder de producción. Si cualquiera de las tres migraciones
+     * faltara en su `addMigrations`, Room no encontraría ruta de 29 a 32 y
+     * `.build()` tronaría al primer acceso — exactamente la falla que vería
+     * un teléfono con ventas pendientes adentro.
      */
     @Test
-    fun `abrir por el camino de produccion lleva una base v29 hasta v31`() {
+    fun `abrir por el camino de produccion lleva una base v29 hasta v32`() {
         seedV29()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val dbPath = context.getDatabasePath(MIGRATION_DB).path
@@ -193,8 +248,8 @@ class Migration29a31Test : RobolectricTestBase() {
 
         try {
             assertEquals(
-                "abrir por el camino real de produccion debe terminar en v31",
-                V31,
+                "abrir por el camino real de produccion debe terminar en v32",
+                V32,
                 abierta.openHelper.readableDatabase.version
             )
 
@@ -205,18 +260,24 @@ class Migration29a31Test : RobolectricTestBase() {
                 venta?.NOMBRE_CLIENTE
             )
             assertEquals("REVISION arranca en 0 tras la cadena completa", 0, venta?.REVISION)
+            assertEquals(
+                "CORRECCION_REMOTA_PENDIENTE arranca en 0 tras la cadena completa",
+                false,
+                venta?.CORRECCION_REMOTA_PENDIENTE
+            )
         } finally {
             abierta.close()
         }
     }
 
-    private fun migrarHastaV31(): SupportSQLiteDatabase =
+    private fun migrarHastaV32(): SupportSQLiteDatabase =
         migrationTestHelper.runMigrationsAndValidate(
             MIGRATION_DB,
-            V31,
+            V32,
             true,
             MIGRATION_29_30,
-            MIGRATION_30_31
+            MIGRATION_30_31,
+            MIGRATION_31_32
         )
 
     private fun nombresDeColumna(db: SupportSQLiteDatabase, tabla: String): List<String> =

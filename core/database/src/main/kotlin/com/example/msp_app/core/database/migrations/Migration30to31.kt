@@ -24,7 +24,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *
  * El contenido NO cambió: las mismas seis columnas, las mismas sentencias
  * `ALTER TABLE ... ADD COLUMN`, los mismos defaults. Una base v29 llega a v31
- * corriendo las dos migraciones en orden, y `Migration29a31Test` lo prueba con
+ * corriendo las dos migraciones en orden, y `Migration29a32Test` lo prueba con
  * una venta local sembrada y sus hijos.
  *
  * - `CLAIM_ID` (nullable): UUID del candado vivo de la fila. `NULL` = nadie

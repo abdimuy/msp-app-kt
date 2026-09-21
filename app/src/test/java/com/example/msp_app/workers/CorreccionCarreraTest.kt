@@ -221,7 +221,7 @@ class CorreccionCarreraTest : RoomTestBase() {
                     nowEpochMillis = reloj::ahoraEpochMillis,
                     latidoDeSubidaMs = latidoMs,
                     renovarArrendamientoDeSubida = renovar
-                        ?: { s, c, n -> db.localSaleDao().renewUploadClaim(s, c, n) },
+                        ?: { s, c, n -> db.localSaleDao().renewClaim(s, c, n) },
                     nuevoClaimId = { claimId }
                 )
             })
@@ -725,7 +725,7 @@ class CorreccionCarreraTest : RoomTestBase() {
             reloj = reloj,
             renovar = { s, c, n ->
                 latidos++
-                val filas = db.localSaleDao().renewUploadClaim(s, c, n)
+                val filas = db.localSaleDao().renewClaim(s, c, n)
                 if (latidos == 4) armadoYaPasoElArrendamiento.complete(Unit)
                 filas
             },
@@ -878,7 +878,7 @@ class CorreccionCarreraTest : RoomTestBase() {
                 reloj = reloj,
                 renovar = { s, c, n ->
                     latidos++
-                    val filas = db.localSaleDao().renewUploadClaim(s, c, n)
+                    val filas = db.localSaleDao().renewClaim(s, c, n)
                     if (latidos == 4) subidaYaPasoElArrendamiento.complete(Unit)
                     filas
                 },

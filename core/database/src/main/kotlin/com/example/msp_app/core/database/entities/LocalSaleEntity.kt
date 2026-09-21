@@ -106,5 +106,55 @@ class LocalSaleEntity(
     // como no enviada. Ese falso positivo cuesta que la oficina revise una
     // venta que estaba bien; el falso negativo cuesta despachar una venta
     // que el cliente no pidió. No son comparables.
-    val REVISION_POSTEADA: Int? = null
+    val REVISION_POSTEADA: Int? = null,
+    // ─────────────────────────────────────────────────────────────────
+    // Plan "Corregir una venta DESPUÉS de que subió, mientras siga en
+    // borrador" (nivel 2), Task A1, migración 31→32: lo que el teléfono
+    // sabe del SERVIDOR para una venta que YA se envió, y la cola de
+    // correcciones remotas que viajan aparte del POST de creación.
+    // ──────────────────────────────────────────────────────────────
+
+    // Último estado del servidor leído por un GET fresco. `NULL` = no se
+    // sabe (nunca se leyó, o la fila es de una venta que aún no sube).
+    // `situacion`: 'borrador'/'revisada'/'aprobada'/'cancelada'.
+    val SERVER_SITUACION: String? = null,
+    // `sincronizacion`: 'pendiente'/'aplicada'. 'aplicada' es TERMINAL: la
+    // venta ya entró a Microsip y nunca vuelve a ser corregible.
+    val SERVER_SINCRONIZACION: String? = null,
+    // La `VERSION` leída en esa misma lectura. Solo diagnóstico y UI —
+    // JAMÁS se usa como precondición de una escritura (regla del arranque
+    // limpio: cada corrida de la corrección remota relee la versión con su
+    // propio GET y encadena únicamente versiones obtenidas en esa corrida).
+    val SERVER_VERSION: Int? = null,
+    // Epoch ms de esa lectura. `NULL` = nunca se leyó. Junto con
+    // `EstadoServidor.MAX_EDAD_ESTADO_MS` (60 min, en `:feature:ventaCorreccion`)
+    // decide si el estado guardado sigue siendo una base honesta para
+    // ofrecer "Corregir venta".
+    val SERVER_STATE_AT: Long? = null,
+    // Hay una corrección local COMMITEADA que el servidor todavía no
+    // confirmó. La pone `GuardarCorreccion` en la MISMA transacción que el
+    // commit, sólo si `ENVIADO = 1` (si `ENVIADO = 0` es la venta del nivel
+    // 1: su camino sigue siendo el POST de creación, sin tocar esta
+    // columna). `@ColumnInfo(defaultValue = "0")` por el mismo argumento
+    // que `REVISION`/`CORRECCION_NO_ENVIADA`: una instalación nueva y una
+    // migrada deben declarar el mismo DEFAULT.
+    @ColumnInfo(defaultValue = "0")
+    val CORRECCION_REMOTA_PENDIENTE: Boolean = false,
+    // Marca TERMINAL y persistente de por qué una corrección remota dejó
+    // de poder aplicarse. `NULL` = sin incidencia. `'RECHAZADA_ESTADO'` =
+    // el servidor ya no la deja editar (salió de borrador, o ya está
+    // aplicada en Microsip). `'CONFLICTO'` = la oficina escribió primero
+    // (412 `venta_version_conflicto`) — la corrección local queda MUERTA;
+    // no se reintenta jamás y no se re-basa sola (decisión del dueño: si
+    // chocan, gana la oficina). Nunca se borra por un camino que no sea
+    // confirmación positiva del servidor.
+    val CORRECCION_REMOTA_ESTADO: String? = null,
+    // La `REVISION` del cuerpo que viajó en la corrida remota que terminó
+    // con los tres pasos en 2xx. `cerrarCorreccionRemota` sólo limpia
+    // `CORRECCION_REMOTA_PENDIENTE` cuando `REVISION == REVISION_REMOTA_ENVIADA`
+    // — si el dueño corrigió OTRA vez mientras la corrida estaba en vuelo,
+    // la bandera se queda puesta y la corrección nueva viaja en la
+    // siguiente corrida. Análogo exacto de `REVISION_POSTEADA` del nivel 1,
+    // aplicado a la corrección remota.
+    val REVISION_REMOTA_ENVIADA: Int? = null
 )

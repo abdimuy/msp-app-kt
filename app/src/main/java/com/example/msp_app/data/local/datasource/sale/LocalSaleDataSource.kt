@@ -89,14 +89,17 @@ class LocalSaleDataSource @Inject constructor(
         return localSaleDao.getUploadableSales(
             now = now,
             editLeaseMs = LocalSaleClaimLeases.EDIT_LEASE_MS,
-            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS
+            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+            remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
         )
     }
 
     /**
      * Reclama la venta para SUBIRLA. `false` = hay un candado vigente (de
-     * edición, o de otra subida en vuelo) o la venta ya no es subible: el
-     * subidor debe frenarse SIN tocar la red.
+     * edición, de otra subida en vuelo, o de una corrección remota — nivel
+     * 2, en la práctica no debería coincidir porque `REMOTE` sólo se acuña
+     * sobre `ENVIADO = 1`) o la venta ya no es subible: el subidor debe
+     * frenarse SIN tocar la red.
      */
     suspend fun claimForUpload(saleId: String, claimId: String, now: Long): Boolean {
         return localSaleDao.claimForUpload(
@@ -104,18 +107,20 @@ class LocalSaleDataSource @Inject constructor(
             claimId = claimId,
             now = now,
             editLeaseMs = LocalSaleClaimLeases.EDIT_LEASE_MS,
-            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS
+            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+            remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
         ) == 1
     }
 
     /**
-     * El latido: renueva el `CLAIMED_AT` del candado de subida propio
-     * mientras el POST sigue en vuelo. Devuelve las filas tocadas — 0
-     * significa que el candado ya no es nuestro y el latido debe DETENERSE
-     * (nunca re-reclamar: eso le robaría la fila al editor).
+     * El latido: renueva el `CLAIMED_AT` de CUALQUIER candado propio
+     * mientras la operación sigue en vuelo (subida del nivel 1, o corrección
+     * remota del nivel 2). Devuelve las filas tocadas — 0 significa que el
+     * candado ya no es nuestro y el latido debe DETENERSE (nunca
+     * re-reclamar: eso le robaría la fila a quien la tiene).
      */
-    suspend fun renewUploadClaim(saleId: String, claimId: String, now: Long): Int {
-        return localSaleDao.renewUploadClaim(saleId, claimId, now)
+    suspend fun renewClaim(saleId: String, claimId: String, now: Long): Int {
+        return localSaleDao.renewClaim(saleId, claimId, now)
     }
 
     /** Suelta el candado si sigue siendo nuestro; no-op si ya no lo es. */

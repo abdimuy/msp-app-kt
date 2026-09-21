@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
+import com.example.msp_app.core.database.entities.RemoteCorrectionSnapshot
 import com.example.msp_app.core.database.entities.SaleClaimSnapshot
 
 @Dao
@@ -257,6 +258,13 @@ interface LocalSaleDao {
      *   dejó vencido, p.ej. la app murió a media subida). No hay
      *   `editLeaseMs`: un candado `EDIT` ya no tiene frontera de vencimiento
      *   para ESTE método — siempre se puede retomar.
+     * @param remoteLeaseMs arrendamiento a aplicar si el candado vigente es
+     *   de corrección REMOTA (nivel 2, eje 5). A diferencia de `EDIT`, un
+     *   candado `REMOTE` vivo SÍ bloquea — el worker remoto está a media
+     *   secuencia de tres peticiones contra el servidor, y el editor no
+     *   puede commitear mientras esa secuencia está en vuelo: cerraría la
+     *   bandera de una corrección que ya no es la vigente. Vencido, se
+     *   recupera igual que un `UPLOAD` vencido.
      */
     @Query(
         """
@@ -267,13 +275,20 @@ interface LocalSaleDao {
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
-            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
+            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD', 'REMOTE')
             OR CLAIM_KIND = 'EDIT'
             OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
+            OR (CLAIM_KIND = 'REMOTE' AND CLAIMED_AT <= :now - :remoteLeaseMs)
           )
         """
     )
-    suspend fun claimForEdit(saleId: String, claimId: String, now: Long, uploadLeaseMs: Long): Int
+    suspend fun claimForEdit(
+        saleId: String,
+        claimId: String,
+        now: Long,
+        uploadLeaseMs: Long,
+        remoteLeaseMs: Long
+    ): Int
 
     /**
      * Reclama la venta para SUBIDA — lo toma el subidor justo antes del
@@ -287,8 +302,12 @@ interface LocalSaleDao {
      * gana: el subidor debe frenarse con `Result.retry()`, no mandar el
      * POST) o si la venta ya no es subible (`ENVIADO=1`).
      *
-     * Simétrico a [claimForEdit]: necesita los DOS arrendamientos por la
-     * misma razón (el candado vigente puede ser de cualquier tipo).
+     * Simétrico a [claimForEdit]: necesita los TRES arrendamientos por la
+     * misma razón (el candado vigente puede ser de cualquier tipo, incluido
+     * `REMOTE` desde el nivel 2 — en la práctica no debería coincidir, ya
+     * que `REMOTE` sólo se acuña sobre `ENVIADO = 1` y este método exige
+     * `ENVIADO = 0`, pero el predicado lo reconoce por la misma defensa en
+     * profundidad que ya aplica a `EDIT`/`UPLOAD`).
      */
     @Query(
         """
@@ -298,9 +317,10 @@ interface LocalSaleDao {
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
-            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
+            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD', 'REMOTE')
             OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
             OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
+            OR (CLAIM_KIND = 'REMOTE' AND CLAIMED_AT <= :now - :remoteLeaseMs)
           )
         """
     )
@@ -309,50 +329,95 @@ interface LocalSaleDao {
         claimId: String,
         now: Long,
         editLeaseMs: Long,
-        uploadLeaseMs: Long
+        uploadLeaseMs: Long,
+        remoteLeaseMs: Long
     ): Int
 
     /**
-     * RENUEVA el arrendamiento del candado de SUBIDA sin cambiar de dueño —
-     * el LATIDO del subidor ("Pendiente de la Task 4" del paso 4 del
-     * mecanismo, ahora implementado en `PendingLocalSalesWorker`). Mientras
-     * el `POST` sigue en vuelo, el worker llama esto cada
-     * [LocalSaleClaimLeases.UPLOAD_HEARTBEAT_MS] para que una subida lenta
-     * pero VIVA no deje caducar su propio candado: el cliente HTTP no tiene
-     * tope total (ver el KDoc de esa constante), así que sin esto los 180 s
-     * se agotan con el cuerpo todavía subiendo, el editor toma la fila, y el
-     * 2xx vuelve tarde trayendo el cuerpo VIEJO.
+     * Reclama la venta para CORRECCIÓN REMOTA — el tercer tipo de candado
+     * (nivel 2, eje 5). Lo toma `RemoteSaleCorrectionWorker` ANTES de leer
+     * el cuerpo (paso 0 de la corrida), sobre una venta que YA se envió
+     * (`ENVIADO = 1`): sin este candado, el editor podría commitear una
+     * corrección local a media secuencia de las tres peticiones y la corrida
+     * en vuelo cerraría la bandera de una corrección que ya no es la
+     * vigente. Devuelve 1 si el candado se tomó; 0 si hay un candado de
+     * EDICIÓN o SUBIDA vigente (el editor/subidor ganan: el worker remoto se
+     * frena con `Result.retry()` SIN tocar la red), si ya hay otro candado
+     * `REMOTE` vigente (evita que dos ejecuciones del mismo worker, o un
+     * reintento superpuesto, corran la secuencia dos veces a la vez), o si
+     * la venta no es `ENVIADO = 1` (una venta sin enviar no tiene corrección
+     * remota que correr — ese camino sigue siendo el `POST` de creación).
      *
-     * Lo único que toca es `CLAIMED_AT`, y sólo si el candado SIGUE siendo
-     * suyo: `CLAIM_ID = :claimId AND CLAIM_KIND = 'UPLOAD'`. Devuelve 0
-     * cuando ya no lo es (caducó y el editor se lo llevó, o la subida ya
-     * terminó y el candado se cerró). Ese 0 NO se recupera reclamando de
-     * nuevo: el latido JAMÁS re-toma un candado ajeno — eso le robaría la
-     * fila al editor, exactamente lo contrario de lo que este mecanismo
-     * defiende. El subidor sólo deja de latir; si el POST triunfa de todas
-     * formas, la divergencia la marca [markSentAndCloseEdit] con
-     * `CORRECCION_NO_ENVIADA`.
+     * NO es reentrante sobre `REMOTE`: a diferencia de `claimForEdit` sobre
+     * `EDIT`, dos invocaciones del worker sobre la misma venta no deben
+     * pisarse — cada una debe esperar a que la anterior suelte el candado
+     * (al terminar, o al vencer su arrendamiento).
      *
-     * **No mira el arrendamiento, y es deliberado.** Si el proceso se congeló
-     * más de 180 s, esta sentencia REVIVE un candado de subida propio que ya
-     * había caducado, y el dueño puede quedar bloqueado hasta un
-     * arrendamiento más. Queda así, con el porqué escrito para que nadie lo
-     * "arregle" de memoria: mientras NADIE más haya tomado la fila, la subida
-     * en vuelo sigue siendo su dueña legítima, y revivir el candado es justo
-     * lo que impide que el editor entre a la mitad del armado del cuerpo y el
-     * POST salga con encabezado viejo y renglones nuevos. Y si alguien SÍ la
-     * tomó, el `CLAIM_ID` ya no coincide, esto no hace nada, y la
-     * revalidación previa al POST saca al subidor con `retry` sin mandar
-     * nada. Esperar 180 s sólo parece peor que un cuerpo mezclado si uno no
-     * ha visto un cuerpo mezclado.
+     * Necesita los TRES arrendamientos por la misma razón que
+     * [claimForUpload]: el candado vigente puede ser de cualquier tipo.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET CLAIM_ID = :claimId, CLAIM_KIND = 'REMOTE', CLAIMED_AT = :now
+        WHERE LOCAL_SALE_ID = :saleId
+          AND ENVIADO = 1
+          AND (
+            CLAIM_ID IS NULL
+            OR CLAIMED_AT IS NULL
+            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD', 'REMOTE')
+            OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
+            OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
+            OR (CLAIM_KIND = 'REMOTE' AND CLAIMED_AT <= :now - :remoteLeaseMs)
+          )
+        """
+    )
+    suspend fun claimForRemote(
+        saleId: String,
+        claimId: String,
+        now: Long,
+        editLeaseMs: Long,
+        uploadLeaseMs: Long,
+        remoteLeaseMs: Long
+    ): Int
+
+    /**
+     * RENUEVA el arrendamiento de CUALQUIER candado sin cambiar de dueño —
+     * el LATIDO (paso 4 del mecanismo del nivel 1, implementado en
+     * `PendingLocalSalesWorker`; el nivel 2 lo reutiliza para el candado
+     * `REMOTE` de `RemoteSaleCorrectionWorker`, mismo argumento: una
+     * secuencia de tres peticiones sobre una red mala tampoco tiene tope
+     * real). Mientras la operación sigue en vuelo, el worker llama esto cada
+     * `*_HEARTBEAT_MS` para que una operación lenta pero VIVA no deje caducar
+     * su propio candado.
+     *
+     * **Generalizado desde `renewUploadClaim` (nivel 2, Task A1):** el
+     * nombre viejo fijaba `CLAIM_KIND = 'UPLOAD'` en el `WHERE` porque sólo
+     * el subidor lo llamaba. El guardia real siempre fue `CLAIM_ID =
+     * :claimId` — un `claimId` es un UUID fresco por cada reclamo, así que
+     * coincidir con el de la fila YA prueba que quien llama es el dueño
+     * legítimo del candado que sea. Filtrar además por `CLAIM_KIND` no
+     * aportaba seguridad extra, sólo acoplaba el método a un solo tipo de
+     * candado — y con el candado `REMOTE` del nivel 2 hace falta el mismo
+     * latido para un tipo distinto. Devuelve 0 cuando el candado ya no es
+     * suyo (caducó y alguien más lo tomó, o la operación ya terminó y el
+     * candado se cerró). Ese 0 NO se recupera reclamando de nuevo: el latido
+     * JAMÁS re-toma un candado ajeno — eso le robaría la fila a quien la
+     * tiene, exactamente lo contrario de lo que este mecanismo defiende.
+     *
+     * **No mira el arrendamiento, y es deliberado** (heredado de
+     * `renewUploadClaim`): si el proceso se congeló más que el arrendamiento,
+     * esta sentencia REVIVE un candado propio que ya había caducado. Mientras
+     * NADIE más haya tomado la fila, la operación en vuelo sigue siendo su
+     * dueña legítima; si alguien SÍ la tomó, el `CLAIM_ID` ya no coincide y
+     * esto no hace nada.
      */
     @Query(
         """
         UPDATE local_sale SET CLAIMED_AT = :now
-        WHERE LOCAL_SALE_ID = :saleId AND CLAIM_ID = :claimId AND CLAIM_KIND = 'UPLOAD'
+        WHERE LOCAL_SALE_ID = :saleId AND CLAIM_ID = :claimId
         """
     )
-    suspend fun renewUploadClaim(saleId: String, claimId: String, now: Long): Int
+    suspend fun renewClaim(saleId: String, claimId: String, now: Long): Int
 
     /**
      * Suelta el candado (cancelar la corrección, o el subidor al terminar
@@ -553,9 +618,10 @@ interface LocalSaleDao {
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
-            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
+            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD', 'REMOTE')
             OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
             OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
+            OR (CLAIM_KIND = 'REMOTE' AND CLAIMED_AT <= :now - :remoteLeaseMs)
           )
         ORDER BY FECHA_VENTA DESC
         """
@@ -563,7 +629,8 @@ interface LocalSaleDao {
     suspend fun getUploadableSales(
         now: Long,
         editLeaseMs: Long,
-        uploadLeaseMs: Long
+        uploadLeaseMs: Long,
+        remoteLeaseMs: Long
     ): List<LocalSaleEntity>
 
     /**
@@ -572,4 +639,177 @@ interface LocalSaleDao {
      */
     @Query("SELECT CLAIM_ID, REVISION, ENVIADO FROM local_sale WHERE LOCAL_SALE_ID = :saleId")
     suspend fun getSaleClaimSnapshot(saleId: String): SaleClaimSnapshot?
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Plan "Corregir una venta DESPUÉS de que subió" (nivel 2), Task A1: el
+    // estado del servidor y la cola de correcciones remotas. Cada método
+    // sigue la misma regla que el bloque del candado único: UN SOLO
+    // `UPDATE`/`SELECT` — la atomicidad la da SQLite, no un mutex de Kotlin.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Snapshot barato de `(CLAIM_ID, REVISION, CORRECCION_REMOTA_PENDIENTE)`
+     * — ver [RemoteCorrectionSnapshot]. Lo toma el worker de corrección
+     * remota justo DESPUÉS de [claimForRemote] y ANTES de leer el cuerpo
+     * (paso 1 de la corrida, "bajo el candado, ANTES de leer el cuerpo").
+     */
+    @Query(
+        "SELECT CLAIM_ID, REVISION, CORRECCION_REMOTA_PENDIENTE FROM local_sale " +
+            "WHERE LOCAL_SALE_ID = :saleId"
+    )
+    suspend fun getRemoteCorrectionSnapshot(saleId: String): RemoteCorrectionSnapshot?
+
+    /**
+     * Persiste lo que un `GET /v2/ventas/{id}` fresco acaba de reportar del
+     * servidor. Se llama SIEMPRE que el `GET` responde — incluso si la
+     * corrida termina en un terminal justo después —, porque es la única
+     * fuente de la que el teléfono sabe si una venta ya enviada sigue en
+     * borrador. No toca el candado ni la bandera de corrección pendiente:
+     * es sólo la caché de lectura, sin efecto sobre la cola.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET
+            SERVER_SITUACION = :situacion,
+            SERVER_SINCRONIZACION = :sincronizacion,
+            SERVER_VERSION = :version,
+            SERVER_STATE_AT = :at
+        WHERE LOCAL_SALE_ID = :saleId
+        """
+    )
+    suspend fun marcarEstadoServidor(
+        saleId: String,
+        situacion: String,
+        sincronizacion: String,
+        version: Int,
+        at: Long
+    ): Int
+
+    /**
+     * Levanta la bandera de corrección remota pendiente — la llama
+     * `GuardarCorreccion` en la MISMA transacción que el commit de la
+     * corrección (mecanismo, eje 2: "El disparador"), y SÓLO cuando
+     * `ENVIADO = 1`: si la venta no se ha enviado, es la venta del nivel 1 y
+     * su camino sigue siendo el `POST` de creación — nunca pasa por aquí. El
+     * `AND ENVIADO = 1` del `WHERE` es la misma disciplina que ya usan
+     * `claimForEdit`/`claimForUpload` (una condición de negocio simple,
+     * como defensa en profundidad si algún llamador futuro se equivoca de
+     * momento para invocarlo) y no una regla nueva: la regla vive en el
+     * llamador, que ya conoce `ENVIADO` porque acaba de leer la fila para
+     * decidir si debía marcar esto.
+     */
+    @Query(
+        "UPDATE local_sale SET CORRECCION_REMOTA_PENDIENTE = 1 " +
+            "WHERE LOCAL_SALE_ID = :saleId AND ENVIADO = 1"
+    )
+    suspend fun marcarCorreccionRemotaPendiente(saleId: String): Int
+
+    /**
+     * El cierre de la corrida remota exitosa (los tres pasos en 2xx) — UN
+     * SOLO `UPDATE`, misma forma que [markSentAndCloseEdit]: cierra
+     * CUALQUIER candado incondicionalmente (`WHERE LOCAL_SALE_ID = :saleId`,
+     * sin filtrar por `CLAIM_ID`), porque en este punto los 2xx ya PROBARON
+     * que el servidor tiene la corrección — no hay ambigüedad de propiedad
+     * que defender con un guardia de identidad, exactamente el mismo
+     * argumento que ya justifica el cierre incondicional de
+     * [markSentAndCloseEdit].
+     *
+     * La `REVISION` es la que SÍ hace de guardia: si el dueño corrigió OTRA
+     * vez mientras la corrida seguía en vuelo, `REVISION` ya no es
+     * [revisionEnviada] y la bandera se queda en 1 — la corrección nueva
+     * viaja en la corrida siguiente y nunca se declara enviado algo que no
+     * se envió. `REVISION_REMOTA_ENVIADA` se escribe siempre, sea cual sea
+     * el resultado de la comparación: es el ancla contra la que la PRÓXIMA
+     * corrida decidirá lo mismo.
+     *
+     * No recibe `claimId`: el brief original lo nombraba, pero — mismo caso
+     * que [markSentAndCloseEdit] con su propio `claimId` — Room exige que
+     * TODO parámetro de un `@Query` aparezca en la sentencia, y el cierre
+     * incondicional no tiene ningún gating por `CLAIM_ID` que un parámetro
+     * pudiera alimentar sin volverlo una condición que nunca bloquea nada.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET
+            CLAIM_ID = NULL, CLAIM_KIND = NULL, CLAIMED_AT = NULL,
+            CORRECCION_REMOTA_PENDIENTE = CASE WHEN REVISION = :revisionEnviada THEN 0 ELSE 1 END,
+            REVISION_REMOTA_ENVIADA = :revisionEnviada
+        WHERE LOCAL_SALE_ID = :saleId
+        """
+    )
+    suspend fun cerrarCorreccionRemota(saleId: String, revisionEnviada: Int): Int
+
+    /**
+     * Cierra la corrida remota con un final TERMINAL — `409
+     * venta_no_editable` (o el `GET` que ya adelantó `situacion != borrador`
+     * / `sincronizacion = aplicada`), o `412 venta_version_conflicto`. UN
+     * SOLO `UPDATE`: escribe la marca terminal (`estado`, siempre
+     * `'RECHAZADA_ESTADO'` o `'CONFLICTO'`), los `SERVER_*` del `GET` más
+     * fresco disponible, suelta el candado incondicionalmente y LIMPIA
+     * `CORRECCION_REMOTA_PENDIENTE` — no porque la divergencia se haya
+     * resuelto, sino porque la marca terminal la SUSTITUYE: la divergencia
+     * sigue visible, sólo que ahora tiene nombre y ya no es reintentable.
+     *
+     * Que un `marcarCorreccionRemotaTerminal` deje la marca y un
+     * `cerrarCorreccionRemota` posterior NO la borre está garantizado por
+     * construcción: `cerrarCorreccionRemota` nunca toca
+     * `CORRECCION_REMOTA_ESTADO`.
+     */
+    @Suppress("LongParameterList")
+    @Query(
+        """
+        UPDATE local_sale SET
+            CORRECCION_REMOTA_ESTADO = :estado,
+            SERVER_SITUACION = :situacion,
+            SERVER_SINCRONIZACION = :sincronizacion,
+            SERVER_VERSION = :version,
+            SERVER_STATE_AT = :at,
+            CLAIM_ID = NULL, CLAIM_KIND = NULL, CLAIMED_AT = NULL,
+            CORRECCION_REMOTA_PENDIENTE = 0
+        WHERE LOCAL_SALE_ID = :saleId
+        """
+    )
+    suspend fun marcarCorreccionRemotaTerminal(
+        saleId: String,
+        estado: String,
+        situacion: String,
+        sincronizacion: String,
+        version: Int,
+        at: Long
+    ): Int
+
+    /**
+     * Ventas ya enviadas cuyo estado del servidor conviene refrescar (eje 1,
+     * "Cuándo se refresca ... En el barrido de sesión"): `ENVIADO = 1`,
+     * `SERVER_SINCRONIZACION` no es ya `'aplicada'` (una venta aplicada es
+     * TERMINAL — no vuelve a cambiar y no se vuelve a pedir nunca) y
+     * `SERVER_STATE_AT` tiene más de [maxAgeMs] o es `NULL` (nunca se leyó).
+     * Acotado por [limit] — el mismo tope (`MAX_ITEMS_PER_SYNC`) que ya usan
+     * los demás sincronizadores.
+     */
+    @Query(
+        """
+        SELECT * FROM local_sale
+        WHERE ENVIADO = 1
+          AND COALESCE(SERVER_SINCRONIZACION, '') != 'aplicada'
+          AND (SERVER_STATE_AT IS NULL OR SERVER_STATE_AT <= :now - :maxAgeMs)
+        ORDER BY FECHA_VENTA DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun getVentasParaRefrescarEstado(
+        now: Long,
+        maxAgeMs: Long,
+        limit: Int
+    ): List<LocalSaleEntity>
+
+    /**
+     * Toda venta con la bandera de corrección remota pendiente puesta —
+     * lo que el barrido de sesión usa para reencolar
+     * `RemoteSaleCorrectionWorker` en cada apertura (misma regla que el
+     * nivel 1, paso 9 de su mecanismo: "la fila manda, el encolado es
+     * optimización").
+     */
+    @Query("SELECT * FROM local_sale WHERE CORRECCION_REMOTA_PENDIENTE = 1")
+    suspend fun getVentasConCorreccionRemotaPendiente(): List<LocalSaleEntity>
 }

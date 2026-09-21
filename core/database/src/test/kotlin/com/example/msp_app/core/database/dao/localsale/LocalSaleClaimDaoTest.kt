@@ -56,6 +56,12 @@ private const val EDIT_LEASE_MS = 30 * 60 * 1000L
 // llega.
 private const val UPLOAD_LEASE_MS = 180 * 1000L
 
+// Arrendamiento del candado de CORRECCIÓN REMOTA (nivel 2, eje 5): mismo
+// valor y mismo argumento que UPLOAD_LEASE_MS — tres peticiones sobre una
+// red mala tardan más que una sola, pero no hay razón para que tarden MÁS
+// que subir un cuerpo con fotos.
+private const val REMOTE_LEASE_MS = 180 * 1000L
+
 private const val SALE_ID = "sale-reclamo-001"
 private const val CLAIM_ID_A = "claim-uuid-aaaa"
 private const val CLAIM_ID_B = "claim-uuid-bbbb"
@@ -144,7 +150,13 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
     private suspend fun insert(sale: LocalSaleEntity) = database.localSaleDao().insertSale(sale)
 
     private suspend fun claimForEdit(claimId: String, now: Long = clock.now().toEpochMilli()) =
-        database.localSaleDao().claimForEdit(SALE_ID, claimId, now, UPLOAD_LEASE_MS)
+        database.localSaleDao().claimForEdit(
+            SALE_ID,
+            claimId,
+            now,
+            UPLOAD_LEASE_MS,
+            REMOTE_LEASE_MS
+        )
 
     private suspend fun claimForUpload(claimId: String, now: Long = clock.now().toEpochMilli()) =
         database.localSaleDao().claimForUpload(
@@ -152,7 +164,18 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
             claimId,
             now,
             EDIT_LEASE_MS,
-            UPLOAD_LEASE_MS
+            UPLOAD_LEASE_MS,
+            REMOTE_LEASE_MS
+        )
+
+    private suspend fun claimForRemote(claimId: String, now: Long = clock.now().toEpochMilli()) =
+        database.localSaleDao().claimForRemote(
+            SALE_ID,
+            claimId,
+            now,
+            EDIT_LEASE_MS,
+            UPLOAD_LEASE_MS,
+            REMOTE_LEASE_MS
         )
 
     // ─── claimForEdit ───────────────────────────────────────────────────
@@ -702,5 +725,261 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
         assertEquals("dos correcciones commiteadas", 2, sale?.REVISION)
         assertNull("sin candado huerfano tras la segunda correccion", sale?.CLAIM_ID)
         assertNull(sale?.CLAIMED_AT)
+    }
+
+    // ─── El tercer tipo de candado: REMOTE (plan nivel 2, eje 5) ─────────
+    //
+    // Las nueve combinaciones {libre, EDIT vivo, EDIT vencido, UPLOAD vivo,
+    // UPLOAD vencido, REMOTE vivo, REMOTE vencido, CLAIM_KIND nulo,
+    // CLAIM_KIND desconocido} × {claimForEdit, claimForUpload, claimForRemote}
+    // ya cubiertas para EDIT/UPLOAD arriba (libre, EDIT vivo/vencido, UPLOAD
+    // vivo/vencido, CLAIM_KIND nulo/desconocido). Este bloque cubre lo que
+    // falta: REMOTE vivo/vencido contra los tres métodos, y claimForRemote
+    // contra las nueve combinaciones.
+
+    /**
+     * `enviado = false` (el default de `freeSale`), no `true`: `claimForEdit`
+     * sólo puede aceptar filas con `ENVIADO = 0`, así que probar el rechazo
+     * por `REMOTE` sobre `ENVIADO = 1` habría rechazado por la razón
+     * EQUIVOCADA — la venta ya enviada, no el candado — y hubiera pasado
+     * igual con la rama `REMOTE` del predicado borrada. Un `REMOTE` sobre
+     * `ENVIADO = 0` no ocurre en producción (REMOTE sólo se acuña sobre
+     * `ENVIADO = 1`), pero el predicado lo reconoce por defensa en
+     * profundidad y ESTA prueba es la que verifica esa rama en concreto.
+     */
+    @Test
+    fun `claimForEdit rechaza si hay un candado REMOTE vigente`() = runTest {
+        val now = clock.now().toEpochMilli()
+        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "REMOTE", claimedAt = now))
+
+        val rows = claimForEdit(CLAIM_ID_B, now)
+
+        assertEquals(
+            "una correccion remota en curso debe ganar: el editor no puede abrirse encima",
+            0,
+            rows
+        )
+    }
+
+    @Test
+    fun `claimForEdit acepta exactamente en el milisegundo en que vence un candado REMOTE`() =
+        runTest {
+            val claimedAt = clock.now().toEpochMilli()
+            insert(
+                freeSale(
+                    claimId = CLAIM_ID_A,
+                    claimKind = "REMOTE",
+                    claimedAt = claimedAt
+                )
+            )
+
+            clock.advance(Duration.ofMillis(REMOTE_LEASE_MS))
+
+            val rows = claimForEdit(CLAIM_ID_B)
+
+            assertEquals(
+                "exactamente al cumplirse el arrendamiento remoto, ya vencio",
+                1,
+                rows
+            )
+        }
+
+    @Test
+    fun `claimForEdit rechaza un milisegundo antes de que venza un candado REMOTE`() = runTest {
+        val claimedAt = clock.now().toEpochMilli()
+        insert(
+            freeSale(claimId = CLAIM_ID_A, claimKind = "REMOTE", claimedAt = claimedAt)
+        )
+
+        clock.advance(Duration.ofMillis(REMOTE_LEASE_MS - 1))
+
+        val rows = claimForEdit(CLAIM_ID_B)
+
+        assertEquals("un milisegundo antes de vencer, el candado remoto sigue vigente", 0, rows)
+    }
+
+    @Test
+    fun `claimForUpload rechaza si hay un candado REMOTE vigente`() = runTest {
+        val now = clock.now().toEpochMilli()
+        // ENVIADO=0: sólo así claimForUpload puede aceptar la fila en
+        // primer lugar. Un candado REMOTE sobre ENVIADO=0 no ocurre en
+        // producción (REMOTE sólo se acuña con ENVIADO=1), pero el
+        // predicado lo reconoce por defensa en profundidad.
+        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "REMOTE", claimedAt = now))
+
+        val rows = claimForUpload(CLAIM_ID_B, now)
+
+        assertEquals(0, rows)
+    }
+
+    @Test
+    fun `claimForUpload acepta si un candado REMOTE anterior vencio`() = runTest {
+        val claimedAt = clock.now().toEpochMilli()
+        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "REMOTE", claimedAt = claimedAt))
+
+        clock.advance(Duration.ofMillis(REMOTE_LEASE_MS))
+
+        val rows = claimForUpload(CLAIM_ID_B)
+
+        assertEquals(1, rows)
+    }
+
+    // ─── claimForRemote ─────────────────────────────────────────────────
+
+    @Test
+    fun `claimForRemote toma el candado sobre una venta ya enviada y libre`() = runTest {
+        insert(freeSale(enviado = true))
+
+        val rows = claimForRemote(CLAIM_ID_A)
+
+        assertEquals(1, rows)
+        val sale = database.localSaleDao().getSaleById(SALE_ID)
+        assertEquals(CLAIM_ID_A, sale?.CLAIM_ID)
+        assertEquals("REMOTE", sale?.CLAIM_KIND)
+        assertEquals(clock.now().toEpochMilli(), sale?.CLAIMED_AT)
+    }
+
+    @Test
+    fun `claimForRemote rechaza una venta que todavia no se envio`() = runTest {
+        insert(freeSale(enviado = false))
+
+        val rows = claimForRemote(CLAIM_ID_A)
+
+        assertEquals(
+            "una venta sin enviar no tiene correccion remota que correr: su camino sigue siendo el POST",
+            0,
+            rows
+        )
+    }
+
+    @Test
+    fun `claimForRemote rechaza si hay un candado de EDICION vigente`() = runTest {
+        val now = clock.now().toEpochMilli()
+        insert(freeSale(enviado = true, claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = now))
+
+        val rows = claimForRemote(CLAIM_ID_B, now)
+
+        assertEquals("una correccion local en curso debe ganar sobre el worker remoto", 0, rows)
+    }
+
+    @Test
+    fun `claimForRemote rechaza si hay un candado de SUBIDA vigente`() = runTest {
+        val now = clock.now().toEpochMilli()
+        insert(
+            freeSale(enviado = true, claimId = CLAIM_ID_A, claimKind = "UPLOAD", claimedAt = now)
+        )
+
+        val rows = claimForRemote(CLAIM_ID_B, now)
+
+        assertEquals(0, rows)
+    }
+
+    @Test
+    fun `claimForRemote NO es reentrante - rechaza otro candado REMOTE vigente`() = runTest {
+        val now = clock.now().toEpochMilli()
+        insert(
+            freeSale(enviado = true, claimId = CLAIM_ID_A, claimKind = "REMOTE", claimedAt = now)
+        )
+
+        val rows = claimForRemote(CLAIM_ID_B, now)
+
+        assertEquals(
+            "a diferencia de EDIT, REMOTE no es reentrante: dos corridas no deben pisarse",
+            0,
+            rows
+        )
+    }
+
+    @Test
+    fun `claimForRemote acepta exactamente en el milisegundo en que vence un candado EDIT`() =
+        runTest {
+            val claimedAt = clock.now().toEpochMilli()
+            insert(
+                freeSale(
+                    enviado = true,
+                    claimId = CLAIM_ID_A,
+                    claimKind = "EDIT",
+                    claimedAt = claimedAt
+                )
+            )
+
+            clock.advance(Duration.ofMillis(EDIT_LEASE_MS))
+
+            val rows = claimForRemote(CLAIM_ID_B)
+
+            assertEquals(1, rows)
+        }
+
+    @Test
+    fun `claimForRemote acepta exactamente en el milisegundo en que vence un candado UPLOAD`() =
+        runTest {
+            val claimedAt = clock.now().toEpochMilli()
+            insert(
+                freeSale(
+                    enviado = true,
+                    claimId = CLAIM_ID_A,
+                    claimKind = "UPLOAD",
+                    claimedAt = claimedAt
+                )
+            )
+
+            clock.advance(Duration.ofMillis(UPLOAD_LEASE_MS))
+
+            val rows = claimForRemote(CLAIM_ID_B)
+
+            assertEquals(1, rows)
+        }
+
+    @Test
+    fun `claimForRemote acepta exactamente en el milisegundo en que vence otro candado REMOTE`() =
+        runTest {
+            val claimedAt = clock.now().toEpochMilli()
+            insert(
+                freeSale(
+                    enviado = true,
+                    claimId = CLAIM_ID_A,
+                    claimKind = "REMOTE",
+                    claimedAt = claimedAt
+                )
+            )
+
+            clock.advance(Duration.ofMillis(REMOTE_LEASE_MS))
+
+            val rows = claimForRemote(CLAIM_ID_B)
+
+            assertEquals("exactamente al cumplirse el arrendamiento remoto, ya vencio", 1, rows)
+        }
+
+    @Test
+    fun `claimForRemote rechaza un milisegundo antes de que venza otro candado REMOTE`() = runTest {
+        val claimedAt = clock.now().toEpochMilli()
+        insert(
+            freeSale(
+                enviado = true,
+                claimId = CLAIM_ID_A,
+                claimKind = "REMOTE",
+                claimedAt = claimedAt
+            )
+        )
+
+        clock.advance(Duration.ofMillis(REMOTE_LEASE_MS - 1))
+
+        val rows = claimForRemote(CLAIM_ID_B)
+
+        assertEquals("un milisegundo antes de vencer, el candado remoto sigue vigente", 0, rows)
+    }
+
+    @Test
+    fun `claimForRemote acepta si CLAIM_KIND es nulo o desconocido`() = runTest {
+        val now = clock.now().toEpochMilli()
+        insert(freeSale(enviado = true, claimId = CLAIM_ID_A, claimKind = "BOGUS", claimedAt = now))
+
+        val rows = claimForRemote(CLAIM_ID_B, now)
+
+        assertEquals(
+            "un CLAIM_KIND que no es EDIT/UPLOAD/REMOTE no debe retener la venta para siempre",
+            1,
+            rows
+        )
     }
 }
