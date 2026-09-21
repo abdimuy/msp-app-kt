@@ -15,17 +15,24 @@ import com.example.msp_app.feature.pagos.domain.port.ProductosPort
  * conoce (`BitacoraDelCliente` es dominio puro, ver su KDoc). La mezcla recibe
  * el mapa YA resuelto, igual que ya recibe `visitas` y `pagos` resueltos.
  *
- * **Una consulta por VENTA, no por pago.** Las tres pantallas que usan
+ * **UNA consulta por LOTE, nunca una por venta ni una por pago** (ronda de
+ * arreglo 1 de la Task 2). Las tres pantallas que usan
  * [com.example.msp_app.feature.pagos.domain.BitacoraDelCliente.de] mezclan
- * TODOS los pagos (y visitas) del cliente, pero una cuenta tiene un solo
- * producto que la nombra — no uno por abono. Pedir `productosDe(folio)` una
- * vez por pago repetiría la misma consulta tantas veces como abonos tenga esa
- * cuenta; aquí se pide UNA vez por venta, indexado por `ventaId` para que la
- * mezcla solo tenga que preguntar.
+ * TODOS los pagos (y visitas) del cliente, y `SaleDao.getByClientId` no filtra
+ * por estado — trae TODA la historia de ventas del cliente, no solo las
+ * abiertas. Un cliente con años de antigüedad podía significar un centenar de
+ * consultas secuenciales a Room, una por venta, solo para nombres de cuenta.
+ * [ProductosPort.productosDeVarios] resuelve TODOS los folios en una sola
+ * consulta (troceada por el tope de SQLite, ver
+ * [com.example.msp_app.feature.pagos.data.adapter.RoomProductosAdapter]), y
+ * aquí solo se reparte el resultado por `ventaId`.
  */
 internal suspend fun ProductosPort.productosPorVenta(
     ventas: List<DatosDeVenta>
-): Map<Int, List<ProductoDeVenta>> = ventas.associate { it.ventaId to productosDe(it.folio) }
+): Map<Int, List<ProductoDeVenta>> {
+    val porFolio = productosDeVarios(ventas.map { it.folio })
+    return ventas.associate { it.ventaId to porFolio[it.folio].orEmpty() }
+}
 
 /**
  * `ventaId → nombre de cuenta`, derivado de [productosPorVenta].
@@ -54,11 +61,13 @@ internal fun Map<Int, List<ProductoDeVenta>>.aCuentas(): Map<Int, String> =
     }.toMap()
 
 /**
- * Atajo de [productosPorVenta] + [aCuentas] para los llamadores que solo
- * necesitan el mapa de cuentas y no los renglones completos —
- * [CargarBitacoraDelCliente] y [CargarDetalleVenta]. [CargarDetalleCliente] NO
- * lo usa: ya pide los renglones completos para su sección "productos" y
- * derivar de ahí evita pedirlos dos veces.
+ * Atajo de [productosPorVenta] + [aCuentas] para el llamador que solo
+ * necesita el mapa de cuentas y no los renglones completos —
+ * [CargarBitacoraDelCliente]. [CargarDetalleCliente] y [CargarDetalleVenta] NO
+ * lo usan: los dos piden [productosPorVenta] directo porque además necesitan
+ * los renglones completos para su propia sección "productos", y derivar de
+ * ahí evita pedirlos dos veces — ver el KDoc de `CargarDetalleVenta.invoke`
+ * para el defecto que eso cerró (la misma venta se consultaba dos veces).
  */
 internal suspend fun cuentasDeLasVentas(
     ventas: List<DatosDeVenta>,

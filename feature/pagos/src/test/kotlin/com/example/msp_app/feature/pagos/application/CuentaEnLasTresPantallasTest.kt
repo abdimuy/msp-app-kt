@@ -116,6 +116,26 @@ class CuentaEnLasTresPantallasTest {
         assertEquals("Bocina profesional 8'' audiobahn", porVenta.getValue(VENTA_BOCINA).cuenta)
     }
 
+    /**
+     * **Un solo lote para las dos cuentas**, no una consulta por venta —
+     * [CargarDetalleCliente] ya reusaba el mismo resultado para "productos" y
+     * para las cuentas; esta prueba cuenta que además ese resultado sale de
+     * UNA sola llamada al puerto.
+     */
+    @Test
+    fun `CargarDetalleCliente pide productos en un solo lote`() = runTest {
+        sembrarElCasoReal()
+        CargarDetalleCliente(
+            reunirCobranzaDelCliente = reunirCobranzaDelCliente,
+            fichaPort = FakeFichaPort(),
+            productosPort = productosPort,
+            clock = clock
+        )(PagosFixtures.CLIENTE_ID)
+
+        assertEquals(1, productosPort.lotesConsultados.size)
+        assertEquals(emptyList<String>(), productosPort.foliosConsultados)
+    }
+
     @Test
     fun `CargarBitacoraDelCliente pinta las dos cuentas con nombres distintos`() = runTest {
         sembrarElCasoReal()
@@ -133,6 +153,32 @@ class CuentaEnLasTresPantallasTest {
         )
         assertEquals("Bocina profesional 8'' audiobahn", porVenta.getValue(VENTA_BOCINA).cuenta)
     }
+
+    /**
+     * **Hallazgo Important #2 de la ronda de arreglo 1.** `SaleDao.getByClientId`
+     * no filtra por estado — trae TODA la historia del cliente — y
+     * `CargarBitacoraDelCliente` es quien resuelve la cuenta de cada contacto
+     * sobre esa lista completa. Sin lote, un cliente viejo dispararía una
+     * consulta secuencial por venta. Aquí solo hay dos ventas, pero lo que se
+     * cuenta es que sea UNA llamada — con dos o con doscientas, sigue siendo
+     * una.
+     */
+    @Test
+    fun `CargarBitacoraDelCliente pide productos en un solo lote para todo el historial`() =
+        runTest {
+            sembrarElCasoReal()
+            CargarBitacoraDelCliente(
+                reunirCobranzaDelCliente = reunirCobranzaDelCliente,
+                productosPort = productosPort
+            )(PagosFixtures.CLIENTE_ID)
+
+            assertEquals(1, productosPort.lotesConsultados.size)
+            assertEquals(
+                listOf("Y00001786", "Y00002103"),
+                productosPort.lotesConsultados.single()
+            )
+            assertEquals(emptyList<String>(), productosPort.foliosConsultados)
+        }
 
     /**
      * Vista desde la cuenta de la bocina, el contacto de la RECÁMARA —de la
@@ -160,6 +206,42 @@ class CuentaEnLasTresPantallasTest {
             porVenta.getValue(VENTA_RECAMARA).cuenta
         )
     }
+
+    /**
+     * **Hallazgo Important #1 de la ronda de arreglo 1.** Antes de este
+     * arreglo, `venta.folio` (el de la cuenta que se ve, la bocina) se pedía
+     * DOS veces: directo para "productos" y otra vez dentro del mapa de
+     * cuentas, que itera TODAS las ventas del cliente e incluye esta misma.
+     * Ahora es UNA sola llamada en lote — la que resuelve TODAS las ventas
+     * del cliente de una vez, reusada para las dos secciones.
+     */
+    @Test
+    fun `CargarDetalleVenta pide productos en un solo lote, sin repetir la venta que se ve`() =
+        runTest {
+            sembrarElCasoReal()
+            CargarDetalleVenta(
+                ventasPort = ventasPort,
+                garantiasPort = FakeGarantiasPort(),
+                productosPort = productosPort,
+                reunirCobranzaDelCliente = reunirCobranzaDelCliente,
+                clock = clock
+            )(VENTA_BOCINA)
+
+            assertEquals(
+                "el folio de la venta que se ve no debe pedirse una segunda vez por fuera del lote",
+                1,
+                productosPort.lotesConsultados.size
+            )
+            assertEquals(
+                listOf("Y00001786", "Y00002103"),
+                productosPort.lotesConsultados.single()
+            )
+            assertEquals(
+                "no debe caer al método de un solo folio para la venta que se ve",
+                emptyList<String>(),
+                productosPort.foliosConsultados
+            )
+        }
 
     private companion object {
         const val VENTA_RECAMARA = 12_845_224

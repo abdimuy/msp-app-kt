@@ -102,17 +102,29 @@ class CuentasDeLasVentasTest {
     }
 
     /**
-     * **Una consulta por VENTA, no por pago.** Dos cuentas piden dos folios,
-     * sin importar cuántos abonos tenga cada una — la mezcla de contactos
-     * pregunta el mapa ya resuelto, nunca el puerto directamente.
+     * **Un solo LOTE, no una consulta por venta ni por pago** (ronda de
+     * arreglo 1 de la Task 2: un cliente con años de historial podía disparar
+     * un centenar de consultas secuenciales solo para nombres de cuenta). Dos
+     * cuentas del cliente entran en UNA llamada a `productosDeVarios`, con
+     * los dos folios adentro; el método de un solo folio
+     * ([FakeProductosPort.foliosConsultados]) no se toca.
      */
     @Test
-    fun `pide un folio por venta, ni uno mas ni uno menos`() = runTest {
+    fun `pide un solo lote con todos los folios, no uno por venta`() = runTest {
         cuentasDeLasVentas(listOf(ventaRecamara, ventaBocina), productosPort)
 
         assertEquals(
+            "debe ser UNA sola llamada a productosDeVarios, no una por venta",
+            1,
+            productosPort.lotesConsultados.size
+        )
+        assertEquals(
             listOf("Y00001786", "Y00002103"),
-            productosPort.foliosConsultados
+            productosPort.lotesConsultados.single()
+        )
+        assertTrue(
+            "no debe caer al método de un solo folio",
+            productosPort.foliosConsultados.isEmpty()
         )
     }
 

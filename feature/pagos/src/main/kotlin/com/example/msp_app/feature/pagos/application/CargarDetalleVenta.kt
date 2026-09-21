@@ -36,6 +36,16 @@ class CargarDetalleVenta @Inject constructor(
      * aquí, y con él se reúne la cobranza COMPLETA — hace falta para derivar el
      * estado, porque una visita de alcance cliente se propaga a todas sus
      * ventas (Task 13).
+     *
+     * **Una sola consulta de productos, reusada dos veces** (ronda de arreglo
+     * 1 de la Task 2): la revisión encontró que se pedía `venta.folio` DOS
+     * veces — una directa para "productos" (con el respaldo por descripción)
+     * y otra dentro del mapa de cuentas, que itera TODAS las ventas del
+     * cliente e incluye esta misma. [ProductosPort.productosPorVenta] ya
+     * resuelve TODAS las ventas del cliente en un solo lote (ver su KDoc); acá
+     * se pide UNA vez y se reparte entre [productosDeLaVenta] (con su
+     * respaldo) y [aCuentas] — el mismo patrón que ya usaba
+     * [CargarDetalleCliente].
      */
     suspend operator fun invoke(ventaId: Int): DetalleVenta? {
         val cabecera = ventasPort.venta(ventaId) ?: return null
@@ -52,6 +62,7 @@ class CargarDetalleVenta @Inject constructor(
             abonado = venta.abonado,
             parcialidad = venta.parcialidad
         )
+        val productosPorVenta = productosPort.productosPorVenta(cobranza.ventas)
         return DetalleVenta(
             ventaId = venta.ventaId,
             folio = venta.folio,
@@ -72,7 +83,12 @@ class CargarDetalleVenta @Inject constructor(
             abonado = venta.abonado,
             vendedor = venta.vendedor,
             estado = cobranza.estados[ventaId] ?: EstadoDelPeriodo.sinTocar(venta.parcialidad),
-            productos = productosDe(venta.folio, venta.descripcion, venta.totalVenta),
+            productos = productosDeLaVenta(
+                productosPorVenta,
+                venta.ventaId,
+                venta.descripcion,
+                venta.totalVenta
+            ),
             historial = HistorialDePagos(
                 semanas = semanas,
                 resumen = RitmoDePagos.resumen(semanas),
@@ -87,7 +103,7 @@ class CargarDetalleVenta @Inject constructor(
             contactos = BitacoraDelCliente.de(
                 visitas = cobranza.visitas,
                 pagos = cobranza.pagos,
-                cuentas = cuentasDeLasVentas(cobranza.ventas, productosPort)
+                cuentas = productosPorVenta.aCuentas()
             ),
             liquidacion = cobranza.liquidaciones[ventaId],
             garantia = garantiasPort.garantiaDe(venta.creditoId)
@@ -110,13 +126,19 @@ class CargarDetalleVenta @Inject constructor(
      * cobrador reconoce el mueble por su nombre, que es para lo que mira esta
      * sección. La atribución del total a un producto único se conserva igual:
      * con uno solo, el total de la venta SÍ es su importe.
+     *
+     * Lee de [productosPorVenta] —ya resuelto para TODAS las ventas del
+     * cliente en el `invoke` que llama— en vez de volver a pedirle el folio al
+     * puerto: es la misma consulta que ya se hizo para armar el mapa de
+     * cuentas, y pedirla dos veces era justo el defecto que esta ronda cerró.
      */
-    private suspend fun productosDe(
-        folio: String,
+    private fun productosDeLaVenta(
+        productosPorVenta: Map<Int, List<ProductoDeVenta>>,
+        ventaId: Int,
         descripcion: String,
         totalVenta: Money
     ): List<ProductoDeVenta> =
-        productosPort.productosDe(folio).ifEmpty { deLaDescripcion(descripcion, totalVenta) }
+        productosPorVenta[ventaId].orEmpty().ifEmpty { deLaDescripcion(descripcion, totalVenta) }
 
     private fun deLaDescripcion(descripcion: String, totalVenta: Money): List<ProductoDeVenta> {
         val nombres = descripcion.split(",").map { it.trim() }.filter { it.isNotEmpty() }

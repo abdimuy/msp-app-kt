@@ -41,6 +41,29 @@ interface ProductDao {
     )
     suspend fun getProductsByFolio(folio: String): List<ProductEntity>
 
+    /**
+     * Los renglones de VARIOS folios en una sola consulta (`WHERE FOLIO IN`),
+     * para el llamador que necesita los productos de TODAS las ventas de un
+     * cliente y no de una sola — ver el KDoc de
+     * `com.example.msp_app.feature.pagos.data.adapter.RoomProductosAdapter.productosDeVarios`
+     * para el porqué y el troceo por el tope de SQLite.
+     */
+    @Query(
+        """SELECT
+        DOCTO_PV_DET_ID,
+        DOCTO_PV_ID,
+        FOLIO,
+        ARTICULO_ID,
+        ARTICULO,
+        CANTIDAD,
+        PRECIO_UNITARIO_IMPTO,
+        PRECIO_TOTAL_NETO,
+        POSICION
+    FROM products
+    WHERE FOLIO IN (:folios)"""
+    )
+    suspend fun getProductsByFolios(folios: List<String>): List<ProductEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveAll(products: List<ProductEntity>)
 

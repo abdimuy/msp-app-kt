@@ -86,9 +86,10 @@ class CargarDetalleCliente @Inject constructor(
         // lista pintada— sale de esta misma lista ya ordenada.
         val ventas = cobranza.ventas.sortedWith(ORDEN_DE_SUS_VENTAS)
         val primera = ventas.firstOrNull() ?: return null
-        // UNA consulta por venta, reusada para "productos" (todos los
-        // renglones) y para la cuenta de cada contacto (solo el primero por
-        // POSICION, normalizado) — ver el KDoc de `productosPorVenta`.
+        // UN lote (una consulta, troceada solo si hiciera falta), reusado para
+        // "productos" (todos los renglones) y para la cuenta de cada contacto
+        // (solo el primero por POSICION, normalizado) — ver el KDoc de
+        // `productosPorVenta`.
         val productosPorVenta = productosPort.productosPorVenta(ventas)
         val contactos = BitacoraDelCliente.de(
             visitas = cobranza.visitas,

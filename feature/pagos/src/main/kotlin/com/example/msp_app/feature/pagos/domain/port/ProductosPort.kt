@@ -29,4 +29,20 @@ interface ProductosPort {
 
     /** Los renglones del folio, en el orden en que los trae la venta. */
     suspend fun productosDe(folio: String): List<ProductoDeVenta>
+
+    /**
+     * Los renglones de VARIOS folios, agrupados por folio — cada lista en el
+     * MISMO orden que promete [productosDe]. Existe para el llamador que
+     * necesita los productos de TODAS las ventas de un cliente
+     * (`CargarBitacoraDelCliente`, `CargarDetalleCliente`, `CargarDetalleVenta`,
+     * vía `application/CuentasDeLasVentas.kt`): sin esto, resolver la cuenta de
+     * cada contacto de la bitácora completa de un cliente con años de historial
+     * significaba una consulta secuencial por venta — un centenar de viajes a
+     * Room solo para nombres de cuenta, en un cliente viejo.
+     *
+     * Un folio sin renglones sincronizados no trae llave en el mapa —igual que
+     * [productosDe] contesta lista vacía para ese caso—, así que el llamador
+     * hace `mapa[folio].orEmpty()`.
+     */
+    suspend fun productosDeVarios(folios: List<String>): Map<String, List<ProductoDeVenta>>
 }

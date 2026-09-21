@@ -175,12 +175,28 @@ class FakeProductosPort : ProductosPort {
 
     var porFolio: Map<String, List<ProductoDeVenta>> = emptyMap()
 
-    /** Cada folio consultado, en orden — para afirmar que SÍ se preguntó. */
+    /** Cada folio consultado por [productosDe], en orden — para afirmar que SÍ se preguntó. */
     val foliosConsultados: MutableList<String> = mutableListOf()
+
+    /**
+     * Cada LOTE pedido a [productosDeVarios], en orden — es sobre esta lista
+     * que se afirma "una consulta por lote, no una por venta": su TAMAÑO
+     * cuenta cuántas veces se llamó al puerto, y su CONTENIDO qué folios traía
+     * cada llamada.
+     */
+    val lotesConsultados: MutableList<List<String>> = mutableListOf()
 
     override suspend fun productosDe(folio: String): List<ProductoDeVenta> {
         foliosConsultados += folio
         return porFolio[folio].orEmpty()
+    }
+
+    /** Un folio sin llave en [porFolio] no entra al mapa — igual que el adaptador real. */
+    override suspend fun productosDeVarios(
+        folios: List<String>
+    ): Map<String, List<ProductoDeVenta>> {
+        lotesConsultados += folios
+        return folios.mapNotNull { folio -> porFolio[folio]?.let { folio to it } }.toMap()
     }
 }
 
