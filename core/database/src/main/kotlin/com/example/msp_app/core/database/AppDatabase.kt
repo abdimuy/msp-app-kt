@@ -41,6 +41,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_25_26
 import com.example.msp_app.core.database.migrations.MIGRATION_26_27
 import com.example.msp_app.core.database.migrations.MIGRATION_27_28
 import com.example.msp_app.core.database.migrations.MIGRATION_28_29
+import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 
 @Database(
     entities = [
@@ -61,7 +62,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_28_29
         CobranzaSyncStateEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 29,
+    version = 30,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -93,7 +94,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         /**
          * Única fuente de verdad para la configuración del builder de producción
-         * (las 9 migraciones + el fallback destructivo pre-20). `getInstance`
+         * (las 10 migraciones + el fallback destructivo pre-20). `getInstance`
          * llama a esta función; los tests de migración de este mismo módulo
          * (`internal`, visible por friend-path del compilador Kotlin/AGP entre
          * `main` y su propio `test` source set) también, en vez de duplicar esta
@@ -122,7 +123,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_25_26,
                     MIGRATION_26_27,
                     MIGRATION_27_28,
-                    MIGRATION_28_29
+                    MIGRATION_28_29,
+                    MIGRATION_29_30
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
+import com.example.msp_app.core.database.entities.SaleClaimSnapshot
 
 @Dao
 interface LocalSaleDao {
@@ -192,4 +193,103 @@ interface LocalSaleDao {
         zonaCliente: String?,
         clienteId: Int?
     )
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Reclamo de edición (mecanismo de la carrera). Cada método de abajo es
+    // UN SOLO `UPDATE` — SQLite serializa las sentencias, ahí vive la
+    // atomicidad, no en un mutex de Kotlin (los `Flow` de Room de la UI no
+    // pasan por ninguno).
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Reclama la venta para edición con un arrendamiento de [leaseMs] desde
+     * [now]. Devuelve 1 si el reclamo se tomó; 0 si la venta ya se envió, si
+     * tuvo un fallo permanente (el servidor ya resguardó el intento aunque
+     * `ENVIADO` siga en 0), o si ya hay un reclamo vigente y no vencido.
+     * `0` = el editor ni se abre.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET EDIT_CLAIM_ID = :claimId, EDIT_CLAIMED_AT = :now
+        WHERE LOCAL_SALE_ID = :saleId
+          AND ENVIADO = 0
+          AND (LAST_UPLOAD_PERMANENT IS NULL OR LAST_UPLOAD_PERMANENT = 0)
+          AND (EDIT_CLAIM_ID IS NULL OR EDIT_CLAIMED_AT <= :now - :leaseMs)
+        """
+    )
+    suspend fun claimForEdit(saleId: String, claimId: String, now: Long, leaseMs: Long): Int
+
+    /**
+     * Suelta el reclamo (cancelar la corrección). Sólo el dueño del reclamo
+     * puede soltarlo: si [claimId] ya no coincide con el vigente (venció y
+     * otro lo tomó), no toca nada.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET EDIT_CLAIM_ID = NULL, EDIT_CLAIMED_AT = NULL
+        WHERE LOCAL_SALE_ID = :saleId AND EDIT_CLAIM_ID = :claimId
+        """
+    )
+    suspend fun releaseClaim(saleId: String, claimId: String): Int
+
+    /**
+     * El guardia del guardado (mecanismo, paso 4) — va PRIMERO dentro de la
+     * transacción que hace el commit de la corrección. 0 filas: la venta ya
+     * se envió, o el reclamo ya no es el tuyo (venció y el subidor se la
+     * llevó) → el llamador lanza y Room revierte la transacción entera, sin
+     * escribir nada. 1 fila: la corrección gana — sube `REVISION` y cierra
+     * el reclamo en la misma sentencia.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET EDIT_CLAIM_ID = NULL, EDIT_CLAIMED_AT = NULL, REVISION = REVISION + 1
+        WHERE LOCAL_SALE_ID = :saleId AND EDIT_CLAIM_ID = :claimId AND ENVIADO = 0
+        """
+    )
+    suspend fun commitEditGuard(saleId: String, claimId: String): Int
+
+    /**
+     * Lo llama el subidor cuando el POST triunfa: marca `ENVIADO=1` y cierra
+     * cualquier reclamo vigente en la MISMA sentencia (un solo `UPDATE`, así
+     * que es atómico sin necesitar `@Transaction`). Si el guardado del
+     * usuario estaba a medio camino, su guardia (`commitEditGuard`) va a leer
+     * `ENVIADO=1` y devolver 0 filas → rollback total, "Ya se envió". El
+     * servidor manda: el teléfono nunca queda con una corrección fantasma de
+     * una venta que ya viajó.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET
+            ENVIADO = 1,
+            EDIT_CLAIM_ID = NULL,
+            EDIT_CLAIMED_AT = NULL
+        WHERE LOCAL_SALE_ID = :saleId
+        """
+    )
+    suspend fun markSentAndCloseEdit(saleId: String)
+
+    /**
+     * Ventas subibles por el barrido: no enviadas y sin reclamo vigente
+     * (NULL, o vencido según [leaseMs] desde [now]). Reemplaza a
+     * `getSalesByStatus(false)` en el barrido (mecanismo, paso 6): sin esto,
+     * `LocalSalesPendingSynchronizer` reencolaría con `replace=true` en cada
+     * apertura de sesión mientras el dueño está corrigiendo, reseteando el
+     * backoff y peleándose con el fence del reclamo.
+     */
+    @Query(
+        """
+        SELECT * FROM local_sale
+        WHERE ENVIADO = 0
+          AND (EDIT_CLAIM_ID IS NULL OR EDIT_CLAIMED_AT <= :now - :leaseMs)
+        ORDER BY FECHA_VENTA DESC
+        """
+    )
+    suspend fun getUploadableSales(now: Long, leaseMs: Long): List<LocalSaleEntity>
+
+    /**
+     * Snapshot barato de `(EDIT_CLAIM_ID, REVISION, ENVIADO)` — ver
+     * [SaleClaimSnapshot].
+     */
+    @Query("SELECT EDIT_CLAIM_ID, REVISION, ENVIADO FROM local_sale WHERE LOCAL_SALE_ID = :saleId")
+    suspend fun getSaleClaimSnapshot(saleId: String): SaleClaimSnapshot?
 }

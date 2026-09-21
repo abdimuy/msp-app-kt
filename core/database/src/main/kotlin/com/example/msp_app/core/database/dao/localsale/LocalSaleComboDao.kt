@@ -34,4 +34,35 @@ interface LocalSaleComboDao {
             insertAllCombos(combos)
         }
     }
+
+    @Query(
+        "DELETE FROM local_sale_combos WHERE LOCAL_SALE_ID = :saleId AND COMBO_ID IN (:comboIds)"
+    )
+    suspend fun deleteCombosByIds(saleId: String, comboIds: List<String>)
+
+    /**
+     * Merge que CONSERVA `SERVER_UUID` — mismo criterio que
+     * `LocalSaleProductDao.mergeProductsForSale`, aquí con la clave
+     * `(COMBO_ID, LOCAL_SALE_ID)`: el combo que sobrevive es el que llega con
+     * el MISMO `COMBO_ID` que ya tenía (el llamador lo conserva al editar); un
+     * combo genuinamente nuevo trae un `COMBO_ID` fresco. `replaceCombosForSale`
+     * (borrar-todo-reinsertar) sigue siendo la ruta correcta para la venta
+     * NUEVA, donde no hay `SERVER_UUID` previo que perder.
+     */
+    @Transaction
+    suspend fun mergeCombosForSale(saleId: String, combos: List<LocalSaleComboEntity>) {
+        val existing = getCombosForSale(saleId)
+        val existingUuidByComboId = existing.associate { it.COMBO_ID to it.SERVER_UUID }
+        val incomingComboIds = combos.map { it.COMBO_ID }.toSet()
+        val removedComboIds = existing.map { it.COMBO_ID }.filterNot { it in incomingComboIds }
+
+        if (removedComboIds.isNotEmpty()) {
+            deleteCombosByIds(saleId, removedComboIds)
+        }
+
+        val merged = combos.map { combo ->
+            combo.copy(SERVER_UUID = combo.SERVER_UUID ?: existingUuidByComboId[combo.COMBO_ID])
+        }
+        insertAllCombos(merged)
+    }
 }

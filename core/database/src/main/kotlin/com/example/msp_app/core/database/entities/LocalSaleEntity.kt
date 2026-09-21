@@ -42,5 +42,14 @@ class LocalSaleEntity(
     val LAST_UPLOAD_ERROR_MESSAGE: String? = null,
     val LAST_UPLOAD_AT: Long? = null,
     val LAST_UPLOAD_PERMANENT: Boolean? = null,
-    val IDEMPOTENCY_KEY: String? = null
+    val IDEMPOTENCY_KEY: String? = null,
+    // Reclamo de edición (plan "Corregir una venta antes de que suba", migración
+    // 29→30). NULL = nadie está corrigiendo. Un UUID de reclamo vivo frena al
+    // subidor (PendingLocalSalesWorker) y saca la venta del barrido mientras el
+    // dueño escribe; vencido (arrendamiento, ver leaseMs del DAO), el subidor
+    // recupera la venta — una captura nunca se retiene para siempre.
+    val EDIT_CLAIM_ID: String? = null,
+    val EDIT_CLAIMED_AT: Long? = null,
+    // Correcciones commiteadas. Sólo sube; nunca se resetea.
+    val REVISION: Int = 0
 )

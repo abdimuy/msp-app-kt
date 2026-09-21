@@ -250,6 +250,11 @@ class LocalSaleSyncHandlerTest : RoomTestBase() {
                 articuloId: Int,
                 serverUuid: String
             ) = Unit
+
+            override suspend fun deleteProductsByArticuloIds(
+                saleId: String,
+                articuloIds: List<Int>
+            ) = Unit
         }
 
     private fun throwingComboDao(error: Throwable): LocalSaleComboDao = object : LocalSaleComboDao {
@@ -261,5 +266,7 @@ class LocalSaleSyncHandlerTest : RoomTestBase() {
         override suspend fun deleteCombosForSale(saleId: String) = Unit
         override suspend fun updateServerUuid(comboId: String, saleId: String, serverUuid: String) =
             Unit
+
+        override suspend fun deleteCombosByIds(saleId: String, comboIds: List<String>) = Unit
     }
 }
