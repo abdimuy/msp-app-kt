@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.designsystem.component.MspRevealedContent
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
@@ -431,17 +432,33 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
                 habilitado = state.sePuedeCapturar,
                 onElegir = acciones.onCambiarResultado
             )
-            if (CatalogoDeResultados.pideEtiqueta(elegido)) {
-                TarjetaDelFold {
-                    RotuloDeSeccion("cómo estaba")
-                    FilaDeEtiquetas(elegido, state, acciones)
+        }
+        // Lo que CADA desenlace revela —cómo estaba, cuáles cuentas, la
+        // promesa o la cita— entra y sale con transición en vez de aparecer de
+        // golpe (el dueño: "se siente muy agresivo"). El selector de arriba
+        // —las cinco opciones, o la elegida sola— NO se anima: sólo lo de
+        // abajo. `elegido` es la llave: null no revela nada, y cambiar de un
+        // desenlace a otro cruza el contenido viejo con el nuevo en vez de
+        // parpadear. Ver el KDoc de `MspRevealedContent`.
+        MspRevealedContent(
+            targetState = elegido,
+            modifier = Modifier.fillMaxWidth()
+        ) { resultado ->
+            if (resultado != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)) {
+                    if (CatalogoDeResultados.pideEtiqueta(resultado)) {
+                        TarjetaDelFold {
+                            RotuloDeSeccion("cómo estaba")
+                            FilaDeEtiquetas(resultado, state, acciones)
+                        }
+                    }
+                    SeccionDeCuentas(state, acciones)
+                    when (resultado) {
+                        ResultadoDeVisita.PROMETIO -> SeccionDeLaPromesa(state, acciones)
+                        ResultadoDeVisita.CITA -> SeccionDeLaCita(state, acciones)
+                        else -> Unit
+                    }
                 }
-            }
-            SeccionDeCuentas(state, acciones)
-            when (elegido) {
-                ResultadoDeVisita.PROMETIO -> SeccionDeLaPromesa(state, acciones)
-                ResultadoDeVisita.CITA -> SeccionDeLaCita(state, acciones)
-                else -> Unit
             }
         }
         // El campo de nota, que ahora se DICTA. Sigue siendo el mismo campo de
