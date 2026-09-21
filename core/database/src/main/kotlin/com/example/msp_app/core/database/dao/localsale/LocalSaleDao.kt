@@ -217,6 +217,16 @@ interface LocalSaleDao {
     // ocurriera por un bug en otra capa, retendría la venta PARA SIEMPRE. La
     // regla del plan es "una captura nunca se retiene para siempre", así que
     // ese estado se trata como vencido en vez de confiar en que nunca pase.
+    //
+    // `COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')` es el mismo
+    // argumento aplicado a `CLAIM_KIND`: con `CLAIM_ID` puesto, `CLAIMED_AT`
+    // puesto y `CLAIM_KIND` nulo o con un valor que no es ninguno de los dos
+    // reconocidos, ninguna de las dos ramas del `CASE` se cumple — ese
+    // candado también quedaría retenido para siempre sin esta línea. No se
+    // escribe como `CLAIM_KIND IS NULL OR CLAIM_KIND NOT IN (...)` porque en
+    // SQL `NULL NOT IN (...)` es `NULL` (ni verdadero ni falso), no `TRUE`:
+    // sin el `COALESCE` el caso `CLAIM_KIND IS NULL` se cuela de vuelta al
+    // estado retenido para siempre que esta línea existe para evitar.
     // ─────────────────────────────────────────────────────────────────────
 
     /**
@@ -241,6 +251,7 @@ interface LocalSaleDao {
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
+            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
             OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
             OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
           )
@@ -277,6 +288,7 @@ interface LocalSaleDao {
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
+            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
             OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
             OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
           )
@@ -328,13 +340,39 @@ interface LocalSaleDao {
      * CUALQUIER candado que la fila tenga (edición o subida) en la MISMA
      * sentencia (un solo `UPDATE`, así que es atómico sin necesitar
      * `@Transaction`). Cierra incondicionalmente, sin filtrar por
-     * `CLAIM_ID`/`CLAIM_KIND`, porque en este punto el propio subidor es
-     * quien tiene el candado de subida (lo tomó con [claimForUpload] antes
-     * del POST) y lo suyo también debe soltarse. Si el guardado del usuario
-     * estaba a medio camino, su guardia (`commitEditGuard`) va a leer
-     * `ENVIADO=1` y devolver 0 filas → rollback total, "Ya se envió". El
-     * servidor manda: el teléfono nunca queda con una corrección fantasma de
-     * una venta que ya viajó.
+     * `CLAIM_ID`/`CLAIM_KIND`: en este punto el 2xx ya PROBÓ que el servidor
+     * tiene la venta — no marcar `ENVIADO=1` la haría subir otra vez, sea de
+     * quien sea el candado que la fila tenga ahora.
+     *
+     * [revisionAtClaim] es el `REVISION` que el snapshot del subidor traía
+     * ANTES del POST (`getSaleClaimSnapshot`, mecanismo paso 3). Cierra la
+     * carrera nueva que la ronda 2 de revisión encontró: el arrendamiento de
+     * subida puede vencer con el POST TODAVÍA en vuelo (subir un cuerpo
+     * multipart no tiene tope real de OkHttp — ver el comentario de
+     * `UPLOAD_LEASE_MS` en `LocalSaleClaimDaoTest.kt`), el editor toma el
+     * candado y commitea, y LUEGO vuelve el 2xx con el cuerpo VIEJO. Si
+     * `REVISION` ya no coincide con [revisionAtClaim], eso fue lo que pasó:
+     * se marca `CORRECCION_NO_ENVIADA = 1` en la MISMA sentencia — la
+     * divergencia queda VISIBLE en la fila, nunca pisada en silencio.
+     * Si el candado lo tomó el editor pero AÚN no commiteó (`REVISION` sin
+     * cambiar), no hay marca: el guardado posterior del editor va a fallar
+     * solo, por su propio guardia (`commitEditGuard` lee `ENVIADO=1` y
+     * devuelve 0) — eso ya funciona sin ayuda de esta sentencia.
+     *
+     * Quién enseña `CORRECCION_NO_ENVIADA` en pantalla, y cómo se resuelve
+     * (reintentar, avisar al dueño), es de tareas posteriores; este método
+     * sólo entrega el dato, de forma atómica y sin perderlo.
+     *
+     * Nota para quien revise esta ronda: el brief pide que el método
+     * "reciba el `claimId` y la `REVISION` del snapshot del worker". Sólo
+     * `REVISION` entra al `@Query` — Room exige que TODO parámetro de un
+     * `@Query` aparezca en la sentencia, y el propio brief fija que este
+     * método "siempre cierra el candado, sea de quien sea": no hay ningún
+     * gating por `CLAIM_ID` que un parámetro `claimId` pudiera alimentar sin
+     * convertirlo en una sentencia con una condición falsa (una que nunca
+     * bloquea nada). Se deja fuera por esa razón concreta, no por omisión;
+     * si el propósito era otro (auditoría, log), es una decisión de diseño
+     * que falta afinar en la siguiente ronda.
      */
     @Query(
         """
@@ -342,11 +380,15 @@ interface LocalSaleDao {
             ENVIADO = 1,
             CLAIM_ID = NULL,
             CLAIM_KIND = NULL,
-            CLAIMED_AT = NULL
+            CLAIMED_AT = NULL,
+            CORRECCION_NO_ENVIADA = CASE
+                WHEN REVISION != :revisionAtClaim THEN 1
+                ELSE CORRECCION_NO_ENVIADA
+            END
         WHERE LOCAL_SALE_ID = :saleId
         """
     )
-    suspend fun markSentAndCloseEdit(saleId: String)
+    suspend fun markSentAndCloseEdit(saleId: String, revisionAtClaim: Int)
 
     /**
      * Ventas subibles por el barrido: no enviadas y sin candado vigente
@@ -363,6 +405,7 @@ interface LocalSaleDao {
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
+            OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
             OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
             OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
           )

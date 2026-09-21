@@ -29,11 +29,13 @@ private const val SEEDED_IMAGE_ID = "img-migracion-001"
  * captura sin señal — se aplica la `Migration` REAL, y Room valida el
  * esquema resultante contra el `30.json`.
  *
- * Agrega cuatro columnas nuevas a `local_sale` para el plan "Corregir una
+ * Agrega cinco columnas nuevas a `local_sale` para el plan "Corregir una
  * venta antes de que suba" (candado único de la fila, con arrendamiento):
  * `CLAIM_ID`, `CLAIM_KIND`, `CLAIMED_AT` (las tres nullable, nadie tiene la
- * fila todavía) y `REVISION` (`NOT NULL DEFAULT 0`, cero correcciones
- * commiteadas). Todo `ALTER TABLE ADD COLUMN`: ninguna tabla se recrea.
+ * fila todavía), `REVISION` (`NOT NULL DEFAULT 0`, cero correcciones
+ * commiteadas) y `CORRECCION_NO_ENVIADA` (`NOT NULL DEFAULT 0`, ronda 3: sin
+ * divergencia todavía). Todo `ALTER TABLE ADD COLUMN`: ninguna tabla se
+ * recrea.
  *
  * Qué rompería si este test fallara: cualquier edición a la migración (una
  * columna con NOT NULL sin default, un tipo equivocado) que Room rechazara al
@@ -51,7 +53,7 @@ class Migration29to30Test : RobolectricTestBase() {
     )
 
     @Test
-    fun `las cuatro columnas del candado existen y arrancan libres tras migrar`() {
+    fun `las cinco columnas del candado existen y arrancan libres tras migrar`() {
         seedPendingSaleWithChildren()
 
         val migrated = migrationTestHelper.runMigrationsAndValidate(
@@ -62,7 +64,10 @@ class Migration29to30Test : RobolectricTestBase() {
         )
 
         migrated.query(
-            "SELECT CLAIM_ID, CLAIM_KIND, CLAIMED_AT, REVISION FROM local_sale WHERE LOCAL_SALE_ID = ?",
+            """
+            SELECT CLAIM_ID, CLAIM_KIND, CLAIMED_AT, REVISION, CORRECCION_NO_ENVIADA
+            FROM local_sale WHERE LOCAL_SALE_ID = ?
+            """.trimIndent(),
             arrayOf(SEEDED_SALE_ID)
         ).use { cursor ->
             assertTrue("la venta sembrada antes de migrar debe seguir ahí", cursor.moveToFirst())
@@ -73,6 +78,11 @@ class Migration29to30Test : RobolectricTestBase() {
                 "REVISION arranca en 0: cero correcciones commiteadas",
                 0,
                 cursor.getInt(3)
+            )
+            assertEquals(
+                "CORRECCION_NO_ENVIADA arranca en 0: sin divergencia todavia",
+                0,
+                cursor.getInt(4)
             )
         }
         migrated.close()

@@ -4,7 +4,7 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /**
- * Cuatro columnas nuevas en `local_sale` para el plan "Corregir una venta
+ * Cinco columnas nuevas en `local_sale` para el plan "Corregir una venta
  * antes de que suba" (`docs/superpowers/plans/2026-09-20-editar-venta-antes-de-subir.md`,
  * sección "El mecanismo de la carrera" + la ronda 2 de revisión que cierra una
  * carrera adicional entre editar y subir): el dueño puede corregir una venta
@@ -26,6 +26,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *   vez de una carrera incómoda.
  * - `REVISION` (`NOT NULL DEFAULT 0`): correcciones commiteadas, sólo sube.
  *   0 para toda fila preexistente: nadie ha corregido nada todavía.
+ * - `CORRECCION_NO_ENVIADA` (`NOT NULL DEFAULT 0`): la subida de un cuerpo
+ *   multipart no tiene tope real de tiempo, así que el arrendamiento de
+ *   subida puede vencer con el POST todavía en vuelo; si el editor commitea
+ *   en esa ventana y LUEGO vuelve el 2xx (con el cuerpo viejo),
+ *   `markSentAndCloseEdit` marca esta columna en vez de pisar la corrección
+ *   en silencio. 0 para toda fila preexistente: no hay divergencia que
+ *   señalar todavía.
  *
  * Solo agrega columnas: ninguna tabla se recrea, así que las ventas
  * pendientes del dueño (y sus productos/combos/imágenes) quedan intactas.
@@ -36,5 +43,8 @@ val MIGRATION_29_30 = object : Migration(29, 30) {
         db.execSQL("ALTER TABLE local_sale ADD COLUMN CLAIM_KIND TEXT")
         db.execSQL("ALTER TABLE local_sale ADD COLUMN CLAIMED_AT INTEGER")
         db.execSQL("ALTER TABLE local_sale ADD COLUMN REVISION INTEGER NOT NULL DEFAULT 0")
+        db.execSQL(
+            "ALTER TABLE local_sale ADD COLUMN CORRECCION_NO_ENVIADA INTEGER NOT NULL DEFAULT 0"
+        )
     }
 }

@@ -10,8 +10,9 @@ import org.junit.Test
 /**
  * Prueba trivial post-hoist: [AppDatabase] compila y vive en `:core:database`,
  * y reporta la version de esquema vigente (v30: la 29->30 agrego el candado
- * unico de la fila —`CLAIM_ID`/`CLAIM_KIND`/`CLAIMED_AT`/`REVISION` en
- * `local_sale`— para el plan "Corregir una venta antes de que suba").
+ * unico de la fila —`CLAIM_ID`/`CLAIM_KIND`/`CLAIMED_AT`/`REVISION`/
+ * `CORRECCION_NO_ENVIADA` en `local_sale`— para el plan "Corregir una venta
+ * antes de que suba").
  */
 class AppDatabaseTest : RobolectricTestBase() {
 
@@ -52,17 +53,38 @@ class AppDatabaseTest : RobolectricTestBase() {
             .build()
 
         try {
-            assertRevisionHasDefaultZero(db)
+            assertColumnHasDefaultZero(db, "REVISION")
         } finally {
             db.close()
         }
     }
 
-    private fun assertRevisionHasDefaultZero(db: AppDatabase) {
+    /**
+     * Ronda 3 de revisión: mismo argumento que `REVISION`, aplicado a la
+     * columna nueva `CORRECCION_NO_ENVIADA` — una instalación nueva y una
+     * migrada deben declarar el mismo `DEFAULT 0`.
+     */
+    @Test
+    fun `una instalacion nueva declara CORRECCION_NO_ENVIADA con DEFAULT 0, igual que una migrada`() {
+        val db = Room.inMemoryDatabaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            AppDatabase::class.java
+        )
+            .allowMainThreadQueries()
+            .build()
+
+        try {
+            assertColumnHasDefaultZero(db, "CORRECCION_NO_ENVIADA")
+        } finally {
+            db.close()
+        }
+    }
+
+    private fun assertColumnHasDefaultZero(db: AppDatabase, columnName: String) {
         db.openHelper.readableDatabase.query("PRAGMA table_info(local_sale)").use { cursor ->
             var seen = false
             while (cursor.moveToNext()) {
-                if (cursor.getString(cursor.getColumnIndexOrThrow("name")) != "REVISION") continue
+                if (cursor.getString(cursor.getColumnIndexOrThrow("name")) != columnName) continue
                 seen = true
                 assertEquals(
                     "una instalacion nueva debe declarar el mismo DEFAULT 0 que la migracion",
@@ -70,7 +92,7 @@ class AppDatabaseTest : RobolectricTestBase() {
                     cursor.getString(cursor.getColumnIndexOrThrow("dflt_value"))
                 )
             }
-            assertTrue("la columna REVISION debe existir en una instalacion nueva", seen)
+            assertTrue("la columna $columnName debe existir en una instalacion nueva", seen)
         }
     }
 }
