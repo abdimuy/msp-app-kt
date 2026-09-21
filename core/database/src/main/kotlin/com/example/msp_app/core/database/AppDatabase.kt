@@ -53,6 +53,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_28_29
 import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 import com.example.msp_app.core.database.migrations.MIGRATION_30_31
 import com.example.msp_app.core.database.migrations.MIGRATION_31_32
+import com.example.msp_app.core.database.migrations.MIGRATION_32_33
 
 @Database(
     entities = [
@@ -78,7 +79,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_31_32
         ClientProfileSignalEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 32,
+    version = 33,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -125,7 +126,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         /**
          * Única fuente de verdad para la configuración del builder de producción
-         * (las 11 migraciones + el fallback destructivo pre-20). `getInstance`
+         * (las 13 migraciones + el fallback destructivo pre-20). `getInstance`
          * llama a esta función; los tests de migración de este mismo módulo
          * (`internal`, visible por friend-path del compilador Kotlin/AGP entre
          * `main` y su propio `test` source set) también, en vez de duplicar esta
@@ -157,7 +158,8 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_28_29,
                     MIGRATION_29_30,
                     MIGRATION_30_31,
-                    MIGRATION_31_32
+                    MIGRATION_31_32,
+                    MIGRATION_32_33
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

@@ -157,6 +157,11 @@ class Migration31to32Test : RobolectricTestBase() {
      * en `AppDatabase.buildDatabase` si sólo se le pasara la migración a mano
      * a `MigrationTestHelper`. Esta prueba abre por el camino REAL de
      * producción.
+     *
+     * Igual que `Migration30to31Test`: no se compara por igualdad contra
+     * `NEW_VERSION` (32) — desde que existe `MIGRATION_32_33` (columna
+     * `NOMBRE_NORMALIZADO` del buscador de clientes) una base v31 abierta así
+     * llega hasta v33, no se detiene en v32. Basta con `>= NEW_VERSION`.
      */
     @Test
     fun `MIGRATION_31_32 esta registrada en la configuracion real que usa produccion`() {
@@ -169,10 +174,10 @@ class Migration31to32Test : RobolectricTestBase() {
             .build()
 
         try {
-            assertEquals(
-                "abrir por el camino real de produccion debe terminar en v32",
-                NEW_VERSION,
-                opened.openHelper.readableDatabase.version
+            assertTrue(
+                "abrir por el camino real de produccion debe pasar por v32 sin bloquearse " +
+                    "(y puede seguir de largo hasta la ultima version registrada)",
+                opened.openHelper.readableDatabase.version >= NEW_VERSION
             )
 
             val sale = runBlocking { opened.localSaleDao().getSaleById(SEEDED_SALE_ID) }

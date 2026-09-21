@@ -35,9 +35,10 @@ private const val SEEDED_IMAGE_ID = "img-migracion-001"
  * **Era la 29→30 de su rama.** Se renumeró al integrar, porque la rama de
  * pagos y visitas escribió otra 29→30 distinta y dos migraciones no pueden
  * llevar el mismo número — ver el KDoc de `MIGRATION_30_31`. La cadena
- * completa desde una base v29 la prueba `Migration29a32Test` (extiende, con el
- * mismo nombre de clase renombrado, lo que aquí se llamaba `Migration29a31Test`
- * antes del tramo 31→32 del nivel 2).
+ * completa desde una base v29 la prueba `Migration29a33Test` (extiende, con el
+ * mismo nombre de clase renombrado, lo que se llamó primero `Migration29a31Test`
+ * y luego `Migration29a32Test`, antes del tramo 31→32 del nivel 2 y del tramo
+ * 32→33 del buscador de clientes, respectivamente).
  *
  * Agrega seis columnas nuevas a `local_sale` para el plan "Corregir una
  * venta antes de que suba" (candado único de la fila, con arrendamiento):
@@ -178,11 +179,12 @@ class Migration30to31Test : RobolectricTestBase() {
      *
      * **Nivel 2, Task A1:** la versión final ya NO se compara por igualdad
      * contra `NEW_VERSION` (31) — `buildDatabase` siempre migra hasta la
-     * ÚLTIMA versión registrada (hoy v32, con `MIGRATION_31_32` sumada), así
-     * que fijar `31` a mano habría quebrado esta prueba en cuanto llegó la
-     * migración siguiente, sin que el fallo dijera nada sobre `MIGRATION_30_31`
-     * en sí. Lo único que le importa a ESTE archivo es que el tramo 30→31 no
-     * bloquee la cadena; por eso basta con `>= NEW_VERSION`.
+     * ÚLTIMA versión registrada (hoy v33, con `MIGRATION_31_32` y
+     * `MIGRATION_32_33` sumadas), así que fijar `31` a mano habría quebrado
+     * esta prueba en cuanto llegó la migración siguiente, sin que el fallo
+     * dijera nada sobre `MIGRATION_30_31` en sí. Lo único que le importa a
+     * ESTE archivo es que el tramo 30→31 no bloquee la cadena; por eso basta
+     * con `>= NEW_VERSION`.
      */
     @Test
     fun `MIGRATION_30_31 esta registrada en la configuracion real que usa produccion`() {
