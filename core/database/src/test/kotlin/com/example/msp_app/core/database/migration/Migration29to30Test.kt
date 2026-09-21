@@ -1,10 +1,13 @@
 package com.example.msp_app.core.database.migration
 
+import android.content.Context
 import androidx.room.testing.MigrationTestHelper
+import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 import com.example.msp_app.core.testing.RobolectricTestBase
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -26,11 +29,11 @@ private const val SEEDED_IMAGE_ID = "img-migracion-001"
  * captura sin señal — se aplica la `Migration` REAL, y Room valida el
  * esquema resultante contra el `30.json`.
  *
- * Agrega tres columnas nuevas a `local_sale` para el plan "Corregir una venta
- * antes de que suba" (reclamo de edición con arrendamiento): `EDIT_CLAIM_ID`,
- * `EDIT_CLAIMED_AT` (ambas nullable, nadie ha reclamado nada todavía) y
- * `REVISION` (`NOT NULL DEFAULT 0`, cero correcciones commiteadas). Todo
- * `ALTER TABLE ADD COLUMN`: ninguna tabla se recrea.
+ * Agrega cuatro columnas nuevas a `local_sale` para el plan "Corregir una
+ * venta antes de que suba" (candado único de la fila, con arrendamiento):
+ * `CLAIM_ID`, `CLAIM_KIND`, `CLAIMED_AT` (las tres nullable, nadie tiene la
+ * fila todavía) y `REVISION` (`NOT NULL DEFAULT 0`, cero correcciones
+ * commiteadas). Todo `ALTER TABLE ADD COLUMN`: ninguna tabla se recrea.
  *
  * Qué rompería si este test fallara: cualquier edición a la migración (una
  * columna con NOT NULL sin default, un tipo equivocado) que Room rechazara al
@@ -48,7 +51,7 @@ class Migration29to30Test : RobolectricTestBase() {
     )
 
     @Test
-    fun `las tres columnas del reclamo existen y arrancan libres tras migrar`() {
+    fun `las cuatro columnas del candado existen y arrancan libres tras migrar`() {
         seedPendingSaleWithChildren()
 
         val migrated = migrationTestHelper.runMigrationsAndValidate(
@@ -59,25 +62,64 @@ class Migration29to30Test : RobolectricTestBase() {
         )
 
         migrated.query(
-            "SELECT EDIT_CLAIM_ID, EDIT_CLAIMED_AT, REVISION FROM local_sale WHERE LOCAL_SALE_ID = ?",
+            "SELECT CLAIM_ID, CLAIM_KIND, CLAIMED_AT, REVISION FROM local_sale WHERE LOCAL_SALE_ID = ?",
             arrayOf(SEEDED_SALE_ID)
         ).use { cursor ->
             assertTrue("la venta sembrada antes de migrar debe seguir ahí", cursor.moveToFirst())
-            assertTrue(
-                "EDIT_CLAIM_ID debe quedar NULL: nadie ha reclamado nada todavía",
-                cursor.isNull(0)
-            )
-            assertTrue(
-                "EDIT_CLAIMED_AT debe quedar NULL junto con el reclamo",
-                cursor.isNull(1)
-            )
+            assertTrue("CLAIM_ID debe quedar NULL: nadie tiene la fila todavía", cursor.isNull(0))
+            assertTrue("CLAIM_KIND debe quedar NULL junto con el candado", cursor.isNull(1))
+            assertTrue("CLAIMED_AT debe quedar NULL junto con el candado", cursor.isNull(2))
             assertEquals(
                 "REVISION arranca en 0: cero correcciones commiteadas",
                 0,
-                cursor.getInt(2)
+                cursor.getInt(3)
             )
         }
         migrated.close()
+    }
+
+    /**
+     * Cierra el hallazgo Important #4 de la ronda 2 de revisión: nada probaba
+     * que `MIGRATION_29_30` estuviera REGISTRADA en la configuración real de
+     * producción (`AppDatabase.buildDatabase`). Las pruebas de arriba le
+     * pasan la migración a mano a `MigrationTestHelper` — pasarían aunque
+     * alguien la quitara de la lista de `addMigrations` por error, y en el
+     * teléfono la app simplemente no abriría, con ventas pendientes adentro.
+     *
+     * Esta prueba en cambio abre el archivo v29 sembrado por el MISMO camino
+     * que usa producción: `AppDatabase.buildDatabase` (única fuente de verdad
+     * del builder, ver su companion object). Si `MIGRATION_29_30` no está en
+     * esa lista, Room no encuentra ruta de 29 a 30 y `.build()` truena al
+     * primer acceso — que es exactamente la falla real que un dispositivo
+     * vería.
+     */
+    @Test
+    fun `MIGRATION_29_30 esta registrada en la configuracion real que usa produccion`() {
+        seedPendingSaleWithChildren()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val dbPath = context.getDatabasePath(MIGRATION_DB).path
+
+        val opened = AppDatabase.buildDatabase(context, dbPath)
+            .allowMainThreadQueries()
+            .build()
+
+        try {
+            assertEquals(
+                "abrir por el camino real de produccion debe terminar en v30",
+                NEW_VERSION,
+                opened.openHelper.readableDatabase.version
+            )
+
+            val sale = runBlocking { opened.localSaleDao().getSaleById(SEEDED_SALE_ID) }
+            assertEquals(
+                "la venta sembrada en v29 debe sobrevivir a la apertura real",
+                "Rosa Elena Martinez Vazquez",
+                sale?.NOMBRE_CLIENTE
+            )
+            assertEquals(0, sale?.REVISION)
+        } finally {
+            opened.close()
+        }
     }
 
     @Test

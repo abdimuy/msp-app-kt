@@ -11,6 +11,7 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -217,6 +218,58 @@ class LineMergeDaoTest : RobolectricTestBase() {
         assertEquals("uuid-ajeno", ajeno.first().SERVER_UUID)
     }
 
+    /**
+     * Minor B1 de la ronda 2: LA BASE MANDA. Antes ganaba lo que trajera
+     * `products` si no era nulo; el editor no carga `SERVER_UUID` (nunca lo
+     * ve), así que un valor viejo o basura ahí pisaría la identidad real que
+     * el subidor ya había acuñado — justo el invariante central del merge.
+     */
+    @Test
+    fun `linea que sobrevive conserva el SERVER_UUID de la base aunque el entrante traiga otro valor`() =
+        runTest {
+            database.localSaleProduct().insertAllSaleProducts(
+                listOf(
+                    product(1, "Colchon King", cantidad = 1, serverUuid = "uuid-real-en-la-base")
+                )
+            )
+
+            // El entrante trae un SERVER_UUID viejo/basura para una linea que SOBREVIVE.
+            database.localSaleProduct().mergeProductsForSale(
+                SALE_ID,
+                listOf(product(1, "Colchon King", cantidad = 2, serverUuid = "uuid-viejo-o-basura"))
+            )
+
+            val survivor = database.localSaleProduct().getProductsForSale(SALE_ID).single()
+            assertEquals(
+                "la base manda: el SERVER_UUID real no se deja pisar por lo que traiga el entrante",
+                "uuid-real-en-la-base",
+                survivor.SERVER_UUID
+            )
+        }
+
+    /**
+     * Minor B3 de la ronda 2: sin este `require`, `insertAllSaleProducts`
+     * (REPLACE sobre la PK `(LOCAL_SALE_ID, ARTICULO_ID)`) colapsaría un
+     * ARTICULO_ID duplicado a una sola fila sin ningún aviso.
+     */
+    @Test
+    fun `mergeProductsForSale rechaza ARTICULO_ID duplicado en la lista entrante`() = runTest {
+        val exception = try {
+            database.localSaleProduct().mergeProductsForSale(
+                SALE_ID,
+                listOf(
+                    product(1, "Colchon King", cantidad = 1),
+                    product(1, "Colchon King (duplicado)", cantidad = 2)
+                )
+            )
+            null
+        } catch (e: IllegalArgumentException) {
+            e
+        }
+        assertNotNull("debe rechazar ARTICULO_ID duplicado", exception)
+        assertTrue(exception!!.message.orEmpty().contains("ARTICULO_ID"))
+    }
+
     // ─── Combos ─────────────────────────────────────────────────────────
 
     @Test
@@ -276,6 +329,52 @@ class LineMergeDaoTest : RobolectricTestBase() {
         database.localSaleComboDao().mergeCombosForSale(SALE_ID, emptyList())
 
         assertTrue(database.localSaleComboDao().getCombosForSale(SALE_ID).isEmpty())
+    }
+
+    @Test
+    fun `combo que sobrevive conserva el SERVER_UUID de la base aunque el entrante traiga otro valor`() =
+        runTest {
+            database.localSaleComboDao().insertAllCombos(
+                listOf(
+                    combo("combo-recamara", "Combo Recamara", serverUuid = "uuid-real-en-la-base")
+                )
+            )
+
+            database.localSaleComboDao().mergeCombosForSale(
+                SALE_ID,
+                listOf(
+                    combo(
+                        "combo-recamara",
+                        "Combo Recamara Grande",
+                        serverUuid = "uuid-viejo-o-basura"
+                    )
+                )
+            )
+
+            val survivor = database.localSaleComboDao().getCombosForSale(SALE_ID).single()
+            assertEquals(
+                "la base manda: el SERVER_UUID real no se deja pisar por lo que traiga el entrante",
+                "uuid-real-en-la-base",
+                survivor.SERVER_UUID
+            )
+        }
+
+    @Test
+    fun `mergeCombosForSale rechaza COMBO_ID duplicado en la lista entrante`() = runTest {
+        val exception = try {
+            database.localSaleComboDao().mergeCombosForSale(
+                SALE_ID,
+                listOf(
+                    combo("combo-recamara", "Combo Recamara"),
+                    combo("combo-recamara", "Combo Recamara (duplicado)")
+                )
+            )
+            null
+        } catch (e: IllegalArgumentException) {
+            e
+        }
+        assertNotNull("debe rechazar COMBO_ID duplicado", exception)
+        assertTrue(exception!!.message.orEmpty().contains("COMBO_ID"))
     }
 
     // ─── Corregir dos veces seguidas (productos y combos, no solo la venta) ─

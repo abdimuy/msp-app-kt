@@ -10,7 +10,7 @@ package com.example.msp_app.core.database.entities
  * el nombre de columna, no una convención Kotlin, es la fuente de verdad.
  */
 data class SaleClaimSnapshot(
-    val EDIT_CLAIM_ID: String?,
+    val CLAIM_ID: String?,
     val REVISION: Int,
     val ENVIADO: Boolean
 )

@@ -195,39 +195,112 @@ interface LocalSaleDao {
     )
 
     // ─────────────────────────────────────────────────────────────────────
-    // Reclamo de edición (mecanismo de la carrera). Cada método de abajo es
-    // UN SOLO `UPDATE` — SQLite serializa las sentencias, ahí vive la
-    // atomicidad, no en un mutex de Kotlin (los `Flow` de Room de la UI no
-    // pasan por ninguno).
+    // Candado único de la fila (mecanismo de la carrera, ronda 2). UN SOLO
+    // candado por venta: puede tomarlo la edición o la subida, nunca las
+    // dos — mutua exclusión POR CONSTRUCCIÓN (una sola columna CLAIM_ID; no
+    // depende de que dos predicados independientes se mantengan
+    // sincronizados). Cada método de abajo es UN SOLO `UPDATE` — SQLite
+    // serializa las sentencias, ahí vive la atomicidad, no en un mutex de
+    // Kotlin (los `Flow` de Room de la UI no pasan por ninguno).
+    //
+    // Por qué el predicado de expiración necesita AMBOS arrendamientos en
+    // TODOS los métodos: el candado vigente en la fila puede ser de
+    // cualquiera de los dos tipos (no lo decide quién pregunta), así que
+    // decidir si venció exige mirar `CLAIM_KIND` y aplicar el arrendamiento
+    // que le corresponde — de ahí el `CASE` sobre `CLAIM_KIND` repetido en
+    // `claimForEdit`, `claimForUpload` y `getUploadableSales`.
+    //
+    // `CLAIMED_AT IS NULL` también cuenta como vencido: es defensa en
+    // profundidad para un estado que ningún camino produce hoy (CLAIM_ID no
+    // nulo con CLAIMED_AT nulo), pero bajo la comparación `<=` de SQL un
+    // NULL nunca sería "menor o igual" a nada — ese estado, si alguna vez
+    // ocurriera por un bug en otra capa, retendría la venta PARA SIEMPRE. La
+    // regla del plan es "una captura nunca se retiene para siempre", así que
+    // ese estado se trata como vencido en vez de confiar en que nunca pase.
     // ─────────────────────────────────────────────────────────────────────
 
     /**
-     * Reclama la venta para edición con un arrendamiento de [leaseMs] desde
-     * [now]. Devuelve 1 si el reclamo se tomó; 0 si la venta ya se envió, si
-     * tuvo un fallo permanente (el servidor ya resguardó el intento aunque
-     * `ENVIADO` siga en 0), o si ya hay un reclamo vigente y no vencido.
-     * `0` = el editor ni se abre.
+     * Reclama la venta para EDICIÓN. Devuelve 1 si el candado se tomó; 0 si
+     * la venta ya se envió, si tuvo un fallo permanente (el servidor ya
+     * resguardó el intento aunque `ENVIADO` siga en 0), o si ya hay un
+     * candado vigente (de cualquier tipo) y no vencido. `0` = el editor ni
+     * se abre.
+     *
+     * @param editLeaseMs arrendamiento a aplicar si el candado vigente es de
+     *   edición.
+     * @param uploadLeaseMs arrendamiento a aplicar si el candado vigente es
+     *   de subida (para poder recuperar un candado de subida que el subidor
+     *   dejó vencido, p.ej. la app murió a media subida).
      */
     @Query(
         """
-        UPDATE local_sale SET EDIT_CLAIM_ID = :claimId, EDIT_CLAIMED_AT = :now
+        UPDATE local_sale SET CLAIM_ID = :claimId, CLAIM_KIND = 'EDIT', CLAIMED_AT = :now
         WHERE LOCAL_SALE_ID = :saleId
           AND ENVIADO = 0
           AND (LAST_UPLOAD_PERMANENT IS NULL OR LAST_UPLOAD_PERMANENT = 0)
-          AND (EDIT_CLAIM_ID IS NULL OR EDIT_CLAIMED_AT <= :now - :leaseMs)
+          AND (
+            CLAIM_ID IS NULL
+            OR CLAIMED_AT IS NULL
+            OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
+            OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
+          )
         """
     )
-    suspend fun claimForEdit(saleId: String, claimId: String, now: Long, leaseMs: Long): Int
+    suspend fun claimForEdit(
+        saleId: String,
+        claimId: String,
+        now: Long,
+        editLeaseMs: Long,
+        uploadLeaseMs: Long
+    ): Int
 
     /**
-     * Suelta el reclamo (cancelar la corrección). Sólo el dueño del reclamo
-     * puede soltarlo: si [claimId] ya no coincide con el vigente (venció y
-     * otro lo tomó), no toca nada.
+     * Reclama la venta para SUBIDA — lo toma el subidor justo antes del
+     * `POST` (mecanismo, paso 3 revisado) para que un `claimForEdit`
+     * concurrente no pueda ganar la fila mientras la subida sigue en vuelo:
+     * sin este candado, el guardia del guardado (`commitEditGuard`) alcanza
+     * a ver `ENVIADO=0` y commitea ANTES de que vuelva el 2xx, y el `POST`
+     * que ya salió lleva el cuerpo viejo — el teléfono enseña la corrección,
+     * el servidor tiene la original, y nadie se entera. Devuelve 1 si el
+     * candado se tomó; 0 si hay un candado de EDICIÓN vigente (la corrección
+     * gana: el subidor debe frenarse con `Result.retry()`, no mandar el
+     * POST) o si la venta ya no es subible (`ENVIADO=1`).
+     *
+     * Simétrico a [claimForEdit]: necesita los DOS arrendamientos por la
+     * misma razón (el candado vigente puede ser de cualquier tipo).
      */
     @Query(
         """
-        UPDATE local_sale SET EDIT_CLAIM_ID = NULL, EDIT_CLAIMED_AT = NULL
-        WHERE LOCAL_SALE_ID = :saleId AND EDIT_CLAIM_ID = :claimId
+        UPDATE local_sale SET CLAIM_ID = :claimId, CLAIM_KIND = 'UPLOAD', CLAIMED_AT = :now
+        WHERE LOCAL_SALE_ID = :saleId
+          AND ENVIADO = 0
+          AND (
+            CLAIM_ID IS NULL
+            OR CLAIMED_AT IS NULL
+            OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
+            OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
+          )
+        """
+    )
+    suspend fun claimForUpload(
+        saleId: String,
+        claimId: String,
+        now: Long,
+        editLeaseMs: Long,
+        uploadLeaseMs: Long
+    ): Int
+
+    /**
+     * Suelta el candado (cancelar la corrección, o el subidor al terminar
+     * sin éxito). Funciona para cualquier tipo de candado: la propiedad se
+     * decide por `CLAIM_ID`, no por `CLAIM_KIND`. Sólo el dueño del candado
+     * puede soltarlo: si [claimId] ya no coincide con el vigente (venció y
+     * el otro lado lo tomó), no toca nada.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET CLAIM_ID = NULL, CLAIM_KIND = NULL, CLAIMED_AT = NULL
+        WHERE LOCAL_SALE_ID = :saleId AND CLAIM_ID = :claimId
         """
     )
     suspend fun releaseClaim(saleId: String, claimId: String): Int
@@ -235,24 +308,30 @@ interface LocalSaleDao {
     /**
      * El guardia del guardado (mecanismo, paso 4) — va PRIMERO dentro de la
      * transacción que hace el commit de la corrección. 0 filas: la venta ya
-     * se envió, o el reclamo ya no es el tuyo (venció y el subidor se la
-     * llevó) → el llamador lanza y Room revierte la transacción entera, sin
-     * escribir nada. 1 fila: la corrección gana — sube `REVISION` y cierra
-     * el reclamo en la misma sentencia.
+     * se envió, o el candado ya no es el tuyo (venció y alguien más —
+     * edición o subida— se lo llevó) → el llamador lanza y Room revierte la
+     * transacción entera, sin escribir nada. 1 fila: la corrección gana —
+     * sube `REVISION` y cierra el candado en la misma sentencia. No necesita
+     * verificar `CLAIM_KIND`: la propiedad exacta por `CLAIM_ID` ya implica
+     * que es el candado de edición que este llamador tomó.
      */
     @Query(
         """
-        UPDATE local_sale SET EDIT_CLAIM_ID = NULL, EDIT_CLAIMED_AT = NULL, REVISION = REVISION + 1
-        WHERE LOCAL_SALE_ID = :saleId AND EDIT_CLAIM_ID = :claimId AND ENVIADO = 0
+        UPDATE local_sale SET CLAIM_ID = NULL, CLAIM_KIND = NULL, CLAIMED_AT = NULL, REVISION = REVISION + 1
+        WHERE LOCAL_SALE_ID = :saleId AND CLAIM_ID = :claimId AND ENVIADO = 0
         """
     )
     suspend fun commitEditGuard(saleId: String, claimId: String): Int
 
     /**
      * Lo llama el subidor cuando el POST triunfa: marca `ENVIADO=1` y cierra
-     * cualquier reclamo vigente en la MISMA sentencia (un solo `UPDATE`, así
-     * que es atómico sin necesitar `@Transaction`). Si el guardado del
-     * usuario estaba a medio camino, su guardia (`commitEditGuard`) va a leer
+     * CUALQUIER candado que la fila tenga (edición o subida) en la MISMA
+     * sentencia (un solo `UPDATE`, así que es atómico sin necesitar
+     * `@Transaction`). Cierra incondicionalmente, sin filtrar por
+     * `CLAIM_ID`/`CLAIM_KIND`, porque en este punto el propio subidor es
+     * quien tiene el candado de subida (lo tomó con [claimForUpload] antes
+     * del POST) y lo suyo también debe soltarse. Si el guardado del usuario
+     * estaba a medio camino, su guardia (`commitEditGuard`) va a leer
      * `ENVIADO=1` y devolver 0 filas → rollback total, "Ya se envió". El
      * servidor manda: el teléfono nunca queda con una corrección fantasma de
      * una venta que ya viajó.
@@ -261,35 +340,45 @@ interface LocalSaleDao {
         """
         UPDATE local_sale SET
             ENVIADO = 1,
-            EDIT_CLAIM_ID = NULL,
-            EDIT_CLAIMED_AT = NULL
+            CLAIM_ID = NULL,
+            CLAIM_KIND = NULL,
+            CLAIMED_AT = NULL
         WHERE LOCAL_SALE_ID = :saleId
         """
     )
     suspend fun markSentAndCloseEdit(saleId: String)
 
     /**
-     * Ventas subibles por el barrido: no enviadas y sin reclamo vigente
-     * (NULL, o vencido según [leaseMs] desde [now]). Reemplaza a
+     * Ventas subibles por el barrido: no enviadas y sin candado vigente
+     * (NULL, o vencido según su propio arrendamiento). Reemplaza a
      * `getSalesByStatus(false)` en el barrido (mecanismo, paso 6): sin esto,
      * `LocalSalesPendingSynchronizer` reencolaría con `replace=true` en cada
      * apertura de sesión mientras el dueño está corrigiendo, reseteando el
-     * backoff y peleándose con el fence del reclamo.
+     * backoff y peleándose con el fence del candado.
      */
     @Query(
         """
         SELECT * FROM local_sale
         WHERE ENVIADO = 0
-          AND (EDIT_CLAIM_ID IS NULL OR EDIT_CLAIMED_AT <= :now - :leaseMs)
+          AND (
+            CLAIM_ID IS NULL
+            OR CLAIMED_AT IS NULL
+            OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
+            OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
+          )
         ORDER BY FECHA_VENTA DESC
         """
     )
-    suspend fun getUploadableSales(now: Long, leaseMs: Long): List<LocalSaleEntity>
+    suspend fun getUploadableSales(
+        now: Long,
+        editLeaseMs: Long,
+        uploadLeaseMs: Long
+    ): List<LocalSaleEntity>
 
     /**
-     * Snapshot barato de `(EDIT_CLAIM_ID, REVISION, ENVIADO)` — ver
+     * Snapshot barato de `(CLAIM_ID, REVISION, ENVIADO)` — ver
      * [SaleClaimSnapshot].
      */
-    @Query("SELECT EDIT_CLAIM_ID, REVISION, ENVIADO FROM local_sale WHERE LOCAL_SALE_ID = :saleId")
+    @Query("SELECT CLAIM_ID, REVISION, ENVIADO FROM local_sale WHERE LOCAL_SALE_ID = :saleId")
     suspend fun getSaleClaimSnapshot(saleId: String): SaleClaimSnapshot?
 }
