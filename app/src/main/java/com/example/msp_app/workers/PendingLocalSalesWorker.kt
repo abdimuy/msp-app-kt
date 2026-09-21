@@ -29,6 +29,7 @@ import com.google.gson.JsonParser
 import java.io.File
 import java.io.IOException
 import java.util.UUID
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -173,15 +174,66 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             return resultadoSinCandado(saleId, userEmail)
         }
 
+        return try {
+            // El latido arranca AQUÍ, con el candado recién tomado — NO al
+            // llegar al POST. Entre el reclamo y el POST corre
+            // `resolveVendedoresForEmail`: DOS `getAllUsers()` contra Firestore
+            // más `ensureVendedoresByEmail`, cada uno con 60 s de connect y
+            // 60 s de read. Eso pasa de los 180 s del arrendamiento sin
+            // dificultad, y basta un congelamiento del proceso. Si el candado
+            // caduca ahí, el editor gana la fila y commitea, y el worker sigue
+            // leyendo productos y combos YA corregidos mientras su copia de la
+            // venta es la VIEJA: sale un POST con encabezado viejo y renglones
+            // nuevos — un estado que nunca existió, en Microsip. Cubrir sólo
+            // el POST dejaba esa ventana abierta.
+            conLatidoDelArrendamiento(saleId, claimId) {
+                subirVentaReclamada(saleId, userEmail, claimId)
+            }
+        } finally {
+            // Salga por donde salga, el candado de subida se suelta: una
+            // venta que no se pudo subir tiene que quedar corregible YA, sin
+            // esperar a que venza el arrendamiento. En el camino feliz esto
+            // es un no-op — `markSentAndCloseEdit` ya cerró el candado, y
+            // `releaseClaim` sólo toca la fila si `CLAIM_ID` sigue siendo el
+            // nuestro; igual de no-op si el arrendamiento venció y el editor
+            // se llevó la fila (ahí el `CLAIM_ID` es otro y no se le pisa).
+            //
+            // `NonCancellable` porque si WorkManager detiene al worker, este
+            // `finally` corre en un contexto ya cancelado y la suspensión de
+            // Room lanzaría antes de escribir, dejando el candado puesto
+            // hasta que venza. Soltarlo es más barato que 180 s de venta
+            // retenida.
+            withContext(NonCancellable) {
+                localSaleStore.releaseClaim(saleId, claimId)
+            }
+        }
+    }
+
+    /**
+     * Todo lo que ocurre CON el candado ya tomado y con el latido corriendo:
+     * leer la venta, armar el cuerpo, revalidar, mandar el POST y marcar
+     * enviada. Es una función aparte —y no el cuerpo de la lambda del latido—
+     * porque aquí dentro hay media docena de `return` de guardia (sin
+     * imágenes, sin productos, sin vendedores…) y una lambda no-inline no
+     * admite `return` no local: habría que etiquetarlos todos, que es
+     * exactamente el tipo de detalle que alguien olvida al agregar el
+     * siguiente guardia.
+     *
+     * El candado lo suelta quien llama, en su `finally`.
+     */
+    private suspend fun subirVentaReclamada(
+        saleId: String,
+        userEmail: String,
+        claimId: String
+    ): Result {
+        // El `REVISION` de ESTE instante, con el candado recién tomado. Es el
+        // que se le pasa a `markSentAndCloseEdit` cuando vuelva el 2xx: si
+        // para entonces ya no coincide, una corrección se coló mientras el
+        // POST volaba y la divergencia se marca en vez de perderse.
+        val revisionAlReclamar = localSaleStore.getSaleClaimSnapshot(saleId)?.REVISION ?: 0
+
         val sale = localSaleStore.getSaleById(saleId)
             ?: return ventaNoEncontrada(saleId, userEmail)
-
-        // El `REVISION` de ESTE instante — con el candado ya tomado, nadie
-        // puede subirlo mientras armamos el cuerpo. Es el que se le pasa a
-        // `markSentAndCloseEdit` cuando vuelva el 2xx: si para entonces ya no
-        // coincide, una corrección se coló con el POST en vuelo y la
-        // divergencia se marca en vez de perderse.
-        val revisionAlReclamar = localSaleStore.getSaleClaimSnapshot(saleId)?.REVISION ?: 0
 
         Log.d(
             "PendingLocalSalesWorker",
@@ -325,15 +377,40 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 defaultKey = saleId
             )
 
-            // El POST va envuelto en el latido: mientras sube, el worker
-            // renueva su propio arrendamiento. Ver `conLatidoDelArrendamiento`.
-            val response = conLatidoDelArrendamiento(saleId, claimId) {
-                ventasApi.crearVenta(
-                    idempotencyKey = idempotencyKey,
-                    datos = datosRequestBody,
-                    imagen = imageParts
+            // Revalidación, lo último antes de tocar la red: que el candado
+            // SIGA siendo el nuestro. El latido debería haberlo mantenido
+            // vivo todo el armado, pero un latido puede fallar (SQLite
+            // trabado, el proceso congelado más de un arrendamiento entero) y
+            // entonces el editor pudo haberse llevado la fila y commiteado
+            // una corrección — con lo que el cuerpo que acabamos de armar
+            // mezcla encabezado viejo con renglones nuevos. Es una lectura
+            // barata y es la red por si el latido no alcanzó: si el candado
+            // ya no es nuestro, `retry` SIN tocar la red. Nada a medio
+            // corregir sale de aquí.
+            val candadoVigente = localSaleStore.getSaleClaimSnapshot(saleId)?.CLAIM_ID
+            if (candadoVigente != claimId) {
+                Log.w(
+                    "PendingLocalSalesWorker",
+                    "El candado de $saleId dejó de ser nuestro mientras se armaba el cuerpo"
                 )
+                logger.error(
+                    module = "SALES_WORKER",
+                    action = "CLAIM_LOST",
+                    message = "El candado caducó mientras se armaba el cuerpo; no se manda nada",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "userEmail" to userEmail,
+                        "attemptCount" to runAttemptCount
+                    )
+                )
+                return Result.retry()
             }
+
+            val response = ventasApi.crearVenta(
+                idempotencyKey = idempotencyKey,
+                datos = datosRequestBody,
+                imagen = imageParts
+            )
 
             localSaleStore.markSentAndCloseEdit(saleId, revisionAlReclamar)
             // Clear any prior upload-failure tracking so the UI doesn't keep
@@ -490,23 +567,6 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 data = mapOf("saleId" to saleId, "attemptCount" to runAttemptCount)
             )
             Result.retry()
-        } finally {
-            // Salga por donde salga, el candado de subida se suelta: una
-            // venta que no se pudo subir tiene que quedar corregible YA, sin
-            // esperar a que venza el arrendamiento. En el camino feliz esto
-            // es un no-op — `markSentAndCloseEdit` ya cerró el candado, y
-            // `releaseClaim` sólo toca la fila si `CLAIM_ID` sigue siendo el
-            // nuestro; igual de no-op si el arrendamiento venció y el editor
-            // se llevó la fila (ahí el `CLAIM_ID` es otro y no se le pisa).
-            //
-            // `NonCancellable` porque si WorkManager detiene al worker, este
-            // `finally` corre en un contexto ya cancelado y la suspensión de
-            // Room lanzaría antes de escribir, dejando el candado puesto
-            // hasta que venza. Soltarlo es más barato que 180 s de venta
-            // retenida.
-            withContext(NonCancellable) {
-                localSaleStore.releaseClaim(saleId, claimId)
-            }
         }
     }
 
@@ -562,8 +622,11 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
         }
 
     /**
-     * Corre [subida] con un LATIDO en paralelo que renueva el arrendamiento
-     * del candado de subida cada [latidoDeSubidaMs].
+     * Corre [trabajo] con un LATIDO en paralelo que renueva el arrendamiento
+     * del candado de subida cada [latidoDeSubidaMs]. Envuelve TODO lo que
+     * pasa con el candado tomado —leer la venta, armar el cuerpo, el POST y
+     * el reconcile por GET—, no sólo el POST: ver el comentario de `doWork`
+     * sobre `resolveVendedoresForEmail`.
      *
      * Por qué hace falta: el arrendamiento son 180 s, pero el cliente HTTP no
      * fija `callTimeout` ni `writeTimeout` — los dos que sí fija (`connect` y
@@ -574,27 +637,48 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
      * No se pone un `callTimeout` para acotarla (decisión del dueño): un tope
      * total cambiaría una carrera por una venta que NUNCA llega.
      *
-     * El latido nunca re-reclama: si `renewUploadClaim` devuelve 0 el candado
+     * El latido nunca re-RECLAMA: si `renewUploadClaim` devuelve 0 el candado
      * ya no es nuestro y el latido se detiene — retomarlo le robaría la fila
      * al editor. El caso que queda entonces (2xx tardío sobre una fila ya
      * corregida) lo marca `markSentAndCloseEdit` con `CORRECCION_NO_ENVIADA`.
      *
-     * `coroutineScope` + `cancel()` en `finally`: al terminar la subida —bien
-     * o mal— el latido se cancela y el `coroutineScope` espera a que muera,
-     * así que no puede sobrevivir ninguna corrutina huérfana latiendo sobre
-     * una venta que ya terminó.
+     * Un fallo de renovación NO tumba la subida (`catch` dentro del bucle):
+     * si Room lanza —SQLite trabado justo cuando el editor commitea— y la
+     * excepción escapara de la hija, el `coroutineScope` cancelaría el POST
+     * en vuelo y se perdería un envío que iba bien. La idempotencia evita el
+     * duplicado, pero el intento se pierde, y en una red mala eso es caro. Se
+     * registra y se vuelve a intentar en el siguiente latido; si el candado
+     * llegó a caducar de verdad, quien lo detiene es la revalidación previa
+     * al POST, no un latido caído.
+     *
+     * `coroutineScope` + `cancel()` en `finally`: al terminar —bien o mal— el
+     * latido se cancela y el `coroutineScope` espera a que muera, así que no
+     * puede sobrevivir ninguna corrutina huérfana latiendo sobre una venta
+     * que ya terminó.
      */
     private suspend fun <T> conLatidoDelArrendamiento(
         saleId: String,
         claimId: String,
-        subida: suspend () -> T
+        trabajo: suspend () -> T
     ): T = coroutineScope {
         val latido = if (latidoDeSubidaMs > 0) {
             launch {
                 while (true) {
                     delay(latidoDeSubidaMs)
-                    val renovadas =
+                    val renovadas = try {
                         renovarArrendamientoDeSubida(saleId, claimId, nowEpochMillis())
+                    } catch (cancelacion: CancellationException) {
+                        // El trabajo terminó y nos están cancelando: eso NO es
+                        // un fallo de renovación, se propaga tal cual.
+                        throw cancelacion
+                    } catch (fallo: Exception) {
+                        Log.w(
+                            "PendingLocalSalesWorker",
+                            "Falló un latido del candado de $saleId; la subida sigue",
+                            fallo
+                        )
+                        continue
+                    }
                     if (renovadas == 0) {
                         Log.w(
                             "PendingLocalSalesWorker",
@@ -609,7 +693,7 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
         }
 
         try {
-            subida()
+            trabajo()
         } finally {
             latido?.cancel()
         }

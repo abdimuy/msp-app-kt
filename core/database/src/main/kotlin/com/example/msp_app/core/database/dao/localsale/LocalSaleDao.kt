@@ -332,6 +332,19 @@ interface LocalSaleDao {
      * defiende. El subidor sólo deja de latir; si el POST triunfa de todas
      * formas, la divergencia la marca [markSentAndCloseEdit] con
      * `CORRECCION_NO_ENVIADA`.
+     *
+     * **No mira el arrendamiento, y es deliberado.** Si el proceso se congeló
+     * más de 180 s, esta sentencia REVIVE un candado de subida propio que ya
+     * había caducado, y el dueño puede quedar bloqueado hasta un
+     * arrendamiento más. Queda así, con el porqué escrito para que nadie lo
+     * "arregle" de memoria: mientras NADIE más haya tomado la fila, la subida
+     * en vuelo sigue siendo su dueña legítima, y revivir el candado es justo
+     * lo que impide que el editor entre a la mitad del armado del cuerpo y el
+     * POST salga con encabezado viejo y renglones nuevos. Y si alguien SÍ la
+     * tomó, el `CLAIM_ID` ya no coincide, esto no hace nada, y la
+     * revalidación previa al POST saca al subidor con `retry` sin mandar
+     * nada. Esperar 180 s sólo parece peor que un cuerpo mezclado si uno no
+     * ha visto un cuerpo mezclado.
      */
     @Query(
         """

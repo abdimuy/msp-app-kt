@@ -10,6 +10,7 @@ import com.example.msp_app.core.common.sync.pendingwork.domain.models.SyncResult
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.LocalSalesWorkEnqueuer
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.database.dao.localsale.LocalSaleClaimLeases
+import com.example.msp_app.core.sync.pendingwork.data.gates.InMemorySessionSyncGate
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.LocalSalesPendingSynchronizer
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.testing.RoomTestBase
@@ -665,6 +666,163 @@ class CorreccionCarreraTest : RoomTestBase() {
         }
 
     // ═══════════════════════════════════════════════════════════════════════
+    // 6b. El armado del cuerpo también dura, y también está cubierto
+    //
+    // Ronda de arreglo 1: la prueba de arriba adelanta el reloj ANTES de
+    // correr el worker, así que dentro del resolver el arrendamiento está
+    // fresco — demuestra "con candado vivo el editor no puede", no "el
+    // candado sigue vivo ahí". Entre el reclamo y el POST corre
+    // `resolveVendedoresForEmail`: DOS consultas a Firestore, 60 s de connect
+    // y 60 s de read cada una. Estas dos pruebas cubren ese hueco por los dos
+    // lados: el latido lo sostiene, y si aun así se pierde, la revalidación
+    // previa al POST corta sin mandar nada.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `el latido tambien cubre el armado del cuerpo, no solo el POST`() = runTest {
+        val reloj = RelojDePrueba(testScheduler)
+        sembrarVenta()
+
+        var latidos = 0
+        val armadoYaPasoElArrendamiento = CompletableDeferred<Unit>()
+        var reclamoDuranteElArmado: ResultadoReclamo? = null
+        var edadDelCandado = -1L
+        var cuerpo = ""
+
+        val resultado = correrWorker(
+            reloj = reloj,
+            renovar = { s, c, n ->
+                latidos++
+                val filas = db.localSaleDao().renewUploadClaim(s, c, n)
+                if (latidos == 4) armadoYaPasoElArrendamiento.complete(Unit)
+                filas
+            },
+            // El armado del cuerpo TARDA — la red de Firestore, no la de la
+            // venta. Se espera a cuatro latidos: 4 × 60 s > los 180 s del
+            // arrendamiento. Si el latido sólo envolviera el POST, aquí no
+            // habría ni uno.
+            resolver = {
+                armadoYaPasoElArrendamiento.await()
+                val fila = saleDataSource.getSaleById(SALE_ID)!!
+                edadDelCandado = reloj.ahoraEpochMillis() - fila.CLAIMED_AT!!
+                reclamoDuranteElArmado = reclamar(reloj)(SALE_ID)
+                Pair(vendedores, 3)
+            },
+            api = api(crear = { _, datos, _ ->
+                cuerpo = datos.comoTexto()
+                ventaDTO
+            })
+        )
+
+        assertTrue(
+            "el armado duró más que el arrendamiento",
+            testScheduler.currentTime > LocalSaleClaimLeases.UPLOAD_LEASE_MS
+        )
+        assertTrue(
+            "el candado siguió renovándose mientras se armaba el cuerpo",
+            edadDelCandado in 0 until LocalSaleClaimLeases.UPLOAD_LEASE_MS
+        )
+        assertEquals(
+            "el editor no puede entrar a la mitad del armado",
+            ResultadoReclamo.NoCorregible(EstadoCorreccion.SeEstaEnviando),
+            reclamoDuranteElArmado
+        )
+        assertEquals(ListenableWorker.Result.success(), resultado)
+        assertTrue(cuerpo.contains(NOMBRE_ORIGINAL))
+    }
+
+    @Test
+    fun `si el candado se pierde armando el cuerpo, no sale NADA a la red`() = runTest {
+        val reloj = RelojDePrueba(testScheduler)
+        sembrarVenta()
+
+        var llamadas = 0
+
+        val resultado = correrWorker(
+            reloj = reloj,
+            // Sin latido: el proceso se congeló entero durante el armado, que
+            // es el único caso en que el candado puede perderse ahí.
+            latidoMs = 0L,
+            resolver = {
+                // El arrendamiento vence DURANTE el armado...
+                reloj.desfase += LocalSaleClaimLeases.UPLOAD_LEASE_MS + 1
+                // ...y el dueño gana la fila y commitea su corrección. A
+                // partir de aquí los renglones en la base son los CORREGIDOS,
+                // mientras la copia de la venta que el worker leyó al entrar
+                // es la VIEJA: justo el cuerpo mezclado.
+                val reclamo = reclamar(reloj)(SALE_ID) as ResultadoReclamo.Reclamada
+                guardar(reloj)(
+                    SALE_ID,
+                    reclamo.claimId,
+                    reclamo.venta.campos.copy(nombreCliente = NOMBRE_CORREGIDO),
+                    reclamo.venta.productos.map { it.copy(CANTIDAD = it.CANTIDAD + 1) },
+                    reclamo.venta.combos,
+                    EMAIL
+                )
+                Pair(vendedores, 3)
+            },
+            api = api(crear = { _, _, _ ->
+                llamadas++
+                ventaDTO
+            })
+        )
+
+        assertEquals(
+            "sin candado no se manda nada: se reintenta, la venta no se pierde",
+            ListenableWorker.Result.retry(),
+            resultado
+        )
+        assertEquals("CERO POST: un cuerpo mezclado nunca llega a Microsip", 0, llamadas)
+
+        val fila = saleDataSource.getSaleById(SALE_ID)!!
+        assertFalse("nada se mandó: la venta sigue pendiente", fila.ENVIADO)
+        assertEquals("la corrección del dueño queda en pie", NOMBRE_CORREGIDO, fila.NOMBRE_CLIENTE)
+        assertEquals(1, fila.REVISION)
+        assertFalse(
+            "no hay divergencia que marcar: el servidor no recibió nada",
+            fila.CORRECCION_NO_ENVIADA
+        )
+        assertTrue(
+            "y la venta vuelve a ser corregible de inmediato",
+            reclamar(reloj)(SALE_ID) is ResultadoReclamo.Reclamada
+        )
+    }
+
+    @Test
+    fun `un latido que falla no tumba una subida que iba bien`() = runTest {
+        val reloj = RelojDePrueba(testScheduler)
+        sembrarVenta()
+
+        var intentosDeLatido = 0
+        val hubodosFallos = CompletableDeferred<Unit>()
+
+        val resultado = correrWorker(
+            reloj = reloj,
+            // Room lanza en CADA latido (SQLite trabado justo cuando el editor
+            // commitea). Si la excepción escapara de la corrutina hija, el
+            // `coroutineScope` cancelaría el POST en vuelo y se perdería un
+            // envío que iba bien.
+            renovar = { _, _, _ ->
+                intentosDeLatido++
+                if (intentosDeLatido == 2) hubodosFallos.complete(Unit)
+                throw IllegalStateException("database is locked")
+            },
+            api = api(crear = { _, _, _ ->
+                hubodosFallos.await()
+                ventaDTO
+            })
+        )
+
+        assertEquals(
+            "un fallo de renovación no puede costar el envío",
+            ListenableWorker.Result.success(),
+            resultado
+        )
+        assertTrue("y se siguió intentando latir", intentosDeLatido >= 2)
+        assertTrue(saleDataSource.getSaleById(SALE_ID)!!.ENVIADO)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // 7. El latido
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -827,6 +985,48 @@ class CorreccionCarreraTest : RoomTestBase() {
             barrido.sync(ctx)
         )
         assertEquals(listOf(SALE_ID), encolador.ids)
+    }
+
+    /**
+     * Ronda de arreglo 1: la prueba de arriba llama a `ventasParaElBarrido`
+     * directo, así que un mutante que devolviera la LAMBDA de `createUseCase`
+     * a `getPendingSales()` sobrevivía — el cableado real no estaba cubierto
+     * por nadie. Ésta arma el caso de uso ENTERO por la fábrica de
+     * producción y mira el resultado del sincronizador de ventas locales.
+     *
+     * `runBlocking` y no `runTest`: `SyncAllPendingWorkUseCase` se protege con
+     * un `withTimeoutOrNull(60 s)` y los sincronizadores saltan a
+     * `Dispatchers.IO`; bajo tiempo virtual el planificador adelantaría el
+     * reloj hasta ese tope mientras la E/S real sigue corriendo y el caso de
+     * uso devolvería un mapa vacío por un timeout que no ocurrió. Aquí no se
+     * espera nada: el reloj es un valor fijo que la prueba mueve a mano.
+     */
+    @Test
+    fun `la fabrica real cablea el barrido a la consulta que respeta el candado`() =
+        kotlinx.coroutines.runBlocking {
+            val reloj = RelojFijo(BASE_EPOCH)
+            sembrarVenta()
+            reclamar(reloj)(SALE_ID) as ResultadoReclamo.Reclamada
+
+            val casoDeUso = PendingWorkSyncFactory.createUseCase(
+                context = context,
+                gate = InMemorySessionSyncGate(),
+                clock = reloj
+            )
+
+            val resultados = casoDeUso.execute(SyncContext(userId = "u1", userEmail = EMAIL))
+
+            assertEquals(
+                "el barrido de producción no puede llevarse la venta que el dueño corrige",
+                SyncResult.NothingPending,
+                resultados[LocalSalesPendingSynchronizer.NAME]
+            )
+        }
+
+    /** Reloj de valor fijo, para las pruebas que no corren en tiempo virtual. */
+    private class RelojFijo(var ahora: Long) : RelojPort, AppClock {
+        override fun ahoraEpochMillis(): Long = ahora
+        override fun now(): Instant = Instant.ofEpochMilli(ahora)
     }
 
     private class EncoladorGrabador : LocalSalesWorkEnqueuer {
