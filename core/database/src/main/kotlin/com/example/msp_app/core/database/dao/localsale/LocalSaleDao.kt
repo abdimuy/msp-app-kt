@@ -204,11 +204,13 @@ interface LocalSaleDao {
     // Kotlin (los `Flow` de Room de la UI no pasan por ninguno).
     //
     // Por qué el predicado de expiración necesita AMBOS arrendamientos en
-    // TODOS los métodos: el candado vigente en la fila puede ser de
-    // cualquiera de los dos tipos (no lo decide quién pregunta), así que
-    // decidir si venció exige mirar `CLAIM_KIND` y aplicar el arrendamiento
-    // que le corresponde — de ahí el `CASE` sobre `CLAIM_KIND` repetido en
-    // `claimForEdit`, `claimForUpload` y `getUploadableSales`.
+    // `claimForUpload` y `getUploadableSales`: el candado vigente en la fila
+    // puede ser de cualquiera de los dos tipos (no lo decide quién
+    // pregunta), así que decidir si venció exige mirar `CLAIM_KIND` y
+    // aplicar el arrendamiento que le corresponde. `claimForEdit` es la
+    // EXCEPCIÓN (Task 3, decisión del orquestador): un candado `EDIT` vivo
+    // ya no tiene frontera de vencimiento para este método — es reentrante
+    // sin condición —, así que sólo necesita `uploadLeaseMs`.
     //
     // `CLAIMED_AT IS NULL` también cuenta como vencido: es defensa en
     // profundidad para un estado que ningún camino produce hoy (CLAIM_ID no
@@ -232,15 +234,29 @@ interface LocalSaleDao {
     /**
      * Reclama la venta para EDICIÓN. Devuelve 1 si el candado se tomó; 0 si
      * la venta ya se envió, si tuvo un fallo permanente (el servidor ya
-     * resguardó el intento aunque `ENVIADO` siga en 0), o si ya hay un
-     * candado vigente (de cualquier tipo) y no vencido. `0` = el editor ni
-     * se abre.
+     * resguardó el intento aunque `ENVIADO` siga en 0), o si hay un candado
+     * de SUBIDA vigente y no vencido. `0` = el editor ni se abre.
      *
-     * @param editLeaseMs arrendamiento a aplicar si el candado vigente es de
-     *   edición.
+     * **Reentrante para EDICIÓN** (decisión del orquestador, Task 3 del plan
+     * "Corregir una venta antes de que suba"): un candado `EDIT` VIVO NO
+     * bloquea — se TOMA de nuevo, acuñando un `CLAIM_ID` nuevo. El dominio
+     * (`evaluarCorregibilidad`, `:feature:ventaCorreccion`) ya trata un
+     * `EDIT` vivo como `Corregible`; antes de este cambio el DAO no lo
+     * seguía, así que si la app moría con el editor abierto, el dueño no
+     * podía corregir su propia venta durante los 30 minutos del
+     * arrendamiento. En el alcance de este plan (un teléfono, una venta que
+     * nunca salió) un `EDIT` vivo sólo puede ser una sesión anterior del
+     * editor en el MISMO teléfono. Consecuencia: la sesión vieja PIERDE su
+     * `claimId` — su `commitEditGuard` posterior devuelve 0 filas y no
+     * escribe nada (comportamiento correcto, cubierto en
+     * `LocalSaleClaimDaoTest`). `NUNCA` toma un candado de SUBIDA vigente:
+     * ahí sí gana el subidor, mismo criterio que antes.
+     *
      * @param uploadLeaseMs arrendamiento a aplicar si el candado vigente es
      *   de subida (para poder recuperar un candado de subida que el subidor
-     *   dejó vencido, p.ej. la app murió a media subida).
+     *   dejó vencido, p.ej. la app murió a media subida). No hay
+     *   `editLeaseMs`: un candado `EDIT` ya no tiene frontera de vencimiento
+     *   para ESTE método — siempre se puede retomar.
      */
     @Query(
         """
@@ -252,18 +268,12 @@ interface LocalSaleDao {
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
             OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
-            OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
+            OR CLAIM_KIND = 'EDIT'
             OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
           )
         """
     )
-    suspend fun claimForEdit(
-        saleId: String,
-        claimId: String,
-        now: Long,
-        editLeaseMs: Long,
-        uploadLeaseMs: Long
-    ): Int
+    suspend fun claimForEdit(saleId: String, claimId: String, now: Long, uploadLeaseMs: Long): Int
 
     /**
      * Reclama la venta para SUBIDA — lo toma el subidor justo antes del

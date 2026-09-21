@@ -268,6 +268,11 @@ dependencies {
     // real de `AppThemePort` (ThemeController) y monta `ConfiguracionScreen` en la
     // ruta `configuracion` + el ítem del drawer.
     implementation(project(":feature:configuracion"))
+    // Corregir una venta local antes de que suba (plan 2026-09-20). `:app` provee el
+    // adapter real de `ReencolarSubidaPort` (WorkManager, necesita `PendingLocalSalesWorker`
+    // — no visible desde el feature module) y, en Task 5, monta `CorreccionVentaViewModel`
+    // en `EditSaleScreen`.
+    implementation(project(":feature:ventaCorreccion"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)

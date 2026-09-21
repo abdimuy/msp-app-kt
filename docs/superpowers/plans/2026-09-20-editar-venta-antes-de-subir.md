@@ -152,12 +152,23 @@ Kotlin):
        CLAIM_ID IS NULL
        OR CLAIMED_AT IS NULL
        OR COALESCE(CLAIM_KIND, '') NOT IN ('EDIT', 'UPLOAD')
-       OR (CLAIM_KIND = 'EDIT' AND CLAIMED_AT <= :now - :editLeaseMs)
+       OR CLAIM_KIND = 'EDIT'
        OR (CLAIM_KIND = 'UPLOAD' AND CLAIMED_AT <= :now - :uploadLeaseMs)
      )
    ```
    Devuelve filas afectadas. **0 = no se puede corregir** (venta enviada, fallo permanente, o candado de
-   CUALQUIER tipo vigente) → el editor ni se abre, se muestra el aviso.
+   SUBIDA vigente) → el editor ni se abre, se muestra el aviso.
+
+   **Actualizado en Task 3, decisión del orquestador (no relitigar):** un candado `EDIT` VIVO ya **no** bloquea
+   — es REENTRANTE: se toma de nuevo, acuñando un `CLAIM_ID` fresco (no hay `editLeaseMs` en esta sentencia; sí
+   sigue habiendo `uploadLeaseMs`, sin cambio). El dominio (`evaluarCorregibilidad`,
+   `:feature:ventaCorreccion`, Task 2) ya trataba un `EDIT` vivo como `Corregible`; el DAO no lo seguía, así
+   que si la app moría con el editor abierto el dueño quedaba 30 min sin poder corregir su propia venta. En el
+   alcance de este plan (un teléfono, una venta que nunca salió) un `EDIT` vivo sólo puede ser una sesión
+   anterior del editor en el MISMO teléfono. Consecuencia, probada con nombre propio en
+   `LocalSaleClaimDaoTest`: la sesión vieja pierde su `claimId` — su `commitEditGuard` posterior devuelve 0
+   filas y no escribe nada. `claimForUpload` NO cambia: sigue rechazando cualquier candado `EDIT` vigente (la
+   corrección gana sobre el subidor, sin condición).
 
 2. **Reclamar para SUBIDA** (`claimForUpload`, simétrico): lo toma el subidor justo AL ENTRAR, ANTES de leer
    nada de la venta (paso 4 abajo — el orden importa, ver ahí el porqué). Mismo predicado de expiración que

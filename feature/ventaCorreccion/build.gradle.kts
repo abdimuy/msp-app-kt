@@ -28,6 +28,13 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
 
+    // Task 3: `RoomVentaLocalCorreccionAdapter.guardarCorreccion` necesita
+    // `db.withTransaction` (guardia + campos + merge de líneas + clearFailure
+    // en UNA transacción, mismo patrón que `CobranzaSyncManager`/
+    // `CobranzaReconciler` en `:app`). `:core:database` sólo expone Room como
+    // `implementation`, así que no llega transitivo — se declara aquí.
+    implementation(libs.bundles.room) // room-runtime + room-ktx
+
     testImplementation(project(":core:testing")) // FakeClock + fakes (api)
     testImplementation(libs.androidx.ui.test.junit4)
 }

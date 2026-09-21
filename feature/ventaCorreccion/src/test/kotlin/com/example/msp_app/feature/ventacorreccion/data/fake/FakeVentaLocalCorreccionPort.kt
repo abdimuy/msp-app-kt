@@ -1,0 +1,90 @@
+package com.example.msp_app.feature.ventacorreccion.data.fake
+
+import com.example.msp_app.core.database.entities.LocalSaleComboEntity
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
+import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
+import com.example.msp_app.feature.ventacorreccion.domain.EstadoVentaLocal
+import com.example.msp_app.feature.ventacorreccion.domain.VentaLocalParaCorregir
+import com.example.msp_app.feature.ventacorreccion.domain.port.VentaLocalCorreccionPort
+
+/**
+ * Fake en memoria de [VentaLocalCorreccionPort] — para pruebas que sólo necesitan el
+ * comportamiento OBSERVABLE del puerto (p. ej. [com.example.msp_app.feature.ventacorreccion.ui.CorreccionVentaViewModel]),
+ * no la persistencia real. Las pruebas de correctitud de la transacción (guardia primero,
+ * "nada escrito") viven contra Room de verdad
+ * (`com.example.msp_app.feature.ventacorreccion.usecase.CorreccionCasosDeUsoTest`) — este fake
+ * NO reproduce esa atomicidad, sólo el contrato del puerto.
+ */
+class FakeVentaLocalCorreccionPort : VentaLocalCorreccionPort {
+
+    private data class Fila(
+        var campos: CamposVentaCorregidos,
+        var productos: List<LocalSaleProductEntity>,
+        var combos: List<LocalSaleComboEntity>,
+        var enviado: Boolean = false,
+        var permanente: Boolean = false,
+        var correccionNoEnviada: Boolean = false,
+        var claimId: String? = null,
+        var claimKind: String? = null
+    )
+
+    private val filas = mutableMapOf<String, Fila>()
+
+    fun siembra(
+        saleId: String,
+        campos: CamposVentaCorregidos,
+        productos: List<LocalSaleProductEntity> = emptyList(),
+        combos: List<LocalSaleComboEntity> = emptyList(),
+        enviado: Boolean = false
+    ) {
+        filas[saleId] = Fila(campos, productos, combos, enviado = enviado)
+    }
+
+    override suspend fun leerEstado(saleId: String): EstadoVentaLocal? = filas[saleId]?.let {
+        EstadoVentaLocal(
+            enviado = it.enviado,
+            permanente = it.permanente,
+            correccionNoEnviada = it.correccionNoEnviada,
+            claimKind = it.claimKind,
+            claimedAt = if (it.claimKind != null) 0L else null
+        )
+    }
+
+    override suspend fun leerVenta(saleId: String): VentaLocalParaCorregir? = filas[saleId]?.let {
+        VentaLocalParaCorregir(it.campos, it.productos, it.combos)
+    }
+
+    override suspend fun reclamarParaEditar(saleId: String, claimId: String, ahora: Long): Boolean {
+        val fila = filas[saleId] ?: return false
+        if (fila.enviado || fila.permanente) return false
+        if (fila.claimKind == "UPLOAD") return false
+        fila.claimId = claimId
+        fila.claimKind = "EDIT"
+        return true
+    }
+
+    override suspend fun soltar(saleId: String, claimId: String) {
+        val fila = filas[saleId] ?: return
+        if (fila.claimId == claimId) {
+            fila.claimId = null
+            fila.claimKind = null
+        }
+    }
+
+    override suspend fun guardarCorreccion(
+        saleId: String,
+        claimId: String,
+        campos: CamposVentaCorregidos,
+        productos: List<LocalSaleProductEntity>,
+        combos: List<LocalSaleComboEntity>
+    ): Boolean {
+        val fila = filas[saleId] ?: return false
+        if (fila.enviado || fila.claimId != claimId) return false
+        fila.campos = campos
+        fila.productos = productos
+        fila.combos = combos
+        fila.claimId = null
+        fila.claimKind = null
+        return true
+    }
+}

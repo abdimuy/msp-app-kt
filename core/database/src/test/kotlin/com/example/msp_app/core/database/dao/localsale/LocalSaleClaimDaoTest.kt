@@ -144,7 +144,7 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
     private suspend fun insert(sale: LocalSaleEntity) = database.localSaleDao().insertSale(sale)
 
     private suspend fun claimForEdit(claimId: String, now: Long = clock.now().toEpochMilli()) =
-        database.localSaleDao().claimForEdit(SALE_ID, claimId, now, EDIT_LEASE_MS, UPLOAD_LEASE_MS)
+        database.localSaleDao().claimForEdit(SALE_ID, claimId, now, UPLOAD_LEASE_MS)
 
     private suspend fun claimForUpload(claimId: String, now: Long = clock.now().toEpochMilli()) =
         database.localSaleDao().claimForUpload(
@@ -216,17 +216,65 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
         )
     }
 
+    /**
+     * Task 3, decisión del orquestador: `claimForEdit` es REENTRANTE para un
+     * candado `EDIT` vivo — lo toma de nuevo con un `claimId` FRESCO en vez
+     * de bloquear. En el alcance de este plan (un teléfono, una venta que
+     * nunca salió) un `EDIT` vivo sólo puede ser una sesión anterior del
+     * editor en el MISMO teléfono: si la app murió con el editor abierto, el
+     * dueño no debe quedar 30 min sin poder corregir su propia venta.
+     * Consecuencia (cubierta en
+     * `claimForEdit reentrante invalida el claimId de la sesion anterior, su commitEditGuard no escribe nada`
+     * más abajo): la sesión vieja pierde su candado.
+     */
     @Test
-    fun `claimForEdit rechaza si ya hay un candado de EDICION vigente`() = runTest {
-        val now = clock.now().toEpochMilli()
-        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = now))
+    fun `claimForEdit toma de nuevo un candado de EDICION vigente, con un claimId fresco`() =
+        runTest {
+            val now = clock.now().toEpochMilli()
+            insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = now))
 
-        val rows = claimForEdit(CLAIM_ID_B, now)
+            val rows = claimForEdit(CLAIM_ID_B, now)
 
-        assertEquals("un candado de edicion vigente bloquea a un segundo reclamante", 0, rows)
-        val sale = database.localSaleDao().getSaleById(SALE_ID)
-        assertEquals("el candado original no debe perderse", CLAIM_ID_A, sale?.CLAIM_ID)
-    }
+            assertEquals("un candado EDIT vivo es reentrante, no bloquea", 1, rows)
+            val sale = database.localSaleDao().getSaleById(SALE_ID)
+            assertEquals("el candado ahora es el de la sesion nueva", CLAIM_ID_B, sale?.CLAIM_ID)
+            assertEquals("EDIT", sale?.CLAIM_KIND)
+            assertEquals(now, sale?.CLAIMED_AT)
+        }
+
+    /**
+     * La consecuencia exacta que pide el orquestador: la sesión vieja no se
+     * entera de que perdió la fila hasta que intenta commitear — y en ese
+     * momento su guardia (`commitEditGuard`) falla solo, sin escribir nada,
+     * porque `CLAIM_ID` ya no es el suyo.
+     */
+    @Test
+    fun `claimForEdit reentrante invalida el claimId de la sesion anterior, su commitEditGuard no escribe nada`() =
+        runTest {
+            val now = clock.now().toEpochMilli()
+            insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = now))
+
+            // La app "muere" y se reabre: reclama de nuevo, con un claimId distinto.
+            val rows = claimForEdit(CLAIM_ID_B, now)
+            assertEquals(1, rows)
+
+            // La sesión VIEJA (CLAIM_ID_A), que nunca se enteró de la muerte,
+            // intenta commitear con su claimId original.
+            val guardRows = database.localSaleDao().commitEditGuard(SALE_ID, CLAIM_ID_A)
+
+            assertEquals(
+                "el claimId de la sesion vieja ya no es el vigente: 0 filas, nada se escribe",
+                0,
+                guardRows
+            )
+            val sale = database.localSaleDao().getSaleById(SALE_ID)
+            assertEquals(
+                "el candado de la sesion NUEVA sigue intacto, la vieja no lo tocó",
+                CLAIM_ID_B,
+                sale?.CLAIM_ID
+            )
+            assertEquals(0, sale?.REVISION)
+        }
 
     /**
      * Bloque C (carrera nueva encontrada en revisión): mutua exclusión. Si el
@@ -251,13 +299,15 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
     }
 
     /**
-     * Bloque A #2 de la ronda 2: la frontera del arrendamiento de EDICIÓN
-     * fijada en el milisegundo EXACTO, no solo `+1`/`-1`. `<=` en vez de `<`
-     * es la diferencia entre "vencido en el instante justo" y "vencido un
-     * tick después" — ambas versiones pasaban con las pruebas viejas.
+     * Task 3: `claimForEdit` ya NO tiene frontera de vencimiento para un
+     * candado `EDIT` — es reentrante sin condición. Estas dos pruebas
+     * confirman que el paso del tiempo es IRRELEVANTE para este método
+     * (antes de Task 3 sí importaba; ver `claimForUpload` más abajo para el
+     * mismo candado EDIT SÍ importándole la frontera a QUIEN llama desde el
+     * otro lado).
      */
     @Test
-    fun `claimForEdit acepta exactamente en el milisegundo en que vence un candado de EDICION`() =
+    fun `claimForEdit acepta un candado de EDICION mucho antes de que venza (reentrante)`() =
         runTest {
             val claimedAt = clock.now().toEpochMilli()
             insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = claimedAt))
@@ -266,20 +316,25 @@ class LocalSaleClaimDaoTest : RobolectricTestBase() {
 
             val rows = claimForEdit(CLAIM_ID_B)
 
-            assertEquals("exactamente al cumplirse el arrendamiento, ya vencio", 1, rows)
+            assertEquals(1, rows)
         }
 
     @Test
-    fun `claimForEdit rechaza un milisegundo antes de que venza un candado de EDICION`() = runTest {
-        val claimedAt = clock.now().toEpochMilli()
-        insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = claimedAt))
+    fun `claimForEdit acepta un candado de EDICION recien tomado (reentrante, sin esperar nada)`() =
+        runTest {
+            val claimedAt = clock.now().toEpochMilli()
+            insert(freeSale(claimId = CLAIM_ID_A, claimKind = "EDIT", claimedAt = claimedAt))
 
-        clock.advance(Duration.ofMillis(EDIT_LEASE_MS - 1))
+            clock.advance(Duration.ofMillis(EDIT_LEASE_MS - 1))
 
-        val rows = claimForEdit(CLAIM_ID_B)
+            val rows = claimForEdit(CLAIM_ID_B)
 
-        assertEquals("un milisegundo antes de vencer, el candado sigue vigente", 0, rows)
-    }
+            assertEquals(
+                "un candado EDIT vivo nunca bloquea, sin importar cuanto le falte",
+                1,
+                rows
+            )
+        }
 
     /**
      * Bloque C: la frontera del arrendamiento de SUBIDA, también en el
