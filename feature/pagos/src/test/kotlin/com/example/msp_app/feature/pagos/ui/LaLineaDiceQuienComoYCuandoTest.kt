@@ -115,8 +115,10 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
         // Forma de pago y cobrador comparten el renglón de meta, separados por
         // el punto medio. Se afirma el renglón entero: así el test también
         // cobra que no se pinte uno sin el otro.
-        composeTestRule.onNodeWithText("efectivo · $COBRADOR", useUnmergedTree = true)
-            .assertIsDisplayed()
+        composeTestRule.onNodeWithText(
+            "${MetodoDeCobro.EFECTIVO.etiqueta} · $COBRADOR",
+            useUnmergedTree = true
+        ).assertIsDisplayed()
         composeTestRule.onNodeWithText("“$NOTA”", useUnmergedTree = true)
             .assertIsDisplayed()
         composeTestRule.onNodeWithText(IMPORTE_PINTADO, useUnmergedTree = true)
@@ -547,7 +549,7 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
          */
         val VISITA = ContactoDeCobranza(
             fecha = Instant.parse("2026-09-10T14:05:00Z"),
-            etiqueta = "no responde aunque está",
+            etiqueta = "No responde aunque está",
             nota = null,
             estado = EstadoCuenta.VISITE_VUELVO,
             importe = null,

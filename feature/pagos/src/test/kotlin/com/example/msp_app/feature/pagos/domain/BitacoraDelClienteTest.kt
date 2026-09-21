@@ -117,6 +117,27 @@ class BitacoraDelClienteTest {
         assertEquals(PUNTO_DEL_ABONO, porFecha.getValue(Instant.parse(DIA_DEL_ABONO)).ubicacion)
     }
 
+    /**
+     * **La etiqueta de la visita conserva la mayúscula del catálogo cerrado.**
+     *
+     * `visita.tipoVisita` viene de [com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo],
+     * que ya guarda sus 14 literales con mayúscula inicial (defendido por
+     * `TipoVisitaCatalogoTest`). Forzar `.lowercase()` aquí — como hacía esta
+     * mezcla antes de la Task 1 — rompía esa garantía sin que el literal
+     * mintiera en ningún archivo: el defecto vivía en una llamada, no en un
+     * texto, así que el barrido estático de
+     * `CadaTextoDeUsuarioEmpiezaEnMayusculaTest` nunca lo iba a ver. Sólo esta
+     * prueba de comportamiento lo cobra.
+     */
+    @Test
+    fun `la etiqueta de la visita no se fuerza a minuscula`() {
+        val contactos = BitacoraDelCliente.de(
+            visitas = listOf(visita("v1", DIA_DE_LA_VISITA, PUNTO_DE_LA_VISITA)),
+            pagos = emptyList()
+        )
+        assertEquals("No estaba", contactos.single().etiqueta)
+    }
+
     /** Media coordenada sigue sin ubicar nada — la regla vieja no se perdió. */
     @Test
     fun `media coordenada no es una ubicacion`() {

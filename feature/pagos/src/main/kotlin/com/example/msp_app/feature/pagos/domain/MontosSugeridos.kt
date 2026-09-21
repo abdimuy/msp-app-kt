@@ -50,13 +50,13 @@ object MontosSugeridos {
     /** Cuál de los tres es. El color lo pone la UI desde la tabla del Task 2. */
     enum class Sugerencia(val etiqueta: String) {
         /** Lo que falta de la cuota del periodo. Verde `statusPaid`. */
-        ESPERADO_HOY("esperado hoy"),
+        ESPERADO_HOY("Esperado hoy"),
 
         /** Lo que falta para no traer atraso. Turquesa `statusTeal`. */
-        AL_CORRIENTE("al corriente"),
+        AL_CORRIENTE("Al corriente"),
 
         /** Cerrar la venta hoy. Violeta `promise`. */
-        LIQUIDAR("liquidar")
+        LIQUIDAR("Liquidar")
     }
 
     /** Un chip: cuál es y cuánto ofrece. Siempre `0 < importe <= saldo`. */

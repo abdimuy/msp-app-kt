@@ -38,16 +38,16 @@ data class GarantiaDeLaVenta(
  */
 enum class EstadoDeGarantia(val crudo: String, val etiqueta: String) {
     /** Se reportó y el cliente está avisado. */
-    NOTIFICADA("NOTIFICADO", "notificada"),
+    NOTIFICADA("NOTIFICADO", "Notificada"),
 
     /** El producto ya se recogió. */
-    RECOLECTADA("RECOLECTADO", "recolectada"),
+    RECOLECTADA("RECOLECTADO", "Recolectada"),
 
     /** Se devolvió al cliente. */
-    ENTREGADA("ENTREGADO", "entregada"),
+    ENTREGADA("ENTREGADO", "Entregada"),
 
     /** Cualquier otro valor. Se muestra, no se esconde. */
-    DESCONOCIDO("", "sin estado");
+    DESCONOCIDO("", "Sin estado");
 
     companion object {
         fun de(crudo: String): EstadoDeGarantia =

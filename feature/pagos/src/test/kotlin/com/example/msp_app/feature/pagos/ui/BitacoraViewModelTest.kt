@@ -111,7 +111,9 @@ class BitacoraViewModelTest {
             contactos.map { it.fecha }.sortedDescending(),
             contactos.map { it.fecha }
         )
-        assertTrue("faltan las visitas", contactos.any { it.etiqueta == "no estaba" })
+        // Mayúscula inicial, tal como llega del catálogo cerrado — la mezcla ya
+        // no fuerza `.lowercase()` (Task 1, principio 10).
+        assertTrue("faltan las visitas", contactos.any { it.etiqueta == "No estaba" })
         assertTrue("faltan los abonos", contactos.any { it.etiqueta == "Cobré" })
     }
 

@@ -205,7 +205,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
         val CONTACTOS = listOf(
             ContactoDeCobranza(
                 fecha = Instant.parse("2026-08-24T17:00:00Z"),
-                etiqueta = "no responde aunque está",
+                etiqueta = "No responde aunque está",
                 nota = null,
                 estado = EstadoCuenta.VISITE_VUELVO,
                 importe = null,

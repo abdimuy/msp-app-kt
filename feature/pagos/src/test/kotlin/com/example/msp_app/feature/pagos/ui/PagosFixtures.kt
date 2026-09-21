@@ -186,7 +186,11 @@ object PagosFixtures {
     fun bitacoraDelDomicilio(): List<ContactoDeCobranza> = listOf(
         ContactoDeCobranza(
             fecha = Instant.parse("2026-08-24T17:00:00Z"),
-            etiqueta = "no responde aunque está",
+            // Mayúscula inicial: es el literal tal cual lo defiende
+            // TipoVisitaCatalogo.NO_RESPONDE (Task 1, principio 10) — el KDoc
+            // de esta función dice "tal como la arma BitacoraDelCliente.de", y
+            // ese mezclador ya no fuerza `.lowercase()`.
+            etiqueta = "No responde aunque está",
             nota = null,
             estado = EstadoCuenta.VISITE_VUELVO,
             importe = null,
@@ -199,7 +203,7 @@ object PagosFixtures {
         ),
         ContactoDeCobranza(
             fecha = Instant.parse("2026-08-10T17:00:00Z"),
-            etiqueta = "pidió reagendar visita",
+            etiqueta = "Pidió reagendar visita",
             nota = "el viernes que cobre mi esposo",
             estado = EstadoCuenta.PROMETIO_PROXIMA,
             importe = null,

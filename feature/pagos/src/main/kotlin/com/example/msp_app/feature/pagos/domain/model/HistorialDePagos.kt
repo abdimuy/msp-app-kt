@@ -204,9 +204,9 @@ private const val SIN_MEDIR = 0.0
  * su lógica no se toca (fuera de alcance del plan).
  */
 enum class MetodoDeCobro(val etiqueta: String, val formaCobroId: Int) {
-    EFECTIVO("efectivo", FORMA_EFECTIVO),
-    CHEQUE("cheque", FORMA_CHEQUE),
-    TRANSFERENCIA("transferencia", FORMA_TRANSFERENCIA);
+    EFECTIVO("Efectivo", FORMA_EFECTIVO),
+    CHEQUE("Cheque", FORMA_CHEQUE),
+    TRANSFERENCIA("Transferencia", FORMA_TRANSFERENCIA);
 
     companion object {
         /**

@@ -268,4 +268,30 @@ class TipoVisitaCatalogoTest {
         }
         assertEquals(listOf(TipoVisitaCatalogo.PIDE_REAGENDAR), queDanPrometio)
     }
+
+    // ── Principio 10: texto de usuario con mayúscula inicial ──
+
+    /**
+     * **La garantía que defiende esta clase, no la mezcla que lo consume.**
+     *
+     * `BitacoraDelCliente` pinta `visita.tipoVisita` directamente — sin
+     * `.lowercase()` ni ningún otro retoque — precisamente porque este catálogo
+     * ya garantiza mayúscula inicial en los 14. La Task 1
+     * (`2026-09-20-fila-de-contactos`) encontró la mezcla forzando
+     * `.lowercase()` sobre estos literales YA correctos, y la regla quedó acá:
+     * si algún día un literal nuevo entra en minúscula, esta prueba lo dice
+     * ANTES de que llegue pintado a una pantalla.
+     */
+    @Test
+    fun `los 14 literales del catalogo llevan mayuscula inicial`() {
+        val enMinuscula = TipoVisitaCatalogo.LITERALES.filterNot {
+            it.first().isUpperCase()
+        }
+        assertEquals(
+            "estos literales del catálogo cerrado no llevan mayúscula inicial " +
+                "(principio 10 del brief)",
+            emptyList<String>(),
+            enMinuscula
+        )
+    }
 }

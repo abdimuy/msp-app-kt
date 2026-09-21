@@ -61,6 +61,37 @@ import org.junit.Test
  * SABER*, así que exigirle mayúscula inicial al literal sería exigir algo que
  * nadie ve. Un día que alguien escriba un sumidero nuevo, esta compuerta lo
  * aprende sola.
+ *
+ * ## La extensión de la Task 1 (`2026-09-20-fila-de-contactos`): las etiquetas de enum
+ *
+ * `MetodoDeCobro` nacía con `EFECTIVO("efectivo")` — el barrido del 18-sep no lo
+ * vio porque [ALCANCE] es una lista de PANTALLAS, y `HistorialDePagos.kt` (donde
+ * vive el enum) no estaba en ella ni tenía por qué: las cuatro superficies que
+ * SÍ leen `MetodoDeCobro.etiqueta` (`LineaDeContactos`, `HojaDeConfirmacion`,
+ * `PiezasDelAbono`, `RitmoYRiel`) sólo hacen `metodo.etiqueta` — ningún literal
+ * viaja por esas pantallas, así que agregarlas a [ALCANCE] no habría atrapado
+ * nada.
+ *
+ * Meter `HistorialDePagos.kt` a mano a [ALCANCE] habría sido la MISMA lista a
+ * mano que esta clase ya rechaza para las pantallas — y además una demasiado
+ * ancha: ese archivo, y los que están al lado en `:feature:pagos`, están llenos
+ * de texto de usuario de otras tareas ("editar", "confirmar", "sí", "no cobró")
+ * que no es de esta Task 1 y que barrer entero pondría en rojo por una razón
+ * ajena. La granularidad correcta no es el ARCHIVO, es la DECLARACIÓN: un
+ * `enum class` con un parámetro de constructor llamado `etiqueta` tipado
+ * `String` es, por construcción, un catálogo cerrado de texto de usuario —
+ * exactamente el molde de `MetodoDeCobro`. [etiquetasDeEnum] lo descubre en
+ * TODO el repo (no sólo en `:feature:pagos`) parseando la posición del
+ * parámetro `etiqueta` en el constructor y leyendo el literal en esa misma
+ * posición de cada entrada — sin tocar el resto del archivo.
+ *
+ * Medido sobre el repo completo, el molde encontró **tres** enums con el mismo
+ * defecto, no uno: además de `MetodoDeCobro`, `MontosSugeridos.Sugerencia`
+ * (`"esperado hoy"`, `"al corriente"`, `"liquidar"`) y `EstadoDeGarantia`
+ * (`"notificada"`, `"recolectada"`, `"entregada"`, `"sin estado"`). Los tres se
+ * corrigieron con esta tarea — dejar dos en rojo habría significado inventar
+ * una excepción escrita a mano para que el barrido pasara, que es la trampa que
+ * este archivo entero existe para cerrar.
  */
 class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
 
@@ -144,6 +175,47 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
         )
     }
 
+    /**
+     * El control positivo del descubrimiento de enums: si [etiquetasDeEnum]
+     * devolviera vacío, la siguiente prueba pasaría en verde sin medir nada —
+     * la misma mentira que el resto de los controles positivos de esta clase
+     * existe para impedir. Se ancla en `MetodoDeCobro.EFECTIVO` porque es el
+     * defecto medido que originó la Task 1.
+     */
+    @Test
+    fun `se descubren enums con parametro etiqueta en todo el repo`() {
+        assertTrue(
+            "no se descubrió ningún enum con parámetro etiqueta: el barrido de " +
+                "enums pondría rojos falsos o un verde vacío",
+            etiquetasDeEnum.isNotEmpty()
+        )
+        assertTrue(
+            "MetodoDeCobro.EFECTIVO tiene que aparecer: es el defecto medido de la Task 1",
+            etiquetasDeEnum.any { (quien, _) -> quien == "MetodoDeCobro.EFECTIVO" }
+        )
+    }
+
+    /**
+     * La extensión de la Task 1. Ver el KDoc de la clase: un `enum class` con
+     * parámetro `etiqueta: String` es un catálogo cerrado de texto de usuario,
+     * así que cada literal en esa posición lleva mayúscula inicial igual que
+     * cualquier otro texto de usuario.
+     */
+    @Test
+    fun `ninguna etiqueta de un enum de usuario empieza en minuscula`() {
+        val enMinuscula = etiquetasDeEnum
+            .filter { (_, texto) -> empiezaEnMayuscula(texto) == false }
+            .map { (quien, texto) -> "$quien: \"$texto\"" }
+            .sorted()
+        assertEquals(
+            "las etiquetas de un enum de usuario llevan mayúscula inicial (principio 10 " +
+                "del brief, y CLAUDE.md). El barrido del 18-sep no las vio porque su alcance " +
+                "era una lista de pantallas, no de declaraciones: ver el KDoc de esta clase",
+            emptyList<String>(),
+            enMinuscula
+        )
+    }
+
     @Test
     fun `ningun texto de usuario del detalle de cliente ni de la visita empieza en minuscula`() {
         val medidos = ALCANCE.flatMap { ruta ->
@@ -175,6 +247,81 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
     /** El archivo del alcance, o `null` si ya no está donde dice [ALCANCE]. */
     private fun archivoDe(ruta: String): File? =
         escaner.archivos.firstOrNull { it.path.replace('\\', '/').endsWith(ruta) }
+
+    /**
+     * `("$nombreDeLaEntrada", "$literalDeSuEtiqueta")` de cada entrada de cada
+     * `enum class` con parámetro `etiqueta: String`, en TODO el repo — ver el
+     * KDoc de la clase para por qué es por declaración y no por archivo.
+     */
+    private val etiquetasDeEnum: List<Pair<String, String>> by lazy {
+        escaner.archivos.flatMap { etiquetasDeEnumsEn(it) }
+    }
+
+    /** [etiquetasDeEnum], pero de un solo archivo. */
+    private fun etiquetasDeEnumsEn(archivo: File): List<Pair<String, String>> {
+        val lineas = codigoDe(archivo).lines()
+        val encontradas = mutableListOf<Pair<String, String>>()
+        lineas.forEachIndexed { i, linea ->
+            val header = ENUM_CON_ETIQUETA.find(linea) ?: return@forEachIndexed
+            val enumNombre = header.groupValues[1]
+            val indice = indiceDeEtiqueta(header.groupValues[2]) ?: return@forEachIndexed
+            for (j in (i + 1) until lineas.size) {
+                val candidata = lineas[j]
+                if (candidata.isBlank()) continue
+                val entrada = ENTRADA_DE_ENUM.find(candidata) ?: break
+                val (entryNombre, argumentos) = entrada.destructured
+                val literal = literalEnPosicion(argumentos, indice)
+                if (literal != null) encontradas += "$enumNombre.$entryNombre" to literal
+            }
+        }
+        return encontradas
+    }
+
+    /**
+     * En qué posición del constructor de un `enum class` va el parámetro
+     * llamado `etiqueta`, o `null` si ese enum no tiene uno.
+     */
+    private fun indiceDeEtiqueta(parametros: String): Int? {
+        val nombres = parametros.split(',').map {
+            it.substringBefore(':').trim().substringAfterLast(' ')
+        }
+        val indice = nombres.indexOf("etiqueta")
+        return indice.takeIf { it >= 0 }
+    }
+
+    /**
+     * El literal de Kotlin en la posición [indice] de una llamada al
+     * constructor de una entrada de enum (`NOMBRE(arg0, arg1, ...)`), o `null`
+     * si esa posición no existe o no es un literal de texto.
+     */
+    private fun literalEnPosicion(argumentos: String, indice: Int): String? {
+        val partes = splitArgumentosDeNivelSuperior(argumentos)
+        if (indice >= partes.size) return null
+        return LITERAL.matchEntire(partes[indice])?.groupValues?.get(1)
+    }
+
+    /**
+     * Parte una lista de argumentos por sus comas de NIVEL SUPERIOR — las que
+     * no están dentro de un literal de texto. Suficiente para las entradas de
+     * enum de este repo, que son literales simples (`String`, `Int`), no
+     * llamadas anidadas.
+     */
+    private fun splitArgumentosDeNivelSuperior(argumentos: String): List<String> {
+        val partes = mutableListOf<String>()
+        val actual = StringBuilder()
+        var enComillas = false
+        argumentos.forEachIndexed { i, c ->
+            if (c == '"' && (i == 0 || argumentos[i - 1] != '\\')) enComillas = !enComillas
+            if (c == ',' && !enComillas) {
+                partes += actual.toString().trim()
+                actual.clear()
+            } else {
+                actual.append(c)
+            }
+        }
+        partes += actual.toString().trim()
+        return partes
+    }
 
     /**
      * Las funciones de producción que **transforman el texto antes de
@@ -279,6 +426,25 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
 
         /** Literales que nadie ve: tags de test y patrones de fecha. */
         val NO_SE_PINTA = Regex("""testTag\(|_TAG|ofPattern\(""")
+
+        /**
+         * El encabezado de un `enum class` con constructor, en la forma en la
+         * que este repo lo escribe (una sola línea): `enum class Nombre(params)`.
+         * No exige que `etiqueta` esté entre los parámetros — eso lo decide
+         * [indiceDeEtiqueta] sobre el grupo 2 — así que un enum con constructor
+         * y SIN `etiqueta` simplemente no aporta entradas.
+         */
+        val ENUM_CON_ETIQUETA = Regex("""enum class (\w+)\(([^)]*)\)""")
+
+        /**
+         * Una entrada de enum: `NOMBRE(argumentos)`, con `,` o `;` opcional al
+         * final (la última entrada de Kotlin no lleva coma). El nombre en
+         * MAYÚSCULAS_CON_GUION_BAJO es la convención de este repo para
+         * entradas de enum, y es lo que distingue una entrada de la siguiente
+         * declaración de nivel superior (`fun`, `companion object`), que
+         * arranca en minúscula o con `@`.
+         */
+        val ENTRADA_DE_ENUM = Regex("""^\s*([A-Z][A-Z0-9_]*)\((.*)\)\s*[,;]?\s*$""")
 
         /** Los dos literales sintéticos del control positivo del criterio. */
         const val MAL = "continuar"

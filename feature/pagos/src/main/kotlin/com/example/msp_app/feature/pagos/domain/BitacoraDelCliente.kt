@@ -47,7 +47,12 @@ object BitacoraDelCliente {
         val deVisitas = visitas.map { visita ->
             ContactoDeCobranza(
                 fecha = visita.fecha,
-                etiqueta = visita.tipoVisita.lowercase(),
+                // Sin `.lowercase()`: el literal ya viene con mayúscula inicial
+                // de TipoVisitaCatalogo, que es quien defiende esa garantía
+                // (TipoVisitaCatalogoTest) — normalizarlo aquí sería repartir la
+                // regla en la mezcla en vez de dejarla en el catálogo (Task 1,
+                // principio 10).
+                etiqueta = visita.tipoVisita,
                 nota = visita.nota?.takeIf { it.isNotBlank() },
                 tipo = TipoDeContacto.VISITA,
                 // `metodo` se queda en null A PROPÓSITO: ver su KDoc. La columna

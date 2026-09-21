@@ -105,7 +105,7 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
     fun `la garantia de la venta se pinta`() {
         ventaA(FontSizeLevel.NORMAL)
         composeTestRule.onNodeWithTag(TARJETA_DE_GARANTIA_TAG).performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText("notificada").performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText("Notificada").performScrollTo().assertIsDisplayed()
     }
 
     /** Los bordes del nodo cuyo texto es [etiqueta], tal cual se pinta. */
