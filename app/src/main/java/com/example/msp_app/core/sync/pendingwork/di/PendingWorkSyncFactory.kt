@@ -29,11 +29,17 @@ object PendingWorkSyncFactory {
 
     /**
      * Qué ventas ve el barrido. `getUploadableSales`, NO `getPendingSales`:
-     * el barrido reencola con `replace = true` en CADA apertura de sesión,
-     * así que con la lista cruda de no-enviadas se llevaría por delante la
-     * venta que el dueño está corrigiendo en ese momento —reseteando el
-     * backoff y peleándose con el candado del subidor—. Una venta reclamada
-     * vuelve a la lista sola en cuanto su arrendamiento vence.
+     * el barrido reencola en CADA apertura de sesión, así que con la lista
+     * cruda de no-enviadas metería a la cola la venta que el dueño está
+     * corrigiendo en ese momento — un trabajo que sólo puede chocar contra el
+     * fence del candado, quemando un reintento y peleándose con el subidor.
+     * Una venta reclamada vuelve a la lista sola en cuanto su arrendamiento
+     * vence.
+     *
+     * (Integración 2026-09-21: este KDoc decía "reencola con `replace = true`".
+     * Ya no: el encolado del camino del dinero es `KEEP` y nada más — ver
+     * `WorkEnqueuePolicyGuardTest`. La decisión de usar `getUploadableSales`
+     * no dependía de la política, y la razón corregida es la de arriba.)
      *
      * Es una función con nombre, y no la lambda pegada abajo, para que la
      * prueba del barrido ejerza ESTA decisión y no una copia suya: si alguien

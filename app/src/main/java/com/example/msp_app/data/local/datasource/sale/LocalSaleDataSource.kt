@@ -80,9 +80,10 @@ class LocalSaleDataSource @Inject constructor(
     /**
      * Ventas que el BARRIDO puede reencolar: sin enviar y sin candado
      * vigente de ningún tipo. Reemplaza a [getPendingSales] en
-     * `PendingWorkSyncFactory` — sin esto el barrido reencolaría con
-     * `replace = true` en cada apertura de sesión mientras el dueño corrige,
-     * reseteando el backoff y peleándose con el candado del subidor.
+     * `PendingWorkSyncFactory` — sin esto el barrido encolaría en cada
+     * apertura de sesión la venta que el dueño está corrigiendo, y ese
+     * trabajo sólo puede chocar contra el fence del candado: quema un
+     * reintento y se pelea con el subidor.
      */
     suspend fun getUploadableSales(now: Long): List<LocalSaleEntity> {
         return localSaleDao.getUploadableSales(
