@@ -6,6 +6,7 @@ import com.example.msp_app.feature.pagos.ui.DetalleClienteContent
 import com.example.msp_app.feature.pagos.ui.DetalleClienteUiState
 import com.example.msp_app.feature.pagos.ui.DetalleVentaContent
 import com.example.msp_app.feature.pagos.ui.DetalleVentaUiState
+import com.example.msp_app.feature.pagos.ui.HojaDeContactos
 import com.example.msp_app.feature.pagos.ui.PagosFixtures
 import org.junit.Test
 
@@ -145,7 +146,104 @@ class DetalleMatrixScreenshotTest : PagosScreenshotTest() {
         Venta(PagosFixtures.detalleVenta(PagosFixtures.estadoPromesaSinFecha()))
     }
 
+    // --- La tarjeta "Últimos contactos" sola — Task 5, hallazgo 5 ------------------------
+
+    /**
+     * La tarjeta `HojaDeContactos` del detalle de cliente, fotografiada SOLA
+     * —no la pantalla completa—: es la superficie donde el dueño vio el
+     * defecto original de la fila de contactos, y la única de las tres
+     * (bitácora, detalle de venta, detalle de cliente) que ningún golden
+     * fotografiaba — `pagos_cliente_*` la deja bajo el pliegue, sin scroll.
+     */
+    @Test
+    fun `hoja de contactos light normal`() = hojaDeContactos(
+        dark = false,
+        nivel = FontSizeLevel.NORMAL
+    )
+
+    @Test
+    fun `hoja de contactos light grande`() = hojaDeContactos(
+        dark = false,
+        nivel = FontSizeLevel.GRANDE
+    )
+
+    @Test
+    fun `hoja de contactos light muy grande`() =
+        hojaDeContactos(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
+
+    @Test
+    fun `hoja de contactos dark normal`() = hojaDeContactos(
+        dark = true,
+        nivel = FontSizeLevel.NORMAL
+    )
+
+    @Test
+    fun `hoja de contactos dark grande`() = hojaDeContactos(
+        dark = true,
+        nivel = FontSizeLevel.GRANDE
+    )
+
+    @Test
+    fun `hoja de contactos dark muy grande`() =
+        hojaDeContactos(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
+
+    /**
+     * **Datos reales, no de fixture — Task 5, hallazgo 6.** Cobrador
+     * `"RUTA 25 - NOE CORTERO"` (36 caracteres, ya visto en producción) y
+     * un producto largo real en vez de `"Refrigerador Mabe 14'"`. El peor
+     * caso está medido (`ElCobradorNoSeRecortaTest`,
+     * `ElRenglonDeAbajoNoSeSaleTest`) pero nunca visto en esta tarjeta.
+     */
+    @Test
+    fun `hoja de contactos datos reales light`() = hojaDeContactosConDatosReales(dark = false)
+
+    @Test
+    fun `hoja de contactos datos reales dark`() = hojaDeContactosConDatosReales(dark = true)
+
+    private fun hojaDeContactos(dark: Boolean, nivel: FontSizeLevel) = capture(
+        name = "pagos_hoja_contactos_${tema(dark)}_${sufijoDe(nivel)}",
+        dark = dark,
+        nivel = nivel
+    ) {
+        Contactos(PagosFixtures.detalleCliente())
+    }
+
+    private fun hojaDeContactosConDatosReales(dark: Boolean) = capture(
+        name = "pagos_hoja_contactos_datos_reales_${tema(dark)}",
+        dark = dark
+    ) {
+        val detalle = PagosFixtures.detalleCliente()
+        Contactos(
+            detalle.copy(
+                contactos = detalle.contactos.map {
+                    it.copy(
+                        cobrador = COBRADOR_REAL,
+                        cuenta = it.cuenta?.let { PRODUCTO_REAL }
+                    )
+                }
+            )
+        )
+    }
+
     private fun tema(dark: Boolean) = if (dark) "dark" else "light"
+
+    private companion object {
+        /** El nombre real de un cobrador, tal como llega de producción — ver `ElCobradorNoSeRecortaTest`. */
+        const val COBRADOR_REAL = "RUTA 25 - NOE CORTERO"
+
+        /** 36 caracteres ya normalizados — ver `ElRenglonDeAbajoNoSeSaleTest`. */
+        const val PRODUCTO_REAL = "Recamara cantaro king size chocolate"
+    }
+}
+
+@Composable
+private fun Contactos(detalle: com.example.msp_app.feature.pagos.domain.model.DetalleCliente) {
+    HojaDeContactos(
+        detalle = detalle,
+        ocultos = false,
+        onVerContactos = {},
+        onVerUbicacionDelContacto = null
+    )
 }
 
 @Composable

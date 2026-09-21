@@ -636,9 +636,16 @@ private fun HojaDeProductos(detalle: DetalleCliente) {
  * la vista **en la misma pantalla** — o sea que el ojo mentía justo donde el
  * cobrador lo prende: parado frente a alguien que está mirando el teléfono.
  * `BitacoraScreen` ya lo cableaba bien; aquí se copia.
+ *
+ * `internal` y no `private`: es la superficie donde el dueño vio el defecto
+ * original de la fila de contactos, y hasta la Task 5 era la única de las
+ * tres (bitácora, detalle de venta, detalle de cliente) sin golden propio —
+ * queda bajo el pliegue en `pagos_cliente_*`, que fotografía la pantalla
+ * completa sin scroll. `DetalleMatrixScreenshotTest` la monta directo, sin
+ * pasar por `DetalleClienteContent` entero, para fotografiar la tarjeta sola.
  */
 @Composable
-private fun HojaDeContactos(
+internal fun HojaDeContactos(
     detalle: DetalleCliente,
     ocultos: Boolean,
     onVerContactos: () -> Unit,

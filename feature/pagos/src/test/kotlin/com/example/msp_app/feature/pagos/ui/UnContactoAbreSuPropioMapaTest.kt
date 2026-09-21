@@ -204,6 +204,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
          */
         val CONTACTOS = listOf(
             ContactoDeCobranza(
+                id = "visita",
                 fecha = Instant.parse("2026-08-24T17:00:00Z"),
                 etiqueta = "No responde aunque está",
                 nota = null,
@@ -212,6 +213,7 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
                 ubicacion = PUNTO_DE_LA_VISITA
             ),
             ContactoDeCobranza(
+                id = "abono",
                 fecha = Instant.parse("2026-08-03T17:10:00Z"),
                 etiqueta = "Abono",
                 nota = null,

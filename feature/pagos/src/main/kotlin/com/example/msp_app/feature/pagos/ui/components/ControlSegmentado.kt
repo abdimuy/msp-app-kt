@@ -92,6 +92,12 @@ internal fun <T> ControlSegmentado(
     onElegir: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // El padding horizontal que [Segmento] le pone a CADA lado de
+    // [ContenidoDelSegmento] (ver su `.padding(horizontal = ...)`) — se lee
+    // aquí, en contexto `@Composable`, para poder sumarlo al ancho natural
+    // medido más abajo, dentro del `SubcomposeLayout` (que no es
+    // `@Composable` y no puede leer `MspTheme` directamente).
+    val paddingDelSegmento = MspTheme.spacing.xs
     Surface(
         modifier = modifier.fillMaxWidth().testTag(CONTROL_SEGMENTADO_TAG),
         color = MspTheme.colors.surface,
@@ -112,6 +118,11 @@ internal fun <T> ControlSegmentado(
             val separacionPx = SEPARACION_DE_SEGMENTOS.roundToPx()
             val altoMinimoPx = ALTO_TOCABLE_DEL_SEGMENTO.roundToPx()
             val anchoDisponible = restricciones.maxWidth
+            // Lo que [Segmento] le resta al ancho útil de CADA opción con su
+            // `.padding(horizontal = ...)` — un lado más el otro. La pasada
+            // de medición mide [ContenidoDelSegmento] SIN ese marco (ver su
+            // KDoc), así que su ancho natural no lo incluye por su cuenta.
+            val paddingDelSegmentoPx = paddingDelSegmento.roundToPx() * 2
 
             // Paso 1: el ancho que cada opción pide para su rótulo y su
             // conteo en una sola línea, SIN comprimir — decide si caben en
@@ -125,7 +136,14 @@ internal fun <T> ControlSegmentado(
                     )
                 }
             }
-            val anchosNaturales = medicion.map { it.measure(Constraints()).width }
+            // + el padding horizontal del segmento real: sin sumarlo, una
+            // etiqueta cuyo ancho natural cae entre `porción − 2×xs` y
+            // `porción` se juzga "cabe en fila" aquí, pero en el paso 2 —ya
+            // con marco— sólo dispone de `porción − 2×xs` para su texto, se
+            // comprime y su rótulo baja a dos renglones DENTRO de la fila:
+            // exactamente el recorte silencioso que este criterio existe
+            // para evitar (8dp de error a `MspTheme.spacing.xs` = 4dp).
+            val anchosNaturales = medicion.map { it.measure(Constraints()).width + paddingDelSegmentoPx }
             // "Caben" quiere decir que NINGUNA opción necesitaría más ancho
             // del que le toca al repartir el control entero entre todas —no
             // que la suma quepa: la suma cabiendo no evita que la más larga
@@ -197,18 +215,33 @@ internal fun <T> ControlSegmentado(
 /**
  * El rótulo y el conteo de un segmento, apilados — sin marco, sin clic, sin
  * `testTag`. [ControlSegmentado] la usa dos veces con dos propósitos:
- * "midiendo" (aquí, para decidir fila-o-rejilla — nunca se coloca, así que
- * nunca aparece en el árbol de semántica) y dentro de [Segmento] (con marco y
- * el ancho real que le tocó). El color no afecta el ancho, así que la
- * medición siempre usa `activo = false`.
+ * "midiendo" (aquí, nunca se coloca — decide fila-o-rejilla) y dentro de
+ * [Segmento] (con marco y el ancho real que le tocó). El color no afecta el
+ * ancho, así que la medición siempre usa `activo = false`.
  *
  * `tagDeLaEtiqueta` sólo lo pasa `Segmento` (la pasada real): el rótulo es el
  * único texto que se comprime cuando el acomodo se equivoca, así que es el
  * único que necesita su propio `testTag` para que un test lea su
  * `TextLayoutResult` y cobre "sin elipsis, sin recorte" — igual que
- * `RenglonPorSegmentos` con `SEGMENTO_DEL_RENGLON_TAG`. La pasada de medición
- * lo deja en `null`: si llevara el mismo tag habría dos nodos con el mismo
- * `testTag` en el árbol.
+ * `RenglonPorSegmentos` con `SEGMENTO_DEL_RENGLON_TAG`.
+ *
+ * **La pasada de medición lo deja en `null`, y no por evitar dos nodos con el
+ * mismo `testTag`** — eso ya pasa a propósito en la pasada real, donde las
+ * hasta cuatro opciones comparten la MISMA constante
+ * [ETIQUETA_DEL_SEGMENTO_TAG], y `onAllNodes` + `useUnmergedTree` lo resuelve
+ * sin problema (medido: con las cuatro reales tageadas, `onAllNodesWithTag`
+ * sobre el árbol MEZCLADO da CERO — `.selectable()` de [Segmento] absorbe la
+ * etiqueta dentro de su propio nodo). La razón real es otra: los nodos de esta
+ * pasada nunca se colocan pero SÍ existen en el árbol de semántica — a
+ * diferencia de los reales, no tienen un `.selectable()` que los absorba, así
+ * que si llevaran el tag aparecerían SUELTOS incluso en el árbol MEZCLADO (el
+ * que usa cualquier consulta por default, sin `useUnmergedTree`) — fantasmas
+ * que un test podría encontrar sin querer. Y como se miden con
+ * `Constraints()` sin restricción, jamás se comprimen ni llevan elipsis:
+ * mezclados con los reales, siempre "pasan", así que no prueban nada y sólo
+ * añaden ruido a cualquier lectura de `TextLayoutResult`. `null` los deja
+ * imposibles de encontrar por tag, que es lo correcto para un nodo que no es
+ * UI real.
  */
 @Composable
 private fun ContenidoDelSegmento(

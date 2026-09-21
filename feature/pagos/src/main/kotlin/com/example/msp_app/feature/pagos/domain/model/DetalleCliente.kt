@@ -222,6 +222,22 @@ enum class TipoDeContacto {
  * en la pantalla.
  */
 data class ContactoDeCobranza(
+    /**
+     * El identificador del hecho: `PagoDelHistorial.pagoId` de un abono,
+     * `VisitaDelCliente.visitaId` de una visita — nunca vacío en un contacto
+     * que produce [com.example.msp_app.feature.pagos.domain.BitacoraDelCliente.de].
+     *
+     * Existe para la llave de `LazyColumn` de la bitácora: dos contactos con
+     * el MISMO instante y el MISMO importe existen de verdad —dos ventas del
+     * mismo cliente con un abono igual al mismo minuto, el caso que
+     * `BitacoraDelClienteTest` prueba con `VENTA_RECAMARA`/`VENTA_BOCINA`—, y
+     * `fecha + etiqueta + importe` no basta para distinguirlos: con esa llave
+     * Compose recicla mal la fila y uno de los dos abonos desaparece de la
+     * lista. `pagoId`/`visitaId` no puede chocar entre sí (son UUID de
+     * fuentes distintas) ni consigo mismo (son la clave primaria de su propia
+     * fila), así que es la única llave que no puede repetirse por accidente.
+     */
+    val id: String,
     val fecha: Instant,
     val etiqueta: String,
     val nota: String?,

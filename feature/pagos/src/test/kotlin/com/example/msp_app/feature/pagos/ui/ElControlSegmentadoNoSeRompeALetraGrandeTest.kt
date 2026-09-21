@@ -22,6 +22,7 @@ import com.example.msp_app.feature.pagos.domain.model.BitacoraCompleta
 import com.example.msp_app.feature.pagos.ui.components.CONTROL_SEGMENTADO_TAG
 import com.example.msp_app.feature.pagos.ui.components.ETIQUETA_DEL_SEGMENTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.FILTRO_TAG
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -144,6 +145,33 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
                 assertFalse(
                     "el rótulo \"${textoDe(etiqueta)}\" lleva elipsis en el renglón $renglon",
                     layout.isLineEllipsized(renglon)
+                )
+            }
+        }
+
+        // Ronda de arreglo final — Task 5: "sin elipsis" no basta. Una
+        // etiqueta cuyo ancho natural cae entre `porción − 8dp` y `porción`
+        // (el umbral SIN contar el padding del segmento, ver
+        // `ElUmbralDeFilaCuentaElPaddingTest` para la reproducción exacta)
+        // se juzgaba "cabe en fila" y se comprimía a DOS renglones dentro de
+        // la fila, sin elipsis (`RENGLONES_DEL_ROTULO = 2` lo permite) — el
+        // recorte que "sin elipsis" no ve. Se cobra sólo cuando el control
+        // decidió FILA (las cuatro cajas de segmento comparten el mismo
+        // `top`): en rejilla, dos renglones son la rejilla misma, no un
+        // recorte, y no aplica.
+        val cajasDeLosSegmentos = FiltroDeContactos.entries.map { filtro ->
+            composeTestRule.onNodeWithTag(
+                FILTRO_TAG + filtro.name
+            ).fetchSemanticsNode().boundsInRoot.top
+        }
+        val decidioFila = cajasDeLosSegmentos.distinct().size == 1
+        if (decidioFila) {
+            etiquetasColocadas().forEach { etiqueta ->
+                assertEquals(
+                    "el rótulo \"${textoDe(etiqueta)}\" bajó a dos renglones DENTRO de la fila " +
+                        "elegida — el control debió pasar a rejilla",
+                    1,
+                    layoutDe(etiqueta).lineCount
                 )
             }
         }

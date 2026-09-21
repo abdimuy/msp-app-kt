@@ -180,6 +180,7 @@ class ElRenglonDeAbajoNoSeSaleTest : RobolectricTestBase() {
         const val IRROMPIBLE = "RECAMARAKINGSIZECHOCOLATEMATRIMONIAL"
 
         val ABONO = ContactoDeCobranza(
+            id = "abono-recamara-cantaro",
             fecha = Instant.parse("2026-02-18T20:30:00Z"),
             etiqueta = "Abono",
             nota = null,

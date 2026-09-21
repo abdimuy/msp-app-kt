@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
@@ -17,6 +18,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.width
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
@@ -45,6 +47,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * **La línea de contactos dice quién cobró, cómo, cuándo y cuánto — y calla lo
@@ -88,6 +91,7 @@ import org.robolectric.annotation.Config
  * - `UnContactoAbreSuPropioMapaTest` — que la fila con punto abra SU mapa, que
  *   la fila sin `ubicacion` no monte `clickable`, y el piso de 50 dp de la fila.
  */
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(qualifiers = "w360dp-h800dp-xhdpi")
 class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
 
@@ -257,15 +261,19 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
     /**
      * **Y la columna se ensancha con el nivel — esto es el arreglo, medido.**
      *
-     * `anchoDeLaHora()` multiplica el ancho base por `nominalScale`, así que de
-     * `NORMAL` (1.0) a `MUY_GRANDE` (2.0) la columna tiene que **duplicarse**.
-     * Un ancho fijo en dp —el defecto— daría la misma cifra en los tres niveles
-     * y esto se pondría rojo.
+     * Desde la Task 5, `PistaDeCuando` (`LineaDeContactos.kt`) YA NO reserva un
+     * `dp` fijo multiplicado por `nominalScale` — mide el ancho NATURAL del día
+     * y la hora, a lo que sea que rinda `LocalDensity.fontScale` en ese momento
+     * (ver su KDoc: un ancho fijo por fórmula se desacoplaba del `fontScale` del
+     * SO). Así que de `NORMAL` (1.0) a `MUY_GRANDE` (2.0) la columna sigue
+     * teniendo que **duplicarse** —el texto real mide el doble—, pero ahora
+     * porque `tresEscalas()` sube `LocalDensity.fontScale` de verdad, no porque
+     * una fórmula lo multiplique.
      *
-     * Se afirma la **proporción** y no un valor en dp a propósito: el ancho base
-     * es un detalle privado de la pieza y puede afinarse sin que la regla
-     * cambie. Se deja holgura (1.9 en vez de 2.0) por el redondeo a píxeles de
-     * la densidad del qualifier.
+     * Se afirma la **proporción** y no un valor en dp a propósito: el ancho
+     * natural del texto es un detalle de fuente/render y puede afinarse sin que
+     * la regla cambie. Se deja holgura (1.9 en vez de 2.0) por el redondeo a
+     * píxeles de la densidad del qualifier.
      */
     @Test
     fun `la columna de la hora se ensancha con el nivel de letra`() {
@@ -458,18 +466,37 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
      * horas distintas para poder nombrarlas por separado. Así los dos tests de
      * la hora comparan niveles entre sí sin montar tres veces —`setContent` se
      * llama una vez por regla—.
+     *
+     * **Cada rama también sube `LocalDensity.fontScale`**, no sólo
+     * `LocalFontSizeLevel` — si sólo subiera el segundo, el texto de las tres
+     * filas se pintaría exactamente del mismo tamaño (`LocalFontSizeLevel` por
+     * sí solo no mueve un sólo `sp`; ver `LaFilaCaeSobreUnaSolaLineaBaseTest`) y
+     * la pista "cuándo" —medida del contenido real desde la Task 5— mediría
+     * igual en las tres ramas sin que el arreglo se note. Antes de la Task 5
+     * esto no hacía falta: `anchoDeCuando()`/`puntoDelEstado()` multiplicaban
+     * por `nominalScale` directo, sin pasar por el tamaño real.
      */
     private fun tresEscalas() {
         composeTestRule.setContent {
+            val density = LocalDensity.current
             MspTheme(darkTheme = false, animateColors = false) {
                 Column {
-                    CompositionLocalProvider(LocalFontSizeLevel provides FontSizeLevel.NORMAL) {
+                    CompositionLocalProvider(
+                        LocalDensity provides Density(density.density, FontSizeLevel.NORMAL.nominalScale),
+                        LocalFontSizeLevel provides FontSizeLevel.NORMAL
+                    ) {
                         ContactoEnLinea(contacto = COBRO.copy(fecha = EN_NORMAL))
                     }
-                    CompositionLocalProvider(LocalFontSizeLevel provides FontSizeLevel.GRANDE) {
+                    CompositionLocalProvider(
+                        LocalDensity provides Density(density.density, FontSizeLevel.GRANDE.nominalScale),
+                        LocalFontSizeLevel provides FontSizeLevel.GRANDE
+                    ) {
                         ContactoEnLinea(contacto = COBRO.copy(fecha = EN_GRANDE))
                     }
-                    CompositionLocalProvider(LocalFontSizeLevel provides FontSizeLevel.MUY_GRANDE) {
+                    CompositionLocalProvider(
+                        LocalDensity provides Density(density.density, FontSizeLevel.MUY_GRANDE.nominalScale),
+                        LocalFontSizeLevel provides FontSizeLevel.MUY_GRANDE
+                    ) {
                         ContactoEnLinea(contacto = COBRO.copy(fecha = EN_MUY_GRANDE))
                     }
                 }
@@ -592,6 +619,7 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
 
         /** El hecho completo: entró dinero, con qué, quién y qué se dijo. */
         val COBRO = ContactoDeCobranza(
+            id = "cobro",
             fecha = Instant.parse("2026-09-11T22:45:00Z"),
             etiqueta = ETIQUETA_DEL_COBRO,
             nota = NOTA,
@@ -607,6 +635,7 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
          * producción: el cobrador existe, la forma de pago no.
          */
         val VISITA = ContactoDeCobranza(
+            id = "visita",
             fecha = Instant.parse("2026-09-10T14:05:00Z"),
             etiqueta = "No responde aunque está",
             nota = null,
@@ -618,6 +647,7 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
         )
 
         val OTRA_VISITA = ContactoDeCobranza(
+            id = "otra-visita",
             fecha = Instant.parse("2026-09-09T18:30:00Z"),
             etiqueta = "dijo que el viernes",
             nota = null,

@@ -509,7 +509,8 @@ const val ALCANCE_TAG: String = "pagos_venta_alcance_"
 /**
  * Alto mínimo de una pastilla de alcance.
  *
- * 50 dp por lo mismo que la pastilla de filtro: es el piso tocable del repo y
- * no se baja por gusto visual. Ver `ALTO_DEL_FILTRO` en `LineaDeContactos`.
+ * 50 dp por lo mismo que el segmento de filtro: es el piso tocable del repo y
+ * no se baja por gusto visual. Ver `ALTO_TOCABLE_DEL_SEGMENTO` en
+ * `ControlSegmentado`.
  */
 private val ALTO_DEL_ALCANCE = 50.dp

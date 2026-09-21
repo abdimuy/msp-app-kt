@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,12 +22,13 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
@@ -166,31 +166,8 @@ fun ContactoEnLinea(
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         val cuando = AppTime.toBusinessDateTime(contacto.fecha)
-        // Cuándo. Cada texto a lo ancho de la columna: el ancho fijo es de la
-        // PISTA, y así la pista se mide igual en los dos renglones.
-        Column(
-            modifier = Modifier
-                .width(anchoDeCuando())
-                .alignBy(FirstBaseline),
-            horizontalAlignment = Alignment.End
-        ) {
-            Text(
-                text = diaDe(cuando),
-                style = MspTheme.type.captionStrong,
-                color = MspTheme.colors.onSurface,
-                maxLines = 1,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text(
-                text = HORA.format(cuando),
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.onSurfaceMuted,
-                maxLines = 1,
-                textAlign = TextAlign.End,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        // Cuándo.
+        PistaDeCuando(cuando = cuando, modifier = Modifier.alignBy(FirstBaseline))
         // Estado.
         EnElRenglonDelTitulo(modifier = Modifier.alignBy(FirstBaseline)) {
             Box(
@@ -437,23 +414,84 @@ private val MESES_ABREVIADOS = listOf(
 )
 
 /**
- * El ancho de la pista **Cuándo** —el día y la hora—, **escalado con la
- * letra**.
+ * La pista **Cuándo** —el día arriba y la hora abajo, alineados a la
+ * derecha—, con un ancho **medido del contenido real**, no de una fórmula.
  *
- * Fijo por fila y no `wrapContent`: si cada una midiera lo suyo, `09 feb` y
- * `18 feb` darían anchos distintos y el punto de estado bailaría de renglón en
- * renglón.
+ * ## Por qué no `Modifier.width(dp fijo × escala)` — el defecto medido
  *
- * Pero fijo en dp ABSOLUTOS era un defecto: a escala 1.5 la hora salía cortada
- * —`10:4`, `18:0`— y una hora a medias no es un dato incompleto, es un dato
- * falso. Se multiplica por el nivel elegido, igual que `altoDelCuadro` hace con
- * el cuadro de la puerta.
+ * La versión anterior fijaba el ancho en `40.dp × LocalFontSizeLevel.current
+ * .nominalScale` —el nivel elegido DENTRO de la app—, pero el tamaño con el
+ * que Compose pinta el texto no sale de ese nivel solo: sale de
+ * `LocalDensity.current.fontScale`, que en la raíz de composición
+ * (`MainActivity.kt`) es `máx(nivel de la app, fontScale del SISTEMA
+ * OPERATIVO)` — la app nunca achica por debajo de lo que el teléfono ya pide,
+ * pero tampoco agranda su propia pista cuando es el SO el que va más grande.
+ * Con la app en `NORMAL` y el SO en su nivel más grande, `"24 ago"` mide más
+ * que los `40.dp × 1.0` que la fórmula reservaba, así que el `Text` de arriba
+ * —con `maxLines = 1` y overflow por default (`TextOverflow.Clip`, sin
+ * elipsis)— **se recortaba en silencio**: un día mutilado que se sigue
+ * leyendo como un día, un dato falso. Medido en
+ * `ElDiaSeDesacoplaDelNivelDeLaAppTest`: con el SO en `MUY_GRANDE` (2.0) y la
+ * app en `NORMAL` (1.0), la fórmula vieja reservaba 40dp pero el texto real
+ * pedía más — la diferencia exacta, en dp, queda impresa en el mensaje de esa
+ * prueba.
+ *
+ * ## El arreglo: medir, no multiplicar
+ *
+ * [Layout] mide el día y la hora SIN restricción de ancho —su tamaño natural,
+ * el que sea que `LocalDensity.current.fontScale` dicte en ese momento,
+ * cualquiera que sea la combinación de nivel de app y SO— y usa el más ancho
+ * de los dos como el ancho de la pista, alineando el otro a la derecha por
+ * colocación (no por `TextAlign`, que ya no hace falta). Ya no hay una
+ * fórmula que perseguir: el ancho ES lo que el texto real necesita, siempre.
+ *
+ * Sigue siendo fijo POR FILA —los dos renglones de esta fila comparten un
+ * mismo ancho medido en la misma pasada, así que `09 feb` y `18 feb` no
+ * mueven el punto de estado entre renglones—, y las cifras tabulares de
+ * `caption`/`captionStrong` (ver sus KDoc en `MspType`) garantizan que ese
+ * ancho es prácticamente el mismo de una fila a otra a la misma escala,
+ * aunque cada fila lo mida por su cuenta.
+ *
+ * Reporta su propia `FirstBaseline` —la del día, el primer hijo— para que
+ * `Row.alignBy(FirstBaseline)` en [ContactoEnLinea] la alinee contra el
+ * título exactamente igual que antes.
  */
 @Composable
-private fun anchoDeCuando(): Dp = ANCHO_BASE_DE_CUANDO * LocalFontSizeLevel.current.nominalScale
-
-/** Lo que mide `18 feb` en `captionStrong` a escala normal, con su aire. */
-private val ANCHO_BASE_DE_CUANDO = 40.dp
+private fun PistaDeCuando(cuando: LocalDateTime, modifier: Modifier = Modifier) {
+    Layout(
+        modifier = modifier,
+        content = {
+            Text(
+                text = diaDe(cuando),
+                style = MspTheme.type.captionStrong,
+                color = MspTheme.colors.onSurface,
+                maxLines = 1
+            )
+            Text(
+                text = HORA.format(cuando),
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = 1
+            )
+        }
+    ) { medibles, restricciones ->
+        val librePeroAcotado = Constraints(maxWidth = restricciones.maxWidth)
+        val colocables = medibles.map { it.measure(librePeroAcotado) }
+        val ancho = colocables.maxOf { it.width }
+        val alto = colocables.sumOf { it.height }
+        layout(
+            width = ancho,
+            height = alto,
+            alignmentLines = mapOf(FirstBaseline to colocables[0][FirstBaseline])
+        ) {
+            var y = 0
+            colocables.forEach { colocable ->
+                colocable.placeRelative(ancho - colocable.width, y)
+                y += colocable.height
+            }
+        }
+    }
+}
 
 /**
  * El punto de estado, **escalado con la letra** — mismo patrón que

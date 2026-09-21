@@ -68,6 +68,7 @@ object BitacoraDelCliente {
     ): List<ContactoDeCobranza> {
         val deVisitas = visitas.map { visita ->
             ContactoDeCobranza(
+                id = visita.visitaId,
                 fecha = visita.fecha,
                 // Sin `.lowercase()`: el literal ya viene con mayúscula inicial
                 // de TipoVisitaCatalogo, que es quien defiende esa garantía
@@ -92,6 +93,7 @@ object BitacoraDelCliente {
         }
         val dePagos = pagos.map { pago ->
             ContactoDeCobranza(
+                id = pago.pagoId,
                 fecha = pago.fecha,
                 etiqueta = ETIQUETA_DEL_ABONO,
                 nota = pago.nota,

@@ -208,11 +208,16 @@ private fun Contactos(
                 }
                 items(
                     items = grupo.contactos,
-                    // La llave es el instante MÁS la etiqueta: dos abonos del
-                    // mismo día a la misma hora existen (dos cuentas, una
-                    // visita), así que el instante solo no es único y Compose
-                    // reciclaría mal la fila.
-                    key = { "${it.fecha.toEpochMilli()}:${it.etiqueta}:${it.importe?.amount}" }
+                    // La llave es el ID DEL HECHO (`pagoId`/`visitaId`), no
+                    // una combinación de sus campos visibles: dos abonos al
+                    // MISMO minuto y por el MISMO importe existen de verdad
+                    // —dos ventas del mismo cliente, el caso que
+                    // `BitacoraDelClienteTest` prueba—, así que
+                    // `fecha + etiqueta + importe` puede chocar y Compose
+                    // recicla mal la fila (una de las dos filas desaparece).
+                    // `ContactoDeCobranza.id` no puede chocar: es la PK de su
+                    // propia fila en Room. Ver su KDoc.
+                    key = { it.id }
                 ) { contacto ->
                     // La fila decide sola si se puede tocar: con `ubicacion` en
                     // `null` no monta el `clickable`. Aquí no se repite.

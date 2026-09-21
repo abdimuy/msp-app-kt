@@ -208,6 +208,7 @@ class ElFiltroDeContactosEsUnControlSegmentadoTest : RobolectricTestBase() {
         const val FILA_VISIBLE_TAG = "test_fila_visible"
 
         fun cobro(cuando: String) = ContactoDeCobranza(
+            id = "cobro-$cuando",
             fecha = Instant.parse(cuando),
             etiqueta = "Abono",
             nota = null,
@@ -217,6 +218,7 @@ class ElFiltroDeContactosEsUnControlSegmentadoTest : RobolectricTestBase() {
         )
 
         fun visita(cuando: String) = ContactoDeCobranza(
+            id = "visita-$cuando",
             fecha = Instant.parse(cuando),
             etiqueta = "No estaba",
             nota = null,

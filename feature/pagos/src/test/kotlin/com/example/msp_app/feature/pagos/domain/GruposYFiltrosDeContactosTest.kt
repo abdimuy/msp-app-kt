@@ -248,6 +248,7 @@ class GruposYFiltrosDeContactosTest {
         fun dinero(cuanto: String) = Money.of(BigDecimal(cuanto))
 
         fun cobro(cuando: String, cuanto: String) = ContactoDeCobranza(
+            id = "cobro-$cuando",
             fecha = Instant.parse(cuando),
             etiqueta = "Abono",
             nota = null,
@@ -258,6 +259,7 @@ class GruposYFiltrosDeContactosTest {
 
         fun visita(cuando: String, estado: EstadoCuenta = EstadoCuenta.NO_ESTABA) =
             ContactoDeCobranza(
+                id = "visita-$cuando",
                 fecha = Instant.parse(cuando),
                 etiqueta = "No estaba",
                 nota = null,

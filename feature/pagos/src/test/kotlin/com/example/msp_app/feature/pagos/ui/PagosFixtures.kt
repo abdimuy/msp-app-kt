@@ -191,8 +191,18 @@ object PagosFixtures {
      * a agregar— no se pintaba en ninguna de las seis fotos. De pilón, la
      * pastilla "Cobros" sobre esta línea daba cero filas.
      */
-    fun bitacoraDelDomicilio(): List<ContactoDeCobranza> = listOf(
+    fun bitacoraDelDomicilio(): List<ContactoDeCobranza> =
+        visitasDelDomicilio() + pagosDelDomicilio()
+
+    /**
+     * Las dos visitas de [bitacoraDelDomicilio] — partida de esa función
+     * porque `detekt.LongMethod` (60 líneas) no aguanta las cinco fichas
+     * completas en una sola lista; el corte es mecánico, no cambia el orden
+     * ni el contenido de ningún contacto.
+     */
+    private fun visitasDelDomicilio(): List<ContactoDeCobranza> = listOf(
         ContactoDeCobranza(
+            id = "visita-no-responde",
             fecha = Instant.parse("2026-08-24T17:00:00Z"),
             // Mayúscula inicial: es el literal tal cual lo defiende
             // TipoVisitaCatalogo.NO_RESPONDE (Task 1, principio 10) — el KDoc
@@ -210,6 +220,7 @@ object PagosFixtures {
             cobrador = COBRADOR
         ),
         ContactoDeCobranza(
+            id = "visita-reagendar",
             fecha = Instant.parse("2026-08-10T17:00:00Z"),
             etiqueta = "Pidió reagendar visita",
             nota = "el viernes que cobre mi esposo",
@@ -217,7 +228,11 @@ object PagosFixtures {
             importe = null,
             tipo = TipoDeContacto.VISITA,
             cobrador = COBRADOR
-        ),
+        )
+    )
+
+    /** Los tres abonos de [bitacoraDelDomicilio]. Ver el KDoc de [visitasDelDomicilio]. */
+    private fun pagosDelDomicilio(): List<ContactoDeCobranza> = listOf(
         // El ÚNICO con punto medido, y es el mismo par que
         // `ultimoCobroAqui`: en la app ese campo sale del abono más
         // reciente que traiga coordenadas (`CargarDetalleCliente.kt`), así
@@ -232,6 +247,7 @@ object PagosFixtures {
         // con lo que ese abono trae: es un COBRO, fue en efectivo y lo
         // registró un cobrador con nombre.
         ContactoDeCobranza(
+            id = "pago-cob-a-10388",
             fecha = Instant.parse("2026-08-03T17:10:00Z"),
             etiqueta = "Abono",
             nota = null,
@@ -252,6 +268,7 @@ object PagosFixtures {
         // los tres primeros —los que enseña el detalle de cliente— sigan
         // siendo los de siempre.
         ContactoDeCobranza(
+            id = "pago-sala-3-piezas",
             fecha = Instant.parse("2026-08-03T17:09:00Z"),
             etiqueta = "Abono",
             nota = null,
@@ -268,6 +285,7 @@ object PagosFixtures {
         // adaptador produce ahí, y el golden tiene que enseñar que el renglón
         // de abajo se queda con el método solo — sin texto de relleno.
         ContactoDeCobranza(
+            id = "pago-sin-producto",
             fecha = Instant.parse("2026-07-20T18:30:00Z"),
             etiqueta = "Abono",
             nota = null,

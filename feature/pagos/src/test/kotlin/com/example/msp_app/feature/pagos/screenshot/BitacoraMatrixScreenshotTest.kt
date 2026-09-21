@@ -42,6 +42,38 @@ class BitacoraMatrixScreenshotTest : PagosScreenshotTest() {
     @Test
     fun `bitacora vacia dark`() = vacia(dark = true)
 
+    /**
+     * **Datos reales, no de fixture — Task 5, hallazgo 6.** Hoy los goldens
+     * usan `"Marisol Vega"` y `"Refrigerador Mabe 14'"`; lo real es un
+     * cobrador como `"RUTA 25 - NOE CORTERO"` (36 caracteres) y productos
+     * como `"Recamara cantaro king size chocolate"` (36 caracteres, ya
+     * normalizados). El peor caso está medido (`ElCobradorNoSeRecortaTest`,
+     * `ElRenglonDeAbajoNoSeSaleTest`) pero nunca visto en la lista completa.
+     */
+    @Test
+    fun `bitacora datos reales light`() = bitacoraConDatosReales(dark = false)
+
+    private fun bitacoraConDatosReales(dark: Boolean) = capture(
+        name = "pagos_bitacora_datos_reales_${tema(dark)}",
+        dark = dark
+    ) {
+        val bitacora = deLaFixture()
+        BitacoraContent(
+            state = BitacoraUiState(
+                cargando = false,
+                bitacora = bitacora.copy(
+                    contactos = bitacora.contactos.map {
+                        it.copy(
+                            cobrador = "RUTA 25 - NOE CORTERO",
+                            cuenta = it.cuenta?.let { _ -> "Recamara cantaro king size chocolate" }
+                        )
+                    }
+                )
+            ),
+            onAtras = {}
+        )
+    }
+
     private fun bitacora(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_bitacora_${tema(dark)}_${sufijoDe(nivel)}",
         dark = dark,

@@ -202,6 +202,7 @@ class LaFilaCaeSobreUnaSolaLineaBaseTest : RobolectricTestBase() {
         const val IMPORTE = "$350"
 
         val ABONO = ContactoDeCobranza(
+            id = "abono-recamara-cantaro",
             fecha = Instant.parse("2026-09-11T22:45:00Z"),
             etiqueta = "Abono",
             nota = null,
