@@ -33,6 +33,7 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import java.io.File
 import java.io.IOException
+import java.net.UnknownHostException
 import java.time.Instant
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -566,7 +567,14 @@ class CorreccionCarreraTest : RoomTestBase() {
                 crear = { _, datos, _ ->
                     llamadas++
                     cuerpos += datos.comoTexto()
-                    throw IOException("sin señal")
+                    // "Sin señal" en un teléfono real es el DNS que no
+                    // resuelve: no sale un byte. Importa que sea ESTA
+                    // excepción y no una `IOException` pelona — la ronda de
+                    // arreglo 1 de la Task 6b borra el ancla sólo ante un
+                    // fallo que PRUEBE que no hubo conexión, y este escenario
+                    // (el del título del plan: capturar sin señal, corregir,
+                    // subir al volver la red) no debe terminar marcado.
+                    throw UnknownHostException("api.muebleriamsp.invalid")
                 }
             )
         )
@@ -609,16 +617,14 @@ class CorreccionCarreraTest : RoomTestBase() {
         val fila = saleDataSource.getSaleById(SALE_ID)!!
         assertTrue(fila.ENVIADO)
         assertEquals(NOMBRE_CORREGIDO, fila.NOMBRE_CLIENTE)
-        // Task 6b, mismo cambio que en la prueba 2 de este archivo: el ancla
-        // del primer cuerpo emitido (REVISION=0) ya no coincide con la fila
-        // (REVISION=1). "Sin señal" y "el servidor la recibió y se perdió la
-        // respuesta" son el MISMO `IOException` desde aquí, así que la duda
-        // se marca. La corrección sí viajó en la corrida 2 — probablemente
-        // este sea un falso positivo — y aun así se marca: el costo de
-        // equivocarse al revés es despachar una venta que el cliente no
-        // pidió.
-        assertTrue(
-            "primer cuerpo posteado sin confirmar + corrección posterior: se marca por si acaso",
+        // Vuelve a `assertFalse` tras la ronda de arreglo 1 de la Task 6b, y
+        // es el punto de esa ronda: éste es el caso ESTELAR del plan y todo
+        // salió bien. El `UnknownHostException` de la corrida 1 prueba que no
+        // salió un byte, así que el ancla se borró y la corrida 2 ancló ya con
+        // la corrección adentro. Marcarlo habría puesto "La revisa la oficina"
+        // en casi toda corrección — y un aviso que sale siempre deja de avisar.
+        assertFalse(
+            "no hubo conexión en el primer intento: la corrección viajó y no hay nada que revisar",
             fila.CORRECCION_NO_ENVIADA
         )
         assertNull("el registro de fallo quedó limpio", fila.LAST_UPLOAD_ERROR_CODE)

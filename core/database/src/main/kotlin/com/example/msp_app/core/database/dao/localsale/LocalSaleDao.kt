@@ -426,6 +426,42 @@ interface LocalSaleDao {
     suspend fun recordPostedRevisionIfAbsent(saleId: String, revision: Int): Int
 
     /**
+     * BORRA el ancla — y sólo la que puso ESTE intento (`REVISION_POSTEADA =
+     * :revision` en el `WHERE`). Ronda de arreglo 1 de la Task 6b.
+     *
+     * Por qué hace falta: anclar antes del `POST` volvía marcable **el caso
+     * estelar del plan** — el vendedor captura sin señal, el intento falla
+     * porque no hay red, corrige, vuelve la señal y la venta sube corregida.
+     * Todo salió bien y la fila quedaba con "La revisa la oficina". Un aviso
+     * que aparece en casi toda corrección es un aviso que la oficina aprende
+     * a ignorar, y entonces ya no protege del caso real.
+     *
+     * Así que el ancla sólo vale cuando de verdad PUDIERON salir bytes. Si el
+     * fallo demuestra que **nunca hubo conexión**, el subidor llama esto y la
+     * corrección siguiente no se marca. Qué excepciones cuentan como prueba
+     * está enumerado —una por una, nunca `IOException` a secas— en
+     * `PendingLocalSalesWorker.elFalloPruebaQueNoSalioNada`.
+     *
+     * **Las dos guardas, y por qué ninguna sobra:**
+     * - `REVISION_POSTEADA = :revision` — no borra un ancla de otro valor.
+     * - El llamador además sólo invoca esto si `recordPostedRevisionIfAbsent`
+     *   devolvió 1 en ESTA corrida, o sea si el ancla es suya. Sin esa
+     *   condición: el intento 1 manda bytes (ancla 0; el servidor los recibe
+     *   y la respuesta se pierde), el dueño corrige, el intento 2 falla SIN
+     *   conexión y borraría el ancla del intento 1 — el intento 3 subiría
+     *   corregido, no marcaría nada, y el servidor seguiría con el cuerpo
+     *   original. Ése es justo el falso negativo que esta columna existe para
+     *   impedir.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET REVISION_POSTEADA = NULL
+        WHERE LOCAL_SALE_ID = :saleId AND REVISION_POSTEADA = :revision
+        """
+    )
+    suspend fun clearPostedRevisionIfMine(saleId: String, revision: Int): Int
+
+    /**
      * Lo llama el subidor cuando el POST triunfa: marca `ENVIADO=1` y cierra
      * CUALQUIER candado que la fila tenga (edición o subida) en la MISMA
      * sentencia (un solo `UPDATE`, así que es atómico sin necesitar

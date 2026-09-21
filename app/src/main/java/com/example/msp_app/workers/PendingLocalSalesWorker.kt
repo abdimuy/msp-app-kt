@@ -28,6 +28,9 @@ import com.google.gson.Gson
 import com.google.gson.JsonParser
 import java.io.File
 import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.UnknownHostException
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -248,6 +251,11 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 " FREC_PAGO='${sale.FREC_PAGO}'" +
                 " DIA_COBRANZA='${sale.DIA_COBRANZA}'"
         )
+        // ¿Fue ESTA corrida la que puso el ancla? Sólo quien la puso puede
+        // borrarla (ver [elFalloPruebaQueNoSalioNada]): si el ancla venía de
+        // un intento ANTERIOR, ese intento sí pudo mandar bytes, y borrarla
+        // aquí fabricaría un falso negativo.
+        var ancloEsteIntento = false
         return try {
             val images = localSaleStore.getImagesForSale(saleId)
             if (images.isEmpty()) {
@@ -421,12 +429,14 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
             // de ESA corrida no ve nada raro, aunque el servidor se quedó
             // con el cuerpo viejo.
             //
-            // Es conservador a propósito: si el POST ni siquiera sale del
-            // teléfono, el ancla queda puesta igual y una corrección
-            // posterior que SÍ viaja puede terminar marcada. Un falso
-            // positivo cuesta una revisión de oficina; un falso negativo
-            // cuesta despachar una venta que el cliente no pidió.
-            localSaleStore.recordPostedRevisionIfAbsent(saleId, revisionAlReclamar)
+            // Sigue siendo conservador — el ancla se pone ANTES de mandar,
+            // así que cubre todo fallo AMBIGUO —, pero ya no marca el caso
+            // estelar del plan: si el intento termina probando que **nunca
+            // hubo conexión**, el `catch (e: IOException)` de abajo la borra
+            // (ver [elFalloPruebaQueNoSalioNada]). Por eso se guarda si el
+            // ancla la puso ESTA corrida: sólo su dueño puede borrarla.
+            ancloEsteIntento =
+                localSaleStore.recordPostedRevisionIfAbsent(saleId, revisionAlReclamar) == 1
 
             val response = ventasApi.crearVenta(
                 idempotencyKey = idempotencyKey,
@@ -561,6 +571,24 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 }
             }
         } catch (e: IOException) {
+            // El ancla sólo vale si PUDIERON salir bytes. Cuando el fallo
+            // prueba que nunca hubo conexión, se borra: si no, el caso
+            // estelar del plan —capturar sin señal, corregir, subir bien al
+            // volver la red— quedaría marcado "La revisa la oficina" en casi
+            // toda corrección, y un aviso que sale siempre deja de avisar.
+            // Sólo se borra la que puso ESTA corrida.
+            if (ancloEsteIntento && elFalloPruebaQueNoSalioNada(e)) {
+                localSaleStore.clearPostedRevisionIfMine(saleId, revisionAlReclamar)
+                logger.info(
+                    module = "SALES_WORKER",
+                    action = "ANCHOR_CLEARED",
+                    message = "El intento no llegó a la red; el ancla del cuerpo se borra",
+                    data = mapOf(
+                        "saleId" to saleId,
+                        "excepcion" to (e::class.java.simpleName ?: "IOException")
+                    )
+                )
+            }
             Log.w(
                 "PendingLocalSalesWorker",
                 "Error de red al enviar venta $saleId, reintentando",
@@ -649,6 +677,42 @@ class PendingLocalSalesWorker @JvmOverloads constructor(
                 data = mapOf("saleId" to saleId, "userEmail" to userEmail)
             )
         }
+
+    /**
+     * ¿Este fallo DEMUESTRA que no salió un solo byte del teléfono?
+     *
+     * Sólo entonces se puede borrar el ancla del cuerpo posteado sin abrir un
+     * falso negativo. La lista está enumerada a mano, una excepción por línea
+     * y con su porqué — **jamás `IOException` a secas**, que es la
+     * superclase del caso PELIGROSO: un fallo posterior a la escritura del
+     * cuerpo (el servidor ya recibió la venta y lo que se perdió fue la
+     * respuesta) también es un `IOException`, y ahí el ancla tiene que
+     * quedarse.
+     *
+     * Las tres de la lista son fallos al ESTABLECER la conexión: el socket
+     * nunca llegó a cargar un byte de HTTP.
+     * - [UnknownHostException]: el DNS no resolvió. No hubo a dónde conectar.
+     * - [ConnectException]: la conexión fue rechazada o la red es
+     *   inalcanzable (el "sin señal" típico del vendedor en la calle).
+     * - [NoRouteToHostException]: no hay ruta al host.
+     *
+     * Deliberadamente FUERA de la lista, aunque tienten:
+     * - `SocketTimeoutException`: ambiguo. OkHttp lo usa igual para un
+     *   timeout de CONEXIÓN que para uno de LECTURA, y el de lectura ocurre
+     *   con el cuerpo YA enviado — el caso peligroso exacto.
+     * - `SSLHandshakeException`: el apretón de manos precede a la petición,
+     *   pero puede ocurrir también en una renegociación a media llamada, y no
+     *   pude probar que nunca pase con el cuerpo en curso. Ante la duda, se
+     *   conserva.
+     * - "unexpected end of stream" y demás `IOException` genéricas: son
+     *   precisamente el "llegó y se perdió la respuesta".
+     */
+    private fun elFalloPruebaQueNoSalioNada(e: IOException): Boolean = when (e) {
+        is UnknownHostException -> true
+        is ConnectException -> true
+        is NoRouteToHostException -> true
+        else -> false
+    }
 
     /**
      * Corre [trabajo] con un LATIDO en paralelo que renueva el arrendamiento

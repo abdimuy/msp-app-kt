@@ -246,15 +246,23 @@ tasks.register("checkNoLegacyDateApi") {
 // Task 5 (plan "Corregir una venta antes de que suba"): guarda de arquitectura calcada de
 // `checkNoLegacyDateApi` de arriba — mismo mecanismo (grep-equivalent sobre `:app/src/main`,
 // comentarios/strings ya despojados antes de comparar, para no reventar por la propia
-// documentación de este defecto), un único nombre prohibido. `enqueueLocalSaleUpdate`
-// (`app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt`) es
-// el punto de entrada al backend LEGADO de edición de ventas locales (`PUT
-// ventas-locales/{id}`, vía `LocalSaleSyncWorker`): apunta a un servidor que ya no es la fuente
-// de verdad, rota la `Idempotency-Key` de quien lo llame y no conoce el candado de corrección de
-// este plan. `EditLocalSaleViewModel.kt` (el único llamador) se BORRÓ en esta misma tarea; su
-// reemplazo, `CorreccionVentaViewModel` (`:feature:ventaCorreccion`), nunca lo nombra. Esta
-// guarda es lo que impide que alguien lo reconecte por accidente — o a propósito, sin darse
-// cuenta de por qué está prohibido — en el futuro.
+// documentación de este defecto). Los nombres prohibidos viven todos en
+// `app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt` y son los
+// puntos de entrada al backend LEGADO de ventas locales (`ventas-locales/{id}`, vía
+// `LocalSaleSyncWorker`): apunta a un servidor que ya no es la fuente de verdad, rota la
+// `Idempotency-Key` de quien lo llame y no conoce el candado de corrección de este plan.
+// `EditLocalSaleViewModel.kt` (el único llamador) se BORRÓ en la Task 5; su reemplazo,
+// `CorreccionVentaViewModel` (`:feature:ventaCorreccion`), nunca los nombra. Esta guarda es lo que
+// impide que alguien los reconecte por accidente — o a propósito, sin darse cuenta de por qué está
+// prohibido — en el futuro.
+//
+// **Ronda de arreglo 1 de la Task 6b**: la guarda existía pero cubría UN solo nombre
+// (`enqueueLocalSaleUpdate`), mientras `enqueueLocalSaleCreate` y `enqueueLocalSaleSync` —que
+// llevan al MISMO worker legado, y la segunda además despacha a la primera— quedaban sin
+// protección. Medido: hoy ninguno de los tres tiene llamador fuera de su archivo, así que
+// extenderla no rompe nada y cierra el hueco antes de que alguien lo use. `changeSaleStatus`
+// (`LocalSaleSyncHandler`) marca `ENVIADO=1` sin pasar por `markSentAndCloseEdit`, o sea sin
+// detectar divergencia: prohibir los tres encolados es lo que lo deja inalcanzable.
 //
 // El propio archivo que DEFINE la función (`LocalSaleSyncExtensions.kt`) se allowlistea por
 // archivo completo: no es una reintroducción, es la definición que se queda dormida (fuera de
@@ -265,11 +273,19 @@ val legacySaleEditAllowlist = setOf(
     "app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt"
 )
 
+// Los tres encolados del camino legado. `enqueueLocalSaleSync` va en la lista aunque sólo
+// despache a los otros dos: es el nombre más fácil de llamar desde una pantalla nueva.
+val legacySaleEnqueueNames = listOf(
+    "enqueueLocalSaleUpdate",
+    "enqueueLocalSaleCreate",
+    "enqueueLocalSaleSync"
+)
+
 tasks.register("checkNoLegacySaleEdit") {
     group = "verification"
-    description = "Task 5 (editar-venta-antes-de-subir): falla si :app nombra " +
-        "enqueueLocalSaleUpdate fuera de su propia definición — el camino legado de edición " +
-        "de ventas locales no se revive."
+    description = "Task 5 + ronda 1 de Task 6b (editar-venta-antes-de-subir): falla si :app " +
+        "nombra enqueueLocalSaleUpdate/Create/Sync fuera de su propia definición — el camino " +
+        "legado de ventas locales no se revive."
 
     val appMainDir = layout.projectDirectory.dir("app/src/main")
     val repoRoot = layout.projectDirectory.asFile
@@ -283,15 +299,17 @@ tasks.register("checkNoLegacySaleEdit") {
             if (relativePath in legacySaleEditAllowlist) return@forEach
             val stripped = stripKotlinCommentsAndStrings(file.readText())
             stripped.lineSequence().forEachIndexed { index, line ->
-                if (line.contains("enqueueLocalSaleUpdate")) {
-                    violations += "$relativePath:${index + 1}: nombra `enqueueLocalSaleUpdate` " +
-                        "(backend legado de edición de ventas locales)"
+                legacySaleEnqueueNames.forEach { prohibido ->
+                    if (line.contains(prohibido)) {
+                        violations += "$relativePath:${index + 1}: nombra `$prohibido` " +
+                            "(backend legado de ventas locales)"
+                    }
                 }
             }
         }
         if (violations.isNotEmpty()) {
             throw GradleException(
-                "checkNoLegacySaleEdit: la edición de ventas locales no puede volver al " +
+                "checkNoLegacySaleEdit: las ventas locales no pueden volver al " +
                     "backend legado — usar CorreccionVentaViewModel " +
                     "(:feature:ventaCorreccion) en su lugar:\n" +
                     violations.joinToString("\n") { "  - $it" }

@@ -26,6 +26,10 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import java.io.File
 import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import kotlinx.coroutines.test.runTest
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -52,10 +56,13 @@ private const val NOMBRE_CORREGIDO = "Teodoro Aviles Campos de la Cruz"
  * todas las ventas y la gente dejaría de mirarla — que es la forma más cara
  * de perder una señal.
  *
- * Y un tercer caso, el falso positivo DELIBERADO: se ancla antes de mandar,
- * así que un POST que nunca salió del teléfono también deja ancla. Está
- * probado aquí con nombre propio para que nadie lo descubra en campo y crea
- * que es un defecto.
+ * Y la frontera que fija la ronda de arreglo 1: el ancla sólo vale cuando de
+ * verdad PUDIERON salir bytes. Si el fallo demuestra que nunca hubo conexión
+ * —una prueba por excepción de la lista—, el ancla se borra y la corrección
+ * siguiente no se marca: ése es el caso estelar del plan (capturar sin señal,
+ * corregir, subir al volver la red) y marcarlo era el defecto. Si el fallo es
+ * AMBIGUO (ocurre con el cuerpo ya escrito), el ancla se conserva y sí se
+ * marca.
  */
 class CorreccionDivergenciaTest : RoomTestBase() {
 
@@ -263,35 +270,97 @@ class CorreccionDivergenciaTest : RoomTestBase() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // G. El falso positivo deliberado
+    // G. El caso estelar del plan: nunca hubo conexión → NO se marca
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * El precio de ser conservador, probado a propósito en vez de descubierto
-     * en campo.
+     * Ronda de arreglo 1. El escenario del TÍTULO del plan: el vendedor
+     * captura sin señal, el intento falla porque no hay red, corrige, vuelve
+     * la señal y la venta sube corregida. **Todo salió bien: no se marca
+     * nada.**
      *
-     * El primer POST falla con `IOException` —en esta prueba el fake ni
-     * siquiera devuelve nada, y en el teléfono suele ser "no hay señal", con
-     * el servidor sin enterarse de nada—, el dueño corrige, y el segundo POST
-     * sube el cuerpo CORREGIDO. El servidor termina con lo correcto, y aun
-     * así la fila queda marcada.
+     * Antes de esta ronda sí se marcaba, y ése era el problema real — un
+     * aviso que aparece en casi toda corrección es un aviso que la oficina
+     * aprende a ignorar, y entonces ya no protege del caso que importa.
      *
-     * Es a propósito: el teléfono NO puede distinguir "el POST no salió" de
-     * "el POST llegó y se perdió la respuesta" — son el mismo `IOException`.
-     * Marcar de más manda a la oficina a revisar una venta que estaba bien;
-     * marcar de menos despacha una venta que el cliente no pidió. No son
-     * comparables. Si algún día se quiere afinar, lo que hay que cambiar es
-     * de qué lado del `crearVenta` se escribe el ancla — y entonces esta
-     * prueba es la que avisa.
+     * Una prueba por excepción de la lista de "no salió un byte", porque cada
+     * una entra al `when` por su propia rama: si alguien borra un `is`, la
+     * prueba de ESA excepción se pone roja y las otras dos siguen verdes.
      */
     @Test
-    fun `corregir tras un POST que nunca llego tambien queda marcada, y es deliberado`() = runTest {
+    fun `sin DNS el ancla se borra y la correccion siguiente no queda marcada`() = runTest {
+        sinRedNoMarca { UnknownHostException("api.muebleriamsp.invalid") }
+    }
+
+    @Test
+    fun `con la conexion rechazada el ancla se borra y la correccion no se marca`() = runTest {
+        sinRedNoMarca { ConnectException("Network is unreachable") }
+    }
+
+    @Test
+    fun `sin ruta al host el ancla se borra y la correccion no queda marcada`() = runTest {
+        sinRedNoMarca { NoRouteToHostException("No route to host") }
+    }
+
+    /**
+     * Corrida 1 falla con un fallo que PRUEBA que no hubo conexión → el ancla
+     * se borra; corrección; corrida 2 sube el cuerpo corregido → sin marca.
+     */
+    private suspend fun sinRedNoMarca(fallo: () -> IOException) {
         sembrarVenta()
 
-        val corrida1 = correrWorker(api { _, _, _ -> throw IOException("sin señal") })
+        val corrida1 = correrWorker(api { _, _, _ -> throw fallo() })
+
+        assertEquals(ListenableWorker.Result.retry(), corrida1)
+        assertNull(
+            "el fallo probó que no salió un byte: el ancla se borra",
+            saleDataSource.getSaleById(SALE_ID)!!.REVISION_POSTEADA
+        )
+
+        corregirNombre(NOMBRE_CORREGIDO)
+
+        val corrida2 = correrWorker(api { _, _, _ -> ventaDTO })
+
+        assertEquals(ListenableWorker.Result.success(), corrida2)
+        val fila = saleDataSource.getSaleById(SALE_ID)!!
+        assertTrue(fila.ENVIADO)
+        assertEquals(
+            "el ancla la puso la corrida 2, ya con la corrección adentro",
+            1,
+            fila.REVISION_POSTEADA
+        )
+        assertFalse(
+            "la corrección viajó y el servidor tiene lo correcto: nada que revisar",
+            fila.CORRECCION_NO_ENVIADA
+        )
+        assertEquals(NOMBRE_CORREGIDO, fila.NOMBRE_CLIENTE)
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // H. El fallo AMBIGUO sí se marca (el conservadurismo que se conserva)
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * El otro lado de la lista, y la razón de que sea una lista y no un
+     * `catch (IOException)`: un fallo posterior a la escritura del cuerpo.
+     * `SocketTimeoutException` es el ejemplo exacto — OkHttp lo usa igual
+     * para un timeout de lectura, que ocurre con los bytes YA enviados y el
+     * servidor posiblemente con la venta guardada.
+     *
+     * Aquí el ancla **se conserva** y la corrección posterior **sí** queda
+     * marcada. Puede ser un falso positivo; el falso negativo sería despachar
+     * una venta que el cliente no pidió. La asimetría no cambió.
+     */
+    @Test
+    fun `un fallo posterior a mandar el cuerpo conserva el ancla y si marca`() = runTest {
+        sembrarVenta()
+
+        val corrida1 = correrWorker(
+            api { _, _, _ -> throw SocketTimeoutException("timeout esperando la respuesta") }
+        )
         assertEquals(ListenableWorker.Result.retry(), corrida1)
         assertEquals(
-            "el ancla queda puesta aunque el POST no haya llegado a ningún lado",
+            "fallo ambiguo: el ancla del cuerpo que quizá viajó se queda",
             0,
             saleDataSource.getSaleById(SALE_ID)!!.REVISION_POSTEADA
         )
@@ -304,8 +373,104 @@ class CorreccionDivergenciaTest : RoomTestBase() {
         val fila = saleDataSource.getSaleById(SALE_ID)!!
         assertTrue(fila.ENVIADO)
         assertTrue(
-            "falso positivo aceptado: el teléfono no puede saber si aquel primer POST llegó",
+            "no se puede probar que aquel cuerpo no llegó: la duda se marca",
             fila.CORRECCION_NO_ENVIADA
+        )
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // I. Un intento SIN red no puede borrar el ancla de otro que SÍ mandó
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * El falso negativo que la guarda "sólo borro la mía" existe para
+     * impedir, de punta a punta y con tres corridas:
+     *
+     * 1. La corrida 1 manda el cuerpo y muere con un fallo AMBIGUO — el
+     *    servidor pudo quedarse la venta original. Ancla = 0.
+     * 2. El dueño corrige. `REVISION` pasa a 1.
+     * 3. La corrida 2 ni siquiera alcanza la red (`UnknownHostException`).
+     *    **No debe borrar el ancla**: no es suya, la puso la corrida 1.
+     * 4. La corrida 3 sube y recibe 2xx — y la fila **queda marcada**, porque
+     *    lo que el servidor pueda tener de la corrida 1 sigue siendo el
+     *    cuerpo viejo.
+     *
+     * Si alguien quita la condición "sólo si anclé yo en esta corrida" (o la
+     * guarda por valor del `UPDATE`), el paso 3 borra la evidencia, el paso 4
+     * no marca nada, y la venta original se despacha sin que nadie la revise.
+     */
+    @Test
+    fun `una corrida sin red no borra el ancla que dejo otra que si mando bytes`() = runTest {
+        sembrarVenta()
+
+        val corrida1 = correrWorker(
+            api { _, _, _ -> throw SocketTimeoutException("se perdió la respuesta") }
+        )
+        assertEquals(ListenableWorker.Result.retry(), corrida1)
+        assertEquals(0, saleDataSource.getSaleById(SALE_ID)!!.REVISION_POSTEADA)
+
+        corregirNombre(NOMBRE_CORREGIDO)
+
+        val corrida2 = correrWorker(api { _, _, _ -> throw UnknownHostException("sin DNS") })
+        assertEquals(ListenableWorker.Result.retry(), corrida2)
+        assertEquals(
+            "la corrida 2 no ancló nada, así que no tiene ancla que borrar",
+            0,
+            saleDataSource.getSaleById(SALE_ID)!!.REVISION_POSTEADA
+        )
+
+        val corrida3 = correrWorker(api { _, _, _ -> ventaDTO })
+
+        assertEquals(ListenableWorker.Result.success(), corrida3)
+        assertTrue(
+            "el cuerpo de la corrida 1 pudo quedarse en el servidor: la marca no se puede perder",
+            saleDataSource.getSaleById(SALE_ID)!!.CORRECCION_NO_ENVIADA
+        )
+    }
+
+    /**
+     * La variante que deja SOLA a la guarda de Kotlin ("sólo borro si anclé
+     * yo en ESTA corrida"), y por eso vale la pena aparte de la anterior.
+     *
+     * Aquí **no hay corrección entre las corridas 1 y 2**, así que la corrida
+     * 2 reclama con la misma `REVISION` (0) con la que la corrida 1 ancló. La
+     * guarda por VALOR del `UPDATE` (`REVISION_POSTEADA = :revision`) no ve
+     * ninguna diferencia — coincide — y no frena nada: lo único que impide
+     * que la corrida 2 borre un ancla ajena es saber que ella no la puso.
+     *
+     * Sin esa condición: la corrida 2 (sin red) borra el ancla de la corrida
+     * 1 (que sí mandó bytes), el dueño corrige, la corrida 3 sube y la fila
+     * queda LIMPIA — con el servidor posiblemente guardando la venta
+     * original. Es el falso negativo más caro del mecanismo.
+     */
+    @Test
+    fun `sin correccion de por medio, la corrida sin red tampoco borra el ancla ajena`() = runTest {
+        sembrarVenta()
+
+        val corrida1 = correrWorker(
+            api { _, _, _ -> throw SocketTimeoutException("se perdió la respuesta") }
+        )
+        assertEquals(ListenableWorker.Result.retry(), corrida1)
+        assertEquals(0, saleDataSource.getSaleById(SALE_ID)!!.REVISION_POSTEADA)
+
+        // Sin corregir: la corrida 2 reclama con la MISMA REVISION que ancló
+        // la corrida 1, así que la guarda por valor del UPDATE coincidiría.
+        val corrida2 = correrWorker(api { _, _, _ -> throw UnknownHostException("sin DNS") })
+        assertEquals(ListenableWorker.Result.retry(), corrida2)
+        assertEquals(
+            "el ancla es de la corrida 1: la 2 no puede borrarla aunque el valor coincida",
+            0,
+            saleDataSource.getSaleById(SALE_ID)!!.REVISION_POSTEADA
+        )
+
+        corregirNombre(NOMBRE_CORREGIDO)
+
+        val corrida3 = correrWorker(api { _, _, _ -> ventaDTO })
+
+        assertEquals(ListenableWorker.Result.success(), corrida3)
+        assertTrue(
+            "la corrección nunca viajó en el cuerpo que quizá tiene el servidor: se marca",
+            saleDataSource.getSaleById(SALE_ID)!!.CORRECCION_NO_ENVIADA
         )
     }
 }

@@ -138,6 +138,16 @@ class LocalSaleDataSource @Inject constructor(
     }
 
     /**
+     * Borra el ancla que puso ESTE intento, cuando el fallo demuestra que
+     * nunca salió un byte del teléfono. Sólo debe llamarlo quien acaba de
+     * anclar en esta corrida — ver el KDoc del DAO para el falso negativo que
+     * aparece si se llama sin esa condición.
+     */
+    suspend fun clearPostedRevisionIfMine(saleId: String, revision: Int): Int {
+        return localSaleDao.clearPostedRevisionIfMine(saleId, revision)
+    }
+
+    /**
      * Marca la venta enviada y cierra cualquier candado en UNA sola
      * sentencia. Si la `REVISION` actual ya no es la del PRIMER cuerpo
      * posteado (`REVISION_POSTEADA`; [revisionAtClaim] sólo se usa como

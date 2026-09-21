@@ -288,7 +288,7 @@ La Task 6 encontró un segundo camino a la misma divergencia, y lo dejó documen
    nunca cambió. El servidor se quedó con el cuerpo **original**, el teléfono enseña la **corrección**, y nadie
    se enteraba.
 
-La regla, en tres frases:
+La regla, en cuatro frases:
 
 - **Se persiste la `REVISION` del cuerpo la primera vez que se emite un `POST` para esa venta**, y sólo la
   primera (`REVISION_POSTEADA`; si ya hay una guardada, no se pisa).
@@ -296,14 +296,42 @@ La regla, en tres frases:
   `REVISION` actual difiere de esa primera revisión posteada, se marca `CORRECCION_NO_ENVIADA = 1`.
 - **La marca se conserva**: nunca se borra por un segundo `markSent` (`ELSE CORRECCION_NO_ENVIADA`).
 
-**Es conservador a propósito.** El ancla se escribe ANTES del `POST`, porque desde el teléfono "el POST no
-salió" y "llegó y se perdió la respuesta" son el mismo `IOException`. Consecuencia aceptada: una corrección
-hecha tras un intento que nunca llegó a ningún lado también queda marcada. Un falso positivo cuesta que la
-oficina revise una venta que estaba bien; un falso negativo cuesta que la oficina despache **una venta que el
-cliente no pidió**. No son comparables. Probado con nombre propio en
-`CorreccionDivergenciaTest.corregir tras un POST que nunca llego tambien queda marcada, y es deliberado` — y
-por eso dos aserciones de `CorreccionCarreraTest` (Task 4) cambiaron de `assertFalse` a `assertTrue`: daban por
-hecho que un `IOException` significaba que el servidor no tenía nada, y eso no se puede saber.
+Y la cuarta, que la **ronda de arreglo 1** agregó corrigiendo la versión original de esta regla:
+
+- **El ancla sólo vale cuando de verdad pudieron salir bytes.** Si el fallo demuestra que **nunca hubo
+  conexión**, se limpia, y la corrección siguiente **no** se marca.
+
+Por qué se corrigió: anclar antes del `POST` y no borrar nunca marcaba **el escenario del título de este
+plan** — el vendedor captura sin señal, el intento falla porque no hay red, corrige, vuelve la señal y sube
+corregida. Todo salió bien y la venta quedaba con "La revisa la oficina". Un aviso que aparece en casi toda
+corrección es un aviso que la oficina aprende a ignorar, y entonces ya no protege del caso real.
+
+- **Se limpia** con los fallos que prueban que no se envió nada. La lista es explícita, una excepción a la vez
+  —nunca `IOException` a secas, que es la superclase del caso PELIGROSO— y vive en
+  `PendingLocalSalesWorker.elFalloPruebaQueNoSalioNada`: `UnknownHostException` (el DNS no resolvió),
+  `ConnectException` (rechazada o red inalcanzable) y `NoRouteToHostException`. Las tres son fallos al
+  ESTABLECER la conexión: el socket nunca cargó un byte de HTTP.
+- **Se conserva** en todo lo demás, y en particular cuando el fallo ocurre **después** de escribir el cuerpo.
+  `SocketTimeoutException` queda fuera a propósito (OkHttp lo usa igual para un timeout de LECTURA, que ocurre
+  con los bytes ya enviados), y `SSLHandshakeException` también, porque no se pudo probar que nunca ocurra en
+  una renegociación a media llamada. Ante la duda, se conserva: la asimetría del costo no cambió — un falso
+  positivo cuesta que la oficina revise una venta que estaba bien; un falso negativo cuesta que despache **una
+  venta que el cliente no pidió**.
+- **Sólo se borra el ancla PROPIA**, con dos guardas y las dos con prueba: el `UPDATE` exige
+  `REVISION_POSTEADA = :revision`, y el worker sólo llama si `recordPostedRevisionIfAbsent` devolvió 1 en ESA
+  corrida. Sin la segunda, un intento sin red borraría el ancla de un intento anterior que **sí** mandó bytes,
+  la corrección siguiente subiría sin marca y el servidor se quedaría con el cuerpo original — el falso
+  negativo más caro del mecanismo.
+
+Por eso las dos aserciones de `CorreccionCarreraTest` (Task 4) terminan distintas: la del POST que murió **a
+media subida** se queda en `assertTrue` (fallo ambiguo), y la de "sin señal" volvió a `assertFalse` — en un
+teléfono real eso es `UnknownHostException`, y ése es justo el caso que ya no se marca.
+
+**Residuo medido, no tapado:** `RetrofitClientFactory` no toca `retryOnConnectionFailure`, así que queda en el
+default de OkHttp (**activado**). Una sola llamada a `crearVenta` puede probar varias rutas por dentro; si una
+ruta anterior alcanzó a escribir cuerpo y OkHttp reintentó, la excepción que nos llega puede ser igualmente de
+conexión y el ancla se borraría. **No es hermético.** Se deja así, y escrito, porque apagar el reintento cambia
+un residuo estrecho por subidas que fallan más en la calle.
 
 **Lo que esta regla NO cubre** (medido al implementarla, no supuesto):
 
@@ -313,8 +341,12 @@ hecho que un `IOException` significaba que el servidor no tenía nada, y eso no 
   marca, porque ese camino no pasa por `markSentAndCloseEdit`. Cerrarlo es trabajo del lado servidor
   (`MSP_FAILED_INTENTS`), no de esta columna.
 - El camino **legado** `LocalSaleSyncHandler.changeSaleStatus(id, true)` marca `ENVIADO=1` sin pasar por
-  `markSentAndCloseEdit`. Está fuera de alcance y cerrado con una guarda de build, pero si alguien lo
-  reviviera, la divergencia volvería a ser invisible por ahí.
+  `markSentAndCloseEdit`, así que por ahí la divergencia sería invisible. Lo que lo deja inalcanzable es
+  `checkNoLegacySaleEdit`, que prohíbe nombrar los encolados del worker legado desde `:app/src/main`.
+  **Comprobado en la ronda de arreglo 1**: la guarda existía (Task 5, y corre dentro de `prePushCheck`) pero
+  cubría **un solo** nombre, `enqueueLocalSaleUpdate`; `enqueueLocalSaleCreate` y `enqueueLocalSaleSync` —que
+  llevan al mismo worker, y la segunda además despacha a la primera— estaban descubiertos. Ya son los tres.
+  Ninguno tenía llamador fuera de su propio archivo, así que extenderla no rompió nada.
 
 ### Por qué no las otras opciones
 

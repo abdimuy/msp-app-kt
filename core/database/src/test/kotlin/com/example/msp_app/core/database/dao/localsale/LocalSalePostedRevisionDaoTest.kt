@@ -149,6 +149,61 @@ class LocalSalePostedRevisionDaoTest : RobolectricTestBase() {
         assertNull("la otra venta no emitió ningún POST", fila(OTRA_VENTA_ID).REVISION_POSTEADA)
     }
 
+    // ─── clearPostedRevisionIfMine ──────────────────────────────────────
+
+    /**
+     * Ronda de arreglo 1: el intento que ancló y luego probó que **nunca
+     * hubo conexión** borra su propia ancla, y la corrección siguiente ya no
+     * se marca. Es lo que impide que el caso estelar del plan —capturar sin
+     * señal, corregir, subir bien al volver la red— termine con "La revisa la
+     * oficina" puesto sin motivo.
+     */
+    @Test
+    fun `borrar el ancla propia deja la fila como si nunca se hubiera posteado`() = runTest {
+        insert(venta(revision = 0))
+        database.localSaleDao().recordPostedRevisionIfAbsent(SALE_ID, revision = 0)
+
+        val filas = database.localSaleDao().clearPostedRevisionIfMine(SALE_ID, revision = 0)
+
+        assertEquals(1, filas)
+        assertNull("sin ancla: el siguiente POST vuelve a anclar", fila().REVISION_POSTEADA)
+    }
+
+    /**
+     * La guarda que impide el falso negativo: se borra SÓLO el ancla que puso
+     * este intento. Aquí el ancla es 0 —la puso un intento anterior que SÍ
+     * pudo mandar bytes— y quien intenta borrar trae 1.
+     */
+    @Test
+    fun `no borra un ancla de otro valor`() = runTest {
+        insert(venta(revision = 1, revisionPosteada = 0))
+
+        val filas = database.localSaleDao().clearPostedRevisionIfMine(SALE_ID, revision = 1)
+
+        assertEquals("no es suya: no la toca", 0, filas)
+        assertEquals(
+            "el ancla del intento que sí mandó bytes sobrevive",
+            0,
+            fila().REVISION_POSTEADA
+        )
+    }
+
+    /**
+     * Y el cierre del argumento: con esa ancla intacta, `markSent` sigue
+     * marcando. Sin la guarda del valor, esta fila terminaría sin marca y el
+     * servidor con el cuerpo original — el falso negativo exacto que esta
+     * columna existe para impedir.
+     */
+    @Test
+    fun `tras un borrado ajeno rechazado la divergencia se sigue marcando`() = runTest {
+        insert(venta(revision = 1, revisionPosteada = 0))
+        database.localSaleDao().clearPostedRevisionIfMine(SALE_ID, revision = 1)
+
+        database.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 1)
+
+        assertTrue(fila().CORRECCION_NO_ENVIADA)
+    }
+
     // ─── markSentAndCloseEdit contra el ancla ───────────────────────────
 
     /**
