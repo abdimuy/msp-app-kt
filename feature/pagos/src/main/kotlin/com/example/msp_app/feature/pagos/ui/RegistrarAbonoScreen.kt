@@ -331,9 +331,9 @@ private fun MensajeDeBloqueo(state: RegistrarAbonoUiState, venta: DetalleVenta) 
     val bloqueos = state.veredicto.bloqueos
     val mensaje = when {
         !state.monto.esPositivo -> null
-        BloqueoDelAbono.VENTA_SIN_SALDO in bloqueos -> "esta venta ya no debe nada"
+        BloqueoDelAbono.VENTA_SIN_SALDO in bloqueos -> "Esta venta ya no debe nada"
         BloqueoDelAbono.EXCEDE_EL_SALDO in bloqueos ->
-            "el abono excede el saldo · máximo " + formatMoneyMxn(venta.saldo.amount)
+            "El abono excede el saldo · máximo " + formatMoneyMxn(venta.saldo.amount)
 
         else -> null
     } ?: return
@@ -352,16 +352,16 @@ private fun MensajeDeBloqueo(state: RegistrarAbonoUiState, venta: DetalleVenta) 
 private fun MensajeDeFallo(state: RegistrarAbonoUiState, onRevisar: () -> Unit) {
     val fallo = state.fallo ?: return
     val texto = when (fallo) {
-        FalloDelAbono.VENTA_NO_ESTA -> "la venta ya no está en el teléfono"
-        FalloDelAbono.SIN_COBRADOR -> "falta el cobrador, vuelve a entrar"
-        FalloDelAbono.NO_SE_PUDO_GUARDAR -> "no se pudo guardar, intenta de nuevo"
-        FalloDelAbono.BLOQUEADO -> "el monto no se puede registrar"
-        FalloDelAbono.NO_SE_PUDO_VERIFICAR -> "no se pudo confirmar, revisa de nuevo"
+        FalloDelAbono.VENTA_NO_ESTA -> "La venta ya no está en el teléfono"
+        FalloDelAbono.SIN_COBRADOR -> "Falta el cobrador, vuelve a entrar"
+        FalloDelAbono.NO_SE_PUDO_GUARDAR -> "No se pudo guardar, intenta de nuevo"
+        FalloDelAbono.BLOQUEADO -> "El monto no se puede registrar"
+        FalloDelAbono.NO_SE_PUDO_VERIFICAR -> "No se pudo confirmar, revisa de nuevo"
     }
     BandaDeBloqueo(mensaje = texto, modifier = Modifier.testTag(FALLO_DEL_ABONO_TAG))
     if (state.sePuedeRevisar) {
         MspPrimaryFieldButton(
-            text = "volver a revisar",
+            text = "Volver a revisar",
             onClick = onRevisar,
             variant = PrimaryFieldButtonVariant.Ghost,
             modifier = Modifier
@@ -385,7 +385,7 @@ private fun DockDeRegistro(state: RegistrarAbonoUiState, onRegistrar: () -> Unit
             .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm)
     ) {
         MspPrimaryFieldButton(
-            text = "registrar abono " + formatMoneyMxn(state.monto.importe.amount),
+            text = "Registrar abono " + formatMoneyMxn(state.monto.importe.amount),
             onClick = onRegistrar,
             enabled = state.sePuedeRegistrar,
             maxLines = 1,
@@ -414,14 +414,14 @@ private fun MensajeDeErrorDelAbono(error: ErrorDeDetalle?, onAtras: () -> Unit) 
     ) {
         Text(
             text = when (error) {
-                ErrorDeDetalle.NO_ESTA_EN_EL_TELEFONO -> "esta venta no está en el teléfono"
-                else -> "no se pudo cargar la venta"
+                ErrorDeDetalle.NO_ESTA_EN_EL_TELEFONO -> "Esta venta no está en el teléfono"
+                else -> "No se pudo cargar la venta"
             },
             style = MspTheme.type.body,
             color = MspTheme.colors.onSurfaceMuted
         )
         MspPrimaryFieldButton(
-            text = "volver",
+            text = "Volver",
             onClick = onAtras,
             modifier = Modifier.padding(top = MspTheme.spacing.md)
         )

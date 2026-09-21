@@ -84,7 +84,6 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
             onAtras = {},
             onRegistrarAbono = {},
             onRegistrarVisita = {},
-            onMasAcciones = {},
             onUsarLiquidacion = {},
             onVerAbonos = {},
             onVerGarantia = {}

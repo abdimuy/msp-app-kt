@@ -311,7 +311,7 @@ class VisitaSeVeYSeTocaTest : RobolectricTestBase() {
         pinta(VisitaFixtures.seNegoSinCuentas())
 
         composeTestRule.onNodeWithTag(GUARDAR_TAG).assertIsNotEnabled()
-        composeTestRule.onNodeWithTag(RAZON_TAG).assert(hasText("elige una cuenta"))
+        composeTestRule.onNodeWithTag(RAZON_TAG).assert(hasText("Elige una cuenta"))
     }
 
     /**

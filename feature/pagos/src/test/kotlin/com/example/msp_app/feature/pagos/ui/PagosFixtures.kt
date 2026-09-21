@@ -450,7 +450,8 @@ object PagosFixtures {
             // con nada debajo.
             contactos = bitacoraDelDomicilio(),
             liquidacion = liquidacionDeLaVenta(),
-            garantia = garantiaDeLaVenta()
+            garantia = garantiaDeLaVenta(),
+            nota = "entrega en la puerta de atrás"
         )
     }
 

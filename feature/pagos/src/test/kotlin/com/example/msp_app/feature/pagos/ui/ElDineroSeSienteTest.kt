@@ -9,17 +9,18 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
+import com.example.msp_app.feature.pagos.ui.components.AccionDeNotas
+import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_PRIMARIO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_VISITA_TAG
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
-import com.example.msp_app.feature.pagos.ui.components.MAS_ACCIONES_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.robolectric.annotation.Config
 
 /**
- * **"abonar $NNN" tiene que vibrar.** El design system lo declara regla dura
+ * **"Abonar $NNN" tiene que vibrar.** El design system lo declara regla dura
  * —*"las acciones de dinero deben sentirse físicas"* (spec §8.4, KDoc de
  * `PrimaryFieldButton`)— y el CTA primario del dock de venta es exactamente
  * eso: la puerta al abono.
@@ -29,7 +30,7 @@ import org.robolectric.annotation.Config
  * defecto invisible para los goldens, que no fotografían vibraciones. Sin este
  * test, volver a pintarlo a mano pasaría el gate entero en verde.
  *
- * El **control positivo** son los otros dos slots: "visita" y "⋯" no son
+ * El **control positivo** son los otros dos slots: "visita" y "notas" no son
  * acciones de dinero, no van por el componente compartido y **no** deben
  * vibrar. Si el grabador de esta prueba registrara cualquier tap, los tres
  * casos darían igual y la afirmación no probaría nada.
@@ -53,10 +54,10 @@ class ElDineroSeSienteTest : RobolectricTestBase() {
             MspTheme(animateColors = false) {
                 CompositionLocalProvider(LocalHapticFeedback provides hapticoGrabador) {
                     DockDeAcciones(
-                        textoPrimario = "abonar \$220",
+                        textoPrimario = "Abonar \$220",
                         onPrimario = {},
                         onVisita = {},
-                        onMasAcciones = {}
+                        notas = AccionDeNotas(onAbrir = {}, conContenido = false, advierte = false)
                     )
                 }
             }
@@ -83,7 +84,7 @@ class ElDineroSeSienteTest : RobolectricTestBase() {
         dockDeVenta()
 
         composeTestRule.onNodeWithTag(CTA_VISITA_TAG).performClick()
-        composeTestRule.onNodeWithTag(MAS_ACCIONES_TAG).performClick()
+        composeTestRule.onNodeWithTag(CTA_NOTAS_TAG).performClick()
 
         assertEquals(
             "solo el CTA de dinero vibra; si vibran los tres, el grabador miente",

@@ -43,11 +43,11 @@ data class CapturaDeVisita(
  * la pantalla tiene que poder DECIR cuál falta, y el caso de uso tiene que
  * poder reportarlo con un nombre.
  *
- * [razon] es texto de pantalla: español, minúsculas, sin punto final.
+ * [razon] es texto de pantalla: español, mayúscula inicial, sin punto final.
  */
 enum class BloqueoDeLaVisita(val razon: String) {
     /** Todavía no eligió qué pasó. El mock lo pinta con el CTA apagado. */
-    SIN_RESULTADO("elige un resultado"),
+    SIN_RESULTADO("Elige un resultado"),
 
     /**
      * El desenlace es de una cuenta y no queda ninguna marcada.
@@ -58,7 +58,7 @@ enum class BloqueoDeLaVisita(val razon: String) {
      * escribir: un desenlace de alcance VENTA sin venta no toca ninguna fila y
      * se perdería entero.
      */
-    SIN_CUENTAS("elige una cuenta"),
+    SIN_CUENTAS("Elige una cuenta"),
 
     /**
      * Prometió, pero no dijo cuándo. **Sin fecha no hay promesa**: es el único
@@ -66,7 +66,7 @@ enum class BloqueoDeLaVisita(val razon: String) {
      * semana" sin fecha es una afirmación que nada sostiene (regla de la Task
      * 16, aquí aplicada en la captura para que el dato nazca completo).
      */
-    PROMESA_SIN_FECHA("falta la fecha"),
+    PROMESA_SIN_FECHA("Falta la fecha"),
 
     /**
      * La fecha del compromiso ya pasó. Un compromiso hacia atrás no difiere nada
@@ -76,7 +76,7 @@ enum class BloqueoDeLaVisita(val razon: String) {
      * Vale igual para la promesa y para la cita: es una sola regla sobre la
      * fecha que el desenlace elegido lleve, no dos que puedan despegarse.
      */
-    COMPROMISO_EN_EL_PASADO("esa fecha ya pasó"),
+    COMPROMISO_EN_EL_PASADO("Esa fecha ya pasó"),
 
     /**
      * La fecha del compromiso está más allá del horizonte
@@ -89,18 +89,18 @@ enum class BloqueoDeLaVisita(val razon: String) {
      * la fecha del compromiso: sin techo, un dedazo pina una visita en el
      * teléfono durante décadas.
      */
-    COMPROMISO_MUY_LEJANO("está demasiado lejos"),
+    COMPROMISO_MUY_LEJANO("Está demasiado lejos"),
 
     /**
      * Prometió cero o menos. `null` es legítimo ("dijo cuándo pero no cuánto");
      * cero no lo es: significaría "prometió no pagar", que es otro resultado.
      */
-    PROMESA_SIN_MONTO("el monto no sirve"),
+    PROMESA_SIN_MONTO("El monto no sirve"),
 
     /**
      * Cita sin día. La hora puede faltar (el mock contempla "otro día sin
      * hora"), el día no: sin él la cita no cae en ningún segmento y no se puede
      * distinguir la de hoy de la del lunes pasado (Task 17).
      */
-    CITA_SIN_DIA("falta el día")
+    CITA_SIN_DIA("Falta el día")
 }

@@ -61,10 +61,10 @@ data class TicketDePagoUiState(
 /** Por qué no hay ticket que mostrar. [mensaje] es texto de pantalla. */
 enum class ErrorDelTicket(val mensaje: String) {
     /** La ruta apunta a un abono que el teléfono ya no tiene. */
-    PAGO_NO_ESTA("el abono ya no está"),
+    PAGO_NO_ESTA("El abono ya no está"),
 
     /** La lectura falló. Distinto de "no está": aquí sí tiene sentido reintentar. */
-    NO_SE_PUDO_LEER("no se pudo leer")
+    NO_SE_PUDO_LEER("No se pudo leer")
 }
 
 /** En qué punto va el flujo de impresión. */

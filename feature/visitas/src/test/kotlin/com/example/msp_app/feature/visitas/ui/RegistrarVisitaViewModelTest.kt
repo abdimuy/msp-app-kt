@@ -113,7 +113,7 @@ class RegistrarVisitaViewModelTest {
         assertEquals(hoy, state.hoy)
         assertEquals(listOf(BloqueoDeLaVisita.SIN_RESULTADO), state.bloqueos)
         assertFalse("sin desenlace no se guarda nada", state.sePuedeGuardar)
-        assertEquals("elige un resultado", state.razonDelBloqueo)
+        assertEquals("Elige un resultado", state.razonDelBloqueo)
     }
 
     @Test
@@ -301,7 +301,7 @@ class RegistrarVisitaViewModelTest {
 
         assertTrue(vm.state.value.captura.cuentas.isEmpty())
         assertFalse(vm.state.value.sePuedeGuardar)
-        assertEquals("elige una cuenta", vm.state.value.razonDelBloqueo)
+        assertEquals("Elige una cuenta", vm.state.value.razonDelBloqueo)
     }
 
     /** Y el mismo atajo, otra vez, las vuelve a marcar todas. */
@@ -354,7 +354,7 @@ class RegistrarVisitaViewModelTest {
         vm.onResultado(ResultadoDeVisita.PROMETIO)
 
         assertFalse(vm.state.value.sePuedeGuardar)
-        assertEquals("falta la fecha", vm.state.value.razonDelBloqueo)
+        assertEquals("Falta la fecha", vm.state.value.razonDelBloqueo)
     }
 
     @Test
@@ -369,7 +369,7 @@ class RegistrarVisitaViewModelTest {
         vm.guardar()
         advanceUntilIdle()
 
-        assertEquals("esa fecha ya pasó", vm.state.value.razonDelBloqueo)
+        assertEquals("Esa fecha ya pasó", vm.state.value.razonDelBloqueo)
         assertTrue("nada debio escribirse", registroPort.registradas.isEmpty())
     }
 
@@ -384,7 +384,7 @@ class RegistrarVisitaViewModelTest {
         vm.guardar()
         advanceUntilIdle()
 
-        assertEquals("esa fecha ya pasó", vm.state.value.razonDelBloqueo)
+        assertEquals("Esa fecha ya pasó", vm.state.value.razonDelBloqueo)
         assertTrue("nada debio escribirse", registroPort.registradas.isEmpty())
     }
 
@@ -398,7 +398,7 @@ class RegistrarVisitaViewModelTest {
         vm.onFechaPromesa(hoy.plusYears(2))
 
         assertFalse(vm.state.value.sePuedeGuardar)
-        assertEquals("está demasiado lejos", vm.state.value.razonDelBloqueo)
+        assertEquals("Está demasiado lejos", vm.state.value.razonDelBloqueo)
     }
 
     @Test
@@ -410,7 +410,7 @@ class RegistrarVisitaViewModelTest {
         vm.onHoraCita(LocalTime.of(16, 0))
 
         assertFalse(vm.state.value.sePuedeGuardar)
-        assertEquals("falta el día", vm.state.value.razonDelBloqueo)
+        assertEquals("Falta el día", vm.state.value.razonDelBloqueo)
     }
 
     @Test
