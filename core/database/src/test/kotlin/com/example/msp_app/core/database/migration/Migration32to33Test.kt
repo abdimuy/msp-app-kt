@@ -145,28 +145,28 @@ class Migration32to33Test : RobolectricTestBase() {
             .allowMainThreadQueries()
             .build()
 
-        try {
-            fresh.openHelper.readableDatabase.query("PRAGMA table_info(cliente)").use { cursor ->
-                var seen = false
-                while (cursor.moveToNext()) {
-                    if (cursor.getString(cursor.getColumnIndexOrThrow("name")) != "NOMBRE_NORMALIZADO") {
-                        continue
-                    }
-                    seen = true
-                    assertEquals(
-                        "NOMBRE_NORMALIZADO debe ser NOT NULL",
-                        1,
-                        cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
-                    )
-                }
-                assertTrue(
-                    "la columna NOMBRE_NORMALIZADO debe existir en una instalacion nueva",
-                    seen
-                )
-            }
+        val notNull = try {
+            leerNotNullDeColumnaCliente(fresh.openHelper.readableDatabase, "NOMBRE_NORMALIZADO")
         } finally {
             fresh.close()
         }
+
+        assertEquals(
+            "NOMBRE_NORMALIZADO debe existir y ser NOT NULL en una instalacion nueva",
+            1,
+            notNull
+        )
+    }
+
+    /** `PRAGMA table_info(cliente)` reducido al `notnull` de una columna, o `null` si no existe. */
+    private fun leerNotNullDeColumnaCliente(db: SupportSQLiteDatabase, nombre: String): Int? {
+        db.query("PRAGMA table_info(cliente)").use { cursor ->
+            while (cursor.moveToNext()) {
+                if (cursor.getString(cursor.getColumnIndexOrThrow("name")) != nombre) continue
+                return cursor.getInt(cursor.getColumnIndexOrThrow("notnull"))
+            }
+        }
+        return null
     }
 
     /**
