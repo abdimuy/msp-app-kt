@@ -2,7 +2,6 @@ package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +12,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -340,55 +337,51 @@ fun EncabezadoDeGrupo(
 }
 
 /**
- * Las pastillas que deciden qué se enseña.
+ * **El control segmentado que decide qué se enseña — con su conteo debajo de
+ * cada opción.**
  *
- * Sólo en las listas largas — ver el KDoc de [FiltroDeContactos]. Van en una
- * fila que se desplaza a lo ancho: a escala de letra grande las cuatro no caben
- * en 360 dp, y **apilar filtros los volvería dos renglones fijos de alto** en
- * pantallas que ya están apretadas. Desplazarse es el único de los tres males
- * que no cuesta alto.
+ * Sólo en las listas largas — ver el KDoc de [FiltroDeContactos]. Antes eran
+ * cuatro pastillas sueltas; la lista de clientes ya filtraba con un solo
+ * control segmentado (`SegmentadoDeCobranza`, commit `368bd2e2`) y la misma
+ * app decía "sólo una opción puede estar encendida" de dos formas distintas.
+ * Esta pieza delega en [ControlSegmentado] —el mecanismo que ese control
+ * comparte con éste— así que la Task 4 no reinventa la tinta ni el alto
+ * tocable, sólo cablea las cuatro opciones de [FiltroDeContactos].
+ *
+ * **[conteos] nunca sale de una consulta aparte.** El llamador lo arma con
+ * [FiltroDeContactos.conteos] sobre los MISMOS contactos que la lista está
+ * filtrando —`bitacora.contactos` en `BitacoraScreen`, `delAlcance` en
+ * `LineaDeLaVenta`—, que es la única forma de que el conteo de una opción
+ * coincida siempre con las filas que esa opción deja ver.
+ *
+ * **Una opción en cero se enseña igual, con su cero.** Decisión cerrada del
+ * dueño: "Promesas 0" avisa antes de tocar que no hay nada. No se esconde ni
+ * se deshabilita, así que las cuatro opciones de [FiltroDeContactos] siempre
+ * están en [ControlSegmentado.opciones] — al revés de `SegmentadoDeCobranza`,
+ * que sí esconde "Hoy" mientras [com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE]
+ * esté apagado.
+ *
+ * A escala de letra grande el control deja de repartir el ancho entre las
+ * cuatro y rueda en horizontal — la misma regla de `SegmentadoDeCobranza`, y
+ * por la misma razón: apilarlas fijaría dos renglones de alto en una pantalla
+ * que ya pelea cada dp contra el saldo.
  */
 @Composable
 fun FiltrosDeContacto(
     elegido: FiltroDeContactos,
+    conteos: Map<FiltroDeContactos, Int>,
     onElegir: (FiltroDeContactos) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    ControlSegmentado(
+        opciones = FiltroDeContactos.entries,
+        seleccionado = elegido,
+        conteos = conteos,
+        etiquetaDe = { it.etiqueta },
+        tagDe = { FILTRO_TAG + it.name },
+        onElegir = onElegir,
         modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(vertical = MspTheme.spacing.xs),
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
-    ) {
-        FiltroDeContactos.entries.forEach { filtro ->
-            val activo = filtro == elegido
-            Surface(
-                onClick = { onElegir(filtro) },
-                shape = MspTheme.shapes.chip,
-                color = if (activo) MspTheme.colors.brand else MspTheme.colors.surface2,
-                modifier = Modifier
-                    .heightIn(min = ALTO_DEL_FILTRO)
-                    .testTag(FILTRO_TAG + filtro.name)
-            ) {
-                Box(
-                    modifier = Modifier.padding(horizontal = MspTheme.spacing.md),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = filtro.etiqueta,
-                        style = MspTheme.type.captionStrong,
-                        color = if (activo) {
-                            MspTheme.colors.onBrand
-                        } else {
-                            MspTheme.colors.onSurfaceMuted
-                        },
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
+    )
 }
 
 /**
@@ -482,14 +475,3 @@ private val MARCA_DE_LA_VENTA = 3.dp
 
 /** El piso tocable del repo. Más estricto que los 48 de Material. */
 private val ALTO_TOCABLE = 50.dp
-
-/**
- * Alto mínimo de una pastilla de filtro.
- *
- * **50 dp, el piso del repo**, no los 34 que se le pusieron primero por verse
- * más ligeras. Una pastilla de filtro es un control que el cobrador toca con el
- * pulgar caminando, igual que cualquier otro, y el principio 11 no admite
- * excepciones estéticas: *si un test la cobra, sube la implementación, no bajes
- * el test*. Todo lo tocable de este feature ya usaba 50.
- */
-private val ALTO_DEL_FILTRO = ALTO_TOCABLE

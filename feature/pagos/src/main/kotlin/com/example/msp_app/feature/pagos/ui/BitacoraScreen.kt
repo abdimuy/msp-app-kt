@@ -186,13 +186,18 @@ private fun Contactos(
         // "AGOSTO 2026" sin nada debajo se lee como un error de carga.
         val visibles = bitacora.contactos.filter(filtro::deja)
         val grupos = GruposDeContactos.porMes(visibles)
+        // Los conteos del control salen de los MISMOS contactos que se están
+        // filtrando (`bitacora.contactos`, antes del `filter` de arriba), con
+        // la misma regla `FiltroDeContactos.deja` — nunca de una consulta
+        // aparte que pudiera discrepar.
+        val conteos = FiltroDeContactos.conteos(bitacora.contactos)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = MspTheme.spacing.md)
         ) {
             item(key = "filtros") {
-                FiltrosDeContacto(elegido = filtro, onElegir = onFiltrar)
+                FiltrosDeContacto(elegido = filtro, conteos = conteos, onElegir = onFiltrar)
             }
             if (visibles.isEmpty()) {
                 item(key = "vacio") { SinContactosConEseFiltro(filtro) }

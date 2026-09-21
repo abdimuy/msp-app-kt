@@ -389,8 +389,12 @@ internal fun LineaDeLaVenta(
         detalle.contactos
     }
     val visibles = delAlcance.filter(linea.filtro::deja)
+    // Los conteos salen de `delAlcance` y no de `detalle.contactos`: con
+    // "Esta venta" puesto, un conteo sobre TODO el cliente contaría filas que
+    // el alcance ya escondió, y "Cobros 3" enseñaría sólo 1.
+    val conteos = FiltroDeContactos.conteos(delAlcance)
     AlcanceDeLaLinea(soloEstaVenta = linea.soloEstaVenta, onAlcance = linea.onAlcance)
-    FiltrosDeContacto(elegido = linea.filtro, onElegir = linea.onFiltrar)
+    FiltrosDeContacto(elegido = linea.filtro, conteos = conteos, onElegir = linea.onFiltrar)
     if (visibles.isEmpty()) {
         Tarjeta {
             Text(

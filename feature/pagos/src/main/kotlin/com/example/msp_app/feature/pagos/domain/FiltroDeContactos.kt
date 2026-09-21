@@ -59,5 +59,23 @@ enum class FiltroDeContactos(val etiqueta: String) {
             EstadoCuenta.PROMETIO_PROXIMA,
             EstadoCuenta.CITA_A_UNA_HORA
         )
+
+        /**
+         * El conteo de cada opción sobre [contactos], para pintar al lado del
+         * control segmentado (Task 4).
+         *
+         * **La MISMA regla que filtra, por construcción**: cada conteo sale de
+         * llamar a [deja] de la propia opción sobre [contactos], nunca de una
+         * consulta aparte que pudiera discrepar. Es a propósito que no hay una
+         * rama por [TipoDeContacto] contando aparte — eso sería la clase de
+         * atajo que deja a "Promesas 2" enseñando una fila que "Promesas" no
+         * dejaría ver.
+         *
+         * Una opción sin nada que la cumpla llega en 0 — no se omite del mapa.
+         * El dueño decidió que el cero se enseña, no se esconde: avisa antes de
+         * tocar que ahí no hay nada.
+         */
+        fun conteos(contactos: List<ContactoDeCobranza>): Map<FiltroDeContactos, Int> =
+            entries.associateWith { filtro -> contactos.count(filtro::deja) }
     }
 }

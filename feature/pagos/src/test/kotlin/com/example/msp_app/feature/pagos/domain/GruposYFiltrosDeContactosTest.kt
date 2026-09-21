@@ -208,6 +208,38 @@ class GruposYFiltrosDeContactosTest {
             }
     }
 
+    // --- Conteos del control segmentado (Task 4) ------------------------------
+
+    /**
+     * **El conteo es la MISMA regla que filtra, para las cuatro opciones — y
+     * una en cero.**
+     *
+     * Si el conteo usara otra consulta, "Promesas 2" podría enseñar una fila
+     * distinta de las dos que [FiltroDeContactos.deja] deja ver. Por eso la
+     * comparación es genérica sobre los cuatro `entries` y no sólo sobre el
+     * caso feliz: un `conteos` que hiciera trampa en un solo filtro —el típico
+     * "cuento por tipo en vez de llamar a `deja`"— se pondría rojo aquí.
+     *
+     * El cero lo da quitar las promesas de [TODOS] a mano: sin nada que las
+     * cumpla, `PROMESAS` tiene que marcar 0 sin desaparecer del mapa ni
+     * lanzar.
+     */
+    @Test
+    fun `el conteo de cada opcion es el numero de filas que su propio filtro deja ver`() {
+        val sinPromesas = TODOS.filterNot(FiltroDeContactos.PROMESAS::deja)
+
+        val conteos = FiltroDeContactos.conteos(sinPromesas)
+
+        FiltroDeContactos.entries.forEach { filtro ->
+            assertEquals(
+                "el conteo de $filtro no coincide con las filas que su propio deja ve",
+                sinPromesas.count(filtro::deja),
+                conteos[filtro]
+            )
+        }
+        assertEquals(0, conteos[FiltroDeContactos.PROMESAS])
+    }
+
     // -----------------------------------------------------------------------
 
     private companion object {

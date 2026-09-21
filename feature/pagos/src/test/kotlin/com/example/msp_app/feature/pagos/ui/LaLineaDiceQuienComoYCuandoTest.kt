@@ -507,7 +507,11 @@ class LaLineaDiceQuienComoYCuandoTest : RobolectricTestBase() {
             Tema(FontSizeLevel.NORMAL) {
                 var elegido by remember { mutableStateOf(FiltroDeContactos.TODOS) }
                 Column {
-                    FiltrosDeContacto(elegido = elegido, onElegir = { elegido = it })
+                    FiltrosDeContacto(
+                        elegido = elegido,
+                        conteos = FiltroDeContactos.conteos(LA_LINEA),
+                        onElegir = { elegido = it }
+                    )
                     LA_LINEA.filter(elegido::deja).forEach { ContactoEnLinea(contacto = it) }
                 }
             }
