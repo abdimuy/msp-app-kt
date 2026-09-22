@@ -23,6 +23,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -53,6 +56,7 @@ import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.HojaContinua
 import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
+import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.ProductoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.RitmoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
@@ -60,6 +64,7 @@ import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.Separador
 import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
+import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
 import com.example.msp_app.feature.pagos.ui.components.VerLosContactos
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
@@ -124,6 +129,20 @@ const val TITULO_DE_CLIENTE_TAG: String = "pagos_titulo_cliente"
  * pedirle a `:app` un callback nuevo: lo que cambia entre el cuadro y el renglón
  * es el punto, no la operación. La dirección que viaja sigue siendo la del
  * cliente: es la puerta, y el abono se cobró y la visita se hizo ahí.
+ *
+ * ## [onVerTicket] — la reimpresión del último cobro del día
+ *
+ * Sobre el cobro de HOY que además es el ÚLTIMO de esa cuenta, tocar el renglón
+ * **pregunta** qué abrir —ubicación o ticket— en vez de ir derecho al mapa. En
+ * cualquier otro renglón el gesto es el de siempre: si el toque cambiara de
+ * significado en todos los pagos, dejaría de ser predecible por una función que
+ * sólo sirve en un caso. Quién lo decide es
+ * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto], dominio puro.
+ *
+ * Es un destino de `:app` como el mapa, y la ruta ya existía
+ * ([PagosRutas.ticketDePago]): la pantalla del ticket es la misma a la que llega
+ * la captura de un abono. **La regla de "sólo se imprime el día del cobro" no
+ * se toca aquí**: se comprueba al imprimir, dentro del ticket.
  */
 @Composable
 fun DetalleClienteScreen(
@@ -135,6 +154,7 @@ fun DetalleClienteScreen(
     onVerContactos: (Int) -> Unit,
     onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
     modifier: Modifier = Modifier,
+    onVerTicket: (String) -> Unit = {},
     suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -195,6 +215,7 @@ fun DetalleClienteScreen(
             onVerUbicacionDelContacto = { punto ->
                 state.detalle?.let { onVerUbicacion(punto, it.direccion) }
             },
+            onVerTicket = onVerTicket,
             suelo = suelo?.let { puesto ->
                 { tocar -> puesto(state.detalle?.ultimoCobroAqui, tocar) }
             }
@@ -273,8 +294,13 @@ fun DetalleClienteContent(
     fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
     onVerUbicacion: (() -> Unit)? = null,
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerTicket: ((String) -> Unit)? = null,
     suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
 ) {
+    // Cuál renglón está preguntando, por su `ContactoDeCobranza.id`. Ver el
+    // comentario gemelo en `BitacoraContent` para por qué vive aquí y no en el
+    // `UiState`.
+    var preguntaPor by rememberSaveable { mutableStateOf<String?>(null) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -303,6 +329,23 @@ fun DetalleClienteContent(
                     onEditarFicha = fichaDelCliente.onEditar,
                     onVerUbicacion = onVerUbicacion,
                     onVerUbicacionDelContacto = onVerUbicacionDelContacto,
+                    toque = ToqueDeLaFila(
+                        // Los TRES que esta hoja pinta, que son un prefijo de la
+                        // línea completa: recortar sólo quita filas viejas, así
+                        // que "el último de la cuenta" sigue saliendo bien para
+                        // cualquier renglón que se esté viendo. Ver el KDoc de
+                        // `ToqueDelContacto.de`.
+                        contactos = detalle.contactos,
+                        hoy = detalle.hoy,
+                        onPreguntar = onVerTicket?.let {
+                            { contacto -> preguntaPor = contacto.id }
+                        },
+                        // Sin punto medido no hay hoja que abrir: el ticket
+                        // sale derecho. Ver `ToqueDelContacto.TICKET`.
+                        onVerTicket = onVerTicket?.let { ver ->
+                            { contacto -> ver(contacto.id) }
+                        }
+                    ),
                     suelo = suelo
                 )
             }
@@ -345,6 +388,22 @@ fun DetalleClienteContent(
             onContinuar = abono.onContinuar,
             onCerrar = abono.onCerrar,
             ocultos = state.montosOcultos
+        )
+    }
+    // Hermana de las otras dos hojas y por el mismo motivo: el velo tapa la
+    // pantalla entera, dock incluido.
+    val preguntando = state.detalle?.contactos?.firstOrNull { it.id == preguntaPor }
+    if (preguntando != null) {
+        HojaDelContacto(
+            onVerUbicacion = {
+                preguntaPor = null
+                preguntando.ubicacion?.let { punto -> onVerUbicacionDelContacto?.invoke(punto) }
+            },
+            onVerTicket = {
+                preguntaPor = null
+                onVerTicket?.invoke(preguntando.id)
+            },
+            onCerrar = { preguntaPor = null }
         )
     }
 }
@@ -393,6 +452,7 @@ private fun CuerpoDelCliente(
     onEditarFicha: () -> Unit,
     onVerUbicacion: (() -> Unit)?,
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?,
+    toque: ToqueDeLaFila,
     suelo: (@Composable (onTocar: () -> Unit) -> Unit)?
 ) {
     Column(
@@ -421,7 +481,7 @@ private fun CuerpoDelCliente(
         }
         if (detalle.contactos.isNotEmpty()) {
             Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-            HojaDeContactos(detalle, ocultos, onVerContactos, onVerUbicacionDelContacto)
+            HojaDeContactos(detalle, ocultos, onVerContactos, onVerUbicacionDelContacto, toque)
         }
         // La ficha vive AL FONDO, donde la puso la Task 16 y donde no empuja un
         // solo dp de lo que está arriba — que es el dinero, por lo que el
@@ -647,7 +707,8 @@ internal fun HojaDeContactos(
     detalle: DetalleCliente,
     ocultos: Boolean,
     onVerContactos: () -> Unit,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?,
+    toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
     HojaContinua {
         TituloDeHoja("últimos contactos")
@@ -658,7 +719,8 @@ internal fun HojaDeContactos(
                     ContactoEnLinea(
                         contacto = contacto,
                         ocultos = ocultos,
-                        onVerUbicacion = onVerUbicacionDelContacto
+                        onVerUbicacion = onVerUbicacionDelContacto,
+                        toque = toque
                     )
                 }
             }

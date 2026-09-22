@@ -31,8 +31,25 @@ interface CuentaCobrable {
     /** Lo que falta por pagar. Tope duro de TODO sugerido. */
     val saldo: Money
 
-    /** La cuota del periodo. */
+    /**
+     * La cuota del periodo **tal como se capturó** en el alta de la venta.
+     *
+     * Es un dato escrito a mano, y por eso ya no es lo que la pantalla afirma
+     * como "esperado": para eso está [cuota], que lo contrasta contra lo que la
+     * cuenta paga de verdad. Sigue aquí porque el atraso
+     * ([com.example.msp_app.feature.pagos.domain.MontosSugeridos.alCorriente])
+     * se calcula con ella, con la misma fórmula que usa producción.
+     */
     val parcialidad: Money
+
+    /**
+     * La cuota que la pantalla **puede afirmar**, y de dónde salió.
+     *
+     * Ver [com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta]: sale del
+     * comportamiento de la cuenta cuando hay con qué, de la parcialidad cuando
+     * nada la contradice, y de ningún lado cuando el dato se ve mal.
+     */
+    val cuota: com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
 
     /** El estado ya derivado del catálogo de ocho — de él sale `abonoDelPeriodo`. */
     val estado: EstadoDelPeriodo

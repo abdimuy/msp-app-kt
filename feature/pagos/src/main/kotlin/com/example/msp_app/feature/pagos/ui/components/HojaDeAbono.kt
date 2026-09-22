@@ -119,8 +119,35 @@ fun HojaDeAbono(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .clip(FORMA_DE_LA_HOJA)
-                .background(MspTheme.colors.surface)
+                // `background(color, shape)` y NO `clip(shape) + background`.
+                //
+                // **Con el `clip`, esta hoja no se puede probar.**
+                // `LaHojaDelAbonoDejaElegirCuentaTest` lo mide: bajo Robolectric,
+                // tocar una opción no llamaba a `onElegir` y tocar "Continuar" no
+                // llamaba a `onContinuar` — cero veces, sin error ni línea en
+                // logcat. Se aisló cuál de las dos trampas conocidas era,
+                // cambiando una a la vez: quitar SÓLO el `detectTapGestures` de
+                // abajo deja los toques igual de muertos; quitar SÓLO el `clip`
+                // los revive. El gesto inerte del padre no es el culpable.
+                //
+                // El mecanismo es el que `HojaDeConfirmacion` ya documenta: con
+                // esquinas DESIGUALES, `isInRoundedRect` no resuelve la
+                // contención con `cornersFit` y cae a `isInPath` -> `Path.op`,
+                // **que sin gráficos nativos** deja el hit-test de los
+                // descendientes en cero.
+                //
+                // **No está demostrado que fuera un defecto en el aparato, y hay
+                // evidencia de lo contrario**: el 2026-09-22, con este mismo
+                // `clip` puesto, se eligió una cuenta y se tocó "Continuar" en un
+                // Galaxy A25 y el flujo avanzó a la pantalla de abono con la
+                // cuenta correcta. O sea que la falla es del entorno de prueba —
+                // "sin gráficos nativos" es justo la condición que el teléfono no
+                // cumple. Quitar el `clip` se queda porque **una pantalla de
+                // dinero que no se puede probar es un problema por sí sola**, y
+                // porque el recorte no hacía falta: la hoja no desborda y la forma
+                // la pinta el propio `background`. No se queda por arreglar un
+                // defecto de producción que nadie ha visto.
+                .background(MspTheme.colors.surface, FORMA_DE_LA_HOJA)
                 // La hoja se come el toque para que nada de abajo se alcance
                 // mientras está arriba: la mitad de "ninguna ruta guarda dos veces".
                 .pointerInput(Unit) { detectTapGestures { } }

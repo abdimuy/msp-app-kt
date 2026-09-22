@@ -31,6 +31,17 @@ import org.junit.Test
  * estado— porque es la banda con **dos líneas de texto y dos cifras dentro**, o
  * sea la que más aprieta cuando la fuente crece. Probarla solo en 1.0 sería
  * probarla donde no puede fallar.
+ *
+ * ## Los dos estados nuevos de los avisos escalonados
+ *
+ * `aviso_vivo` es la banda que sale **mientras se teclea** —el lugar donde un
+ * cero de más todavía cuesta un borrón—, `teclear` es el paso dos de nivel 3,
+ * con el campo que pide el monto otra vez, y `cuota_dudosa` es la pantalla del
+ * caso `Y00002184`: la parcialidad de la venta se ve mal, así que no se ofrece
+ * ningún esperado y en su lugar se dice que hay que revisar el dato. Van con golden por la misma razón
+ * que el abono corto: son piezas de la pantalla del dinero y sin un pixel de
+ * cobertura sólo estarían verificadas por aserciones de Robolectric, que dicen
+ * que el nodo existe pero no que se vea.
  */
 class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
 
@@ -90,12 +101,39 @@ class AbonoMatrixScreenshotTest : PagosScreenshotTest() {
     fun `abono corto dark muy grande`() = abonoCorto(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
 
     @Test
+    fun `aviso en vivo light`() = avisoEnVivo(dark = false)
+
+    @Test
+    fun `aviso en vivo dark`() = avisoEnVivo(dark = true)
+
+    @Test
+    fun `cuota dudosa light`() = cuotaDudosa(dark = false)
+
+    @Test
+    fun `cuota dudosa dark`() = cuotaDudosa(dark = true)
+
+    @Test
+    fun `teclear el monto light`() = teclearElMonto(dark = false)
+
+    @Test
+    fun `teclear el monto dark`() = teclearElMonto(dark = true)
+
+    @Test
     fun `confirmar con comprobante light`() =
         estado("confirmar_comprobante", AbonoFixtures.enConfirmacionConComprobante(), dark = false)
 
     @Test
     fun `confirmar con comprobante dark`() =
         estado("confirmar_comprobante", AbonoFixtures.enConfirmacionConComprobante(), dark = true)
+
+    private fun avisoEnVivo(dark: Boolean) =
+        estado("aviso_vivo", AbonoFixtures.enAvisoDeTeclear(), dark)
+
+    private fun cuotaDudosa(dark: Boolean) =
+        estado("cuota_dudosa", AbonoFixtures.conCuotaDudosa(), dark)
+
+    private fun teclearElMonto(dark: Boolean) =
+        estado("teclear", AbonoFixtures.tecleandoElMonto(), dark)
 
     private fun captura(dark: Boolean, nivel: FontSizeLevel) = capture(
         name = "pagos_abono_captura_${tema(dark)}_${sufijoDe(nivel)}",

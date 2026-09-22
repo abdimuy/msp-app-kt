@@ -102,7 +102,8 @@ class DosContactosIdenticosNoChocanTest : RobolectricTestBase() {
             clienteId = 5021,
             nombre = "Victoria Flores Olmedo",
             direccion = "Privada Hidalgo 12, Atlixco, Puebla",
-            contactos = listOf(ABONO_A_LA_RECAMARA, ABONO_A_LA_BOCINA)
+            contactos = listOf(ABONO_A_LA_RECAMARA, ABONO_A_LA_BOCINA),
+            hoy = PagosFixtures.HOY
         )
     }
 }

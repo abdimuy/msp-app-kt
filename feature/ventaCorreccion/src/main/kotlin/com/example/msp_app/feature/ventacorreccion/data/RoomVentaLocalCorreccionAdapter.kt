@@ -45,7 +45,15 @@ class RoomVentaLocalCorreccionAdapter(
                 permanente = sale.LAST_UPLOAD_PERMANENT == true,
                 correccionNoEnviada = sale.CORRECCION_NO_ENVIADA,
                 claimKind = sale.CLAIM_KIND,
-                claimedAt = sale.CLAIMED_AT
+                claimedAt = sale.CLAIMED_AT,
+                // Los dos campos del nivel 2 tienen valor por omisión en `EstadoVentaLocal` (para
+                // no tocar las pruebas del nivel 1), así que omitirlos aquí no rompe la
+                // compilación: la regla simplemente dejaría de ver la cola y la marca terminal, y
+                // ofrecería corregir una venta cuya corrección ya está en vuelo o ya fue cerrada
+                // por el servidor. Este es el único punto donde esas dos columnas entran al
+                // dominio.
+                correccionRemotaPendiente = sale.CORRECCION_REMOTA_PENDIENTE,
+                correccionRemotaEstado = sale.CORRECCION_REMOTA_ESTADO
             )
         }
 
@@ -95,10 +103,23 @@ class RoomVentaLocalCorreccionAdapter(
         productos: List<LocalSaleProductEntity>,
         combos: List<LocalSaleComboEntity>
     ): Boolean = db.withTransaction {
+        // Qué camino es este. La lectura va DENTRO de la transacción, junto al guardia, para
+        // que no haya ventana entre decidir el camino y tomarlo: si la subida terminara justo
+        // en medio, el guardia que se eligió ya no sería el que corresponde y devolvería 0 —
+        // que es exactamente lo que debe pasar, no una escritura por el camino equivocado.
+        val yaEnviada = localSaleDao.getSaleById(saleId)?.ENVIADO == true
+
         // El guardia va PRIMERO: si falla, LANZA — ver el comentario de clase. Mover esto al
         // final es exactamente el mutante que Task 3 pide sembrar; quitar el `throw` (dejando
         // sólo un `return` temprano) es el mutante de la ronda 1 de arreglo.
-        val guardiaOk = localSaleDao.commitEditGuard(saleId, claimId) == 1
+        //
+        // Los dos guardias son excluyentes por `ENVIADO` (`= 0` uno, `= 1` el otro), así que
+        // elegir mal no abre un agujero: abre un 0 filas y la transacción entera se revierte.
+        val guardiaOk = if (yaEnviada) {
+            localSaleDao.commitEditGuardEnviada(saleId, claimId) == 1
+        } else {
+            localSaleDao.commitEditGuard(saleId, claimId) == 1
+        }
         if (!guardiaOk) {
             throw GuardiaCommitFallidoException()
         }
@@ -125,11 +146,18 @@ class RoomVentaLocalCorreccionAdapter(
             // `EditLocalSaleViewModel.kt:290` (que ponía `ENVIADO = false` A
             // CIEGAS, sin ningún guardia, pudiendo pisar una venta que el
             // servidor YA tenía), este `false` es la única rama alcanzable:
-            // el guardia de arriba (`commitEditGuard`) ya exigió
-            // `ENVIADO = 0` en su propio `WHERE`, DENTRO de la misma
-            // transacción, sin ninguna ventana entre leer y escribir. No es
-            // una suposición — es lo que el guardia acaba de confirmar.
-            enviado = false,
+            // el guardia de arriba ya exigió el valor que aquí se reescribe
+            // en su propio `WHERE`, DENTRO de la misma transacción, sin
+            // ninguna ventana entre leer y escribir. No es una suposición —
+            // es lo que el guardia acaba de confirmar.
+            //
+            // Y por eso se reescribe con el MISMO valor en vez de con `false`
+            // a secas: en el camino de la venta ya subida, bajarlo la
+            // devolvería a la cola de alta con su `Idempotency-Key` original,
+            // el servidor contestaría con la respuesta que ya tenía guardada,
+            // no se actualizaría nada, y el teléfono se quedaría creyendo que
+            // reenvió. Esa corrección viaja por su propia cola, más abajo.
+            enviado = yaEnviada,
             numero = campos.numero,
             colonia = campos.colonia,
             poblacion = campos.poblacion,
@@ -141,6 +169,21 @@ class RoomVentaLocalCorreccionAdapter(
         )
         localSaleProductDao.mergeProductsForSale(saleId, productos)
         localSaleComboDao.mergeCombosForSale(saleId, combos)
+
+        if (yaEnviada) {
+            // La marca de cola va DENTRO de la misma transacción que la corrección, no después:
+            // es lo único que hace que alguien la entregue. Commitear los campos y levantar la
+            // bandera por separado deja una ventana en la que el proceso puede morir con la
+            // corrección ya guardada y sin nadie que la reclame — el usuario vería su venta
+            // corregida en el teléfono y el servidor nunca se enteraría. El silencio es
+            // exactamente el modo de falla que esta cola existe para evitar, así que o commitean
+            // las dos cosas o no commitea ninguna.
+            //
+            // El `AND ENVIADO = 1` de su `WHERE` no puede fallar aquí: `commitEditGuardEnviada`
+            // acaba de exigir ese mismo valor en esta transacción.
+            localSaleDao.marcarCorreccionRemotaPendiente(saleId)
+        }
+
         // Edit-and-retry SIN rotar la Idempotency-Key (Global Constraint del plan): sólo se
         // limpia el registro de fallo previo, para que la UI no siga mostrando un error viejo
         // tras una corrección exitosa.

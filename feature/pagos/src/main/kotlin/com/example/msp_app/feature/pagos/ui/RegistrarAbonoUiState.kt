@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.runtime.Immutable
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.AvisoDelMonto
 import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.VeredictoDelAbono
@@ -75,8 +76,45 @@ enum class FalloDeLaFoto {
 data class ConfirmacionPendiente(
     val importe: Money,
     val metodo: MetodoDeCobro,
-    val veredicto: VeredictoDelAbono
-)
+    val veredicto: VeredictoDelAbono,
+    /**
+     * Cuánta fricción pide este monto. Se congela con el resto: lo que cambia
+     * en los casos raros es **qué pide el paso dos** —tocar o teclear— y eso no
+     * puede moverse debajo del dedo mientras la hoja está arriba.
+     */
+    val aviso: AvisoDelMonto = AvisoDelMonto.NINGUNO,
+    /**
+     * El monto **tecleado otra vez** en el paso dos de nivel 3. Vacío mientras
+     * nadie ha escrito nada.
+     *
+     * Vive aquí y no en un `remember` de la hoja a propósito: el `enabled` de un
+     * botón que mueve dinero no puede depender de un estado que sólo existe
+     * dentro de la composición, porque entonces cualquier otro llamador de
+     * `confirmar()` se lo saltaría. Aquí lo mira también el ViewModel, ver
+     * [sePuedeConfirmar].
+     */
+    val eco: String = ""
+) {
+    /**
+     * ¿El paso dos pide teclear el monto? Ver
+     * [com.example.msp_app.feature.pagos.domain.NivelDeAviso.TECLEAR].
+     */
+    val pideTeclearElMonto: Boolean get() = aviso.pideTeclearElMonto
+
+    /**
+     * ¿Lo tecleado de nuevo **es** el monto? Se compara el dinero y no el
+     * texto: "250", "250.00" y "0250" son el mismo monto, y exigir el mismo
+     * string convertiría la red de seguridad en una prueba de mecanografía.
+     */
+    val ecoCoincide: Boolean get() = MontoCapturado(crudo = eco).importe == importe
+
+    /**
+     * ¿Se puede disparar el paso dos? Todo lo que no sea nivel 3 pasa directo
+     * —avisar no es bloquear—, y el nivel 3 pasa **cuando el monto se tecleó
+     * otra vez**.
+     */
+    val sePuedeConfirmar: Boolean get() = !pideTeclearElMonto || ecoCoincide
+}
 
 /**
  * Un intento que **no llegó a ser comprobante**: ocupa su propio cuadro de la
@@ -127,6 +165,15 @@ data class RegistrarAbonoUiState(
     val metodo: MetodoDeCobro = MetodoDeCobro.EFECTIVO,
     val sugeridos: List<MontosSugeridos.Sugerido> = emptyList(),
     val veredicto: VeredictoDelAbono = VeredictoDelAbono.SIN_VENTA,
+    /**
+     * Cuánta fricción merece el monto que se lleva tecleado, **en vivo**.
+     *
+     * Es un campo del estado y no un cálculo de la pantalla por la misma razón
+     * que [veredicto]: la captura y la hoja tienen que estar mirando la misma
+     * clasificación, y con dos cálculos se pueden despegar. Lo pone el único
+     * lugar que recalcula, `RegistrarAbonoViewModel.conVeredicto`.
+     */
+    val aviso: AvisoDelMonto = AvisoDelMonto.NINGUNO,
     val confirmacion: ConfirmacionPendiente? = null,
     val guardando: Boolean = false,
     val registrado: String? = null,

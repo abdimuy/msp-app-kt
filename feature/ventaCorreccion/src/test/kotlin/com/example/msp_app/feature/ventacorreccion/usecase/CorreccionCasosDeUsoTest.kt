@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.ventacorreccion.usecase
 
+import com.example.msp_app.core.database.dao.localsale.LocalSaleClaimLeases
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleProductEntity
@@ -9,6 +10,7 @@ import com.example.msp_app.feature.ventacorreccion.data.RoomVentaLocalCorreccion
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReencolar
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReloj
 import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
+import com.example.msp_app.feature.ventacorreccion.domain.CorreccionRemotaTerminal
 import com.example.msp_app.feature.ventacorreccion.domain.EstadoCorreccion
 import com.example.msp_app.feature.ventacorreccion.domain.VentaLocalParaCorregir
 import com.example.msp_app.feature.ventacorreccion.domain.port.VentaLocalCorreccionPort
@@ -66,7 +68,9 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
         saleId: String = SALE_ID,
         nombreCliente: String = "Rosa Elena Martinez Vazquez",
         idempotencyKey: String? = "idem-original-sin-tocar",
-        enviado: Boolean = false
+        enviado: Boolean = false,
+        correccionRemotaPendiente: Boolean = false,
+        correccionRemotaEstado: String? = null
     ) = LocalSaleEntity(
         LOCAL_SALE_ID = saleId,
         NOMBRE_CLIENTE = nombreCliente,
@@ -86,7 +90,9 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
         MONTO_A_CORTO_PLAZO = 6300.0,
         MONTO_DE_CONTADO = 5800.0,
         ENVIADO = enviado,
-        IDEMPOTENCY_KEY = idempotencyKey
+        IDEMPOTENCY_KEY = idempotencyKey,
+        CORRECCION_REMOTA_PENDIENTE = correccionRemotaPendiente,
+        CORRECCION_REMOTA_ESTADO = correccionRemotaEstado
     )
 
     private fun producto(
@@ -139,6 +145,20 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
 
     private suspend fun insertSale(sale: LocalSaleEntity) = db.localSaleDao().insertSale(sale)
 
+    /**
+     * La cola de ALTA, tal cual la ve el barrido de sesión — con los arrendamientos de
+     * PRODUCCIÓN ([LocalSaleClaimLeases]), no con cifras inventadas aquí. Es la mitad de la
+     * medición del invariante del nivel 2: una venta ya enviada no puede volver a aparecer en
+     * esta lista NUNCA.
+     */
+    private suspend fun ventasParaSubir(): List<LocalSaleEntity> =
+        db.localSaleDao().getUploadableSales(
+            now = clock.now().toEpochMilli(),
+            editLeaseMs = LocalSaleClaimLeases.EDIT_LEASE_MS,
+            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+            remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
+        )
+
     private suspend fun insertProducts(products: List<LocalSaleProductEntity>) =
         db.localSaleProduct().insertAllSaleProducts(products)
 
@@ -185,6 +205,10 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
         assertEquals(esperada.CLAIMED_AT, actual.CLAIMED_AT)
         assertEquals(esperada.REVISION, actual.REVISION)
         assertEquals(esperada.CORRECCION_NO_ENVIADA, actual.CORRECCION_NO_ENVIADA)
+        // Las dos columnas del nivel 2: sin ellas aquí, un rechazo que además levantara la cola
+        // de correcciones remotas pasaría por "nada se escribió".
+        assertEquals(esperada.CORRECCION_REMOTA_PENDIENTE, actual.CORRECCION_REMOTA_PENDIENTE)
+        assertEquals(esperada.CORRECCION_REMOTA_ESTADO, actual.CORRECCION_REMOTA_ESTADO)
     }
 
     // ─── Feliz ──────────────────────────────────────────────────────────
@@ -387,41 +411,206 @@ class CorreccionCasosDeUsoTest : RoomTestBase() {
         assertEquals(combosAntes, db.localSaleComboDao().getCombosForSale(SALE_ID))
     }
 
-    // ─── Guardar sobre venta ya enviada ─────────────────────────────────
+    // ─── Guardar sobre venta ya enviada (el nivel 2) ────────────────────
 
+    /**
+     * **El invariante más caro de todo este trabajo.** Corregir una venta que YA subió deja la
+     * fila con `ENVIADO = 1` **y** `CORRECCION_REMOTA_PENDIENTE = 1`, en la misma transacción.
+     *
+     * Si `ENVIADO` bajara a 0 — que es lo que hace el guardado de una venta SIN enviar, y lo que
+     * hacía este mismo adaptador antes del nivel 2 — la venta volvería a la cola de ALTA con su
+     * `Idempotency-Key` original: el servidor contestaría con la respuesta que ya tenía
+     * guardada, no actualizaría nada, y el teléfono se quedaría creyendo que reenvió. La
+     * corrección se perdería en silencio, que es el modo de falla exacto que la cola remota
+     * existe para evitar.
+     *
+     * Por eso el invariante no se mide sólo leyendo las dos columnas: se mide preguntándole a
+     * las DOS colas quién reclama esta venta. `getUploadableSales` (la de alta) no debe verla
+     * nunca más, y `getVentasConCorreccionRemotaPendiente` (la de correcciones) debe verla
+     * exactamente a ella. Un mutante que baje `ENVIADO` pone rojas las dos aserciones.
+     */
     @Test
-    fun `guardar sobre venta con ENVIADO en 1 lanza YaSeEnvio y no escribe nada`() = runTest {
-        insertSale(freeSale())
-        val reclamo = reclamar(SALE_ID)
-        check(reclamo is ResultadoReclamo.Reclamada)
+    fun `corregir una venta YA ENVIADA la deja con ENVIADO en 1 y en la cola de correcciones, nunca en la de alta`() =
+        runTest {
+            insertSale(freeSale(enviado = true, idempotencyKey = "idem-original-sin-tocar"))
+            insertProducts(listOf(producto(articuloId = 1, cantidad = 1, serverUuid = "uuid-1")))
 
-        // El subidor gana la carrera: marca ENVIADO=1 y cierra el candado.
-        db.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 0)
-
-        val saleAntes = db.localSaleDao().getSaleById(SALE_ID)
-        assertNotNull(saleAntes)
-        assertEquals(true, saleAntes?.ENVIADO)
-
-        var excepcion: GuardadoRechazadoException? = null
-        try {
+            val reclamo = reclamar(SALE_ID)
+            check(reclamo is ResultadoReclamo.Reclamada)
             guardar(
                 SALE_ID,
                 reclamo.claimId,
-                campos(nombreCliente = "Llega tarde"),
+                campos(nombreCliente = "Corregida DESPUES de subir"),
+                listOf(producto(articuloId = 1, cantidad = 7)),
+                emptyList(),
+                EMAIL
+            )
+
+            val sale = db.localSaleDao().getSaleById(SALE_ID)!!
+            assertTrue(
+                "ENVIADO NUNCA puede bajar: la venta volveria a la cola de ALTA con su " +
+                    "Idempotency-Key y el servidor contestaria con la respuesta vieja",
+                sale.ENVIADO
+            )
+            assertTrue(
+                "sin la bandera de la cola remota, nadie entrega la correccion",
+                sale.CORRECCION_REMOTA_PENDIENTE
+            )
+            assertNull(
+                "y sin marca terminal: el servidor todavia no ha dicho nada",
+                sale.CORRECCION_REMOTA_ESTADO
+            )
+            assertEquals("Corregida DESPUES de subir", sale.NOMBRE_CLIENTE)
+            assertEquals(1, sale.REVISION)
+            assertNull("el candado se cierra igual que en el nivel 1", sale.CLAIM_ID)
+            assertEquals(
+                "la Idempotency-Key NUNCA se rota en este flujo",
+                "idem-original-sin-tocar",
+                sale.IDEMPOTENCY_KEY
+            )
+            assertEquals(7, db.localSaleProduct().getProductsForSale(SALE_ID).single().CANTIDAD)
+
+            assertTrue(
+                "la cola de ALTA no puede volver a verla NUNCA",
+                ventasParaSubir().none { it.LOCAL_SALE_ID == SALE_ID }
+            )
+            assertEquals(
+                "y la cola de CORRECCIONES tiene que verla exactamente a ella",
+                listOf(SALE_ID),
+                db.localSaleDao().getVentasConCorreccionRemotaPendiente().map { it.LOCAL_SALE_ID }
+            )
+        }
+
+    /**
+     * La contracara del invariante de arriba, con el mismo control positivo: una venta SIN
+     * enviar sigue bajando `ENVIADO` a `false` y NO levanta la cola remota — el camino del
+     * nivel 1 no cambió. Sin esta prueba, un "arreglo" que dejara `ENVIADO` intacto en los DOS
+     * caminos pasaría verde arriba y rompería el nivel 1 sin que nada lo dijera.
+     */
+    @Test
+    fun `corregir una venta SIN enviar no levanta la cola remota y la deja en la cola de alta`() =
+        runTest {
+            insertSale(freeSale())
+            val reclamo = reclamar(SALE_ID)
+            check(reclamo is ResultadoReclamo.Reclamada)
+
+            guardar(
+                SALE_ID,
+                reclamo.claimId,
+                campos(nombreCliente = "Corregida ANTES de subir"),
                 emptyList(),
                 emptyList(),
                 EMAIL
             )
-        } catch (rechazo: GuardadoRechazadoException) {
-            excepcion = rechazo
+
+            val sale = db.localSaleDao().getSaleById(SALE_ID)!!
+            assertEquals(false, sale.ENVIADO)
+            assertEquals(false, sale.CORRECCION_REMOTA_PENDIENTE)
+            assertTrue(
+                "la venta sin enviar SI tiene que seguir en la cola de alta",
+                ventasParaSubir().any { it.LOCAL_SALE_ID == SALE_ID }
+            )
+            assertTrue(db.localSaleDao().getVentasConCorreccionRemotaPendiente().isEmpty())
         }
 
-        assertNotNull(excepcion)
-        assertEquals(EstadoCorreccion.YaSeEnvio, excepcion?.estado)
+    /**
+     * Encimarle una segunda corrección a una que todavía no viajó dejaría al trabajador
+     * entregando un cuerpo que nadie revisó. El editor ni se abre: `claimForEdit` rechaza
+     * `CORRECCION_REMOTA_PENDIENTE = 1`, y el dominio clasifica el porqué.
+     */
+    @Test
+    fun `con una correccion ya en la cola, el editor ni se abre`() = runTest {
+        insertSale(freeSale(enviado = true))
+        val primero = reclamar(SALE_ID)
+        check(primero is ResultadoReclamo.Reclamada)
+        guardar(
+            SALE_ID,
+            primero.claimId,
+            campos(nombreCliente = "La primera, que si viaja"),
+            emptyList(),
+            emptyList(),
+            EMAIL
+        )
 
-        val saleDespues = db.localSaleDao().getSaleById(SALE_ID)
-        assertSaleUnchanged(saleAntes!!, saleDespues!!)
+        val segundo = reclamar(SALE_ID)
+
+        assertEquals(
+            ResultadoReclamo.NoCorregible(EstadoCorreccion.CorreccionEnCamino),
+            segundo
+        )
+        assertEquals(
+            "la segunda no pudo pisar a la primera",
+            "La primera, que si viaja",
+            db.localSaleDao().getSaleById(SALE_ID)?.NOMBRE_CLIENTE
+        )
     }
+
+    /**
+     * Marca TERMINAL: el servidor cerró la puerta para siempre (la venta salió de `borrador`, o
+     * la oficina escribió primero). Ni el editor se abre ni hay nada que reintentar.
+     */
+    @Test
+    fun `con la marca terminal del servidor, el editor ni se abre`() = runTest {
+        insertSale(
+            freeSale(
+                enviado = true,
+                correccionRemotaEstado = CorreccionRemotaTerminal.RECHAZADA_ESTADO
+            )
+        )
+
+        val reclamo = reclamar(SALE_ID)
+
+        assertEquals(
+            ResultadoReclamo.NoCorregible(EstadoCorreccion.LaOficinaYaLaAplico),
+            reclamo
+        )
+    }
+
+    /**
+     * El candado se pierde entre reclamar y guardar (aquí: el subidor gana la carrera y
+     * `markSentAndCloseEdit` cierra el candado incondicionalmente). El guardado se rechaza y NO
+     * escribe nada — ni los campos, ni la cola remota.
+     *
+     * Lo que cambió con el nivel 2 es el estado con el que se clasifica el rechazo: ya no
+     * [EstadoCorreccion.YaSeEnvio] sino [EstadoCorreccion.CorregibleEnviada], porque la fila
+     * releída sigue siendo corregible — sólo que no con ESTE `claimId`. El texto que la UI
+     * muestra sí sigue sin prometer nada (`No se pudo guardar`, ver
+     * `CorreccionVentaViewModel.aTextoDeRechazoDeGuardado`).
+     */
+    @Test
+    fun `guardar con el candado ya cerrado por el subidor se rechaza y no escribe nada`() =
+        runTest {
+            insertSale(freeSale())
+            val reclamo = reclamar(SALE_ID)
+            check(reclamo is ResultadoReclamo.Reclamada)
+
+            // El subidor gana la carrera: marca ENVIADO=1 y cierra el candado.
+            db.localSaleDao().markSentAndCloseEdit(SALE_ID, revisionAtClaim = 0)
+
+            val saleAntes = db.localSaleDao().getSaleById(SALE_ID)
+            assertNotNull(saleAntes)
+            assertEquals(true, saleAntes?.ENVIADO)
+
+            var excepcion: GuardadoRechazadoException? = null
+            try {
+                guardar(
+                    SALE_ID,
+                    reclamo.claimId,
+                    campos(nombreCliente = "Llega tarde"),
+                    emptyList(),
+                    emptyList(),
+                    EMAIL
+                )
+            } catch (rechazo: GuardadoRechazadoException) {
+                excepcion = rechazo
+            }
+
+            assertNotNull(excepcion)
+            assertEquals(EstadoCorreccion.CorregibleEnviada, excepcion?.estado)
+
+            val saleDespues = db.localSaleDao().getSaleById(SALE_ID)
+            assertSaleUnchanged(saleAntes!!, saleDespues!!)
+        }
 
     // ─── Cancelar ───────────────────────────────────────────────────────
 

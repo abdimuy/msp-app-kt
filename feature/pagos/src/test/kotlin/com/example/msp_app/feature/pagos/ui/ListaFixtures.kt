@@ -236,9 +236,10 @@ object ListaFixtures {
     fun ruta(): List<ClienteEnLista> = listOf(victoria(), ricardo(), guadalupe())
 
     /**
-     * La ruta **con una promesa que cae hoy** — la que necesita el chip *hoy*,
-     * encendido en la Task 21 (`HOY_VISIBLE`) cuando la captura estructurada de
-     * la Task 19 se volvió alcanzable.
+     * La ruta **con una promesa que cae hoy** — la única que pone algo en el chip
+     * *volver a visitar*, y por lo tanto la que hace que los cuatro chips marquen
+     * una cifra distinta de cero. Una promesa vencida o de hoy es trabajo
+     * pendiente; la de mañana se iría a *después*.
      */
     fun rutaConPromesaDeHoy(): List<ClienteEnLista> = ruta() + esperanza()
 

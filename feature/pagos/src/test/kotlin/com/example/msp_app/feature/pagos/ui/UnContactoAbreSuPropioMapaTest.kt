@@ -146,7 +146,8 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
                             clienteId = PagosFixtures.CLIENTE_ID,
                             nombre = "Victoria Flores Olmedo",
                             direccion = "C. Hidalgo 214, Centro",
-                            contactos = CONTACTOS
+                            contactos = CONTACTOS,
+                            hoy = PagosFixtures.HOY
                         )
                     ),
                     onAtras = {},

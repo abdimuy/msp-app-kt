@@ -184,8 +184,8 @@ class MontosSugeridosDelClienteTest {
             desde = LocalDate.of(2026, 5, 4)
         )
 
-        assertNull(MontosSugeridosDelCliente.sueleDar(listOf(sinDato)))
-        assertNull(MontosSugeridosDelCliente.sueleDar(emptyList()))
+        assertNull(MontosSugeridosDelCliente.promedioDeMicrosip(listOf(sinDato)))
+        assertNull(MontosSugeridosDelCliente.promedioDeMicrosip(emptyList()))
     }
 
     /**
@@ -208,7 +208,7 @@ class MontosSugeridosDelClienteTest {
 
         assertEquals(
             dinero("230"),
-            MontosSugeridosDelCliente.sueleDar(listOf(conDato, sinDato, otroConDato))
+            MontosSugeridosDelCliente.promedioDeMicrosip(listOf(conDato, sinDato, otroConDato))
         )
     }
 

@@ -98,33 +98,56 @@ class RegistrarAbonoViewModelTest {
     // --- Carga ---------------------------------------------------------------
 
     @Test
-    fun `arranca con lo esperado hoy puesto y los tres sugeridos`() = runTest(testDispatcher) {
+    fun `arranca con lo esperado hoy puesto y los sugeridos de la venta`() = runTest(
+        testDispatcher
+    ) {
         val vm = viewModel()
         advanceUntilIdle()
         val state = vm.state.value
         assertEquals(AbonoFixtures.SALDO, state.venta!!.saldo)
         assertEquals(AbonoFixtures.ESPERADO_HOY, state.monto.importe)
         assertTrue("el prellenado se reemplaza con la primera tecla", state.monto.sugerido)
+        // Los tres de la deuda y DOS redondos: el cliente del fixture no tiene
+        // historial de cobros, así que "lo de siempre" no se pinta, y el tope de
+        // cinco corta el tercer redondo ($150).
         assertEquals(
             listOf(
                 MontosSugeridos.Sugerencia.ESPERADO_HOY,
                 MontosSugeridos.Sugerencia.AL_CORRIENTE,
-                MontosSugeridos.Sugerencia.LIQUIDAR
+                MontosSugeridos.Sugerencia.LIQUIDAR,
+                MontosSugeridos.Sugerencia.REDONDO,
+                MontosSugeridos.Sugerencia.REDONDO
             ),
             state.sugeridos.map { it.cual }
+        )
+        assertEquals(
+            listOf("220", "440", "1290", "100", "200").map { dinero(it) },
+            state.sugeridos.map { it.importe }
         )
         assertTrue(state.sePuedeRegistrar)
     }
 
     // --- El borde exacto del sobrepago ---------------------------------------
 
+    /**
+     * Liquidar **sí se puede**, y ahora cuesta teclear el monto otra vez.
+     *
+     * El saldo de esta venta ($1,450) son 6.59 cuotas de $220, o sea nivel 3
+     * por el umbral de "más de 6 cuotas". No es un efecto colateral: el diseño
+     * dice **avisar no es bloquear**, y nombra "liquidar de golpe" como uno de
+     * los casos legítimos que sí confirman. Una liquidación es genuinamente sin
+     * precedente en esta ruta —el abono más grande de su historia es de $1,500
+     * y ni siquiera liquidó—, así que le toca la fricción del caso sin
+     * precedente. Lo que NO cambia es que se registre.
+     */
     @Test
-    fun `el saldo exacto se registra`() = runTest(testDispatcher) {
+    fun `el saldo exacto se registra, tecleando el monto otra vez`() = runTest(testDispatcher) {
         val vm = viewModel()
         advanceUntilIdle()
         teclear(vm, "1450")
         assertTrue(vm.state.value.sePuedeRegistrar)
         vm.pedirConfirmacion()
+        vm.onEcoDelMonto("1450")
         vm.confirmar()
         advanceUntilIdle()
         assertEquals(1, registroPort.registrados.size)
@@ -753,6 +776,7 @@ class RegistrarAbonoViewModelTest {
             ventasPort = ventasPort,
             garantiasPort = garantiasPort,
             productosPort = productosPort,
+            pagosPort = pagosPort,
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,

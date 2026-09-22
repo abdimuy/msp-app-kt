@@ -8,6 +8,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
+import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 
 /**
  * Las rutas de `:feature:pagos`.
@@ -143,7 +144,8 @@ fun NavGraphBuilder.destinosDePagos(
             onRegistrarVisita = onRegistrarVisita,
             onVerAbonos = onVerAbonos,
             onVerGarantia = onVerGarantia,
-            onVerUbicacion = ubicacion.onVer
+            onVerUbicacion = ubicacion.onVer,
+            onVerTicket = ubicacion.onVerTicket
         )
     }
 }
@@ -171,7 +173,21 @@ fun NavGraphBuilder.destinosDePagos(
 @Immutable
 data class UbicacionEnElDetalle(
     val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
-    val suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
+    val suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null,
+    /**
+     * A dónde lleva la opción "Ticket" de [HojaDelContacto]: al ticket del abono
+     * cuyo `pagoId` se manda — [PagosRutas.ticketDePago], la ruta que la Task 20
+     * ya dejó puesta.
+     *
+     * **El nombre del tipo se quedó corto y aquí se dice en vez de renombrarlo.**
+     * Este objeto dejó de ser "la ubicación" el día que el toque de un renglón
+     * pudo abrir dos cosas; vive aquí y no como un séptimo parámetro de
+     * [destinoDeDetalleCliente] porque detekt corta ahí (`LongParameterList`,
+     * `functionThreshold: 7`), que es el mismo motivo por el que el objeto
+     * existe. Renombrar los dos tipos por una palabra movería tres KDoc y el
+     * grafo de `:app` sin cambiar nada de lo que hacen.
+     */
+    val onVerTicket: (String) -> Unit = {}
 )
 
 /**
@@ -219,6 +235,7 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
             onRegistrarVisita = onRegistrarVisita,
             onVerContactos = onVerContactos,
             onVerUbicacion = ubicacion.onVer,
+            onVerTicket = ubicacion.onVerTicket,
             suelo = ubicacion.suelo
         )
     }
@@ -249,7 +266,17 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
  */
 @Immutable
 data class UbicacionEnLaBitacora(
-    val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> }
+    val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
+    /**
+     * A dónde lleva la opción "Ticket" de [HojaDelContacto] — ver el gemelo en
+     * [UbicacionEnElDetalle.onVerTicket], incluido por qué entra como miembro de
+     * este objeto y no como un parámetro más.
+     *
+     * Su default no navega a ninguna parte, igual que [onVer]: es lo que deja
+     * montar estas rutas en un `@Preview` o en un test sin saber que existe un
+     * ticket.
+     */
+    val onVerTicket: (String) -> Unit = {}
 )
 
 /**
@@ -275,7 +302,8 @@ fun NavGraphBuilder.destinoDeBitacora(
         BitacoraScreen(
             viewModel = hiltViewModel(),
             onAtras = onAtras,
-            onVerUbicacion = ubicacion.onVer
+            onVerUbicacion = ubicacion.onVer,
+            onVerTicket = ubicacion.onVerTicket
         )
     }
 }

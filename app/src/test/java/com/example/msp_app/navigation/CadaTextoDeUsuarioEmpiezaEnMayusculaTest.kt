@@ -524,8 +524,10 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
      * viajan dentro de una llamada a un sumidero, que puede abarcar varias
      * líneas y por eso se sigue por profundidad de paréntesis.
      *
-     * `ofPattern` entra a la misma lista que los sumideros, aunque no aplique
-     * versalitas: un patrón de fecha (`"d MMM yyyy"`) tampoco es prosa, y
+     * [PATRONES] entra a la misma lista que los sumideros, aunque no apliquen
+     * versalitas: un patrón de fecha (`"d MMM yyyy"`) y una expresión regular
+     * (`Regex("\\s+")`, la que parte el nombre en `inicialesDe`) tampoco son
+     * prosa —nadie los lee en una pantalla— y
      * cuando el `DateTimeFormatter.ofPattern(...)` se escribe en varias
      * líneas —como en `DetalleVentaScreen.FECHA_DE_VENTA`— [NO_SE_PINTA] no lo
      * ve, porque esa regex mide una línea a la vez y `"d MMM yyyy"` vive en la
@@ -537,7 +539,7 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
         check(sumideros.isNotEmpty()) { "sin sumideros derivados el barrido mentiría" }
         val invocaSumidero = Regex(
             "(?<![A-Za-z0-9_])(" +
-                (sumideros + "ofPattern").joinToString("|") { Regex.escape(it) } +
+                (sumideros + PATRONES).joinToString("|") { Regex.escape(it) } +
                 ")\\s*\\("
         )
         val encontrados = mutableListOf<String>()
@@ -578,6 +580,15 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
          * `MESES_ABREVIADOS`). Lo que sí dejó de ser una lista a mano es
          * [etiquetasDeEnum], que ahora barre TODO el repo por estructura y no
          * necesita que nadie agregue un archivo aquí.
+         *
+         * **Crecida del 22-sep (avisos escalonados del abono):** las dos hojas
+         * del paso dos. Pintan la última pantalla que alguien ve antes de que
+         * se mueva dinero y estaban **enteras en minúscula** mientras sus
+         * vecinas `RegistrarAbonoScreen.kt` y `PiezasDelAbono.kt` ya llevaban
+         * mayúscula inicial desde el 21-sep. Se veía en el golden: un aviso
+         * nuevo ("Son 5 cuotas de $220") encima de un botón viejo ("confirmar y
+         * registrar"), en la misma hoja. Entrar al alcance importa más que el
+         * arreglo: sin esto se vuelve a desviar sola.
          */
         val ALCANCE: List<String> = listOf(
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
@@ -593,6 +604,8 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/HojaDeAbono.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
+                "ui/components/HojaDeConfirmacion.kt",
+            "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/HojaDeLaFicha.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/Marco.kt",
@@ -602,6 +615,8 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
                 "ui/components/PiezasDelAbono.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/PiezasDelCliente.kt",
+            "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
+                "ui/components/PiezasDelComprobante.kt",
             "feature/pagos/src/main/kotlin/com/example/msp_app/feature/pagos/" +
                 "ui/components/TarjetasDeDinero.kt",
             "feature/visitas/src/main/kotlin/com/example/msp_app/feature/visitas/" +
@@ -624,6 +639,14 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
         /** Un literal de Kotlin en una línea, con sus escapes. */
         val LITERAL = Regex("\"((?:[^\"\\\\\\n]|\\\\.)*)\"")
 
+        /**
+         * Llamadas cuyo argumento es un **patrón**, no prosa. Entran por la
+         * misma puerta que los sumideros de versalitas: lo que viaja adentro no
+         * es texto que alguien lea en una pantalla, y exigirle mayúscula
+         * inicial sería exigirle algo que no significa nada.
+         */
+        val PATRONES = listOf("ofPattern", "Regex")
+
         /** El sumidero de versalitas, tal como lo escribe este repo. */
         val APLICA_VERSALITAS = Regex("""\.uppercase\(BUSINESS_LOCALE\)""")
 
@@ -645,7 +668,15 @@ class CadaTextoDeUsuarioEmpiezaEnMayusculaTest {
          * por qué esa dirección es la que importa.
          */
         val NOMBRES_SIN_PROSA = setOf(
-            "id", "code", "key", "crudo", "wireValue", "route", "path",
+            // `codigo` es `code` en el idioma en que está escrito este repo. Sin él la
+            // exención sólo alcanza a quien nombre en inglés, y los módulos nuevos
+            // (`:feature:pagos`, `:feature:ventaCorreccion`) están en español de punta a
+            // punta — o sea que quedaría inalcanzable justo donde más enums se escriben.
+            // Lo pidió `PasoCorreccionRemota.codigo`, que viaja al `RemoteLogger` para
+            // decir cuál de las tres peticiones de la corrección remota falló: es
+            // diagnóstico, nunca se le enseña a nadie, y ponerle mayúscula habría
+            // ensuciado el log para callar a esta compuerta.
+            "id", "code", "codigo", "key", "crudo", "wireValue", "route", "path",
             "pattern", "format", "mimeType", "url", "uri", "tag", "icon"
         )
 

@@ -3,7 +3,9 @@ package com.example.msp_app.feature.pagos.ui
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.MontosSugeridosDelCliente
+import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.RielDePagos
 import com.example.msp_app.feature.pagos.domain.RitmoDePagos
@@ -422,6 +424,7 @@ object PagosFixtures {
         return DetalleVenta(
             ventaId = VENTA_EN_PROMESA,
             folio = "MIG-V-5188",
+            hoy = HOY,
             creditoId = 12232,
             clienteId = CLIENTE_ID,
             clienteNombre = "Victoria Flores Olmedo",
@@ -429,6 +432,10 @@ object PagosFixtures {
             fechaVenta = LocalDate.of(2026, 5, 4),
             saldo = dinero("1450"),
             parcialidad = parcialidad,
+            // Esta venta SÍ trae historial, y sus pagos son de $220: la cuota
+            // sale del comportamiento, que es el escalón 1 y el que cubre al
+            // 91 % de la ruta.
+            cuota = CuotaDeLaVenta(parcialidad, OrigenDeLaCuota.COMPORTAMIENTO),
             frecuencia = "semanal",
             abonosPagados = plan.pagados,
             abonosTotales = plan.totales,
@@ -526,7 +533,7 @@ object PagosFixtures {
             hoy = HOY
         )
         return ResumenDelCliente(
-            sueleDar = MontosSugeridosDelCliente.sueleDar(ventas),
+            promedioDeMicrosip = MontosSugeridosDelCliente.promedioDeMicrosip(ventas),
             pideleHoy = MontosSugeridosDelCliente.pideleHoy(ventas, HOY),
             ultimoPago = pagos.maxByOrNull { it.fecha }
                 ?.let { AppTime.toBusinessDate(it.fecha) },

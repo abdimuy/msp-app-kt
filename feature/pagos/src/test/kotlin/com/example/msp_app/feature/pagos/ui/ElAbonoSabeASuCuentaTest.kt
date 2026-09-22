@@ -283,7 +283,7 @@ class ElAbonoSabeASuCuentaTest {
 
         val resumen = checkNotNull(vm.state.value.detalle).resumen
         assertTrue("pídele hoy tiene que salir derivado", resumen.pideleHoy > Money.ZERO)
-        assertEquals(Money.of(BigDecimal("300.00")), resumen.sueleDar)
+        assertEquals(Money.of(BigDecimal("300.00")), resumen.promedioDeMicrosip)
         assertEquals(12, resumen.semanasTotales)
     }
 }

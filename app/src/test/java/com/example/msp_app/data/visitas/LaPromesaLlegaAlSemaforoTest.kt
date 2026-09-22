@@ -43,7 +43,9 @@ import org.junit.Test
  *
  * - Task 16: `PROMETIO_PROXIMA` sin fecha se pinta *regresas*, y
  *   `CITA_A_UNA_HORA` sin hora también — las dos "sin dato que lo sostenga".
- * - Task 17: el segmento *hoy* exige `fechaPromesa == hoy` / `fechaCita == hoy`.
+ * - Task 17: el chip de un compromiso lo decide su **fecha** —`fechaPromesa` /
+ *   `fechaCita`—, no el tipo de compromiso: vencido o de hoy es *volver a
+ *   visitar*, a futuro es *ya no esta semana*.
  *
  * Hasta hoy nadie escribía esos datos, así que **solo se podía probar la rama
  * de la ausencia**. Este test cierra el círculo con las piezas reales: escribe
@@ -152,55 +154,69 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
     // ─── Task 17, con dato presente ──────────────────────────────────────────
 
-    /** **El segmento *hoy* ya cuenta algo:** una promesa para hoy cae en *hoy*. */
+    /**
+     * **Una promesa para hoy es trabajo de hoy:** cae en *volver a visitar*, el
+     * chip de lo que sigue pidiendo otra pasada. Y en **ninguno** de los otros
+     * tres — la partición se cobra aquí también, con el dato que la escribió el
+     * adaptador de producción y no uno armado a mano.
+     */
     @Test
-    fun `una promesa para hoy cae en el segmento hoy`() = runTest {
+    fun `una promesa para hoy cae en volver a visitar`() = runTest {
         registrarPromesa(hoy, Money.of(BigDecimal("220")))
 
         val estado = estadoDerivado()
 
-        assertTrue(SegmentoDeCobranza.HOY.contiene(estado, hoy))
-        assertFalse(SegmentoDeCobranza.VENCIDOS.contiene(estado, hoy))
-        assertFalse(SegmentoDeCobranza.SIN_VISITAR.contiene(estado, hoy))
+        assertEquals(listOf(SegmentoDeCobranza.VOLVER_A_VISITAR), chipsDe(estado, hoy))
     }
 
     /** Una cita de hoy con hora también: es el otro camino al mismo chip. */
     @Test
-    fun `una cita de hoy cae en el segmento hoy`() = runTest {
+    fun `una cita de hoy cae en volver a visitar`() = runTest {
         registrarCita(hoy, LocalTime.of(9, 0))
 
         val estado = estadoDerivado()
 
-        assertTrue(SegmentoDeCobranza.HOY.contiene(estado, hoy))
+        assertEquals(listOf(SegmentoDeCobranza.VOLVER_A_VISITAR), chipsDe(estado, hoy))
     }
 
-    /** Una promesa futura no cae en ningún chip de trabajo: no toca esta semana. */
+    /**
+     * **Una promesa futura es un acuerdo, no un pendiente:** cae en *ya no esta
+     * semana*. Antes —con `TODOS`/`VENCIDOS`/`HOY`/`SIN_VISITAR`— no caía en
+     * ningún chip de trabajo y sólo se veía bajo *todos*; ahora tiene chip
+     * propio, que es lo que le permite a `TODOS` desaparecer sin llevarse nada.
+     */
     @Test
-    fun `una promesa futura no cae en ningun chip de trabajo`() = runTest {
+    fun `una promesa futura cae en ya no esta semana`() = runTest {
         registrarPromesa(hoy.plusDays(3), null)
 
         val estado = estadoDerivado()
 
-        assertFalse(SegmentoDeCobranza.HOY.contiene(estado, hoy))
-        assertFalse(SegmentoDeCobranza.VENCIDOS.contiene(estado, hoy))
-        assertFalse(SegmentoDeCobranza.SIN_VISITAR.contiene(estado, hoy))
+        assertEquals(listOf(SegmentoDeCobranza.YA_NO_ESTA_SEMANA), chipsDe(estado, hoy))
     }
 
     /**
-     * Y una promesa que ya se pasó cae en *vencidos*. La captura de hoy no la
-     * puede crear (`ReglasDeLaVisita` la bloquea), pero una promesa hecha antes
-     * llega a su fecha y vence — y ahí sí tiene que reaparecer.
+     * **La MISMA promesa, dos días después, cambia de chip.** Es el control
+     * positivo de los tres de arriba: lo único que se mueve es el reloj, así que
+     * lo que decide el chip es la fecha y no el tipo de compromiso. La captura de
+     * hoy no puede crear una promesa vencida (`ReglasDeLaVisita` la bloquea),
+     * pero una hecha antes llega a su fecha y vence — y ahí tiene que reaparecer
+     * como trabajo pendiente, no quedarse archivada.
      */
     @Test
-    fun `una promesa que ya vencio cae en vencidos`() = runTest {
-        registrarPromesa(hoy, Money.of(BigDecimal("220")))
+    fun `la misma promesa pasa de ya no esta semana a volver a visitar al vencer`() = runTest {
+        registrarPromesa(hoy.plusDays(2), Money.of(BigDecimal("220")))
         val estado = estadoDerivado()
 
-        // Dos días después, la misma promesa: ya se pasó.
-        val despues = hoy.plusDays(2)
-        assertTrue(SegmentoDeCobranza.VENCIDOS.contiene(estado, despues))
-        assertFalse(SegmentoDeCobranza.HOY.contiene(estado, despues))
+        assertEquals(listOf(SegmentoDeCobranza.YA_NO_ESTA_SEMANA), chipsDe(estado, hoy))
+        assertEquals(
+            listOf(SegmentoDeCobranza.VOLVER_A_VISITAR),
+            chipsDe(estado, hoy.plusDays(4))
+        )
     }
+
+    /** Los chips en los que cae [estado] un día dado. Debe ser siempre exactamente uno. */
+    private fun chipsDe(estado: EstadoDelPeriodo, dia: LocalDate): List<SegmentoDeCobranza> =
+        SegmentoDeCobranza.entries.filter { it.contiene(estado, dia) }
 
     // ─── la promesa capturada desde el CLIENTE ───────────────────────────────
 

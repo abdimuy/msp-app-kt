@@ -73,7 +73,12 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
             // El mapa chico del cuadro. Su default es no pintar nada, así el
             // cuadro se queda con su dibujo y los goldens del módulo siguen
             // fotografiando algo que no depende de la red.
-            suelo = { punto, tocar -> SueloDelUltimoCobro(punto, tocar) }
+            suelo = { punto, tocar -> SueloDelUltimoCobro(punto, tocar) },
+            // La opción "Ticket" de la hoja que sale sobre el último cobro de
+            // hoy. Es la MISMA ruta que la captura de abono usa al terminar
+            // (`destinoDeRegistrarAbono`), sin `popUpTo`: aquí el ticket se
+            // apila encima, así que volver deja al cobrador donde estaba.
+            onVerTicket = { pagoId -> navController.navigate(PagosRutas.ticketDePago(pagoId)) }
         )
     )
 
@@ -89,7 +94,12 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
                 navController.navigate(
                     RutasDelMapa.ubicacion(punto.lat, punto.lng, direccion)
                 )
-            }
+            },
+            // La opción "Ticket" de la hoja que sale sobre el último cobro de
+            // hoy. Es la MISMA ruta que la captura de abono usa al terminar
+            // (`destinoDeRegistrarAbono`), sin `popUpTo`: aquí el ticket se
+            // apila encima, así que volver deja al cobrador donde estaba.
+            onVerTicket = { pagoId -> navController.navigate(PagosRutas.ticketDePago(pagoId)) }
         )
     )
 
@@ -122,7 +132,12 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
                 navController.navigate(
                     RutasDelMapa.ubicacion(punto.lat, punto.lng, direccion)
                 )
-            }
+            },
+            // La opción "Ticket" de la hoja que sale sobre el último cobro de
+            // hoy. Es la MISMA ruta que la captura de abono usa al terminar
+            // (`destinoDeRegistrarAbono`), sin `popUpTo`: aquí el ticket se
+            // apila encima, así que volver deja al cobrador donde estaba.
+            onVerTicket = { pagoId -> navController.navigate(PagosRutas.ticketDePago(pagoId)) }
         )
     )
 

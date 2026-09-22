@@ -4,6 +4,7 @@ import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReloj
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeVentaLocalCorreccionPort
 import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
+import com.example.msp_app.feature.ventacorreccion.domain.CorreccionRemotaTerminal
 import com.example.msp_app.feature.ventacorreccion.domain.EstadoCorreccion
 import com.example.msp_app.feature.ventacorreccion.domain.usecase.ConsultarEstadoCorreccion
 import kotlinx.coroutines.test.runTest
@@ -92,13 +93,53 @@ class ConsultarEstadoCorreccionTest {
         assertSoloLeyoEstado()
     }
 
+    /**
+     * El cambio de fondo del nivel 2 visto desde el caso de uso: una venta ya enviada y limpia
+     * es [EstadoCorreccion.CorregibleEnviada], no [EstadoCorreccion.YaSeEnvio] — el servidor la
+     * tiene en `borrador` y lo que se corrija viaja por la cola de correcciones remotas.
+     */
     @Test
-    fun `consulta una venta ya enviada sin reclamar nada`() = runTest {
+    fun `consulta una venta ya enviada y limpia sin reclamar nada`() = runTest {
         port.siembra(SALE_ID, campos(), enviado = true)
 
         val estado = consultar(SALE_ID)
 
-        assertEquals(EstadoCorreccion.YaSeEnvio, estado)
+        assertEquals(EstadoCorreccion.CorregibleEnviada, estado)
+        assertSoloLeyoEstado()
+    }
+
+    @Test
+    fun `consulta una venta con una correccion ya en la cola sin reclamar nada`() = runTest {
+        port.siembra(SALE_ID, campos(), enviado = true, correccionRemotaPendiente = true)
+
+        val estado = consultar(SALE_ID)
+
+        assertEquals(EstadoCorreccion.CorreccionEnCamino, estado)
+        assertSoloLeyoEstado()
+    }
+
+    @Test
+    fun `consulta una venta que el servidor ya cerro sin reclamar nada`() = runTest {
+        port.siembra(
+            SALE_ID,
+            campos(),
+            enviado = true,
+            correccionRemotaEstado = CorreccionRemotaTerminal.RECHAZADA_ESTADO
+        )
+
+        val estado = consultar(SALE_ID)
+
+        assertEquals(EstadoCorreccion.LaOficinaYaLaAplico, estado)
+        assertSoloLeyoEstado()
+    }
+
+    @Test
+    fun `consulta una venta enviada con divergencia marcada sin reclamar nada`() = runTest {
+        port.siembra(SALE_ID, campos(), enviado = true, correccionNoEnviada = true)
+
+        val estado = consultar(SALE_ID)
+
+        assertEquals(EstadoCorreccion.LaRevisaLaOficina, estado)
         assertSoloLeyoEstado()
     }
 

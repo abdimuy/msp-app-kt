@@ -21,10 +21,19 @@ import org.junit.Test
  * lista vieja pintaba como dos personas distintas, así que el golden es también
  * la prueba visual de que ahora es una sola puerta.
  *
- * Desde la Task 21 la ruta lleva además **la promesa de Esperanza que cae hoy**,
- * porque el chip *hoy* ya se pinta (`HOY_VISIBLE`) y un golden con ese chip en 0
- * retrataría precisamente el estado que se decidió no shipear: una fila de
- * filtros con un chip que nunca marca nada.
+ * La ruta lleva además **la promesa de Esperanza**, que cae hoy. No se ve en la
+ * lista —cae en *volver*, y el golden se toma bajo *sin visitar*— pero sí en el
+ * conteo de su chip, que es justo lo que se quiere retratar: **los cuatro chips
+ * con una cifra distinta de cero cada uno**. Una fila de filtros con un chip que
+ * siempre marca 0 le enseña al cobrador que la fila miente, y cuando deja de
+ * leerla se pierden también los chips que sí sirven.
+ *
+ * ## Por qué el golden va bajo *sin visitar*, y no bajo un chip que lo enseñe todo
+ *
+ * Porque ya no hay ninguno: los cuatro **particionan** el catálogo de ocho desde
+ * que `TODOS` se retiró. *Sin visitar* es el chip con el que la pantalla abre
+ * (`ListaDeClientesUiState.segmento`), así que el golden retrata lo primero que
+ * ve el cobrador al entrar, que es lo que un golden de matriz debería retratar.
  */
 class ListaMatrixScreenshotTest : PagosScreenshotTest() {
 
@@ -64,12 +73,13 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
         name = "pagos_lista_vacia_${tema(dark)}",
         dark = dark
     ) {
-        // Con `vencidos`: el estado vacío se retrata con un chip que el cobrador
-        // usa todos los días, no con el que acaba de encenderse.
+        // Con *volver*: el estado vacío se retrata bajo un chip que el cobrador
+        // toca todos los días, no bajo el de arranque —que es el único que el
+        // resto de la matriz ya enseña.
         Lista(
             ListaDeClientesUiState(
                 cargando = false,
-                segmento = SegmentoDeCobranza.VENCIDOS,
+                segmento = SegmentoDeCobranza.VOLVER_A_VISITAR,
                 temaOscuro = dark
             )
         )
@@ -90,7 +100,7 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
     private fun estadoDeLaRuta(dark: Boolean): ListaDeClientesUiState {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.rutaConPromesaDeHoy(),
-            segmento = SegmentoDeCobranza.TODOS,
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
@@ -98,6 +108,10 @@ class ListaMatrixScreenshotTest : PagosScreenshotTest() {
             cargando = false,
             clientes = proyeccion.clientes,
             conteos = proyeccion.conteos,
+            // Explícito aunque coincida con el default: el chip pintado y el que
+            // filtró la lista tienen que ser el mismo, o el golden retrataría una
+            // pantalla que la app no puede producir.
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
             temaOscuro = dark
         )
     }

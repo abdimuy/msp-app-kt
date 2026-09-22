@@ -5,6 +5,7 @@ import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReloj
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeVentaLocalCorreccionPort
 import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
+import com.example.msp_app.feature.ventacorreccion.domain.CorreccionRemotaTerminal
 import com.example.msp_app.feature.ventacorreccion.domain.EstadoCorreccion
 import com.example.msp_app.feature.ventacorreccion.domain.usecase.ConsultarEstadoCorreccion
 import kotlinx.coroutines.test.runTest
@@ -71,13 +72,43 @@ class EstadoCorreccionViewModelTest {
         assertEquals(0, port.reclamarParaEditarCallCount)
     }
 
+    /**
+     * El punto de entrada del nivel 2: una venta ya enviada y limpia refleja
+     * [EstadoCorreccion.CorregibleEnviada], que `EntradaCorreccion` pinta con el MISMO botón
+     * que [EstadoCorreccion.Corregible]. Antes reflejaba [EstadoCorreccion.YaSeEnvio] y el dueño
+     * se quedaba sin salida sobre su propia venta.
+     */
     @Test
-    fun `consultar una venta ya enviada refleja YaSeEnvio`() = runTest {
+    fun `consultar una venta ya enviada y limpia refleja CorregibleEnviada`() = runTest {
         port.siembra(SALE_ID, campos(), enviado = true)
 
         viewModel.consultar(SALE_ID)
 
-        assertEquals(EstadoCorreccion.YaSeEnvio, viewModel.estado.value)
+        assertEquals(EstadoCorreccion.CorregibleEnviada, viewModel.estado.value)
+    }
+
+    @Test
+    fun `consultar una venta con la correccion ya en la cola refleja CorreccionEnCamino`() =
+        runTest {
+            port.siembra(SALE_ID, campos(), enviado = true, correccionRemotaPendiente = true)
+
+            viewModel.consultar(SALE_ID)
+
+            assertEquals(EstadoCorreccion.CorreccionEnCamino, viewModel.estado.value)
+        }
+
+    @Test
+    fun `consultar una venta que el servidor ya cerro refleja LaOficinaYaLaAplico`() = runTest {
+        port.siembra(
+            SALE_ID,
+            campos(),
+            enviado = true,
+            correccionRemotaEstado = CorreccionRemotaTerminal.CONFLICTO
+        )
+
+        viewModel.consultar(SALE_ID)
+
+        assertEquals(EstadoCorreccion.LaOficinaYaLaAplico, viewModel.estado.value)
     }
 
     @Test

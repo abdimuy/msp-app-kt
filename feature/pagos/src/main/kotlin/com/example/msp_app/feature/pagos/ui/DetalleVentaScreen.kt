@@ -20,6 +20,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -44,6 +47,7 @@ import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.EstadoEnGrande
 import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
 import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
+import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
 import com.example.msp_app.feature.pagos.ui.components.RitmoDeSemanas
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
@@ -51,6 +55,7 @@ import com.example.msp_app.feature.pagos.ui.components.Tarjeta
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeGarantia
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeLiquidacion
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeSaldo
+import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 import com.example.msp_app.feature.pagos.ui.components.TresDatos
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
 import java.time.format.DateTimeFormatter
@@ -81,6 +86,20 @@ private val FECHA_DE_VENTA: DateTimeFormatter = DateTimeFormatter.ofPattern(
  * mecanismo es UNO (`:core:designsystem`); lo que cambia por pantalla es qué tema
  * envuelve. Esta **todavía no pinta el glifo**: el host se instala igual, para
  * que el día que lo pinte no lo pinte con otra animación.
+ *
+ * ## [onVerTicket] — la reimpresión del último cobro del día
+ *
+ * Sobre el cobro de HOY que además es el ÚLTIMO de esa cuenta, tocar el renglón
+ * **pregunta** qué abrir —ubicación o ticket— en vez de ir derecho al mapa. En
+ * cualquier otro renglón el gesto es el de siempre: si el toque cambiara de
+ * significado en todos los pagos, dejaría de ser predecible por una función que
+ * sólo sirve en un caso. Quién lo decide es
+ * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto], dominio puro.
+ *
+ * Es un destino de `:app` como el mapa, y la ruta ya existía
+ * ([PagosRutas.ticketDePago]): la pantalla del ticket es la misma a la que llega
+ * la captura de un abono. **La regla de "sólo se imprime el día del cobro" no
+ * se toca aquí**: se comprueba al imprimir, dentro del ticket.
  */
 @Composable
 fun DetalleVentaScreen(
@@ -91,7 +110,8 @@ fun DetalleVentaScreen(
     onVerAbonos: (Int) -> Unit,
     onVerGarantia: (Int) -> Unit,
     onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onVerTicket: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val detalle = state.detalle
@@ -132,6 +152,7 @@ fun DetalleVentaScreen(
             // así que viaja vacía y la hoja del mapa la enseña como ausente
             // (`HojaDeLaUbicacion`, `direccion.ifBlank { SIN_DIRECCION }`).
             onVerUbicacionDelContacto = { punto -> onVerUbicacion(punto, "") },
+            onVerTicket = onVerTicket,
             modifier = modifier
         )
     }
@@ -155,8 +176,13 @@ fun DetalleVentaContent(
     onVerGarantia: () -> Unit,
     modifier: Modifier = Modifier,
     linea: AccionesDeLaLinea = AccionesDeLaLinea(),
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerTicket: ((String) -> Unit)? = null
 ) {
+    // Cuál renglón está preguntando, por su `ContactoDeCobranza.id`. Ver el
+    // comentario gemelo en `BitacoraContent` para por qué vive aquí y no en el
+    // `UiState`.
+    var preguntaPor by rememberSaveable { mutableStateOf<String?>(null) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -185,7 +211,24 @@ fun DetalleVentaContent(
                     onVerAbonos = onVerAbonos,
                     onVerGarantia = onVerGarantia,
                     linea = linea,
-                    onVerUbicacionDelContacto = onVerUbicacionDelContacto
+                    onVerUbicacionDelContacto = onVerUbicacionDelContacto,
+                    toque = ToqueDeLaFila(
+                        // La línea del CLIENTE entero y no `delAlcance`: "el
+                        // último de la cuenta" se decide sobre todo lo que hay,
+                        // no sobre lo que las pastillas dejaron ver. Si no,
+                        // filtrar por "Visitas" volvería "último" a un cobro que
+                        // no lo es.
+                        contactos = detalle.contactos,
+                        hoy = detalle.hoy,
+                        onPreguntar = onVerTicket?.let {
+                            { contacto -> preguntaPor = contacto.id }
+                        },
+                        // Sin punto medido no hay hoja que abrir: el ticket
+                        // sale derecho. Ver `ToqueDelContacto.TICKET`.
+                        onVerTicket = onVerTicket?.let { ver ->
+                            { contacto -> ver(contacto.id) }
+                        }
+                    )
                 )
             }
         }
@@ -206,6 +249,23 @@ fun DetalleVentaContent(
             )
         }
     }
+    // FUERA del `Column`: el velo tiene que tapar la pantalla entera, incluidos
+    // el dock y la franja que `systemBarsPadding()` reserva. Mismo montaje que
+    // `HojaDeAbono` en el detalle de cliente.
+    val preguntando = state.detalle?.contactos?.firstOrNull { it.id == preguntaPor }
+    if (preguntando != null) {
+        HojaDelContacto(
+            onVerUbicacion = {
+                preguntaPor = null
+                preguntando.ubicacion?.let { punto -> onVerUbicacionDelContacto?.invoke(punto) }
+            },
+            onVerTicket = {
+                preguntaPor = null
+                onVerTicket?.invoke(preguntando.id)
+            },
+            onCerrar = { preguntaPor = null }
+        )
+    }
 }
 
 @Composable
@@ -216,7 +276,8 @@ private fun CuerpoDeLaVenta(
     onVerAbonos: () -> Unit,
     onVerGarantia: () -> Unit,
     linea: AccionesDeLaLinea,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null
+    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
+    toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
     Column(
         modifier = Modifier
@@ -280,7 +341,8 @@ private fun CuerpoDeLaVenta(
             detalle = detalle,
             linea = linea,
             onVerAbonos = onVerAbonos,
-            onVerUbicacion = onVerUbicacionDelContacto
+            onVerUbicacion = onVerUbicacionDelContacto,
+            toque = toque
         )
 
         if (detalle.productos.isNotEmpty()) {
@@ -456,7 +518,8 @@ internal fun LineaDeLaVenta(
     detalle: DetalleVenta,
     linea: AccionesDeLaLinea,
     onVerAbonos: () -> Unit,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
+    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null,
+    toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
     val delAlcance = if (linea.soloEstaVenta) {
         detalle.contactos.filter { it.ventaId == detalle.ventaId }
@@ -489,7 +552,8 @@ internal fun LineaDeLaVenta(
                 ContactoEnLinea(
                     contacto = contacto,
                     deEstaVenta = contacto.ventaId == detalle.ventaId,
-                    onVerUbicacion = onVerUbicacion
+                    onVerUbicacion = onVerUbicacion,
+                    toque = toque
                 )
             }
         }

@@ -2,8 +2,11 @@ package com.example.msp_app.feature.pagos.ui
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.AvisosDelAbono
 import com.example.msp_app.feature.pagos.domain.Comprobantes
+import com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
+import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
 import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
@@ -85,6 +88,7 @@ object AbonoFixtures {
         return DetalleVenta(
             ventaId = VENTA_ID,
             folio = "V-5188",
+            hoy = PagosFixtures.HOY,
             creditoId = 12232,
             clienteId = PagosFixtures.CLIENTE_ID,
             clienteNombre = "Victoria Flores Olmedo",
@@ -92,6 +96,10 @@ object AbonoFixtures {
             fechaVenta = FECHA_DE_VENTA,
             saldo = SALDO,
             parcialidad = PARCIALIDAD,
+            // La venta del mock no trae pagos en el historial, así que la cuota
+            // se queda en la parcialidad capturada: es el escalón 2/3 sin nada
+            // que la contradiga, y es el comportamiento de siempre.
+            cuota = CuotaDeLaVenta(PARCIALIDAD, OrigenDeLaCuota.PARCIALIDAD),
             frecuencia = "semanal",
             abonosPagados = plan.pagados,
             abonosTotales = plan.totales,
@@ -160,6 +168,34 @@ object AbonoFixtures {
         )
     }
 
+    /**
+     * **La parcialidad de la venta se ve mal**: el caso `Y00002184`, con la
+     * cuota marcada [OrigenDeLaCuota.DUDOSA].
+     *
+     * La venta dice $3,000 y no tiene un solo pago que lo respalde. La pantalla
+     * no ofrece ese esperado —ni chip, ni prellenado, ni abono corto— y en su
+     * lugar dice que hay que revisar el dato. El teclado arranca en blanco
+     * porque no hay cifra que proponer.
+     */
+    fun conCuotaDudosa(): RegistrarAbonoUiState {
+        val venta = detalle().copy(
+            parcialidad = dinero("3000"),
+            cuota = CuotaDeLaVenta(dinero("3000"), OrigenDeLaCuota.DUDOSA)
+        )
+        return RegistrarAbonoUiState(
+            cargando = false,
+            venta = venta,
+            monto = MontoCapturado(),
+            sugeridos = MontosSugeridos.de(venta, PagosFixtures.HOY),
+            veredicto = SeguridadDelAbono.evaluar(
+                monto = Money.ZERO,
+                saldo = venta.saldo,
+                esperadoHoy = MontosSugeridos.esperadoHoy(venta),
+                yaAbonoEstePeriodo = false
+            )
+        )
+    }
+
     /** El estado de pantalla en captura, con lo esperado hoy ya puesto. */
     fun enCaptura(estado: EstadoDelPeriodo = estadoSinTocar()): RegistrarAbonoUiState =
         conMonto(MontoCapturado.deSugerido(ESPERADO_HOY), estado)
@@ -174,7 +210,8 @@ object AbonoFixtures {
             confirmacion = ConfirmacionPendiente(
                 importe = base.monto.importe,
                 metodo = base.metodo,
-                veredicto = base.veredicto
+                veredicto = base.veredicto,
+                aviso = base.aviso
             )
         )
     }
@@ -191,7 +228,8 @@ object AbonoFixtures {
                 confirmacion = ConfirmacionPendiente(
                     importe = base.monto.importe,
                     metodo = base.metodo,
-                    veredicto = base.veredicto
+                    veredicto = base.veredicto,
+                    aviso = base.aviso
                 )
             )
         }
@@ -215,28 +253,96 @@ object AbonoFixtures {
                 confirmacion = ConfirmacionPendiente(
                     importe = base.monto.importe,
                     metodo = base.metodo,
-                    veredicto = base.veredicto
+                    veredicto = base.veredicto,
+                    aviso = base.aviso
                 )
             )
         }
 
     /**
-     * **Corto Y duplicado a la vez**: $150 sobre una venta que espera $120 y que
+     * **Corto Y duplicado a la vez**: $50 sobre una venta que espera $120 y que
      * ya recibió $100 esta semana. Gana la más grave — la hoja escala.
      *
-     * Con `abonoDelPeriodo = $100` sobre una parcialidad de $220, lo esperado hoy
-     * baja a $120, así que $150 **no** es corto contra esa cifra. Para que las
-     * dos rarezas coincidan de verdad el monto tiene que quedar por debajo de
-     * $120: se usa $100, que además termina en 00 y no llega a 5x, o sea que las
-     * únicas dos encendidas son las que este fixture quiere.
+     * Con `abonoDelPeriodo = $100` sobre una parcialidad de $220, lo esperado
+     * hoy baja a $120, así que el monto tiene que quedar por debajo de esa
+     * cifra. **Y no puede ser uno de los chips**: desde que la app no interroga
+     * lo que ella misma propuso, $100 —que es el redondo más común y sí está en
+     * la fila— dejó de encender el abono corto. $50 cumple las tres: es corto,
+     * es múltiplo de 50 y **no** lo ofrece la pantalla.
      */
     fun enAbonoCortoYDuplicado(): RegistrarAbonoUiState =
+        conMonto(MontoCapturado(crudo = "50"), estadoConAbonoParcial()).let { base ->
+            base.copy(
+                confirmacion = ConfirmacionPendiente(
+                    importe = base.monto.importe,
+                    metodo = base.metodo,
+                    veredicto = base.veredicto,
+                    aviso = base.aviso
+                )
+            )
+        }
+
+    /**
+     * **Nivel 2**: $900 sobre una cuota de $220 son 4.09 cuotas (el 0.70 % de
+     * los abonos de la ruta). Es múltiplo de 50 y está por encima de lo
+     * esperado, así que la ÚNICA señal encendida es la de las cuotas — lo que
+     * hace que el mensaje que se pinta sea inequívocamente el suyo.
+     */
+    fun enAvisoDeCuotas(): RegistrarAbonoUiState =
+        conMonto(MontoCapturado(crudo = "900"), estadoSinTocar())
+
+    /**
+     * **Nivel 3**: $1,400 son 6.36 cuotas de $220, o sea más de seis. Sigue por
+     * debajo del saldo ($1,450): lo que cambia no es si se puede registrar, es
+     * cuánto cuesta decir que sí.
+     */
+    fun enAvisoDeTeclear(): RegistrarAbonoUiState =
+        conMonto(MontoCapturado(crudo = "1400"), estadoSinTocar())
+
+    /** El paso dos de nivel 3, con el campo del eco todavía vacío. */
+    fun tecleandoElMonto(eco: String = ""): RegistrarAbonoUiState = enAvisoDeTeclear()
+        .let { base ->
+            base.copy(
+                confirmacion = ConfirmacionPendiente(
+                    importe = base.monto.importe,
+                    metodo = base.metodo,
+                    veredicto = base.veredicto,
+                    aviso = base.aviso,
+                    eco = eco
+                )
+            )
+        }
+
+    /** El paso dos de nivel 2: un toque extra, sin teclear nada. */
+    fun confirmandoConUnToque(): RegistrarAbonoUiState = enAvisoDeCuotas().let { base ->
+        base.copy(
+            confirmacion = ConfirmacionPendiente(
+                importe = base.monto.importe,
+                metodo = base.metodo,
+                veredicto = base.veredicto,
+                aviso = base.aviso
+            )
+        )
+    }
+
+    /**
+     * **Un chip que está por debajo de lo esperado**: $100 sobre una venta que
+     * espera $120 y que ya cobró esta semana.
+     *
+     * Es el caso que la regla "la app no interroga lo que propuso" vino a
+     * arreglar: $100 es el redondo más común de la ruta y la fila lo está
+     * ofreciendo, así que tocarlo **no** puede abrir una hoja que le reclame al
+     * cobrador haberlo tocado. El duplicado sí sigue saliendo: ése no es un
+     * juicio sobre el monto, es un hecho sobre la cuenta.
+     */
+    fun enChipCortoYDuplicado(): RegistrarAbonoUiState =
         conMonto(MontoCapturado(crudo = "100"), estadoConAbonoParcial()).let { base ->
             base.copy(
                 confirmacion = ConfirmacionPendiente(
                     importe = base.monto.importe,
                     metodo = base.metodo,
-                    veredicto = base.veredicto
+                    veredicto = base.veredicto,
+                    aviso = base.aviso
                 )
             )
         }
@@ -331,16 +437,28 @@ object AbonoFixtures {
 
     private fun conMonto(monto: MontoCapturado, estado: EstadoDelPeriodo): RegistrarAbonoUiState {
         val venta = detalle(estado)
+        val sugeridos = MontosSugeridos.de(venta, PagosFixtures.HOY)
         return RegistrarAbonoUiState(
             cargando = false,
             venta = venta,
             monto = monto,
-            sugeridos = MontosSugeridos.de(venta, PagosFixtures.HOY),
+            sugeridos = sugeridos,
             veredicto = SeguridadDelAbono.evaluar(
                 monto = monto.importe,
                 saldo = venta.saldo,
                 esperadoHoy = MontosSugeridos.esperadoHoy(venta),
                 yaAbonoEstePeriodo = venta.estado.abonoDelPeriodo > Money.ZERO
+            ),
+            // El aviso se CALCULA con la misma llamada que hace el ViewModel, no
+            // se pone a mano: un fixture que fijara el nivel podría pintar una
+            // pantalla que el clasificador nunca produce.
+            aviso = AvisosDelAbono.evaluar(
+                monto = monto.importe,
+                saldo = venta.saldo,
+                parcialidad = venta.parcialidad,
+                esperadoHoy = MontosSugeridos.esperadoHoy(venta),
+                historial = emptyList(),
+                sugeridos = sugeridos.map { it.importe }
             )
         )
     }

@@ -3,17 +3,23 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.feature.pagos.domain.AbonoPrevio
 import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
+import com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
+import com.example.msp_app.feature.pagos.domain.LineaBaseDeLaRuta
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.RielDePagos
 import com.example.msp_app.feature.pagos.domain.RitmoDePagos
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.HistorialDePagos
+import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
+import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
+import java.time.LocalDate
 import javax.inject.Inject
 
 /**
@@ -26,6 +32,7 @@ class CargarDetalleVenta @Inject constructor(
     private val ventasPort: VentasPort,
     private val garantiasPort: GarantiasPort,
     private val productosPort: ProductosPort,
+    private val pagosPort: PagosPort,
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
     private val clock: AppClock
 ) {
@@ -52,11 +59,10 @@ class CargarDetalleVenta @Inject constructor(
         val cobranza = reunirCobranzaDelCliente(cabecera.clienteId)
         val venta = cobranza.ventas.firstOrNull { it.ventaId == ventaId } ?: return null
         val pagos = cobranza.pagosDe(ventaId)
-        val semanas = RitmoDePagos.de(
-            pagos = pagos,
-            parcialidad = venta.parcialidad,
-            hoy = AppTime.todayInBusinessZone(clock)
-        )
+        // UNA lectura del reloj para el ritmo Y para el "hoy" que viaja a la
+        // pantalla. Con dos lecturas, una carga que cruce la medianoche armaría
+        // el ritmo con un día y decidiría el toque de las filas con el otro.
+        val hoy = AppTime.todayInBusinessZone(clock)
         val plan = PlanDeAbonos.de(
             totalVenta = venta.totalVenta,
             abonado = venta.abonado,
@@ -70,9 +76,13 @@ class CargarDetalleVenta @Inject constructor(
             clienteId = venta.clienteId,
             clienteNombre = venta.clienteNombre,
             titulo = venta.descripcion.ifBlank { venta.folio },
+            // El "hoy" con el que el toque de un renglón sabe si ese cobro es de
+            // hoy. Ver el KDoc de `DetalleVenta.hoy`.
+            hoy = hoy,
             fechaVenta = venta.fechaVenta,
             saldo = venta.saldo,
             parcialidad = venta.parcialidad,
+            cuota = cuotaDe(venta.parcialidad, pagos),
             frecuencia = venta.frecuencia,
             abonosPagados = plan.pagados,
             abonosTotales = plan.totales,
@@ -89,12 +99,7 @@ class CargarDetalleVenta @Inject constructor(
                 venta.descripcion,
                 venta.totalVenta
             ),
-            historial = HistorialDePagos(
-                semanas = semanas,
-                resumen = RitmoDePagos.resumen(semanas),
-                meses = RielDePagos.de(pagos),
-                totalPagos = pagos.size
-            ),
+            historial = historialDe(pagos, venta.parcialidad, hoy),
             // La línea del CLIENTE entero, no la de esta cuenta: `cobranza` ya
             // la traía reunida para derivar el estado y se estaba tirando. Ver
             // el KDoc de `DetalleVenta.contactos`. Por lo mismo, `cuentas` sale
@@ -112,6 +117,51 @@ class CargarDetalleVenta @Inject constructor(
             // aproximación, la de la cuenta que encabeza— aquí no hace falta
             // aproximar nada, la venta ya está resuelta.
             nota = venta.notas.takeIf { it.isNotBlank() }
+        )
+    }
+
+    /**
+     * **La cuota que la pantalla puede afirmar**, por la precedencia de tres
+     * escalones de [CuotaDeLaVenta].
+     *
+     * La línea base de la ruta se pide **sólo cuando hace falta**: es el
+     * escalón 3, el de las ventas sin un solo pago (12 de 314), y la consulta
+     * recorre los miles de abonos del teléfono. Cobrársela al 96 % de las
+     * cargas que no la van a usar sería pagar por todos el costo de la
+     * excepción — el mismo criterio con el que la foto vive debajo del teclado.
+     */
+    private suspend fun cuotaDe(parcialidad: Money, pagos: List<PagoDelHistorial>): CuotaDeLaVenta {
+        val previos = pagos.map { AbonoPrevio(fecha = it.fecha, importe = it.importe) }
+        val lineaBase = if (previos.none { it.importe > Money.ZERO }) {
+            LineaBaseDeLaRuta.de(pagosPort.importesCobrados())
+        } else {
+            null
+        }
+        return CuotaDeLaVenta.de(
+            parcialidad = parcialidad,
+            pagosDeLaVenta = previos,
+            lineaBase = lineaBase
+        )
+    }
+
+    /**
+     * El historial **ritmo + riel** de esta cuenta.
+     *
+     * Aparte del `invoke` sólo para que ese método quepa en el largo que detekt
+     * admite; el `hoy` llega por parámetro —de la ÚNICA lectura del reloj de la
+     * carga— y no se vuelve a pedir aquí, que es la parte que sí importa.
+     */
+    private fun historialDe(
+        pagos: List<PagoDelHistorial>,
+        parcialidad: Money,
+        hoy: LocalDate
+    ): HistorialDePagos {
+        val semanas = RitmoDePagos.de(pagos = pagos, parcialidad = parcialidad, hoy = hoy)
+        return HistorialDePagos(
+            semanas = semanas,
+            resumen = RitmoDePagos.resumen(semanas),
+            meses = RielDePagos.de(pagos),
+            totalPagos = pagos.size
         )
     }
 

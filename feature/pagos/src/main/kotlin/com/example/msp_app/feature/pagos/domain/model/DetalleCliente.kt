@@ -2,6 +2,8 @@ package com.example.msp_app.feature.pagos.domain.model
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
+import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import java.time.Instant
 import java.time.LocalDate
 
@@ -134,7 +136,7 @@ data class DetalleCliente(
  */
 data class ResumenDelCliente(
     /** Lo que suele dar por visita. `null` = ninguna cuenta trae el dato. */
-    val sueleDar: Money? = null,
+    val promedioDeMicrosip: Money? = null,
     /** Lo que hay que pedirle hoy para dejarlo sin atraso. */
     val pideleHoy: Money = Money.ZERO,
     /** El día del último abono, de la cuenta que sea. `null` si nunca pagó. */
@@ -196,7 +198,22 @@ data class VentaDelCliente(
     /** "Hoy liquida con" de ESTA venta — por venta, nunca por cliente. */
     override val liquidacion: Liquidacion? = null,
     /** Lo que suele dar en esta cuenta. Ver [DatosDeVenta.pagoPromedio]. */
-    val pagoPromedio: Money? = null
+    val pagoPromedio: Money? = null,
+    /**
+     * La cuota afirmable de esta cuenta.
+     *
+     * **El detalle de CLIENTE todavía no la deriva**: por default es la
+     * parcialidad capturada, o sea el comportamiento de siempre. La regla de
+     * los tres escalones ([CuotaDeLaVenta]) entró por la pantalla de abono, que
+     * es donde el dueño vio el defecto y la única que ya cargaba los pagos de
+     * cada venta.
+     *
+     * Traerla acá es un paso aparte y NO gratis: `CargarDetalleCliente` tendría
+     * que leer los pagos de TODAS las ventas del cliente para derivar la moda
+     * de cada una. Se dice aquí, con su costo, en vez de dejar creer que el
+     * "pídele hoy" del detalle de cliente ya está cubierto — no lo está.
+     */
+    override val cuota: CuotaDeLaVenta = CuotaDeLaVenta(parcialidad, OrigenDeLaCuota.PARCIALIDAD)
 ) : CuentaCobrable
 
 /**

@@ -5,18 +5,29 @@ import com.example.msp_app.core.database.dao.localsale.LocalSaleClaimLeases
 /**
  * Espejo puro de los valores que puede traer la columna `CLAIM_KIND` de
  * `local_sale` (ver `LocalSaleDao`). `null` es "nadie tiene la venta";
- * cualquier otro valor que no sea `EDIT`/`UPLOAD` es un `CLAIM_KIND`
+ * cualquier otro valor que no sea `EDIT`/`UPLOAD`/`REMOTE` es un `CLAIM_KIND`
  * corrupto — el DAO ya lo trata como vencido por defensa en profundidad
  * ("una captura nunca se retiene para siempre"), y aquí se refleja igual: no
  * mapea a ningún [TipoCandado], así que [Reclamo.estaVivo] lo cuenta como
  * vencido.
+ *
+ * `REMOTE` **tiene que estar en esta lista**, y faltaba. Mientras no estuvo,
+ * el dominio contaba un `REMOTE` vivo como candado desconocido —es decir,
+ * vencido— y `evaluarCorregibilidad` devolvía `CorregibleEnviada`, mientras
+ * el `WHERE` de `claimForEdit` sí lo rechazaba. El síntoma es el que advierte
+ * el KDoc de ese DAO: la UI pinta "Corregir venta", el usuario lo toca y el
+ * candado devuelve 0 **sin una razón que mostrar**. Hoy casi siempre queda
+ * tapado porque en una corrida legítima `CORRECCION_REMOTA_PENDIENTE` está en
+ * 1 y el paso 2 de la precedencia dispara antes — pero esa coincidencia la
+ * sostienen los llamadores, no el esquema.
  */
-enum class TipoCandado { EDIT, UPLOAD }
+enum class TipoCandado { EDIT, UPLOAD, REMOTE }
 
 /** Traduce el `CLAIM_KIND` crudo de la fila a [TipoCandado]; `null` si es nulo, vacío o desconocido. */
 fun tipoCandadoDe(claimKind: String?): TipoCandado? = when (claimKind) {
     "EDIT" -> TipoCandado.EDIT
     "UPLOAD" -> TipoCandado.UPLOAD
+    "REMOTE" -> TipoCandado.REMOTE
     else -> null
 }
 
@@ -40,6 +51,7 @@ data class Reclamo(val kind: TipoCandado?, val claimedAt: Long?) {
         val leaseMs = when (tipoVigente) {
             TipoCandado.EDIT -> LocalSaleClaimLeases.EDIT_LEASE_MS
             TipoCandado.UPLOAD -> LocalSaleClaimLeases.UPLOAD_LEASE_MS
+            TipoCandado.REMOTE -> LocalSaleClaimLeases.REMOTE_LEASE_MS
         }
         // Vencido cuando `tomadoEn <= ahora - leaseMs`; vivo es lo contrario.
         return tomadoEn > ahora - leaseMs

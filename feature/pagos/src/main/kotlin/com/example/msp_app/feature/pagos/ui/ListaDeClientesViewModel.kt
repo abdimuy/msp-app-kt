@@ -32,7 +32,7 @@ data class ListaDeClientesUiState(
     /** Los clientes YA buscados, filtrados por chip y ordenados. */
     val clientes: List<ClienteEnLista> = emptyList(),
     val conteos: Map<SegmentoDeCobranza, Int> = emptyMap(),
-    val segmento: SegmentoDeCobranza = SegmentoDeCobranza.TODOS,
+    val segmento: SegmentoDeCobranza = SegmentoDeCobranza.SIN_VISITAR,
     val query: String = "",
     /**
      * La carga falló. No hay una segunda rama "no está en el teléfono" como en

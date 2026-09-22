@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.data.fake
 
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
@@ -85,6 +86,22 @@ class FakePagosPort : PagosPort {
     override suspend fun pagosDelPeriodo(ventana: VentanaCobro): List<PagoDelHistorial> {
         ventanasConsultadas += ventana
         return pagos.filter { ventana.contiene(it.fecha) }
+    }
+
+    /**
+     * Los importes que el teléfono tendría de TODA la ruta — la muestra de la
+     * línea base. Vacía por default: sin muestra no hay línea base y el escalón
+     * 3 no avisa, que es el lado conservador y el que casi todos los tests
+     * quieren.
+     */
+    var importesDeLaRuta: List<Money> = emptyList()
+
+    /** Cuántas veces se pidió la muestra de la ruta. Para afirmar que NO se pidió. */
+    var vecesQueSePidioLaRuta: Int = 0
+
+    override suspend fun importesCobrados(): List<Money> {
+        vecesQueSePidioLaRuta += 1
+        return importesDeLaRuta
     }
 
     /** Cada `pago(id)` recibido, en orden — para poder afirmar que NO se llamó. */

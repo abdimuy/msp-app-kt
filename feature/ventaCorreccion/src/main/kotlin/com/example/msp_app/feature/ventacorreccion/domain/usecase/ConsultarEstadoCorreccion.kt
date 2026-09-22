@@ -26,6 +26,8 @@ class ConsultarEstadoCorreccion @Inject constructor(
             enviado = estado.enviado,
             permanente = estado.permanente,
             correccionNoEnviada = estado.correccionNoEnviada,
+            correccionRemotaPendiente = estado.correccionRemotaPendiente,
+            correccionRemotaEstado = estado.correccionRemotaEstado,
             claimKind = estado.claimKind,
             claimedAt = estado.claimedAt,
             ahora = reloj.ahoraEpochMillis()

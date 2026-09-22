@@ -6,8 +6,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Forma de las siete cadenas de [TextosCorreccion] (plan "Corregir una venta
- * antes de que suba", corrección 1 del orquestador): 2 a 4 palabras, arranca
+ * Forma de las nueve cadenas de [TextosCorreccion] (plan "Corregir una venta
+ * antes de que suba", corrección 1 del orquestador; las dos últimas llegaron
+ * con el nivel 2, "Corregir una venta DESPUÉS de que subió"): 2 a 4 palabras, arranca
  * con mayúscula, sin punto final, nunca la palabra "ciclo"
  * (`feedback_ui_nunca_decir_ciclo`) — como PRUEBA, no como comentario que
  * nadie vuelve a leer. [TextosCorreccion.NO_SE_PUDO_GUARDAR] se agregó en la
@@ -36,8 +37,8 @@ class TextosCorreccionTest {
             .map { it.name to (it.get(null) as String) }
 
     @Test
-    fun `hay exactamente siete cadenas`() {
-        assertEquals(7, todasLasCadenas.size)
+    fun `hay exactamente diez cadenas`() {
+        assertEquals(10, todasLasCadenas.size)
     }
 
     @Test
@@ -87,6 +88,9 @@ class TextosCorreccionTest {
         val esperadas = mapOf(
             "CORREGIR_VENTA" to "Corregir venta",
             "SE_ESTA_ENVIANDO" to "Se está enviando",
+            "CORRECCION_EN_CAMINO" to "Corrección en camino",
+            "LA_APLICO_LA_OFICINA" to "La aplicó la oficina",
+            "SE_APLICO_A_MEDIAS" to "Entró a medias, revísala",
             "YA_SE_ENVIO" to "Ya se envió",
             "LA_REVISA_LA_OFICINA" to "La revisa la oficina",
             "CORRECCION_GUARDADA" to "Corrección guardada",

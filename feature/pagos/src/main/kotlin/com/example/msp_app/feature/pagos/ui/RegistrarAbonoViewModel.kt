@@ -11,6 +11,9 @@ import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.RegistrarAbono
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
+import com.example.msp_app.feature.pagos.domain.AbonoPrevio
+import com.example.msp_app.feature.pagos.domain.AvisoDelMonto
+import com.example.msp_app.feature.pagos.domain.AvisosDelAbono
 import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.SeguridadDelAbono
@@ -19,6 +22,7 @@ import com.example.msp_app.feature.pagos.domain.model.ComprobanteDelAbono
 import com.example.msp_app.feature.pagos.domain.model.DestinoDeFoto
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.domain.model.TipoDeContacto
 import com.example.msp_app.feature.pagos.domain.port.ComprobantesPort
 import com.example.msp_app.feature.pagos.domain.port.ResultadoDelAbono
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
@@ -630,7 +634,8 @@ class RegistrarAbonoViewModel @Inject constructor(
             confirmacion = ConfirmacionPendiente(
                 importe = actual.monto.importe,
                 metodo = actual.metodo,
-                veredicto = actual.veredicto
+                veredicto = actual.veredicto,
+                aviso = actual.aviso
             ),
             fallo = null
         )
@@ -652,7 +657,7 @@ class RegistrarAbonoViewModel @Inject constructor(
         val venta = actual.venta ?: return
         // Sin paso uno no hay paso dos: nadie registra sin haber confirmado.
         val confirmacion = actual.confirmacion ?: return
-        if (SeguridadDelAbono.bloqueosDe(confirmacion.importe, venta.saldo).isNotEmpty()) return
+        if (!puedeEscribirse(confirmacion, venta)) return
         if (yaSeEncolo || actual.guardando || actual.registrado != null) return
         // Sincrónico y ANTES del launch: ni un doble toque rápido ni un toque
         // sobre el ViewModel recreado pueden colarse entre el chequeo y aquí.
@@ -662,6 +667,25 @@ class RegistrarAbonoViewModel @Inject constructor(
             aplicar(escribir(venta, confirmacion))
         }
     }
+
+    /**
+     * Las dos guardas que [confirmar] vuelve a abrochar **antes** de mover
+     * dinero, juntas porque las dos contestan la misma pregunta: ¿esta
+     * confirmación todavía vale?
+     *
+     * 1. **El cinturón del sobrepago**, contra el saldo vigente: la hoja congeló
+     *    su veredicto para pintarlo, no para decidir. Es la MISMA función que
+     *    usa la pantalla (`bloqueosDe`), que es lo que hace imposible que las
+     *    dos discrepen.
+     * 2. **El eco del nivel 3**: el monto tecleado otra vez. Vive aquí y no sólo
+     *    en el `enabled` del botón porque un `enabled` es presentación —
+     *    cualquier otro llamador de `confirmar()` se lo saltaría— y éste es el
+     *    único camino que escribe dinero. Avisar no es bloquear: esta guarda no
+     *    impide registrar, sólo exige que el monto se haya escrito dos veces.
+     */
+    private fun puedeEscribirse(confirmacion: ConfirmacionPendiente, venta: DetalleVenta): Boolean =
+        SeguridadDelAbono.bloqueosDe(confirmacion.importe, venta.saldo).isEmpty() &&
+            confirmacion.sePuedeConfirmar
 
     /**
      * ¿El abono está en la base? La MISMA pregunta que hace [resolverGuard], y
@@ -905,7 +929,11 @@ class RegistrarAbonoViewModel @Inject constructor(
                 RegistrarAbonoUiState(
                     cargando = false,
                     venta = venta,
-                    sugeridos = MontosSugeridos.de(venta, AppTime.todayInBusinessZone(clock)),
+                    sugeridos = MontosSugeridos.de(
+                        venta = venta,
+                        hoy = AppTime.todayInBusinessZone(clock),
+                        historial = historialDelCliente(venta)
+                    ),
                     monto = montoInicialDe(venta),
                     registrado = resolverGuard(venta)
                     // Lo capturado NO se repone aquí: lo cuelga `conLoCapturado`
@@ -951,19 +979,77 @@ class RegistrarAbonoViewModel @Inject constructor(
         return null
     }
 
-    /** Recalcula el veredicto sobre el estado dado. Único lugar que lo hace. */
+    /**
+     * Recalcula el veredicto **y el aviso** sobre el estado dado. Único lugar
+     * que lo hace.
+     *
+     * Los dos salen de aquí, juntos, a propósito: el bloqueo duro y el nivel de
+     * fricción se leen del MISMO monto en el MISMO instante, así que no existe
+     * un estado publicado donde la banda diga una cosa y la hoja otra.
+     */
     private fun conVeredicto(estado: RegistrarAbonoUiState): RegistrarAbonoUiState {
-        val venta = estado.venta ?: return estado.copy(veredicto = VeredictoDelAbono.SIN_VENTA)
+        val venta = estado.venta ?: return estado.copy(
+            veredicto = VeredictoDelAbono.SIN_VENTA,
+            aviso = AvisoDelMonto.NINGUNO
+        )
+        val esperadoHoy = MontosSugeridos.esperadoHoy(venta)
         return estado.copy(
             veredicto = SeguridadDelAbono.evaluar(
                 monto = estado.monto.importe,
                 saldo = venta.saldo,
-                esperadoHoy = MontosSugeridos.esperadoHoy(venta),
+                esperadoHoy = esperadoHoy,
                 // Se consume el dinero del periodo YA derivado. No se mira
                 // ninguna visita: el pago sigue soberano.
                 yaAbonoEstePeriodo = venta.estado.abonoDelPeriodo > Money.ZERO
+            ),
+            aviso = AvisosDelAbono.evaluar(
+                monto = estado.monto.importe,
+                saldo = venta.saldo,
+                parcialidad = venta.parcialidad,
+                esperadoHoy = esperadoHoy,
+                historial = historialDelCliente(venta),
+                // Los chips QUE SE ESTÁN PINTANDO, no los que se podrían
+                // calcular: la regla es "la app no interroga lo que propuso", y
+                // lo que propuso es exactamente esta lista.
+                sugeridos = estado.sugeridos.map { it.importe }
             )
         )
+    }
+
+    /**
+     * Los abonos que este CLIENTE ya dio, proyectados a lo único que la moda
+     * necesita: cuánto y cuándo.
+     *
+     * Sale de `DetalleVenta.contactos` y no de `DetalleVenta.historial` a
+     * propósito: aquél es **todo lo que pasó con el cliente**, cobros de todas
+     * sus cuentas, y éste es sólo el de ESTA venta. "Lo que suele dar" es una
+     * costumbre de la persona parada en la puerta, no de un crédito — el mismo
+     * argumento por el que `MontosSugeridosDelCliente.promedioDeMicrosip` suma por cliente
+     * y no por cuenta. Y no cuesta ninguna consulta nueva: la carga ya los trae.
+     *
+     * Se filtran las visitas: una puerta tocada sin cobrar no es un monto.
+     */
+    private fun historialDelCliente(venta: DetalleVenta): List<AbonoPrevio> = venta.contactos
+        .filter { it.tipo == TipoDeContacto.COBRO }
+        .mapNotNull { contacto ->
+            contacto.importe?.let { AbonoPrevio(fecha = contacto.fecha, importe = it) }
+        }
+
+    /**
+     * El **eco** del nivel 3: el monto tecleado por segunda vez.
+     *
+     * No pasa por [editar] ni toca [RegistrarAbonoUiState.monto]: lo que se
+     * escribe aquí no es un monto a registrar, es una comprobación de que el de
+     * arriba se escribió a propósito. Si moviera la captura, borrar un dígito
+     * aquí cambiaría lo que se va a cobrar.
+     */
+    fun onEcoDelMonto(texto: String) {
+        val actual = mutableState.value
+        val confirmacion = actual.confirmacion ?: return
+        // Sólo dígitos y punto: el teclado numérico del sistema deja pasar
+        // signos y espacios, y un monto no los tiene.
+        val limpio = texto.filter { it.isDigit() || it == '.' }
+        mutableState.value = actual.copy(confirmacion = confirmacion.copy(eco = limpio))
     }
 
     /** El resultado de preguntarle a la base si el abono quedó. */

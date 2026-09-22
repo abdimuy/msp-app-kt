@@ -44,7 +44,10 @@ import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspColors
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.pagos.domain.AvisoDelMonto
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
+import com.example.msp_app.feature.pagos.domain.NivelDeAviso
+import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.ui.MontoCapturado
 
@@ -53,6 +56,16 @@ const val CAPTURA_TAG: String = "pagos_abono_captura"
 
 /** `testTag` de la banda roja del bloqueo duro por sobrepago. */
 const val BLOQUEO_TAG: String = "pagos_abono_bloqueo"
+
+/** `testTag` de la banda que dice que la parcialidad de la venta se ve mal. */
+const val CUOTA_DUDOSA_TAG: String = "pagos_abono_cuota_dudosa"
+
+/**
+ * `testTag` de la banda de aviso **en vivo**, la que sale mientras se teclea.
+ * Una sola para los dos niveles que hablan: lo que cambia es el color y el
+ * texto, no el lugar.
+ */
+const val AVISO_TAG: String = "pagos_abono_aviso"
 
 /** Prefijo del `testTag` de cada chip sugerido; se completa con el nombre del sugerido. */
 const val CHIP_SUGERIDO_TAG: String = "pagos_abono_sugerido_"
@@ -364,7 +377,7 @@ private fun ChipSugerido(
         onClick = onClick,
         modifier = modifier
             .heightIn(min = TOQUE)
-            .testTag(CHIP_SUGERIDO_TAG + sugerido.cual.name.lowercase()),
+            .testTag(CHIP_SUGERIDO_TAG + sugerido.clave),
         shape = MspTheme.shapes.field,
         color = fondoDelSugerido(sugerido.cual, colors),
         border = androidx.compose.foundation.BorderStroke(1.5.dp, contenido)
@@ -393,18 +406,161 @@ private fun ChipSugerido(
     }
 }
 
-/** Color de contenido de cada sugerido — tabla del Task 2 §5, no la esmeralda del mock. */
+/**
+ * Color de contenido de cada sugerido — tabla del Task 2 §5, no la esmeralda del
+ * mock.
+ *
+ * Las dos fuentes nuevas NO reciben color de estado, y es deliberado: "lo de
+ * siempre" y los redondos no dicen nada del periodo de esta cuenta —no la ponen
+ * al corriente, no la cierran—, así que pintarlos de verde o de turquesa
+ * prometería una consecuencia que no tienen. "Lo de siempre" va en `brand`
+ * porque es un dato de ESTE cliente, y los redondos en `onSurfaceMuted` porque
+ * son la misma cifra para toda la ruta.
+ */
 fun contenidoDelSugerido(cual: MontosSugeridos.Sugerencia, colors: MspColors): Color = when (cual) {
-    MontosSugeridos.Sugerencia.ESPERADO_HOY -> colors.statusPaid
+    // Los dos esperados comparten color: es el MISMO chip, en el mismo lugar y
+    // con el mismo importe. Lo único que cambia entre ellos es el rótulo, que es
+    // donde se dice de dónde salió la cifra.
+    MontosSugeridos.Sugerencia.ESPERADO_HOY,
+    MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE -> colors.statusPaid
+
     MontosSugeridos.Sugerencia.AL_CORRIENTE -> colors.statusTeal
     MontosSugeridos.Sugerencia.LIQUIDAR -> colors.promise
+    MontosSugeridos.Sugerencia.LO_DE_SIEMPRE -> colors.brand
+    MontosSugeridos.Sugerencia.REDONDO -> colors.onSurfaceMuted
 }
 
 /** Fondo (tint) de cada sugerido. */
 fun fondoDelSugerido(cual: MontosSugeridos.Sugerencia, colors: MspColors): Color = when (cual) {
-    MontosSugeridos.Sugerencia.ESPERADO_HOY -> colors.statusPaidTint
+    MontosSugeridos.Sugerencia.ESPERADO_HOY,
+    MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE -> colors.statusPaidTint
+
     MontosSugeridos.Sugerencia.AL_CORRIENTE -> colors.statusTealTint
     MontosSugeridos.Sugerencia.LIQUIDAR -> colors.promiseTint
+    MontosSugeridos.Sugerencia.LO_DE_SIEMPRE -> colors.brandTint
+    MontosSugeridos.Sugerencia.REDONDO -> colors.surface2
+}
+
+/**
+ * **La parcialidad de esta venta se ve mal.**
+ *
+ * No habla del abono del cobrador —él no hizo nada raro— sino del **dato de la
+ * venta**. Por eso vive arriba, pegada a la tira de contexto, y se pinta esté
+ * lo que esté tecleado: es una propiedad de la cuenta, no del monto.
+ *
+ * ## Por qué esto en lugar de "esperado $3,000"
+ *
+ * El caso que la trajo: una venta con `PARCIALIDAD = 3000` y ni un solo pago
+ * que la desmienta. La pantalla decía *"abono corto · esperado $3,000 · este
+ * abono $600"*, que es un aviso inútil —le reclama al cobrador el dato de
+ * otro— y encima ofrecía $3,000 en un chip. Con la cuota marcada como dudosa
+ * ([OrigenDeLaCuota.DUDOSA]) el esperado vale cero, o sea "no se sabe qué
+ * toca": el chip no se pinta, el teclado no se prellena y el abono corto no
+ * salta. Lo único que queda es esta línea, que sí es accionable.
+ *
+ * Dice el **hecho** y no un adjetivo: cuánto dice la venta, y que en esta ruta
+ * nadie paga tanto.
+ */
+@Composable
+fun BandaDeCuotaDudosa(parcialidad: Money, modifier: Modifier = Modifier) {
+    val colors = MspTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.statusPartialTint, MspTheme.shapes.control)
+            .border(1.dp, colors.statusPartial, MspTheme.shapes.control)
+            .padding(horizontal = 13.dp, vertical = 11.dp)
+            .testTag(CUOTA_DUDOSA_TAG),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = colors.statusPartial,
+            modifier = Modifier.size(18.dp)
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
+            Text(
+                text = "Revisa la parcialidad",
+                style = MspTheme.type.bodyStrong,
+                color = colors.statusPartial
+            )
+            Text(
+                text = detalleDeLaCuotaDudosa(parcialidad),
+                style = MspTheme.type.captionStrong,
+                color = colors.statusPartial
+            )
+        }
+    }
+}
+
+/** "La venta dice $3,000 · en esta ruta nadie paga tanto". El hecho, no el adjetivo. */
+private fun detalleDeLaCuotaDudosa(parcialidad: Money): String {
+    val cuota = formatMoneyMxn(parcialidad.amount)
+    return "La venta dice $cuota · en esta ruta nadie paga tanto"
+}
+
+/**
+ * **El aviso en vivo**, bajo la cifra que se está tecleando.
+ *
+ * Es el más importante de los dos lugares donde el aviso sale. Atrapar un cero
+ * de más en el teclado cuesta **un borrón**; atraparlo en la hoja de
+ * confirmación cuesta salir del paso dos, corregir y volver a entrar. El mismo
+ * hecho, dicho medio segundo antes, vale toda esa diferencia.
+ *
+ * Sólo hablan los dos niveles raros. `NINGUNO` es el 99 % de los abonos y no
+ * tiene nada que decir; `BLOQUEO` ya tiene su banda roja con el máximo
+ * registrable ([BandaDeBloqueo]); y `NOTA` tiene la suya, ámbar, dentro de la
+ * hoja. Repetir cualquiera de las dos aquí sería el mismo hecho dos veces en la
+ * misma pantalla.
+ *
+ * El `when` es **exhaustivo y sin `else`**: un nivel nuevo no compila hasta que
+ * alguien decida si se pinta y de qué color.
+ */
+@Composable
+fun BandaDeAviso(aviso: AvisoDelMonto, modifier: Modifier = Modifier) {
+    val colors = MspTheme.colors
+    val color = when (aviso.nivel) {
+        NivelDeAviso.NINGUNO, NivelDeAviso.BLOQUEO, NivelDeAviso.NOTA -> null
+        NivelDeAviso.CONFIRMAR -> colors.statusPartial
+        NivelDeAviso.TECLEAR -> colors.statusOverdue
+    } ?: return
+    // Un nivel que habla pero sin nada que decir no pinta una banda vacía.
+    if (aviso.mensajes.isEmpty()) return
+    val fondo = if (aviso.nivel == NivelDeAviso.TECLEAR) {
+        colors.statusOverdueTint
+    } else {
+        colors.statusPartialTint
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(fondo, MspTheme.shapes.control)
+            .border(1.dp, color, MspTheme.shapes.control)
+            .padding(horizontal = 13.dp, vertical = 11.dp)
+            .testTag(AVISO_TAG),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(18.dp)
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
+            // Un renglón por mensaje. Son como mucho dos, y dicen cosas
+            // distintas del mismo monto (cuántas cuotas son, y que nadie en la
+            // ruta ha pagado tanto): juntarlas en una frase las volvería una
+            // sola afirmación más larga y menos leíble.
+            aviso.mensajes.forEach { mensaje ->
+                Text(
+                    text = mensaje,
+                    style = MspTheme.type.bodyStrong,
+                    color = color
+                )
+            }
+        }
+    }
 }
 
 /**

@@ -105,6 +105,13 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     val correccionState by correccionViewModel.state.collectAsState()
     val saleImages by imagesViewModel.saleImages.collectAsState()
 
+    // El servidor ya tiene esta venta, así que la corrección no viaja en el `POST` del alta sino
+    // en tres peticiones (header, cliente, líneas). **Ninguna de las tres lleva el tipo de
+    // venta** — no existe endpoint que lo cambie. Dejar el desplegable vivo sería ofrecer un
+    // cambio que se guarda en el teléfono y nunca llega a la oficina, sin que nada avise: el
+    // mismo defecto silencioso que el teléfono tuvo hasta que se agregó `PATCH /ventas/{id}`.
+    val ventaYaEnviada = (correccionState as? CorreccionUiState.Editando)?.yaEnviada == true
+
     var showProductSheet by remember { mutableStateOf(false) }
     var showCreateComboDialog by remember { mutableStateOf(false) }
 
@@ -615,21 +622,49 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                             value = tipoVenta,
                             onValueChange = { },
                             label = { Text("Tipo de Venta") },
+                            // `readOnly` y sin `clickable`, pero NO `enabled = false`: en Material 3
+                            // el deshabilitado apaga también el VALOR, y "CONTADO"/"CRÉDITO" es
+                            // justo el dato que hay que poder leer de un vistazo. El bloqueo lo dan
+                            // la ausencia de `clickable`, la flecha que no se pinta y el
+                            // desplegable que no se despliega.
                             readOnly = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { expandedTipoVenta = true },
-                            trailingIcon = {
-                                Icon(
-                                    Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.clickable { expandedTipoVenta = true }
-                                )
+                                .then(
+                                    if (ventaYaEnviada) {
+                                        Modifier
+                                    } else {
+                                        Modifier.clickable { expandedTipoVenta = true }
+                                    }
+                                ),
+                            trailingIcon = if (ventaYaEnviada) {
+                                null
+                            } else {
+                                {
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.clickable { expandedTipoVenta = true }
+                                    )
+                                }
+                            },
+                            // La cadena sale de `TextosCorreccion`, no escrita a mano aquí: un
+                            // literal suelto en esta pantalla es el hueco que ya se cerró una vez
+                            // con `GUARDAR_CORRECCION` (ronda 1 de la Task 5). `:app` no aplica
+                            // Roborazzi, así que nada impediría que alguien lo recortara o le
+                            // metiera un punto final sin que ninguna prueba se enterara; en
+                            // `TextosCorreccion` sí lo cubre `TextosCorreccionTest`.
+                            supportingText = if (ventaYaEnviada) {
+                                { Text(TextosCorreccion.YA_SE_ENVIO) }
+                            } else {
+                                null
                             },
                             shape = RoundedCornerShape(15.dp)
                         )
                         DropdownMenu(
-                            expanded = expandedTipoVenta,
+                            // Por si alguien llegara a abrirlo por otra vía: con la venta ya
+                            // enviada no se despliega nunca.
+                            expanded = expandedTipoVenta && !ventaYaEnviada,
                             onDismissRequest = { expandedTipoVenta = false }
                         ) {
                             tipoVentaOptions.forEach { option ->

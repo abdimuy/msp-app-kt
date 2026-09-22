@@ -62,7 +62,8 @@ class CorreccionVentaViewModel @Inject constructor(
                     claimId = resultado.claimId,
                     campos = resultado.venta.campos,
                     productos = resultado.venta.productos,
-                    combos = resultado.venta.combos
+                    combos = resultado.venta.combos,
+                    yaEnviada = resultado.yaEnviada
                 )
 
                 is ResultadoReclamo.NoCorregible ->
@@ -129,15 +130,22 @@ class CorreccionVentaViewModel @Inject constructor(
 
 /**
  * Mapeo para [ResultadoReclamo.NoCorregible] (falló RECLAMAR, no guardar). Aquí
- * [EstadoCorreccion.Corregible] es defensivo/inalcanzable en la práctica: el predicado SQL de
- * `claimForEdit` y el predicado de dominio de `evaluarCorregibilidad` están alineados a
- * propósito (ver `ResultadoReclamo.NoCorregible`), así que si el candado no se pudo tomar, el
- * estado releído nunca debería clasificar como "sí se puede". Se deja [TextosCorreccion.CORREGIR_VENTA]
- * como valor de una rama que un `when` exhaustivo obliga a llenar, no porque se espere mostrarlo.
+ * [EstadoCorreccion.Corregible] y [EstadoCorreccion.CorregibleEnviada] son
+ * defensivos/inalcanzables en la práctica: el predicado SQL de `claimForEdit` y el predicado de
+ * dominio de `evaluarCorregibilidad` están alineados a propósito (ver
+ * `ResultadoReclamo.NoCorregible`), así que si el candado no se pudo tomar, el estado releído
+ * nunca debería clasificar como "sí se puede". Se deja [TextosCorreccion.CORREGIR_VENTA] como
+ * valor de esas dos ramas que un `when` exhaustivo obliga a llenar, no porque se espere
+ * mostrarlo — y van juntas porque las dos significan lo mismo para quien las lea: la venta se
+ * puede corregir, sólo que este reclamo no prosperó.
  */
 private fun EstadoCorreccion.aTexto(): String = when (this) {
-    EstadoCorreccion.Corregible -> TextosCorreccion.CORREGIR_VENTA
+    EstadoCorreccion.Corregible,
+    EstadoCorreccion.CorregibleEnviada -> TextosCorreccion.CORREGIR_VENTA
     EstadoCorreccion.SeEstaEnviando -> TextosCorreccion.SE_ESTA_ENVIANDO
+    EstadoCorreccion.CorreccionEnCamino -> TextosCorreccion.CORRECCION_EN_CAMINO
+    EstadoCorreccion.LaOficinaYaLaAplico -> TextosCorreccion.LA_APLICO_LA_OFICINA
+    EstadoCorreccion.SeAplicoAMedias -> TextosCorreccion.SE_APLICO_A_MEDIAS
     EstadoCorreccion.YaSeEnvio -> TextosCorreccion.YA_SE_ENVIO
     EstadoCorreccion.LaRevisaLaOficina -> TextosCorreccion.LA_REVISA_LA_OFICINA
 }
@@ -149,10 +157,31 @@ private fun EstadoCorreccion.aTexto(): String = when (this) {
  * guardia y la relectura. Mostrar [TextosCorreccion.CORREGIR_VENTA] ahí mentiría — el botón dice
  * "puedes corregir" cuando la razón real es que ESTE guardado, con ESTE `claimId`, no se pudo
  * completar. [TextosCorreccion.NO_SE_PUDO_GUARDAR] no promete nada sobre si se puede reintentar.
+ *
+ * [EstadoCorreccion.CorregibleEnviada] va en la misma rama por el mismo motivo: para el rechazo
+ * de un guardado, "la venta se puede corregir" es la misma mentira esté la venta donde esté.
+ *
+ * [EstadoCorreccion.CorreccionEnCamino] también, y ésta es la rama que se aparta de [aTexto] a
+ * conciencia: es el mismo choque de sesiones que el de [EstadoCorreccion.Corregible], sólo que
+ * la otra sesión alcanzó a COMMITEAR su corrección (`CORRECCION_REMOTA_PENDIENTE = 1`) entre el
+ * guardia y la relectura. Decir [TextosCorreccion.CORRECCION_EN_CAMINO] justo después de apretar
+ * "Guardar corrección" se lee como acuse de recibo de ESTE guardado — el vendedor se iría
+ * creyendo que sus cambios viajan, y los que viajan son los de la otra sesión. La mentira es
+ * exactamente la que se corrigió para [EstadoCorreccion.Corregible], así que la respuesta es la
+ * misma. En [aTexto] no aplica: ahí nadie acaba de guardar nada.
+ *
+ * [EstadoCorreccion.LaOficinaYaLaAplico] sí conserva su texto: "la aplicó la oficina" no se
+ * puede leer como que este guardado funcionó, y es la única razón por la que no habrá otra
+ * oportunidad — esconderla detrás de [TextosCorreccion.NO_SE_PUDO_GUARDAR] invitaría a
+ * reintentar contra una puerta que el servidor cerró para siempre.
  */
 private fun EstadoCorreccion.aTextoDeRechazoDeGuardado(): String = when (this) {
-    EstadoCorreccion.Corregible -> TextosCorreccion.NO_SE_PUDO_GUARDAR
+    EstadoCorreccion.Corregible,
+    EstadoCorreccion.CorregibleEnviada,
+    EstadoCorreccion.CorreccionEnCamino -> TextosCorreccion.NO_SE_PUDO_GUARDAR
     EstadoCorreccion.SeEstaEnviando -> TextosCorreccion.SE_ESTA_ENVIANDO
+    EstadoCorreccion.LaOficinaYaLaAplico -> TextosCorreccion.LA_APLICO_LA_OFICINA
+    EstadoCorreccion.SeAplicoAMedias -> TextosCorreccion.SE_APLICO_A_MEDIAS
     EstadoCorreccion.YaSeEnvio -> TextosCorreccion.YA_SE_ENVIO
     EstadoCorreccion.LaRevisaLaOficina -> TextosCorreccion.LA_REVISA_LA_OFICINA
 }

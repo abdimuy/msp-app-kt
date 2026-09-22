@@ -55,6 +55,22 @@ class AvisoNoCorregibleTest : RobolectricTestBase() {
     }
 
     @Test
+    fun `CorreccionEnCamino no ofrece el boton y muestra su aviso`() {
+        setContent(EstadoCorreccion.CorreccionEnCamino)
+
+        composeTestRule.onNodeWithText(TextosCorreccion.CORREGIR_VENTA).assertDoesNotExist()
+        composeTestRule.onNodeWithText(TextosCorreccion.CORRECCION_EN_CAMINO).assertIsDisplayed()
+    }
+
+    @Test
+    fun `LaOficinaYaLaAplico no ofrece el boton y muestra su aviso`() {
+        setContent(EstadoCorreccion.LaOficinaYaLaAplico)
+
+        composeTestRule.onNodeWithText(TextosCorreccion.CORREGIR_VENTA).assertDoesNotExist()
+        composeTestRule.onNodeWithText(TextosCorreccion.LA_APLICO_LA_OFICINA).assertIsDisplayed()
+    }
+
+    @Test
     fun `Corregible ofrece el boton y es clicable`() {
         var clics = 0
         setContent(EstadoCorreccion.Corregible, onCorregir = { clics++ })
@@ -66,6 +82,28 @@ class AvisoNoCorregibleTest : RobolectricTestBase() {
         assertEquals(1, clics)
     }
 
+    /**
+     * El invariante de UI del nivel 2: [EstadoCorreccion.CorregibleEnviada] se pinta EXACTAMENTE
+     * igual que [EstadoCorreccion.Corregible] — mismo botón, mismo texto, mismo clic. Si alguien
+     * separa esa rama (un aviso propio, un texto distinto, o peor: la manda a
+     * `AvisoNoCorregible`), la UI empieza a exponer DÓNDE está la venta —que es justo lo que al
+     * dueño no le importa— y el botón desaparece para el único caso que el nivel 2 existe para
+     * abrir.
+     */
+    @Test
+    fun `CorregibleEnviada ofrece el MISMO boton que Corregible y es clicable`() {
+        var clics = 0
+        setContent(EstadoCorreccion.CorregibleEnviada, onCorregir = { clics++ })
+
+        composeTestRule.onNodeWithText(TextosCorreccion.CORREGIR_VENTA)
+            .assertIsDisplayed()
+            .performClick()
+
+        assertEquals(1, clics)
+        composeTestRule.onNodeWithText(TextosCorreccion.CORRECCION_EN_CAMINO).assertDoesNotExist()
+        composeTestRule.onNodeWithText(TextosCorreccion.YA_SE_ENVIO).assertDoesNotExist()
+    }
+
     @Test
     fun `null todavia no dice nada`() {
         setContent(null)
@@ -74,6 +112,8 @@ class AvisoNoCorregibleTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText(TextosCorreccion.YA_SE_ENVIO).assertDoesNotExist()
         composeTestRule.onNodeWithText(TextosCorreccion.SE_ESTA_ENVIANDO).assertDoesNotExist()
         composeTestRule.onNodeWithText(TextosCorreccion.LA_REVISA_LA_OFICINA).assertDoesNotExist()
+        composeTestRule.onNodeWithText(TextosCorreccion.CORRECCION_EN_CAMINO).assertDoesNotExist()
+        composeTestRule.onNodeWithText(TextosCorreccion.LA_APLICO_LA_OFICINA).assertDoesNotExist()
     }
 
     private fun setContent(estado: EstadoCorreccion?, onCorregir: () -> Unit = {}) {

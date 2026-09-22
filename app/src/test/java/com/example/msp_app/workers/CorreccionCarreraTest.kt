@@ -14,8 +14,12 @@ import com.example.msp_app.core.sync.pendingwork.data.gates.InMemorySessionSyncG
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.LocalSalesPendingSynchronizer
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.data.api.services.ventas.ActualizarClienteRequest
+import com.example.msp_app.data.api.services.ventas.ActualizarHeaderRequest
+import com.example.msp_app.data.api.services.ventas.ReemplazarLineasRequest
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentaDTO
+import com.example.msp_app.data.api.services.ventas.VentaSituacionDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
@@ -243,6 +247,27 @@ class CorreccionCarreraTest : RoomTestBase() {
         ): VentaDTO = crear(idempotencyKey, datos, imagen)
 
         override suspend fun obtenerVenta(id: String): VentaDTO = obtener(id)
+
+        // El nivel 2 (corregir una venta YA subida) no entra en esta prueba: su camino es el
+        // worker de correcciones remotas, no el subidor. Lanzar en vez de devolver algo vacío
+        // hace que, si alguien lo cablea aquí sin querer, la prueba lo diga en vez de pasar.
+        override suspend fun reemplazarLineas(
+            id: String,
+            body: ReemplazarLineasRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("reemplazarLineas no debería llamarse en esta prueba")
+
+        override suspend fun actualizarHeader(
+            id: String,
+            body: ActualizarHeaderRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarHeader no debería llamarse en esta prueba")
+
+        override suspend fun actualizarCliente(
+            id: String,
+            body: ActualizarClienteRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarCliente no debería llamarse en esta prueba")
     }
 
     private fun RequestBody.comoTexto(): String {
@@ -254,6 +279,20 @@ class CorreccionCarreraTest : RoomTestBase() {
     /** Cuántas ventas hay en la base, sin la ventana de 7 días de `getAllSales`. */
     private suspend fun cuantasVentas(): Int = db.localSaleDao().getSalesByStatus(true).size +
         db.localSaleDao().getSalesByStatus(false).size
+
+    /**
+     * La cola de ALTA, tal cual la ve el barrido de sesión, con los arrendamientos de
+     * PRODUCCIÓN. Es la mitad de la medición del invariante del nivel 2: una venta ya enviada no
+     * puede volver a aparecer aquí NUNCA — si apareciera, el worker la volvería a postear con su
+     * `Idempotency-Key` original y el servidor contestaría con la respuesta vieja.
+     */
+    private suspend fun ventasParaSubir(reloj: RelojDePrueba) =
+        db.localSaleDao().getUploadableSales(
+            now = reloj.ahoraEpochMillis(),
+            editLeaseMs = LocalSaleClaimLeases.EDIT_LEASE_MS,
+            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+            remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
+        )
 
     /**
      * Huella textual de la venta y de TODOS sus hijos. `LocalSaleEntity` y
@@ -270,7 +309,10 @@ class CorreccionCarreraTest : RoomTestBase() {
             s.TIEMPO_A_CORTO_PLAZOMESES, s.MONTO_A_CORTO_PLAZO, s.MONTO_DE_CONTADO,
             s.ENVIADO, s.NUMERO, s.COLONIA, s.POBLACION, s.CIUDAD, s.TIPO_VENTA,
             s.ZONA_CLIENTE_ID, s.ZONA_CLIENTE, s.CLIENTE_ID, s.IDEMPOTENCY_KEY,
-            s.CLAIM_ID, s.CLAIM_KIND, s.CLAIMED_AT, s.REVISION, s.CORRECCION_NO_ENVIADA
+            s.CLAIM_ID, s.CLAIM_KIND, s.CLAIMED_AT, s.REVISION, s.CORRECCION_NO_ENVIADA,
+            // Las dos columnas del nivel 2: sin ellas aquí, un rechazo que además levantara la
+            // cola de correcciones remotas pasaría por "nada se movió".
+            s.CORRECCION_REMOTA_PENDIENTE, s.CORRECCION_REMOTA_ESTADO
         ).joinToString("|")
         val productos = productDataSource.getProductsForSale(saleId).joinToString("|")
         val combos = comboDataSource.getCombosForSale(saleId).joinToString("|")
@@ -520,11 +562,82 @@ class CorreccionCarreraTest : RoomTestBase() {
         }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // 4. Corregir una venta ya subida es imposible
+    // 4. Corregir una venta ya subida: SÍ se puede, y no vuelve a subirse
     // ═══════════════════════════════════════════════════════════════════════
 
+    /**
+     * **El escenario que el nivel 2 abrió, con el worker REAL de por medio.** Hasta el nivel 1
+     * esta misma prueba afirmaba lo contrario ("una venta ya subida no se puede corregir"): el
+     * reclamo devolvía `NoCorregible(YaSeEnvio)` y el dueño se quedaba sin salida. Ahora el
+     * editor SÍ abre, la corrección se commitea, y —esto es lo caro— la venta **no vuelve a la
+     * cola de ALTA**.
+     *
+     * Por qué importa tanto: si el guardado bajara `ENVIADO` a 0 (que es lo que hace el camino
+     * de la venta sin enviar), `getUploadableSales` la volvería a ver, el worker la volvería a
+     * postear con su `Idempotency-Key` ORIGINAL, y el servidor contestaría 2xx con la respuesta
+     * que ya tenía guardada — sin actualizar nada. El teléfono se quedaría creyendo que reenvió
+     * y la corrección se perdería en silencio. Por eso la aserción se hace contra la cola, no
+     * sólo contra la columna: mide la consecuencia, no el síntoma.
+     */
     @Test
-    fun `una venta ya subida no se puede corregir, ni ella ni sus hijos se mueven`() = runTest {
+    fun `una venta ya subida SI se puede corregir, y eso no la devuelve a la cola de alta`() =
+        runTest {
+            val reloj = RelojDePrueba(testScheduler)
+            sembrarVenta()
+
+            assertEquals(
+                ListenableWorker.Result.success(),
+                correrWorker(reloj = reloj, api = api(crear = { _, _, _ -> ventaDTO }))
+            )
+            assertTrue(saleDataSource.getSaleById(SALE_ID)!!.ENVIADO)
+
+            val reclamo = reclamar(reloj)(SALE_ID)
+            assertTrue(
+                "una venta enviada y en borrador SI debe abrir el editor",
+                reclamo is ResultadoReclamo.Reclamada
+            )
+            reclamo as ResultadoReclamo.Reclamada
+            guardar(reloj)(
+                SALE_ID,
+                reclamo.claimId,
+                reclamo.venta.campos.copy(nombreCliente = NOMBRE_CORREGIDO),
+                reclamo.venta.productos,
+                reclamo.venta.combos,
+                EMAIL
+            )
+
+            val fila = saleDataSource.getSaleById(SALE_ID)!!
+            assertTrue(
+                "ENVIADO NUNCA puede bajar: la venta volveria a la cola de ALTA con su " +
+                    "Idempotency-Key y el servidor contestaria con la respuesta vieja",
+                fila.ENVIADO
+            )
+            assertTrue(
+                "sin la bandera de la cola remota, nadie entrega la correccion",
+                fila.CORRECCION_REMOTA_PENDIENTE
+            )
+            assertEquals(NOMBRE_CORREGIDO, fila.NOMBRE_CLIENTE)
+            assertEquals(1, fila.REVISION)
+            assertNull("el candado queda cerrado", fila.CLAIM_ID)
+
+            assertTrue(
+                "la cola de ALTA no puede volver a verla NUNCA",
+                ventasParaSubir(reloj).none { it.LOCAL_SALE_ID == SALE_ID }
+            )
+            assertEquals(
+                "y la cola de CORRECCIONES tiene que verla exactamente a ella",
+                listOf(SALE_ID),
+                db.localSaleDao().getVentasConCorreccionRemotaPendiente().map { it.LOCAL_SALE_ID }
+            )
+        }
+
+    /**
+     * Con una corrección ya esperando en la cola, el editor ni se abre: encimarle otra dejaría
+     * al trabajador de correcciones entregando un cuerpo que nadie revisó, y el dueño sólo
+     * vería confirmada la última.
+     */
+    @Test
+    fun `con una correccion ya en la cola, el editor ni se abre y nada se mueve`() = runTest {
         val reloj = RelojDePrueba(testScheduler)
         sembrarVenta()
 
@@ -533,13 +646,22 @@ class CorreccionCarreraTest : RoomTestBase() {
             correrWorker(reloj = reloj, api = api(crear = { _, _, _ -> ventaDTO }))
         )
 
-        val antes = huella(SALE_ID)
+        val primero = reclamar(reloj)(SALE_ID) as ResultadoReclamo.Reclamada
+        guardar(reloj)(
+            SALE_ID,
+            primero.claimId,
+            primero.venta.campos.copy(nombreCliente = NOMBRE_CORREGIDO),
+            primero.venta.productos,
+            primero.venta.combos,
+            EMAIL
+        )
 
-        val reclamo = reclamar(reloj)(SALE_ID)
+        val antes = huella(SALE_ID)
+        val segundo = reclamar(reloj)(SALE_ID)
 
         assertEquals(
-            ResultadoReclamo.NoCorregible(EstadoCorreccion.YaSeEnvio),
-            reclamo
+            ResultadoReclamo.NoCorregible(EstadoCorreccion.CorreccionEnCamino),
+            segundo
         )
         assertEquals(
             "ni la venta ni sus hijos pueden moverse un milímetro",

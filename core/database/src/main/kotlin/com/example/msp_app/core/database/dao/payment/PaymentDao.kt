@@ -152,6 +152,29 @@ interface PaymentDao {
     )
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity>
 
+    /**
+     * **Sólo los importes** de los abonos de las formas de cobro que le pasen,
+     * sin fecha y sin venta.
+     *
+     * Es la muestra de la que sale la línea base de la ruta (el percentil de lo
+     * que esta ruta paga de verdad). Son miles de filas y de cada una lo único
+     * que se mira es el peso, así que devolver `PaymentEntity` completa sería
+     * pagar catorce columnas por una.
+     *
+     * Las formas de cobro entran **como parámetro** y no escritas en el SQL a
+     * propósito: el conjunto canónico es `VentanaCobro.FORMAS_COBRO_COBRANZA` y
+     * duplicarlo aquí crearía una segunda definición de "qué cuenta como
+     * cobranza" que puede despegarse de la primera sin que nada avise.
+     */
+    @Query(
+        """
+            SELECT IMPORTE
+            FROM Payment
+            WHERE FORMA_COBRO_ID IN (:formasDeCobro) AND IMPORTE > 0
+        """
+    )
+    suspend fun getCollectedAmounts(formasDeCobro: Set<Int>): List<Double>
+
     @Query(
         """SELECT 
                 ID,

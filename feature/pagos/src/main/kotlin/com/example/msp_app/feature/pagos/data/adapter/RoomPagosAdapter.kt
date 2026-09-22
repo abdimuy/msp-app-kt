@@ -60,6 +60,22 @@ class RoomPagosAdapter(
         return aHistorial(paymentDao.getPaymentsByDate(desde, hasta))
     }
 
+    /**
+     * Los importes de toda la ruta, para la línea base
+     * ([com.example.msp_app.feature.pagos.domain.LineaBaseDeLaRuta]).
+     *
+     * Pasa el MISMO [VentanaCobro.FORMAS_COBRO_COBRANZA] que usan las otras
+     * tres lecturas: la línea base tiene que medirse sobre el mismo conjunto
+     * que la app llama "cobranza", o el techo saldría de un universo distinto
+     * al de los pagos contra los que se compara.
+     *
+     * `IMPORTE` es `Double` en el schema y cruza a [Money] aquí, como en el
+     * resto de este adaptador.
+     */
+    override suspend fun importesCobrados(): List<Money> =
+        paymentDao.getCollectedAmounts(VentanaCobro.FORMAS_COBRO_COBRANZA)
+            .map { Money.of(it) }
+
     private fun aHistorial(crudos: List<PaymentEntity>): List<PagoDelHistorial> {
         val delaCobranza = crudos.filter { it.FORMA_COBRO_ID in VentanaCobro.FORMAS_COBRO_COBRANZA }
         val legibles = delaCobranza.mapNotNull { it.aPagoDelHistorial() }

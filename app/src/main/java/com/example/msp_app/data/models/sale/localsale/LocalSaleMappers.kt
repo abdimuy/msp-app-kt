@@ -55,6 +55,23 @@ internal fun normalizeTelefonoE164(raw: String): String? = MexicanPhone.toE164Or
 // componentes de combo: 300.29999999999995), y el backend rechaza >2 decimales
 // con HTTP 422 ("el monto admite máximo 2 decimales"). BigDecimal(this) captura
 // el valor exacto del double y setScale lo redondea a 2.
+/**
+ * Normaliza un valor de catálogo de texto (frecuencia de pago, día de cobranza)
+ * a MAYÚSCULAS sin acentos, que es como los espera el servidor en sus `enum`.
+ *
+ * Es `internal` y vive aquí, y no privada del mapper, porque la usan DOS
+ * caminos: el alta (`toV2VentaBody`) y la corrección remota de una venta ya
+ * subida (`construirActualizarHeaderRequest`, en `data.api.services.ventas`).
+ * Que los dos normalicen igual no es cosmético — si se despegaran, corregir la
+ * dirección de una venta le movería de paso la frecuencia de pago.
+ */
+internal fun String.normalizadoParaCatalogo(): String = this.uppercase()
+    .replace("Á", "A").replace("á", "a")
+    .replace("É", "E").replace("é", "e")
+    .replace("Í", "I").replace("í", "i")
+    .replace("Ó", "O").replace("ó", "o")
+    .replace("Ú", "U").replace("ú", "u")
+
 internal fun Double.toMoneyString(): String =
     BigDecimal(this).setScale(2, RoundingMode.HALF_UP).toPlainString()
 
@@ -302,14 +319,14 @@ class LocalSaleMappers {
                     plazo_meses = this.TIEMPO_A_CORTO_PLAZOMESES,
                     enganche = (this.ENGANCHE ?: 0.0).toMoneyString(),
                     parcialidad = this.PARCIALIDAD.toMoneyString(),
-                    frec_pago = normalizeFrecPago(this.FREC_PAGO)
+                    frec_pago = this.FREC_PAGO.normalizadoParaCatalogo()
                 )
             } else {
                 null
             },
             dia_cobranza = if (isCredito) {
                 DiaCobranzaDTO(
-                    semana = normalizeDiaCobranza(this.DIA_COBRANZA),
+                    semana = this.DIA_COBRANZA.normalizadoParaCatalogo(),
                     mes = null
                 )
             } else {
@@ -321,20 +338,6 @@ class LocalSaleMappers {
             vendedores = vendedores
         )
     }
-
-    private fun normalizeFrecPago(raw: String): String = raw.uppercase()
-        .replace("Á", "A").replace("á", "a")
-        .replace("É", "E").replace("é", "e")
-        .replace("Í", "I").replace("í", "i")
-        .replace("Ó", "O").replace("ó", "o")
-        .replace("Ú", "U").replace("ú", "u")
-
-    private fun normalizeDiaCobranza(raw: String): String = raw.uppercase()
-        .replace("Á", "A").replace("á", "a")
-        .replace("É", "E").replace("é", "e")
-        .replace("Í", "I").replace("í", "i")
-        .replace("Ó", "O").replace("ó", "o")
-        .replace("Ú", "U").replace("ú", "u")
 
     fun LocalSaleEntity.toUpdateRequest(
         products: List<LocalSaleProductEntity>,

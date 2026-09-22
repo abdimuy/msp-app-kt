@@ -6,10 +6,15 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
@@ -17,8 +22,8 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
+import com.example.msp_app.feature.pagos.ui.components.CONTROL_SEGMENTADO_TAG
 import com.example.msp_app.feature.pagos.ui.components.FILA_DE_CLIENTE_TAG
-import com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -58,18 +63,30 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
         }
     }
 
+    /**
+     * La pantalla con **la ruta entera** en la lista y los conteos de los cuatro
+     * chips calculados por la proyección de verdad.
+     *
+     * Las filas NO pasan por el filtro de un chip, y es deliberado: desde que
+     * `TODOS` se retiró, los cuatro chips **particionan** el catálogo, así que
+     * ningún chip enseña la ruta completa. Lo que estas pruebas miden es el
+     * renderizador —cuántas tarjetas pinta y qué tan alto mide cada chip—, no el
+     * filtro; el filtro lo cobra `CarteraEnPantallaTest` chip por chip. Pasar la
+     * ruta entera deja las dos preguntas separadas en vez de medir una a través
+     * de la otra.
+     */
     @Composable
     private fun Lista(clientes: List<ClienteEnLista>) {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = clientes,
-            segmento = SegmentoDeCobranza.TODOS,
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
         ListaDeClientesContent(
             state = ListaDeClientesUiState(
                 cargando = false,
-                clientes = proyeccion.clientes,
+                clientes = clientes,
                 conteos = proyeccion.conteos
             ),
             onBuscar = {},
@@ -93,110 +110,115 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **El chip "hoy" ya se pinta, y cuenta compromisos reales.**
+     * **Los cuatro chips se pintan, y el conteo que cambia sale del dato.**
      *
-     * Lo que cambió no es el chip: es que la captura estructurada de la Task 19
-     * —la única que escribe `PROMESA_FECHA`/`CITA_FECHA`— quedó **alcanzable**
-     * con el cableado de la Task 21, y el `NewVisitDialog`, que metía la fecha
-     * dentro del texto libre de `NOTA` y no llenaba ninguna de las dos columnas,
-     * quedó retirado. Por eso el interruptor se mueve aquí y no antes.
+     * La partición sólo sirve si las cuatro respuestas están a la vista: con
+     * `TODOS` retirado, un chip que no se pinte se lleva consigo las cuentas que
+     * sólo él enseña.
      *
-     * La ruta de prueba trae la promesa de Esperanza que cae hoy, y el chip
-     * marca **1**. Su control positivo vive en el test de abajo: la MISMA
-     * proyección sobre la ruta sin promesas marca **0**, así que este 1 lo
-     * produce el dato y no una cuenta que siempre da uno.
+     * La ruta de prueba trae la promesa de Esperanza, que cae **hoy** y por lo
+     * tanto es trabajo pendiente: *volver* marca **1**. Su control positivo vive
+     * en el test de abajo — la misma ruta sin esa puerta marca **0**—, así que
+     * este 1 lo produce el dato y no una cuenta que siempre da uno.
      */
     @Test
-    fun `el chip de hoy se pinta y cuenta el compromiso que cae hoy`() {
+    fun `los cuatro chips se pintan, y volver cuenta el compromiso de hoy`() {
         pinta(clientes = ListaFixtures.rutaConPromesaDeHoy())
-        assertEquals(true, HOY_VISIBLE)
-        composeTestRule
-            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
-            .assertIsDisplayed()
-        // Los CUATRO chips están, y el de hoy trae su conteo al lado.
+
         SegmentoDeCobranza.entries.forEach {
             composeTestRule
                 .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + it.name.lowercase())
                 .assertIsDisplayed()
         }
-        // El conteo va DENTRO del chip: la semántica del `Surface` clickeable
-        // fusiona sus textos, así que se afirma sobre el nodo del chip.
+        // El conteo va DENTRO del chip: la semántica del `selectable` fusiona sus
+        // textos, así que se afirma sobre el nodo del chip.
         composeTestRule
-            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
+            .onNodeWithTag(
+                CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.VOLVER_A_VISITAR.name.lowercase()
+            )
             .assertTextContains("1")
     }
 
     /**
-     * **Control positivo del chip encendido.** Sin ningún compromiso de hoy el
-     * mismo chip se pinta con **0**: la cifra del test de arriba sale del dato.
-     * Si este test viera un 1, el de arriba no probaría nada.
+     * **Control positivo del conteo.** Sin ningún compromiso el mismo chip se
+     * pinta con **0**: la cifra del test de arriba sale del dato. Si este test
+     * viera un 1, el de arriba no probaría nada.
      */
     @Test
-    fun `sin compromisos de hoy el chip de hoy marca cero`() {
+    fun `sin compromisos el chip de volver marca cero`() {
         pinta(clientes = ListaFixtures.ruta())
         composeTestRule
-            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.HOY.name.lowercase())
+            .onNodeWithTag(
+                CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.VOLVER_A_VISITAR.name.lowercase()
+            )
             .assertTextContains("0")
     }
 
     /**
-     * **El segmento sí cuenta**, aunque su chip esté apagado: la promesa de
-     * Esperanza cae hoy y el conteo la ve. Es lo que hace que encender el
-     * booleano en la Task 21 sea un cambio de una línea y no un rediseño.
+     * El mismo par, una capa más abajo: sobre la proyección pura, sin Compose.
+     * Es donde se ve que el 1 y el 0 los decide la ruta y no la pantalla.
      */
     @Test
-    fun `el segmento de hoy cuenta la promesa que cae hoy`() {
+    fun `el segmento de volver cuenta la promesa que cae hoy`() {
         val proyeccion = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.rutaConPromesaDeHoy(),
-            segmento = SegmentoDeCobranza.TODOS,
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
 
-        assertEquals(1, proyeccion.conteos[SegmentoDeCobranza.HOY])
-        // Control positivo: sin esa puerta el chip vuelve a 0, así que el 1 de
-        // arriba lo produce el dato y no una cuenta que siempre da uno.
+        assertEquals(1, proyeccion.conteos[SegmentoDeCobranza.VOLVER_A_VISITAR])
+        // Control positivo: sin esa puerta el chip vuelve a 0.
         val sinPromesa = CarteraEnPantalla.proyectar(
             clientes = ListaFixtures.ruta(),
-            segmento = SegmentoDeCobranza.TODOS,
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
             query = "",
             hoy = ListaFixtures.HOY
         )
-        assertEquals(0, sinPromesa.conteos[SegmentoDeCobranza.HOY])
+        assertEquals(0, sinPromesa.conteos[SegmentoDeCobranza.VOLVER_A_VISITAR])
     }
 
     @Test
-    fun `cada chip visible mide al menos 50dp de alto`() {
+    fun `cada chip mide al menos 50dp de alto`() {
         pinta()
-        SegmentoDeCobranza.entries.filter {
-            HOY_VISIBLE || it != SegmentoDeCobranza.HOY
-        }.forEach { segmento ->
-            val bordes = composeTestRule
-                .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
-                .getUnclippedBoundsInRoot()
-            val alto = bordes.bottom - bordes.top
+        SegmentoDeCobranza.entries.forEach { segmento ->
+            val alto = altoDe(segmento)
             assertTrue("el chip ${segmento.etiqueta} mide $alto", alto >= MINIMO_TOCABLE)
         }
     }
 
     /**
-     * **Los CUATRO, no solo el primero.** A `MUY_GRANDE` el segmentado deja de
-     * repartir el ancho y rueda en horizontal; el riesgo es que un segmento que
-     * quedó fuera del viewport se mida distinto del que se ve. Se usan bordes
-     * **sin recortar** justo por eso.
+     * **Los CUATRO, no sólo los que caben.** A `MUY_GRANDE` los rótulos crecen y
+     * el segmentado —un `LazyRow` desde 2026-09-22— deja de componer lo que no
+     * cabe en pantalla; el riesgo es que un segmento fuera del viewport mida
+     * distinto del que se ve, o que la prueba lo dé por bueno sin haberlo tocado.
+     * Por eso [altoDe] lo trae a la vista antes de medirlo, y por eso se miden
+     * bordes **sin recortar**.
      */
     @Test
     fun `a escala muy grande los chips siguen siendo tocables`() {
         pinta(FontSizeLevel.MUY_GRANDE)
-        SegmentoDeCobranza.entries.filter {
-            HOY_VISIBLE || it != SegmentoDeCobranza.HOY
-        }.forEach { segmento ->
-            val bordes = composeTestRule
-                .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase())
-                .getUnclippedBoundsInRoot()
-            val alto = bordes.bottom - bordes.top
+        SegmentoDeCobranza.entries.forEach { segmento ->
+            val alto = altoDe(segmento)
             assertTrue("el chip ${segmento.etiqueta} mide $alto", alto >= MINIMO_TOCABLE)
         }
+    }
+
+    /**
+     * El alto real del chip, **después de traerlo a la vista**.
+     *
+     * El `performScrollToNode` va sobre el único nodo deslizable que cuelga del
+     * control segmentado — no sobre `hasScrollAction()` a secas, que también
+     * casaría con la `LazyColumn` de la lista. Si los cuatro caben, no desliza
+     * nada y la medición es la misma.
+     */
+    private fun altoDe(segmento: SegmentoDeCobranza): Dp {
+        val tag = CHIP_DE_SEGMENTO_TAG + segmento.name.lowercase()
+        composeTestRule
+            .onNode(hasScrollAction() and hasAnyAncestor(hasTestTag(CONTROL_SEGMENTADO_TAG)))
+            .performScrollToNode(hasTestTag(tag))
+        val bordes = composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+        return bordes.bottom - bordes.top
     }
 
     @Test
@@ -206,7 +228,7 @@ class ListaSeVeYSeTocaTest : RobolectricTestBase() {
                 ListaDeClientesContent(
                     state = ListaDeClientesUiState(
                         cargando = false,
-                        segmento = SegmentoDeCobranza.HOY
+                        segmento = SegmentoDeCobranza.VOLVER_A_VISITAR
                     ),
                     onBuscar = {},
                     onElegirSegmento = {},

@@ -18,7 +18,15 @@ sealed interface CorreccionUiState {
         val claimId: String,
         val campos: CamposVentaCorregidos,
         val productos: List<LocalSaleProductEntity>,
-        val combos: List<LocalSaleComboEntity>
+        val combos: List<LocalSaleComboEntity>,
+        /**
+         * El servidor YA tiene esta venta. El formulario lo usa para poner de SÓLO LECTURA el
+         * tipo de venta: una venta enviada se corrige con tres peticiones (header, cliente,
+         * líneas) y **ninguna de las tres lleva el tipo**, así que cambiarlo aquí se quedaría en
+         * el teléfono sin que nadie avise. Por omisión `false`, el lado conservador: se comporta
+         * como el nivel 1, con todo editable.
+         */
+        val yaEnviada: Boolean = false
     ) : CorreccionUiState
 
     /**

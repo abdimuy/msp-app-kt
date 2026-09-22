@@ -1,16 +1,18 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
-import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
@@ -19,9 +21,13 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.model.BitacoraCompleta
-import com.example.msp_app.feature.pagos.ui.components.CONTROL_SEGMENTADO_TAG
+import com.example.msp_app.feature.pagos.ui.components.AVISO_DERECHA_TAG
+import com.example.msp_app.feature.pagos.ui.components.AVISO_IZQUIERDA_TAG
+import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.ETIQUETA_DEL_SEGMENTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.FILTRO_TAG
+import com.example.msp_app.feature.pagos.ui.components.ORILLA_ATRAS_TAG
+import com.example.msp_app.feature.pagos.ui.components.ORILLA_CON_MAS_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,29 +37,51 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * **Ronda de arreglo 1, Task 4 — a letra grande el control pasa a rejilla, no
- * se rompe.**
+ * **A cualquier escala de letra, ninguna opción se esconde sin aviso.**
  *
- * `pagos_bitacora_light_2_0.png` mostraba el defecto antes de este archivo:
- * a `MUY_GRANDE` en 360dp el control perdía margen y borde, y "Promesas 1"
- * quedaba como "Pron", sin número, porque `ControlSegmentado` dejaba de
- * repartir el ancho y montaba la fila entera dentro de un
- * `horizontalScroll` — la `Surface` ya no llenaba la pantalla, y el golden
- * sólo retrataba la posición inicial del scroll.
+ * ## La prueba que estaba aquí afirmaba esto y no lo medía
  *
- * **Pinta la pantalla real, no el control suelto.** Un primer intento montó
- * sólo `FiltrosDeContacto` dentro de un `Box` con el margen de
- * `BitacoraScreen` copiado a mano, y NO reprodujo el defecto: la aritmética
- * de márgenes a mano no es la pantalla real, y esa prueba habría dado verde
- * con el defecto todavía adentro. Aquí se monta [BitacoraContent] con la
- * MISMA fixture que usa `BitacoraMatrixScreenshotTest` — el mismo camino que
- * produjo el golden roto—, así que lo que se mide es exactamente lo que el
- * cobrador ve.
+ * Hasta el **2026-09-22** este archivo tenía un solo test, verde, que decía
+ * *«a MUY_GRANDE las cuatro etiquetas y conteos quedan completos y dentro de la
+ * pantalla»* mientras su propio golden (`pagos_bitacora_light_2_0.png`) mostraba
+ * "Visitas" rebanado y "Promesas" ausente. Medía con `boundsInRoot`, y
+ * `boundsInRoot` **viene recortado por los padres**. El mecanismo se midió, no
+ * se dedujo: a `MUY_GRANDE`, en `w360dp-xhdpi`, el chip escondido reportaba
  *
- * Mide, como [ElRenglonDeAbajoNoSeSaleTest]: bordes de nodos con
- * `boundsInRoot` y el `TextLayoutResult` del rótulo, no la apariencia. Un dato
- * a medias es un dato falso — la opción que se esconde es justo la que el
- * conteo existe para avisar.
+ * ```
+ * chip=PAGADOS recortado=Rect.fromLTRB(0,0,0,0) size=274x100 posRoot=(849,276)
+ * ```
+ *
+ * `Rect.Zero`. Las dos aserciones de entonces —`left >= pantalla.left` y
+ * `right <= pantalla.right`— las cumple un rectángulo vacío sin esfuerzo, así
+ * que el chip que NO se veía era el que más fácil pasaba. Y a `GRANDE` el mismo
+ * chip reportaba `680..688` de sus 214px: ocho píxeles, también "dentro de la
+ * pantalla". `assertTextContains` tampoco ayudaba: lee la semántica, que trae el
+ * texto completo aunque no se pinte un solo píxel de él.
+ *
+ * ## Lo que se mide ahora
+ *
+ * `boundsInRoot` (**recortado**) contra `size` (**sin recortar**). Si el nodo
+ * perdió ancho o alto contra su propio tamaño, no se ve entero — y da igual si
+ * le falta un 90% o un 2%: media palabra es un dato falso. De ahí salen los
+ * escondidos, y de ahí el invariante:
+ *
+ * > **o las cuatro opciones se ven completas, o el aviso contado dice
+ * > exactamente cuántas no.**
+ *
+ * Es a propósito que el invariante no exija que las cuatro se vean: a 1.5 y a
+ * 2.0 no caben —la fila pide 428dp y 542dp contra 325dp de ventana— y forzarlo
+ * devolvería la rejilla de dos renglones que el dueño rechazó. Lo que no se
+ * negocia es que esconder una opción sea **silencioso**.
+ *
+ * Se cobra en las DOS pantallas que comparten el control —la bitácora
+ * (`FiltrosDeContacto`) y la lista de clientes (`SegmentadoDeCobranza`)—: son
+ * las etiquetas de la lista ("Sin visitar") las que primero dejan de caber.
+ *
+ * **Pinta la pantalla real, no el control suelto.** Un primer intento montó sólo
+ * `FiltrosDeContacto` dentro de un `Box` con el margen de `BitacoraScreen`
+ * copiado a mano, y NO reprodujo el defecto: la aritmética de márgenes a mano no
+ * es la pantalla real. Aquí se monta el mismo contenido que produce los goldens.
  */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [33], qualifiers = "w360dp-h800dp-xhdpi")
@@ -62,85 +90,109 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private fun pinta(nivel: FontSizeLevel) {
-        composeTestRule.setContent {
-            val density = LocalDensity.current
-            CompositionLocalProvider(
-                LocalDensity provides Density(density.density, nivel.nominalScale),
-                LocalFontSizeLevel provides nivel
-            ) {
-                MspTheme(darkTheme = false, animateColors = false) {
-                    BitacoraContent(
-                        state = BitacoraUiState(cargando = false, bitacora = BITACORA),
-                        onAtras = {}
-                    )
-                }
-            }
-        }
+    // --- La bitácora: Todos / Cobros / Visitas / Promesas ------------------
+
+    @Test
+    fun `bitacora a NORMAL ninguna opcion se esconde sin aviso`() {
+        pinta(FontSizeLevel.NORMAL) { Bitacora() }
+        cobraElInvariante(tagsDeLaBitacora())
+    }
+
+    @Test
+    fun `bitacora a GRANDE ninguna opcion se esconde sin aviso`() {
+        pinta(FontSizeLevel.GRANDE) { Bitacora() }
+        cobraElInvariante(tagsDeLaBitacora())
+    }
+
+    @Test
+    fun `bitacora a MUY_GRANDE ninguna opcion se esconde sin aviso`() {
+        pinta(FontSizeLevel.MUY_GRANDE) { Bitacora() }
+        cobraElInvariante(tagsDeLaBitacora())
+    }
+
+    // --- La lista: Sin visitar / Volver / Después / Pagados ----------------
+
+    @Test
+    fun `lista a NORMAL ninguna opcion se esconde sin aviso`() {
+        pinta(FontSizeLevel.NORMAL) { Lista() }
+        cobraElInvariante(tagsDeLaLista())
+    }
+
+    @Test
+    fun `lista a GRANDE ninguna opcion se esconde sin aviso`() {
+        pinta(FontSizeLevel.GRANDE) { Lista() }
+        cobraElInvariante(tagsDeLaLista())
+    }
+
+    @Test
+    fun `lista a MUY_GRANDE ninguna opcion se esconde sin aviso`() {
+        pinta(FontSizeLevel.MUY_GRANDE) { Lista() }
+        cobraElInvariante(tagsDeLaLista())
     }
 
     /**
-     * **La prueba central de la Ronda de arreglo 1.** A `MUY_GRANDE`, las
-     * cuatro etiquetas Y sus cuatro conteos quedan presentes y completos, y
-     * ningún segmento queda fuera del borde de la PANTALLA.
+     * **El aviso no sólo cuenta: lleva.**
      *
-     * **Contra la raíz, no contra el propio `CONTROL_SEGMENTADO_TAG`.** Con
-     * `horizontalScroll`, la `Surface` de adentro mide su ancho NATURAL —más
-     * ancho que la pantalla— y todos sus segmentos caben dentro de ESE ancho
-     * por definición: comparar un segmento contra los bordes de su propia
-     * `Surface` nunca ve el defecto. Lo que se sale es el control mismo
-     * respecto de la pantalla, así que la raíz —que sí conserva el ancho del
-     * dispositivo aunque algo adentro se desplace— es la única referencia que
-     * lo detecta.
+     * Un degradado dice "hay más" y deja al cobrador adivinando el gesto. Esto
+     * cobra que tocarlo trae de verdad una opción escondida a la vista completa
+     * —la PRIMERA, no la última: saltar al extremo le quitaría la referencia de
+     * dónde estaba— y que a fuerza de tocarlo se llega a ver cada una.
+     *
+     * El invariante se cobra **después de cada toque**, no sólo al final: el
+     * aviso tiene que seguir diciendo la verdad a media travesía, cuando lo
+     * escondido está repartido entre los dos costados.
      */
     @Test
-    fun `a MUY_GRANDE las cuatro etiquetas y conteos quedan completos y dentro de la pantalla`() {
-        pinta(FontSizeLevel.MUY_GRANDE)
-
-        val pantalla = composeTestRule.onRoot().fetchSemanticsNode().boundsInRoot
-        val conteos = FiltroDeContactos.conteos(BITACORA.contactos)
-
-        FiltroDeContactos.entries.forEach { filtro ->
-            val segmento = composeTestRule.onNodeWithTag(FILTRO_TAG + filtro.name)
-                .fetchSemanticsNode()
-            val bordes = segmento.boundsInRoot
-            assertTrue(
-                "el segmento ${filtro.etiqueta} empieza en ${bordes.left}, antes de la pantalla " +
-                    "(${pantalla.left})",
-                bordes.left >= pantalla.left - TOLERANCIA_PX
-            )
-            assertTrue(
-                "el segmento ${filtro.etiqueta} termina en ${bordes.right} y la pantalla en " +
-                    "${pantalla.right}: se sale de la pantalla",
-                bordes.right <= pantalla.right + TOLERANCIA_PX
-            )
-            composeTestRule.onNodeWithTag(FILTRO_TAG + filtro.name)
-                .assertTextContains(filtro.etiqueta)
-            composeTestRule.onNodeWithTag(FILTRO_TAG + filtro.name)
-                .assertTextContains((conteos[filtro] ?: 0).toString())
-        }
-
-        // El control mismo tampoco se sale — cobra el borde y los márgenes
-        // del lado derecho, que es justo lo que el scroll dejaba fuera.
-        val control = composeTestRule.onNodeWithTag(CONTROL_SEGMENTADO_TAG)
-            .fetchSemanticsNode()
-            .boundsInRoot
-        assertTrue(
-            "el control termina en ${control.right} y la pantalla en ${pantalla.right}: " +
-                "se sale de la pantalla",
-            control.right <= pantalla.right + TOLERANCIA_PX
+    fun `tocando el aviso se llega a ver cada opcion escondida`() {
+        pinta(FontSizeLevel.MUY_GRANDE) { Lista() }
+        val tags = tagsDeLaLista()
+        val escondidasAlInicio = tags.filterNot { seLeeCompleta(it) }
+        assertFalse(
+            "el fixture ya no reproduce el caso: a MUY_GRANDE caben las cuatro",
+            escondidasAlInicio.isEmpty()
         )
 
-        // Ningún rótulo lleva elipsis — la mitad del defecto que el
-        // `boundsInRoot` de arriba no ve: "Promesas" ya cabía dentro del
-        // borde del control cortado a la mitad, sin puntos suspensivos. Con
-        // `overflow = TextOverflow.Ellipsis` puesto, Compose no puede pintar
-        // el texto más allá de lo que mide su propio nodo sin marcarlo
-        // elidido — así que junto con los bordes de arriba (que ya prueban
-        // que ese nodo no se sale del control), "sin elipsis" cierra el caso:
-        // el rótulo llegó completo Y dentro del control.
+        val primera = escondidasAlInicio.first()
+        tocaElAviso()
+        assertTrue("tras un toque, $primera sigue sin leerse completa", seLeeCompleta(primera))
+        cobraElInvariante(tags)
+
+        var vueltas = 0
+        while (cuentaDelAviso(AVISO_DERECHA_TAG) > 0 && vueltas < tags.size) {
+            tocaElAviso()
+            cobraElInvariante(tags)
+            vueltas++
+        }
+        assertEquals(
+            "el aviso derecho no se agota a fuerza de tocarlo",
+            0,
+            cuentaDelAviso(AVISO_DERECHA_TAG)
+        )
+        assertTrue("la última opción nunca llegó a leerse", seLeeCompleta(tags.last()))
+    }
+
+    private fun tocaElAviso() {
+        composeTestRule.onNodeWithTag(AVISO_DERECHA_TAG).performClick()
+        composeTestRule.waitForIdle()
+    }
+
+    /**
+     * **Ningún rótulo baja a dos renglones ni se elide.**
+     *
+     * `ElUmbralDeFilaCuentaElPaddingTest` barre anchos sintéticos; esto lo cobra
+     * sobre la pantalla real y con las etiquetas reales, que es donde la
+     * compresión a dos renglones se vio la primera vez.
+     */
+    @Test
+    fun `a MUY_GRANDE ningun rotulo se comprime ni se elide`() {
+        pinta(FontSizeLevel.MUY_GRANDE) { Lista() }
         etiquetasColocadas().forEach { etiqueta ->
             val layout = layoutDe(etiqueta)
+            assertEquals(
+                "el rótulo \"${textoDe(etiqueta)}\" bajó a ${layout.lineCount} renglones",
+                1,
+                layout.lineCount
+            )
             (0 until layout.lineCount).forEach { renglon ->
                 assertFalse(
                     "el rótulo \"${textoDe(etiqueta)}\" lleva elipsis en el renglón $renglon",
@@ -148,36 +200,84 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
                 )
             }
         }
+    }
 
-        // Ronda de arreglo final — Task 5: "sin elipsis" no basta. Una
-        // etiqueta cuyo ancho natural cae entre `porción − 8dp` y `porción`
-        // (el umbral SIN contar el padding del segmento, ver
-        // `ElUmbralDeFilaCuentaElPaddingTest` para la reproducción exacta)
-        // se juzgaba "cabe en fila" y se comprimía a DOS renglones dentro de
-        // la fila, sin elipsis (`RENGLONES_DEL_ROTULO = 2` lo permite) — el
-        // recorte que "sin elipsis" no ve. Se cobra sólo cuando el control
-        // decidió FILA (las cuatro cajas de segmento comparten el mismo
-        // `top`): en rejilla, dos renglones son la rejilla misma, no un
-        // recorte, y no aplica.
-        val cajasDeLosSegmentos = FiltroDeContactos.entries.map { filtro ->
-            composeTestRule.onNodeWithTag(
-                FILTRO_TAG + filtro.name
-            ).fetchSemanticsNode().boundsInRoot.top
-        }
-        val decidioFila = cajasDeLosSegmentos.distinct().size == 1
-        if (decidioFila) {
-            etiquetasColocadas().forEach { etiqueta ->
-                assertEquals(
-                    "el rótulo \"${textoDe(etiqueta)}\" bajó a dos renglones DENTRO de la fila " +
-                        "elegida — el control debió pasar a rejilla",
-                    1,
-                    layoutDe(etiqueta).lineCount
-                )
+    // --- El invariante ----------------------------------------------------
+
+    /**
+     * O las opciones se ven completas, o los avisos suman exactamente las que
+     * no.
+     *
+     * Se suman los dos costados porque lo escondido cambia de lado al deslizar:
+     * al final del recorrido lo que falta está atrás, y un aviso que sólo mirara
+     * hacia adelante dejaría de contar justo entonces.
+     */
+    private fun cobraElInvariante(tags: List<String>) {
+        val escondidos = tags.filterNot { seLeeCompleta(it) }
+        val anunciados = cuentaDelAviso(AVISO_IZQUIERDA_TAG) + cuentaDelAviso(AVISO_DERECHA_TAG)
+        assertEquals(
+            "se esconden ${escondidos.size} opciones ($escondidos) y los avisos " +
+                "anuncian $anunciados",
+            escondidos.size,
+            anunciados
+        )
+        // El aviso mismo tiene que verse: un aviso recortado no avisa de nada, y
+        // es justo el fallo que se está corrigiendo, una vuelta más adentro.
+        listOf(AVISO_IZQUIERDA_TAG, AVISO_DERECHA_TAG)
+            .filter { cuentaDelAviso(it) > 0 }
+            .forEach { tag ->
+                assertTrue("el aviso $tag no se ve completo", seVeCompleto(nodo(tag)))
             }
-        }
     }
 
     // --- Lecturas ---------------------------------------------------------
+
+    /**
+     * **La medición honesta**, en dos mitades.
+     *
+     * 1. `boundsInRoot` (**recortado** por los padres) contra `size` (**sin
+     *    recortar**): si el recorte le comió ancho o alto, el chip no se ve
+     *    entero. Un nodo del todo fuera del viewport reporta `Rect.Zero`, que
+     *    por esta comparación es "no se ve" — y por la comparación vieja, contra
+     *    los bordes de la pantalla, era "perfectamente dentro".
+     * 2. Que no tenga encima el degradado de la orilla. Se lee de los nodos
+     *    `ORILLA_*` **pintados**, no de la constante de producción: si algún día
+     *    la orilla cambia de ancho, esta prueba mide la que se pintó.
+     *
+     * La segunda mitad no es teórica. A `GRANDE`, "Después" quedaba entero
+     * dentro de la ventana y su conteo se desvanecía a blanco bajo la orilla; el
+     * aviso decía "+1" y había dos datos ilegibles en pantalla.
+     */
+    private fun seLeeCompleta(tag: String): Boolean {
+        val chip = nodo(tag)
+        if (!seVeCompleto(chip)) return false
+        return orillas().none { it.overlaps(chip.boundsInRoot) }
+    }
+
+    private fun seVeCompleto(nodo: SemanticsNode): Boolean {
+        if (!nodo.layoutInfo.isPlaced) return false
+        val recortado = nodo.boundsInRoot
+        return recortado.width >= nodo.size.width - TOLERANCIA_PX &&
+            recortado.height >= nodo.size.height - TOLERANCIA_PX
+    }
+
+    private fun orillas(): List<Rect> = listOf(ORILLA_ATRAS_TAG, ORILLA_CON_MAS_TAG)
+        .flatMap {
+            composeTestRule.onAllNodesWithTag(it, useUnmergedTree = true).fetchSemanticsNodes()
+        }
+        .map { it.boundsInRoot }
+
+    private fun nodo(tag: String): SemanticsNode =
+        composeTestRule.onNodeWithTag(tag).fetchSemanticsNode()
+
+    /** Lo que anuncia un aviso, o 0 si ese costado no tiene aviso. */
+    private fun cuentaDelAviso(tag: String): Int {
+        val nodos = composeTestRule.onAllNodesWithTag(tag).fetchSemanticsNodes()
+        if (nodos.isEmpty()) return 0
+        val texto = textoDe(nodos.single())
+        return texto.removePrefix("+").toIntOrNull()
+            ?: error("el aviso $tag dice \"$texto\", que no es un conteo")
+    }
 
     private fun etiquetasColocadas(): List<SemanticsNode> = composeTestRule.onAllNodes(
         hasTestTag(ETIQUETA_DEL_SEGMENTO_TAG),
@@ -193,6 +293,61 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
         return resultados.single()
     }
 
+    // --- Las dos pantallas ------------------------------------------------
+
+    private fun tagsDeLaBitacora(): List<String> =
+        FiltroDeContactos.entries.map { FILTRO_TAG + it.name }
+
+    private fun tagsDeLaLista(): List<String> =
+        SegmentoDeCobranza.entries.map { CHIP_DE_SEGMENTO_TAG + it.name.lowercase() }
+
+    private fun pinta(nivel: FontSizeLevel, contenido: @Composable () -> Unit) {
+        composeTestRule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density, nivel.nominalScale),
+                LocalFontSizeLevel provides nivel
+            ) {
+                MspTheme(darkTheme = false, animateColors = false) {
+                    contenido()
+                }
+            }
+        }
+        composeTestRule.waitForIdle()
+    }
+
+    @Composable
+    private fun Bitacora() {
+        BitacoraContent(
+            state = BitacoraUiState(cargando = false, bitacora = BITACORA),
+            onAtras = {}
+        )
+    }
+
+    @Composable
+    private fun Lista() {
+        val proyeccion = CarteraEnPantalla.proyectar(
+            clientes = ListaFixtures.rutaConPromesaDeHoy(),
+            segmento = SegmentoDeCobranza.SIN_VISITAR,
+            query = "",
+            hoy = ListaFixtures.HOY
+        )
+        ListaDeClientesContent(
+            state = ListaDeClientesUiState(
+                cargando = false,
+                clientes = proyeccion.clientes,
+                conteos = proyeccion.conteos,
+                segmento = SegmentoDeCobranza.SIN_VISITAR
+            ),
+            onBuscar = {},
+            onElegirSegmento = {},
+            onAbrirCliente = {},
+            onReintentar = {},
+            onAlternarTema = {},
+            onAlternarPrivacidad = {}
+        )
+    }
+
     private companion object {
         /** Medio dp en `xhdpi`, por redondeo a píxel — igual que [ElRenglonDeAbajoNoSeSaleTest]. */
         const val TOLERANCIA_PX = 1f
@@ -203,7 +358,8 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
                 clienteId = detalle.clienteId,
                 nombre = detalle.nombre,
                 direccion = detalle.direccion,
-                contactos = detalle.contactos
+                contactos = detalle.contactos,
+                hoy = detalle.hoy
             )
         }
     }

@@ -231,7 +231,7 @@ private fun CuadroDeAgregar(onAgregar: () -> Unit) {
                 imageVector = Icons.Filled.Add,
                 // La descripción dice la ACCIÓN, no el dibujo: es lo que un
                 // lector de pantalla tiene que anunciar.
-                contentDescription = "agregar foto",
+                contentDescription = "Agregar foto",
                 tint = colors.brand,
                 modifier = Modifier.size(22.dp)
             )
@@ -438,7 +438,7 @@ private fun TacheDelCuadro(
         ) {
             Icon(
                 imageVector = Icons.Filled.Clear,
-                contentDescription = "quitar",
+                contentDescription = "Quitar",
                 tint = if (sobreFoto) Color.White else colors.onSurfaceMuted,
                 modifier = Modifier.size(16.dp)
             )
@@ -458,7 +458,8 @@ private fun TacheDelCuadro(
 private val TINTA_SOBRE_LA_FOTO = Color(0xFF0A0F0D).copy(alpha = 0.68f)
 
 /** El MIME del único adjunto que no es una imagen. */
-private const val PDF = "application/pdf"
+/** El tipo del recibo en PDF, leído del dominio: una sola cadena para los dos lados. */
+private val PDF = Comprobantes.PDF
 
 /**
  * **La hoja del «+»: de dónde sale el comprobante.**
@@ -660,7 +661,7 @@ private val ALTO_DE_LA_AGARRADERA = 4.dp
 fun ComprobantesDeLaHoja(cuantos: Int, modifier: Modifier = Modifier) {
     Text(
         text = when (cuantos) {
-            0 -> "sin comprobante"
+            0 -> "Sin comprobante"
             1 -> "1 comprobante"
             else -> "$cuantos comprobantes"
         },

@@ -31,7 +31,7 @@ import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
 import com.example.msp_app.feature.pagos.ui.components.ABONO_CORTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AFIRMAR_EL_MONTO
 import com.example.msp_app.feature.pagos.ui.components.AGREGAR_FOTO_TAG
-import com.example.msp_app.feature.pagos.ui.components.ALERTA_RARO_TAG
+import com.example.msp_app.feature.pagos.ui.components.AVISO_DE_LA_HOJA_TAG
 import com.example.msp_app.feature.pagos.ui.components.BLOQUEO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_SUGERIDO_TAG
 import com.example.msp_app.feature.pagos.ui.components.COMPROBANTES_EN_HOJA_TAG
@@ -108,8 +108,14 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `cada chip sugerido mide al menos 50dp`() {
         pinta(AbonoFixtures.enCaptura())
-        MontosSugeridos.Sugerencia.entries.forEach { cual ->
-            assertTocable(CHIP_SUGERIDO_TAG + cual.name.lowercase(), "chip ${cual.etiqueta}")
+        // Se recorren los chips QUE SE PINTAN, no las entradas del enum: desde
+        // que hay cinco fuentes, "lo de siempre" puede no existir (este cliente
+        // no tiene costumbre medida) y tres chips comparten la entrada REDONDO.
+        AbonoFixtures.enCaptura().sugeridos.forEach { sugerido ->
+            assertTocable(
+                CHIP_SUGERIDO_TAG + sugerido.clave,
+                "chip ${sugerido.cual.etiqueta} ${sugerido.importe.amount}"
+            )
         }
     }
 
@@ -154,13 +160,13 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `a escala normal los tres chips van en fila`() {
+    fun `a escala normal los chips van en fila`() {
         // Control positivo del test de abajo: a 1.0 SÍ comparten renglón, así que
         // que a 2.0 no lo compartan es el cambio de layout y no un accidente.
         pinta(AbonoFixtures.enCaptura())
         val bordes = bordesDeLosChips()
-        assertEquals(bordes[0].top, bordes[1].top)
-        assertEquals(bordes[1].top, bordes[2].top)
+        assertTrue("el fixture tiene que pintar más de un chip", bordes.size > 1)
+        bordes.forEach { assertEquals(bordes[0].top, it.top) }
     }
 
     @Test
@@ -173,8 +179,12 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         val bordes = bordesDeLosChips()
         bordes.forEach { assertEquals(bordes[0].left, it.left) }
         bordes.forEach { assertEquals(bordes[0].right, it.right) }
-        assertTrue("el segundo chip va debajo del primero", bordes[1].top >= bordes[0].bottom)
-        assertTrue("el tercero debajo del segundo", bordes[2].top >= bordes[1].bottom)
+        bordes.zipWithNext().forEachIndexed { indice, (arriba, abajo) ->
+            assertTrue(
+                "el chip ${indice + 2} va debajo del ${indice + 1}",
+                abajo.top >= arriba.bottom
+            )
+        }
     }
 
     // --- El bloqueo duro, por su consecuencia --------------------------------
@@ -263,7 +273,7 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     fun `el paso dos normal registra con el boton azul, sin boton rojo`() {
         pinta(AbonoFixtures.enConfirmacion())
         composeTestRule.onNodeWithTag(HOJA_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithText("confirmar y registrar").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Confirmar y registrar").assertIsDisplayed()
         assertEquals(
             "sin rarezas no hay botón rojo",
             0,
@@ -272,7 +282,7 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         assertEquals(
             "sin rarezas no hay alerta",
             0,
-            composeTestRule.onAllNodesWithTag(ALERTA_RARO_TAG).fetchSemanticsNodes().size
+            composeTestRule.onAllNodesWithTag(AVISO_DE_LA_HOJA_TAG).fetchSemanticsNodes().size
         )
         composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
         assertEquals(1, registros)
@@ -283,14 +293,14 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `un monto raro cambia el boton por el rojo que obliga a afirmar`() {
         pinta(AbonoFixtures.enMontoRaro())
-        composeTestRule.onNodeWithTag(ALERTA_RARO_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(AVISO_DE_LA_HOJA_TAG).assertIsDisplayed()
         composeTestRule.onNodeWithTag(DUPLICADO_TAG).assertIsDisplayed()
         composeTestRule.onNodeWithText(AFIRMAR_EL_MONTO).assertIsDisplayed()
-        composeTestRule.onNodeWithText("corregir monto").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Corregir monto").assertIsDisplayed()
         assertEquals(
             "el botón azul de continuar NO está: hay que afirmar el monto",
             0,
-            composeTestRule.onAllNodesWithText("confirmar y registrar").fetchSemanticsNodes().size
+            composeTestRule.onAllNodesWithText("Confirmar y registrar").fetchSemanticsNodes().size
         )
         assertEquals("y no registra por sí solo", 0, registros)
         composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
@@ -317,20 +327,20 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     fun `un abono corto avisa en ambar, sin alerta roja y sin CTA de peligro`() {
         pinta(AbonoFixtures.enAbonoCorto())
         composeTestRule.onNodeWithTag(ABONO_CORTO_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithText("abono corto").assertIsDisplayed()
-        composeTestRule.onNodeWithText("esperado $220 · este abono $150").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Abono corto").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Esperado $220 · este abono $150").assertIsDisplayed()
 
         assertEquals(
             "un desenlace normal no pinta la hoja de peligro",
             0,
-            composeTestRule.onAllNodesWithTag(ALERTA_RARO_TAG).fetchSemanticsNodes().size
+            composeTestRule.onAllNodesWithTag(AVISO_DE_LA_HOJA_TAG).fetchSemanticsNodes().size
         )
         assertEquals(
             "ni cambia el CTA por el que obliga a afirmar el monto",
             0,
             composeTestRule.onAllNodesWithText(AFIRMAR_EL_MONTO).fetchSemanticsNodes().size
         )
-        composeTestRule.onNodeWithText("confirmar y registrar").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Confirmar y registrar").assertIsDisplayed()
 
         assertEquals("y no registra por sí solo", 0, registros)
         composeTestRule.onNodeWithTag(CONFIRMAR_TAG).performClick()
@@ -354,15 +364,15 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
         assertEquals(
             "el botón azul de continuar NO está: hay que afirmar el monto",
             0,
-            composeTestRule.onAllNodesWithText("confirmar y registrar").fetchSemanticsNodes().size
+            composeTestRule.onAllNodesWithText("Confirmar y registrar").fetchSemanticsNodes().size
         )
     }
 
     @Test
     fun `el indicador dice que falta confirmar el monto raro`() {
         pinta(AbonoFixtures.enMontoRaro())
-        composeTestRule.onNodeWithText("revisado").assertIsDisplayed()
-        composeTestRule.onNodeWithText("confirmar monto raro").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Revisado").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Confirmar monto raro").assertIsDisplayed()
     }
 
     // --- Los colores de los tres sugeridos, tal cual la tabla del Task 2 ------
@@ -394,14 +404,33 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
                 colors.promiseTint,
                 fondoDelSugerido(MontosSugeridos.Sugerencia.LIQUIDAR, colors)
             )
+            // Las dos fuentes que NO salen de la deuda no llevan color de
+            // estado: no ponen la cuenta al corriente ni la cierran, y pintarlas
+            // de verde prometería una consecuencia que no tienen.
+            assertEquals(
+                colors.brand,
+                contenidoDelSugerido(MontosSugeridos.Sugerencia.LO_DE_SIEMPRE, colors)
+            )
+            assertEquals(
+                colors.brandTint,
+                fondoDelSugerido(MontosSugeridos.Sugerencia.LO_DE_SIEMPRE, colors)
+            )
+            assertEquals(
+                colors.onSurfaceMuted,
+                contenidoDelSugerido(MontosSugeridos.Sugerencia.REDONDO, colors)
+            )
+            assertEquals(
+                colors.surface2,
+                fondoDelSugerido(MontosSugeridos.Sugerencia.REDONDO, colors)
+            )
         }
     }
 
     // --- Plomería ------------------------------------------------------------
 
-    private fun bordesDeLosChips() = MontosSugeridos.Sugerencia.entries.map { cual ->
+    private fun bordesDeLosChips() = AbonoFixtures.enCaptura().sugeridos.map { sugerido ->
         composeTestRule
-            .onNodeWithTag(CHIP_SUGERIDO_TAG + cual.name.lowercase())
+            .onNodeWithTag(CHIP_SUGERIDO_TAG + sugerido.clave)
             .getUnclippedBoundsInRoot()
     }
 
@@ -554,7 +583,7 @@ class AbonoSeVeYSeTocaTest : RobolectricTestBase() {
     fun `la hoja dice cuantos comprobantes van, tambien cuando no hay`() {
         pinta(AbonoFixtures.enConfirmacion())
         composeTestRule.onNodeWithTag(COMPROBANTES_EN_HOJA_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithText("sin comprobante").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Sin comprobante").assertIsDisplayed()
     }
 
     @Test

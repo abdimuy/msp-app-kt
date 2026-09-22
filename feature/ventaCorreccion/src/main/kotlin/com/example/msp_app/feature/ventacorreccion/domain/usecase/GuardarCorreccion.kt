@@ -11,12 +11,17 @@ import com.example.msp_app.feature.ventacorreccion.domain.port.VentaLocalCorrecc
 import javax.inject.Inject
 
 /**
- * Se lanza cuando el guardado se rechaza — SIEMPRE porque el guardia (`commitEditGuard`, dentro
- * de [VentaLocalCorreccionPort.guardarCorreccion]) devolvió `false`. `commitEditGuard` sólo mira
- * `ENVIADO = 0 AND CLAIM_ID = :claimId` — NO mira `LAST_UPLOAD_PERMANENT` (ese chequeo vive en
- * `claimForEdit`, no aquí; corregido en la ronda 1 de arreglo de Task 3, este KDoc antes decía
- * lo contrario). Las únicas dos razones reales de un rechazo son: la venta ya se envió, o el
- * candado ya no es el del llamador (venció y alguien más lo tomó — de cualquier tipo).
+ * Se lanza cuando el guardado se rechaza — SIEMPRE porque el guardia (dentro de
+ * [VentaLocalCorreccionPort.guardarCorreccion]) devolvió `false`. Cuál de los dos guardias corrió
+ * lo decide `ENVIADO`, leído dentro de la misma transacción:
+ * - venta sin enviar → `commitEditGuard`, que sólo mira `ENVIADO = 0 AND CLAIM_ID = :claimId` —
+ *   NO mira `LAST_UPLOAD_PERMANENT` (ese chequeo vive en `claimForEdit`, no aquí; corregido en la
+ *   ronda 1 de arreglo de Task 3, este KDoc antes decía lo contrario). Sus dos únicas razones
+ *   reales de rechazo son: la venta ya se envió, o el candado ya no es el del llamador (venció y
+ *   alguien más lo tomó — de cualquier tipo).
+ * - venta ya enviada → `commitEditGuardEnviada`, que agrega dos razones del nivel 2: ya hay una
+ *   corrección esperando en la cola (`CORRECCION_REMOTA_PENDIENTE = 1`), o el servidor ya cerró
+ *   la puerta en definitiva (`CORRECCION_REMOTA_ESTADO IS NOT NULL`).
  * [estado] clasifica la razón, releída INMEDIATAMENTE después del rechazo — puede ser
  * [EstadoCorreccion.Corregible] en el caso "candado ajeno pero la fila sigue abierta" (otra
  * sesión de EDICIÓN, reentrante, ganó la fila entre el guardia y esta lectura); en ese caso la
@@ -74,6 +79,8 @@ class GuardarCorreccion @Inject constructor(
             enviado = estadoActual.enviado,
             permanente = estadoActual.permanente,
             correccionNoEnviada = estadoActual.correccionNoEnviada,
+            correccionRemotaPendiente = estadoActual.correccionRemotaPendiente,
+            correccionRemotaEstado = estadoActual.correccionRemotaEstado,
             claimKind = estadoActual.claimKind,
             claimedAt = estadoActual.claimedAt,
             ahora = ahora

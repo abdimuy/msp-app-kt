@@ -217,7 +217,7 @@ class ElToggleDeTemaEnLaListaTest : RobolectricTestBase() {
         // Y el chip, que este `@Test` prometía en el nombre y no tocaba. Los dos disparan
         // `proyectar()`, que es el escritor que pisaba el tema.
         composeTestRule
-            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.VENCIDOS.name.lowercase())
+            .onNodeWithTag(CHIP_DE_SEGMENTO_TAG + SegmentoDeCobranza.PAGADOS.name.lowercase())
             .performClick()
         composeTestRule.waitForIdle()
 

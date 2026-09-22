@@ -123,6 +123,16 @@ const val FILTRO_TAG: String = "pagos_filtro_"
  * del cliente entero. Es un borde de marca, no un fondo: un relleno haría que
  * media lista pareciera seleccionada. Se dibuja detrás de la fila y su canalón
  * se reserva siempre, marcada o no, para que marcar no corra el contenido.
+ *
+ * ## [toque] — cuándo el toque pregunta en vez de abrir el mapa
+ *
+ * Sobre el cobro de HOY que además es el ÚLTIMO de esa cuenta, tocar abre
+ * [HojaDelContacto] —*ubicación o ticket*— en vez del mapa. En cualquier otra
+ * fila el toque sigue abriendo el mapa directo. Quién lo decide es
+ * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto], dominio puro; la
+ * fila sólo recibe el veredicto por [abridorDe], que es el mismo camino para las
+ * tres pantallas que pintan contactos. Su default deja la fila como estaba — ver
+ * [ToqueDeLaFila].
  */
 @Composable
 fun ContactoEnLinea(
@@ -130,9 +140,11 @@ fun ContactoEnLinea(
     modifier: Modifier = Modifier,
     ocultos: Boolean = false,
     deEstaVenta: Boolean = false,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
+    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null,
+    toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
-    val abrir = abridorDe(contacto, onVerUbicacion)
+    val resuelto = abridorDe(contacto, onVerUbicacion, toque)
+    val abrir = resuelto.abrir
     val marca = if (deEstaVenta) MspTheme.colors.brand else Color.Transparent
     Row(
         modifier = modifier
@@ -141,7 +153,7 @@ fun ContactoEnLinea(
                 if (abrir != null) {
                     Modifier
                         .clickable(onClick = abrir)
-                        .semantics { contentDescription = VER_DONDE_FUE }
+                        .semantics { contentDescription = resuelto.anuncio }
                 } else {
                     Modifier
                 }
@@ -334,15 +346,22 @@ fun EncabezadoDeGrupo(
  * **Una opción en cero se enseña igual, con su cero.** Decisión cerrada del
  * dueño: "Promesas 0" avisa antes de tocar que no hay nada. No se esconde ni
  * se deshabilita, así que las cuatro opciones de [FiltroDeContactos] siempre
- * están en [ControlSegmentado.opciones] — al revés de `SegmentadoDeCobranza`,
- * que sí esconde "Hoy" mientras [com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE]
- * esté apagado.
+ * están en [ControlSegmentado.opciones] — igual que `SegmentadoDeCobranza`, que
+ * enseña sus cuatro chips porque particionan el catálogo de ocho y esconder uno
+ * dejaría cuentas sin ningún lugar donde verse.
  *
  * A escala de letra grande, si las cuatro no caben repartiendo el ancho entre
- * todas, el control pasa a una rejilla de dos renglones (2×2) — nunca rueda:
- * la misma regla de `SegmentadoDeCobranza`, ver el KDoc de [ControlSegmentado]
- * para el porqué (Ronda de arreglo 1, Task 4 — rodar dejaba el borde y los
- * márgenes del lado derecho fuera de la pantalla).
+ * todas, el control **rueda en una sola fila** y avisa con una pastilla contada
+ * (`+2`) en el costado donde quedan opciones fuera de vista. Ver el KDoc de
+ * [ControlSegmentado].
+ *
+ * **Esto cambió el 2026-09-22 y antes decía lo contrario aquí**: el control
+ * pasaba a una rejilla de dos renglones y "nunca rodaba". El dueño vio el 2×2 en
+ * el teléfono —se comía un bloque entero antes de la primera tarjeta— y pidió
+ * una fila. Lo que la rejilla protegía sigue siendo cierto y no se perdió: una
+ * opción escondida esconde su conteo, y el conteo es para lo que el chip existe.
+ * Lo que cambió es cómo se protege — la pastilla dice **cuántas** faltan y lleva
+ * a ellas, que es más de lo que la rejilla hacía.
  */
 @Composable
 fun FiltrosDeContacto(

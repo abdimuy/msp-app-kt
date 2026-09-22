@@ -11,14 +11,30 @@ import javax.inject.Inject
 
 /** Resultado de intentar reclamar una venta para corregirla. */
 sealed interface ResultadoReclamo {
-    /** El candado se tomó — [claimId] identifica esta sesión de edición. */
-    data class Reclamada(val claimId: String, val venta: VentaLocalParaCorregir) : ResultadoReclamo
+    /**
+     * El candado se tomó — [claimId] identifica esta sesión de edición.
+     *
+     * [yaEnviada] dice si el servidor YA tiene esta venta, porque no todos los campos se pueden
+     * corregir igual en los dos casos. Una venta sin enviar viaja entera en su `POST`, así que
+     * todo es editable. Una ya enviada se corrige con tres peticiones (header, cliente, líneas)
+     * y **el tipo de venta no tiene endpoint en ninguna de las tres**: dejar que se cambie sería
+     * prometer algo que no se puede cumplir, y el cambio se quedaría en el teléfono sin que
+     * nadie avise. Ver `EditSaleScreen`, que lo usa para poner ese campo de sólo lectura.
+     */
+    data class Reclamada(
+        val claimId: String,
+        val venta: VentaLocalParaCorregir,
+        val yaEnviada: Boolean
+    ) : ResultadoReclamo
 
     /**
      * No se pudo tomar el candado. [estado] explica por qué — casi siempre
-     * [EstadoCorreccion.YaSeEnvio], [EstadoCorreccion.LaRevisaLaOficina] o
-     * [EstadoCorreccion.SeEstaEnviando] (nunca [EstadoCorreccion.Corregible]: si el candado se
-     * pudo tomar, [Reclamada] es el resultado; esta rama sólo se alcanza cuando NO se pudo).
+     * [EstadoCorreccion.LaRevisaLaOficina], [EstadoCorreccion.SeEstaEnviando],
+     * [EstadoCorreccion.CorreccionEnCamino] o [EstadoCorreccion.LaOficinaYaLaAplico].
+     *
+     * Nunca los DOS estados que sí dejan corregir ([EstadoCorreccion.Corregible] y, desde el
+     * nivel 2, [EstadoCorreccion.CorregibleEnviada]): si el candado se pudo tomar, [Reclamada] es
+     * el resultado; esta rama sólo se alcanza cuando NO se pudo.
      */
     data class NoCorregible(val estado: EstadoCorreccion) : ResultadoReclamo
 
@@ -51,6 +67,8 @@ class ReclamarCorreccion @Inject constructor(
                     enviado = estadoActual.enviado,
                     permanente = estadoActual.permanente,
                     correccionNoEnviada = estadoActual.correccionNoEnviada,
+                    correccionRemotaPendiente = estadoActual.correccionRemotaPendiente,
+                    correccionRemotaEstado = estadoActual.correccionRemotaEstado,
                     claimKind = estadoActual.claimKind,
                     claimedAt = estadoActual.claimedAt,
                     ahora = ahora
@@ -77,6 +95,15 @@ class ReclamarCorreccion @Inject constructor(
             }
         }
 
-        return venta?.let { ResultadoReclamo.Reclamada(claimId, it) } ?: ResultadoReclamo.NoExiste
+        val ventaLeida = venta ?: return ResultadoReclamo.NoExiste
+
+        // `ENVIADO` se lee DESPUÉS de tener el candado, y da igual que sea después: ninguno de
+        // los dos guardias de commit lo toca, y el subidor no puede cambiarlo mientras este
+        // candado de edición siga puesto. Si la fila desapareciera entre medias —no puede, el
+        // candado la sostiene— el `false` es el lado conservador: deja el formulario como el
+        // nivel 1, que es lo que había antes de todo esto.
+        val yaEnviada = port.leerEstado(saleId)?.enviado ?: false
+
+        return ResultadoReclamo.Reclamada(claimId, ventaLeida, yaEnviada)
     }
 }

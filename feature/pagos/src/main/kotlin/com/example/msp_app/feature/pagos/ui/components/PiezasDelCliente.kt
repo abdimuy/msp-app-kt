@@ -504,7 +504,7 @@ fun CifrasDelCliente(
         primero = { celda ->
             CifraDelCliente(
                 clave = "suele dar",
-                monto = resumen.sueleDar,
+                monto = resumen.promedioDeMicrosip,
                 ocultos = ocultos,
                 modifier = celda
             )

@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.pagos.domain.port
 
 import com.example.msp_app.core.common.cobranza.domain.VentanaCobro
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
 import com.example.msp_app.feature.pagos.domain.model.GarantiaDeLaVenta
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
@@ -91,6 +92,23 @@ interface PagosPort {
      * [PagoDelHistorial.ventaId].
      */
     suspend fun pago(pagoId: String): PagoDelHistorial?
+
+    /**
+     * **Los importes de TODOS los abonos que el teléfono tiene**, sin fecha ni
+     * venta: sólo el dinero.
+     *
+     * Es la muestra con la que se arma
+     * [com.example.msp_app.feature.pagos.domain.LineaBaseDeLaRuta], o sea el
+     * techo contra el que se contrasta una parcialidad que ningún pago puede
+     * desmentir.
+     *
+     * Devuelve [com.example.msp_app.core.common.money.Money] y no filas: de la
+     * ruta entera son miles, y de cada una lo único que la línea base mira es
+     * el importe. Traer la entidad completa sería pagar fecha, cobrador,
+     * ubicación y dos identidades de sincronización por cada peso que sólo se
+     * va a ordenar.
+     */
+    suspend fun importesCobrados(): List<Money>
 }
 
 /** Bitácora de visitas de un cliente. */

@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.domain.model
 
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
 import java.time.LocalDate
 
 /**
@@ -22,6 +23,8 @@ data class DetalleVenta(
     override val fechaVenta: LocalDate?,
     override val saldo: Money,
     override val parcialidad: Money,
+    /** La cuota afirmable y su origen. La arma `CargarDetalleVenta`. */
+    override val cuota: CuotaDeLaVenta,
     override val frecuencia: String,
     val abonosPagados: Int,
     val abonosTotales: Int,
@@ -64,7 +67,22 @@ data class DetalleVenta(
      * en una pantalla que no la usa. Editar el conocimiento del domicilio
      * sigue siendo cosa del detalle de cliente.
      */
-    val nota: String? = null
+    val nota: String? = null,
+    /**
+     * El día de negocio en que se cargó esta pantalla.
+     *
+     * Existe para que el toque de un renglón de "lo que ha pasado" sepa si ese
+     * cobro es **de hoy** —la mitad de la condición que decide si el toque
+     * pregunta *ubicación o ticket* en vez de abrir el mapa directo, ver
+     * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto]— con un "hoy"
+     * que viene del [com.example.msp_app.core.common.time.AppClock] del caso de
+     * uso y **no de dentro de un `@Composable`**.
+     *
+     * Mismo criterio que [DetalleCliente.hoy], y **sin default** por la misma
+     * razón: un default sería un `LocalDate.now()` escrito en otro lado, que es
+     * justo lo que esto evita.
+     */
+    val hoy: LocalDate
 ) : CuentaCobrable
 
 /** Una línea de la sección "productos". */

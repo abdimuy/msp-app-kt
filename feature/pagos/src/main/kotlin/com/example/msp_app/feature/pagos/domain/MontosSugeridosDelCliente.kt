@@ -5,8 +5,26 @@ import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import java.time.LocalDate
 
 /**
- * Las dos cifras que el detalle del cliente pone junto al saldo: **"suele dar"**
- * y **"pídele hoy"**.
+ * Las dos cifras que el detalle del cliente pone junto al saldo: el
+ * **promedio de Microsip** y **"pídele hoy"**.
+ *
+ * ## Ojo con el nombre: esto NO es [AbonoHabitual]
+ *
+ * [promedioDeMicrosip] se llamaba `sueleDar`, y ése era el problema: en este
+ * mismo módulo [AbonoHabitual.de] calcula **la moda del historial real de
+ * abonos**, que es otra cosa. Un cliente que da `$100, $100, $100, $600`
+ * "promedia" `$225` —una cifra que nunca entregó— y su moda es `$100`, que es
+ * la que el cobrador reconoce en la puerta.
+ *
+ * Los dos números tienen su lugar; lo que no podían seguir teniendo es el mismo
+ * nombre. **"Suele dar" le pertenece a la moda**, que es la que le habla al
+ * cobrador (`TextosDelAviso.sueleDar`); esto es un promedio calculado por
+ * Microsip y se llama como lo que es.
+ *
+ * Pendiente, y se dice para que no se pierda: la etiqueta que el detalle de
+ * cliente pinta encima de esta cifra **todavía dice "suele dar"**
+ * (`PiezasDelCliente.CifrasDelCliente`). El código ya no miente; la pantalla
+ * sí, y cambiar ese rótulo es decisión de copy, no de refactor.
  *
  * Dominio PURO, como [MontosSugeridos]: el "hoy" entra por parámetro.
  *
@@ -32,8 +50,9 @@ import java.time.LocalDate
 object MontosSugeridosDelCliente {
 
     /**
-     * Lo que este cliente **suele dar** cuando paga: la suma de
-     * `IMPORTE_PAGO_PROMEDIO` de sus cuentas.
+     * El **promedio que Microsip calculó** para este cliente: la suma de
+     * `IMPORTE_PAGO_PROMEDIO` de sus cuentas. No es lo que suele dar — ver el
+     * KDoc de esta clase.
      *
      * Se suma porque cuando el cobrador pasa, el cliente abona a cada cuenta: lo
      * que entrega en la puerta es el total, no el de una.
@@ -45,7 +64,7 @@ object MontosSugeridosDelCliente {
      * cuenta nueva todavía no tiene promedio) escondería el dato justo cuando el
      * cliente acaba de comprar otra cosa.
      */
-    fun sueleDar(ventas: List<VentaDelCliente>): Money? {
+    fun promedioDeMicrosip(ventas: List<VentaDelCliente>): Money? {
         val conDato = ventas.mapNotNull { it.pagoPromedio }
         return if (conDato.isEmpty()) null else Money.sum(conDato)
     }

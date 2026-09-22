@@ -60,18 +60,21 @@ const val FILA_DE_CLIENTE_TAG: String = "pagos_fila_cliente"
  * `ListaSeVeYSeTocaTest`: la Task 16 shipeó un control de 49.5dp y tuvo que
  * corregirlo. Se toma el número del repo, que es el más estricto.
  *
- * ## Por qué a escala grande pasa a una rejilla
+ * ## Qué pasa a escala grande
  *
- * Repartir los 328dp de la pantalla entre cuatro segmentos da 79dp a cada uno.
- * A `MUY_GRANDE` (2.0) "sin visitar" no cabe ni de lejos — y antes el control
- * dejaba de repartir el ancho y rodaba en horizontal, lo que sacaba el borde y
- * los márgenes del lado derecho fuera de la pantalla. Ahora [ControlSegmentado]
- * **mide** si las cuatro opciones caben en una fila y, si no, pasa a una rejilla
- * de dos renglones (2×2) que nunca rueda: el detalle completo, con el porqué
- * del cambio, vive en su KDoc. Es el mismo criterio que [EncabezadoDeCliente]
- * aplica al monto, y por la misma razón: un dato que se sale de la pantalla es
- * información perdida, y el rótulo que se corta es justo el que más trabajo
- * esconde.
+ * Repartir los 328dp de la pantalla entre cuatro segmentos da 79dp a cada uno. A
+ * `MUY_GRANDE` (2.0) "Sin visitar" no cabe ni de lejos: la fila entera pide
+ * 542dp. Hubo una **rejilla de dos renglones** para eso y el dueño la retiró
+ * —2×2 se comía un bloque de pantalla antes de la primera tarjeta—, así que hoy
+ * es una sola fila que rueda en horizontal. Lo que la fila no puede enseñar lo
+ * dice un **aviso contado** en la orilla: "+2" al lado del último chip visible,
+ * tocable para traer la siguiente. El detalle, con lo que se midió para
+ * elegirlo, vive en el KDoc de [ControlSegmentado].
+ *
+ * El criterio no cambió, sólo la forma: es el mismo que [EncabezadoDeCliente]
+ * aplica al monto — un dato que se sale de la pantalla es información perdida, y
+ * el rótulo que se corta es justo el que más trabajo esconde. Lo que se admite
+ * ahora es que no quepa; lo que no se admite es que se vaya **en silencio**.
  *
  * El área tocable **no** se puede probar con un golden. La cobran dos tests, y
  * miden cosas distintas: `ListaSeVeYSeTocaTest` mide el componente suelto, y
@@ -98,36 +101,23 @@ fun SegmentadoDeCobranza(
 }
 
 /**
- * Los chips que se pintan hoy — **los cuatro, desde la Task 21**.
+ * Los chips que se pintan: **los cuatro, sin filtrar**.
  *
- * ## Por qué "hoy" ya está
+ * ## Por qué ya no hay interruptor
  *
- * [SegmentoDeCobranza.HOY] solo puede contener cuentas con `PROMESA_FECHA` o
- * `CITA_FECHA`. La Task 19 construyó la captura estructurada que las escribe y
- * la **Task 21 la volvió alcanzable**: el dock de las dos pantallas de detalle
- * navega a `visitas/registrar`, y el `NewVisitDialog` —que escribía la fecha
- * dentro del texto libre de `NOTA` y por lo tanto no llenaba ninguna de las dos
- * columnas— quedó retirado en la misma tarea. Con eso el chip deja de ser
- * estructuralmente incapaz de marcar otra cosa que 0.
+ * Hubo uno (`HOY_VISIBLE`) mientras existió el chip *hoy*, que sólo podía
+ * contener cuentas con `PROMESA_FECHA` o `CITA_FECHA` y por lo tanto marcaba 0
+ * hasta que la Task 21 volvió alcanzable la captura estructurada de la Task 19.
+ * Un chip que dice "hoy 0" al lado de "vencidos 34" durante semanas le enseña al
+ * cobrador que la fila de filtros miente, y cuando deja de leer la fila se
+ * pierden también los chips que sí sirven.
  *
- * Encenderlo antes habría sido peor que no tenerlo: un chip que dice "hoy 0" al
- * lado de "vencidos 34" durante semanas le enseña al cobrador que la fila de
- * filtros miente, y cuando deja de leer la fila se pierden también los chips que
- * sí sirven. Por eso el interruptor se movió el día en que el dato se volvió
- * alcanzable, y no antes.
+ * Los cuatro de ahora **particionan** el catálogo de ocho (ver
+ * [SegmentoDeCobranza]): esconder cualquiera de ellos dejaría cuentas sin ningún
+ * chip donde verse, porque `TODOS` ya no existe. Por eso no hay nada que apagar
+ * y la función se queda sólo como el punto donde se decide qué se enseña.
  */
-private fun segmentosVisibles(): List<SegmentoDeCobranza> =
-    SegmentoDeCobranza.entries.filter { HOY_VISIBLE || it != SegmentoDeCobranza.HOY }
-
-/**
- * El interruptor del párrafo de arriba. Lo encendió la **Task 21**, junto con el
- * punto de entrada que hizo alcanzable la captura de la Task 19.
- *
- * Se conserva como constante en vez de borrarse porque es el único lugar donde
- * el chip se apaga sin tocar el enum, sus ramas ni sus goldens — y porque el
- * test que lo afirma es lo que ata "el chip se pinta" a "el dato es alcanzable".
- */
-const val HOY_VISIBLE: Boolean = true
+private fun segmentosVisibles(): List<SegmentoDeCobranza> = SegmentoDeCobranza.entries
 
 /**
  * Un CLIENTE en la lista: su encabezado y **sus ventas dentro de la misma

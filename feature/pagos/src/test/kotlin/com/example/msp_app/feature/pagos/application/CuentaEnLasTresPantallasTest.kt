@@ -142,7 +142,8 @@ class CuentaEnLasTresPantallasTest {
         val bitacora = checkNotNull(
             CargarBitacoraDelCliente(
                 reunirCobranzaDelCliente = reunirCobranzaDelCliente,
-                productosPort = productosPort
+                productosPort = productosPort,
+                clock = clock
             )(PagosFixtures.CLIENTE_ID)
         )
         val porVenta = bitacora.contactos.associateBy { it.ventaId }
@@ -169,7 +170,8 @@ class CuentaEnLasTresPantallasTest {
             sembrarElCasoReal()
             CargarBitacoraDelCliente(
                 reunirCobranzaDelCliente = reunirCobranzaDelCliente,
-                productosPort = productosPort
+                productosPort = productosPort,
+                clock = clock
             )(PagosFixtures.CLIENTE_ID)
 
             assertEquals(1, productosPort.lotesConsultados.size)
@@ -194,6 +196,7 @@ class CuentaEnLasTresPantallasTest {
                 ventasPort = ventasPort,
                 garantiasPort = FakeGarantiasPort(),
                 productosPort = productosPort,
+                pagosPort = pagosPort,
                 reunirCobranzaDelCliente = reunirCobranzaDelCliente,
                 clock = clock
             )(VENTA_BOCINA)
@@ -223,6 +226,7 @@ class CuentaEnLasTresPantallasTest {
                 ventasPort = ventasPort,
                 garantiasPort = FakeGarantiasPort(),
                 productosPort = productosPort,
+                pagosPort = pagosPort,
                 reunirCobranzaDelCliente = reunirCobranzaDelCliente,
                 clock = clock
             )(VENTA_BOCINA)

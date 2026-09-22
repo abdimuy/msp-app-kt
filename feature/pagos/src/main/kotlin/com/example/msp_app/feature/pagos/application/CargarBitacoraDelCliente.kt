@@ -1,5 +1,7 @@
 package com.example.msp_app.feature.pagos.application
 
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
 import com.example.msp_app.feature.pagos.domain.model.BitacoraCompleta
 import com.example.msp_app.feature.pagos.domain.port.ProductosPort
@@ -20,7 +22,8 @@ import javax.inject.Inject
  */
 class CargarBitacoraDelCliente @Inject constructor(
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
-    private val productosPort: ProductosPort
+    private val productosPort: ProductosPort,
+    private val clock: AppClock
 ) {
 
     suspend operator fun invoke(clienteId: Int): BitacoraCompleta? {
@@ -41,7 +44,11 @@ class CargarBitacoraDelCliente @Inject constructor(
                 visitas = cobranza.visitas,
                 pagos = cobranza.pagos,
                 cuentas = cuentasDeLasVentas(cobranza.ventas, productosPort)
-            )
+            ),
+            // El "hoy" con el que el toque de un renglón sabe si ese cobro es de
+            // hoy, tomado del reloj inyectado. Ver el KDoc de
+            // `BitacoraCompleta.hoy`.
+            hoy = AppTime.todayInBusinessZone(clock)
         )
     }
 }

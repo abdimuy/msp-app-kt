@@ -5,8 +5,12 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.data.api.services.ventas.ActualizarClienteRequest
+import com.example.msp_app.data.api.services.ventas.ActualizarHeaderRequest
+import com.example.msp_app.data.api.services.ventas.ReemplazarLineasRequest
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentaDTO
+import com.example.msp_app.data.api.services.ventas.VentaSituacionDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
@@ -148,6 +152,27 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         ): VentaDTO = fakeVentaDTO
 
         override suspend fun obtenerVenta(id: String): VentaDTO = fakeVentaDTO
+
+        // El nivel 2 (corregir una venta YA subida) no entra en esta prueba: su camino es el
+        // worker de correcciones remotas, no el subidor. Lanzar en vez de devolver algo vacío
+        // hace que, si alguien lo cablea aquí sin querer, la prueba lo diga en vez de pasar.
+        override suspend fun reemplazarLineas(
+            id: String,
+            body: ReemplazarLineasRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("reemplazarLineas no debería llamarse en esta prueba")
+
+        override suspend fun actualizarHeader(
+            id: String,
+            body: ActualizarHeaderRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarHeader no debería llamarse en esta prueba")
+
+        override suspend fun actualizarCliente(
+            id: String,
+            body: ActualizarClienteRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarCliente no debería llamarse en esta prueba")
     }
 
     /**
@@ -167,6 +192,27 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         ): VentaDTO = crear(idempotencyKey, datos, imagen)
 
         override suspend fun obtenerVenta(id: String): VentaDTO = obtener(id)
+
+        // El nivel 2 (corregir una venta YA subida) no entra en esta prueba: su camino es el
+        // worker de correcciones remotas, no el subidor. Lanzar en vez de devolver algo vacío
+        // hace que, si alguien lo cablea aquí sin querer, la prueba lo diga en vez de pasar.
+        override suspend fun reemplazarLineas(
+            id: String,
+            body: ReemplazarLineasRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("reemplazarLineas no debería llamarse en esta prueba")
+
+        override suspend fun actualizarHeader(
+            id: String,
+            body: ActualizarHeaderRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarHeader no debería llamarse en esta prueba")
+
+        override suspend fun actualizarCliente(
+            id: String,
+            body: ActualizarClienteRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarCliente no debería llamarse en esta prueba")
     }
 
     // ─── scenario setup ───────────────────────────────────────────────────────

@@ -163,7 +163,7 @@ class CargarDetalleCliente @Inject constructor(
             hoy = hoy
         )
         return ResumenDelCliente(
-            sueleDar = MontosSugeridosDelCliente.sueleDar(ventas),
+            promedioDeMicrosip = MontosSugeridosDelCliente.promedioDeMicrosip(ventas),
             pideleHoy = MontosSugeridosDelCliente.pideleHoy(ventas, hoy),
             ultimoPago = pagos.maxByOrNull { it.fecha }?.let { AppTime.toBusinessDate(it.fecha) },
             atrasos = ventas.sumOf { it.atrasos },

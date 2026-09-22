@@ -31,7 +31,6 @@ import com.example.msp_app.core.designsystem.component.DESCRIPCION_A_OSCURO
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.SegmentoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_SEGMENTO_TAG
-import com.example.msp_app.feature.pagos.ui.components.HOY_VISIBLE
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -281,9 +280,9 @@ class CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest {
 
         // Control positivo: sin esto, un barrido que no viera ningún segmento dejaría
         // pasar el `assertEquals` de abajo por lista vacía. Los esperados salen del
-        // enum y del mismo interruptor que usa la pantalla, no de una lista escrita.
+        // enum, no de una lista escrita — los cuatro chips se pintan siempre, porque
+        // particionan el catálogo y esconder uno dejaría cuentas sin dónde verse.
         val esperados = SegmentoDeCobranza.entries
-            .filter { HOY_VISIBLE || it != SegmentoDeCobranza.HOY }
             .map { CHIP_DE_SEGMENTO_TAG + it.name.lowercase() }
             .sorted()
         assertEquals(

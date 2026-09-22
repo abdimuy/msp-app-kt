@@ -60,7 +60,8 @@ class BitacoraViewModelTest {
                 resolverVentanaDeCobro = ResolverVentanaDeCobro(FakePeriodoDeCobroPort(), clock),
                 derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria)
             ),
-            productosPort = FakeProductosPort()
+            productosPort = FakeProductosPort(),
+            clock = clock
         ),
         privacidad = FakePrivacidadPort(),
         tema = FakeTemaDeLaAppPort(),

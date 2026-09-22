@@ -34,9 +34,12 @@ import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.BloqueoDelAbono
 import com.example.msp_app.feature.pagos.domain.Comprobantes
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
+import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.ui.components.BandaDeAviso
 import com.example.msp_app.feature.pagos.ui.components.BandaDeBloqueo
+import com.example.msp_app.feature.pagos.ui.components.BandaDeCuotaDudosa
 import com.example.msp_app.feature.pagos.ui.components.BandaDeRegistrado
 import com.example.msp_app.feature.pagos.ui.components.ChipsSugeridos
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDelAbono
@@ -131,6 +134,7 @@ fun RegistrarAbonoScreen(
             onRegistrar = viewModel::pedirConfirmacion,
             onConfirmar = viewModel::confirmar,
             onEditar = viewModel::descartarConfirmacion,
+            onEco = viewModel::onEcoDelMonto,
             onRevisar = viewModel::cargar,
             onAgregarFoto = viewModel::abrirOrigenes,
             onOrigen = viewModel::onOrigen,
@@ -203,6 +207,7 @@ fun RegistrarAbonoContent(
     onOrigen: (OrigenDeLaFoto) -> Unit,
     onCerrarOrigenes: () -> Unit,
     onQuitarFoto: (String) -> Unit,
+    onEco: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -265,7 +270,11 @@ fun RegistrarAbonoContent(
                 esperadoHoy = MontosSugeridos.esperadoHoy(state.venta),
                 comprobantes = state.comprobantes.size,
                 onConfirmar = onConfirmar,
-                onEditar = onEditar
+                onEditar = onEditar,
+                aviso = confirmacion.aviso,
+                eco = confirmacion.eco,
+                puedeConfirmar = confirmacion.sePuedeConfirmar,
+                onEco = onEco
             )
         }
     }
@@ -295,12 +304,22 @@ private fun CuerpoDelAbono(
     ) {
         EncabezadoDelAbono(cliente = venta.clienteNombre, onAtras = onAtras)
         TiraDeContexto(folio = venta.folio, producto = venta.titulo, saldo = venta.saldo)
+        // Pegada al contexto y NO al monto: habla del dato de la venta, no de
+        // lo que el cobrador tecleó, así que se pinta esté lo que esté tecleado.
+        if (venta.cuota.origen == OrigenDeLaCuota.DUDOSA) {
+            BandaDeCuotaDudosa(parcialidad = venta.parcialidad)
+        }
         TarjetaDeCaptura(
             monto = state.monto,
             metodo = state.metodo,
             conError = state.monto.esPositivo &&
                 BloqueoDelAbono.EXCEDE_EL_SALDO in state.veredicto.bloqueos
         )
+        // El aviso en vivo va JUNTO a la cifra y antes que nada más: es el que
+        // atrapa el cero de más mientras todavía cuesta un borrón. La banda del
+        // bloqueo va debajo porque son excluyentes — un monto bloqueado no trae
+        // aviso, y uno con aviso no está bloqueado.
+        BandaDeAviso(aviso = state.aviso)
         MensajeDeBloqueo(state = state, venta = venta)
         if (state.registrado != null) BandaDeRegistrado()
         MensajeDeFallo(state = state, onRevisar = onRevisar)

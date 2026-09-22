@@ -82,6 +82,14 @@ object Comprobantes {
     /** Lo que devuelve [tipoDe] cuando no reconoce nada. Nunca está permitido. */
     const val DESCONOCIDO: String = "application/octet-stream"
 
+    /**
+     * El tipo de un recibo en PDF. Vive aquí, al lado del olfateo de bytes que
+     * lo produce, y no repetido en la pieza que lo pinta: el cuadro de la
+     * rejilla decide si enseña la foto o el glifo comparando contra ESTE valor,
+     * así que los dos lados tienen que leer la misma cadena.
+     */
+    const val PDF: String = "application/pdf"
+
     @Suppress("MagicNumber") // 0xFF es la máscara del byte, no una cifra de negocio.
     private fun empiezaCon(bytes: ByteArray, vararg firma: Int): Boolean {
         if (bytes.size < firma.size) return false

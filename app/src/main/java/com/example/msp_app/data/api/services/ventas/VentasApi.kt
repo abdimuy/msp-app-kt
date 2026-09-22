@@ -2,10 +2,13 @@ package com.example.msp_app.data.api.services.ventas
 
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
+import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
+import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 
@@ -132,4 +135,68 @@ interface VentasApi {
      */
     @GET("v2/ventas/{id}")
     suspend fun obtenerVenta(@Path("id") id: String): VentaDTO
+
+    /**
+     * Reemplaza **todas** las líneas (combos y productos) de una venta ya
+     * subida que sigue en `borrador`. Requiere el permiso `ventas:editar`.
+     *
+     * No lleva `Idempotency-Key` ni `If-Match`: el servidor no los acepta. Es
+     * un reemplazo total, así que el cuerpo describe el conjunto final, no un
+     * delta, y reenviarlo es inofensivo mientras la venta siga editable.
+     *
+     * La respuesta real es el `VentaDTO` completo; aquí se lee sólo
+     * [VentaSituacionDTO] (`situacion` + `sincronizacion`) y Gson descarta el
+     * resto. Un 409 `venta_no_editable` significa que la venta salió de
+     * `borrador`: es TERMINAL, no se reintenta. El código de error se saca con
+     * `codigoDeErrorHttp`, porque no viaja en un campo `code`.
+     */
+    @PUT("v2/ventas/{id}/lineas")
+    suspend fun reemplazarLineas(
+        @Path("id") id: String,
+        @Body body: ReemplazarLineasRequest
+    ): VentaSituacionDTO
+
+    /**
+     * Corrige el **header** de una venta ya subida que sigue en `borrador`:
+     * dirección, GPS, fecha, plan de crédito, día de cobranza y nota. Requiere
+     * el permiso `ventas:editar`.
+     *
+     * No lleva `Idempotency-Key` ni `If-Match`, igual que [reemplazarLineas]:
+     * el cuerpo describe el estado final del header, no un delta, así que
+     * reenviarlo es inofensivo mientras la venta siga editable.
+     *
+     * **No corrige los montos.** El servidor acepta un campo `montos` y lo
+     * ignora: los deriva de las líneas. Para cambiar el total hay que llamar
+     * [reemplazarLineas]. Por eso [ActualizarHeaderRequest] ni siquiera declara
+     * el campo.
+     *
+     * La respuesta real es el `VentaDTO` completo; aquí se lee sólo
+     * [VentaSituacionDTO] y Gson descarta el resto. Un 409 `venta_no_editable`
+     * significa que la venta salió de `borrador`: es TERMINAL, no se reintenta.
+     * El código de error se saca con `codigoDeErrorHttp`.
+     */
+    @PATCH("v2/ventas/{id}")
+    suspend fun actualizarHeader(
+        @Path("id") id: String,
+        @Body body: ActualizarHeaderRequest
+    ): VentaSituacionDTO
+
+    /**
+     * Corrige el **cliente** de una venta ya subida que sigue en `borrador`:
+     * nombre, teléfono, aval y el `cliente_id` del padrón. Requiere el permiso
+     * `ventas:editar`.
+     *
+     * Mismas condiciones que [actualizarHeader]: sin `Idempotency-Key` ni
+     * `If-Match`, reenviable, 409 `venta_no_editable` TERMINAL, y la respuesta
+     * es el `VentaDTO` completo leído como [VentaSituacionDTO].
+     *
+     * Ojo con `referencia`: el handler la acepta y la DESCARTA en silencio, así
+     * que [ClienteRemotoDto] no la declara — un campo que se manda y no se
+     * guarda es peor que no tenerlo.
+     */
+    @PATCH("v2/ventas/{id}/cliente")
+    suspend fun actualizarCliente(
+        @Path("id") id: String,
+        @Body body: ActualizarClienteRequest
+    ): VentaSituacionDTO
 }

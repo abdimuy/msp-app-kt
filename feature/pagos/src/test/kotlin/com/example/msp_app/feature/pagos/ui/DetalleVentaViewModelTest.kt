@@ -69,6 +69,7 @@ class DetalleVentaViewModelTest {
             ventasPort = ventasPort,
             garantiasPort = garantiasPort,
             productosPort = productosPort,
+            pagosPort = pagosPort,
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,

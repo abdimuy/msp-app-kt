@@ -92,20 +92,39 @@ class ListaDeClientesViewModelTest {
         io = testDispatcher
     )
 
+    /**
+     * **La pantalla abre en *sin visitar*.**
+     *
+     * No es cosmética: con `TODOS` retirado la lista arranca siempre filtrada, y
+     * el chip que la abre decide qué es lo primero que ve el cobrador al entrar.
+     * *Sin visitar* es "las puertas que nadie ha tocado esta semana", que es el
+     * trabajo con el que empieza el día.
+     *
+     * Se afirman las **dos** mitades —el chip y las filas que produce—: un default
+     * puesto en el `UiState` pero no respetado por la proyección pintaría un chip
+     * que no corresponde a la lista de abajo.
+     */
     @Test
-    fun `arranca cargando y termina con la ruta ordenada`() = runTest(testDispatcher) {
-        val vm = viewModel()
-        assertTrue(vm.state.value.cargando)
+    fun `arranca cargando, abre en sin visitar y termina con la ruta ordenada`() =
+        runTest(testDispatcher) {
+            val vm = viewModel()
+            assertTrue(vm.state.value.cargando)
+            assertEquals(SegmentoDeCobranza.SIN_VISITAR, vm.state.value.segmento)
 
-        advanceUntilIdle()
-        val state = vm.state.value
-        assertFalse(state.cargando)
-        assertFalse(state.fallo)
-        assertEquals(
-            listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA, ListaFixtures.GUADALUPE),
-            state.clientes.map { it.clienteId }
-        )
-    }
+            advanceUntilIdle()
+            val state = vm.state.value
+            assertFalse(state.cargando)
+            assertFalse(state.fallo)
+            assertEquals(SegmentoDeCobranza.SIN_VISITAR, state.segmento)
+            assertEquals(
+                listOf(ListaFixtures.RICARDO, ListaFixtures.VICTORIA),
+                state.clientes.map { it.clienteId }
+            )
+            // Control positivo del filtro: la ruta entera SÍ se cargó. Lo que
+            // falta de la lista lo esconde el chip, no una lectura corta —
+            // Guadalupe se negó y vive en *después*.
+            assertEquals(1, state.conteos[SegmentoDeCobranza.YA_NO_ESTA_SEMANA])
+        }
 
     @Test
     fun `buscar filtra sin volver a leer la ruta`() = runTest(testDispatcher) {
@@ -130,9 +149,9 @@ class ListaDeClientesViewModelTest {
         val vm = viewModel()
         advanceUntilIdle()
 
-        vm.elegirSegmento(SegmentoDeCobranza.VENCIDOS)
+        vm.elegirSegmento(SegmentoDeCobranza.YA_NO_ESTA_SEMANA)
         advanceUntilIdle() // ver el comentario del test de arriba (derivación de `state`)
-        assertEquals(SegmentoDeCobranza.VENCIDOS, vm.state.value.segmento)
+        assertEquals(SegmentoDeCobranza.YA_NO_ESTA_SEMANA, vm.state.value.segmento)
         // Solo Guadalupe tiene una visita en la ventana, y dice que se negó.
         assertEquals(listOf(ListaFixtures.GUADALUPE), vm.state.value.clientes.map { it.clienteId })
         assertEquals(1, ventasPort.lecturasDeTodas)
@@ -157,12 +176,18 @@ class ListaDeClientesViewModelTest {
             io = testDispatcher
         )
         advanceUntilIdle()
+        // Control positivo: nada guardado todavía, así que el ordinal de abajo no
+        // puede venir de un valor que ya estuviera ahí.
+        assertEquals(null, handle.get<Int>("pagos_lista_segmento"))
+
         vm.buscar("Flores")
-        vm.elegirSegmento(SegmentoDeCobranza.SIN_VISITAR)
+        // **No** `SIN_VISITAR`: es el chip por defecto y su `ordinal` es 0, así
+        // que guardarlo no distinguiría "se guardó" de "nunca se guardó nada".
+        vm.elegirSegmento(SegmentoDeCobranza.PAGADOS)
 
         assertEquals("Flores", handle.get<String>("pagos_lista_query"))
         assertEquals(
-            SegmentoDeCobranza.SIN_VISITAR.ordinal,
+            SegmentoDeCobranza.PAGADOS.ordinal,
             handle.get<Int>("pagos_lista_segmento")
         )
     }
@@ -195,7 +220,9 @@ class ListaDeClientesViewModelTest {
         vm.cargar()
         advanceUntilIdle()
         assertFalse(vm.state.value.fallo)
-        assertEquals(3, vm.state.value.clientes.size)
+        // Dos: la ruta tiene tres puertas y el chip de arranque —*sin visitar*—
+        // deja fuera a Guadalupe, que se negó.
+        assertEquals(2, vm.state.value.clientes.size)
     }
 
     @Test

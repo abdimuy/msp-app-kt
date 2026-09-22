@@ -233,10 +233,36 @@ interface LocalSaleDao {
     // ─────────────────────────────────────────────────────────────────────
 
     /**
-     * Reclama la venta para EDICIÓN. Devuelve 1 si el candado se tomó; 0 si
-     * la venta ya se envió, si tuvo un fallo permanente (el servidor ya
-     * resguardó el intento aunque `ENVIADO` siga en 0), o si hay un candado
-     * de SUBIDA vigente y no vencido. `0` = el editor ni se abre.
+     * Reclama la venta para EDICIÓN. Devuelve 1 si el candado se tomó, 0 si
+     * no. `0` = el editor ni se abre.
+     *
+     * **Este predicado es el espejo SQL de `evaluarCorregibilidad`** (el
+     * dominio, en `:feature:ventaCorreccion`): deja pasar exactamente los dos
+     * estados corregibles, `Corregible` y `CorregibleEnviada`, y ninguno más.
+     * La autoridad es este `WHERE`, no el dominio — el dominio evalúa para
+     * poder EXPLICARLE al usuario por qué no se pudo, pero quien decide es
+     * esta sentencia atómica. Si los dos dejan de coincidir, el síntoma es
+     * cruel y silencioso: la UI ofrece el botón "Corregir venta", el usuario
+     * lo toca y el candado falla sin una razón que mostrar. Al tocar uno, se
+     * toca el otro.
+     *
+     * Rechaza, en el mismo orden en que el dominio los resuelve:
+     * - `CORRECCION_REMOTA_ESTADO` no nulo → el servidor ya cerró la puerta
+     *   para siempre (`LaOficinaYaLaAplico`).
+     * - `CORRECCION_REMOTA_PENDIENTE = 1` → ya hay una corrección esperando a
+     *   que la cola la entregue (`CorreccionEnCamino`). Encimarle otra dejaría
+     *   al trabajador entregando un cuerpo que nadie revisó.
+     * - `ENVIADO = 1` **con** `CORRECCION_NO_ENVIADA = 1` → el servidor tiene
+     *   la venta pero no su última corrección (`LaRevisaLaOficina`).
+     * - `ENVIADO = 0` **con** fallo permanente → el servidor ya resguardó el
+     *   intento aunque `ENVIADO` siga en 0 (`LaRevisaLaOficina`).
+     * - un candado de SUBIDA vigente y no vencido (`SeEstaEnviando`).
+     *
+     * Y acepta `ENVIADO = 1` limpia, que es el caso que abrió el nivel 2:
+     * la venta ya subió, el servidor la tiene en `borrador`, y lo que se
+     * corrija viajará por la cola de correcciones remotas. Antes esta
+     * sentencia exigía `ENVIADO = 0` a secas y el flujo entero estaba muerto:
+     * el botón se pintaba y el candado lo rechazaba.
      *
      * **Reentrante para EDICIÓN** (decisión del orquestador, Task 3 del plan
      * "Corregir una venta antes de que suba"): un candado `EDIT` VIVO NO
@@ -270,8 +296,12 @@ interface LocalSaleDao {
         """
         UPDATE local_sale SET CLAIM_ID = :claimId, CLAIM_KIND = 'EDIT', CLAIMED_AT = :now
         WHERE LOCAL_SALE_ID = :saleId
-          AND ENVIADO = 0
-          AND (LAST_UPLOAD_PERMANENT IS NULL OR LAST_UPLOAD_PERMANENT = 0)
+          AND CORRECCION_REMOTA_PENDIENTE = 0
+          AND CORRECCION_REMOTA_ESTADO IS NULL
+          AND (
+            (ENVIADO = 0 AND (LAST_UPLOAD_PERMANENT IS NULL OR LAST_UPLOAD_PERMANENT = 0))
+            OR (ENVIADO = 1 AND CORRECCION_NO_ENVIADA = 0)
+          )
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
@@ -355,12 +385,23 @@ interface LocalSaleDao {
      *
      * Necesita los TRES arrendamientos por la misma razón que
      * [claimForUpload]: el candado vigente puede ser de cualquier tipo.
+     *
+     * Exige `CORRECCION_REMOTA_PENDIENTE = 1`, o sea que **sólo se reclama lo
+     * que de verdad hay que entregar**. Sin esa condición, un encolado de más
+     * —y los hay: `reencolar` encola el worker en CADA guardado, y el barrido
+     * de sesión lo vuelve a encolar— tomaba el candado sobre una venta cuya
+     * corrección ya había viajado. Durante esa ventana la fila quedaba con un
+     * `REMOTE` vivo y la bandera en 0, que es el único hueco por el que el
+     * dominio y [claimForEdit] podían discrepar. Se tapa en los dos lados: el
+     * dominio ahora reconoce un `REMOTE` vivo (`TipoCandado.REMOTE`), y aquí
+     * la ventana ya ni se abre.
      */
     @Query(
         """
         UPDATE local_sale SET CLAIM_ID = :claimId, CLAIM_KIND = 'REMOTE', CLAIMED_AT = :now
         WHERE LOCAL_SALE_ID = :saleId
           AND ENVIADO = 1
+          AND CORRECCION_REMOTA_PENDIENTE = 1
           AND (
             CLAIM_ID IS NULL
             OR CLAIMED_AT IS NULL
@@ -451,6 +492,44 @@ interface LocalSaleDao {
         """
     )
     suspend fun commitEditGuard(saleId: String, claimId: String): Int
+
+    /**
+     * El gemelo de [commitEditGuard] para una venta que YA subió, y que por
+     * tanto se corrige contra el servidor en vez de contra el cuerpo que
+     * todavía no sale. Mismo contrato — 0 filas: la corrección pierde y el
+     * llamador revierte la transacción entera sin escribir nada; 1 fila:
+     * gana, sube `REVISION` y cierra el candado en la misma sentencia — pero
+     * con tres exigencias distintas en el `WHERE`, y las tres importan:
+     *
+     * - `ENVIADO = 1`, al revés que el otro guardia. Es lo que impide que un
+     *   camino se cuele por el del otro: una venta sin enviar nunca entra
+     *   aquí, y una enviada nunca entra allá.
+     * - `CORRECCION_REMOTA_PENDIENTE = 0`: si ya hay una corrección esperando
+     *   turno para viajar, encimarle otra significa que el trabajador acaba
+     *   entregando un cuerpo que nadie revisó — el usuario corrigió dos veces
+     *   y sólo vería confirmada la última.
+     * - `CORRECCION_REMOTA_ESTADO IS NULL`: el servidor ya rechazó en
+     *   definitiva una corrección de esta venta (salió de `borrador`). No hay
+     *   nada que reintentar. Esa columna sólo la escribe
+     *   [marcarCorreccionRemotaTerminal] y [cerrarCorreccionRemota] no la
+     *   toca, así que `NULL` significa exactamente "nunca fue rechazada".
+     *
+     * Lo que este guardia NO hace, a propósito: **no** toca `ENVIADO`. El
+     * guardado de una venta sin enviar lo baja a `false` porque el cuerpo
+     * todavía no salió; aquí sí salió, y bajarlo la devolvería a la cola de
+     * alta con su `Idempotency-Key` original — el servidor contestaría con la
+     * respuesta que ya tenía guardada, no se actualizaría nada, y el teléfono
+     * se quedaría creyendo que reenvió. La corrección viaja por su cola.
+     */
+    @Query(
+        """
+        UPDATE local_sale SET CLAIM_ID = NULL, CLAIM_KIND = NULL, CLAIMED_AT = NULL, REVISION = REVISION + 1
+        WHERE LOCAL_SALE_ID = :saleId AND CLAIM_ID = :claimId AND ENVIADO = 1
+          AND CORRECCION_REMOTA_PENDIENTE = 0
+          AND CORRECCION_REMOTA_ESTADO IS NULL
+        """
+    )
+    suspend fun commitEditGuardEnviada(saleId: String, claimId: String): Int
 
     /**
      * Ancla la `REVISION` del cuerpo que va a viajar, la PRIMERA vez que se

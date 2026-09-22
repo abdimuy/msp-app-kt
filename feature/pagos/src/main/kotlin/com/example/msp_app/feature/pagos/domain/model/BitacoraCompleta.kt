@@ -1,5 +1,7 @@
 package com.example.msp_app.feature.pagos.domain.model
 
+import java.time.LocalDate
+
 /**
  * Todo lo que ha pasado en un domicilio, para la pantalla de bitácora.
  *
@@ -24,5 +26,20 @@ data class BitacoraCompleta(
     val clienteId: Int,
     val nombre: String,
     val direccion: String,
-    val contactos: List<ContactoDeCobranza>
+    val contactos: List<ContactoDeCobranza>,
+    /**
+     * El día de negocio en que se cargó esta pantalla.
+     *
+     * Existe para que el toque de un renglón sepa si ese cobro es **de hoy** —la
+     * mitad de la condición que decide si el toque pregunta *ubicación o ticket*
+     * en vez de abrir el mapa directo, ver
+     * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto]— con un "hoy"
+     * que viene del [com.example.msp_app.core.common.time.AppClock] del caso de
+     * uso y **no de dentro de un `@Composable`**.
+     *
+     * Mismo criterio que [DetalleCliente.hoy], y **sin default** por la misma
+     * razón: un default sería un `LocalDate.now()` escrito en otro lado, que es
+     * justo lo que esto evita.
+     */
+    val hoy: LocalDate
 )

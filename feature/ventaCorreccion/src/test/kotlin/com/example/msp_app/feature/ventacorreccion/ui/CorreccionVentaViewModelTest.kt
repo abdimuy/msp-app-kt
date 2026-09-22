@@ -7,6 +7,7 @@ import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReencolar
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeReloj
 import com.example.msp_app.feature.ventacorreccion.data.fake.FakeVentaLocalCorreccionPort
 import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
+import com.example.msp_app.feature.ventacorreccion.domain.CorreccionRemotaTerminal
 import com.example.msp_app.feature.ventacorreccion.domain.TextosCorreccion
 import com.example.msp_app.feature.ventacorreccion.domain.usecase.CancelarCorreccion
 import com.example.msp_app.feature.ventacorreccion.domain.usecase.GuardarCorreccion
@@ -82,15 +83,116 @@ class CorreccionVentaViewModelTest {
             assertEquals(1, estado.productos.size)
         }
 
+    /**
+     * El cambio de fondo del nivel 2: una venta ya enviada y limpia SÍ abre el editor — el
+     * servidor la tiene en `borrador` y lo que se guarde viajará por la cola de correcciones
+     * remotas. Hasta el nivel 1 esta misma siembra dejaba el estado en `NoCorregible("Ya se
+     * envió")` y el dueño se quedaba sin salida sobre su propia venta.
+     */
     @Test
-    fun `reclamar sobre una venta ya enviada deja el estado en NoCorregible con el texto Ya se envio`() =
+    fun `reclamar sobre una venta ya enviada y limpia SI abre el editor`() = runTest {
+        port.siembra(SALE_ID, campos("Rosa Elena Martinez"), listOf(producto(1)), enviado = true)
+
+        viewModel.reclamar(SALE_ID)
+
+        val estado = viewModel.state.value
+        assertTrue(estado is CorreccionUiState.Editando)
+        estado as CorreccionUiState.Editando
+        assertEquals("Rosa Elena Martinez", estado.campos.nombreCliente)
+    }
+
+    /**
+     * `Editando.yaEnviada` es lo único que el formulario (`EditSaleScreen`, en `:app`) tiene para
+     * saber que el **tipo de venta** (CONTADO/CRÉDITO) debe ir de SÓLO LECTURA. La razón no es de
+     * UI: una venta ya enviada se corrige con TRES peticiones —`PATCH /v2/ventas/{id}` (header),
+     * `PATCH /v2/ventas/{id}/cliente` y `PUT /v2/ventas/{id}/lineas`— y **ninguna de las tres
+     * lleva el tipo de venta**. Si el ViewModel dejara caer este campo entre
+     * [com.example.msp_app.feature.ventacorreccion.domain.usecase.ResultadoReclamo.Reclamada] y
+     * [CorreccionUiState.Editando], el desplegable volvería a la vida y el cambio se guardaría en
+     * el teléfono sin llegar nunca a la oficina, sin que nada avise.
+     *
+     * El día que el servidor gane un endpoint que SÍ cambie el tipo de venta, ésta y su gemela de
+     * `ReclamarCorreccionTipoDeVentaTest` son el lugar donde quien lo agregue se entera de que el
+     * campo se puede reabrir — la respuesta correcta entonces no es ajustar el `assert`, es
+     * quitar el bloqueo de `EditSaleScreen` y mandar el tipo en la petición que ya lo lleve.
+     */
+    @Test
+    fun `una venta ya enviada llega a Editando con yaEnviada en true - ninguna peticion de correccion lleva el tipo de venta`() =
         runTest {
-            port.siembra(SALE_ID, campos(), enviado = true)
+            port.siembra(SALE_ID, campos(), listOf(producto(1)), enviado = true)
+
+            viewModel.reclamar(SALE_ID)
+
+            val estado = viewModel.state.value
+            assertTrue(estado is CorreccionUiState.Editando)
+            assertEquals(
+                "sin propagarlo, el tipo de venta queda editable sobre una venta que ya subio",
+                true,
+                (estado as CorreccionUiState.Editando).yaEnviada
+            )
+        }
+
+    /**
+     * El otro lado: una venta que todavía no sube viaja ENTERA en su `POST` de alta, el tipo de
+     * venta incluido, así que no hay nada que bloquear. `false` es además el valor por omisión de
+     * [CorreccionUiState.Editando] — el lado conservador, idéntico al comportamiento del nivel 1.
+     */
+    @Test
+    fun `una venta sin enviar llega a Editando con yaEnviada en false - el alta si lleva el tipo de venta`() =
+        runTest {
+            port.siembra(SALE_ID, campos(), listOf(producto(1)), enviado = false)
+
+            viewModel.reclamar(SALE_ID)
+
+            val estado = viewModel.state.value
+            assertTrue(estado is CorreccionUiState.Editando)
+            assertEquals(
+                "una venta que nunca subio no tiene por que perder campos editables",
+                false,
+                (estado as CorreccionUiState.Editando).yaEnviada
+            )
+        }
+
+    @Test
+    fun `reclamar sobre una venta con la correccion ya en la cola muestra Correccion en camino`() =
+        runTest {
+            port.siembra(SALE_ID, campos(), enviado = true, correccionRemotaPendiente = true)
 
             viewModel.reclamar(SALE_ID)
 
             assertEquals(
-                CorreccionUiState.NoCorregible(TextosCorreccion.YA_SE_ENVIO),
+                CorreccionUiState.NoCorregible(TextosCorreccion.CORRECCION_EN_CAMINO),
+                viewModel.state.value
+            )
+        }
+
+    @Test
+    fun `reclamar sobre una venta que el servidor ya cerro muestra La aplico la oficina`() =
+        runTest {
+            port.siembra(
+                SALE_ID,
+                campos(),
+                enviado = true,
+                correccionRemotaEstado = CorreccionRemotaTerminal.RECHAZADA_ESTADO
+            )
+
+            viewModel.reclamar(SALE_ID)
+
+            assertEquals(
+                CorreccionUiState.NoCorregible(TextosCorreccion.LA_APLICO_LA_OFICINA),
+                viewModel.state.value
+            )
+        }
+
+    @Test
+    fun `reclamar sobre una venta enviada con divergencia marcada muestra La revisa la oficina`() =
+        runTest {
+            port.siembra(SALE_ID, campos(), enviado = true, correccionNoEnviada = true)
+
+            viewModel.reclamar(SALE_ID)
+
+            assertEquals(
+                CorreccionUiState.NoCorregible(TextosCorreccion.LA_REVISA_LA_OFICINA),
                 viewModel.state.value
             )
         }
@@ -105,8 +207,44 @@ class CorreccionVentaViewModelTest {
         assertEquals(CorreccionUiState.Guardada, viewModel.state.value)
     }
 
+    /**
+     * Guardar sobre una venta que YA subió: el estado va a `Guardada` igual que siempre, y la
+     * fila queda con `ENVIADO = 1` **y** la cola levantada. Este es el invariante caro del nivel
+     * 2 visto desde la UI — la prueba que lo clava contra Room de verdad vive en
+     * `CorreccionCasosDeUsoTest`; ésta es su gemela rápida sobre el fake, para que el contrato
+     * del puerto no se despegue en silencio.
+     */
     @Test
-    fun `guardar rechazado (la venta se envio mientras se editaba) deja el estado en NoCorregible`() =
+    fun `guardar sobre una venta ya enviada deja ENVIADO en 1 y la correccion en la cola`() =
+        runTest {
+            port.siembra(SALE_ID, campos(), enviado = true)
+            viewModel.reclamar(SALE_ID)
+
+            viewModel.guardar(campos("Nombre corregido"), emptyList(), emptyList(), EMAIL)
+
+            assertEquals(CorreccionUiState.Guardada, viewModel.state.value)
+            assertEquals(
+                "bajar ENVIADO devolveria la venta a la cola de ALTA con su Idempotency-Key",
+                true,
+                port.enviadoDe(SALE_ID)
+            )
+            assertEquals(
+                "sin la bandera, nadie entrega la correccion y el servidor nunca se entera",
+                true,
+                port.correccionRemotaPendienteDe(SALE_ID)
+            )
+        }
+
+    /**
+     * El guardado se rechaza porque el candado del llamador ya no es el vigente (aquí: el
+     * subidor ganó la carrera y la fila se rehizo). Desde el nivel 2 la relectura clasifica ese
+     * rechazo como [com.example.msp_app.feature.ventacorreccion.domain.EstadoCorreccion.CorregibleEnviada]
+     * — y ése NO es el texto que se muestra: decirle "Corregir venta" a quien acaba de apretar
+     * "Guardar corrección" y falló es exactamente la mentira que
+     * `aTextoDeRechazoDeGuardado` existe para evitar.
+     */
+    @Test
+    fun `guardar rechazado (el candado se perdio) muestra No se pudo guardar, no Corregir venta`() =
         runTest {
             port.siembra(SALE_ID, campos())
             viewModel.reclamar(SALE_ID)
@@ -118,7 +256,60 @@ class CorreccionVentaViewModelTest {
             viewModel.guardar(campos("Llega tarde"), emptyList(), emptyList(), EMAIL)
 
             assertEquals(
-                CorreccionUiState.NoCorregible(TextosCorreccion.YA_SE_ENVIO),
+                CorreccionUiState.NoCorregible(TextosCorreccion.NO_SE_PUDO_GUARDAR),
+                viewModel.state.value
+            )
+        }
+
+    /**
+     * El otro choque de sesiones del nivel 2: la otra sesión alcanzó a COMMITEAR su corrección
+     * (`CORRECCION_REMOTA_PENDIENTE = 1`) entre el guardia y la relectura. Decir "Corrección en
+     * camino" justo después de apretar "Guardar corrección" se leería como acuse de recibo de
+     * ESTE guardado, y los cambios que viajan son los de la otra sesión — por eso
+     * `aTextoDeRechazoDeGuardado` la manda, a propósito, a
+     * [TextosCorreccion.NO_SE_PUDO_GUARDAR], apartándose de `aTexto`.
+     */
+    @Test
+    fun `guardar rechazado con la correccion de otra sesion ya en la cola tampoco acusa recibo`() =
+        runTest {
+            port.siembra(SALE_ID, campos(), enviado = true)
+            viewModel.reclamar(SALE_ID)
+
+            // La otra sesión commiteó primero: la fila queda con la cola levantada y sin el
+            // candado de esta sesión.
+            port.siembra(SALE_ID, campos(), enviado = true, correccionRemotaPendiente = true)
+
+            viewModel.guardar(campos("Llega tarde"), emptyList(), emptyList(), EMAIL)
+
+            assertEquals(
+                CorreccionUiState.NoCorregible(TextosCorreccion.NO_SE_PUDO_GUARDAR),
+                viewModel.state.value
+            )
+        }
+
+    /**
+     * En cambio [TextosCorreccion.LA_APLICO_LA_OFICINA] SÍ conserva su texto en el rechazo de un
+     * guardado: no se puede leer como que este guardado funcionó, y es la única razón por la que
+     * no habrá otra oportunidad — esconderla detrás de "No se pudo guardar" invitaría a
+     * reintentar contra una puerta que el servidor cerró para siempre.
+     */
+    @Test
+    fun `guardar rechazado porque el servidor ya cerro la puerta SI dice que la aplico la oficina`() =
+        runTest {
+            port.siembra(SALE_ID, campos(), enviado = true)
+            viewModel.reclamar(SALE_ID)
+
+            port.siembra(
+                SALE_ID,
+                campos(),
+                enviado = true,
+                correccionRemotaEstado = CorreccionRemotaTerminal.RECHAZADA_ESTADO
+            )
+
+            viewModel.guardar(campos("Llega tarde"), emptyList(), emptyList(), EMAIL)
+
+            assertEquals(
+                CorreccionUiState.NoCorregible(TextosCorreccion.LA_APLICO_LA_OFICINA),
                 viewModel.state.value
             )
         }

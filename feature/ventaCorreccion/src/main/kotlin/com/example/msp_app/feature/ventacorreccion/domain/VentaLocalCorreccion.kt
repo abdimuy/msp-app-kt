@@ -46,7 +46,22 @@ data class EstadoVentaLocal(
     val permanente: Boolean,
     val correccionNoEnviada: Boolean,
     val claimKind: String?,
-    val claimedAt: Long?
+    val claimedAt: Long?,
+    /**
+     * `CORRECCION_REMOTA_PENDIENTE` (migración 31→32): hay una corrección ya
+     * commiteada en Room que la cola todavía no le entregó al servidor.
+     *
+     * Con valor por omisión a propósito: las pruebas del nivel 1 construyen
+     * este espejo a mano y ninguna de ellas habla de correcciones remotas.
+     * El valor por omisión es el que deja intacto su comportamiento.
+     */
+    val correccionRemotaPendiente: Boolean = false,
+    /**
+     * `CORRECCION_REMOTA_ESTADO` (migración 31→32) cruda. `null` sin
+     * incidencia; cualquier valor no vacío es marca TERMINAL — ver
+     * [esCorreccionRemotaTerminal].
+     */
+    val correccionRemotaEstado: String? = null
 )
 
 /**

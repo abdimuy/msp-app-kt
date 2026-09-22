@@ -1,6 +1,13 @@
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -253,15 +261,86 @@ fun ListaDeClientesContent(
             )
             Spacer(Modifier.height(MspTheme.spacing.sm))
         }
-        when {
-            state.cargando -> Cargando()
-            state.fallo -> MensajeDeFallo(onReintentar)
-            state.clientes.isEmpty() -> ListaVacia()
-            else -> Clientes(
-                clientes = state.clientes,
-                montosOcultos = state.montosOcultos,
-                onAbrirCliente = onAbrirCliente
-            )
+        // Deslizar de lado cambia de filtro, sin tener que estirar el pulgar hasta
+        // los chips. `detectHorizontalDragGestures` sólo consume el eje
+        // horizontal, así que el desplazamiento vertical de la lista no se toca:
+        // los dos gestos conviven porque no compiten por el mismo eje.
+        Box(
+            modifier = Modifier.pointerInput(state.segmento) {
+                var recorrido = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { recorrido = 0f },
+                    onDragEnd = {
+                        // Un umbral, y no cualquier movimiento: la lista se
+                        // recorre con el pulgar y casi ningún deslizamiento
+                        // vertical sale perfectamente recto. Sin este mínimo, el
+                        // filtro cambiaría solo mientras alguien baja la lista.
+                        if (kotlin.math.abs(recorrido) >= UMBRAL_DEL_GESTO_PX) {
+                            val paso = if (recorrido < 0) 1 else -1
+                            val destino = SegmentoDeCobranza.entries
+                                .indexOf(state.segmento) + paso
+                            // Sin dar la vuelta: llegar al último y seguir
+                            // deslizando no debe regresar al primero. En una fila
+                            // de cuatro, saltar de "Pagados" a "Sin visitar" se
+                            // lee como un error, no como una vuelta.
+                            SegmentoDeCobranza.entries.getOrNull(destino)
+                                ?.let(onElegirSegmento)
+                        }
+                    }
+                ) { _, arrastre -> recorrido += arrastre }
+            }
+        ) {
+            // La lista entra deslizándose desde el lado hacia el que se fue el
+            // dedo, y la anterior sale hacia el contrario. El movimiento no es
+            // adorno: es lo que dice QUÉ cambió. Un cambio seco entre dos listas
+            // de nombres parecidos se lee como un parpadeo, y el cobrador no
+            // alcanza a ver que está mirando otro filtro.
+            //
+            // `reducedMotion` lo apaga a un fundido: quien pidió menos animación
+            // en el sistema no debe recibir desplazamientos laterales, y aun así
+            // necesita ver que la lista cambió.
+            val reducirMovimiento = rememberMspReducedMotion()
+            AnimatedContent(
+                targetState = state.segmento,
+                transitionSpec = {
+                    if (reducirMovimiento) {
+                        fadeIn() togetherWith fadeOut()
+                    } else {
+                        // Hacia adelante en la fila de chips: el contenido nuevo
+                        // llega por la derecha. Hacia atrás, por la izquierda.
+                        val haciaAdelante = SegmentoDeCobranza.entries.indexOf(targetState) >
+                            SegmentoDeCobranza.entries.indexOf(initialState)
+                        val signo = if (haciaAdelante) 1 else -1
+                        // **Deslizamiento puro, sin fundido.** Con `fadeOut` la
+                        // lista vieja se desvanecía antes de que la nueva
+                        // terminara de entrar, y en medio quedaba un hueco en
+                        // blanco: se veía como un tirón, no como un movimiento.
+                        // Las dos listas se mueven juntas y en sentidos
+                        // contrarios, como las páginas de un carrusel — una
+                        // empuja a la otra y nunca hay vacío entre ellas.
+                        slideInHorizontally { ancho -> signo * ancho } togetherWith
+                            slideOutHorizontally { ancho -> -signo * ancho }
+                        // Sin `SizeTransform`: las dos listas tienen alturas muy
+                        // distintas (268 clientes contra 1) y animar el alto del
+                        // contenedor lo hace crecer o encogerse a media entrada,
+                        // que es el otro tirón. El contenedor se queda quieto y
+                        // sólo se mueve lo que está adentro.
+                    }.using(sizeTransform = null)
+                },
+                contentAlignment = Alignment.TopStart,
+                label = "contenido_por_segmento"
+            ) { _ ->
+                when {
+                    state.cargando -> Cargando()
+                    state.fallo -> MensajeDeFallo(onReintentar)
+                    state.clientes.isEmpty() -> ListaVacia()
+                    else -> Clientes(
+                        clientes = state.clientes,
+                        montosOcultos = state.montosOcultos,
+                        onAbrirCliente = onAbrirCliente
+                    )
+                }
+            }
         }
     }
 }
@@ -361,3 +440,13 @@ private fun MensajeDeFallo(onReintentar: () -> Unit) {
         VerTodos("Reintentar", onReintentar)
     }
 }
+
+/**
+ * Cuánto hay que deslizar de lado para que el filtro cambie.
+ *
+ * No es un número bonito: la lista se recorre con el pulgar y casi ningún
+ * deslizamiento vertical sale recto, así que sin un mínimo el filtro cambiaría
+ * solo mientras alguien baja la lista. 80 píxeles son un gesto que se hizo a
+ * propósito y no el temblor de bajar el dedo.
+ */
+private const val UMBRAL_DEL_GESTO_PX = 80f

@@ -11,15 +11,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -37,6 +41,8 @@ import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.pagos.domain.AvisoDelMonto
+import com.example.msp_app.feature.pagos.domain.NivelDeAviso
 import com.example.msp_app.feature.pagos.domain.RarezaDelAbono
 import com.example.msp_app.feature.pagos.domain.VeredictoDelAbono
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
@@ -53,9 +59,6 @@ const val CONFIRMAR_TAG: String = "pagos_abono_confirmar"
 /** `testTag` del botón que sale del paso dos sin registrar. */
 const val EDITAR_TAG: String = "pagos_abono_editar"
 
-/** `testTag` de la alerta roja de monto raro. */
-const val ALERTA_RARO_TAG: String = "pagos_abono_alerta_raro"
-
 /** `testTag` de la banda ámbar del posible duplicado de la semana. */
 const val DUPLICADO_TAG: String = "pagos_abono_duplicado"
 
@@ -67,6 +70,12 @@ const val DOS_PASOS_TAG: String = "pagos_abono_dos_pasos"
 
 /** `testTag` del saldo nuevo — la consecuencia que el cobrador ve antes de registrar. */
 const val SALDO_NUEVO_TAG: String = "pagos_abono_saldo_nuevo"
+
+/** `testTag` del encabezado de aviso escalonado (niveles 2 y 3). */
+const val AVISO_DE_LA_HOJA_TAG: String = "pagos_abono_hoja_aviso"
+
+/** `testTag` del campo donde se teclea el monto otra vez (nivel 3). */
+const val ECO_DEL_MONTO_TAG: String = "pagos_abono_eco"
 
 private val AVATAR = 40.dp
 
@@ -105,10 +114,19 @@ fun HojaDeConfirmacion(
     comprobantes: Int,
     onConfirmar: () -> Unit,
     onEditar: () -> Unit,
+    aviso: AvisoDelMonto = AvisoDelMonto.NINGUNO,
+    eco: String = "",
+    puedeConfirmar: Boolean = true,
+    onEco: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = MspTheme.colors
-    val raro = veredicto.esRaro
+    val rarezas = rarezasQueLaHojaTodaviaDice(veredicto.rarezas, aviso)
+    // La hoja escala con el nivel del aviso Y con las rarezas que TODAVÍA se
+    // dicen. No con `veredicto.esRaro`: ése cuenta también las que esta hoja ya
+    // dejó de pintar, y una hoja roja sin banda que la explique es peor que una
+    // hoja normal. Ver el KDoc de `rarezasQueLaHojaTodaviaDice`.
+    val raro = aviso.pideFriccionExtra || rarezas.any { it.escalaLaHoja }
     Column(modifier = modifier.fillMaxSize()) {
         // EL VELO ES HERMANO DE LA HOJA, NO SU PADRE — y esa es la razón de
         // que los botones de abajo se puedan tocar.
@@ -184,15 +202,22 @@ fun HojaDeConfirmacion(
             // hoja escala: un aviso de tono suave (Ruling AM) tiene banda pero
             // no enciende `raro`. El titular "confirmar abono" le cede el lugar,
             // igual que ya hacía con el duplicado solo.
-            if (veredicto.rarezas.isNotEmpty()) {
-                BandasDeRareza(
-                    rarezas = veredicto.rarezas,
+            if (aviso.mensajes.isNotEmpty()) {
+                EncabezadoDelAviso(
+                    aviso = aviso,
                     importe = importe,
                     esperadoHoy = esperadoHoy
                 )
-            } else {
+            }
+            if (rarezas.isNotEmpty()) {
+                BandasDeRareza(
+                    rarezas = rarezas,
+                    importe = importe,
+                    esperadoHoy = esperadoHoy
+                )
+            } else if (aviso.mensajes.isEmpty()) {
                 Text(
-                    text = "confirmar abono",
+                    text = "Confirmar abono",
                     style = MspTheme.type.cardTitle,
                     color = colors.onSurface
                 )
@@ -201,42 +226,239 @@ fun HojaDeConfirmacion(
             CifraDeLaHoja(importe = importe, metodo = metodo, raro = raro)
             ComprobantesDeLaHoja(cuantos = comprobantes)
             FlujoDeSaldos(veredicto = veredicto, raro = raro)
-            if (raro) {
-                MspPrimaryFieldButton(
-                    text = AFIRMAR_EL_MONTO,
-                    onClick = onConfirmar,
-                    variant = PrimaryFieldButtonVariant.Danger,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(CONFIRMAR_TAG)
-                )
-                MspPrimaryFieldButton(
-                    text = "corregir monto",
-                    onClick = onEditar,
-                    variant = PrimaryFieldButtonVariant.Ghost,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(EDITAR_TAG)
-                )
-            } else {
-                MspPrimaryFieldButton(
-                    text = "confirmar y registrar",
-                    onClick = onConfirmar,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(CONFIRMAR_TAG)
-                )
-                MspPrimaryFieldButton(
-                    text = "editar",
-                    onClick = onEditar,
-                    variant = PrimaryFieldButtonVariant.Ghost,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(EDITAR_TAG)
+            // Lo que cambia en los casos raros es QUÉ PIDE EL PASO DOS. El
+            // `when` es exhaustivo y sin `else`: un nivel nuevo no compila
+            // hasta que alguien decida cuánto cuesta decir que sí.
+            when (aviso.nivel) {
+                NivelDeAviso.TECLEAR -> {
+                    EcoDelMonto(importe = importe, eco = eco, onEco = onEco)
+                    BotonesDeMontoRaro(
+                        confirmarHabilitado = puedeConfirmar,
+                        onConfirmar = onConfirmar,
+                        onEditar = onEditar
+                    )
+                }
+
+                NivelDeAviso.NINGUNO,
+                NivelDeAviso.BLOQUEO,
+                NivelDeAviso.NOTA,
+                NivelDeAviso.CONFIRMAR ->
+                    if (raro) {
+                        BotonesDeMontoRaro(
+                            confirmarHabilitado = true,
+                            onConfirmar = onConfirmar,
+                            onEditar = onEditar
+                        )
+                    } else {
+                        MspPrimaryFieldButton(
+                            text = "Confirmar y registrar",
+                            onClick = onConfirmar,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag(CONFIRMAR_TAG)
+                        )
+                        MspPrimaryFieldButton(
+                            text = "Editar",
+                            onClick = onEditar,
+                            variant = PrimaryFieldButtonVariant.Ghost,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag(EDITAR_TAG)
+                        )
+                    }
+            }
+            DosPasos(segundo = segundoPasoDe(aviso, raro))
+        }
+    }
+}
+
+/**
+ * **El encabezado del aviso escalonado**, arriba de todo en la hoja, y la
+ * **única** banda que habla del monto.
+ *
+ * Encabeza a propósito: es lo primero que se lee, antes que el nombre y antes
+ * que la cifra. Un aviso debajo de la cifra llega cuando el ojo ya siguió de
+ * largo hacia el botón.
+ *
+ * Ámbar en nivel 2 y rojo en nivel 3, la misma escala que la banda en vivo de
+ * la captura ([BandaDeAviso]) — el mismo hecho tiene que verse igual en los dos
+ * lugares, o el cobrador cree que son dos cosas distintas.
+ *
+ * ## Se tragó la alerta roja vieja, y ése era el punto
+ *
+ * Antes de esta banda, [RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO] pintaba su
+ * propia `AlertaRoja` diciendo *"monto inusual — verifica"* y *"es mucho mayor
+ * al pago esperado, ¿tecleaste un dígito de más?"*. Con el aviso escalonado
+ * encima quedaban **dos bandas rojas diciendo el mismo hecho con dos
+ * redacciones**, y una de ellas con el regaño que el diseño prohíbe: así se
+ * enseña a ignorar el rojo.
+ *
+ * De aquella banda se conserva **lo único que era dato y no adjetivo**: el par
+ * *"Esperado $220 · este abono $1,400"*, que vive ahora en [Cifras], aquí
+ * adentro. El resto se fue entero. El par se pinta sólo cuando hay un esperado
+ * que enseñar: con `esperadoHoy` en cero no se sabe qué tocaba, y escribir
+ * "Esperado $0" sería inventarlo.
+ */
+@Composable
+private fun EncabezadoDelAviso(aviso: AvisoDelMonto, importe: Money, esperadoHoy: Money) {
+    val colors = MspTheme.colors
+    val grave = aviso.nivel == NivelDeAviso.TECLEAR
+    val color = if (grave) colors.statusOverdue else colors.statusPartial
+    val fondo = if (grave) colors.statusOverdueTint else colors.statusPartialTint
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(fondo, MspTheme.shapes.field)
+            .border(if (grave) 1.5.dp else 1.dp, color, MspTheme.shapes.field)
+            .padding(horizontal = 13.dp, vertical = 12.dp)
+            .testTag(AVISO_DE_LA_HOJA_TAG),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(20.dp)
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
+            aviso.mensajes.forEach { mensaje ->
+                Text(text = mensaje, style = MspTheme.type.bodyStrong, color = color)
+            }
+            if (esperadoHoy > Money.ZERO) {
+                Text(
+                    text = parDeCifras(esperadoHoy = esperadoHoy, importe = importe),
+                    style = MspTheme.type.captionStrong,
+                    color = color
                 )
             }
-            DosPasos(segundo = if (raro) "confirmar monto raro" else "confirmar")
         }
+    }
+}
+
+/**
+ * **El monto, tecleado otra vez.** La medida de nivel 3.
+ *
+ * ## Por qué teclear y no un botón rojo
+ *
+ * Un cero de más **no es una decisión, es un resbalón**. Un botón rojo se
+ * confirma igual de rápido que uno gris porque el dedo ya iba en camino: cuando
+ * el color aparece, el gesto ya estaba lanzado, y cambiarle el color al destino
+ * no detiene un gesto que ya salió. Teclear el monto de nuevo sí atrapa el
+ * resbalón, porque para que pase habría que teclear el cero de más **dos
+ * veces**, con la cifra equivocada a la vista arriba.
+ *
+ * Y sólo se dispara en el **0.08 %** de los abonos de la ruta (cinco de 6,165),
+ * así que la fricción se la come quien de verdad está haciendo algo sin
+ * precedente, no el cobrador que cobra sus $200 de siempre.
+ *
+ * Se compara el **dinero** y no el texto —lo hace `ConfirmacionPendiente`—, así
+ * que "250" y "250.00" valen igual: esto es una red contra un resbalón, no una
+ * prueba de mecanografía.
+ */
+@Composable
+private fun EcoDelMonto(importe: Money, eco: String, onEco: (String) -> Unit) {
+    val colors = MspTheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
+        Text(
+            text = "Teclea otra vez " + formatMoneyMxn(importe.amount),
+            style = MspTheme.type.captionStrong,
+            color = colors.onSurfaceMuted
+        )
+        OutlinedTextField(
+            value = eco,
+            onValueChange = onEco,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp)
+                .testTag(ECO_DEL_MONTO_TAG)
+        )
+    }
+}
+
+/**
+ * Los dos botones del monto marcado. [confirmarHabilitado] es `false` mientras
+ * el eco del nivel 3 no cuadra — **apagado es apagado**, igual que el CTA de la
+ * captura: un botón que se puede tocar y no hace nada es como un cobrador
+ * decide que la app está rota.
+ */
+@Composable
+private fun BotonesDeMontoRaro(
+    confirmarHabilitado: Boolean,
+    onConfirmar: () -> Unit,
+    onEditar: () -> Unit
+) {
+    MspPrimaryFieldButton(
+        text = AFIRMAR_EL_MONTO,
+        onClick = onConfirmar,
+        enabled = confirmarHabilitado,
+        variant = PrimaryFieldButtonVariant.Danger,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(CONFIRMAR_TAG)
+    )
+    MspPrimaryFieldButton(
+        text = "Corregir monto",
+        onClick = onEditar,
+        variant = PrimaryFieldButtonVariant.Ghost,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(EDITAR_TAG)
+    )
+}
+
+/** Qué pide el paso dos: confirmar, afirmar el monto, o teclearlo otra vez. */
+private fun segundoPasoDe(aviso: AvisoDelMonto, raro: Boolean): String = when (aviso.nivel) {
+    NivelDeAviso.TECLEAR -> "Teclear el monto"
+    NivelDeAviso.NINGUNO,
+    NivelDeAviso.BLOQUEO,
+    NivelDeAviso.NOTA,
+    NivelDeAviso.CONFIRMAR -> if (raro) "Confirmar monto raro" else "Confirmar"
+}
+
+/**
+ * Las rarezas que la hoja **todavía dice por su cuenta**.
+ *
+ * Se caen dos, y las dos por la misma razón: el aviso escalonado ya habla de
+ * ellas, mejor y con el dato medido detrás.
+ *
+ *  - [RarezaDelAbono.NO_TERMINA_EN_CINCUENTA] es el mismo hecho que
+ *    [com.example.msp_app.feature.pagos.domain.SenalDelMonto.NO_ES_MULTIPLO_DE_CINCUENTA].
+ *    El texto viejo ("no termina
+ *    en 00 ni en 50, confirma que es correcto") pedía confirmar sin decir por
+ *    qué; el nuevo dice el porqué ("Los pagos van de 50 en 50", que es el
+ *    99.8 % de los abonos de la ruta).
+ *  - [RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO] decía *"monto inusual"* y
+ *    *"¿tecleaste un dígito de más?"* — adjetivo y regaño, encima del aviso
+ *    nuevo, en rojo los dos. Su único dato, el par de cifras, vive ahora dentro
+ *    de [EncabezadoDelAviso].
+ *
+ * Y se cae una tercera **cuando el monto lo propuso la pantalla**: el abono
+ * corto. Los redondos y "lo de siempre" pueden estar por debajo de lo esperado,
+ * así que sin esto tocar el chip de $100 abriría una hoja que le reclama al
+ * cobrador haber tocado el chip de $100. La app no interroga lo que propuso.
+ *
+ * [RarezaDelAbono.YA_ABONO_ESTE_PERIODO] **nunca** se cae: no es un juicio
+ * sobre el monto sino un hecho sobre la cuenta, y el chip correcto cobrado dos
+ * veces en la misma semana es exactamente el cobro duplicado que hay que
+ * avisar.
+ *
+ * El filtro vive aquí y **no** en `SeguridadDelAbono`: ese enum es el veredicto
+ * de seguridad y se queda entero. Lo que sobra es el texto, y el texto es cosa
+ * de esta pantalla.
+ */
+private fun rarezasQueLaHojaTodaviaDice(
+    rarezas: Set<RarezaDelAbono>,
+    aviso: AvisoDelMonto
+): Set<RarezaDelAbono> {
+    val sinLasQueYaDiceElAviso = rarezas -
+        RarezaDelAbono.NO_TERMINA_EN_CINCUENTA -
+        RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO
+    return if (aviso.loPropusoLaPantalla) {
+        sinLasQueYaDiceElAviso - RarezaDelAbono.ABAJO_DE_LO_ESPERADO
+    } else {
+        sinLasQueYaDiceElAviso
     }
 }
 
@@ -246,7 +468,7 @@ fun HojaDeConfirmacion(
  * recortarse a las 2-4 palabras que pide la regla de copy del plan. Un "sí"
  * ambiguo delante de un monto raro no obliga a nada.
  */
-const val AFIRMAR_EL_MONTO: String = "sí, el monto es correcto"
+const val AFIRMAR_EL_MONTO: String = "Sí, el monto es correcto"
 
 private const val VELO_ALFA = 0.72f
 
@@ -408,70 +630,29 @@ private fun CeldaDeSaldo(
 }
 
 /**
- * Las bandas del veredicto, de mayor a menor gravedad: la alerta roja (una sola,
- * la más grave) y después las ámbar, que se acumulan.
+ * Las bandas que **no** hablan de si el monto es raro.
  *
- * El `when` sin sujeto es lo que hace que **solo una** alerta roja se pinte: dos
- * titulares en rojo compiten entre sí y ninguno se lee. Las ámbar no compiten
- * —describen hechos distintos del mismo abono— y por eso van en `if` sueltos.
+ * Quedan dos, y ninguna compite con [EncabezadoDelAviso]:
+ *  - **el abono corto**, que describe un desenlace que el dominio modela como
+ *    normal (`EstadoCuenta` distingue *Pagó* de *Abonó parcial*) y por eso va en
+ *    ámbar sin escalar la hoja;
+ *  - **el posible duplicado**, que no es un juicio sobre el monto sino un hecho
+ *    sobre la CUENTA: esta venta ya recibió dinero en el periodo abierto. Por
+ *    eso sobrevive incluso cuando el monto lo propuso la propia pantalla —
+ *    tocar el chip correcto dos veces en la misma semana sigue siendo el cobro
+ *    duplicado que hay que avisar.
+ *
+ * Las dos son `if` sueltos y no un `when`: describen hechos distintos del mismo
+ * abono y no compiten entre sí. El `when` que elegía UNA alerta roja se fue con
+ * las alertas rojas — hoy la única que existe es [EncabezadoDelAviso], y es una
+ * sola por construcción.
  */
 @Composable
 private fun BandasDeRareza(rarezas: Set<RarezaDelAbono>, importe: Money, esperadoHoy: Money) {
-    val colors = MspTheme.colors
-    when {
-        RarezaDelAbono.MUY_ARRIBA_DE_LO_ESPERADO in rarezas -> AlertaRoja(
-            titulo = "monto inusual — verifica",
-            detalle = "es mucho mayor al pago esperado, ¿tecleaste un dígito de más?"
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.md)) {
-                Text(
-                    text = "esperado ${formatMoneyMxn(esperadoHoy.amount)}",
-                    style = MspTheme.type.captionStrong,
-                    color = colors.statusOverdue
-                )
-                Text(
-                    text = "este abono ${formatMoneyMxn(importe.amount)}",
-                    style = MspTheme.type.captionStrong,
-                    color = colors.statusOverdue
-                )
-            }
-        }
-
-        RarezaDelAbono.NO_TERMINA_EN_CINCUENTA in rarezas -> AlertaRoja(
-            titulo = "monto poco común — verifica",
-            detalle = "no termina en 00 ni en 50, confirma que es correcto"
-        )
-    }
     if (RarezaDelAbono.ABAJO_DE_LO_ESPERADO in rarezas) {
         BandaDeAbonoCorto(importe = importe, esperadoHoy = esperadoHoy)
     }
     if (RarezaDelAbono.YA_ABONO_ESTE_PERIODO in rarezas) BandaDeDuplicado()
-}
-
-@Composable
-private fun AlertaRoja(titulo: String, detalle: String, extra: (@Composable () -> Unit)? = null) {
-    val colors = MspTheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.statusOverdueTint, MspTheme.shapes.field)
-            .border(1.5.dp, colors.statusOverdue, MspTheme.shapes.field)
-            .padding(horizontal = 13.dp, vertical = 12.dp)
-            .testTag(ALERTA_RARO_TAG),
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Warning,
-            contentDescription = null,
-            tint = colors.statusOverdue,
-            modifier = Modifier.size(20.dp)
-        )
-        Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
-            Text(text = titulo, style = MspTheme.type.bodyStrong, color = colors.statusOverdue)
-            Text(text = detalle, style = MspTheme.type.caption, color = colors.statusOverdue)
-            extra?.invoke()
-        }
-    }
 }
 
 /**
@@ -524,13 +705,12 @@ private fun BandaDeAbonoCorto(importe: Money, esperadoHoy: Money) {
         )
         Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
             Text(
-                text = "abono corto",
+                text = "Abono corto",
                 style = MspTheme.type.bodyStrong,
                 color = colors.statusPartial
             )
             Text(
-                text = "esperado ${formatMoneyMxn(esperadoHoy.amount)} · " +
-                    "este abono ${formatMoneyMxn(importe.amount)}",
+                text = parDeCifras(esperadoHoy = esperadoHoy, importe = importe),
                 style = MspTheme.type.captionStrong,
                 color = colors.statusPartial
             )
@@ -562,7 +742,7 @@ private fun BandaDeDuplicado() {
             modifier = Modifier.size(16.dp)
         )
         Text(
-            text = "ya abonó esta semana",
+            text = "Ya abonó esta semana",
             style = MspTheme.type.bodyStrong,
             color = colors.statusPartial
         )
@@ -584,7 +764,7 @@ private fun DosPasos(segundo: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Paso(numero = "1", hecho = true)
-        Text(text = "revisado", style = MspTheme.type.captionStrong, color = colors.onSurfaceMuted)
+        Text(text = "Revisado", style = MspTheme.type.captionStrong, color = colors.onSurfaceMuted)
         Paso(numero = "2", hecho = false)
         Text(text = segundo, style = MspTheme.type.captionStrong, color = colors.onSurfaceMuted)
     }
@@ -605,6 +785,23 @@ private fun Paso(numero: String, hecho: Boolean) {
             color = if (hecho) colors.statusPaidTint else colors.onSurfaceMuted
         )
     }
+}
+
+/**
+ * **"Esperado $220 · este abono $150"**: la frase entera, en una sola cadena.
+ *
+ * Una sola por dos razones. La primera es que es el mismo dato en los dos
+ * lugares que lo dicen —el encabezado del aviso y la banda del abono corto—, y
+ * partirlo dejaba dos redacciones que se podían despegar. La segunda es que
+ * partido en dos literales (`"Esperado $X · " + "este abono $Y"`) el segundo
+ * trozo arranca en minúscula a mitad de oración, y la compuerta de mayúsculas
+ * —que mide literales, no oraciones— lo marcaba sin que hubiera nada que
+ * arreglar.
+ */
+private fun parDeCifras(esperadoHoy: Money, importe: Money): String {
+    val esperado = formatMoneyMxn(esperadoHoy.amount)
+    val abono = formatMoneyMxn(importe.amount)
+    return "Esperado $esperado · este abono $abono"
 }
 
 /** Las iniciales de las dos primeras palabras del nombre. */

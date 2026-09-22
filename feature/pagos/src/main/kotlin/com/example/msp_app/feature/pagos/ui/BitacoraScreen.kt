@@ -12,6 +12,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -28,6 +31,8 @@ import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
+import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
+import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 
 /** `testTag` del título de la bitácora. */
 const val TITULO_DE_BITACORA_TAG: String = "pagos_titulo_bitacora"
@@ -77,13 +82,28 @@ const val BITACORA_VACIA_TAG: String = "pagos_bitacora_vacia"
  * (principio 17). Recibe el punto **y la dirección escrita** porque la hoja al pie
  * del mapa tiene que decir de qué puerta se trata; una coordenada suelta no se lo
  * dice a nadie.
+ *
+ * ## [onVerTicket] — la reimpresión del último cobro del día
+ *
+ * Sobre el cobro de HOY que además es el ÚLTIMO de esa cuenta, tocar el renglón
+ * **pregunta** qué abrir —ubicación o ticket— en vez de ir derecho al mapa. En
+ * cualquier otro renglón el gesto es el de siempre: si el toque cambiara de
+ * significado en todos los pagos, dejaría de ser predecible por una función que
+ * sólo sirve en un caso. Quién lo decide es
+ * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto], dominio puro.
+ *
+ * Es un destino de `:app` como el mapa, y la ruta ya existía
+ * ([PagosRutas.ticketDePago]): la pantalla del ticket es la misma a la que llega
+ * la captura de un abono. **La regla de "sólo se imprime el día del cobro" no
+ * se toca aquí**: se comprueba al imprimir, dentro del ticket.
  */
 @Composable
 fun BitacoraScreen(
     viewModel: BitacoraViewModel,
     onAtras: () -> Unit,
     modifier: Modifier = Modifier,
-    onVerUbicacion: (UbicacionDelCobro, String) -> Unit = { _, _ -> }
+    onVerUbicacion: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
+    onVerTicket: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     MspThemeRevealHost(
@@ -105,7 +125,8 @@ fun BitacoraScreen(
             // el KDoc de `BitacoraCompleta.direccion`.
             onVerUbicacion = { punto ->
                 state.bitacora?.let { onVerUbicacion(punto, it.direccion) }
-            }
+            },
+            onVerTicket = onVerTicket
         )
     }
 }
@@ -123,8 +144,16 @@ fun BitacoraContent(
     onAtras: () -> Unit,
     modifier: Modifier = Modifier,
     onFiltrar: (FiltroDeContactos) -> Unit = {},
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null
+    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerTicket: ((String) -> Unit)? = null
 ) {
+    // Cuál renglón está preguntando, por su `ContactoDeCobranza.id`. En un
+    // `rememberSaveable` y no en el `UiState`: el id sobrevive a la rotación y a
+    // que muera el proceso —que es lo que el estado del ViewModel compra— sin
+    // meterle a la bitácora un campo que no es de la bitácora sino del gesto, y
+    // sin obligar a las otras dos pantallas a copiarlo en sus ViewModels. Es el
+    // id y no el contacto porque un `Parcelable` de dominio no existe ni debe.
+    var preguntaPor by rememberSaveable { mutableStateOf<String?>(null) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -143,9 +172,34 @@ fun BitacoraContent(
                 filtro = state.filtro,
                 onFiltrar = onFiltrar,
                 onAtras = onAtras,
-                onVerUbicacion = onVerUbicacion
+                onVerUbicacion = onVerUbicacion,
+                toque = ToqueDeLaFila(
+                    contactos = bitacora.contactos,
+                    hoy = bitacora.hoy,
+                    onPreguntar = onVerTicket?.let { { contacto -> preguntaPor = contacto.id } },
+                    // Sin punto medido no hay hoja que abrir: el ticket sale
+                    // derecho. Ver `ToqueDelContacto.TICKET`.
+                    onVerTicket = onVerTicket?.let { ver -> { contacto -> ver(contacto.id) } }
+                )
             )
         }
+    }
+    // FUERA del `Column`: el velo tiene que tapar la pantalla entera, incluida
+    // la franja de las barras del sistema que `systemBarsPadding()` reserva.
+    // Mismo montaje que `HojaDeAbono` en el detalle de cliente.
+    val preguntando = state.bitacora?.contactos?.firstOrNull { it.id == preguntaPor }
+    if (preguntando != null) {
+        HojaDelContacto(
+            onVerUbicacion = {
+                preguntaPor = null
+                preguntando.ubicacion?.let { punto -> onVerUbicacion?.invoke(punto) }
+            },
+            onVerTicket = {
+                preguntaPor = null
+                onVerTicket?.invoke(preguntando.id)
+            },
+            onCerrar = { preguntaPor = null }
+        )
     }
 }
 
@@ -156,7 +210,8 @@ private fun Contactos(
     filtro: FiltroDeContactos,
     onFiltrar: (FiltroDeContactos) -> Unit,
     onAtras: () -> Unit,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)?
+    onVerUbicacion: ((UbicacionDelCobro) -> Unit)?,
+    toque: ToqueDeLaFila
 ) {
     Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
         BarraDeDetalle(onAtras = onAtras)
@@ -224,7 +279,8 @@ private fun Contactos(
                     ContactoEnLinea(
                         contacto = contacto,
                         ocultos = ocultos,
-                        onVerUbicacion = onVerUbicacion
+                        onVerUbicacion = onVerUbicacion,
+                        toque = toque
                     )
                 }
             }

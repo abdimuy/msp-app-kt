@@ -34,8 +34,15 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *   local commiteada que el servidor todavía no confirmó. `0` para toda fila
  *   preexistente: ninguna tiene una corrección remota pendiente todavía.
  * - `CORRECCION_REMOTA_ESTADO` (nullable): `NULL` (sin incidencia),
- *   `'RECHAZADA_ESTADO'` o `'CONFLICTO'` — marca TERMINAL y persistente.
- *   `NULL` para toda fila preexistente: no hay incidencia que arrastrar.
+ *   `'RECHAZADA_ESTADO'`, `'CONFLICTO'` o `'APLICADA_PARCIAL'` — marca
+ *   TERMINAL y persistente. `NULL` para toda fila preexistente: no hay
+ *   incidencia que arrastrar.
+ *   `'APLICADA_PARCIAL'` se agregó cuando la corrección remota pasó de una
+ *   petición a tres (header, cliente, líneas): significa que alguna ya había
+ *   entrado cuando el servidor cerró la puerta, así que el servidor quedó
+ *   DISTINTO de como estaba. Se distingue de `'RECHAZADA_ESTADO'` a propósito
+ *   — decirle al cobrador "no entró" cuando entró parte lo mandaría a confiar
+ *   en datos viejos. El espejo en dominio es `CorreccionRemotaTerminal`.
  * - `REVISION_REMOTA_ENVIADA` (nullable, sin default): la `REVISION` del
  *   cuerpo que viajó en la corrida remota que cerró con los tres pasos en
  *   2xx. `NULL` para toda fila preexistente — análogo exacto de

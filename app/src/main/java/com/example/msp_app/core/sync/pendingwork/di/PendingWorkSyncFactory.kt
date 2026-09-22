@@ -5,11 +5,13 @@ import androidx.annotation.VisibleForTesting
 import com.example.msp_app.core.common.sync.pendingwork.domain.ports.SessionSyncGate
 import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.SyncAllPendingWorkUseCase
 import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.GuaranteeEventsWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.GuaranteesWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.LocalSalesWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.PaymentsWorkManagerEnqueuer
+import com.example.msp_app.core.sync.pendingwork.data.enqueuers.RemoteSaleCorrectionsWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.enqueuers.VisitsWorkManagerEnqueuer
 import com.example.msp_app.core.sync.pendingwork.data.gates.InMemorySessionSyncGate
 import com.example.msp_app.core.sync.pendingwork.data.observers.RemoteLoggerSessionSyncObserver
@@ -17,6 +19,7 @@ import com.example.msp_app.core.sync.pendingwork.data.synchronizers.GuaranteeEve
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.GuaranteesPendingSynchronizer
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.LocalSalesPendingSynchronizer
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.PaymentsPendingSynchronizer
+import com.example.msp_app.core.sync.pendingwork.data.synchronizers.RemoteSaleCorrectionsPendingSynchronizer
 import com.example.msp_app.core.sync.pendingwork.data.synchronizers.VisitsPendingSynchronizer
 import com.example.msp_app.data.local.datasource.guarantee.GuaranteesLocalDataSource
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
@@ -75,6 +78,20 @@ object PendingWorkSyncFactory {
             fetchPending = { ventasParaElBarrido(localSalesDataSource, clock) },
             enqueuer = LocalSalesWorkManagerEnqueuer(appContext)
         )
+        // La SEGUNDA cola de ventas (nivel 2): las correcciones hechas sobre
+        // ventas que YA subieron. Es otra lista y otro worker, no un caso del
+        // anterior — `getVentasConCorreccionRemotaPendiente()` y
+        // `getUploadableSales()` son conjuntos disjuntos por construcción
+        // (`ENVIADO = 1` contra `ENVIADO = 0`). Lee del DAO y no de
+        // `LocalSaleDataSource` porque esa fachada legacy no expone los
+        // métodos del nivel 2.
+        val remoteSaleCorrectionsSynchronizer = RemoteSaleCorrectionsPendingSynchronizer(
+            fetchPending = {
+                AppDatabase.getInstance(appContext).localSaleDao()
+                    .getVentasConCorreccionRemotaPendiente()
+            },
+            enqueuer = RemoteSaleCorrectionsWorkManagerEnqueuer(appContext)
+        )
         val paymentsSynchronizer = PaymentsPendingSynchronizer(
             fetchPending = { paymentsDataSource.getPendingPayments() },
             enqueuer = PaymentsWorkManagerEnqueuer(appContext)
@@ -97,6 +114,7 @@ object PendingWorkSyncFactory {
         return SyncAllPendingWorkUseCase(
             synchronizers = listOf(
                 localSalesSynchronizer,
+                remoteSaleCorrectionsSynchronizer,
                 paymentsSynchronizer,
                 visitsSynchronizer,
                 guaranteesSynchronizer,
