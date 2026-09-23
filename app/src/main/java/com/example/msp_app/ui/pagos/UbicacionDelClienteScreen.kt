@@ -42,6 +42,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
+import com.example.msp_app.feature.pagos.ui.components.SIN_DIRECCION
 import com.example.msp_app.ui.theme.ThemeController
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -398,9 +399,6 @@ private val HALO_DEL_PUNTO = 34.dp
 
 /** El disco de marca dentro del halo. */
 private val DISCO_DEL_PUNTO = 14.dp
-
-/** Lo que dice la hoja cuando el cliente no trae dirección escrita. */
-private const val SIN_DIRECCION = "Sin dirección registrada"
 
 /** La línea de apoyo: por qué este punto está aquí. */
 private const val AQUI_COBRASTE = "Aquí cobraste la última vez"
