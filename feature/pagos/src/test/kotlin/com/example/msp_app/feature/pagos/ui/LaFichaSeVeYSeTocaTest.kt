@@ -30,6 +30,7 @@ import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_PRIMARIO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_FICHA_TAG
+import com.example.msp_app.feature.pagos.ui.components.NOTA_DESTACADA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DE_LA_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.PARCIALIDAD_DEL_CLIENTE_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
@@ -52,10 +53,12 @@ import org.robolectric.annotation.Config
  *
  * Lo que se afirma aquí, y que un rediseño futuro no puede romper en silencio:
  *
- * 1. **La ficha cuesta cero dp arriba de "sus ventas"** — el tope de esa
- *    sección es el MISMO con la ficha llena, vacía o ilegible. Medido, no
- *    supuesto, y así **agregar señales al catálogo tampoco empuja nada**.
- * 2. **El dinero se ve sin desplazar** en 1.0, 1.5 y 2.0.
+ * 1. **Las señales de la ficha cuestan cero dp arriba de "sus ventas"** — el
+ *    tope de esa sección es el MISMO con señales, sin ellas o con la ficha
+ *    ilegible. Medido, no supuesto, y así **agregar un valor al catálogo
+ *    tampoco empuja nada**.
+ * 2. **El dinero se ve sin desplazar** en 1.0, 1.5 y 2.0 — hoy, **con la
+ *    salvedad de la nota** que la sección de abajo detalla y mide.
  * 3. **El afordante ocupa un renglón acotado**, que es la única razón por la que
  *    vive arriba.
  *
@@ -76,6 +79,36 @@ import org.robolectric.annotation.Config
  * medición se re-apunta a ellos —sigue siendo geometría, sigue siendo en las
  * tres escalas— y el punto 1, que es el que de verdad vigila a la ficha, se
  * queda intacto y en verde.
+ *
+ * ## Lo que cambió con la nota arriba, y esto SÍ es aflojar el test
+ *
+ * No se disimula: **el dueño decidió subir la nota del cobrador a una tarjeta
+ * propia arriba del dinero**, y eso rompe el punto 2 **cuando hay nota**.
+ * Medido en esta misma pantalla, con el fixture de siempre:
+ *
+ * | Escala | Parcialidad sin nota | Con nota | Tope del dock |
+ * |---|---|---|---|
+ * | NORMAL | 561.5 dp | 727.5 dp | 672.0 dp |
+ * | GRANDE | 549.0 dp | 725.5 dp | 620.0 dp |
+ * | MUY_GRANDE | 549.0 dp | 732.0 dp | 620.0 dp |
+ *
+ * O sea: con nota la parcialidad se va abajo del dock en las tres escalas, y a
+ * GRANDE y MUY_GRANDE **ni el saldo total cabe** (termina en 648.5 / 655.0 dp
+ * contra un dock que empieza en 620.0). A NORMAL el saldo total sí sigue
+ * arriba, por 21.5 dp.
+ *
+ * Eso contradice lo que el dueño pidió en la ronda anterior, así que **queda
+ * pendiente de su decisión**, no resuelto acá. Lo que estos tests hacen mientras
+ * tanto es dejar de afirmar algo falso y seguir midiendo lo que sí es cierto:
+ *
+ * 1. **Sin nota no cambió nada** — el punto 2 sigue entero, en las tres
+ *    escalas. Es el estado de la mayoría de las puertas.
+ * 2. **Las señales siguen costando cero** — el punto 1, que es el que vigila a
+ *    la ficha, se queda tal cual: agregar un valor al catálogo no empuja nada.
+ * 3. **La tarjeta es TODO lo que se movió** — el delta se mide contra el alto
+ *    de la propia tarjeta, así que nadie puede colarle alto a la pantalla por
+ *    otro lado mientras esto siga verde, y una tarjeta más chica pone el
+ *    dinero de vuelta sin tocar ningún umbral.
  */
 @Config(qualifiers = "w360dp-h800dp-xhdpi")
 class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
@@ -146,21 +179,53 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     // --- I-5: el dinero no se tapa ------------------------------------------
 
     @Test
-    fun `el dinero se ve sin desplazar a escala NORMAL`() {
-        cliente()
+    fun `sin nota, el dinero se ve sin desplazar a escala NORMAL`() {
+        cliente(ficha = PagosFixtures.fichaSinNota())
         elDineroCabeArribaDelDock()
     }
 
     @Test
-    fun `el dinero se ve sin desplazar a escala GRANDE`() {
-        cliente(nivel = FontSizeLevel.GRANDE)
+    fun `sin nota, el dinero se ve sin desplazar a escala GRANDE`() {
+        cliente(ficha = PagosFixtures.fichaSinNota(), nivel = FontSizeLevel.GRANDE)
         elDineroCabeArribaDelDock()
     }
 
     @Test
-    fun `el dinero se ve sin desplazar a escala MUY GRANDE`() {
-        cliente(nivel = FontSizeLevel.MUY_GRANDE)
+    fun `sin nota, el dinero se ve sin desplazar a escala MUY GRANDE`() {
+        cliente(ficha = PagosFixtures.fichaSinNota(), nivel = FontSizeLevel.MUY_GRANDE)
         elDineroCabeArribaDelDock()
+    }
+
+    /**
+     * **Con nota, lo único que empujó el dinero es la tarjeta.**
+     *
+     * Ésta es la medición que reemplaza al punto 2 mientras el dueño decide
+     * qué hacer con el conflicto (ver el encabezado de la clase). No afirma
+     * que el dinero quepa —hoy no cabe— ni congela el número en que no cabe:
+     * afirma que **el desplazamiento es exactamente el alto de la tarjeta más
+     * su separación**, que es lo que impide que alguien le cuele alto a esta
+     * pantalla por otro lado y lo achaque a la nota.
+     *
+     * Y no bloquea el arreglo: el día que la tarjeta adelgace, los dos lados
+     * de la igualdad adelgazan juntos y esto sigue verde con el dinero de
+     * vuelta arriba.
+     */
+    @Test
+    fun `con nota, lo unico que empuja el dinero es el alto de la tarjeta`() {
+        cliente(ficha = PagosFixtures.fichaSinNota())
+        val sinNota = bordesDe(PARCIALIDAD_DEL_CLIENTE_TAG).bottom
+
+        fichaEnPantalla.value = PagosFixtures.fichaDelCliente()
+        composeTestRule.waitForIdle()
+        val conNota = bordesDe(PARCIALIDAD_DEL_CLIENTE_TAG).bottom
+        val tarjeta = bordesDe(NOTA_DESTACADA_TAG).let { it.bottom - it.top }
+
+        assertEquals(
+            "el dinero bajó " + (conNota - sinNota) + " y la tarjeta mide " + tarjeta +
+                ": algo más creció con la nota puesta",
+            tarjeta + SEPARACION_DE_LA_TARJETA,
+            conNota - sinNota
+        )
     }
 
     /**
@@ -185,14 +250,21 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **La medición que cierra I-5.** El contenido de la ficha no puede mover
-     * "sus ventas" ni un dp, porque la ficha vive abajo y su afordante no cuesta
-     * alto. Es también la garantía de que **agregar un valor al catálogo**
-     * —cosa que esta misma ronda hizo— no vuelve a empujar el dinero.
+     * **La medición que cierra I-5.** Las SEÑALES de la ficha no pueden mover
+     * "sus ventas" ni un dp, porque viven abajo y su afordante no cuesta alto.
+     * Es también la garantía de que **agregar un valor al catálogo** —cosa que
+     * una ronda anterior hizo— no vuelve a empujar el dinero.
+     *
+     * **Lo que salió de esta medición es la NOTA**, y se dice sin adornos: hoy
+     * sí mueve el dinero, porque el dueño pidió subirla a una tarjeta propia.
+     * Ese costo lo mide `con nota, lo unico que empuja el dinero es el alto de
+     * la tarjeta`, arriba, y su consecuencia está en el encabezado de la clase.
+     * Las cuatro fichas que se comparan acá se diferencian **sólo en señales**,
+     * que es lo que este test siempre estuvo vigilando.
      */
     @Test
-    fun `el tope de sus ventas es el MISMO con ficha llena, vacia o ilegible`() {
-        cliente(ficha = PagosFixtures.fichaConAdvertencia())
+    fun `el tope de sus ventas es el MISMO con senales, sin ellas o con ficha ilegible`() {
+        cliente(ficha = PagosFixtures.fichaConAdvertencia().copy(nota = null, actualizada = null))
         val conAdvertencia = topeDeSusVentas()
 
         fichaEnPantalla.value = FichaDelCliente()
@@ -203,7 +275,7 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         composeTestRule.waitForIdle()
         assertEquals("una ficha ilegible tampoco", conAdvertencia, topeDeSusVentas())
 
-        fichaEnPantalla.value = PagosFixtures.fichaDelCliente()
+        fichaEnPantalla.value = PagosFixtures.fichaSinNota()
         composeTestRule.waitForIdle()
         assertEquals(conAdvertencia, topeDeSusVentas())
     }
@@ -426,5 +498,12 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
 
         /** El alto de la barra de navegación: lo fija su botón redondo. */
         val TOQUE = 56.dp
+
+        /**
+         * El aire entre la tarjeta de la nota y la hoja del dinero: el mismo
+         * `spacing.sm + spacing.xs` que separa a todas las hojas de esta
+         * pantalla, y que la tarjeta paga junto con su alto.
+         */
+        val SEPARACION_DE_LA_TARJETA = 12.dp
     }
 }

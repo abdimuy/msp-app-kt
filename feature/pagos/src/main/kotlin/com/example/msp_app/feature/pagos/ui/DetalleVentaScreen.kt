@@ -56,6 +56,7 @@ import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
 import com.example.msp_app.feature.pagos.ui.components.Tarjeta
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeGarantia
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeLiquidacion
+import com.example.msp_app.feature.pagos.ui.components.TarjetaDeNotaDestacada
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeSaldo
 import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
@@ -341,6 +342,17 @@ private fun CuerpoDeLaVenta(
         Spacer(Modifier.height(MspTheme.spacing.md))
         EstadoEnGrande(detalle.estado)
 
+        // La nota de la venta, ARRIBA del saldo y con el mismo diseño que la
+        // del detalle de cliente — misma decisión del dueño, misma tarjeta.
+        // **Sin botón de editar**: ésta la manda la oficina en `sales.NOTAS` y
+        // acá no hay editor; un botón ofrecería algo que no se puede hacer.
+        // **Sin antigüedad** tampoco: el servidor no manda cuándo se escribió,
+        // y un "hace 3 días" inventado sería peor que no decir nada.
+        detalle.nota?.let { nota ->
+            Spacer(Modifier.height(MspTheme.spacing.md))
+            TarjetaDeNotaDestacada(rotulo = "nota de la venta", nota = nota)
+        }
+
         Spacer(Modifier.height(MspTheme.spacing.md))
         TarjetaDeSaldo(
             label = "saldo de esta venta",
@@ -387,53 +399,50 @@ private fun CuerpoDeLaVenta(
         LabelDeSeccion("datos de la venta")
         DatosDeLaVenta(detalle)
 
-        // AL FONDO, como la ficha del detalle de cliente: no empuja un solo dp
-        // del dinero, que es por lo que el cobrador abrió la pantalla. Ver el
-        // KDoc de TarjetaDeNotaDeLaVenta para por qué esto NO es la ficha del
-        // cliente reusada tal cual.
-        TarjetaDeNotaDeLaVenta(nota = detalle.nota)
+        // Sólo el estado VACÍO, y al fondo. La nota con contenido se fue
+        // arriba; dejarla también acá pondría el mismo párrafo dos veces en la
+        // pantalla. "No hay nota" sí se queda abajo: no es accionable, no
+        // merece empujar el saldo, y decirlo distingue "la venta no trae nota"
+        // de "se perdió por el camino". Mismo reparto que el detalle de
+        // cliente, donde "Sin notas" también vive al fondo.
+        if (detalle.nota == null) {
+            TarjetaDeNotaDeLaVenta()
+        }
         Spacer(Modifier.height(MspTheme.spacing.lg))
     }
 }
 
 /**
- * **La nota de ESTA venta**, tal como la trae el servidor — de sólo lectura.
+ * **Que esta venta no trae nota**, dicho al fondo y en gris.
  *
- * El dueño pidió que el detalle de venta tuviera notas, "como en detalles de
- * cliente". Ahí viven DOS notas distintas ([SeccionDeLaFicha]): la ficha del
- * cliente —catálogo cerrado, nota libre, editable, local— y la que la venta
- * trae en su columna `NOTAS`, sólo de lectura. Esta pantalla es de una CUENTA,
- * así que lo que el cobrador espera ver aquí es lo que aplica a esa cuenta: la
- * nota de la venta, no la ficha del domicilio entero.
+ * Hasta que la nota subió, esta tarjeta pintaba los DOS estados: la nota y su
+ * ausencia. Hoy la nota con contenido vive arriba, en
+ * [com.example.msp_app.feature.pagos.ui.components.TarjetaDeNotaDestacada], así
+ * que lo único que le queda a esta pieza es el caso vacío — y por eso ya no
+ * recibe parámetro: pintaba un `null` que la pantalla es quien decide.
  *
- * La ficha no se trae a esta pantalla a propósito — ver el KDoc de
+ * **Y el vacío no sube.** "No hay nota" no es accionable: no cambia lo que el
+ * cobrador hace en la puerta, así que no puede empujar el saldo. Sí se dice,
+ * y en su sitio de siempre, porque callarlo dejaría al cobrador sin saber si
+ * la venta no trae nota o si algo se perdió por el camino. Mismo reparto que
+ * el detalle de cliente, donde "Sin notas" también se quedó al fondo.
+ *
+ * La ficha del cliente no se trae a esta pantalla a propósito — ver el KDoc de
  * [com.example.msp_app.feature.pagos.domain.model.DetalleVenta.nota] y el de
  * `CargarDetalleCliente` sobre por qué esa lectura no entra a
  * `ReunirCobranzaDelCliente`, que este detalle sí comparte: traerla sería una
  * consulta de más en una pantalla que no la usa, y editarla desde aquí
  * confundiría el dato de la cuenta con el del domicilio.
- *
- * Reusa [Tarjeta] y [LabelDeSeccion] — las mismas piezas con las que
- * [SeccionDeLaFicha] arma su propia sección de notas — y no ese composable
- * completo, que exige una [com.example.msp_app.feature.pagos.domain.model.FichaDelCliente]
- * que esta pantalla no tiene y no debe simular.
- *
- * Sin nota es sin nota: se dice, no se rellena — mismo patrón que el "Sin
- * notas" del detalle de cliente.
  */
 @Composable
-internal fun TarjetaDeNotaDeLaVenta(nota: String?, modifier: Modifier = Modifier) {
+internal fun TarjetaDeNotaDeLaVenta(modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxWidth()) {
         LabelDeSeccion("Notas")
         Tarjeta(modifier = Modifier.testTag(NOTA_DE_LA_VENTA_TAG)) {
             Text(
-                text = nota ?: "Sin notas de esta venta",
+                text = "Sin notas de esta venta",
                 style = MspTheme.type.body,
-                color = if (nota == null) {
-                    MspTheme.colors.onSurfaceMuted
-                } else {
-                    MspTheme.colors.onSurface
-                }
+                color = MspTheme.colors.onSurfaceMuted
             )
         }
     }

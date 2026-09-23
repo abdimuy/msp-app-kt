@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.common.time.TiempoRelativo
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
@@ -63,6 +64,7 @@ import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.Separador
+import com.example.msp_app.feature.pagos.ui.components.TarjetaDeNotaDestacada
 import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
 import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
@@ -475,6 +477,17 @@ private fun CuerpoDelCliente(
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeIdentidad(detalle, contacto, onVerUbicacion, suelo)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
+        // **La nota, arriba.** Decisión del dueño: *"están hasta abajo y en
+        // diminuto, casi no se ven"*. Sube ANTES del bloque del dinero, que es
+        // el costo que esto tiene y que hasta ahora era el argumento para
+        // dejarla abajo — ver el comentario de `SeccionDeLaFicha` más abajo y
+        // el KDoc de `TarjetaDeNotaDestacada`.
+        //
+        // **Sin nota no hay tarjeta**, y por eso lo que se paga se paga sólo
+        // donde hay algo que leer: una puerta en blanco no empuja ni un dp. El
+        // estado "sin notas" se queda en su sección del fondo, con su
+        // invitación a anotar.
+        NotaDeLaPuerta(detalle, onEditarFicha)
         HojaDeDinero(detalle, ocultos)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeVentas(detalle, ocultos, onAbrirVenta)
@@ -495,19 +508,49 @@ private fun CuerpoDelCliente(
             Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
             HojaDeContactos(detalle, ocultos, onVerContactos, onVerUbicacionDelContacto, toque)
         }
-        // La ficha vive AL FONDO, donde la puso la Task 16 y donde no empuja un
-        // solo dp de lo que está arriba — que es el dinero, por lo que el
-        // cobrador abrió esta pantalla. `LaFichaSeVeYSeTocaTest` lo mide. Lo que
-        // sí sube, y gratis, es el afordante del encabezado: ahí es donde una
-        // advertencia grita.
+        // Lo que queda de la ficha vive AL FONDO, donde la puso la Task 16: las
+        // señales marcadas, la nota de la venta y los estados "sin notas" /
+        // "no se pudieron leer". **La nota libre ya no está acá** — subió a
+        // `TarjetaDeNotaDestacada`, y dejarla también abajo pondría el mismo
+        // párrafo dos veces en una pantalla que pelea cada dp.
+        //
+        // Lo demás sigue sin costar un dp arriba del dinero, y por eso se
+        // queda: `LaFichaSeVeYSeTocaTest` mide que el tope de "sus ventas" no
+        // se mueva con las señales. Lo que sí sube, y gratis, es el afordante
+        // del encabezado: ahí es donde una advertencia grita.
         SeccionDeLaFicha(
             ficha = detalle.ficha,
             notaDeLaVenta = detalle.notaDeLaVenta,
-            onEditar = onEditarFicha,
-            hoy = detalle.hoy
+            onEditar = onEditarFicha
         )
         Spacer(Modifier.height(MspTheme.spacing.lg))
     }
+}
+
+/**
+ * La nota libre de la puerta, **arriba del dinero** — o nada, si no hay nota.
+ *
+ * El rótulo es *"lo que anotaste"* porque acá la escribió el cobrador: es la
+ * única nota de la app que se teclea en el teléfono, y decirlo en segunda
+ * persona la separa de la que manda la oficina en el detalle de venta.
+ *
+ * La antigüedad se la pide a [TiempoRelativo], que es donde ya vivía cuando la
+ * nota se pintaba al fondo: el "hoy" entra por [DetalleCliente.hoy] —el reloj
+ * inyectado— y no se lee acá, o el texto cambiaría en cada recomposición.
+ */
+@Composable
+private fun NotaDeLaPuerta(detalle: DetalleCliente, onEditar: () -> Unit) {
+    val ficha = detalle.ficha ?: return
+    val nota = ficha.nota ?: return
+    TarjetaDeNotaDestacada(
+        rotulo = "lo que anotaste",
+        nota = nota,
+        antiguedad = ficha.actualizada?.let {
+            TiempoRelativo.de(AppTime.toBusinessDate(it), detalle.hoy)
+        },
+        onEditar = onEditar
+    )
+    Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
 }
 
 /**

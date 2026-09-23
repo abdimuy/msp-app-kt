@@ -25,14 +25,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.msp_app.core.common.time.AppTime
-import com.example.msp_app.core.common.time.TiempoRelativo
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.etiquetaDe
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.PesoDeLaSenal
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
-import java.time.LocalDate
 
 /** `testTag` de la tarjeta de la ficha — la sección "lo que hay que saber". */
 const val TARJETA_DE_LA_FICHA_TAG: String = "pagos_ficha_tarjeta"
@@ -188,27 +185,42 @@ private fun Pastilla(
 }
 
 /**
- * La sección **"lo que hay que saber"**: el catálogo cerrado y la nota libre.
+ * La sección **"lo que hay que saber"**: el catálogo cerrado de señales, la
+ * nota que trae la venta y los estados en los que no hay nada que pintar.
+ *
+ * ## La nota libre ya NO se pinta acá
+ *
+ * Subió a [TarjetaDeNotaDestacada], arriba del dinero, porque el dueño la vio
+ * en vidrio y dijo que *"están hasta abajo y en diminuto, casi no se ven"*.
+ * **No se quedó también acá**: la misma nota escrita dos veces en una pantalla
+ * que pelea cada dp no informa el doble, sólo baja todo lo demás un párrafo.
+ * Su antigüedad —"hace 3 días"— se fue con ella, que es donde significa algo.
+ *
+ * Lo que queda son las señales, y ésas **siguen sin costar un dp arriba**:
+ * `LaFichaSeVeYSeTocaTest` mide que el tope de "sus ventas" no se mueva con
+ * ellas, y por eso agregar un valor al catálogo sigue siendo gratis.
  *
  * ## Dónde cae, medido
  *
  * Va **al fondo, entre "últimos contactos" y "datos del cliente"** — el mismo
- * lugar donde la Task 16 puso su antecesora, así que **no empuja un solo dp**
- * de lo que estaba arriba. `LaFichaSeVeYSeTocaTest` lo mide: el tope de "sus
- * ventas" es idéntico con la ficha llena, vacía o ilegible, y la primera venta
- * se ve sin desplazar en las tres escalas.
- *
- * Lo que sí se ve arriba —sin costar alto— es [AfordanteDeLaFicha], y con él
- * la advertencia, que es lo único de la ficha que no puede esperar a que el
- * cobrador baje.
+ * lugar donde la Task 16 puso su antecesora. Lo que sí se ve arriba sin costar
+ * alto es [AfordanteDeLaFicha], y con él la advertencia, que es lo único de la
+ * ficha que no puede esperar a que el cobrador baje.
  *
  * ## Los tres estados, que no se aplanan
  *
  * - [ficha] `null` — **no se pudo leer**. Se dice, y el editor queda cerrado:
  *   una ficha en blanco editable sobre una lectura fallida invita a escribir
  *   encima de lo que sí estaba guardado.
- * - [ficha] vacía — no hay nada anotado. Se invita a anotar.
- * - [ficha] con contenido — se pinta, advertencias primero.
+ * - [ficha] vacía — no hay nada anotado. Se invita a anotar, **acá abajo y no
+ *   arriba**: un bloque vacío empujando el saldo para no decir nada es
+ *   justamente lo que la tarjeta de arriba evita al no pintarse.
+ * - [ficha] con contenido — se pintan sus señales, advertencias primero.
+ *
+ * Y una cuarta combinación que antes no existía: una ficha **sólo con nota**,
+ * sin señales y sin [notaDeLaVenta]. Como la nota ya no vive acá, esta sección
+ * no tendría una sola palabra que decir, así que **no se monta**. Una tarjeta
+ * en blanco bajo un rótulo "NOTAS" se lee como un error de carga.
  *
  * [notaDeLaVenta] es OTRA cosa y por eso se pinta aparte, con su propia
  * etiqueta: viene del servidor en `sales.NOTAS`, se reescribe en cada
@@ -219,9 +231,14 @@ fun SeccionDeLaFicha(
     ficha: FichaDelCliente?,
     notaDeLaVenta: String?,
     onEditar: () -> Unit,
-    hoy: LocalDate,
     modifier: Modifier = Modifier
 ) {
+    val senales = ficha?.enOrden.orEmpty()
+    // Lo que se pinta en la mitad de arriba de la tarjeta: el estado ilegible,
+    // la invitación a anotar o los chips. Puede no haber nada — una ficha que
+    // sólo trae nota ya no tiene representación acá.
+    val hayAlgoDeLaFicha = ficha == null || ficha.vacia || senales.isNotEmpty()
+    if (!hayAlgoDeLaFicha && notaDeLaVenta == null) return
     Column(modifier = modifier.fillMaxWidth()) {
         LabelDeSeccion("Notas")
         Tarjeta(
@@ -242,49 +259,12 @@ fun SeccionDeLaFicha(
                         color = MspTheme.colors.onSurfaceMuted
                     )
 
-                    else -> {
-                        if (ficha.senales.isNotEmpty()) {
-                            FilaDeSenales(ficha.enOrden)
-                        }
-                        ficha.nota?.let {
-                            Text(
-                                text = it,
-                                style = MspTheme.type.body,
-                                color = MspTheme.colors.onSurface,
-                                // La tarjeta muestra un asomo, no la nota
-                                // entera: con el tope de 500 caracteres una
-                                // nota larga son ~diez renglones. El texto
-                                // completo vive en el editor, a un toque. NADA
-                                // que deba gritar vive aquí: las advertencias
-                                // son chips y suben a la barra superior.
-                                maxLines = RENGLONES_DE_ASOMO,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-                ficha?.actualizada?.let { cuando ->
-                    // Cuándo se anotó, y no quién: el nombre del cobrador no
-                    // está en esta pantalla, y qué tan vieja es la nota es lo
-                    // que decide si el dato todavía sirve.
-                    //
-                    // **Relativo y no "anotada el 3 sep".** Una fecha obliga a
-                    // restar de cabeza parado en una puerta para contestar la
-                    // única pregunta que importa —*¿esto todavía vale?*—, y a
-                    // los seis meses "3 sep" no dice ni de qué año es. El "hoy"
-                    // llega por parámetro desde el reloj inyectado: pedirlo aquí
-                    // volvería el texto distinto en cada recomposición.
-                    Text(
-                        text = "Anotada " + TiempoRelativo.de(
-                            AppTime.toBusinessDate(cuando),
-                            hoy
-                        ),
-                        style = MspTheme.type.caption,
-                        color = MspTheme.colors.onSurfaceMuted
-                    )
+                    senales.isNotEmpty() -> FilaDeSenales(senales)
                 }
                 notaDeLaVenta?.let {
-                    Separador()
+                    // El hairline separa DOS cosas; sin nada arriba no separa
+                    // ninguna y queda una raya suelta bajo el rótulo.
+                    if (hayAlgoDeLaFicha) Separador()
                     Text(
                         text = "De la venta",
                         style = MspTheme.type.caption,
@@ -573,9 +553,6 @@ private fun BotonDeGuardarFicha(guardando: Boolean, onGuardar: () -> Unit) {
         }
     }
 }
-
-/** Cuántos renglones de la nota se asoman en la tarjeta. */
-private const val RENGLONES_DE_ASOMO = 4
 
 /** Cuántos caracteres antes del tope aparece el contador. */
 private const val AVISO_DE_TOPE = 50

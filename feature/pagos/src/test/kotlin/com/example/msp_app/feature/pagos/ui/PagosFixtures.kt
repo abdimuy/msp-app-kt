@@ -387,6 +387,17 @@ object PagosFixtures {
         it.copy(senales = it.senales + SenalDeFicha.HAY_PERRO)
     }
 
+    /**
+     * La misma ficha **sin la nota libre**: señales sí, texto no.
+     *
+     * Es el caso en que `TarjetaDeNotaDestacada` no se monta, así que es con
+     * ésta con la que se mide que **las señales sigan sin costar un dp** arriba
+     * del dinero. Sin ella habría que mezclar dos costos distintos en una sola
+     * medición: el del catálogo, que sigue siendo cero, y el de la tarjeta, que
+     * el dueño aceptó pagar.
+     */
+    fun fichaSinNota(): FichaDelCliente = fichaDelCliente().copy(nota = null, actualizada = null)
+
     private fun venta(
         ventaId: Int,
         folio: String,
