@@ -66,6 +66,10 @@ class CargarTicketDeVisita @Inject constructor(
      * imprime solo esa —es la cuenta de la que se habló en la puerta—; si entró
      * por el cliente, todas: el desenlace de domicilio aplica a todas sus
      * cuentas.
+     *
+     * La parcialidad viaja con cada cuenta porque la carta de "visité, vuelvo"
+     * la nombra. **Se copia, no se calcula**: es la columna cruda que
+     * `VentaParaVisitar` ya trae leída.
      */
     private fun cuentasDe(
         visita: VisitaRegistrada,
@@ -73,7 +77,8 @@ class CargarTicketDeVisita @Inject constructor(
     ): List<CuentaImpresa> {
         val ventas = contexto.ventas
         val soloLaSuya = visita.ventaId?.let { id -> ventas.filter { it.ventaId == id } }.orEmpty()
-        return soloLaSuya.ifEmpty { ventas }.map { CuentaImpresa(it.folio, it.saldo) }
+        return soloLaSuya.ifEmpty { ventas }
+            .map { CuentaImpresa(folio = it.folio, saldo = it.saldo, parcialidad = it.parcialidad) }
     }
 
     private fun desenlaceDe(visita: VisitaRegistrada): DesenlaceImpreso = when {

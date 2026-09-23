@@ -57,8 +57,17 @@ object TicketDeVisitaFixtures {
     )
 
     fun dosCuentas(): List<CuentaImpresa> = listOf(
-        CuentaImpresa(folio = "V-5021", saldo = dinero("2100")),
-        CuentaImpresa(folio = "V-5188", saldo = dinero("1450"))
+        CuentaImpresa(folio = "V-5021", saldo = dinero("2100"), parcialidad = dinero("220")),
+        CuentaImpresa(folio = "V-5188", saldo = dinero("1450"), parcialidad = dinero("150"))
+    )
+
+    /**
+     * Una sola cuenta, que es como llega el papel cuando la visita entró por una
+     * venta. Es el único caso en que la carta de "visité, vuelvo" puede nombrar
+     * el abono por periodo sin ambigüedad.
+     */
+    fun unaCuenta(parcialidad: Money = dinero("220")): List<CuentaImpresa> = listOf(
+        CuentaImpresa(folio = "V-5021", saldo = dinero("2100"), parcialidad = parcialidad)
     )
 
     /** Prometió el viernes $220 — el desenlace que difiere trabajo. */
