@@ -299,7 +299,11 @@ object ListaFixtures {
         clienteId = clienteId,
         clienteNombre = nombre,
         telefono = "238 162 7597",
-        direccion = "C. Hidalgo 214, Centro",
+        // Separadas, como las trae el adaptador. `DatosDeVenta.direccion` las
+        // vuelve a unir en "C. Hidalgo 214, Centro", que es lo que esta lista
+        // pinta y lo que su texto buscable concatena.
+        calle = "C. Hidalgo 214",
+        ciudad = "Centro",
         entidad = "Puebla",
         zona = "ruta 25 · centro",
         aval = "Rosa María Ramírez",

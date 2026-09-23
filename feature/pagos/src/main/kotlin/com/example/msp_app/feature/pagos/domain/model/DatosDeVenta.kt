@@ -20,7 +20,18 @@ data class DatosDeVenta(
     val clienteId: Int,
     val clienteNombre: String,
     val telefono: String,
-    val direccion: String,
+    /**
+     * `Sale.CALLE` — la calle y el número, **sin la ciudad pegada**.
+     *
+     * Viaja aparte de [ciudad] porque hay quien necesita nada más esto: el
+     * cuadro de la puerta del detalle de cliente pinta la calle en grande y la
+     * ciudad en la línea de apoyo, y armarlas juntas para volver a partirlas
+     * sería una derivación que se rompe sola —`CALLE` puede traer comas—. Quien
+     * quiere las dos pegadas pide [direccion], que es lo que era antes.
+     */
+    val calle: String,
+    /** `Sale.CIUDAD`. Vacía cuando la fila no la trae — ver [calle]. */
+    val ciudad: String,
     /**
      * `Sale.ESTADO` — la ENTIDAD federativa, no un estado de cobranza. Se llama
      * así para que nadie la confunda con
@@ -137,6 +148,19 @@ data class DatosDeVenta(
      * distintos del mismo cliente.
      */
     val diaDeRuta: String get() = diaTemporal.ifBlank { diaDeCobranza }
+
+    /**
+     * Calle y ciudad en un renglón — lo que este campo era antes de que las dos
+     * columnas viajaran por separado.
+     *
+     * **Derivada y no almacenada**: así [calle], [ciudad] y esto no pueden
+     * despegarse. Lo siguen pidiendo la lista de cobranza, la bitácora y el
+     * intent de "cómo llegar", que quieren la dirección entera en una cadena.
+     */
+    val direccion: String
+        get() = listOf(calle, ciudad)
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
 
     /**
      * La dirección **con su entidad federativa**: calle, ciudad y estado.

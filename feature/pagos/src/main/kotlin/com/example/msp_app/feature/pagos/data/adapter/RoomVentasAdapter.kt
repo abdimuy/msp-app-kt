@@ -64,9 +64,13 @@ private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta {
         clienteId = CLIENTE_ID,
         clienteNombre = CLIENTE,
         telefono = TELEFONO,
-        direccion = listOf(CALLE, CIUDAD).map(::enUnRenglon)
-            .filter { it.isNotBlank() }
-            .joinToString(", "),
+        // Las dos columnas viajan SEPARADAS, no pegadas. `DatosDeVenta.direccion`
+        // las une cuando alguien la pide; quien necesita nada más la calle —el
+        // cuadro de la puerta del detalle de cliente— la tiene sin partir ninguna
+        // cadena, que es lo único que no se puede hacer con seguridad: `CALLE`
+        // puede traer comas.
+        calle = enUnRenglon(CALLE),
+        ciudad = enUnRenglon(CIUDAD),
         // `ESTADO` es la entidad federativa. NO entra a `direccion` —eso cambiaría lo
         // que pintan las pantallas de detalle— pero sí al texto que busca la lista,
         // que es donde lo usaba `SalesScreen.kt:68`, la pantalla que la Task 21

@@ -9,11 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
-import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -25,15 +23,16 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.ACCION_DE_CONTACTO_TAG
+import com.example.msp_app.feature.pagos.ui.components.APOYO_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AVISO_DE_LAS_NOTAS_TAG
+import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
-import com.example.msp_app.feature.pagos.ui.components.CUADRO_DE_LA_PUERTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
 import com.example.msp_app.feature.pagos.ui.components.DISTINTIVO_DE_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDAD_DE_LA_NOTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
 import com.example.msp_app.feature.pagos.ui.components.SUGERENCIA_TAG
+import com.example.msp_app.feature.pagos.ui.components.ZONA_DEL_CLIENTE_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -178,51 +177,92 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
      * `maxLines = 1`. A escala grande el renglón decía *"ruta 25 · centro · C.
      * Hi…"*: la zona entera y media dirección. El dueño lo vio en vidrio.
      *
-     * Ahora la dirección tiene su propio renglón, a todo el ancho y con dos
-     * líneas. Esto se pone rojo si alguien vuelve a juntarlas: con la cadena
-     * pegada no existe un nodo cuyo texto sea la dirección sola.
+     * **Dónde vive la dirección cambió, lo que se afirma no.** Ya no está en el
+     * renglón de identidad —se retiró porque el cuadro de la puerta la decía a
+     * tres dedos con las mismas palabras—; hoy la dice ese cuadro, la calle en
+     * grande y la ciudad en su línea de apoyo. Esto se pone rojo igual si
+     * alguien vuelve a pegarlas en una sola cadena: con la cadena pegada no
+     * existe un nodo cuyo texto sea la calle sola.
      */
     @Test
-    fun `la direccion se ve completa y en su propio renglon`() {
+    fun `la calle se ve completa y en su propio renglon`() {
         cliente()
 
-        composeTestRule.onNodeWithTag(DIRECCION_TAG)
+        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
             .assertIsDisplayed()
-            .assertTextEquals(DIRECCION)
+            .assertTextEquals(CALLE)
     }
 
     /**
      * Y en las tres escalas, que es donde se rompía. Un `assertTextEquals` mide
      * el texto del nodo, no los píxeles pintados, así que esto sólo prueba que
-     * la dirección **llega entera al nodo**; que quepa sin elipsis lo miran los
+     * la calle **llega entera al nodo**; que quepa sin elipsis lo miran los
      * goldens `pagos_cliente_*`, que un assert no puede ver.
+     *
+     * A `MUY_GRANDE` el cuadro se aprieta a 40 dp y deja **sólo** este renglón:
+     * es la escala en la que el dueño reportó *"la dirección ni se ve casi"*, así
+     * que es justo donde no se puede perder.
      */
     @Test
-    fun `la direccion llega entera tambien a escala muy grande`() {
+    fun `la calle llega entera tambien a escala muy grande`() {
         cliente(nivel = FontSizeLevel.MUY_GRANDE)
 
-        composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
+        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
     }
 
     /**
-     * Control positivo del de arriba: la **zona** sigue existiendo y sigue
-     * siendo otra cosa. Sin esto, un `BloqueDeIdentidad` que hubiera tirado la
-     * zona a la basura para hacerle lugar a la dirección pasaría en verde.
+     * La **ciudad** no se pierde al sacarla del renglón grande: baja a la línea
+     * de apoyo del cuadro, junto a la ruta.
      *
-     * **La consulta excluye el cuadro de la puerta**, y no es un truco para que
-     * pase: desde que ese cuadro cambió su dibujo por una composición
-     * tipográfica, la ruta se dice en DOS lugares —acá y como línea tenue de esa
-     * banda—, así que un `onNodeWithText` a secas encuentra dos nodos y falla
-     * por ambigüedad. Lo que este test cuida es el renglón de identidad, así que
-     * se apunta a él.
+     * Es el control que impide "arreglar" el ancho de la calle tirando la ciudad
+     * a la basura — que pasaría en verde con sólo el test de arriba.
+     */
+    @Test
+    fun `la ciudad baja a la linea de apoyo, con la ruta`() {
+        cliente()
+
+        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(APOYO)
+    }
+
+    /**
+     * Control positivo del de arriba: la **zona** sigue siendo el encabezado de
+     * la tarjeta y sigue estando fuera del cuadro. Sin esto, un
+     * `BloqueDeIdentidad` que hubiera tirado la zona a la basura junto con la
+     * dirección pasaría en verde.
+     *
+     * Se apunta por `testTag` y no por texto: la ruta se dice en DOS lugares
+     * —acá y dentro de *"Centro · ruta 25"*—, y un `onNodeWithText` a secas
+     * encuentra los dos y falla por ambigüedad.
      */
     @Test
     fun `la zona sigue estando, y aparte`() {
         cliente()
 
-        composeTestRule.onNode(
-            hasText(ZONA) and !hasAnyAncestor(hasTestTag(CUADRO_DE_LA_PUERTA_TAG))
-        ).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(ZONA_DEL_CLIENTE_TAG)
+            .assertIsDisplayed()
+            .assertTextEquals(ZONA)
+    }
+
+    /**
+     * **La dirección se dice UNA vez.** El defecto que el dueño vio en el
+     * golden: el bloque de identidad y el cuadro decían las mismas palabras a
+     * tres dedos de distancia, y eso no se lee como jerarquía sino como un
+     * error de copiado.
+     *
+     * Se cuenta el texto de la calle en la pantalla entera, sin anclar a ningún
+     * `testTag`: si alguien devuelve el renglón a identidad, el conteo da dos y
+     * esto se pone rojo. El control positivo es el propio `assertEquals`, que
+     * exige UNO y no CERO — un selector ciego daría cero y también fallaría.
+     */
+    @Test
+    fun `la calle aparece una sola vez en la pantalla`() {
+        cliente()
+
+        assertEquals(
+            "la calle se pinta dos veces: el bloque de identidad volvió a decirla",
+            1,
+            composeTestRule.onAllNodesWithText(CALLE).fetchSemanticsNodes().size
+        )
     }
 
     // --- La hoja -------------------------------------------------------------
@@ -339,8 +379,14 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
         .size
 
     private companion object {
-        const val DIRECCION = "C. Hidalgo 214, Centro"
-        const val ZONA = "ruta 25 · centro"
+        /** La calle SOLA, que es lo que el cuadro pinta en grande. */
+        const val CALLE = "C. Hidalgo 214"
+
+        /** La ruta, encabezado de la tarjeta de identidad. */
+        const val ZONA = "ruta 25"
+
+        /** La línea de apoyo del cuadro: ciudad primero, ruta después. */
+        const val APOYO = "Centro · ruta 25"
     }
 
     private fun cliente(

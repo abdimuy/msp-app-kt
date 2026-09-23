@@ -582,11 +582,14 @@ private fun HojaDeIdentidad(
     val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
     HojaContinua {
         SeccionDeHoja(primera = true) {
+            // Sin la dirección: la dice el cuadro de abajo, más grande y entera.
+            // Decirla en los dos sitios, con las mismas palabras y a tres dedos
+            // de distancia, no se leía como jerarquía sino como un error de
+            // copiado. Ver el KDoc de `BloqueDeIdentidad`.
             BloqueDeIdentidad(
                 estados = visuales.map { it.icono },
                 colores = visuales.map { it.fondo to it.contenido },
-                zona = detalle.zona,
-                direccion = detalle.direccion
+                zona = detalle.zona
             )
             // Los dos datos que el rediseño perdió sin que nadie lo notara, DENTRO
             // de esta sección y no en una propia: todo lo que se agrega a la hoja
@@ -612,13 +615,17 @@ private fun HojaDeIdentidad(
         // de verdad que cablea `:app`, y sin ella las señas de la puerta.
         //
         // El dibujo que hacía de respaldo se retiró: el dueño lo revisó y en su
-        // lugar va una composición tipográfica —chip, calle y ruta—. La dirección
-        // y la zona son las MISMAS que pinta `BloqueDeIdentidad` arriba: salen de
-        // este `detalle`, no de un parámetro nuevo ni de una derivación.
+        // lugar va una composición tipográfica —chip, calle y "ciudad · ruta"—.
+        // Ésta es **la** banda que dice la dirección en esta pantalla; arriba ya
+        // no se repite.
+        //
+        // `calle` y `ciudad` llegan SEPARADAS desde el modelo (ver
+        // `DetalleCliente.calle`): acá no se parte ninguna cadena.
         Separador()
         CuadroDeLaPuerta(
             ubicacion = detalle.ultimoCobroAqui,
-            direccion = detalle.direccion,
+            calle = detalle.calle,
+            ciudad = detalle.ciudad,
             zona = detalle.zona,
             onVerUbicacion = onVerUbicacion,
             suelo = suelo

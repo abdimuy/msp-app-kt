@@ -26,7 +26,16 @@ data class DetalleCliente(
     val clienteId: Int,
     val nombre: String,
     val telefono: String,
-    val direccion: String,
+    /**
+     * La calle y el número, **sin la ciudad pegada** — ver [DatosDeVenta.calle].
+     *
+     * Es lo que el cuadro de la puerta pinta en grande: *"C. Hidalgo 214"*. Con
+     * la ciudad pegada la cadena se come el ancho entero y la tipografía grande
+     * pierde su efecto, que es lo que el dueño vio en el golden.
+     */
+    val calle: String,
+    /** La ciudad, para la línea de apoyo *"ciudad · ruta"*. Vacía si no la trae. */
+    val ciudad: String,
     val zona: String,
     val aval: String,
     /**
@@ -128,6 +137,18 @@ data class DetalleCliente(
 ) {
     /** Cuántas cuentas tiene — el badge "N cuentas" del encabezado. */
     val cuentas: Int get() = ventas.size
+
+    /**
+     * [calle] y [ciudad] en un renglón, que es lo que este campo era antes.
+     *
+     * **Derivada y no almacenada**, para que las tres no puedan despegarse. La
+     * piden la bitácora del cliente y el intent de "cómo llegar", que necesitan
+     * la dirección entera en una cadena y no sus pedazos.
+     */
+    val direccion: String
+        get() = listOf(calle, ciudad)
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
 }
 
 /**

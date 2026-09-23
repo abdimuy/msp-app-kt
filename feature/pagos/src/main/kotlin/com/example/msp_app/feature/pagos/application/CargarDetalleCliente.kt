@@ -106,7 +106,11 @@ class CargarDetalleCliente @Inject constructor(
             clienteId = clienteId,
             nombre = primera.clienteNombre,
             telefono = primera.telefono,
-            direccion = primera.direccion,
+            // Separadas y no pegadas: el cuadro de la puerta pinta la calle en
+            // grande y la ciudad en su línea de apoyo. `DetalleCliente.direccion`
+            // las vuelve a unir para quien las quiere juntas.
+            calle = primera.calle,
+            ciudad = primera.ciudad,
             zona = primera.zona,
             aval = primera.aval,
             telefonoAval = primera.telefonoAval,

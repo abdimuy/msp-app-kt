@@ -334,8 +334,14 @@ object PagosFixtures {
             hoy = HOY,
             nombre = "Victoria Flores Olmedo",
             telefono = "238 162 7597",
-            direccion = "C. Hidalgo 214, Centro",
-            zona = "ruta 25 · centro",
+            // Calle y ciudad SEPARADAS, igual que las trae `RoomVentasAdapter`
+            // de `Sale.CALLE`/`Sale.CIUDAD`. `direccion` se deriva de las dos.
+            calle = "C. Hidalgo 214",
+            ciudad = "Centro",
+            // Sin el "· centro" que tenía antes: la ciudad ya va aparte, y el
+            // cuadro de la puerta arma "ciudad · ruta". Con el sufijo puesto,
+            // esa línea decía "Centro · ruta 25 · centro".
+            zona = "ruta 25",
             aval = "Rosa María Ramírez",
             // `null`, y NO un teléfono inventado: el adaptador real no puede
             // traer otra cosa (`RoomVentasAdapter.kt:78`, porque la columna no
@@ -500,9 +506,11 @@ object PagosFixtures {
         clienteId = clienteId,
         clienteNombre = "Victoria Flores Olmedo",
         telefono = "238 162 7597",
-        direccion = "C. Hidalgo 214, Centro",
+        calle = "C. Hidalgo 214",
+        ciudad = "Centro",
         entidad = "Puebla",
-        zona = "ruta 25 · centro",
+        // Ver la nota de `detalleCliente`: la ciudad ya no se repite en la zona.
+        zona = "ruta 25",
         aval = "Rosa María Ramírez",
         // Ver la nota de `detalleCliente`: el adaptador no puede traerlo.
         telefonoAval = null,
