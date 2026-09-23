@@ -84,7 +84,30 @@ data class DatosDeVenta(
     val totalVenta: Money,
     val precioContado: Money,
     val enganche: Money,
-    val vendedor: String,
+    /**
+     * `TIEMPO_A_CORTO_PLAZOMESES` — a cuántos meses corre el precio a corto
+     * plazo de esta venta. `0` cuando la venta no tiene esa oferta.
+     *
+     * Viaja pegado a [montoACortoPlazo] porque **uno sin el otro no dice
+     * nada**: un monto sin plazo es una cifra sin unidad, y un plazo sin monto
+     * es una promesa vacía. Quien los pinta comprueba los dos.
+     */
+    val mesesACortoPlazo: Int,
+    /** `MONTO_A_CORTO_PLAZO` — el precio si liquida en [mesesACortoPlazo]. */
+    val montoACortoPlazo: Money,
+    /**
+     * Los vendedores de la venta (`VENDEDOR_1..3`), **en orden y sin vacíos**.
+     *
+     * Microsip guarda tres columnas fijas y en campo lo normal es que sólo la
+     * primera traiga algo. Las vacías se recortan aquí, en el borde, para que
+     * ninguna pantalla tenga que decidir si un nombre en blanco se pinta: la
+     * lista es exactamente quiénes hay. Vacía cuando la fila no trae ninguno.
+     *
+     * Antes era un `String` con el PRIMERO no vacío y los otros dos se
+     * tiraban; la pantalla legada sí los enseñaba los tres
+     * (`SaleClientDetailsSection`, `"$VENDEDOR_1\n$VENDEDOR_2\n$VENDEDOR_3"`).
+     */
+    val vendedores: List<String>,
     /**
      * `NUM_PAGOS_ATRASADOS` — cuántas parcialidades DEBERÍA llevar pagadas a
      * estas alturas menos las que lleva, topado por las que le faltan.
@@ -114,6 +137,24 @@ data class DatosDeVenta(
      * distintos del mismo cliente.
      */
     val diaDeRuta: String get() = diaTemporal.ifBlank { diaDeCobranza }
+
+    /**
+     * La dirección **con su entidad federativa**: calle, ciudad y estado.
+     *
+     * [direccion] se queda sin [entidad] a propósito —cambiarla movería lo que
+     * pintan el detalle de cliente y la hoja del mapa—, así que el estado se
+     * pega aquí, que es donde alguien lo pide. La pantalla legada de venta
+     * (`SaleClientDetailsSection`) armaba los tres pedazos y el detalle nuevo
+     * los había perdido.
+     *
+     * Une con `", "` y no con espacios como el legado: [direccion] ya trae su
+     * coma entre calle y ciudad, y mezclar los dos separadores en un renglón
+     * leería peor que cualquiera de los dos solo.
+     */
+    val direccionCompleta: String
+        get() = listOf(direccion, entidad)
+            .filter { it.isNotBlank() }
+            .joinToString(", ")
 }
 
 /**

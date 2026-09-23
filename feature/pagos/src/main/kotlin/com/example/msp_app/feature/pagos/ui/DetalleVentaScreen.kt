@@ -64,7 +64,7 @@ import java.time.format.DateTimeFormatter
 /** `testTag` del título de la pantalla de venta — el producto. */
 const val TITULO_DE_VENTA_TAG: String = "pagos_titulo_venta"
 
-private val FECHA_DE_VENTA: DateTimeFormatter = DateTimeFormatter.ofPattern(
+internal val FECHA_DE_VENTA: DateTimeFormatter = DateTimeFormatter.ofPattern(
     "d MMM yyyy",
     BUSINESS_LOCALE
 )
@@ -385,15 +385,7 @@ private fun CuerpoDeLaVenta(
         }
 
         LabelDeSeccion("datos de la venta")
-        FilaClaveValor(
-            "Fecha de venta",
-            detalle.fechaVenta?.let { FECHA_DE_VENTA.format(it) } ?: SIN_DATO
-        )
-        FilaClaveValor("Total venta", formatMoneyMxn(detalle.totalVenta.amount))
-        FilaClaveValor("Precio de contado", formatMoneyMxn(detalle.precioContado.amount))
-        FilaClaveValor("Enganche", formatMoneyMxn(detalle.enganche.amount))
-        FilaClaveValor("Abonado", formatMoneyMxn(detalle.abonado.amount))
-        FilaClaveValor("Vendedor", detalle.vendedor)
+        DatosDeLaVenta(detalle)
 
         // AL FONDO, como la ficha del detalle de cliente: no empuja un solo dp
         // del dinero, que es por lo que el cobrador abrió la pantalla. Ver el

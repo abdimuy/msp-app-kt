@@ -64,12 +64,15 @@ private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta {
         clienteId = CLIENTE_ID,
         clienteNombre = CLIENTE,
         telefono = TELEFONO,
-        direccion = listOf(CALLE, CIUDAD).filter { it.isNotBlank() }.joinToString(", "),
+        direccion = listOf(CALLE, CIUDAD).map(::enUnRenglon)
+            .filter { it.isNotBlank() }
+            .joinToString(", "),
         // `ESTADO` es la entidad federativa. NO entra a `direccion` —eso cambiaría lo
         // que pintan las pantallas de detalle— pero sí al texto que busca la lista,
         // que es donde lo usaba `SalesScreen.kt:68`, la pantalla que la Task 21
-        // retiró y de la que esta lista hereda el criterio.
-        entidad = ESTADO,
+        // retiró y de la que esta lista hereda el criterio. Quien la quiere pegada
+        // pide `DatosDeVenta.direccionCompleta`.
+        entidad = enUnRenglon(ESTADO),
         zona = ZONA_NOMBRE,
         aval = AVAL_O_RESPONSABLE,
         // No hay columna de teléfono del aval en el schema ni en el DTO de cobranza;
@@ -92,12 +95,27 @@ private fun SaleWithProductsEntity.aDatosDeVenta(): DatosDeVenta {
         totalVenta = Money.of(PRECIO_TOTAL),
         precioContado = Money.of(PRECIO_DE_CONTADO),
         enganche = Money.of(ENGANCHE),
-        vendedor = listOf(VENDEDOR_1, VENDEDOR_2, VENDEDOR_3)
-            .firstOrNull { it.isNotBlank() }
-            .orEmpty(),
+        mesesACortoPlazo = TIEMPO_A_CORTO_PLAZOMESES,
+        montoACortoPlazo = Money.of(MONTO_A_CORTO_PLAZO),
+        // Los TRES, no el primero que traiga algo: las columnas vacías se caen aquí
+        // para que ninguna pantalla pinte un renglón en blanco. Ver el KDoc de
+        // `DatosDeVenta.vendedores`.
+        vendedores = listOf(VENDEDOR_1, VENDEDOR_2, VENDEDOR_3)
+            .map { it.trim() }
+            .filter { it.isNotBlank() },
         // La columna es nullable en el schema: sin dato no se afirma atraso.
         atrasos = NUM_PAGOS_ATRASADOS ?: 0,
         fechaUltimoPago = AppTime.parseWireFormatOrNull(FECHA_ULT_PAGO)
             ?.let(AppTime::toBusinessDate)
     )
 }
+
+/**
+ * Un pedazo de domicilio en UN solo renglón.
+ *
+ * `CALLE` y `CIUDAD` se capturan a mano en Microsip y llegan con saltos de
+ * línea dentro; un `\n` crudo parte en dos la fila de la ficha y descuadra la
+ * pantalla. La regla es la de la pantalla legada, que hacía exactamente esto
+ * antes de concatenar (`SaleClientDetailsSection`: `CALLE.replace("\n", " ")`).
+ */
+private fun enUnRenglon(texto: String): String = texto.replace('\n', ' ').trim()
