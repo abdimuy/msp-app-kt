@@ -23,8 +23,9 @@ import org.junit.Test
  *    la carta de cobranza dura donde el cliente acababa de prometer pagar.
  *  - **el compromiso se imprime desde sus campos**, no desde la nota.
  *  - **las tres cartas del ticket viejo vuelven literales** y cada una cae en
- *    su desenlace. Las cifras que aquel inventaba —el vencimiento a un año, el
- *    abono semanal de $200.00— no vuelven con ellas.
+ *    su desenlace. Las cifras que aquel inventaba no vuelven con ellas: el
+ *    abono por periodo sale de la cuenta y el vencimiento solo donde
+ *    `VencimientoDelCredito` puede afirmarlo.
  */
 class TicketDeVisitaFormatterTest {
 
@@ -89,13 +90,17 @@ class TicketDeVisitaFormatterTest {
         val papeles = DesenlaceImpreso.entries.map { desenlace ->
             texto(ticket = TicketDeVisitaFixtures.ticket(desenlace = desenlace), permiso = copia)
         } + texto(ticket = TicketDeVisitaFixtures.ticketConPromesa(), permiso = copia) +
-            texto(
-                ticket = TicketDeVisitaFixtures.ticket(
-                    desenlace = DesenlaceImpreso.VISITE_VUELVO,
-                    cuentas = TicketDeVisitaFixtures.unaCuenta()
-                ),
-                permiso = copia
-            )
+            // Con UNA cuenta, que es cuando salen las dos líneas más largas del
+            // papel: el abono por periodo y el vencimiento.
+            listOf(DesenlaceImpreso.VISITE_VUELVO, DesenlaceImpreso.SE_NEGO).map { desenlace ->
+                texto(
+                    ticket = TicketDeVisitaFixtures.ticket(
+                        desenlace = desenlace,
+                        cuentas = TicketDeVisitaFixtures.unaCuenta()
+                    ),
+                    permiso = copia
+                )
+            }
 
         papeles.forEach { papel ->
             val lineas = papel.lines()
@@ -214,17 +219,89 @@ class TicketDeVisitaFormatterTest {
 
     @Test
     fun `las cifras que el ticket viejo inventaba NO vuelven al papel`() {
-        // El vencimiento era "fecha de venta + 1 año" sin respaldo —Microsip no
-        // guarda el plazo—, y el total de compra, los pagos vencidos y el
-        // sugerido no se leen desde este módulo.
+        // El total de compra, los pagos vencidos y el sugerido para
+        // regularizarse siguen fuera: este módulo no los lee. El vencimiento ya
+        // NO está en esta lista — vuelve acotado por `VencimientoDelCredito`, y
+        // sus bordes los cuidan las cuatro pruebas de abajo.
         DesenlaceImpreso.entries.forEach { desenlace ->
             val papel = corrido(texto(TicketDeVisitaFixtures.ticket(desenlace = desenlace)))
 
-            assertFalse(desenlace.name, papel.contains("SU FECHA DE VENCIMIENTO"))
             assertFalse(desenlace.name, papel.contains("TOTAL DE COMPRA"))
             assertFalse(desenlace.name, papel.contains("PAGOS VENCIDOS"))
             assertFalse(desenlace.name, papel.contains("SUGERIDO PARA"))
         }
+    }
+
+    @Test
+    fun `el vencimiento se imprime con su fecha en las cartas que lo llevaban`() {
+        // Cartas 2 y 3 del ticket viejo: las dos que llevaban el bloque de
+        // números debajo del recado.
+        listOf(DesenlaceImpreso.SE_NEGO, DesenlaceImpreso.VISITE_VUELVO).forEach { desenlace ->
+            val papel = corrido(
+                texto(
+                    TicketDeVisitaFixtures.ticket(
+                        desenlace = desenlace,
+                        cuentas = TicketDeVisitaFixtures.unaCuenta()
+                    )
+                )
+            )
+
+            assertTrue(
+                desenlace.name,
+                papel.contains("SU FECHA DE VENCIMIENTO DE SU CREDITO ES EL DIA: 14/03/2027")
+            )
+        }
+    }
+
+    @Test
+    fun `las cartas que no llevaban el bloque de numeros no imprimen vencimiento`() {
+        listOf(
+            DesenlaceImpreso.NO_ESTABA,
+            DesenlaceImpreso.PROMETIO,
+            DesenlaceImpreso.CITA
+        ).forEach { desenlace ->
+            val papel = corrido(
+                texto(
+                    TicketDeVisitaFixtures.ticket(
+                        desenlace = desenlace,
+                        cuentas = TicketDeVisitaFixtures.unaCuenta()
+                    )
+                )
+            )
+
+            assertFalse(desenlace.name, papel.contains("SU FECHA DE VENCIMIENTO"))
+        }
+    }
+
+    @Test
+    fun `una cuenta sin vencimiento conocido NO imprime la linea`() {
+        // Es el caso de todo plazo que no sea cuatro meses, y el de una
+        // `sales.FECHA` ilegible: `VencimientoDelCredito` devuelve null y el
+        // papel calla, en vez de afirmar un año que nadie respalda.
+        val papel = corrido(
+            texto(
+                TicketDeVisitaFixtures.ticket(
+                    desenlace = DesenlaceImpreso.VISITE_VUELVO,
+                    cuentas = TicketDeVisitaFixtures.unaCuenta(vencimiento = null)
+                )
+            )
+        )
+
+        assertFalse(papel.contains("SU FECHA DE VENCIMIENTO"))
+        // Control positivo: la carta sí salió, así que la ausencia significa algo.
+        assertTrue(papel.contains("RECUERDE QUE LA PUNTUALIDAD EN SUS PAGOS"))
+    }
+
+    @Test
+    fun `con dos cuentas el vencimiento se omite porque no vencen el mismo dia`() {
+        // Las dos cuentas de la fixture vencen en días distintos a propósito:
+        // una sola fecha suelta bajo dos folios mentiría sobre una de las dos.
+        val papel = corrido(texto(TicketDeVisitaFixtures.ticket(DesenlaceImpreso.SE_NEGO)))
+
+        assertFalse(papel.contains("SU FECHA DE VENCIMIENTO"))
+        assertFalse(papel.contains("14/03/2027"))
+        assertFalse(papel.contains("02/07/2027"))
+        assertTrue(papel.contains("NO HEMOS TENIDO UNA RESPUESTA FAVORABLE"))
     }
 
     @Test

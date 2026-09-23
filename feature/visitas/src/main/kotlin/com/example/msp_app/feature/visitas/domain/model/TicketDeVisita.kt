@@ -61,8 +61,17 @@ data class TicketDeVisita(
  * Llega hasta aquí porque la carta de "visité, vuelvo" la nombra ("SU
  * COMPROMISO FUE DAR ABONOS SEMANALES DE ..."), y el ticket viejo la imprimía
  * como el literal `$200.00`, igual para todos los clientes.
+ *
+ * [vencimiento] llega **ya resuelto** por
+ * [com.example.msp_app.feature.visitas.domain.VencimientoDelCredito]: `null`
+ * significa "no se puede afirmar cuándo vence", y entonces el papel no lo dice.
  */
-data class CuentaImpresa(val folio: String, val saldo: Money, val parcialidad: Money)
+data class CuentaImpresa(
+    val folio: String,
+    val saldo: Money,
+    val parcialidad: Money,
+    val vencimiento: LocalDate?
+)
 
 /** El compromiso que el cliente hizo: cuándo y —si lo dijo— cuánto. */
 data class PromesaImpresa(val fecha: LocalDate, val monto: Money?)

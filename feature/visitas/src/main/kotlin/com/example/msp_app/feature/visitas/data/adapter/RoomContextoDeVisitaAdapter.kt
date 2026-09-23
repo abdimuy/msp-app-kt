@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.visitas.data.adapter
 
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.VentaParaVisitar
@@ -59,7 +60,15 @@ class RoomContextoDeVisitaAdapter(
                         // `BigDecimal.valueOf` sobre el `Long`, NUNCA con el
                         // constructor de `double`, que mete centavos fantasma en un
                         // número que era exacto. Misma frontera que `RoomVentasAdapter`.
-                        parcialidad = Money.of(BigDecimal.valueOf(it.PARCIALIDAD.toLong()))
+                        parcialidad = Money.of(BigDecimal.valueOf(it.PARCIALIDAD.toLong())),
+                        // `sales.FECHA` es wire RFC3339 UTC y llega del
+                        // servidor, así que se lee con el parser TOLERANTE
+                        // —mismo criterio que `ReunirCartera` en
+                        // `:feature:pagos`—: una fecha ilegible es un dato que
+                        // falta, no una excepción con la impresora en la mano.
+                        fechaVenta = AppTime.parseWireFormatOrNull(it.FECHA)
+                            ?.let(AppTime::toBusinessDate),
+                        plazoMeses = it.TIEMPO_A_CORTO_PLAZOMESES
                     )
                 }
         )

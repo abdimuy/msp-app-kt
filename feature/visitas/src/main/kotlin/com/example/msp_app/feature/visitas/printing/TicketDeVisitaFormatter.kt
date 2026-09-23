@@ -40,11 +40,12 @@ import com.example.msp_app.feature.visitas.domain.model.TicketDeVisita
  *    FUE DAR ABONOS SEMANALES DE $200.00" como literal, para todos los clientes
  *    por igual; aquí esa línea sale de `CuentaImpresa.parcialidad`, la columna
  *    real, y se omite cuando no hay una sola cuenta que la sostenga (ver
- *    [agregaExhorto]). La "fecha de vencimiento" del viejo —*fecha de venta +
- *    1 año*, sin ningún respaldo, y con el plazo que Microsip no guarda— **no
- *    vuelve**: un papel con una cifra inventada es peor que un papel sin ella.
- *    Tampoco vuelven "TOTAL DE COMPRA", "PAGOS VENCIDOS" ni "SUGERIDO PARA
- *    REGULARIZARSE", que este módulo no puede leer sin abrir otra fuente.
+ *    [agregaExhorto]). La "fecha de vencimiento" vuelve **acotada**: el viejo
+ *    la imprimía para todas las ventas como *fecha de venta + 1 año*, sin nada
+ *    que la respaldara; aquí sale solo donde el crédito sí corre a un año, y la
+ *    regla —con su porqué— vive en `VencimientoDelCredito`. No vuelven "TOTAL
+ *    DE COMPRA", "PAGOS VENCIDOS" ni "SUGERIDO PARA REGULARIZARSE": un papel
+ *    con una cifra inventada es peor que un papel sin ella.
  * 5. **Lenguaje visual del reporte de cobranza:** encabezado centrado, reglas de
  *    ancho completo, dos columnas con el importe a la derecha, bloques con
  *    rótulo. Y la marca de reimpresión ([ReprintMark]) arriba del todo.
@@ -75,6 +76,12 @@ object TicketDeVisitaFormatter {
 
     /** Segunda línea del cierre de la carta 3, literal del ticket viejo. */
     private const val EXHORTO = "SE LE EXHORTA A REGULARIZARSE PARA EVITAR PENALIZACIONES."
+
+    /** Rótulo del vencimiento, literal del ticket viejo; le sigue la fecha. */
+    private const val VENCIMIENTO = "SU FECHA DE VENCIMIENTO DE SU CREDITO ES EL DIA:"
+
+    /** Los desenlaces cuyas cartas llevaban el bloque de números en el viejo. */
+    private val CON_VENCIMIENTO = setOf(DesenlaceImpreso.SE_NEGO, DesenlaceImpreso.VISITE_VUELVO)
 
     private const val SALTO = "\n"
     private const val PATRON_FECHA_LARGA = "dd/MM/yyyy HH:mm"
@@ -140,6 +147,31 @@ object TicketDeVisitaFormatter {
             TicketLayout.wrap(parrafo, ancho).forEach { add(TicketLine.Line(it)) }
         }
         agregaExhorto(ticket, ancho)
+        agregaVencimiento(ticket, ancho)
+    }
+
+    /**
+     * La línea "SU FECHA DE VENCIMIENTO DE SU CREDITO ES EL DIA: ...", del
+     * bloque de números que el ticket viejo imprimía bajo las cartas 2 y 3.
+     *
+     * **La fecha no se calcula aquí**: llega resuelta en
+     * `CuentaImpresa.vencimiento` por `VencimientoDelCredito`, que es donde
+     * está escrito por qué un crédito de cuatro meses de corto plazo sí vence a
+     * un año y por qué fuera de ese caso no se afirma nada. `null` = no se
+     * puede afirmar, y entonces la línea no sale.
+     *
+     * Y **solo con una cuenta en el papel**, por el mismo motivo que el abono
+     * por periodo: dos ventas pueden vencer en fechas distintas, y una sola
+     * fecha suelta bajo dos folios mentiría sobre una de las dos. El cobrador
+     * llega a este papel con una cuenta en la mano siempre que entró por una
+     * venta, que es el caso en que esta línea sirve.
+     */
+    private fun MutableList<TicketLine>.agregaVencimiento(ticket: TicketDeVisita, ancho: Int) {
+        if (ticket.desenlace !in CON_VENCIMIENTO) return
+        val vencimiento = ticket.cuentas.singleOrNull()?.vencimiento ?: return
+        add(TicketLine.Blank)
+        val fecha = AppTime.formatDate(vencimiento, PATRON_FECHA_CORTA)
+        TicketLayout.wrap("$VENCIMIENTO $fecha", ancho).forEach { add(TicketLine.Line(it)) }
     }
 
     /**

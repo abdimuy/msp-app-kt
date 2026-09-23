@@ -56,18 +56,42 @@ object TicketDeVisitaFixtures {
         cita = cita
     )
 
+    /** El vencimiento de la primera cuenta de Victoria. */
+    val VENCIMIENTO: LocalDate = LocalDate.of(2027, 3, 14)
+
     fun dosCuentas(): List<CuentaImpresa> = listOf(
-        CuentaImpresa(folio = "V-5021", saldo = dinero("2100"), parcialidad = dinero("220")),
-        CuentaImpresa(folio = "V-5188", saldo = dinero("1450"), parcialidad = dinero("150"))
+        CuentaImpresa(
+            folio = "V-5021",
+            saldo = dinero("2100"),
+            parcialidad = dinero("220"),
+            vencimiento = VENCIMIENTO
+        ),
+        CuentaImpresa(
+            folio = "V-5188",
+            saldo = dinero("1450"),
+            parcialidad = dinero("150"),
+            // Otra fecha a propósito: dos cuentas del mismo cliente pueden
+            // vencer en días distintos, que es justo por lo que el papel no
+            // imprime el vencimiento cuando lista más de una.
+            vencimiento = LocalDate.of(2027, 7, 2)
+        )
     )
 
     /**
      * Una sola cuenta, que es como llega el papel cuando la visita entró por una
-     * venta. Es el único caso en que la carta de "visité, vuelvo" puede nombrar
-     * el abono por periodo sin ambigüedad.
+     * venta. Es el único caso en que las cartas viejas pueden nombrar el abono
+     * por periodo y el vencimiento sin ambigüedad.
      */
-    fun unaCuenta(parcialidad: Money = dinero("220")): List<CuentaImpresa> = listOf(
-        CuentaImpresa(folio = "V-5021", saldo = dinero("2100"), parcialidad = parcialidad)
+    fun unaCuenta(
+        parcialidad: Money = dinero("220"),
+        vencimiento: LocalDate? = VENCIMIENTO
+    ): List<CuentaImpresa> = listOf(
+        CuentaImpresa(
+            folio = "V-5021",
+            saldo = dinero("2100"),
+            parcialidad = parcialidad,
+            vencimiento = vencimiento
+        )
     )
 
     /** Prometió el viernes $220 — el desenlace que difiere trabajo. */

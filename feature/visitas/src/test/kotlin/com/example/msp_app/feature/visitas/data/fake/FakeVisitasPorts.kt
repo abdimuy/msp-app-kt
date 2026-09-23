@@ -6,6 +6,7 @@ import com.example.msp_app.core.speech.domain.EstadoDelDictado
 import com.example.msp_app.core.speech.domain.MotorDeDictado
 import com.example.msp_app.core.speech.domain.port.DictadoPort
 import com.example.msp_app.core.speech.domain.port.DisponibilidadDelDictado
+import com.example.msp_app.feature.visitas.domain.VencimientoDelCredito
 import com.example.msp_app.feature.visitas.domain.model.ComprobanteDeVisita
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.DestinoDeFoto
@@ -23,6 +24,7 @@ import com.example.msp_app.feature.visitas.domain.port.UbicacionPort
 import com.example.msp_app.feature.visitas.domain.port.VisitaARegistrar
 import java.math.BigDecimal
 import java.time.Instant
+import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -50,20 +52,29 @@ object VisitasFixtures {
             ventas = ventas
         )
 
+    /** El alta del crédito de la sala: 14-mar-2026. */
+    val FECHA_DE_LA_SALA: LocalDate = LocalDate.of(2026, 3, 14)
+
     fun dosCuentas(): List<VentaParaVisitar> = listOf(
         VentaParaVisitar(
             ventaId = SALA,
             folio = "V-5021",
             descripcion = "Sala 3 piezas + base",
             saldo = dinero("2100"),
-            parcialidad = dinero("350")
+            parcialidad = dinero("350"),
+            fechaVenta = FECHA_DE_LA_SALA,
+            // Cuatro meses de corto plazo: el único caso con vencimiento
+            // conocido, ver `VencimientoDelCredito`.
+            plazoMeses = VencimientoDelCredito.PLAZO_CON_VENCIMIENTO_CONOCIDO
         ),
         VentaParaVisitar(
             ventaId = REFRIGERADOR,
             folio = "V-5188",
             descripcion = "Refrigerador Mabe 14 pies",
             saldo = dinero("1450"),
-            parcialidad = dinero("220")
+            parcialidad = dinero("220"),
+            fechaVenta = LocalDate.of(2026, 7, 2),
+            plazoMeses = 8
         )
     )
 

@@ -2,6 +2,7 @@ package com.example.msp_app.feature.visitas.application
 
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.cobranza.domain.TipoVisitaCatalogo
+import com.example.msp_app.feature.visitas.domain.VencimientoDelCredito
 import com.example.msp_app.feature.visitas.domain.model.CitaImpresa
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
 import com.example.msp_app.feature.visitas.domain.model.CuentaImpresa
@@ -70,6 +71,10 @@ class CargarTicketDeVisita @Inject constructor(
      * La parcialidad viaja con cada cuenta porque la carta de "visité, vuelvo"
      * la nombra. **Se copia, no se calcula**: es la columna cruda que
      * `VentaParaVisitar` ya trae leída.
+     *
+     * El vencimiento sí se **resuelve** aquí, con [VencimientoDelCredito] sobre
+     * sus dos entradas crudas (la fecha de la venta y el plazo en meses). Es el
+     * único punto del módulo donde esa regla se aplica.
      */
     private fun cuentasDe(
         visita: VisitaRegistrada,
@@ -77,8 +82,14 @@ class CargarTicketDeVisita @Inject constructor(
     ): List<CuentaImpresa> {
         val ventas = contexto.ventas
         val soloLaSuya = visita.ventaId?.let { id -> ventas.filter { it.ventaId == id } }.orEmpty()
-        return soloLaSuya.ifEmpty { ventas }
-            .map { CuentaImpresa(folio = it.folio, saldo = it.saldo, parcialidad = it.parcialidad) }
+        return soloLaSuya.ifEmpty { ventas }.map {
+            CuentaImpresa(
+                folio = it.folio,
+                saldo = it.saldo,
+                parcialidad = it.parcialidad,
+                vencimiento = VencimientoDelCredito.de(it.fechaVenta, it.plazoMeses)
+            )
+        }
     }
 
     private fun desenlaceDe(visita: VisitaRegistrada): DesenlaceImpreso = when {
