@@ -1,15 +1,27 @@
 package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -17,16 +29,22 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
+import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CUADRO_DE_LA_PUERTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
+import com.example.msp_app.feature.pagos.ui.components.PUNTO_MEDIDO_TAG
+import com.example.msp_app.feature.pagos.ui.components.RUTA_DEL_CUADRO_TAG
+import com.example.msp_app.feature.pagos.ui.components.SIN_DIRECCION
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.robolectric.annotation.Config
@@ -39,8 +57,8 @@ import org.robolectric.annotation.Config
  * **Uno.** El bloque de ubicación era condicional: sin un abono con coordenadas
  * quedaba un hueco en medio de la hoja. El dueño lo vio en vidrio y fue
  * explícito — *"tiene que ser un mapa o un dibujo"*—. Ahora la banda existe
- * siempre. Lo que cambia con el dato es el **pin** del dibujo y si el cuadro se
- * puede tocar para abrir el mapa completo.
+ * siempre. Lo que cambia con el dato es el **chip "Punto medido"** y si el
+ * cuadro se puede tocar para abrir el mapa completo.
  *
  * **Dos.** El rediseño a hoja continua siguió un mock que ya había perdido la
  * sección "datos del cliente", y con ella `aval` y `ultimaVisita`: los dos
@@ -53,9 +71,9 @@ import org.robolectric.annotation.Config
  * El mapa de verdad. Vive en `:app` (`SueloDelUltimoCobro`) porque
  * `play-services-maps` se declara ahí, y necesita red y GL, que en Robolectric
  * no existen. Lo que este módulo garantiza es la **costura**: que el suelo que
- * entra por la ranura se pinte encima del dibujo, y que sin ranura el dibujo
- * quede a la vista. Eso último es lo que hace que un mapa que no carga degrade
- * al dibujo en vez de a la retícula gris de Google.
+ * entra por la ranura se pinte encima de las señas, y que sin ranura las señas
+ * queden a la vista. Eso último es lo que hace que un mapa que no carga degrade
+ * a las señas en vez de a la retícula gris de Google.
  *
  * Tampoco se repite acá que "cómo llegar" es una acción más de la fila: eso lo
  * cobra `ComoLlegarEsUnaAccionMasTest`.
@@ -82,8 +100,111 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(CUADRO_DE_LA_PUERTA_TAG).performScrollTo().assertIsDisplayed()
     }
 
+    // --- La composición tipográfica que reemplazó al dibujo -------------------
+
     @Test
-    fun `el suelo que entra por la ranura se pinta encima del dibujo`() {
+    fun `con punto medido se ven el chip, la calle y la ruta`() {
+        monta(conCoordenada = true)
+
+        composeTestRule.onNodeWithTag(PUNTO_MEDIDO_TAG).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText(PUNTO_MEDIDO).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(DIRECCION)
+        composeTestRule.onNodeWithTag(RUTA_DEL_CUADRO_TAG).assertTextEquals(ZONA)
+    }
+
+    /**
+     * **Sin punto medido no se afirma que lo haya.** El chip dice "esta puerta
+     * está medida"; sin coordenada esa frase es falsa, así que el chip no está —
+     * y no se sustituye por uno apagado que diga lo contrario a media voz.
+     */
+    @Test
+    fun `sin punto medido el chip no aparece`() {
+        monta(conCoordenada = false)
+
+        assertEquals(
+            "se afirmó \"Punto medido\" en una puerta que ningún abono midió",
+            0,
+            composeTestRule.onAllNodesWithTag(PUNTO_MEDIDO_TAG).fetchSemanticsNodes().size
+        )
+        // Y la banda no queda muda: la calle sigue, que es lo que contesta
+        // "¿es aquí?" parado en la banqueta.
+        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).performScrollTo()
+            .assertTextEquals(DIRECCION)
+    }
+
+    /**
+     * Control positivo del de arriba: el MISMO selector, con coordenada, sí
+     * encuentra el chip. Sin esto, un `PUNTO_MEDIDO_TAG` que nadie pusiera nunca
+     * —un `testTag` mal escrito, por ejemplo— también daría cero y el test de la
+     * ausencia pasaría en verde sin medir nada.
+     */
+    @Test
+    fun `control positivo - con punto medido el mismo selector si ve el chip`() {
+        monta(conCoordenada = true)
+
+        assertEquals(
+            1,
+            composeTestRule.onAllNodesWithTag(PUNTO_MEDIDO_TAG).fetchSemanticsNodes().size
+        )
+    }
+
+    /**
+     * **Con la dirección en blanco no queda un renglón vacío.** El cuadro existe
+     * para que esa banda nunca se lea como una pantalla a medio cargar, y un
+     * renglón en blanco es exactamente eso. Va el mismo texto que ya dice la hoja
+     * del mapa grande — [SIN_DIRECCION], un solo lugar para las dos pantallas.
+     */
+    @Test
+    fun `con direccion vacia se dice que no hay direccion, no un hueco`() {
+        monta(conCoordenada = true, direccion = "")
+
+        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
+            .performScrollTo()
+            .assertTextEquals(SIN_DIRECCION)
+    }
+
+    /**
+     * **El dibujo de la casa ya no se pinta.**
+     *
+     * El dibujo eran dos [Icon] decorativos (`contentDescription = null`), o sea
+     * **invisibles a semantics**: no dejó nunca un nodo ni un `testTag` que
+     * preguntar, así que "no existe el tag del dibujo" sería una aserción que
+     * pasa en verde sin medir nada. Lo que sí es medible es lo contrario: bajo el
+     * cuadro ahora hay renglones de TEXTO, cosa que el dibujo no podía producir
+     * ni con la coordenada puesta.
+     *
+     * El control positivo está en el test de abajo, que corre el mismo selector
+     * sobre el dibujo viejo reconstruido y lo ve dar **cero**.
+     */
+    @Test
+    fun `el cuadro ya no dibuja la casa - donde iba el dibujo hay texto`() {
+        monta(conCoordenada = true)
+
+        assertTrue(
+            "el cuadro no trae ni un renglón de texto: volvió a ser una ilustración",
+            renglonesDeTextoDelCuadro() >= RENGLONES_ESPERADOS
+        )
+    }
+
+    @Test
+    fun `control positivo - el dibujo viejo no dejaba ni un renglon de texto`() {
+        composeTestRule.setContent {
+            MspTheme(animateColors = false) {
+                Box(modifier = Modifier.testTag(CUADRO_DE_LA_PUERTA_TAG)) {
+                    DibujoViejoDeLaPuerta()
+                }
+            }
+        }
+
+        assertEquals(
+            "el selector cuenta texto donde no lo hay: no sirve para afirmar el cambio",
+            0,
+            renglonesDeTextoDelCuadro()
+        )
+    }
+
+    @Test
+    fun `el suelo que entra por la ranura se pinta encima de las senas`() {
         monta(conCoordenada = true) {
             Box(modifier = Modifier.fillMaxSize().testTag(SUELO_DE_PRUEBA))
         }
@@ -222,8 +343,57 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText(TELEFONO_DEL_AVAL).assertIsDisplayed()
     }
 
+    /**
+     * Cuántos renglones de TEXTO cuelgan del cuadro.
+     *
+     * Se cuenta sobre el árbol **sin fusionar**: el `clickable` del cuadro no
+     * fusiona a sus descendientes, pero el chip sí junta su pin con su etiqueta,
+     * y lo que se quiere contar son los renglones, no los nodos que Compose
+     * decida agrupar.
+     *
+     * **No se mide con `boundsInRoot` contra la pantalla**, que es la trampa ya
+     * medida en este repo: un nodo fuera del viewport devuelve `Rect.Zero` y pasa
+     * cualquier aserción de contención. Contar texto es más honesto acá.
+     */
+    private fun renglonesDeTextoDelCuadro(): Int {
+        val bajoElCuadro = hasAnyAncestor(hasTestTag(CUADRO_DE_LA_PUERTA_TAG)) and
+            SemanticsMatcher.keyIsDefined(SemanticsProperties.Text)
+        return composeTestRule.onAllNodes(bajoElCuadro, useUnmergedTree = true)
+            .fetchSemanticsNodes().size
+    }
+
+    /**
+     * El dibujo retirado, tal como era: el pin sobre la casa, los dos
+     * decorativos. Vive acá **sólo como control positivo** — es lo que prueba
+     * que [renglonesDeTextoDelCuadro] sabe dar cero, y por lo tanto que el cero
+     * de una consulta ciega no se puede confundir con este hallazgo.
+     */
+    @Composable
+    private fun DibujoViejoDeLaPuerta() {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = AccionesIconos.Pin,
+                contentDescription = null,
+                tint = MspTheme.colors.brand,
+                modifier = Modifier.size(PIN_DEL_DIBUJO_VIEJO)
+            )
+            Spacer(Modifier.height(MspTheme.spacing.xs))
+            Icon(
+                imageVector = AccionesIconos.Casa,
+                contentDescription = null,
+                tint = MspTheme.colors.onSurfaceMuted,
+                modifier = Modifier.size(CASA_DEL_DIBUJO_VIEJO)
+            )
+        }
+    }
+
     private fun monta(
         conCoordenada: Boolean,
+        direccion: String = DIRECCION,
         onVerUbicacion: (() -> Unit)? = null,
         suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
     ) {
@@ -233,7 +403,7 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
                     DetalleClienteContent(
                         state = DetalleClienteUiState(
                             cargando = false,
-                            detalle = detalle(conCoordenada)
+                            detalle = detalle(conCoordenada, direccion)
                         ),
                         onAtras = {},
                         onAbrirVenta = {},
@@ -250,8 +420,9 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         }
     }
 
-    private fun detalle(conCoordenada: Boolean): DetalleCliente =
+    private fun detalle(conCoordenada: Boolean, direccion: String): DetalleCliente =
         PagosFixtures.detalleCliente().copy(
+            direccion = direccion,
             ultimoCobroAqui = if (conCoordenada) COORDENADA else null
         )
 
@@ -262,6 +433,26 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         const val ETIQUETA_VISITA = "Última visita"
         const val AVAL = "Rosa María Ramírez"
         const val TELEFONO_DEL_AVAL = "238 118 4402"
+
+        /** Lo que dice el chip del cuadro cuando la puerta tiene coordenada. */
+        const val PUNTO_MEDIDO = "Punto medido"
+
+        /** La dirección y la zona del fixture — las que el cuadro pinta. */
+        const val DIRECCION = "C. Hidalgo 214, Centro"
+        const val ZONA = "ruta 25 · centro"
+
+        /**
+         * Los tres renglones del cuadro con punto medido: chip, calle y ruta.
+         * Se afirma `>=` y no `==` porque la calle puede partirse en dos líneas
+         * sin dejar de ser UN nodo, y porque el número exacto no es el hallazgo:
+         * el hallazgo es que hay texto donde antes había una ilustración.
+         */
+        const val RENGLONES_ESPERADOS = 3
+
+        /** Las medidas del dibujo retirado, a escala normal: 28 y 56 dp del mock. */
+        val PIN_DEL_DIBUJO_VIEJO = 28.dp
+        val CASA_DEL_DIBUJO_VIEJO = 56.dp
+
         val COORDENADA = UbicacionDelCobro(lat = 18.4609, lng = -97.3926)
     }
 }

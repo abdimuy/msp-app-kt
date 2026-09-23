@@ -74,14 +74,26 @@ const val FILA_DE_PRODUCTO_TAG: String = "pagos_cliente_producto"
 /** `testTag` del "ver los N contactos" al pie de la bitácora. */
 const val VER_LOS_CONTACTOS_TAG: String = "pagos_cliente_ver_contactos"
 
-/** `testTag` del cuadro de la puerta — el mapa, o el dibujo cuando no hay mapa. */
+/** `testTag` del cuadro de la puerta — el mapa, o las señas cuando no hay mapa. */
 const val CUADRO_DE_LA_PUERTA_TAG: String = "pagos_cliente_cuadro_puerta"
+
+/** `testTag` del chip "Punto medido" del cuadro de la puerta. */
+const val PUNTO_MEDIDO_TAG: String = "pagos_cliente_punto_medido"
+
+/** `testTag` del renglón grande del cuadro: la calle y el número. */
+const val CALLE_DEL_CUADRO_TAG: String = "pagos_cliente_calle"
+
+/** `testTag` de la línea tenue del cuadro: la ruta. */
+const val RUTA_DEL_CUADRO_TAG: String = "pagos_cliente_ruta_del_cuadro"
 
 /**
  * Lo que anuncia el cuadro cuando se puede tocar.
  *
- * Un `clickable` sin etiqueta es un control invisible para TalkBack, y este no
- * tiene texto propio del cual heredarla: son dos glifos decorativos.
+ * Un `clickable` sin etiqueta es un control invisible para TalkBack. La
+ * etiqueta se queda aunque el cuadro ya tenga texto adentro: el `clickable` no
+ * fusiona a sus descendientes, así que sin esto el control seguiría anunciándose
+ * mudo y la calle se leería como un párrafo suelto, no como el destino del
+ * toque.
  */
 private const val VER_LA_UBICACION = "Ver la ubicación"
 
@@ -831,7 +843,7 @@ private const val POR_RENGLON_APILADO = 2
 private const val RENGLONES_DE_LA_DIRECCION = 2
 
 /**
- * **El cuadro de la puerta: el mapa cuando se puede, el dibujo cuando no.**
+ * **El cuadro de la puerta: el mapa cuando se puede, las señas cuando no.**
  *
  * ## Por qué vuelve, y por qué vuelve sin botón adentro
  *
@@ -851,19 +863,19 @@ private const val RENGLONES_DE_LA_DIRECCION = 2
  * zoom antes de arrancar. Son dos trabajos distintos y dos destinos distintos.
  * Solo se puede tocar cuando hay punto medido: sin él no hay nada que mostrar.
  *
- * ## Las DOS capas, y por qué el dibujo va abajo y no "en vez de"
+ * ## Las DOS capas, y por qué las señas van abajo y no "en vez de"
  *
- * El dibujo se pinta **siempre**, como piso. [suelo] —el mapa de verdad, que
- * cablea `:app`— se pinta encima y solo cuando hay [ubicacion]. Si el mapa
- * pinta, tapa el dibujo; si no pinta, el dibujo queda a la vista.
+ * El piso se pinta **siempre**. [suelo] —el mapa de verdad, que cablea `:app`—
+ * se pinta encima y solo cuando hay [ubicacion]. Si el mapa pinta, tapa el
+ * piso; si no pinta, el piso queda a la vista.
  *
  * Eso no es defensa por si acaso: **está medido**. Instalado en el SM-A256E, el
  * mapa no pintó ni una tesela —`Authorization failure … StatusCode=
  * INVALID_ARGUMENT`, la llave no autorizaba el paquete de esa build— y lo que se
  * veía era la retícula gris con el logo de Google, o sea *un mapa que no cargó*,
  * que es exactamente lo que este cuadro existe para no ser. El mismo caso se da
- * en la calle sin señal la primera vez que se abre una puerta nueva. Con el
- * dibujo abajo, el peor caso es el estado aceptable y no el prohibido.
+ * en la calle sin señal la primera vez que se abre una puerta nueva. Con las
+ * señas abajo, el peor caso es el estado aceptable y no el prohibido.
  *
  * Quien decide cuándo el mapa se deja ver es el propio [suelo] (ver
  * `SueloDelUltimoCobro` en `:app`): se mantiene invisible hasta que el SDK avisa
@@ -879,8 +891,8 @@ private const val RENGLONES_DE_LA_DIRECCION = 2
  * a navegar ya está "cómo llegar".
  *
  * Así que el suelo recibe qué significa un toque y lo cablea donde el SDK sí
- * escucha. El `clickable` de acá se queda para cuando NO hay suelo: sobre el
- * dibujo no hay nadie que compita.
+ * escucha. El `clickable` de acá se queda para cuando NO hay suelo: sobre las
+ * señas no hay nadie que compita.
  *
  * ## El mapa vive en `:app` y entra por una ranura
  *
@@ -891,34 +903,58 @@ private const val RENGLONES_DE_LA_DIRECCION = 2
  *
  * Y es lo que mantiene **deterministas los goldens**: un mapa real trae red y
  * bitmaps, y ninguno de los dos entra a `captureRoboImage`. El golden fotografía
- * el dibujo, que es lo que este módulo dibuja de verdad.
+ * las señas, que es lo que este módulo pinta de verdad.
  *
- * ## El pin del dibujo es un SÍMBOLO, no una coordenada
+ * ## Ya no hay dibujo: el piso es una composición tipográfica
  *
- * Con [ubicacion] medida el dibujo lleva un pin sobre la casa. No dice *dónde*
- * está la puerta —sobre un dibujo no hay dónde— sino que **hay un punto medido**,
- * y eso el cobrador lo usa: "cómo llegar" lo va a dejar en la puerta exacta y no
- * en la calle. Es la distinción que el KDoc del bloque viejo ya dejó escrita, y
- * la razón por la que con teselas el pin lo pinta el mapa: ahí un pin que no cae
- * exacto sobre el objetivo de la cámara miente, y el golden midió **21 dp** de
- * corrimiento, unos 24 metros a zoom 17.
+ * El respaldo era una casa con un pin encima. El dueño lo revisó y lo quitó, y
+ * en su lugar va texto: el chip **"Punto medido"**, la calle en grande y la
+ * ruta en tenue — ver [SenasDeLaPuerta]. Lo que NO cambió es el argumento por el
+ * que el piso existe (las dos capas de arriba) ni ninguna de las prohibiciones
+ * que ese dibujo se había ganado, que siguen vigentes palabra por palabra:
  *
- * ## Qué NO dibuja
+ * **El chip es un SÍMBOLO, no una coordenada, y por eso sólo sale con punto
+ * medido.** No dice *dónde* está la puerta —sobre una banda de texto no hay
+ * dónde— sino que **hay un punto medido**, y eso el cobrador lo usa: "cómo
+ * llegar" lo va a dejar en la puerta exacta y no en la calle. Sin [ubicacion] el
+ * chip no se pinta: afirmar un punto que nadie midió es la mentira que el pin
+ * del dibujo ya tenía prohibida. Es también la razón por la que con teselas el
+ * pin lo pinta el mapa: ahí un pin que no cae exacto sobre el objetivo de la
+ * cámara miente, y el golden midió **21 dp** de corrimiento, unos 24 metros a
+ * zoom 17.
  *
  * **Nada de calles ni de retícula.** El mock resolvía este cuadro con un
  * degradado, una cuadrícula de 34 px y una barra rotada -7° haciendo de calle
  * (`docs/design/mocks/cliente-y-venta.html:151-156`). Una retícula se confunde
  * con la traza real de la colonia y una barra rotada se lee como una avenida que
  * existe: las dos son dato falso dibujado, y además indistinguibles de un mapa
- * roto. El dibujo tiene que **verse como dibujo**.
+ * roto. Sin ilustración el riesgo desaparece de raíz: un renglón de texto no se
+ * puede confundir con un mapa a medio cargar.
  *
  * **Y no dice "a 320 m".** Esa distancia exige saber dónde está el teléfono
  * AHORA y la app no tiene ubicación en vivo. Un número a medias es un dato
  * falso, no uno incompleto (principio 9).
+ *
+ * ## De dónde salen [direccion] y [zona]
+ *
+ * De [com.example.msp_app.feature.pagos.domain.model.DetalleCliente], que es
+ * quien ya las tiene — la pantalla las pinta desde antes en [BloqueDeIdentidad].
+ * No se inventa un parámetro nuevo ni se deriva nada: la que llega es la misma
+ * cadena que se pinta arriba.
+ *
+ * **La colonia no se pinta porque no existe.** `SaleEntity` trae `CALLE` y
+ * `CIUDAD` y ninguna columna de colonia (la hay en `LocalSaleEntity`, que es
+ * otra cosa: las ventas capturadas en el teléfono). Y `direccion` llega ya
+ * armada como `"CALLE, CIUDAD"` —ver `RoomVentasAdapter`—, así que sacarle "la
+ * calle sola" exigiría partirla por la última coma: una derivación inventada
+ * que se equivoca sola en cuanto la calle traiga una coma o la ciudad venga
+ * vacía. Mejor dos renglones ciertos que tres con uno falso.
  */
 @Composable
 fun CuadroDeLaPuerta(
     ubicacion: UbicacionDelCobro?,
+    direccion: String,
+    zona: String,
     modifier: Modifier = Modifier,
     onVerUbicacion: (() -> Unit)? = null,
     suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
@@ -940,8 +976,8 @@ fun CuadroDeLaPuerta(
             )
             .testTag(CUADRO_DE_LA_PUERTA_TAG)
     ) {
-        DibujoDeLaPuerta(ubicacion)
-        // El mapa, encima del dibujo y solo con punto medido. Sin punto no hay
+        SenasDeLaPuerta(ubicacion = ubicacion, direccion = direccion, zona = zona)
+        // El mapa, encima de las señas y solo con punto medido. Sin punto no hay
         // dónde centrarlo, y centrarlo en cualquier otra cosa diría "es aquí"
         // sobre una puerta que nadie midió.
         if (ubicacion != null) suelo?.invoke(abrir ?: {})
@@ -949,43 +985,118 @@ fun CuadroDeLaPuerta(
 }
 
 /**
- * El dibujo: una casa, y un pin encima cuando la puerta tiene punto medido.
+ * Las señas: el chip de punto medido, la calle en grande y la ruta en tenue.
  *
- * Los dos glifos son [androidx.compose.ui.graphics.vector.ImageVector]
- * construidos a mano con el mismo helper que el resto de los iconos del módulo,
- * así que pesan lo que pesan unas constantes `String`. No es un detalle de
- * estilo: el único PNG decorativo del repo (`res/drawable-nodpi/map_layout.png`,
- * el "mapa ilustrado" de la pantalla legada de venta) ocupa **1 863 417 B**, el
- * 15 % de un APK de release de 11.59 MB — más que todo el SDK de Maps junto.
+ * **A la izquierda y centradas verticalmente**, con el mismo aire lateral que
+ * las secciones de la hoja (`spacing.md`). Centrar el texto lo habría dejado
+ * flotando como un cartel; alineado a la izquierda cae sobre la misma vertical
+ * que la dirección y el aval de la sección de arriba, y la banda se lee como
+ * parte de la hoja y no como una estampa pegada encima.
+ *
+ * ## Sin punto medido no hay chip, y no se rellena el hueco
+ *
+ * El chip dice *"esta puerta está medida"*. Sin [ubicacion] esa frase sería
+ * falsa, así que **no se dice nada en su lugar**: se quedan la calle y la ruta.
+ * No se sustituye por *"sin ubicación"* ni por un chip apagado — el cobrador no
+ * abre esta pantalla a ver qué le falta al registro, y un chip gris ocupando el
+ * mismo sitio que uno de marca es ruido con forma de dato. La ausencia del chip
+ * ya dice lo mismo sin gastar un renglón.
+ *
+ * ## A las escalas grandes cabe UN solo renglón, y es el que dice algo nuevo
+ *
+ * El cuadro mide 40 dp a `GRANDE` y `MUY_GRANDE` —ver [altoDelCuadro], y ese
+ * número está medido contra el dock, no elegido—. Ahí no caben tres renglones:
+ * a 2.0 la calle sola en `metricLarge` pediría ~73 dp.
+ *
+ * El renglón que se queda es **el chip**, y no la calle, porque la calle ya está
+ * a unos píxeles de ahí: la pinta [BloqueDeIdentidad] en su propio renglón. Se
+ * probó al revés —dejando la calle— y el golden `pagos_cliente_light_2_0` lo
+ * mostró claro: la misma dirección dos veces, una debajo de la otra, no se lee
+ * como énfasis sino como un defecto de la app. El chip es lo único de esta banda
+ * que el renglón de arriba no dice.
+ *
+ * Y **sin punto medido no hay chip**, así que ahí sí baja la calle: entre
+ * repetir un dato y dejar la banda muda —que es exactamente el hueco que el
+ * dueño rechazó—, se repite.
  */
 @Composable
-private fun DibujoDeLaPuerta(ubicacion: UbicacionDelCobro?) {
-    // Los dos glifos se miden como FRACCIÓN del cuadro, no en dp fijos. Con los
-    // 56 y 28 fijos de antes, el cuadro apretado de las escalas grandes dejaba
-    // la casa recortada por la mitad y el pin saliéndose por arriba: en el
-    // golden a 2.0 se leía como un error de render, no como un dibujo. Las
-    // fracciones son las del cuadro del mock (56/130 y 28/130), así que a
-    // escala normal no cambia un solo píxel y los goldens de 1.0 no se mueven.
-    val alto = altoDelCuadro()
+private fun SenasDeLaPuerta(ubicacion: UbicacionDelCobro?, direccion: String, zona: String) {
+    val apretado = LocalFontSizeLevel.current != FontSizeLevel.NORMAL
+    val conPunto = ubicacion != null
     Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = MspTheme.spacing.md),
+        verticalArrangement = Arrangement.Center
     ) {
-        if (ubicacion != null) {
-            Icon(
-                imageVector = AccionesIconos.Pin,
-                contentDescription = null,
-                tint = MspTheme.colors.brand,
-                modifier = Modifier.size(alto * PIN_DEL_CUADRO)
-            )
-            Spacer(Modifier.height(MspTheme.spacing.xs))
+        if (conPunto) {
+            ChipDePuntoMedido()
+            if (!apretado) Spacer(Modifier.height(MspTheme.spacing.sm))
         }
+        // Con la dirección en blanco va una frase y no un hueco: la banda existe
+        // para que nunca se lea como una pantalla a medio cargar, y un renglón
+        // vacío es precisamente eso.
+        if (!apretado || !conPunto) {
+            Text(
+                text = direccion.ifBlank { SIN_DIRECCION },
+                style = if (apretado) MspTheme.type.captionStrong else MspTheme.type.metricLarge,
+                color = MspTheme.colors.onSurface,
+                maxLines = if (apretado) 1 else RENGLONES_DE_LA_CALLE,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag(CALLE_DEL_CUADRO_TAG)
+            )
+        }
+        // La ruta sólo cuando la fila la trae. "Su ruta es —" es una frase con un
+        // hueco adentro, que se lee como un defecto de la app; el mismo criterio
+        // que ya usa [diaDeLaRuta].
+        if (zona.isNotBlank() && !apretado) {
+            Spacer(Modifier.height(MspTheme.spacing.xs))
+            Text(
+                text = zona,
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.testTag(RUTA_DEL_CUADRO_TAG)
+            )
+        }
+    }
+}
+
+/**
+ * El chip "Punto medido": un pin diminuto y dos palabras, en color de marca
+ * sobre `brandTint` y con las esquinas completamente redondeadas
+ * (`shapes.chip`, el pill que ya usan los atrasos y los estados).
+ *
+ * El pin es el MISMO glifo que "cómo llegar" ([AccionesIconos.Pin]), a
+ * [PIN_DEL_CHIP]: un segundo dibujo de pin para el mismo significado es lo que
+ * esta app evita en todos lados.
+ */
+@Composable
+private fun ChipDePuntoMedido() {
+    Row(
+        modifier = Modifier
+            .clip(MspTheme.shapes.chip)
+            .background(MspTheme.colors.brandTint)
+            .padding(
+                horizontal = MspTheme.spacing.sm,
+                vertical = MspTheme.spacing.xs - 1.dp
+            )
+            .testTag(PUNTO_MEDIDO_TAG),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+    ) {
         Icon(
-            imageVector = AccionesIconos.Casa,
+            imageVector = AccionesIconos.Pin,
             contentDescription = null,
-            tint = MspTheme.colors.onSurfaceMuted,
-            modifier = Modifier.size(alto * CASA_DEL_CUADRO)
+            tint = MspTheme.colors.brand,
+            modifier = Modifier.size(PIN_DEL_CHIP)
+        )
+        Text(
+            text = PUNTO_MEDIDO,
+            style = MspTheme.type.chipLabel,
+            color = MspTheme.colors.brand,
+            maxLines = 1
         )
     }
 }
@@ -1148,26 +1259,24 @@ private val CUADRO_DEL_MOCK = 130.dp
 private val CUADRO_APRETADO = 40.dp
 
 /**
- * La casa, como **fracción del alto del cuadro**: los 56 dp del mock sobre sus
- * 130. Grande y en el gris del texto secundario.
+ * El pin del chip de punto medido.
  *
- * Se probó primero con `colors.outline` —el color del hairline— y en el golden
- * la casa **desaparecía**: quedaba una mancha que se lee como un artefacto del
- * render, no como un dibujo. Un dibujo que no se ve no responde a *"tiene que
- * ser un mapa o un dibujo"*.
- *
- * Es fracción y no dp fijos porque el cuadro cambia de alto con la escala (ver
- * [altoDelCuadro]): con 56 dp fijos dentro de un cuadro de 40, la casa salía
- * cortada.
+ * **Diminuto a propósito**: acompaña a dos palabras de 12 sp, y un glifo del
+ * tamaño de los de la fila de acciones (18 dp) convertiría el chip en un botón
+ * —que no lo es— y le robaría el peso a la calle, que es lo que manda en esta
+ * banda.
  */
-private const val CASA_DEL_CUADRO = 56f / 130f
+private val PIN_DEL_CHIP = 12.dp
 
 /**
- * El pin, también como fracción: 28 dp sobre los 130 del mock. Más chico que la
- * casa y en el color de marca.
+ * Cuántas líneas se le dan a la calle en la banda.
  *
- * El tamaño y el color son los que lo hacen leerse como una **marca sobre** la
- * casa y no como un segundo dibujo al lado. Es el único elemento del cuadro que
- * depende de un dato.
+ * Dos, por lo mismo que la dirección de [BloqueDeIdentidad]: a 26 sp,
+ * *"C. Miguel Hidalgo y Costilla 214, Centro"* no entra en un renglón de
+ * 360 dp, y media dirección no es una dirección incompleta — es una dirección
+ * equivocada.
  */
-private const val PIN_DEL_CUADRO = 28f / 130f
+private const val RENGLONES_DE_LA_CALLE = 2
+
+/** Lo que dice el chip cuando la puerta tiene coordenada de un cobro real. */
+private const val PUNTO_MEDIDO = "Punto medido"

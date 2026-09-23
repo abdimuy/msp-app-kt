@@ -609,11 +609,17 @@ private fun HojaDeIdentidad(
         // punto quedaba un hueco: el dueño lo vio en vidrio y pidió lo contrario
         // —*"tiene que ser un mapa o un dibujo"*—. Lo que cambia entre los dos
         // casos es el suelo, no si hay banda: con coordenada el suelo es el mapa
-        // de verdad que cablea `:app`, y sin ella el respaldo dibujado, que se lee
-        // como ilustración y no como un mapa que no cargó.
+        // de verdad que cablea `:app`, y sin ella las señas de la puerta.
+        //
+        // El dibujo que hacía de respaldo se retiró: el dueño lo revisó y en su
+        // lugar va una composición tipográfica —chip, calle y ruta—. La dirección
+        // y la zona son las MISMAS que pinta `BloqueDeIdentidad` arriba: salen de
+        // este `detalle`, no de un parámetro nuevo ni de una derivación.
         Separador()
         CuadroDeLaPuerta(
             ubicacion = detalle.ultimoCobroAqui,
+            direccion = detalle.direccion,
+            zona = detalle.zona,
             onVerUbicacion = onVerUbicacion,
             suelo = suelo
         )

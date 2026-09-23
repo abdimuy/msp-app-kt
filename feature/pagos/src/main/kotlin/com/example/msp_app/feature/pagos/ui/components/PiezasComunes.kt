@@ -247,6 +247,21 @@ fun Separador(modifier: Modifier = Modifier, color: Color = MspTheme.colors.outl
 const val SIN_DATO: String = "—"
 
 /**
+ * Lo que se dice donde iría una dirección y el cliente no trae ninguna escrita.
+ *
+ * **No es [SIN_DATO].** Una raya sirve en una celda que lleva su etiqueta al
+ * lado —"últ. pago —" se lee solo—, pero en el renglón grande del cuadro de la
+ * puerta una raya suelta se lee como una pantalla a medio cargar, que es
+ * exactamente lo que ese cuadro existe para no ser.
+ *
+ * Vive acá y no en `:app` porque lo dicen DOS pantallas con el mismo hueco: el
+ * cuadro de la puerta del detalle (`CuadroDeLaPuerta`) y la hoja del mapa
+ * grande (`UbicacionDelClienteScreen`, `:app`). Eran dos copias del mismo texto
+ * de usuario, y dos copias se despegan en cuanto alguien reescribe una.
+ */
+const val SIN_DIRECCION: String = "Sin dirección registrada"
+
+/**
  * Vuelve a leer al **reanudarse** la pantalla — no al montarse.
  *
  * El defecto que cierra: registrar un pago o una visita y volver atrás dejaba

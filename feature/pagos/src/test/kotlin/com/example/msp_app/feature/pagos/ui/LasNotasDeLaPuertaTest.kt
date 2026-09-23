@@ -9,6 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -24,6 +27,7 @@ import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.ACCION_DE_CONTACTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AVISO_DE_LAS_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
+import com.example.msp_app.feature.pagos.ui.components.CUADRO_DE_LA_PUERTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
 import com.example.msp_app.feature.pagos.ui.components.DISTINTIVO_DE_NOTAS_TAG
@@ -204,12 +208,21 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
      * Control positivo del de arriba: la **zona** sigue existiendo y sigue
      * siendo otra cosa. Sin esto, un `BloqueDeIdentidad` que hubiera tirado la
      * zona a la basura para hacerle lugar a la dirección pasaría en verde.
+     *
+     * **La consulta excluye el cuadro de la puerta**, y no es un truco para que
+     * pase: desde que ese cuadro cambió su dibujo por una composición
+     * tipográfica, la ruta se dice en DOS lugares —acá y como línea tenue de esa
+     * banda—, así que un `onNodeWithText` a secas encuentra dos nodos y falla
+     * por ambigüedad. Lo que este test cuida es el renglón de identidad, así que
+     * se apunta a él.
      */
     @Test
     fun `la zona sigue estando, y aparte`() {
         cliente()
 
-        composeTestRule.onNodeWithText(ZONA).assertIsDisplayed()
+        composeTestRule.onNode(
+            hasText(ZONA) and !hasAnyAncestor(hasTestTag(CUADRO_DE_LA_PUERTA_TAG))
+        ).assertIsDisplayed()
     }
 
     // --- La hoja -------------------------------------------------------------
