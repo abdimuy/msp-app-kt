@@ -170,11 +170,16 @@ private fun weekdayName(date: LocalDate): String {
  *
  * De ahí salen las cuatro propiedades que importan:
  *
- *  - **converge**: en cuanto el servidor reconoce el pago, el colapso del
- *    gemelo borra la fila local, `enVuelo` baja a cero y el saldo es
- *    exactamente el del servidor;
- *  - **no cuenta doble**: el descuento sale de las filas locales vivas, no de
- *    restarle el pago a un saldo que quizá ya lo incluya;
+ *  - **converge**: en cuanto Microsip le asigna documento al pago, la fila
+ *    local deja de contar como en vuelo y el saldo es exactamente el del
+ *    servidor. La transición NO depende de que llegue nada por el canal de
+ *    pagos —eso era lo que fosilizaba el número—, sino del `DOCTO_CC_ID` de
+ *    la propia fila del pago;
+ *  - **no cuenta doble**: el descuento sale de los pagos que el servidor
+ *    demostrablemente no ha aplicado, no de restarle el pago a un saldo que
+ *    quizá ya lo incluya. Las dos transiciones se compensan: el saldo que
+ *    publica el servidor baja en `IMPORTE` en el mismo instante en que esta
+ *    suma deja de incluirlo;
  *  - **no se desincroniza**: cada tick parte del valor que llega, así que una
  *    cancelación de oficina o el pago de otro cobrador entran igual, con o sin
  *    pagos en vuelo;

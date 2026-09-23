@@ -796,22 +796,62 @@ interface PaymentDao {
      * worker puede no alcanzar a marcarla, y un pago RECHAZADO también la deja
      * en 1. La evidencia fuerte es la del servidor.
      *
-     * El predicado es el mismo que usa el colapso del gemelo UUID, a
-     * propósito: una fila local (`ID LIKE '%-%'`) a la que ninguna fila
-     * numérica nombra por `PAGO_RECIBIDO_ID`. En cuanto el servidor la nombra,
-     * el colapso la borra y esta suma deja de incluirla — que es exactamente
-     * lo que hace converger el saldo sin doble conteo.
+     * **El criterio es `DOCTO_CC_ID = 0`: Microsip no le ha asignado
+     * documento, así que el saldo del servidor no puede incluirlo.** Es
+     * evidencia POSITIVA de no-inclusión, y viene del servidor: el `0` es el
+     * centinela con el que nace la captura (`PaymentFactory`), y el único que
+     * lo cambia es `PendingPaymentsWorker.persistDoctoCcId` con el
+     * `docto_cc_id` que devolvió la respuesta de `POST /pagos`. Esa respuesta
+     * sale después de que Microsip aplicó el abono, y el recálculo de
+     * `MSP_SALDOS_VENTAS` va en la MISMA transacción que el abono (trigger
+     * `MSP_PAGOS_IMPORTES_AIUD` → `MSP_RECOMPUTE_PAGO`). Por eso:
      *
-     * `PAGO_RECIBIDO_ID <> ID` descarta la auto-referencia, igual que en
-     * [pagoRecibidoIdsReclamados].
+     * > si el teléfono tiene `DOCTO_CC_ID > 0`, el saldo que publica el
+     * > servidor **ya trae ese pago descontado**.
      *
-     * ## Límite conocido
+     * ## Por qué NO basta "ninguna fila numérica la nombra"
      *
-     * Un pago que Microsip RECHAZÓ se queda como fila local para siempre, así
-     * que se resta para siempre y el saldo mostrado queda por debajo del real.
-     * Hoy no hay forma de distinguirlo: el teléfono no guarda el estado que el
-     * servidor devuelve. Se cierra cuando la fila local pueda decir "rechazado"
-     * — el otro arreglo de este mismo bloque.
+     * Ese era el criterio anterior y es AUSENCIA de evidencia, no evidencia.
+     * La fila numérica viaja por `/sync/pagos` y el saldo por `/sync/ventas`,
+     * con cursores independientes; `syncNow` consulta pagos ANTES que ventas,
+     * así que la foto de pagos es siempre la más vieja de las dos. Todo pago
+     * aplicado en esa ventana llega con su saldo ya descontado y sin su fila
+     * numérica: el saldo se descuenta dos veces. Medido en producción
+     * (crédito 15689642, 2026-09-23): el saldo se publicó 3 ms antes que el
+     * pago y un abono de $100 bajó el saldo $200.
+     *
+     * Peor todavía, ese descuento se fosilizaba. Cuando el colapso del gemelo
+     * por fin borraba la fila UUID, nadie recalculaba el saldo, y
+     * `SALDO_REST` sólo se reescribe cuando llega otro `VentaDto` — que para
+     * ese cargo ya había pasado.
+     *
+     * Con `DOCTO_CC_ID` el descuento deja de depender del OTRO canal: cambia
+     * cuando cambia la fila del pago, que es local. Y las dos transiciones se
+     * compensan exactamente — en el instante en que el servidor aplica el
+     * abono, el saldo que publica baja en `IMPORTE` y esta suma deja de
+     * incluirlo por el mismo `IMPORTE` —, así que el número mostrado es
+     * continuo y el orden de llegada deja de importar.
+     *
+     * ## Los otros dos cerrojos, que se conservan
+     *
+     * `ID LIKE '%-%'` y "nadie la nombra por `PAGO_RECIBIDO_ID`" siguen
+     * exigiéndose. Son redundantes en el caso sano —una fila del servidor
+     * siempre trae `DOCTO_CC_ID > 0`— y esa redundancia es el punto: cada uno
+     * por su lado basta para NO restar. `PAGO_RECIBIDO_ID <> ID` descarta la
+     * auto-referencia, igual que en [pagoRecibidoIdsReclamados].
+     *
+     * ## Límites conocidos
+     *
+     * 1. Un pago que Microsip RECHAZÓ se queda como fila local con
+     *    `DOCTO_CC_ID = 0` para siempre, así que se resta para siempre y el
+     *    saldo mostrado queda por debajo del real. **Este arreglo NO lo
+     *    cierra**; se cierra cuando la fila local pueda decir "rechazado".
+     * 2. Un pago que el servidor SÍ aplicó pero cuya respuesta nunca llegó al
+     *    teléfono queda con `DOCTO_CC_ID = 0` y se sigue restando de más
+     *    —igual que antes de este cambio, sin regresión— hasta que el colapso
+     *    del gemelo borra la fila. La firma existe en la flota:
+     *    `GUARDADO_EN_MICROSIP = 1` con `DOCTO_CC_ID = 0` (incidente del
+     *    2026-08-31), y `persistDoctoCcId` es best-effort a propósito.
      *
      * ## Por qué es por cargo y no por lote
      *
@@ -826,6 +866,7 @@ interface PaymentDao {
         SELECT COALESCE(SUM(IMPORTE), 0)
         FROM Payment
         WHERE DOCTO_CC_ACR_ID = :doctoCcAcrId
+          AND DOCTO_CC_ID = 0
           AND ID LIKE '%-%'
           AND ID NOT IN (
               SELECT PAGO_RECIBIDO_ID FROM Payment
