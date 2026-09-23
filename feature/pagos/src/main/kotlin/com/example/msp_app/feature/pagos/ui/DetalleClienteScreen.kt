@@ -58,6 +58,7 @@ import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.ProductoDelCliente
+import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.RitmoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
@@ -158,6 +159,9 @@ fun DetalleClienteScreen(
     suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Vuelve a leer al reanudarse — no al recibir un pago o una visita nuevos:
+    // esta pantalla no los sabe, solo sabe que estuvo pausada. Ver su KDoc.
+    RecargaAlVolver(viewModel::recargar)
     MspThemeRevealHost(
         onToggleTheme = viewModel::alternarTema,
         // Las DOS señales de movimiento reducido (principio 13): la de

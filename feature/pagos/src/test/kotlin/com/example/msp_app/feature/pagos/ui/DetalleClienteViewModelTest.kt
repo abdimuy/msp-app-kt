@@ -2,6 +2,7 @@ package com.example.msp_app.feature.pagos.ui
 
 import androidx.lifecycle.SavedStateHandle
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
@@ -21,8 +22,10 @@ import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
+import java.math.BigDecimal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -165,5 +168,138 @@ class DetalleClienteViewModelTest {
         viewModel()
         advanceUntilIdle()
         assertEquals(1, telemetria.recorded.count { it.type == TelemetryEventType.SCREEN_VIEW })
+    }
+
+    // --- recargar(): la que usa la pantalla al reanudarse --------------------
+
+    /** Una venta nueva del mismo cliente, con cifras propias y sin dependencias externas. */
+    private fun ventaExtra() = PagosFixtures.datosDeVenta(
+        ventaId = 77900,
+        folio = "V-7900",
+        descripcion = "Comedor 6 sillas",
+        cifras = PagosFixtures.Cifras(
+            total = Money.of(BigDecimal("7400")),
+            restante = Money.of(BigDecimal("2600")),
+            cuota = Money.of(BigDecimal("300")),
+            cubierto = Money.of(BigDecimal("4800"))
+        )
+    )
+
+    /**
+     * **El corazón del arreglo**: después de registrar un abono o una visita, la
+     * pantalla a la que se vuelve tiene que enseñarlo. `recargar()` no puede ser
+     * un alias de "repintar lo que ya había en memoria" — tiene que volver a
+     * leer el teléfono. Se agrega una venta real entre la carga inicial y la
+     * recarga y se comprueba que el detalle la refleja.
+     */
+    @Test
+    fun `recargar vuelve a leer del puerto`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(2, vm.state.value.detalle!!.ventas.size)
+
+        ventasPort.ventas = ventasPort.ventas + ventaExtra()
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(3, vm.state.value.detalle!!.ventas.size)
+    }
+
+    /**
+     * **`recargar()` no cierra la hoja de la ficha de golpe.** [leer] arma un
+     * `DetalleClienteUiState` desde cero; sin el `copy` explícito de
+     * `recargar()`, una recarga disparada al reanudar la app con la hoja
+     * abierta —por ejemplo, tras un cambio de app a medio escribir la nota—
+     * la cerraría y tiraría el borrador del cobrador.
+     */
+    @Test
+    fun `recargar conserva la hoja de la ficha abierta`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.editarFicha()
+        vm.escribirNota("nueva nota sin guardar")
+        // La hoja se abre en una corrutina: sin esto se afirmaba sobre un
+        // estado que todavía no la tenía, y la prueba se caía antes de llegar
+        // a medir lo que vino a medir.
+        advanceUntilIdle()
+        val edicionAntes = checkNotNull(vm.state.value.edicionDeLaFicha)
+
+        ventasPort.ventas = ventasPort.ventas + ventaExtra()
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(edicionAntes, vm.state.value.edicionDeLaFicha)
+    }
+
+    /**
+     * **Y tampoco cierra la hoja "¿a cuál cuenta?".** Mismo argumento que la de
+     * arriba, sobre la otra hoja que este estado puede tener abierta.
+     */
+    @Test
+    fun `recargar conserva la eleccion de cuenta abierta`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val navegoDirecto = vm.registrarAbono()
+        assertNull("con dos cuentas cobrables tiene que abrir la hoja, no navegar", navegoDirecto)
+        // Misma razón que en la prueba de la ficha: la hoja se abre en una
+        // corrutina y sin esto se afirmaba sobre un estado que aún no la tenía.
+        advanceUntilIdle()
+        val eleccionAntes = checkNotNull(vm.state.value.eleccionDeCuenta)
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(eleccionAntes, vm.state.value.eleccionDeCuenta)
+    }
+
+    /**
+     * **`recargar()` no parpadea.** A diferencia de [DetalleClienteViewModel.cargar]
+     * —que reemplaza el estado por uno en blanco con `cargando = true`—,
+     * `recargar()` nunca lo enciende. Se mide sobre la SECUENCIA de estados
+     * emitidos y no solo sobre el valor final, porque un `cargando` que se
+     * prendiera y apagara en el mismo tick no se vería mirando sólo
+     * `state.value` al final.
+     *
+     * El contraste con `cargar()` es el control positivo: la MISMA forma de
+     * medir sí ve el encendido cuando de verdad ocurre.
+     */
+    @Test
+    fun `recargar no enciende cargando, a diferencia de cargar`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val estados = mutableListOf<Boolean>()
+        backgroundScope.launch { vm.state.collect { estados += it.cargando } }
+        // `advanceUntilIdle` y no `runCurrent`: con `runCurrent` el colector
+        // todavía no había arrancado, así que las emisiones de la recarga no
+        // llegaban a la lista y la prueba se caía por su propio control de
+        // "no midió nada" — el control hizo exactamente su trabajo.
+        advanceUntilIdle()
+        estados.clear() // solo interesan las emisiones de aquí en adelante
+
+        ventasPort.ventas = ventasPort.ventas + ventaExtra()
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertTrue(
+            "recargar encendió cargando en algún momento observable: $estados",
+            estados.none { it }
+        )
+        assertTrue(
+            "recargar no produjo ninguna emisión nueva: esta prueba no midió nada",
+            estados.isNotEmpty()
+        )
+
+        estados.clear()
+        vm.cargar()
+        advanceUntilIdle()
+
+        assertTrue(
+            "cargar ya no enciende cargando: el contraste de arriba no prueba nada",
+            estados.any { it }
+        )
     }
 }

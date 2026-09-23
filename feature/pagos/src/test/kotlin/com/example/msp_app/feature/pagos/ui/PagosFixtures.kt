@@ -527,9 +527,10 @@ object PagosFixtures {
      */
     fun resumenDelCliente(ventas: List<VentaDelCliente>): ResumenDelCliente {
         val pagos = pagosDeLaVenta()
+        val parcialidad = Money.sum(ventas.map { it.parcialidad })
         val semanas = RitmoDePagos.de(
             pagos = pagos,
-            parcialidad = Money.sum(ventas.map { it.parcialidad }),
+            parcialidad = parcialidad,
             hoy = HOY
         )
         return ResumenDelCliente(
@@ -539,7 +540,8 @@ object PagosFixtures {
                 ?.let { AppTime.toBusinessDate(it.fecha) },
             atrasos = ventas.sumOf { it.atrasos },
             ritmo = semanas,
-            semanasCumplidas = RitmoDePagos.resumen(semanas).cumplidas
+            semanasCumplidas = RitmoDePagos.resumen(semanas).cumplidas,
+            parcialidad = parcialidad
         )
     }
 

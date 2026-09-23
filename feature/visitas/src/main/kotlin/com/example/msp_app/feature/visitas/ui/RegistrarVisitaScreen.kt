@@ -564,7 +564,8 @@ private fun SeccionDeLaPromesa(state: RegistrarVisitaUiState, acciones: Acciones
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
-        DiasSugeridos.paraPromesa(state.hoy).forEach { dia ->
+        val sugeridos = DiasSugeridos.paraPromesa(state.hoy)
+        sugeridos.forEach { dia ->
             ChipDeDia(
                 dia = dia,
                 elegido = state.captura.fechaPromesa,
@@ -572,7 +573,12 @@ private fun SeccionDeLaPromesa(state: RegistrarVisitaUiState, acciones: Acciones
                 onElegir = acciones.onFechaPromesa
             )
         }
-        ChipDeOtroDia(state, acciones)
+        ChipDeOtroDia(
+            elegido = state.captura.fechaPromesa,
+            sugeridos = sugeridos,
+            state = state,
+            acciones = acciones
+        )
     }
     CampoDeMonto(
         digitos = digitosDe(state),
@@ -591,7 +597,8 @@ private fun SeccionDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeL
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
-        DiasSugeridos.paraCita(state.hoy).forEach { dia ->
+        val sugeridos = DiasSugeridos.paraCita(state.hoy)
+        sugeridos.forEach { dia ->
             ChipDeDia(
                 dia = dia,
                 elegido = state.captura.fechaCita,
@@ -599,7 +606,12 @@ private fun SeccionDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeL
                 onElegir = acciones.onFechaCita
             )
         }
-        ChipDeOtroDia(state, acciones)
+        ChipDeOtroDia(
+            elegido = state.captura.fechaCita,
+            sugeridos = sugeridos,
+            state = state,
+            acciones = acciones
+        )
     }
     TituloDeSeccion("¿A qué hora?")
     FlowRow(
@@ -626,9 +638,12 @@ private fun SeccionDeLaCita(state: RegistrarVisitaUiState, acciones: AccionesDeL
                 modifier = Modifier.testTag(CHIP_TAG + "hora_${hora.hour}")
             )
         }
+        // Fuera de las cuatro horas de un toque: la hora que se picó en el
+        // reloj, o null si nunca se abrió o coincide con una sugerida.
+        val horaEscapada = state.captura.horaCita?.takeIf { it !in DiasSugeridos.HORAS_SUGERIDAS }
         ChipDeOpcion(
-            texto = "Otra hora",
-            activo = false,
+            texto = horaEscapada?.let { DiasSugeridos.etiquetaDe(it) } ?: "Otra hora",
+            activo = horaEscapada != null,
             habilitado = state.sePuedeCapturar,
             onElegir = acciones.onAbrirReloj,
             modifier = Modifier.testTag(CHIP_TAG + "otra_hora")
@@ -661,11 +676,28 @@ private fun ChipDeDia(
     )
 }
 
+/**
+ * El chip de escape del calendario. Cuando [elegido] cae fuera de [sugeridos]
+ * —se entró por "otro día" y se picó una fecha que no es de las de un
+ * toque— el chip se marca elegido y enseña esa fecha, en vez de quedar
+ * apagado con la etiqueta genérica y esconder lo que el cobrador ya picó.
+ */
 @Composable
-private fun ChipDeOtroDia(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
+private fun ChipDeOtroDia(
+    elegido: LocalDate?,
+    sugeridos: List<LocalDate>,
+    state: RegistrarVisitaUiState,
+    acciones: AccionesDeLaVisita
+) {
+    // El día que se picó fuera de los sugeridos, o null si no se ha elegido
+    // ninguno o el elegido ya tiene su propio chip entre los sugeridos.
+    val diaEscapado = elegido?.takeIf { it !in sugeridos }
+    val texto = diaEscapado
+        ?.let { DiasSugeridos.etiquetaDe(it, state.hoy) }
+        ?: DiasSugeridos.OTRO_DIA
     ChipDeOpcion(
-        texto = DiasSugeridos.OTRO_DIA,
-        activo = false,
+        texto = texto,
+        activo = diaEscapado != null,
         habilitado = state.sePuedeCapturar,
         onElegir = acciones.onAbrirCalendario,
         modifier = Modifier.testTag(CHIP_TAG + "otro_dia")

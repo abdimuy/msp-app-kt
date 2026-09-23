@@ -111,6 +111,46 @@ class EstadoCuentaUiTest {
     }
 
     /**
+     * **La cita dice QUÉ DÍA, no sólo a qué hora.**
+     *
+     * Decía "Cita 16:30" y el cobrador no tenía cómo saber de qué día se
+     * hablaba: con cuarenta cuentas, una hora suelta obliga a recordar una
+     * conversación. El dueño lo cazó en el teléfono el 2026-09-22.
+     *
+     * El día va delante porque es lo que decide si esa puerta es de hoy. El
+     * caso SIN día lo cubre la prueba de arriba, que sigue esperando
+     * "Cita 16:30": `fechaCita` es nullable y una cita puede llegar sin él.
+     */
+    @Test
+    fun `la cita muestra el dia junto con la hora`() {
+        val conDia = cita(LocalTime.of(16, 30)).copy(fechaCita = LocalDate.of(2026, 9, 24))
+
+        assertEquals("Cita 24 sept 16:30", EstadoCuentaUi.etiquetaDe(conDia))
+    }
+
+    /**
+     * **La promesa dice CUÁNTO, no sólo cuándo.**
+     *
+     * El monto prometido se capturaba y **no se pintaba en ninguna parte de la
+     * app**: el cobrador acordaba "$800 el 25" y volvía a una pantalla que
+     * sólo decía el día. Capturar un dato que nadie puede leer de vuelta es
+     * peor que no capturarlo.
+     *
+     * `montoPrometido` es nullable a propósito —prometer una fecha sin
+     * cantidad es un caso real de campo, y un cero significaría "prometió no
+     * pagar"—, así que el texto se compone. Las dos ramas se afirman aquí: sin
+     * el control de abajo, un monto que nunca se pintara pasaría igual.
+     */
+    @Test
+    fun `la promesa muestra el monto prometido junto con el dia`() {
+        val dia = LocalDate.of(2026, 9, 25)
+        val conMonto = promesa(dia).copy(montoPrometido = Money.of(BigDecimal("800")))
+
+        assertEquals("Prometió \$800 el 25 sept", EstadoCuentaUi.etiquetaDe(conMonto))
+        assertEquals("Prometió el 25 sept", EstadoCuentaUi.etiquetaDe(promesa(dia)))
+    }
+
+    /**
      * **Los dos ya NO comparten glifo, y ese es el arreglo.**
      *
      * Compartían el triángulo de advertencia, así que en pantalla una promesa sin

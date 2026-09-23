@@ -32,6 +32,7 @@ import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
+import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 
 /** `testTag` del título de la bitácora. */
@@ -106,6 +107,9 @@ fun BitacoraScreen(
     onVerTicket: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Vuelve a leer al reanudarse — no al recibir un pago o una visita nuevos:
+    // esta pantalla no los sabe, solo sabe que estuvo pausada. Ver su KDoc.
+    RecargaAlVolver(viewModel::recargar)
     MspThemeRevealHost(
         onToggleTheme = viewModel::alternarTema,
         reducedMotion = rememberMspReducedMotion(),

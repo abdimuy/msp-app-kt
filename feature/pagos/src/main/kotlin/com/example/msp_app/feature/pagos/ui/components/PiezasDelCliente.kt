@@ -65,8 +65,8 @@ const val ATRASOS_DEL_CLIENTE_TAG: String = "pagos_cliente_atrasos"
  */
 const val ACCION_DE_CONTACTO_TAG: String = "pagos_cliente_accion"
 
-/** `testTag` de la cifra "pídele hoy" — la que manda la conversación. */
-const val PIDELE_HOY_TAG: String = "pagos_cliente_pidele_hoy"
+/** `testTag` de la cifra de parcialidad del bloque de saldo. */
+const val PARCIALIDAD_DEL_CLIENTE_TAG: String = "pagos_cliente_parcialidad"
 
 /** `testTag` de un renglón de producto del cliente. */
 const val FILA_DE_PRODUCTO_TAG: String = "pagos_cliente_producto"
@@ -483,15 +483,31 @@ fun SaldoDelCliente(
 }
 
 /**
- * Las tres cifras del pie del saldo: **suele dar · pídele hoy · últ. pago**.
+ * Las dos cifras del pie del saldo: **parcialidad · últ. pago**.
  *
- * "Pídele hoy" va en `brand` y las otras dos en el color del texto. No es
- * decoración: de los tres, es el único que dice qué HACER, y el color de marca es
- * el que esta app reserva para lo protagónico. Pintar los tres iguales dejaría al
- * cobrador leyendo tres números para encontrar el que importa.
+ * ## Por qué ya no son "suele dar" y "pídele hoy"
  *
- * Reusa [TresDatos], así que a escala GRANDE y MUY_GRANDE los tres se apilan en
- * vez de salirse de la pantalla.
+ * El dueño las marcó como que "no sirven para nada" y pidió la parcialidad en
+ * su lugar. La parcialidad sale de
+ * [com.example.msp_app.feature.pagos.application.CargarDetalleCliente.resumenDe]
+ * — la SUMA de la parcialidad de sus cuentas activas, la misma con la que ya
+ * se arma [ResumenDelCliente.ritmo] — así que no es una cifra nueva, es una
+ * que ya se calculaba y no se pintaba.
+ *
+ * La etiqueta ("parcialidad") y el formato de moneda son los mismos que usa
+ * el pie del detalle de VENTA (`PieDeLaVenta` en `DetalleVentaScreen.kt`, vía
+ * [MspMoneyText] → `formatMoneyMxn`): no se inventa un formato nuevo, y
+ * [MspMoneyText] además respeta [ocultos], que ese pie no necesita porque el
+ * detalle de venta no trae el interruptor de privacidad.
+ *
+ * ## Por qué no reusa [TresDatos]
+ *
+ * [TresDatos] fija TRES celdas — la comparte con `PieDeLaVenta`, que sí
+ * necesita tres (abonos, parcialidad, frecuencia) — y esta hoja ahora solo
+ * tiene dos cifras que decir. Forzar una tercera celda vacía sería inventar un
+ * hueco donde antes había un dato; en vez de tocar [TresDatos] —compartido con
+ * la pantalla de venta, fuera de alcance— este bloque arma su propia fila de
+ * dos, apilable en las mismas escalas grandes por el mismo motivo.
  */
 @Composable
 fun CifrasDelCliente(
@@ -499,33 +515,38 @@ fun CifrasDelCliente(
     modifier: Modifier = Modifier,
     ocultos: Boolean = false
 ) {
-    TresDatos(
-        modifier = modifier,
-        primero = { celda ->
-            CifraDelCliente(
-                clave = "suele dar",
-                monto = resumen.promedioDeMicrosip,
-                ocultos = ocultos,
-                modifier = celda
-            )
-        },
-        segundo = { celda ->
-            CifraDelCliente(
-                clave = "pídele hoy",
-                monto = resumen.pideleHoy,
-                color = MspTheme.colors.brand,
-                ocultos = ocultos,
-                modifier = celda.testTag(PIDELE_HOY_TAG)
-            )
-        },
-        tercero = { celda ->
-            CifraDelCliente(
-                clave = "últ. pago",
-                texto = resumen.ultimoPago?.let { DIA_Y_MES.format(it) } ?: SIN_DATO,
-                modifier = celda
-            )
+    val celdaDeParcialidad: @Composable (Modifier) -> Unit = { celda ->
+        CifraDelCliente(
+            clave = "parcialidad",
+            monto = resumen.parcialidad,
+            ocultos = ocultos,
+            modifier = celda.testTag(PARCIALIDAD_DEL_CLIENTE_TAG)
+        )
+    }
+    val celdaDeUltimoPago: @Composable (Modifier) -> Unit = { celda ->
+        CifraDelCliente(
+            clave = "últ. pago",
+            texto = resumen.ultimoPago?.let { DIA_Y_MES.format(it) } ?: SIN_DATO,
+            modifier = celda
+        )
+    }
+    if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
+        Row(
+            modifier = modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            celdaDeParcialidad(Modifier.weight(1f))
+            celdaDeUltimoPago(Modifier.weight(1f))
         }
-    )
+    } else {
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            celdaDeParcialidad(Modifier.fillMaxWidth())
+            celdaDeUltimoPago(Modifier.fillMaxWidth())
+        }
+    }
 }
 
 @Composable
@@ -713,7 +734,7 @@ fun VentaEnLaHoja(
  * necesita aquí es reconocer qué hay en esa casa; el precio de cada mueble vive
  * en el detalle de su venta, junto al saldo con el que tiene sentido compararlo.
  * Ponerlo también acá sería una tercera cifra de dinero compitiendo con el saldo
- * y con "pídele hoy", que son las que mandan la conversación.
+ * y con la parcialidad, que son las que mandan la conversación.
  */
 @Composable
 fun ProductoDelCliente(producto: ProductoDeVenta, modifier: Modifier = Modifier) {

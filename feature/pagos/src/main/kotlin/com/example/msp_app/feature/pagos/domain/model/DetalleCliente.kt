@@ -135,9 +135,23 @@ data class DetalleCliente(
  * Composable sería re-derivarlas en cada recomposición.
  */
 data class ResumenDelCliente(
-    /** Lo que suele dar por visita. `null` = ninguna cuenta trae el dato. */
+    /**
+     * Lo que suele dar por visita. `null` = ninguna cuenta trae el dato.
+     *
+     * **Ya no se pinta en el bloque de saldo** — el dueño la marcó como que no
+     * sirve para nada. Se queda calculada en el modelo, sin consumidor en
+     * `ui/` a la fecha de este cambio, porque borrarla es alcance aparte de
+     * quitarla de la pantalla.
+     */
     val promedioDeMicrosip: Money? = null,
-    /** Lo que hay que pedirle hoy para dejarlo sin atraso. */
+    /**
+     * Lo que hay que pedirle hoy para dejarlo sin atraso.
+     *
+     * **Ya no se pinta en el bloque de saldo** por la misma razón que
+     * [promedioDeMicrosip]: se queda calculada, sin consumidor en `ui/` a la
+     * fecha de este cambio, en vez de borrarla de un modelo que otro agente
+     * puede estar tocando en paralelo.
+     */
     val pideleHoy: Money = Money.ZERO,
     /** El día del último abono, de la cuenta que sea. `null` si nunca pagó. */
     val ultimoPago: LocalDate? = null,
@@ -146,7 +160,18 @@ data class ResumenDelCliente(
     /** Las doce semanas de la tira, del cliente completo. */
     val ritmo: List<SemanaDeRitmo> = emptyList(),
     /** Cuántas de esas semanas cumplió. */
-    val semanasCumplidas: Int = 0
+    val semanasCumplidas: Int = 0,
+    /**
+     * La parcialidad esperada, SUMADA entre sus cuentas — el mismo importe
+     * con el que [ritmo] se arma (ver
+     * [com.example.msp_app.feature.pagos.application.CargarDetalleCliente.resumenDe]).
+     *
+     * Reemplaza a [promedioDeMicrosip] y [pideleHoy] en el bloque de saldo: el
+     * dueño pidió la parcialidad en su lugar porque las otras dos "no sirven
+     * para nada". No es una cifra nueva — ya se calculaba para el ritmo y
+     * simplemente se expone aquí en vez de re-derivarla en la UI.
+     */
+    val parcialidad: Money = Money.ZERO
 ) {
     /** El "N de 12" del encabezado del ritmo. */
     val semanasTotales: Int get() = ritmo.size

@@ -207,6 +207,39 @@ class CampoDictadoTest {
         assertTrue("el perfil esta invertido", fuerte > orilla)
     }
 
+    /**
+     * **La nota vacía tiene que verse como un espacio donde cabe una frase.**
+     *
+     * El dueño reportó en el aparato que el campo de la nota "ni se ve". No era
+     * el contraste —[bordeVivo] pinta anillo `outline` también en reposo— sino
+     * el alto: el cuerpo medía UNA línea, más bajo que el micrófono que lleva
+     * al lado, así que la caja entera se leía como una barra con un marcador
+     * gris adentro.
+     *
+     * Se afirma contra el alto del MICRÓFONO y no contra una cifra suelta: lo
+     * que impedía leer el campo como campo era justamente quedar por debajo de
+     * su propio control. Una cifra literal envejecería con el design system;
+     * esta relación no.
+     */
+    @Test
+    fun `el campo de la nota vacia es mas alto que su microfono`() {
+        compose.setContent { Campo(estado = EstadoDelDictado.Reposo) }
+
+        val campo = compose.onNodeWithTag(DICTADO_CAMPO_TAG)
+            .getUnclippedBoundsInRoot().height
+        val microfono = compose.onNodeWithTag(DICTADO_MICROFONO_TAG)
+            .getUnclippedBoundsInRoot().height
+
+        // Control positivo en la misma prueba: si el micrófono midiera cero
+        // —o el nodo no existiera— la comparación de abajo pasaría por dos
+        // ausencias que se cancelan, no porque el campo sea alto.
+        assertTrue("el microfono no se midio: $microfono", microfono >= MINIMO)
+        assertTrue(
+            "la nota vacia mide $campo y su microfono $microfono: se lee como una barra",
+            campo > microfono
+        )
+    }
+
     @Composable
     @Suppress("LongParameterList") // es el campo entero, con sus ejes.
     private fun Campo(

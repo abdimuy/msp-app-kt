@@ -46,6 +46,12 @@ const val CTA_VISITA_TAG: String = "pagos_cta_visita"
 const val CTA_NOTAS_TAG: String = "pagos_cta_notas"
 
 /**
+ * `testTag` del botón de Condonar del dock — el tercer espacio del detalle de
+ * venta, hermano de [CTA_NOTAS_TAG] en el detalle de cliente. Ver [DockDeAcciones].
+ */
+const val CTA_CONDONAR_TAG: String = "pagos_cta_condonar"
+
+/**
  * `testTag` del distintivo del botón de Notas: el punto que dice que esa puerta
  * tiene algo anotado. Aparte del botón porque el botón existe SIEMPRE y el punto
  * no — un test que sólo mirara el botón no podría distinguir los dos estados.
@@ -202,6 +208,23 @@ private fun BotonCircular(
  * propósito: con dos parámetros se puede pedir el botón sin darle a dónde ir, y
  * el síntoma sería un control que se ve, se toca y no hace nada. Así el tipo no
  * deja escribir ese estado.
+ *
+ * ## [condonar] — el tercer espacio del detalle de VENTA
+ *
+ * Hermano de [notas] y con el mismo criterio: `null` es "esta pantalla no
+ * ofrece condonar" y una lambda es la puerta. El detalle de cliente lo deja en
+ * `null` —condonar es de una CUENTA, no de una persona— y el de venta es quien
+ * lo manda siempre, sin depender de que haya oferta de liquidación: son dos
+ * acciones de dinero distintas (`"una cosa es usar el botón de 'usar' para
+ * aplicar el pago y otra cosa es para condonar todo el resto que sobra"`) y la
+ * condonación tiene que poder alcanzarse aunque esta cuenta no tenga liquidación
+ * vigente hoy.
+ *
+ * Reusa [BotonDelDock] con `relleno = surface`, igual que [notas] — nunca un
+ * fill rojo de `MspPrimaryFieldButton`: forzar `Danger` ahí rompería el mismo
+ * peso visual que el KDoc de arriba ya protege para el resto del dock. El
+ * riesgo de la acción lo dice el color del CONTENIDO (`danger`), no el relleno
+ * del botón — el mismo idioma que ya usa el distintivo de "Con advertencia".
  */
 @Composable
 fun DockDeAcciones(
@@ -209,7 +232,8 @@ fun DockDeAcciones(
     onPrimario: () -> Unit,
     onVisita: () -> Unit,
     modifier: Modifier = Modifier,
-    notas: AccionDeNotas? = null
+    notas: AccionDeNotas? = null,
+    condonar: (() -> Unit)? = null
 ) {
     // **Apilar antes de partir** (principio 9). Con tres celdas en una sola fila,
     // a escala 2.0 los 360 dp dejan ~74 dp por botón y el texto se rompe A MITAD
@@ -251,7 +275,7 @@ fun DockDeAcciones(
                         .weight(if (apilado) 1f else PESO_DEL_CTA)
                         .testTag(CTA_PRIMARIO_TAG)
                 )
-                if (!apilado) AccionesDelDock(onVisita, notas)
+                if (!apilado) AccionesDelDock(onVisita, notas, condonar)
             }
             if (apilado) {
                 Row(
@@ -259,7 +283,7 @@ fun DockDeAcciones(
                     horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AccionesDelDock(onVisita, notas)
+                    AccionesDelDock(onVisita, notas, condonar)
                 }
             }
         }
@@ -272,7 +296,11 @@ fun DockDeAcciones(
  * lugares era la forma segura de que una ganara un botón y la otra no.
  */
 @Composable
-private fun RowScope.AccionesDelDock(onVisita: () -> Unit, notas: AccionDeNotas?) {
+private fun RowScope.AccionesDelDock(
+    onVisita: () -> Unit,
+    notas: AccionDeNotas?,
+    condonar: (() -> Unit)? = null
+) {
     BotonDelDock(
         texto = "Visita",
         relleno = MspTheme.colors.surface,
@@ -282,6 +310,17 @@ private fun RowScope.AccionesDelDock(onVisita: () -> Unit, notas: AccionDeNotas?
             .weight(1f)
             .testTag(CTA_VISITA_TAG)
     )
+    if (condonar != null) {
+        BotonDelDock(
+            texto = "Condonar",
+            relleno = MspTheme.colors.surface,
+            contenido = MspTheme.colors.danger,
+            onClick = condonar,
+            modifier = Modifier
+                .weight(1f)
+                .testTag(CTA_CONDONAR_TAG)
+        )
+    }
     if (notas != null) {
         BotonDelDock(
             texto = "Notas",

@@ -136,6 +136,39 @@ sealed class Screen(val route: String) {
         fun createRoute(saleId: String) = "guarantee/$saleId"
     }
 
+    /**
+     * La condonación, como destino propio.
+     *
+     * Hasta hoy la única puerta era el detalle de venta legado
+     * ([SaleDetails]) → "Ver los N abonos" → el botón rojo "Condonación", que
+     * abría [com.example.msp_app.features.forgiveness.components.NewForgivenessDialog]
+     * como un diálogo montado dentro de esa pantalla. El dueño la quiere
+     * también desde el detalle de venta NUEVO (`:feature:pagos`), que no
+     * puede depender de `:app` ni montar ese diálogo directamente — así que
+     * esta ruta es la puerta común: cualquier llamador manda el `ventaId` y
+     * llega aquí, sin que el módulo nuevo sepa que `NewForgivenessDialog`
+     * existe.
+     *
+     * **La captura NO se reescribe.** Este destino sólo resuelve la [Sale] por
+     * su id y monta el mismo diálogo con `show = true`; toda la lógica de
+     * condonar —prellenar `SALDO_REST`, validar `> 0` y `<= SALDO_REST`,
+     * escribir el `Payment` con `FORMA_COBRO_ID = Constants.CONDONACION_ID` y
+     * arrancar `UpdateLocationService`— sigue viviendo donde vivía.
+     *
+     * ## Qué id espera esta ruta
+     *
+     * El **`DOCTO_CC_ACR_ID`**, el mismo espacio que [SaleDetails] y que
+     * [com.example.msp_app.feature.pagos.ui.PagosRutas.ARG_VENTA_ID]: es lo que
+     * [com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel.loadSaleDetails]
+     * resuelve (`SaleDao.getById`, la PK de `sales`), y lo que
+     * `DetalleVentaViewModel.ventaId` ya trae resuelto del lado nuevo. **No**
+     * es el `DOCTO_CC_ID` del crédito — confundir los dos espacios ya costó un
+     * defecto de producción en este mismo plan (commit `721c5551`).
+     */
+    object Forgiveness : Screen("forgiveness/{saleId}") {
+        fun createRoute(saleId: Int) = "forgiveness/$saleId"
+    }
+
     object RouteMap : Screen("route_map")
     object ProductsCatalog : Screen("products_catalog")
     object SaleHome : Screen("sale_home")

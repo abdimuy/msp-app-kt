@@ -49,6 +49,7 @@ import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
 import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
+import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.RitmoDeSemanas
 import com.example.msp_app.feature.pagos.ui.components.SIN_DATO
 import com.example.msp_app.feature.pagos.ui.components.Tarjeta
@@ -100,6 +101,17 @@ private val FECHA_DE_VENTA: DateTimeFormatter = DateTimeFormatter.ofPattern(
  * ([PagosRutas.ticketDePago]): la pantalla del ticket es la misma a la que llega
  * la captura de un abono. **La regla de "sólo se imprime el día del cobro" no
  * se toca aquí**: se comprueba al imprimir, dentro del ticket.
+ *
+ * ## [onCondonar] — la condonación, ahora también desde esta pantalla
+ *
+ * Antes la única puerta a condonar era el detalle de venta LEGADO, alcanzable
+ * con "Ver los N abonos" ([onVerAbonos]). El dueño la quiere también aquí, sin
+ * depender de que haya oferta de liquidación: **condonar** (perdonar el resto
+ * que sobra, sin cobrar) y **usar la liquidación** ([onUsarLiquidacion] dentro
+ * de [DetalleVentaContent], sin tocar) son dos acciones de dinero distintas y
+ * no se mezclan. Recibe siempre el `ventaId` —igual que [onVerAbonos]—, que es
+ * el `DOCTO_CC_ACR_ID` que la captura legada (`NewForgivenessDialog`, sin
+ * reescribir) necesita para prellenar el saldo.
  */
 @Composable
 fun DetalleVentaScreen(
@@ -110,11 +122,15 @@ fun DetalleVentaScreen(
     onVerAbonos: (Int) -> Unit,
     onVerGarantia: (Int) -> Unit,
     onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
+    onCondonar: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onVerTicket: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val detalle = state.detalle
+    // Vuelve a leer al reanudarse — no al recibir un pago o una visita nuevos:
+    // esta pantalla no los sabe, solo sabe que estuvo pausada. Ver su KDoc.
+    RecargaAlVolver(viewModel::recargar)
     MspThemeRevealHost(
         onToggleTheme = viewModel::alternarTema,
         reducedMotion = rememberMspReducedMotion(),
@@ -136,6 +152,7 @@ fun DetalleVentaScreen(
             },
             onUsarLiquidacion = { onRegistrarAbono(viewModel.ventaId) },
             onVerAbonos = { onVerAbonos(viewModel.ventaId) },
+            onCondonar = { onCondonar(viewModel.ventaId) },
             linea = AccionesDeLaLinea(
                 filtro = state.filtro,
                 soloEstaVenta = state.soloEstaVenta,
@@ -177,7 +194,8 @@ fun DetalleVentaContent(
     modifier: Modifier = Modifier,
     linea: AccionesDeLaLinea = AccionesDeLaLinea(),
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
-    onVerTicket: ((String) -> Unit)? = null
+    onVerTicket: ((String) -> Unit)? = null,
+    onCondonar: () -> Unit = {}
 ) {
     // Cuál renglón está preguntando, por su `ContactoDeCobranza.id`. Ver el
     // comentario gemelo en `BitacoraContent` para por qué vive aquí y no en el
@@ -236,7 +254,7 @@ fun DetalleVentaContent(
             DockDeAcciones(
                 textoPrimario = "Abonar " + formatMoneyMxn(detalle.parcialidad.amount),
                 onPrimario = onRegistrarAbono,
-                onVisita = onRegistrarVisita
+                onVisita = onRegistrarVisita,
                 // El "⋯" que llevaba a la pantalla legada ya no existe: el
                 // dueño no lo quiere ver más. "Ver los N abonos", más abajo en
                 // LineaDeLaVenta, sigue abriendo esa misma pantalla — es una
@@ -246,6 +264,12 @@ fun DetalleVentaContent(
                 // esta pantalla es de sólo lectura (`TarjetaDeNotaDeLaVenta`,
                 // al fondo) y no tiene editor que abrir desde el dock — no hay
                 // a dónde llevar un botón aquí.
+                //
+                // `condonar` SÍ va, y siempre: no depende de `detalle.liquidacion`
+                // —condonar y usar la liquidación son dos acciones de dinero
+                // distintas— ni de "Ver los N abonos", que sólo aparece si ya
+                // hubo pagos.
+                condonar = onCondonar
             )
         }
     }

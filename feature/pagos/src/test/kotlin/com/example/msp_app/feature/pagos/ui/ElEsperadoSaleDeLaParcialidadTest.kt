@@ -19,7 +19,6 @@ import com.example.msp_app.feature.pagos.data.fake.FakeRegistroDeAbonoPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
-import com.example.msp_app.feature.pagos.domain.LineaBaseDeLaRuta
 import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
@@ -35,32 +34,26 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 /**
- * **El esperado sale del comportamiento, no del dato capturado** — el camino
- * completo, desde el puerto hasta el estado de la pantalla.
+ * **El rediseño del esperado está apagado para el despliegue del 2026-09-22.**
  *
- * El caso que lo trajo: la venta `Y00002184` decía `PARCIALIDAD = 3000` y la
- * pantalla la repetía fiel — *"abono corto · esperado $3,000 · este abono
- * $600"*— y además ofrecía $3,000 en un chip. El dato estaba mal capturado y la
- * venta **no tenía un solo pago** que lo desmintiera.
+ * `CargarDetalleVenta.cuotaDe` ya no llama a la precedencia de tres escalones
+ * de [com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta.de]: la cuota
+ * que la pantalla afirma es siempre la parcialidad capturada. Se apaga porque
+ * defiende un caso posible pero no observado — el caso que lo trajo, la venta
+ * `Y00002184` con `PARCIALIDAD = 3000`, resultó ser dato de prueba.
  *
- * Las pruebas de dominio ([com.example.msp_app.feature.pagos.domain.CuotaDeLaVentaTest])
- * cubren la precedencia. Lo que se prueba **aquí** es lo que sólo se ve de
- * extremo a extremo:
- *
- * 1. que la carga real derive la cuota y no la parcialidad cruda;
- * 2. que el chip y el aviso salgan de la **misma** fuente, que es la regla que
- *    impide que la pantalla proponga una cifra y después la cuestione;
- * 3. que la muestra de la ruta —miles de filas— **sólo se pida cuando hace
- *    falta**.
+ * La precedencia sigue cubierta a nivel de dominio, sin tocarse, en
+ * [com.example.msp_app.feature.pagos.domain.CuotaDeLaVentaTest]. Lo que fijan
+ * estas pruebas es el estado DESPLEGADO — de extremo a extremo, desde el
+ * puerto hasta la pantalla — y se ponen rojas el día que se revierta el
+ * apagado, que es exactamente lo que se quiere.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class LaCuotaSaleDelComportamientoTest {
+class ElEsperadoSaleDeLaParcialidadTest {
 
     private val testDispatcher = StandardTestDispatcher()
     private val clock = FakeClock(PagosFixtures.AHORA)
@@ -88,32 +81,34 @@ class LaCuotaSaleDelComportamientoTest {
     }
 
     @Test
-    fun `con historial, el esperado es lo que esta cuenta paga y el chip lo dice`() = runTest(
+    fun `con historial, el esperado sigue siendo la parcialidad capturada`() = runTest(
         testDispatcher
     ) {
-        // La venta dice $220 de parcialidad, pero esta cuenta paga $150.
+        // Con el rediseño encendido esto habría sido COMPORTAMIENTO a $150: la
+        // moda de estos tres pagos. Apagado, la cuota no mira el historial.
         pagosPort.pagos = listOf(abono("150", 1), abono("150", 8), abono("150", 15))
 
         val vm = viewModel()
         advanceUntilIdle()
         val state = vm.state.value
 
-        assertEquals(OrigenDeLaCuota.COMPORTAMIENTO, state.venta!!.cuota.origen)
-        assertEquals(dinero("150"), state.venta!!.cuota.monto)
-        // El chip cambia de rótulo: el cobrador puede saber de dónde salió.
+        assertEquals(OrigenDeLaCuota.PARCIALIDAD, state.venta!!.cuota.origen)
+        assertEquals(dinero("220"), state.venta!!.cuota.monto)
+        // El chip mantiene el rótulo de siempre, no el de "lo que paga".
         val esperado = state.sugeridos.first()
-        assertEquals(MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE, esperado.cual)
-        assertEquals(dinero("150"), esperado.importe)
-        // Y el teclado arranca en esa misma cifra: una sola fuente.
-        assertEquals(dinero("150"), state.monto.importe)
+        assertEquals(MontosSugeridos.Sugerencia.ESPERADO_HOY, esperado.cual)
+        assertEquals(dinero("220"), esperado.importe)
+        // Y el teclado arranca en esa misma cifra.
+        assertEquals(dinero("220"), state.monto.importe)
     }
 
     @Test
-    fun `sin historial y con una parcialidad absurda, la pantalla no la afirma`() = runTest(
+    fun `una parcialidad alta se sigue afirmando - el aviso esta apagado`() = runTest(
         testDispatcher
     ) {
-        // El caso del reporte: cuota de $3,000, cero pagos en esta venta, y una
-        // ruta donde el percentil 99 de lo cobrado es $150.
+        // El caso del reporte: cuota de $3,000, cero pagos, y una ruta donde el
+        // percentil 99 de lo cobrado es $150 — con el rediseño encendido esto
+        // habría salido DUDOSA. Apagado, la pantalla la sigue afirmando.
         ventasPort.ventas = listOf(conParcialidad("3000"))
         pagosPort.pagos = emptyList()
         pagosPort.importesDeLaRuta = muestraDeLaRuta()
@@ -122,65 +117,22 @@ class LaCuotaSaleDelComportamientoTest {
         advanceUntilIdle()
         val state = vm.state.value
 
-        assertEquals(OrigenDeLaCuota.DUDOSA, state.venta!!.cuota.origen)
-        // No se ofrece un esperado que no se sostiene — ni con un rótulo ni con
-        // el otro. Es la misma fuente para el chip y para el aviso.
-        assertTrue(
-            state.sugeridos.none {
-                it.cual == MontosSugeridos.Sugerencia.ESPERADO_HOY ||
-                    it.cual == MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE
-            }
-        )
-        // El teclado tampoco se prellena con la cifra dudosa.
-        assertEquals(Money.ZERO, state.monto.importe)
-        // Y un abono de $600 ya no es "corto": no hay contra qué medirlo.
-        teclear(vm, "600")
-        assertFalse(
-            com.example.msp_app.feature.pagos.domain.RarezaDelAbono.ABAJO_DE_LO_ESPERADO in
-                vm.state.value.veredicto.rarezas
-        )
+        assertEquals(OrigenDeLaCuota.PARCIALIDAD, state.venta!!.cuota.origen)
+        assertEquals(dinero("3000"), state.venta!!.cuota.esperado)
     }
 
     @Test
-    fun `control positivo - la MISMA venta sin muestra de ruta si afirma la parcialidad`() =
-        runTest(testDispatcher) {
-            // Sin línea base no hay autoridad para llamar absurdo a nada, y el
-            // comportamiento es el de siempre. Sin este control, un `DUDOSA`
-            // que saliera siempre dejaría el test de arriba en verde.
-            ventasPort.ventas = listOf(conParcialidad("3000"))
-            pagosPort.pagos = emptyList()
-            pagosPort.importesDeLaRuta = emptyList()
-
-            val vm = viewModel()
-            advanceUntilIdle()
-
-            assertEquals(OrigenDeLaCuota.PARCIALIDAD, vm.state.value.venta!!.cuota.origen)
-            assertEquals(dinero("3000"), vm.state.value.venta!!.cuota.esperado)
-        }
-
-    @Test
-    fun `la muestra de la ruta NO se pide cuando la venta tiene pagos`() = runTest(
-        testDispatcher
-    ) {
-        // Son miles de filas y sólo sirven para el escalón 3. Cobrárselas al
-        // 96 % de las cargas que no las usan sería pagar por todos el costo de
-        // la excepción.
-        pagosPort.pagos = listOf(abono("150", 1), abono("150", 8), abono("150", 15))
+    fun `la muestra de la ruta ya no se pide nunca`() = runTest(testDispatcher) {
+        // Sin pagos: antes del apagado era justo el caso que SÍ la pedía (el
+        // escalón 3). La muestra queda sembrada como control positivo: el cero
+        // que se afirma abajo es "no se pidió", no "no había nada que pedir".
+        pagosPort.pagos = emptyList()
+        pagosPort.importesDeLaRuta = muestraDeLaRuta()
 
         viewModel()
         advanceUntilIdle()
 
         assertEquals(0, pagosPort.vecesQueSePidioLaRuta)
-    }
-
-    @Test
-    fun `control positivo - sin pagos la muestra SI se pide`() = runTest(testDispatcher) {
-        pagosPort.pagos = emptyList()
-
-        viewModel()
-        advanceUntilIdle()
-
-        assertTrue(pagosPort.vecesQueSePidioLaRuta > 0)
     }
 
     /**
@@ -203,13 +155,6 @@ class LaCuotaSaleDelComportamientoTest {
         nota = null
     )
 
-    private fun teclear(vm: RegistrarAbonoViewModel, pesos: String) {
-        vm.onBorrar()
-        pesos.forEach { caracter ->
-            if (caracter == '.') vm.onPunto() else vm.onDigito(caracter.digitToInt())
-        }
-    }
-
     private fun viewModel() = RegistrarAbonoViewModel(
         savedStateHandle = SavedStateHandle(
             mapOf(PagosRutas.ARG_VENTA_ID to AbonoFixtures.VENTA_ID)
@@ -218,7 +163,6 @@ class LaCuotaSaleDelComportamientoTest {
             ventasPort = ventasPort,
             garantiasPort = garantiasPort,
             productosPort = productosPort,
-            pagosPort = pagosPort,
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,
@@ -238,9 +182,4 @@ class LaCuotaSaleDelComportamientoTest {
     )
 
     private fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
-
-    private companion object {
-        /** Sólo para que el KDoc de la clase pueda citarlo sin importarlo. */
-        val PISO: Int = LineaBaseDeLaRuta.MINIMO_DE_PAGOS
-    }
 }

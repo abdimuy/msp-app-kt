@@ -92,11 +92,16 @@ class CadaPantallaMspProveeSuTemaTest {
             composable(RAIZ_DE_PRUEBA) {}
             destinosDeCobranza(nav)
         }
-        val destinos = nav.graph.count() - 1 // -1 por la raíz de prueba
+        // -1 por la raíz de prueba, y -N por los destinos que el grafo registra
+        // pero que NO son pantallas Msp — ver [DESTINOS_SIN_TEMA_MSP]. Sin ese
+        // segundo descuento, este test y el de arriba se contradicen: aquél
+        // exige que toda entrada de PANTALLAS_DE_COBRANZA la vea el escaneo de
+        // pantallas con `MspTheme`, y éste exigiría meter ahí una que no lo usa.
+        val destinos = nav.graph.count() - 1 - DESTINOS_SIN_TEMA_MSP.size
         assertEquals(
-            "destinosDeCobranza registra $destinos destinos y el control positivo vigila " +
-                "${PANTALLAS_DE_COBRANZA.size} pantallas: agregá la pantalla nueva a " +
-                "PANTALLAS_DE_COBRANZA",
+            "destinosDeCobranza registra $destinos destinos con tema y el control positivo " +
+                "vigila ${PANTALLAS_DE_COBRANZA.size} pantallas: agregá la pantalla nueva a " +
+                "PANTALLAS_DE_COBRANZA, o a DESTINOS_SIN_TEMA_MSP si es una pantalla legada",
             PANTALLAS_DE_COBRANZA.size,
             destinos
         )
@@ -190,7 +195,30 @@ class CadaPantallaMspProveeSuTemaTest {
          * La última no es de cobranza: es la descarga opcional del dictado, que
          * `destinosDeDescargas` registra dentro de [destinosDeCobranza] para que
          * las cuatro redes de `:app` la barran. Ver su KDoc.
+         *
+         * `ForgivenessScreen` —la condonación— está registrada dentro de
+         * [destinosDeCobranza] por el mismo motivo que la descarga del dictado,
+         * pero **NO va en esta lista**: ésta es el control positivo del escaneo
+         * de pantallas que proveen `MspTheme`, y esa pantalla vive en `:app`
+         * (módulo legado) y monta `NewForgivenessDialog`
+         * con Material3 puro y no lee ni provee `MspTheme`.
          */
+        /**
+         * Los destinos que [destinosDeCobranza] registra y que **no** son
+         * pantallas Msp, así que no entran en [PANTALLAS_DE_COBRANZA].
+         *
+         * Hoy sólo la **condonación**: vive en `:app` (módulo legado), monta
+         * `NewForgivenessDialog` con Material3 puro y no lee ni provee
+         * `MspTheme`. Se registra dentro de [destinosDeCobranza] por el mismo
+         * motivo que la descarga del dictado —para que las cuatro redes de
+         * `:app` la barran—, no porque sea arquitectura nueva.
+         *
+         * Esta lista es una **excepción declarada**, no un agujero: crece sólo
+         * cuando alguien registra a propósito un destino legado en este grafo,
+         * y el mensaje del test de arriba dice cuándo toca.
+         */
+        val DESTINOS_SIN_TEMA_MSP = setOf("forgiveness/{saleId}")
+
         val PANTALLAS_DE_COBRANZA = setOf(
             "ListaDeClientesScreen",
             "DetalleClienteScreen",

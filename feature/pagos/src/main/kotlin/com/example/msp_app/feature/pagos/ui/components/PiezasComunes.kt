@@ -14,6 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspStatusChip
@@ -282,5 +287,35 @@ fun TresDatos(
             segundo(Modifier.fillMaxWidth())
             tercero(Modifier.fillMaxWidth())
         }
+    }
+}
+
+/**
+ * Vuelve a leer al **reanudarse** la pantalla — no al montarse.
+ *
+ * El defecto que cierra: registrar un pago o una visita y volver atrás dejaba
+ * el detalle de venta, el de cliente y la lista congelados en lo que había
+ * ANTES de cobrar. Los cuatro ViewModel de cobranza cargan una sola vez en su
+ * `init` y no observan Room con `Flow` —migrar a eso es el refactor grande
+ * que hoy no cabe—, así que lo que puede reaccionar a "volví a esta pantalla"
+ * es el ciclo de vida, no el estado.
+ *
+ * **Salta la primera reanudación.** `ON_RESUME` también dispara justo después
+ * de montarse —es la primera transición del ciclo de vida de todo
+ * `Composable`—, y ahí `recargar()` sería una segunda sincronización inútil
+ * pegada a la del `init`. `yaSeMonto` en `rememberSaveable` y no en
+ * `remember`: tiene que sobrevivir a la rotación de pantalla, que también
+ * pasa por `ON_RESUME` sin que el cobrador haya ido a ningún lado.
+ *
+ * Reusable por las cuatro pantallas de `feature/pagos` que abren un ViewModel
+ * con `recargar()` —detalle de venta, detalle de cliente, lista y bitácora—
+ * en vez de repetir el bloque cuatro veces.
+ */
+@Composable
+fun RecargaAlVolver(recargar: () -> Unit) {
+    var yaSeMonto by rememberSaveable { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        if (yaSeMonto) recargar() else yaSeMonto = true
+        onPauseOrDispose { }
     }
 }

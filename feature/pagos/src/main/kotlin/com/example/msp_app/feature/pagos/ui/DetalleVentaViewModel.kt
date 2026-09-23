@@ -66,6 +66,26 @@ class DetalleVentaViewModel @Inject constructor(
     }
 
     /**
+     * Vuelve a leer **sin parpadeo**: a diferencia de [cargar], no reemplaza el
+     * estado por uno en blanco con `cargando = true`. La usa la pantalla al
+     * reanudarse — ver `RecargaAlVolver` —, y un spinner de cuerpo entero al
+     * volver de registrar un abono o una visita se lee como si la pantalla se
+     * hubiera perdido.
+     *
+     * Conserva [DetalleVentaUiState.filtro] y [DetalleVentaUiState.soloEstaVenta]
+     * explícitamente: [leer] arma un `DetalleVentaUiState` desde cero y, sin este
+     * `copy`, una recarga en segundo plano tiraría al default la pastilla y el
+     * alcance que el cobrador ya había elegido.
+     */
+    fun recargar() {
+        viewModelScope.launch {
+            val filtro = mutableState.value.filtro
+            val soloEstaVenta = mutableState.value.soloEstaVenta
+            mutableState.value = leer().copy(filtro = filtro, soloEstaVenta = soloEstaVenta)
+        }
+    }
+
+    /**
      * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
      * mueven la lista, el detalle de cliente, el cajón legado, Configuración y el
      * reporte de cobranza—, y por eso persiste: sobrevive a navegar y a que muera

@@ -196,7 +196,6 @@ class CuentaEnLasTresPantallasTest {
                 ventasPort = ventasPort,
                 garantiasPort = FakeGarantiasPort(),
                 productosPort = productosPort,
-                pagosPort = pagosPort,
                 reunirCobranzaDelCliente = reunirCobranzaDelCliente,
                 clock = clock
             )(VENTA_BOCINA)
@@ -226,7 +225,6 @@ class CuentaEnLasTresPantallasTest {
                 ventasPort = ventasPort,
                 garantiasPort = FakeGarantiasPort(),
                 productosPort = productosPort,
-                pagosPort = pagosPort,
                 reunirCobranzaDelCliente = reunirCobranzaDelCliente,
                 clock = clock
             )(VENTA_BOCINA)

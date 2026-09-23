@@ -20,6 +20,7 @@ import java.io.IOException
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -233,6 +234,114 @@ class ListaDeClientesViewModelTest {
             telemetria.recorded.any {
                 it.type == TelemetryEventType.SCREEN_VIEW && it.name == "pagos_lista_clientes"
             }
+        )
+    }
+
+    // --- recargar(): la que usa la pantalla al reanudarse --------------------
+
+    /** Una puerta nueva, ajena a la ruta sembrada en `setUp`. */
+    private fun ventaDeEsperanza() = ListaFixtures.datos(
+        clienteId = ListaFixtures.ESPERANZA,
+        nombre = "Esperanza Vargas Trejo",
+        ventaId = 80233,
+        folio = "V-8233",
+        saldo = "2600",
+        total = "7400",
+        enganche = "900",
+        fecha = "2026-07-08"
+    )
+
+    /**
+     * **El corazón del arreglo**: después de registrar un abono o una visita, la
+     * lista a la que se vuelve tiene que reflejarlo. `recargar()` no puede ser
+     * un alias de "repintar lo que ya había en memoria" — tiene que volver a
+     * leer la ruta completa. Se agrega una puerta real entre la carga inicial y
+     * la recarga y se comprueba que la lista la refleja.
+     */
+    @Test
+    fun `recargar vuelve a leer la ruta`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+        assertEquals(2, vm.state.value.clientes.size)
+
+        ventasPort.ventas = ventasPort.ventas + ventaDeEsperanza()
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(3, vm.state.value.clientes.size)
+    }
+
+    /**
+     * `recargar()` no tira el chip ni el texto buscado que el cobrador ya había
+     * elegido. A diferencia del detalle, acá no hace falta un `copy` explícito
+     * para conservarlos: viven en el `SavedStateHandle`, no en el estado que
+     * [leer]/[proyectar] reconstruyen, así que sobreviven por construcción —
+     * este test lo cobra observando el resultado, no confiando en el porqué.
+     */
+    @Test
+    fun `recargar conserva el chip y la busqueda elegidos por el usuario`() = runTest(
+        testDispatcher
+    ) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.buscar("Zepeda")
+        vm.elegirSegmento(SegmentoDeCobranza.PAGADOS)
+        advanceUntilIdle()
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals("Zepeda", vm.state.value.query)
+        assertEquals(SegmentoDeCobranza.PAGADOS, vm.state.value.segmento)
+    }
+
+    /**
+     * **`recargar()` no parpadea.** A diferencia de
+     * [ListaDeClientesViewModel.cargar] —que enciende `cargando` antes de
+     * leer—, `recargar()` nunca lo hace. Se mide sobre la SECUENCIA de estados
+     * emitidos y no solo sobre el valor final, porque un `cargando` que se
+     * prendiera y apagara en el mismo tick no se vería mirando sólo
+     * `state.value` al final.
+     *
+     * El contraste con `cargar()` es el control positivo: la MISMA forma de
+     * medir sí ve el encendido cuando de verdad ocurre.
+     */
+    @Test
+    fun `recargar no enciende cargando, a diferencia de cargar`() = runTest(testDispatcher) {
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val estados = mutableListOf<Boolean>()
+        backgroundScope.launch { vm.state.collect { estados += it.cargando } }
+        // `advanceUntilIdle` y no `runCurrent`: con `runCurrent` el colector
+        // todavía no había arrancado, así que las emisiones de la recarga no
+        // llegaban a la lista y la prueba se caía por su propio control de
+        // "no midió nada" — el control hizo exactamente su trabajo.
+        advanceUntilIdle()
+        estados.clear() // solo interesan las emisiones de aquí en adelante
+
+        ventasPort.ventas = ventasPort.ventas + ventaDeEsperanza()
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertTrue(
+            "recargar encendió cargando en algún momento observable: $estados",
+            estados.none { it }
+        )
+        assertTrue(
+            "recargar no produjo ninguna emisión nueva: esta prueba no midió nada",
+            estados.isNotEmpty()
+        )
+
+        estados.clear()
+        vm.cargar()
+        advanceUntilIdle()
+
+        assertTrue(
+            "cargar ya no enciende cargando: el contraste de arriba no prueba nada",
+            estados.any { it }
         )
     }
 }

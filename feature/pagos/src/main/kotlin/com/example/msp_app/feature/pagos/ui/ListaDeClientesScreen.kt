@@ -44,6 +44,7 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.model.ClienteEnLista
 import com.example.msp_app.feature.pagos.ui.components.FilaDeCliente
+import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.SegmentadoDeCobranza
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
 
@@ -104,6 +105,9 @@ fun ListaDeClientesScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // Vuelve a leer al reanudarse — no al recibir un pago o una visita nuevos:
+    // esta pantalla no los sabe, solo sabe que estuvo pausada. Ver su KDoc.
+    RecargaAlVolver(viewModel::recargar)
     MspThemeRevealHost(
         onToggleTheme = viewModel::alternarTema,
         reducedMotion = rememberMspReducedMotion(),

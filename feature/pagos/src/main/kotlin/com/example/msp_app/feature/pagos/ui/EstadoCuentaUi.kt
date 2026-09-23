@@ -6,6 +6,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspColors
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
@@ -109,10 +110,13 @@ data class EstadoVisual(
  * defecto que esta tarea acaba de quitar del lado de la promesa, con fecha de
  * activación conocida.
  */
-object EstadoCuentaUi {
+/** El día de una promesa o de una cita, tal como se lee en la ruta. */
+private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", BUSINESS_LOCALE)
 
-    private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", BUSINESS_LOCALE)
-    private val HORA: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", BUSINESS_LOCALE)
+/** La hora de una cita. */
+private val HORA: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", BUSINESS_LOCALE)
+
+object EstadoCuentaUi {
 
     /** El trato de [estado]. Función TOTAL: los ocho estados tienen el suyo. */
     fun tratoDe(estado: EstadoDelPeriodo): TratoDelEstado = when (estado.estado) {
@@ -169,10 +173,18 @@ object EstadoCuentaUi {
             EstadoCuenta.CITA_A_UNA_HORA -> "Cita sin hora"
             else -> "Visité, vuelvo"
         }
-        TratoDelEstado.DIFERIDO -> "Prometió el " + DIA_Y_MES.format(estado.fechaPromesa)
+        // **Con el monto prometido**, cuando lo hay. Se capturaba y no se
+        // pintaba en ninguna parte de la app: el cobrador acordaba "$800 el 25"
+        // y volvía a una pantalla que sólo decía el día. `montoPrometido` es
+        // nullable a propósito —prometer una fecha sin cantidad es un caso real
+        // de campo— y por eso se compone, no se asume.
+        TratoDelEstado.DIFERIDO -> prometio(estado)
         TratoDelEstado.ESCALAR -> "Se negó"
-        // Aquí `horaCita` ya no puede ser null: sin hora, `tratoDe` mandó a REGRESAS.
-        TratoDelEstado.CITA -> "Cita " + HORA.format(estado.horaCita)
+        // **Con el día, no sólo la hora.** Decía "Cita 16:30" y el cobrador no
+        // tenía cómo saber de qué día hablaba; el dueño lo cazó en el teléfono.
+        // `horaCita` aquí ya no puede ser null (sin hora, `tratoDe` mandó a
+        // REGRESAS), pero `fechaCita` sí: una cita de hoy puede venir sin día.
+        TratoDelEstado.CITA -> cita(estado)
         TratoDelEstado.NADIE -> "No estaba"
         TratoDelEstado.SIN_TRABAJAR -> "Falta pasar"
     }
@@ -285,4 +297,28 @@ fun estadoVisualDe(estado: EstadoDelPeriodo): EstadoVisual {
         fondo = EstadoCuentaUi.fondoDe(trato, colors),
         relleno = EstadoCuentaUi.esRelleno(trato)
     )
+}
+
+/**
+ * *"Cita 24 sep 16:30"*, o *"Cita 16:30"* si la cita no trajo día.
+ *
+ * El día va **antes** de la hora porque es lo que decide si esa puerta es
+ * de hoy: una hora suelta obliga a recordar de qué día se habló, que es
+ * justo lo que el cobrador no puede hacer con 40 cuentas.
+ */
+private fun cita(estado: EstadoDelPeriodo): String {
+    val dia = estado.fechaCita?.let { DIA_Y_MES.format(it) + " " }.orEmpty()
+    return "Cita " + dia + HORA.format(estado.horaCita)
+}
+
+/**
+ * *"Prometió $800 el 25 sep"*, o *"Prometió el 25 sep"* cuando no hay
+ * cantidad.
+ *
+ * El monto va pegado al verbo y antes del día: lo primero que se pregunta
+ * de una promesa es cuánto, y el día ya venía saliendo bien.
+ */
+private fun prometio(estado: EstadoDelPeriodo): String {
+    val monto = estado.montoPrometido?.let { formatMoneyMxn(it.amount) + " " }.orEmpty()
+    return "Prometió " + monto + "el " + DIA_Y_MES.format(estado.fechaPromesa)
 }

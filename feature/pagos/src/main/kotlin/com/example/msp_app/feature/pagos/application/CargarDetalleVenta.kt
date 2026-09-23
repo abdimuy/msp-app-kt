@@ -3,10 +3,9 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
-import com.example.msp_app.feature.pagos.domain.AbonoPrevio
 import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
 import com.example.msp_app.feature.pagos.domain.CuotaDeLaVenta
-import com.example.msp_app.feature.pagos.domain.LineaBaseDeLaRuta
+import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
 import com.example.msp_app.feature.pagos.domain.RielDePagos
 import com.example.msp_app.feature.pagos.domain.RitmoDePagos
@@ -16,7 +15,6 @@ import com.example.msp_app.feature.pagos.domain.model.HistorialDePagos
 import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ProductoDeVenta
 import com.example.msp_app.feature.pagos.domain.port.GarantiasPort
-import com.example.msp_app.feature.pagos.domain.port.PagosPort
 import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import com.example.msp_app.feature.pagos.domain.port.VentasPort
 import java.time.LocalDate
@@ -32,7 +30,6 @@ class CargarDetalleVenta @Inject constructor(
     private val ventasPort: VentasPort,
     private val garantiasPort: GarantiasPort,
     private val productosPort: ProductosPort,
-    private val pagosPort: PagosPort,
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
     private val clock: AppClock
 ) {
@@ -82,7 +79,7 @@ class CargarDetalleVenta @Inject constructor(
             fechaVenta = venta.fechaVenta,
             saldo = venta.saldo,
             parcialidad = venta.parcialidad,
-            cuota = cuotaDe(venta.parcialidad, pagos),
+            cuota = cuotaDe(venta.parcialidad),
             frecuencia = venta.frecuencia,
             abonosPagados = plan.pagados,
             abonosTotales = plan.totales,
@@ -121,28 +118,22 @@ class CargarDetalleVenta @Inject constructor(
     }
 
     /**
-     * **La cuota que la pantalla puede afirmar**, por la precedencia de tres
-     * escalones de [CuotaDeLaVenta].
+     * **La cuota que la pantalla afirma: la parcialidad capturada**, sin más.
      *
-     * La línea base de la ruta se pide **sólo cuando hace falta**: es el
-     * escalón 3, el de las ventas sin un solo pago (12 de 314), y la consulta
-     * recorre los miles de abonos del teléfono. Cobrársela al 96 % de las
-     * cargas que no la van a usar sería pagar por todos el costo de la
-     * excepción — el mismo criterio con el que la foto vive debajo del teclado.
+     * La precedencia de tres escalones de [CuotaDeLaVenta.de] —y con ella la
+     * línea base de la ruta
+     * ([com.example.msp_app.feature.pagos.domain.LineaBaseDeLaRuta])— está
+     * **apagada para el despliegue del 2026-09-22**. Defiende un caso posible
+     * pero no observado: el caso que la disparó, la venta `Y00002184` con
+     * `PARCIALIDAD = 3000`, resultó ser dato de prueba.
+     *
+     * El dominio y el puerto se quedan intactos y probados, listos para
+     * reencenderse revirtiendo este commit: [CuotaDeLaVenta],
+     * [com.example.msp_app.feature.pagos.domain.LineaBaseDeLaRuta] y
+     * `PagosPort.importesCobrados`.
      */
-    private suspend fun cuotaDe(parcialidad: Money, pagos: List<PagoDelHistorial>): CuotaDeLaVenta {
-        val previos = pagos.map { AbonoPrevio(fecha = it.fecha, importe = it.importe) }
-        val lineaBase = if (previos.none { it.importe > Money.ZERO }) {
-            LineaBaseDeLaRuta.de(pagosPort.importesCobrados())
-        } else {
-            null
-        }
-        return CuotaDeLaVenta.de(
-            parcialidad = parcialidad,
-            pagosDeLaVenta = previos,
-            lineaBase = lineaBase
-        )
-    }
+    private fun cuotaDe(parcialidad: Money): CuotaDeLaVenta =
+        CuotaDeLaVenta(parcialidad, OrigenDeLaCuota.PARCIALIDAD)
 
     /**
      * El historial **ritmo + riel** de esta cuenta.

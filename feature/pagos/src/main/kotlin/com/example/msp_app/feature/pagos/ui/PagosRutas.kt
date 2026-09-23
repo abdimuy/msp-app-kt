@@ -119,18 +119,30 @@ object PagosRutas {
  * - [onVerGarantia] recibe el `DOCTO_CC_ID` de la venta —no el id de la
  *   garantía—, porque el flujo de garantías de `:app` está indexado por venta
  *   (`GuaranteesViewModel.getGuaranteeSaleById`), no por `EXTERNAL_ID`.
+ * - [onCondonar] recibe el `ventaId` de la cuenta —igual que [onVerAbonos]—.
+ *   La condonación en sí sigue viviendo en `:app`
+ *   (`NewForgivenessDialog`, sin reescribir): este callback sólo navega. Es
+ *   una puerta NUEVA y siempre visible, que no depende de que la cuenta tenga
+ *   liquidación vigente ni de que ya existan abonos que ver.
  *
  * [ubicacion] es el mapa de un renglón de la línea de tiempo de la venta —el
  * mismo destino y el mismo objeto que ya usa [destinoDeBitacora] (Ver
  * [UbicacionEnLaBitacora]). La venta no dibuja un cuadro de puerta propio,
  * así que no hace falta el `suelo` de [UbicacionEnElDetalle].
  */
+// Un callback por destino al que esta pantalla puede llevar: no es fan-out
+// accidental, es la lista de puertas del detalle de venta. Agruparlos en un
+// objeto sólo para bajar el conteo escondería esa lista detrás de un nombre
+// y obligaría a `:app` a construir un tipo del feature para registrar el
+// grafo. Mismo criterio con el que el `.yml` ya exime a `@Dao` y `@Module`.
+@Suppress("LongParameterList")
 fun NavGraphBuilder.destinosDePagos(
     onAtras: () -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
     onVerAbonos: (Int) -> Unit,
     onVerGarantia: (Int) -> Unit,
+    onCondonar: (Int) -> Unit,
     ubicacion: UbicacionEnLaBitacora = UbicacionEnLaBitacora()
 ) {
     composable(
@@ -145,6 +157,7 @@ fun NavGraphBuilder.destinosDePagos(
             onVerAbonos = onVerAbonos,
             onVerGarantia = onVerGarantia,
             onVerUbicacion = ubicacion.onVer,
+            onCondonar = onCondonar,
             onVerTicket = ubicacion.onVerTicket
         )
     }

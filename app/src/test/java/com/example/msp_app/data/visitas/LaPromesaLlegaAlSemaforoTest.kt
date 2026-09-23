@@ -104,7 +104,10 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
         assertEquals(EstadoCuenta.PROMETIO_PROXIMA, estado.estado)
         assertEquals(TratoDelEstado.DIFERIDO, EstadoCuentaUi.tratoDe(estado))
-        assertEquals("Prometió el 4 sept", EstadoCuentaUi.etiquetaDe(estado))
+        // **Con el monto prometido.** Se capturaba y no se pintaba en ninguna
+        // parte de la app: el cobrador acordaba una cantidad y volvía a una
+        // pantalla que sólo decía el día.
+        assertEquals("Prometió \$220 el 4 sept", EstadoCuentaUi.etiquetaDe(estado))
         assertEquals("No cae esta semana", EstadoCuentaUi.detalleDe(estado))
         assertFalse(EstadoCuentaUi.requiereAtencion(EstadoCuentaUi.tratoDe(estado)))
     }
@@ -135,7 +138,9 @@ class LaPromesaLlegaAlSemaforoTest : RoomTestBase() {
 
         assertEquals(EstadoCuenta.CITA_A_UNA_HORA, estado.estado)
         assertEquals(TratoDelEstado.CITA, EstadoCuentaUi.tratoDe(estado))
-        assertEquals("Cita 16:00", EstadoCuentaUi.etiquetaDe(estado))
+        // **Con el día, no sólo la hora.** Decía "Cita 16:00" y el cobrador no
+        // tenía cómo saber de qué día se hablaba.
+        assertEquals("Cita 1 sept 16:00", EstadoCuentaUi.etiquetaDe(estado))
         assertEquals("Quedaron de verse", EstadoCuentaUi.detalleDe(estado))
     }
 

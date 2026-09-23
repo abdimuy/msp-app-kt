@@ -20,6 +20,7 @@ import com.example.msp_app.feature.pagos.ui.destinosDePagos
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import com.example.msp_app.feature.visitas.ui.destinoDeRegistrarVisita
 import com.example.msp_app.feature.visitas.ui.destinoDeTicketDeVisita
+import com.example.msp_app.features.forgiveness.screens.ForgivenessScreen
 import com.example.msp_app.ui.pagos.SueloDelUltimoCobro
 import com.example.msp_app.ui.pagos.UbicacionDelClienteScreen
 
@@ -75,10 +76,28 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
             // fotografiando algo que no depende de la red.
             suelo = { punto, tocar -> SueloDelUltimoCobro(punto, tocar) },
             // La opción "Ticket" de la hoja que sale sobre el último cobro de
-            // hoy. Es la MISMA ruta que la captura de abono usa al terminar
+            // hoy. Va al ticket LEGADO (`Screen.PaymentTicket` →
+            // `PaymentTicketScreen`), no al del módulo: por decisión del
+            // dueño, el papel migrado perdía el teléfono y el WhatsApp del
+            // negocio —a donde llama el cliente que reclama—, el teléfono
+            // del agente, la fecha de la venta, los productos, el precio a
+            // meses, el de contado, el enganche, los tres vendedores y el
+            // estado en la dirección. Con esto convergen los dos papeles que
+            // hoy salían del mismo teléfono: un abono imprimía el nuevo y una
+            // condonación el viejo (`NewForgivenessDialog` →
+            // `payment_ticket/{id}`). Se pierde la marca de reimpresión, el
+            // registro de impresiones, la regla del día (el nuevo sólo
+            // imprime el día del cobro; el viejo imprime cualquier día, que
+            // es lo que el cobrador espera) y el `Cobro` correcto en
+            // reimpresiones. `PagosRutas.TICKET_PAGO` /
+            // `destinoDeTicketDePago` quedan registrados sin punto de
+            // entrada, a propósito, para el día que se reencienda. Sigue
+            // siendo la MISMA ruta que la captura de abono usa al terminar
             // (`destinoDeRegistrarAbono`), sin `popUpTo`: aquí el ticket se
             // apila encima, así que volver deja al cobrador donde estaba.
-            onVerTicket = { pagoId -> navController.navigate(PagosRutas.ticketDePago(pagoId)) }
+            onVerTicket = { pagoId ->
+                navController.navigate(Screen.PaymentTicket.createRoute(pagoId))
+            }
         )
     )
 
@@ -96,10 +115,28 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
                 )
             },
             // La opción "Ticket" de la hoja que sale sobre el último cobro de
-            // hoy. Es la MISMA ruta que la captura de abono usa al terminar
+            // hoy. Va al ticket LEGADO (`Screen.PaymentTicket` →
+            // `PaymentTicketScreen`), no al del módulo: por decisión del
+            // dueño, el papel migrado perdía el teléfono y el WhatsApp del
+            // negocio —a donde llama el cliente que reclama—, el teléfono
+            // del agente, la fecha de la venta, los productos, el precio a
+            // meses, el de contado, el enganche, los tres vendedores y el
+            // estado en la dirección. Con esto convergen los dos papeles que
+            // hoy salían del mismo teléfono: un abono imprimía el nuevo y una
+            // condonación el viejo (`NewForgivenessDialog` →
+            // `payment_ticket/{id}`). Se pierde la marca de reimpresión, el
+            // registro de impresiones, la regla del día (el nuevo sólo
+            // imprime el día del cobro; el viejo imprime cualquier día, que
+            // es lo que el cobrador espera) y el `Cobro` correcto en
+            // reimpresiones. `PagosRutas.TICKET_PAGO` /
+            // `destinoDeTicketDePago` quedan registrados sin punto de
+            // entrada, a propósito, para el día que se reencienda. Sigue
+            // siendo la MISMA ruta que la captura de abono usa al terminar
             // (`destinoDeRegistrarAbono`), sin `popUpTo`: aquí el ticket se
             // apila encima, así que volver deja al cobrador donde estaba.
-            onVerTicket = { pagoId -> navController.navigate(PagosRutas.ticketDePago(pagoId)) }
+            onVerTicket = { pagoId ->
+                navController.navigate(Screen.PaymentTicket.createRoute(pagoId))
+            }
         )
     )
 
@@ -125,6 +162,14 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         onVerGarantia = { creditoId ->
             navController.navigate(Screen.Guarantee.createRoute(creditoId.toString()))
         },
+        // Puerta NUEVA (el dueño la pidió en el detalle de venta nuevo, no
+        // sólo en el legado): condonar sigue siendo `NewForgivenessDialog`,
+        // sin reescribir — este destino sólo lo resuelve y lo monta. El
+        // `ventaId` es el `DOCTO_CC_ACR_ID`, el mismo espacio que
+        // `Screen.Forgiveness` documenta.
+        onCondonar = { ventaId ->
+            navController.navigate(Screen.Forgiveness.createRoute(ventaId))
+        },
         // El MISMO destino que abre el cuadro de la puerta del detalle de
         // cliente y la bitácora, con el punto de ESE renglón.
         ubicacion = UbicacionEnLaBitacora(
@@ -134,25 +179,64 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
                 )
             },
             // La opción "Ticket" de la hoja que sale sobre el último cobro de
-            // hoy. Es la MISMA ruta que la captura de abono usa al terminar
+            // hoy. Va al ticket LEGADO (`Screen.PaymentTicket` →
+            // `PaymentTicketScreen`), no al del módulo: por decisión del
+            // dueño, el papel migrado perdía el teléfono y el WhatsApp del
+            // negocio —a donde llama el cliente que reclama—, el teléfono
+            // del agente, la fecha de la venta, los productos, el precio a
+            // meses, el de contado, el enganche, los tres vendedores y el
+            // estado en la dirección. Con esto convergen los dos papeles que
+            // hoy salían del mismo teléfono: un abono imprimía el nuevo y una
+            // condonación el viejo (`NewForgivenessDialog` →
+            // `payment_ticket/{id}`). Se pierde la marca de reimpresión, el
+            // registro de impresiones, la regla del día (el nuevo sólo
+            // imprime el día del cobro; el viejo imprime cualquier día, que
+            // es lo que el cobrador espera) y el `Cobro` correcto en
+            // reimpresiones. `PagosRutas.TICKET_PAGO` /
+            // `destinoDeTicketDePago` quedan registrados sin punto de
+            // entrada, a propósito, para el día que se reencienda. Sigue
+            // siendo la MISMA ruta que la captura de abono usa al terminar
             // (`destinoDeRegistrarAbono`), sin `popUpTo`: aquí el ticket se
             // apila encima, así que volver deja al cobrador donde estaba.
-            onVerTicket = { pagoId -> navController.navigate(PagosRutas.ticketDePago(pagoId)) }
+            onVerTicket = { pagoId ->
+                navController.navigate(Screen.PaymentTicket.createRoute(pagoId))
+            }
         )
     )
 
     destinoDeRegistrarAbono(
         onAtras = { navController.popBackStack() },
-        // El ticket REEMPLAZA a la captura en la pila: volver desde el
-        // ticket tiene que llevar a la venta, nunca a un teclado de
-        // montos con el abono ya registrado detrás.
+        // El ticket LEGADO (`Screen.PaymentTicket` → `PaymentTicketScreen`)
+        // REEMPLAZA a la captura en la pila: volver desde el ticket tiene
+        // que llevar a la venta, nunca a un teclado de montos con el abono
+        // ya registrado detrás. Va al legado, no al del módulo, por
+        // decisión del dueño: el papel migrado perdía el teléfono y el
+        // WhatsApp del negocio —a donde llama el cliente que reclama—, el
+        // teléfono del agente, la fecha de la venta, los productos, el
+        // precio a meses, el de contado, el enganche, los tres vendedores y
+        // el estado en la dirección. Con esto convergen los dos papeles que
+        // hoy salían del mismo teléfono: un abono imprimía el nuevo y una
+        // condonación el viejo (`NewForgivenessDialog` →
+        // `payment_ticket/{id}`). Se pierde la marca de reimpresión, el
+        // registro de impresiones, la regla del día (el nuevo sólo imprime
+        // el día del cobro; el viejo imprime cualquier día, que es lo que
+        // el cobrador espera) y el `Cobro` correcto en reimpresiones.
+        // `PagosRutas.TICKET_PAGO` / `destinoDeTicketDePago` quedan
+        // registrados sin punto de entrada, a propósito, para el día que se
+        // reencienda.
         onRegistrado = { pagoId ->
-            navController.navigate(PagosRutas.ticketDePago(pagoId)) {
+            navController.navigate(Screen.PaymentTicket.createRoute(pagoId)) {
                 popUpTo(PagosRutas.REGISTRAR_ABONO) { inclusive = true }
             }
         }
     )
 
+    // Destino ESTACIONADO: `PagosRutas.TICKET_PAGO` sigue registrado a
+    // propósito (borrarlo dejaría `TicketDePagoScreen` sin ningún llamador
+    // alcanzable y pondría en rojo `CadaPantallaSeAlcanzaDesdeElGrafoTest`),
+    // pero hoy nada navega aquí: los cuatro puntos de entrada que antes lo
+    // usaban vuelven al ticket legado (`Screen.PaymentTicket`) por decisión
+    // del dueño. Queda listo para el día que se reencienda.
     destinoDeTicketDePago(onAtras = { navController.popBackStack() })
 
     destinoDeRegistrarVisita(
@@ -166,7 +250,34 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
 
     destinoDeTicketDeVisita(onAtras = { navController.popBackStack() })
 
+    destinoDeCondonacion(navController)
+
     destinosDeDescargas(navController)
+}
+
+/**
+ * Registra la **condonación** ([Screen.Forgiveness]) en el grafo.
+ *
+ * Va aparte de [destinosDePagos] —igual que [destinoDeLaUbicacion]— porque no
+ * es un destino de `:feature:pagos`: monta [ForgivenessScreen], que resuelve
+ * la venta con `SaleDetailsViewModel` (de `:app`) y el diálogo legado
+ * `NewForgivenessDialog`, sin reescribir ninguno de los dos.
+ *
+ * El argumento se lee como `String` y se convierte a `Int` a mano, sin
+ * `navArgument(... IntType)` — el mismo molde que ya usan `Screen.SaleDetails`
+ * y `Screen.SaleMap`. Una venta que no resuelve **no llega a pintarse**:
+ * [ForgivenessScreen] hace `popBackStack()` por su cuenta, así que aquí no
+ * hace falta un segundo guardarraíl.
+ */
+private fun NavGraphBuilder.destinoDeCondonacion(navController: NavController) {
+    composable(Screen.Forgiveness.route) { backStackEntry ->
+        val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
+        if (saleId != null) {
+            ForgivenessScreen(saleId = saleId, navController = navController)
+        } else {
+            navController.popBackStack()
+        }
+    }
 }
 
 /**

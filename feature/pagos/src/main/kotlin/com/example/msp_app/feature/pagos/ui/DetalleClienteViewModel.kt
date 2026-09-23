@@ -114,6 +114,31 @@ class DetalleClienteViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Vuelve a leer **sin parpadeo**: a diferencia de [cargar], no reemplaza el
+     * estado por uno en blanco con `cargando = true`. La usa la pantalla al
+     * reanudarse — ver `RecargaAlVolver` —, y un spinner de cuerpo entero al
+     * volver de registrar un abono o una visita se lee como si la pantalla se
+     * hubiera perdido.
+     *
+     * Conserva [DetalleClienteUiState.edicionDeLaFicha] y
+     * [DetalleClienteUiState.eleccionDeCuenta] explícitamente: [leer] arma un
+     * `DetalleClienteUiState` desde cero y, sin este `copy`, una recarga
+     * disparada al reanudar la app —con la hoja de la ficha o la de "¿a cuál
+     * cuenta?" todavía abierta, por ejemplo tras un cambio de app— la cerraría
+     * de golpe y tiraría lo que el cobrador estaba escribiendo o eligiendo.
+     */
+    fun recargar() {
+        viewModelScope.launch {
+            val edicionDeLaFicha = mutableState.value.edicionDeLaFicha
+            val eleccionDeCuenta = mutableState.value.eleccionDeCuenta
+            mutableState.value = leer().copy(
+                edicionDeLaFicha = edicionDeLaFicha,
+                eleccionDeCuenta = eleccionDeCuenta
+            )
+        }
+    }
+
     @Suppress(
         "TooGenericExceptionCaught"
     ) // cualquier fallo de Room/Firestore degrada igual; se reporta.

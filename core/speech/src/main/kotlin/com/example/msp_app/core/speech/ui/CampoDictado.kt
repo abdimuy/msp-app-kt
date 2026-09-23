@@ -202,7 +202,13 @@ private fun CuerpoDelCampo(
     onTexto: (String) -> Unit
 ) {
     val colors = MspTheme.colors
-    Box {
+    // **El alto mínimo es lo que dice qué es esto.** Sin él el campo medía UNA
+    // línea y, con el micrófono de 56 dp al lado, la caja entera se leía como
+    // una barra con un marcador gris adentro — el dueño lo reportó como que el
+    // campo de la nota "ni se ve". Un campo de nota tiene que verse como un
+    // espacio donde cabe una frase, y la forma de decirlo es el tamaño. Es un
+    // mínimo, no un alto fijo: una nota más larga lo sigue estirando.
+    Box(modifier = Modifier.heightIn(min = ALTO_DE_LA_NOTA)) {
         if (texto.isEmpty() && parcial.isEmpty()) {
             Text(text = marcador, style = MspTheme.type.body, color = colors.onSurfaceMuted)
         }
@@ -400,6 +406,16 @@ private val ESPACIO_DE_BARRITA = 2.dp
 
 /** Alto mínimo tocable del repo. El design system ya pide 56dp; ése manda. */
 private val TOQUE = 56.dp
+
+/**
+ * **Lo que mide la nota vacía**: alrededor de tres renglones de `body`.
+ *
+ * No es una cifra de gusto. Con una sola línea el campo quedaba más bajo que el
+ * micrófono de [TOQUE] que lleva al lado, y una caja que sólo es tan alta como
+ * su control se lee como un botón con texto, no como un espacio para escribir.
+ * Tres renglones es lo que hace falta para que se lea como lo que es.
+ */
+private val ALTO_DE_LA_NOTA = 84.dp
 
 private val MICROFONO_VISIBLE = 38.dp
 

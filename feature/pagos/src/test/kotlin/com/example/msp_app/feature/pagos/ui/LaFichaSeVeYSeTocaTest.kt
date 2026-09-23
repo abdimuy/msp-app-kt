@@ -31,7 +31,7 @@ import com.example.msp_app.feature.pagos.ui.components.CTA_PRIMARIO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DE_LA_FICHA_TAG
-import com.example.msp_app.feature.pagos.ui.components.PIDELE_HOY_TAG
+import com.example.msp_app.feature.pagos.ui.components.PARCIALIDAD_DEL_CLIENTE_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
 import com.example.msp_app.feature.pagos.ui.components.TARJETA_DE_LA_FICHA_TAG
 import org.junit.Assert.assertEquals
@@ -72,10 +72,10 @@ import org.robolectric.annotation.Config
  *
  * Lo que el punto 2 siempre estuvo protegiendo no era el renglón de venta: era
  * que **un dato de conocimiento no tape el dinero**. Ese dinero ahora es el saldo
- * total y "pídele hoy", y los dos siguen arriba de la línea. Así que la medición
- * se re-apunta a ellos —sigue siendo geometría, sigue siendo en las tres
- * escalas— y el punto 1, que es el que de verdad vigila a la ficha, se queda
- * intacto y en verde.
+ * total y la parcialidad, y los dos siguen arriba de la línea. Así que la
+ * medición se re-apunta a ellos —sigue siendo geometría, sigue siendo en las
+ * tres escalas— y el punto 1, que es el que de verdad vigila a la ficha, se
+ * queda intacto y en verde.
  */
 @Config(qualifiers = "w360dp-h800dp-xhdpi")
 class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
@@ -172,10 +172,10 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
      * desplazar.
      */
     private fun elDineroCabeArribaDelDock() {
-        // "Pídele hoy" es la más BAJA de las cifras de dinero de la pantalla: va
-        // debajo del saldo total, en la segunda banda de la hoja del dinero. Si
-        // ella cabe, el saldo cabe. Medir la de abajo es la afirmación fuerte.
-        val dinero = bordesDe(PIDELE_HOY_TAG)
+        // La parcialidad es la más BAJA de las cifras de dinero de la pantalla:
+        // va debajo del saldo total, en la segunda banda de la hoja del dinero.
+        // Si ella cabe, el saldo cabe. Medir la de abajo es la afirmación fuerte.
+        val dinero = bordesDe(PARCIALIDAD_DEL_CLIENTE_TAG)
         val dock = bordesDe(CTA_PRIMARIO_TAG)
         assertTrue(
             "el dinero termina en " + dinero.bottom +

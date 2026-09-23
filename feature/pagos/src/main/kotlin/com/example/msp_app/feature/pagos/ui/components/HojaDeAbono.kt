@@ -44,6 +44,13 @@ const val OPCION_DE_CUENTA_TAG: String = "pagos_hoja_abono_opcion"
 const val CONTINUAR_CON_LA_CUENTA_TAG: String = "pagos_hoja_abono_continuar"
 
 /**
+ * `testTag` del estado de cada opción — "Pagó esta semana", "No estaba", "Cita
+ * 24 sept 16:30", etc. Distinto y por opción para que el dueño pueda diferenciar
+ * de un vistazo a cuál cuenta va el billete.
+ */
+const val ESTADO_DE_LA_OPCION_TAG: String = "pagos_hoja_abono_opcion_estado"
+
+/**
  * **¿A cuál cuenta entra el abono?**
  *
  * ## Por qué es un radio y no casillas
@@ -62,9 +69,15 @@ const val CONTINUAR_CON_LA_CUENTA_TAG: String = "pagos_hoja_abono_continuar"
  * ## Qué trae cada opción, y por qué eso
  *
  * El nombre del producto (no el folio — "V-5021" no le dice nada a nadie parado
- * en una puerta), lo que le toca de parcialidad, cuántos abonos lleva y, si trae
- * atrasos, la pastilla ámbar. Es exactamente lo que hace falta para decidir a
- * cuál va el billete, sin tener que salir a mirar.
+ * en una puerta) y, debajo, **su estado** — "Pagó esta semana", "No estaba",
+ * "Cita 24 sept 16:30" — con la misma pieza ([ChipDeEstado]) que ya usan el
+ * detalle de cliente y el de venta, para que dos cuentas con estados distintos
+ * se vean distintas y el cobrador no tenga que adivinar cuál ya cobró y cuál
+ * sigue pendiente. A la derecha, lo que le toca de parcialidad y, si trae
+ * atrasos, la pastilla ámbar — dato DISTINTO al estado: atrasos cuenta cuántos
+ * periodos debe, el estado dice qué pasó en la puerta esta semana. Es
+ * exactamente lo que hace falta para decidir a cuál va el billete, sin tener
+ * que salir a mirar.
  *
  * **La selección va en `brand`, nunca en el color del estado.** El rojo de esta
  * app significa "se negó"; usarlo para "elegiste esto" convierte una captura en
@@ -225,12 +238,9 @@ private fun OpcionDeCuenta(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(MspTheme.spacing.xs))
-                Text(
-                    text = "${cuenta.abonosPagados} de ${cuenta.abonosTotales} abonos",
-                    style = MspTheme.type.caption,
-                    color = MspTheme.colors.onSurfaceMuted,
-                    maxLines = 1
-                )
+                Box(modifier = Modifier.testTag(ESTADO_DE_LA_OPCION_TAG)) {
+                    ChipDeEstado(cuenta.estado)
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 MspMoneyText(

@@ -19,6 +19,8 @@ import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -37,6 +39,7 @@ import org.junit.Test
  * una sola línea de tiempo, y que un fallo de lectura se reporte en vez de
  * quedarse en blanco.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class BitacoraViewModelTest {
 
     @get:Rule
@@ -284,5 +287,101 @@ class BitacoraViewModelTest {
             PagosFixtures.visita("Pidió reagendar visita", fechaIso = "2026-08-18T16:00:00Z")
         )
         pagosPort.pagos = PagosFixtures.pagosDeLaVenta()
+    }
+
+    // --- recargar(): la que usa la pantalla al reanudarse --------------------
+
+    /**
+     * **El corazón del arreglo**: después de registrar un abono o una visita, la
+     * bitácora a la que se vuelve tiene que enseñarlo. `recargar()` no puede ser
+     * un alias de "repintar lo que ya había en memoria" — tiene que volver a
+     * leer el teléfono. Se agrega un abono real entre la carga inicial y la
+     * recarga y se comprueba que la bitácora lo refleja.
+     */
+    @Test
+    fun `recargar vuelve a leer del puerto`() = runTest(testDispatcher) {
+        sembrarLaBitacora()
+        val vm = viewModel()
+        advanceUntilIdle()
+        val antes = checkNotNull(vm.state.value.bitacora).contactos.size
+
+        pagosPort.pagos = pagosPort.pagos +
+            PagosFixtures.pagoConUbicacion(19.4, -99.1).copy(pagoId = "COB-RECARGA")
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(antes + 1, checkNotNull(vm.state.value.bitacora).contactos.size)
+    }
+
+    /**
+     * **`recargar()` no tira la pastilla que el cobrador ya había elegido.**
+     * [leer] arma un `BitacoraUiState` desde cero; sin el `copy` explícito de
+     * `recargar()`, volver de registrar un abono resetearía el filtro a `TODOS`
+     * delante de sus ojos.
+     */
+    @Test
+    fun `recargar conserva el filtro elegido por el usuario`() = runTest(testDispatcher) {
+        sembrarLaBitacora()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        vm.filtrar(FiltroDeContactos.COBROS)
+        advanceUntilIdle()
+
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertEquals(FiltroDeContactos.COBROS, vm.state.value.filtro)
+    }
+
+    /**
+     * **`recargar()` no parpadea.** A diferencia de [BitacoraViewModel.cargar]
+     * —que reemplaza el estado por uno en blanco con `cargando = true`—,
+     * `recargar()` nunca lo enciende. Se mide sobre la SECUENCIA de estados
+     * emitidos y no solo sobre el valor final, porque un `cargando` que se
+     * prendiera y apagara en el mismo tick no se vería mirando sólo
+     * `state.value` al final.
+     *
+     * El contraste con `cargar()` es el control positivo: la MISMA forma de
+     * medir sí ve el encendido cuando de verdad ocurre.
+     */
+    @Test
+    fun `recargar no enciende cargando, a diferencia de cargar`() = runTest(testDispatcher) {
+        sembrarLaBitacora()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        val estados = mutableListOf<Boolean>()
+        backgroundScope.launch { vm.state.collect { estados += it.cargando } }
+        // `advanceUntilIdle` y no `runCurrent`: con `runCurrent` el colector
+        // todavía no había arrancado, así que las emisiones de la recarga no
+        // llegaban a la lista y la prueba se caía por su propio control de
+        // "no midió nada" — el control hizo exactamente su trabajo.
+        advanceUntilIdle()
+        estados.clear() // solo interesan las emisiones de aquí en adelante
+
+        pagosPort.pagos = pagosPort.pagos +
+            PagosFixtures.pagoConUbicacion(19.4, -99.1).copy(pagoId = "COB-RECARGA-1")
+        vm.recargar()
+        advanceUntilIdle()
+
+        assertTrue(
+            "recargar encendió cargando en algún momento observable: $estados",
+            estados.none { it }
+        )
+        assertTrue(
+            "recargar no produjo ninguna emisión nueva: esta prueba no midió nada",
+            estados.isNotEmpty()
+        )
+
+        estados.clear()
+        vm.cargar()
+        advanceUntilIdle()
+
+        assertTrue(
+            "cargar ya no enciende cargando: el contraste de arriba no prueba nada",
+            estados.any { it }
+        )
     }
 }

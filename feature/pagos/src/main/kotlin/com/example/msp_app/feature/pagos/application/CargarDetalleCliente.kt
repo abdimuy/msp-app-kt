@@ -151,15 +151,20 @@ class CargarDetalleCliente @Inject constructor(
      * Los atrasos SÍ se suman en cuotas y no en dinero: `NUM_PAGOS_ATRASADOS` es
      * un conteo de parcialidades, y la pastilla del encabezado dice "2 atrasos",
      * no pesos.
+     *
+     * [ResumenDelCliente.parcialidad] reusa la MISMA suma que arma [semanas]:
+     * no es una segunda derivación, es la que ya existía expuesta como campo
+     * para que el bloque de saldo la pinte sin volver a sumarla en la UI.
      */
     private fun resumenDe(
         ventas: List<VentaDelCliente>,
         pagos: List<PagoDelHistorial>
     ): ResumenDelCliente {
         val hoy = AppTime.todayInBusinessZone(clock)
+        val parcialidad = Money.sum(ventas.map { it.parcialidad })
         val semanas = RitmoDePagos.de(
             pagos = pagos,
-            parcialidad = Money.sum(ventas.map { it.parcialidad }),
+            parcialidad = parcialidad,
             hoy = hoy
         )
         return ResumenDelCliente(
@@ -168,7 +173,8 @@ class CargarDetalleCliente @Inject constructor(
             ultimoPago = pagos.maxByOrNull { it.fecha }?.let { AppTime.toBusinessDate(it.fecha) },
             atrasos = ventas.sumOf { it.atrasos },
             ritmo = semanas,
-            semanasCumplidas = RitmoDePagos.resumen(semanas).cumplidas
+            semanasCumplidas = RitmoDePagos.resumen(semanas).cumplidas,
+            parcialidad = parcialidad
         )
     }
 

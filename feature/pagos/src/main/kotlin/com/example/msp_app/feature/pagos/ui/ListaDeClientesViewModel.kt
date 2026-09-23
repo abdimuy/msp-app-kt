@@ -157,6 +157,26 @@ class ListaDeClientesViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Vuelve a leer la ruta completa **sin parpadeo**: a diferencia de [cargar],
+     * no enciende `cargando` antes de leer. La usa la pantalla al reanudarse —
+     * ver `RecargaAlVolver` —, y un spinner de cuerpo entero al volver de
+     * registrar un abono o una visita se lee como si la lista se hubiera
+     * perdido.
+     *
+     * No hace falta conservar nada a mano como en el detalle: [query] y
+     * [segmento] ya viven en el `SavedStateHandle` y no en [mutableState], así
+     * que [proyectar] los vuelve a aplicar sobre la cartera fresca sin que
+     * nadie los pise.
+     */
+    fun recargar() {
+        viewModelScope.launch {
+            mutableState.value = mutableState.value.copy(fallo = false)
+            cartera = leer()
+            proyectar()
+        }
+    }
+
     /** El texto tecleado. Con búsqueda activa el orden de cobranza se apaga. */
     fun buscar(texto: String) {
         query = texto

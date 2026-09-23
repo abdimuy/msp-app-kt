@@ -267,12 +267,51 @@ class ReglaDelOrigenTest {
         assertEquals(CREDITO.toString(), argString("saleId"))
     }
 
-    /** Punto de entrada: el abono registrado (Task 18 → Task 20). */
+    /**
+     * Punto de entrada: la acción "Condonar" del detalle de venta NUEVO
+     * (`:feature:pagos`). Hasta hoy la única puerta era el detalle legado, con
+     * "Ver los N abonos"; el dueño la quiso también aquí, sin depender de esa
+     * puerta ni de que haya oferta de liquidación vigente.
+     */
+    @Test
+    fun `condonar lleva a la condonacion de ESA venta`() {
+        nav.navigate(Screen.Forgiveness.createRoute(VENTA))
+        assertEquals(Screen.Forgiveness.route, ruta())
+        // El `DOCTO_CC_ACR_ID`, el mismo espacio que `Screen.SaleDetails` — no
+        // el `DOCTO_CC_ID` del crédito ni el `CLIENTE_ID`.
+        assertEquals(VENTA.toString(), argString("saleId"))
+    }
+
+    /**
+     * `PagosRutas.TICKET_PAGO` sigue registrado y resolviendo, pero hoy está
+     * ESTACIONADO: ningún punto de entrada de producción navega aquí. El
+     * abono registrado y la hoja del último cobro vuelven al ticket LEGADO
+     * (`Screen.PaymentTicket`), por decisión del dueño — ver
+     * `desde el abono registrado se llega a SU ticket legado` más abajo. Este
+     * test sólo prueba que la ruta del módulo no quedó huérfana mientras
+     * espera el día que se reencienda.
+     */
     @Test
     fun `al registrar un abono se llega a su ticket`() {
         nav.navigate(PagosRutas.ticketDePago(PAGO_ID))
         assertEquals(PagosRutas.TICKET_PAGO, ruta())
         assertEquals(PAGO_ID, argString(PagosRutas.ARG_PAGO_ID))
+    }
+
+    /**
+     * **El punto de entrada real, hoy.** El abono registrado y la hoja del
+     * último cobro (Task 18/Task 20 y la bitácora) llevan al ticket LEGADO,
+     * no al del módulo: el papel migrado perdía el teléfono y el WhatsApp
+     * del negocio, el teléfono del agente, la fecha de la venta, los
+     * productos, el precio a meses, el de contado, el enganche, los tres
+     * vendedores y el estado en la dirección, así que el dueño decidió
+     * volver al viejo.
+     */
+    @Test
+    fun `desde el abono registrado se llega a SU ticket legado`() {
+        nav.navigate(Screen.PaymentTicket.createRoute(PAGO_ID))
+        assertEquals(Screen.PaymentTicket.route, ruta())
+        assertEquals(PAGO_ID, argString("paymentId"))
     }
 
     /** Punto de entrada: la visita registrada (Task 19 → Task 20). */
@@ -347,7 +386,8 @@ class ReglaDelOrigenTest {
             VisitasRutas.REGISTRAR,
             VisitasRutas.TICKET,
             DictadoRutas.DESCARGA,
-            RutasDelMapa.UBICACION
+            RutasDelMapa.UBICACION,
+            Screen.Forgiveness.route
         ) + legados
         assertEquals(esperadas, registradas)
     }
