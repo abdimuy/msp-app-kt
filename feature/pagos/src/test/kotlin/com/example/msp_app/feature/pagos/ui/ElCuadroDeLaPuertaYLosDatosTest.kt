@@ -14,7 +14,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
@@ -36,14 +38,15 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
+import com.example.msp_app.feature.pagos.ui.components.APOYO_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CUADRO_DE_LA_PUERTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.PUNTO_MEDIDO_TAG
-import com.example.msp_app.feature.pagos.ui.components.RUTA_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.SIN_DIRECCION
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -103,13 +106,38 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
     // --- La composición tipográfica que reemplazó al dibujo -------------------
 
     @Test
-    fun `con punto medido se ven el chip, la calle y la ruta`() {
+    fun `con punto medido se ven el chip, la calle y la linea de apoyo`() {
         monta(conCoordenada = true)
 
         composeTestRule.onNodeWithTag(PUNTO_MEDIDO_TAG).performScrollTo().assertIsDisplayed()
         composeTestRule.onNodeWithText(PUNTO_MEDIDO).assertIsDisplayed()
-        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(DIRECCION)
-        composeTestRule.onNodeWithTag(RUTA_DEL_CUADRO_TAG).assertTextEquals(ZONA)
+        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
+        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(APOYO)
+    }
+
+    /**
+     * **La calle NO lleva la ciudad pegada.** Es el defecto que el dueño vio en
+     * el golden: con *"C. Hidalgo 214, Centro"* a 26 sp la cadena se come el
+     * ancho entero y la tipografía grande deja de servir para algo.
+     *
+     * El control positivo va incluido y es lo que hace honesta la afirmación:
+     * la ciudad **sí** se encuentra, en la línea de apoyo. Sin él, un cuadro que
+     * hubiera tirado la ciudad a la basura pasaría igual de verde.
+     */
+    @Test
+    fun `la calle del cuadro no incluye la ciudad`() {
+        monta(conCoordenada = true)
+
+        val calle = composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
+            .performScrollTo()
+            .fetchSemanticsNode()
+            .textoPlano()
+        assertFalse(
+            "el renglón grande dice \"$calle\": la ciudad volvió a pegarse a la calle",
+            calle.contains(CIUDAD)
+        )
+        // Control positivo: la ciudad no se perdió, cambió de renglón.
+        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(APOYO)
     }
 
     /**
@@ -129,7 +157,7 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         // Y la banda no queda muda: la calle sigue, que es lo que contesta
         // "¿es aquí?" parado en la banqueta.
         composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).performScrollTo()
-            .assertTextEquals(DIRECCION)
+            .assertTextEquals(CALLE)
     }
 
     /**
@@ -149,18 +177,32 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
     }
 
     /**
-     * **Con la dirección en blanco no queda un renglón vacío.** El cuadro existe
+     * **Con la calle en blanco no queda un renglón vacío.** El cuadro existe
      * para que esa banda nunca se lea como una pantalla a medio cargar, y un
      * renglón en blanco es exactamente eso. Va el mismo texto que ya dice la hoja
      * del mapa grande — [SIN_DIRECCION], un solo lugar para las dos pantallas.
      */
     @Test
     fun `con direccion vacia se dice que no hay direccion, no un hueco`() {
-        monta(conCoordenada = true, direccion = "")
+        monta(conCoordenada = true, calle = "")
 
         composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
             .performScrollTo()
             .assertTextEquals(SIN_DIRECCION)
+    }
+
+    /**
+     * Sin ciudad, la línea de apoyo lleva **sólo la ruta** — nunca un separador
+     * colgando. Con la ciudad puesta el test de arriba ya midió la frase entera,
+     * así que éste es el borde que faltaba.
+     */
+    @Test
+    fun `sin ciudad la linea de apoyo lleva solo la ruta`() {
+        monta(conCoordenada = true, ciudad = "")
+
+        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG)
+            .performScrollTo()
+            .assertTextEquals(ZONA)
     }
 
     /**
@@ -393,7 +435,8 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
 
     private fun monta(
         conCoordenada: Boolean,
-        direccion: String = DIRECCION,
+        calle: String = CALLE,
+        ciudad: String = CIUDAD,
         onVerUbicacion: (() -> Unit)? = null,
         suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
     ) {
@@ -403,7 +446,7 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
                     DetalleClienteContent(
                         state = DetalleClienteUiState(
                             cargando = false,
-                            detalle = detalle(conCoordenada, direccion)
+                            detalle = detalle(conCoordenada, calle, ciudad)
                         ),
                         onAtras = {},
                         onAbrirVenta = {},
@@ -420,9 +463,14 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         }
     }
 
-    private fun detalle(conCoordenada: Boolean, direccion: String): DetalleCliente =
+    /** El texto de un nodo, ya aplanado — un `Text` sólo trae uno. */
+    private fun SemanticsNode.textoPlano(): String =
+        config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" ") { it.text }
+
+    private fun detalle(conCoordenada: Boolean, calle: String, ciudad: String): DetalleCliente =
         PagosFixtures.detalleCliente().copy(
-            direccion = direccion,
+            calle = calle,
+            ciudad = ciudad,
             ultimoCobroAqui = if (conCoordenada) COORDENADA else null
         )
 
@@ -437,9 +485,13 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         /** Lo que dice el chip del cuadro cuando la puerta tiene coordenada. */
         const val PUNTO_MEDIDO = "Punto medido"
 
-        /** La dirección y la zona del fixture — las que el cuadro pinta. */
-        const val DIRECCION = "C. Hidalgo 214, Centro"
-        const val ZONA = "ruta 25 · centro"
+        /** Lo que el fixture trae, ya separado como lo trae el adaptador. */
+        const val CALLE = "C. Hidalgo 214"
+        const val CIUDAD = "Centro"
+        const val ZONA = "ruta 25"
+
+        /** La línea de apoyo del cuadro: ciudad primero, ruta después. */
+        const val APOYO = "$CIUDAD · $ZONA"
 
         /**
          * Los tres renglones del cuadro con punto medido: chip, calle y ruta.

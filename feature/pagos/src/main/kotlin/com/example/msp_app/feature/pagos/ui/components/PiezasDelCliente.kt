@@ -83,8 +83,8 @@ const val PUNTO_MEDIDO_TAG: String = "pagos_cliente_punto_medido"
 /** `testTag` del renglón grande del cuadro: la calle y el número. */
 const val CALLE_DEL_CUADRO_TAG: String = "pagos_cliente_calle"
 
-/** `testTag` de la línea tenue del cuadro: la ruta. */
-const val RUTA_DEL_CUADRO_TAG: String = "pagos_cliente_ruta_del_cuadro"
+/** `testTag` de la línea tenue del cuadro: *"ciudad · ruta"*. */
+const val APOYO_DEL_CUADRO_TAG: String = "pagos_cliente_apoyo_del_cuadro"
 
 /**
  * Lo que anuncia el cuadro cuando se puede tocar.
@@ -170,8 +170,8 @@ fun TituloDeHoja(texto: String, modifier: Modifier = Modifier) {
 }
 
 /**
- * El renglón de identidad: el racimo de estados de sus cuentas y, al lado, zona
- * y dirección.
+ * El renglón de identidad: el racimo de estados de sus cuentas y, al lado, la
+ * zona.
  *
  * El racimo aquí **no repite** lo que dicen los chips de "sus ventas": está a una
  * pantalla de distancia, no a unos píxeles, y contesta de un vistazo la pregunta
@@ -179,107 +179,84 @@ fun TituloDeHoja(texto: String, modifier: Modifier = Modifier) {
  * tener que desplazar. Es la misma razón por la que en la LISTA sí se quitó: allá
  * el racimo y los chips compartían tarjeta.
  *
- * ## La dirección tiene su propio renglón, y ya no es "contexto"
+ * ## La dirección ya no vive aquí, y el argumento que la trajo se cumple mejor
  *
- * Aquí decía que zona y dirección iban juntas en un renglón recortado *"porque
- * es contexto, y partirlo en dos líneas le daría el peso de un dato
- * principal"*. **Estaba mal**, y el dueño lo vio en vidrio: *"la dirección
- * cuando se entra en detalles del cliente ni se ve casi"*.
+ * Este KDoc peleó —con razón— por sacar la dirección de la cadena recortada que
+ * compartía con la zona. El dueño lo había visto en vidrio: *"la dirección cuando
+ * se entra en detalles del cliente ni se ve casi"*. La respuesta de entonces fue
+ * darle su propio renglón en `captionStrong`, que era lo mejor que se podía
+ * hacer **con el espacio que había**.
  *
- * Tres cosas fallaban a la vez, y las tres son la misma:
+ * Hoy la contesta el cuadro de la puerta, justo debajo: la calle a 26 sp y la
+ * ciudad en su línea de apoyo (ver [CuadroDeLaPuerta]). Repetirla aquí, a tres
+ * dedos y con las mismas palabras, ya no se lee como jerarquía sino **como un
+ * error de copiado** —el dueño volvió a verlo en el golden—, así que el renglón
+ * se retira. No se pierde nada de lo que este KDoc defendía: la dirección se ve
+ * más, no menos, y entera.
  *
- * 1. Iban **pegadas en una sola cadena** con la dirección AL FINAL, así que la
- *    elipsis se comía justo la dirección y dejaba la zona entera — al revés de
- *    lo que sirve.
- * 2. `maxLines = 1` no le dejaba dónde caber. A `GRANDE` quedaba
- *    *"ruta 25 · centro · C. Hi…"*.
- * 3. Iba en `caption` sobre `onSurfaceMuted`: la letra más chica y más apagada
- *    de la pantalla, para el dato con el que se encuentra la casa.
+ * **La zona sí se queda.** Es el encabezado de la tarjeta —dice de qué ruta es
+ * la puerta, no dónde está—, y en el cuadro aparece como parte de otra frase
+ * (*"ciudad · ruta"*), no como el mismo renglón otra vez.
  *
- * La dirección **no es contexto**: es lo que contesta *"¿es aquí?"* parado en la
- * banqueta, y esta pantalla se abre justamente parado en la banqueta. La zona sí
- * lo es —dice de qué ruta es la puerta, no dónde está—, así que se queda chica y
- * apagada al lado del racimo, y la dirección baja a su renglón en
- * `captionStrong` sobre `onSurface`, con **dos líneas** para las colonias con
- * nombre largo.
+ * ## Lo que devuelve
  *
- * ## Cuesta un renglón, y de dónde sale
- *
- * Un renglón de `captionStrong`. `LaFichaSeVeYSeTocaTest` lo cobra: todo lo que
- * crece aquí empuja la hoja del dinero. Se midió antes de darlo por bueno.
+ * Un renglón de `captionStrong` menos. `LaFichaSeVeYSeTocaTest` mide la otra
+ * dirección —que el dinero no se tape—, y todo lo que se quita aquí le sobra a
+ * esa medición.
  */
 @Composable
 fun BloqueDeIdentidad(
     estados: List<androidx.compose.ui.graphics.vector.ImageVector>,
     colores: List<Pair<Color, Color>>,
     zona: String,
-    direccion: String,
     modifier: Modifier = Modifier
 ) {
-    Column(
+    Row(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-        ) {
-            estados.forEachIndexed { indice, icono ->
-                val (fondo, contenido) = colores[indice]
-                Box(
-                    modifier = Modifier
-                        .size(CUADRO_DEL_RACIMO)
-                        .clip(MspTheme.shapes.chip9)
-                        .background(fondo),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icono,
-                        contentDescription = null,
-                        tint = contenido,
-                        modifier = Modifier.size(CUADRO_DEL_RACIMO * 0.6f)
-                    )
-                }
+        estados.forEachIndexed { indice, icono ->
+            val (fondo, contenido) = colores[indice]
+            Box(
+                modifier = Modifier
+                    .size(CUADRO_DEL_RACIMO)
+                    .clip(MspTheme.shapes.chip9)
+                    .background(fondo),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icono,
+                    contentDescription = null,
+                    tint = contenido,
+                    modifier = Modifier.size(CUADRO_DEL_RACIMO * 0.6f)
+                )
             }
-            // La zona SÍ es contexto: dice de qué ruta es la puerta, no dónde
-            // está. Se queda chica, apagada y de un solo renglón.
-            Text(
-                text = zona.ifBlank { SIN_DATO },
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.onSurfaceMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
-        // Y la dirección en su propio renglón, a todo el ancho: acá ya no
-        // compite con el racimo por los ~110 dp que éste se lleva.
-        //
-        // DOS líneas y no una: "C. Miguel Hidalgo y Costilla 214, Col. Centro"
-        // no entra en un renglón ni a escala normal, y media dirección no es
-        // una dirección incompleta — es una dirección equivocada.
+        // La zona es contexto: dice de qué ruta es la puerta, no dónde está. Se
+        // queda chica, apagada y de un solo renglón.
         Text(
-            text = direccion.ifBlank { SIN_DATO },
-            style = MspTheme.type.captionStrong,
-            color = MspTheme.colors.onSurface,
-            maxLines = RENGLONES_DE_LA_DIRECCION,
+            text = zona.ifBlank { SIN_DATO },
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag(DIRECCION_TAG)
+                .testTag(ZONA_DEL_CLIENTE_TAG)
         )
     }
 }
 
 /**
- * `testTag` de la dirección del domicilio.
+ * `testTag` de la zona del renglón de identidad.
  *
- * Aparte del racimo y de la zona porque lo que hay que poder afirmar es que la
- * dirección **entera** se ve: el defecto que esto mata era que compartía renglón
- * con la zona y se recortaba justo ella.
+ * Existe porque la ruta se dice **en dos lugares** —acá como encabezado y en el
+ * cuadro de la puerta como parte de *"ciudad · ruta"*—, y un `onNodeWithText`
+ * a secas encuentra los dos y falla por ambigüedad. Reemplaza a `DIRECCION_TAG`,
+ * que se fue con el renglón de dirección de este bloque.
  */
-const val DIRECCION_TAG: String = "pagos_direccion"
+const val ZONA_DEL_CLIENTE_TAG: String = "pagos_cliente_zona"
 
 /** Una acción de la fila: su etiqueta, su glifo y qué hace. */
 private data class AccionDelCliente(
@@ -834,15 +811,6 @@ private val TOQUE_DE_ACCION = 50.dp
 private const val POR_RENGLON_APILADO = 2
 
 /**
- * Cuántas líneas se le dan a la dirección.
- *
- * Dos. Una no alcanza para una calle con nombre compuesto más la colonia, y
- * tres empiezan a empujar el dinero sin ganar direcciones nuevas: las que no
- * entran en dos tampoco entran en tres.
- */
-private const val RENGLONES_DE_LA_DIRECCION = 2
-
-/**
  * **El cuadro de la puerta: el mapa cuando se puede, las señas cuando no.**
  *
  * ## Por qué vuelve, y por qué vuelve sin botón adentro
@@ -935,25 +903,30 @@ private const val RENGLONES_DE_LA_DIRECCION = 2
  * AHORA y la app no tiene ubicación en vivo. Un número a medias es un dato
  * falso, no uno incompleto (principio 9).
  *
- * ## De dónde salen [direccion] y [zona]
+ * ## De dónde salen [calle], [ciudad] y [zona]
  *
- * De [com.example.msp_app.feature.pagos.domain.model.DetalleCliente], que es
- * quien ya las tiene — la pantalla las pinta desde antes en [BloqueDeIdentidad].
- * No se inventa un parámetro nuevo ni se deriva nada: la que llega es la misma
- * cadena que se pinta arriba.
+ * De [com.example.msp_app.feature.pagos.domain.model.DetalleCliente], y **las
+ * tres por separado**. Ésta es la banda que ahora dice la dirección: el renglón
+ * que la repetía en [BloqueDeIdentidad] se retiró, porque con las mismas
+ * palabras a tres dedos de distancia se leía como un error de copiado.
  *
- * **La colonia no se pinta porque no existe.** `SaleEntity` trae `CALLE` y
- * `CIUDAD` y ninguna columna de colonia (la hay en `LocalSaleEntity`, que es
- * otra cosa: las ventas capturadas en el teléfono). Y `direccion` llega ya
- * armada como `"CALLE, CIUDAD"` —ver `RoomVentasAdapter`—, así que sacarle "la
- * calle sola" exigiría partirla por la última coma: una derivación inventada
- * que se equivoca sola en cuanto la calle traiga una coma o la ciudad venga
- * vacía. Mejor dos renglones ciertos que tres con uno falso.
+ * **La calle va sola, sin la ciudad pegada, y no se parte ninguna cadena.**
+ * `Sale.CALLE` y `Sale.CIUDAD` son dos columnas y viajan separadas desde
+ * `RoomVentasAdapter` —ver [com.example.msp_app.feature.pagos.domain.model.DatosDeVenta.calle]—.
+ * Partir `"CALLE, CIUDAD"` por la última coma habría sido una derivación que se
+ * equivoca sola en cuanto la calle traiga una coma; quien quiere las dos pegadas
+ * sigue pidiendo `direccion`, que ahora se deriva de estas dos.
+ *
+ * **La colonia no se pinta porque no existe.** `SaleEntity` no tiene columna de
+ * colonia (la hay en `LocalSaleEntity`, que es otra cosa: las ventas capturadas
+ * en el teléfono). La línea de apoyo dice *"ciudad · ruta"*, que es lo que sí
+ * hay: mejor dos datos ciertos que tres con uno inventado.
  */
 @Composable
 fun CuadroDeLaPuerta(
     ubicacion: UbicacionDelCobro?,
-    direccion: String,
+    calle: String,
+    ciudad: String,
     zona: String,
     modifier: Modifier = Modifier,
     onVerUbicacion: (() -> Unit)? = null,
@@ -976,7 +949,7 @@ fun CuadroDeLaPuerta(
             )
             .testTag(CUADRO_DE_LA_PUERTA_TAG)
     ) {
-        SenasDeLaPuerta(ubicacion = ubicacion, direccion = direccion, zona = zona)
+        SenasDeLaPuerta(ubicacion = ubicacion, calle = calle, ciudad = ciudad, zona = zona)
         // El mapa, encima de las señas y solo con punto medido. Sin punto no hay
         // dónde centrarlo, y centrarlo en cualquier otra cosa diría "es aquí"
         // sobre una puerta que nadie midió.
@@ -985,88 +958,125 @@ fun CuadroDeLaPuerta(
 }
 
 /**
- * Las señas: el chip de punto medido, la calle en grande y la ruta en tenue.
+ * Las señas: el chip de punto medido, **la calle sola** en grande y, debajo,
+ * *"ciudad · ruta"* en tenue.
  *
- * **A la izquierda y centradas verticalmente**, con el mismo aire lateral que
- * las secciones de la hoja (`spacing.md`). Centrar el texto lo habría dejado
- * flotando como un cartel; alineado a la izquierda cae sobre la misma vertical
- * que la dirección y el aval de la sección de arriba, y la banda se lee como
- * parte de la hoja y no como una estampa pegada encima.
+ * **A la izquierda y centradas verticalmente**, con `spacing.lg` de aire lateral
+ * y [AIRE_ENTRE_SENAS] entre las tres. Centrar el texto lo habría dejado
+ * flotando como un cartel; alineado a la izquierda la banda se lee como parte de
+ * la hoja y no como una estampa pegada encima.
+ *
+ * El aire lateral es **más generoso que el de las secciones** (`spacing.md`), y
+ * a propósito: el mockup le da ~10 % del ancho. Sin ese margen la calle a 26 sp
+ * queda pegada al canto y los tres tamaños dejan de leerse como jerarquía — el
+ * efecto de esta banda es **la distancia entre los tres tamaños y el aire que
+ * los rodea**, y es lo primero que se pierde si se aprieta.
+ *
+ * ## La calle sola, y la ciudad abajo
+ *
+ * La primera versión pintaba la dirección entera —*"C. Hidalgo 214, Centro"*— a
+ * 26 sp. El dueño lo vio en el golden: la cadena se come el ancho completo y la
+ * tipografía grande **pierde todo su efecto**, que era la única razón de subirla
+ * a 26 sp. La ciudad no es lo que contesta *"¿es aquí?"* parado en la banqueta
+ * —eso lo contesta el número de la calle—, así que baja a la línea de apoyo,
+ * junto a la ruta.
+ *
+ * **La ciudad va ANTES que la ruta**, y no al revés: de lo grande a lo chico, y
+ * porque *"ruta 25 · Centro"* sería el mismo orden del renglón de identidad de
+ * arriba dicho otra vez. *"Centro · ruta 25"* se lee como una frase nueva.
  *
  * ## Sin punto medido no hay chip, y no se rellena el hueco
  *
  * El chip dice *"esta puerta está medida"*. Sin [ubicacion] esa frase sería
- * falsa, así que **no se dice nada en su lugar**: se quedan la calle y la ruta.
- * No se sustituye por *"sin ubicación"* ni por un chip apagado — el cobrador no
- * abre esta pantalla a ver qué le falta al registro, y un chip gris ocupando el
- * mismo sitio que uno de marca es ruido con forma de dato. La ausencia del chip
- * ya dice lo mismo sin gastar un renglón.
+ * falsa, así que **no se dice nada en su lugar**: se quedan la calle y la línea
+ * de apoyo. No se sustituye por *"sin ubicación"* ni por un chip apagado — el
+ * cobrador no abre esta pantalla a ver qué le falta al registro, y un chip gris
+ * ocupando el mismo sitio que uno de marca es ruido con forma de dato.
  *
- * ## A las escalas grandes cabe UN solo renglón, y es el que dice algo nuevo
+ * ## A las escalas grandes cabe UN solo renglón, y es la calle
  *
  * El cuadro mide 40 dp a `GRANDE` y `MUY_GRANDE` —ver [altoDelCuadro], y ese
  * número está medido contra el dock, no elegido—. Ahí no caben tres renglones:
- * a 2.0 la calle sola en `metricLarge` pediría ~73 dp.
+ * a 2.0 la calle en `metricLarge` pediría ~73 dp.
  *
- * El renglón que se queda es **el chip**, y no la calle, porque la calle ya está
- * a unos píxeles de ahí: la pinta [BloqueDeIdentidad] en su propio renglón. Se
- * probó al revés —dejando la calle— y el golden `pagos_cliente_light_2_0` lo
- * mostró claro: la misma dirección dos veces, una debajo de la otra, no se lee
- * como énfasis sino como un defecto de la app. El chip es lo único de esta banda
- * que el renglón de arriba no dice.
- *
- * Y **sin punto medido no hay chip**, así que ahí sí baja la calle: entre
- * repetir un dato y dejar la banda muda —que es exactamente el hueco que el
- * dueño rechazó—, se repite.
+ * El renglón que se queda es **la calle**, en `captionStrong`. Hubo una versión
+ * en la que se quedaba el chip, y tenía sentido mientras la dirección seguía
+ * pintándose arriba en [BloqueDeIdentidad]: entonces el chip era lo único que
+ * esta banda decía de nuevo. Desde que ese renglón se retiró, dejar el chip
+ * dejaría la pantalla **sin dirección en ningún lado** a las dos escalas que más
+ * la necesitan — exactamente el defecto que el dueño reportó como *"la dirección
+ * ni se ve casi"*. Entre el contexto y el dato, cede el contexto.
  */
 @Composable
-private fun SenasDeLaPuerta(ubicacion: UbicacionDelCobro?, direccion: String, zona: String) {
+private fun SenasDeLaPuerta(
+    ubicacion: UbicacionDelCobro?,
+    calle: String,
+    ciudad: String,
+    zona: String
+) {
     val apretado = LocalFontSizeLevel.current != FontSizeLevel.NORMAL
-    val conPunto = ubicacion != null
+    val apoyo = lineaDeApoyo(ciudad, zona)
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = MspTheme.spacing.md),
+            .padding(horizontal = MspTheme.spacing.lg),
         verticalArrangement = Arrangement.Center
     ) {
-        if (conPunto) {
+        if (ubicacion != null && !apretado) {
             ChipDePuntoMedido()
-            if (!apretado) Spacer(Modifier.height(MspTheme.spacing.sm))
+            Spacer(Modifier.height(AIRE_ENTRE_SENAS))
         }
-        // Con la dirección en blanco va una frase y no un hueco: la banda existe
-        // para que nunca se lea como una pantalla a medio cargar, y un renglón
-        // vacío es precisamente eso.
-        if (!apretado || !conPunto) {
+        // Con la calle en blanco va una frase y no un hueco: la banda existe para
+        // que nunca se lea como una pantalla a medio cargar, y un renglón vacío
+        // es precisamente eso.
+        Text(
+            text = calle.ifBlank { SIN_DIRECCION },
+            style = if (apretado) MspTheme.type.captionStrong else MspTheme.type.metricLarge,
+            color = MspTheme.colors.onSurface,
+            maxLines = if (apretado) 1 else RENGLONES_DE_LA_CALLE,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag(CALLE_DEL_CUADRO_TAG)
+        )
+        // La línea de apoyo sólo cuando hay algo que poner. "Centro · " con la
+        // ruta vacía es una frase con un hueco adentro, que se lee como un
+        // defecto de la app; el mismo criterio que ya usa [diaDeLaRuta].
+        if (apoyo.isNotBlank() && !apretado) {
+            Spacer(Modifier.height(AIRE_ENTRE_SENAS))
             Text(
-                text = direccion.ifBlank { SIN_DIRECCION },
-                style = if (apretado) MspTheme.type.captionStrong else MspTheme.type.metricLarge,
-                color = MspTheme.colors.onSurface,
-                maxLines = if (apretado) 1 else RENGLONES_DE_LA_CALLE,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag(CALLE_DEL_CUADRO_TAG)
-            )
-        }
-        // La ruta sólo cuando la fila la trae. "Su ruta es —" es una frase con un
-        // hueco adentro, que se lee como un defecto de la app; el mismo criterio
-        // que ya usa [diaDeLaRuta].
-        if (zona.isNotBlank() && !apretado) {
-            Spacer(Modifier.height(MspTheme.spacing.xs))
-            Text(
-                text = zona,
-                style = MspTheme.type.caption,
+                text = apoyo,
+                style = MspTheme.type.input,
                 color = MspTheme.colors.onSurfaceMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag(RUTA_DEL_CUADRO_TAG)
+                modifier = Modifier.testTag(APOYO_DEL_CUADRO_TAG)
             )
         }
     }
 }
 
 /**
- * El chip "Punto medido": un pin diminuto y dos palabras, en color de marca
+ * *"Centro · ruta 25"*, o sólo lo que se sepa.
+ *
+ * Con la ciudad vacía queda la ruta sola y viceversa; con las dos vacías, la
+ * cadena vacía y la línea no se pinta. Nunca un separador colgando.
+ */
+private fun lineaDeApoyo(ciudad: String, zona: String): String =
+    listOf(ciudad, zona).filter { it.isNotBlank() }.joinToString(" · ")
+
+/**
+ * El chip "Punto medido": un pin pequeño y dos palabras, en color de marca
  * sobre `brandTint` y con las esquinas completamente redondeadas
  * (`shapes.chip`, el pill que ya usan los atrasos y los estados).
+ *
+ * **Es visiblemente más chico que la calle, y ése es su trabajo**: etiqueta la
+ * banda, no compite con ella. El padding interno es holgado —[AIRE_DEL_CHIP_V]
+ * arriba y abajo, [AIRE_DEL_CHIP_H] a los lados, los números del mockup— porque
+ * un pill apretado a 12 sp se lee como una etiqueta de sistema y no como algo
+ * que alguien puso ahí.
+ *
+ * En oscuro el contraste sube —`brandTint` `#0E2440` con `brand` `#3B82F6`— y
+ * **así debe verse**: no es un desajuste del tema, es lo que hace que el chip se
+ * despegue del `surface2` oscuro igual que se despega del claro.
  *
  * El pin es el MISMO glifo que "cómo llegar" ([AccionesIconos.Pin]), a
  * [PIN_DEL_CHIP]: un segundo dibujo de pin para el mismo significado es lo que
@@ -1078,10 +1088,7 @@ private fun ChipDePuntoMedido() {
         modifier = Modifier
             .clip(MspTheme.shapes.chip)
             .background(MspTheme.colors.brandTint)
-            .padding(
-                horizontal = MspTheme.spacing.sm,
-                vertical = MspTheme.spacing.xs - 1.dp
-            )
+            .padding(horizontal = AIRE_DEL_CHIP_H, vertical = AIRE_DEL_CHIP_V)
             .testTag(PUNTO_MEDIDO_TAG),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
@@ -1261,22 +1268,39 @@ private val CUADRO_APRETADO = 40.dp
 /**
  * El pin del chip de punto medido.
  *
- * **Diminuto a propósito**: acompaña a dos palabras de 12 sp, y un glifo del
+ * **Pequeño a propósito**: acompaña a dos palabras de 12 sp, y un glifo del
  * tamaño de los de la fila de acciones (18 dp) convertiría el chip en un botón
  * —que no lo es— y le robaría el peso a la calle, que es lo que manda en esta
  * banda.
  */
-private val PIN_DEL_CHIP = 12.dp
+private val PIN_DEL_CHIP = 13.dp
+
+/** El aire a los lados del chip: los 13 px del mockup. */
+private val AIRE_DEL_CHIP_H = 13.dp
+
+/** El aire arriba y abajo del chip: los 7 px del mockup. */
+private val AIRE_DEL_CHIP_V = 7.dp
 
 /**
  * Cuántas líneas se le dan a la calle en la banda.
  *
- * Dos, por lo mismo que la dirección de [BloqueDeIdentidad]: a 26 sp,
- * *"C. Miguel Hidalgo y Costilla 214, Centro"* no entra en un renglón de
- * 360 dp, y media dirección no es una dirección incompleta — es una dirección
- * equivocada.
+ * Dos. Con la ciudad fuera, la mayoría de las calles entran en una —que es de
+ * lo que se trataba el cambio—, pero *"C. Miguel Hidalgo y Costilla 214"* a
+ * 26 sp no cabe en 360 dp, y media calle no es una dirección incompleta: es una
+ * dirección equivocada. Tres empezarían a empujar el dinero sin ganar
+ * direcciones nuevas.
  */
 private const val RENGLONES_DE_LA_CALLE = 2
+
+/**
+ * El aire entre el chip, la calle y la línea de apoyo: los 10 px del mockup.
+ *
+ * No es `spacing.sm` (8) ni `spacing.md` (16): con 8 el chip se pega a la calle
+ * y las tres señas se leen como un bloque; con 16 la banda de 130 dp se queda
+ * sin margen arriba y abajo. El mockup fija 10 y es el número que deja las tres
+ * cosas como tres cosas.
+ */
+private val AIRE_ENTRE_SENAS = 10.dp
 
 /** Lo que dice el chip cuando la puerta tiene coordenada de un cobro real. */
 private const val PUNTO_MEDIDO = "Punto medido"
