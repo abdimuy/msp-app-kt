@@ -34,6 +34,7 @@ import com.example.msp_app.feature.pagos.ui.components.FiltrosDeContacto
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
+import com.example.msp_app.feature.pagos.ui.components.tramoDelMes
 
 /** `testTag` del título de la bitácora. */
 const val TITULO_DE_BITACORA_TAG: String = "pagos_titulo_bitacora"
@@ -261,10 +262,25 @@ private fun Contactos(
             if (visibles.isEmpty()) {
                 item(key = "vacio") { SinContactosConEseFiltro(filtro) }
             }
-            grupos.forEach { grupo ->
+            grupos.forEachIndexed { indice, grupo ->
+                // El fondo del mes se aplica tramo por tramo —el encabezado y
+                // cada fila llevan su pedazo— en vez de envolver el grupo en un
+                // contenedor: aquí cada renglón es un `item` del `LazyColumn`, y
+                // un contenedor común los compondría todos de una, que es justo
+                // lo que la lista perezosa existe para no hacer. Los tramos se
+                // tocan sin hueco, así que en pantalla son un solo bloque.
+                //
+                // Va en el `modifier` de la pieza y no envolviéndola en un
+                // `Box`: `tramoDelMes` sólo PINTA detrás (ver su KDoc), así que
+                // el renglón se mide y se pinta exactamente igual que antes.
                 item(key = "grupo:${grupo.titulo}") {
-                    EncabezadoDeGrupo(grupo = grupo, ocultos = ocultos)
+                    EncabezadoDeGrupo(
+                        grupo = grupo,
+                        ocultos = ocultos,
+                        modifier = Modifier.tramoDelMes(indice = indice, arriba = true)
+                    )
                 }
+                val ultimoDelMes = grupo.contactos.lastOrNull()?.id
                 items(
                     items = grupo.contactos,
                     // La llave es el ID DEL HECHO (`pagoId`/`visitaId`), no
@@ -284,7 +300,11 @@ private fun Contactos(
                         contacto = contacto,
                         ocultos = ocultos,
                         onVerUbicacion = onVerUbicacion,
-                        toque = toque
+                        toque = toque,
+                        modifier = Modifier.tramoDelMes(
+                            indice = indice,
+                            abajo = contacto.id == ultimoDelMes
+                        )
                     )
                 }
             }
