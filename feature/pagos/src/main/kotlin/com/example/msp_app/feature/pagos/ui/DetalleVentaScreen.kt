@@ -43,6 +43,7 @@ import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
+import com.example.msp_app.feature.pagos.ui.components.DosDatos
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.EstadoEnGrande
 import com.example.msp_app.feature.pagos.ui.components.FilaClaveValor
@@ -57,7 +58,6 @@ import com.example.msp_app.feature.pagos.ui.components.TarjetaDeGarantia
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeLiquidacion
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeSaldo
 import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
-import com.example.msp_app.feature.pagos.ui.components.TresDatos
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
 import java.time.format.DateTimeFormatter
 
@@ -442,6 +442,21 @@ internal fun TarjetaDeNotaDeLaVenta(nota: String?, modifier: Modifier = Modifier
 /** `testTag` de la tarjeta de notas del detalle de venta. */
 const val NOTA_DE_LA_VENTA_TAG: String = "pagos_venta_nota"
 
+/**
+ * El pie de la tarjeta de saldo: la barra de avance y **dos** datos.
+ *
+ * **Sin el conteo de abonos**, que el dueño pidió fuera y que aquí no se
+ * reemplaza por nada: lo abonado en dinero ya tiene su renglón en "datos de la
+ * venta", unos dedos más abajo en esta misma pantalla, y repetirlo arriba sería
+ * decir dos veces lo mismo. La barra que va justo encima sigue diciendo el
+ * progreso, que es lo que el conteo aportaba, y lo dice sin números.
+ *
+ * Con dos celdas usa [DosDatos] y no [TresDatos] con un hueco: una tercera
+ * celda vacía inventa un espacio donde antes había un dato, y una sola cifra
+ * centrada en el ancho de tres se lee como un error de layout. Las dos que
+ * quedan siguen repartiéndose el ancho completo y apilándose a `GRANDE` y
+ * `MUY_GRANDE` por el mismo motivo de siempre.
+ */
 @Composable
 private fun PieDeLaVenta(detalle: DetalleVenta) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -452,14 +467,11 @@ private fun PieDeLaVenta(detalle: DetalleVenta) {
             trackColor = MspTheme.colors.progressTrack
         )
         Spacer(Modifier.height(MspTheme.spacing.md))
-        TresDatos(
+        DosDatos(
             primero = { celda ->
-                DatoDelPie("abonos", "${detalle.abonosPagados} / ${detalle.abonosTotales}", celda)
-            },
-            segundo = { celda ->
                 DatoDelPie("parcialidad", formatMoneyMxn(detalle.parcialidad.amount), celda)
             },
-            tercero = { celda ->
+            segundo = { celda ->
                 DatoDelPie("frecuencia", detalle.frecuencia.ifBlank { SIN_DATO }, celda)
             }
         )

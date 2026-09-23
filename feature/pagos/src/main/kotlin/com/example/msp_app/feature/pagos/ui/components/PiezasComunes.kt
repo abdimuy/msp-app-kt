@@ -29,8 +29,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspStatusChip
-import com.example.msp_app.core.designsystem.theme.FontSizeLevel
-import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.ui.EstadoVisual
@@ -247,48 +245,6 @@ fun Separador(modifier: Modifier = Modifier, color: Color = MspTheme.colors.outl
 
 /** Lo que se pinta donde el teléfono no tiene el dato. */
 const val SIN_DATO: String = "—"
-
-/**
- * Tres datos en fila cuando caben, apilados cuando no.
- *
- * Con `FontSizeLevel.NORMAL` los tres van en una fila de tercios, como el mock.
- * Con `GRANDE` (1.5) o `MUY_GRANDE` (2.0) la fila deja de caber en 360dp y el
- * tercer dato se sale de la pantalla — comprobado en el golden
- * `pagos_venta_light_2_0` antes de este cambio: "frecuencia" desaparecía. Un
- * dato que se sale no es un detalle visual, es información perdida para el
- * usuario que MÁS ayuda necesita, así que a esas escalas se apilan.
- *
- * Se lee [LocalFontSizeLevel] (la preferencia elegida en la app) y no el
- * `fontScale` del sistema: es el mismo criterio que ya usa el reporte de
- * cobranza para escoger su layout curado.
- */
-@Composable
-fun TresDatos(
-    primero: @Composable (Modifier) -> Unit,
-    segundo: @Composable (Modifier) -> Unit,
-    tercero: @Composable (Modifier) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
-        Row(
-            modifier = modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-        ) {
-            primero(Modifier.weight(1f))
-            segundo(Modifier.weight(1f))
-            tercero(Modifier.weight(1f))
-        }
-    } else {
-        Column(
-            modifier = modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-        ) {
-            primero(Modifier.fillMaxWidth())
-            segundo(Modifier.fillMaxWidth())
-            tercero(Modifier.fillMaxWidth())
-        }
-    }
-}
 
 /**
  * Vuelve a leer al **reanudarse** la pantalla — no al montarse.

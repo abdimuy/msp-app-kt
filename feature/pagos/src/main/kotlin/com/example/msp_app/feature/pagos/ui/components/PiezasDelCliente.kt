@@ -500,14 +500,15 @@ fun SaldoDelCliente(
  * [MspMoneyText] además respeta [ocultos], que ese pie no necesita porque el
  * detalle de venta no trae el interruptor de privacidad.
  *
- * ## Por qué no reusa [TresDatos]
+ * ## Por qué ahora sí reusa la pieza compartida
  *
- * [TresDatos] fija TRES celdas — la comparte con `PieDeLaVenta`, que sí
- * necesita tres (abonos, parcialidad, frecuencia) — y esta hoja ahora solo
- * tiene dos cifras que decir. Forzar una tercera celda vacía sería inventar un
- * hueco donde antes había un dato; en vez de tocar [TresDatos] —compartido con
- * la pantalla de venta, fuera de alcance— este bloque arma su propia fila de
- * dos, apilable en las mismas escalas grandes por el mismo motivo.
+ * Este bloque armaba su propia fila de dos porque [TresDatos] fijaba TRES
+ * celdas y era lo único que había. Desde que el dueño le quitó el conteo de
+ * abonos al pie del detalle de venta, **dos bloques distintos necesitan la
+ * fila de dos**, así que la decisión de layout —fila mientras quepa, apilada a
+ * `GRANDE` y `MUY_GRANDE`— vive en [DosDatos], al lado de [TresDatos] y con el
+ * mismo criterio. Dos copias de esa regla es cómo se termina con una pantalla
+ * que se apila y otra que no.
  */
 @Composable
 fun CifrasDelCliente(
@@ -515,38 +516,24 @@ fun CifrasDelCliente(
     modifier: Modifier = Modifier,
     ocultos: Boolean = false
 ) {
-    val celdaDeParcialidad: @Composable (Modifier) -> Unit = { celda ->
-        CifraDelCliente(
-            clave = "parcialidad",
-            monto = resumen.parcialidad,
-            ocultos = ocultos,
-            modifier = celda.testTag(PARCIALIDAD_DEL_CLIENTE_TAG)
-        )
-    }
-    val celdaDeUltimoPago: @Composable (Modifier) -> Unit = { celda ->
-        CifraDelCliente(
-            clave = "últ. pago",
-            texto = resumen.ultimoPago?.let { DIA_Y_MES.format(it) } ?: SIN_DATO,
-            modifier = celda
-        )
-    }
-    if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
-        Row(
-            modifier = modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-        ) {
-            celdaDeParcialidad(Modifier.weight(1f))
-            celdaDeUltimoPago(Modifier.weight(1f))
+    DosDatos(
+        modifier = modifier,
+        primero = { celda ->
+            CifraDelCliente(
+                clave = "parcialidad",
+                monto = resumen.parcialidad,
+                ocultos = ocultos,
+                modifier = celda.testTag(PARCIALIDAD_DEL_CLIENTE_TAG)
+            )
+        },
+        segundo = { celda ->
+            CifraDelCliente(
+                clave = "últ. pago",
+                texto = resumen.ultimoPago?.let { DIA_Y_MES.format(it) } ?: SIN_DATO,
+                modifier = celda
+            )
         }
-    } else {
-        Column(
-            modifier = modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-        ) {
-            celdaDeParcialidad(Modifier.fillMaxWidth())
-            celdaDeUltimoPago(Modifier.fillMaxWidth())
-        }
-    }
+    )
 }
 
 @Composable
@@ -642,6 +629,16 @@ private fun diaDeLaRuta(dia: String, frecuencia: String): String {
     )
     return partes.joinToString(" · ")
 }
+
+/**
+ * `testTag` de una fila de venta dentro del detalle de cliente.
+ *
+ * Vivía en `TarjetasDeDinero.kt`, junto a `FilaDeVenta` — la tarjeta que esta
+ * fila reemplazó y que se retiró por no tener ya ningún llamador. Se muda aquí,
+ * al lado de su único usuario, para que no quede una constante huérfana en un
+ * archivo que no la usa.
+ */
+const val FILA_DE_VENTA_TAG: String = "pagos_fila_venta"
 
 /**
  * Una venta dentro de la hoja: nombre y saldo arriba, chip de estado y atrasos

@@ -35,14 +35,19 @@ import org.junit.Test
 import org.robolectric.annotation.Config
 
 /**
- * A escala grande, los tres datos de la venta se apilan en vez de pelearse por
- * 360dp de ancho.
+ * A escala grande, los datos del pie de la venta se apilan en vez de pelearse
+ * por 360dp de ancho.
  *
  * El golden `pagos_venta_light_2_0` mostró el defecto antes de que existiera
- * `TresDatos`: la fila `abonos · parcialidad · frecuencia` no cabe a
+ * `TresDatos`: la fila `abonos · parcialidad · frecuencia` no cabía a
  * `MUY_GRANDE` y el tercer dato quedaba aplastado hasta desaparecer. Un dato
  * que no se puede leer no es un detalle visual — es información perdida justo
  * para el usuario que más ayuda necesita.
+ *
+ * **Hoy el pie tiene DOS celdas**, no tres: el dueño quitó el conteo de abonos
+ * y no se reemplazó por nada, así que la pieza es `DosDatos`. La regla de
+ * layout es la misma y se sigue midiendo igual — con dos que no caben, el
+ * defecto sería idéntico.
  *
  * ## Por qué se afirma el layout y no el ancho del texto
  *
@@ -116,8 +121,8 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
         composeTestRule.onNodeWithText(etiqueta).performScrollTo().getUnclippedBoundsInRoot()
 
     /**
-     * Los bordes de uno de los tres labels del pie de la tarjeta de saldo
-     * (`.pgrid` del mock: `abonos · parcialidad · frecuencia`).
+     * Los bordes de uno de los labels del pie de la tarjeta de saldo
+     * (`.pgrid` del mock: hoy `parcialidad · frecuencia`).
      *
      * **Busca en VERSALITAS a propósito.** `DatoDelPie` los pinta con
      * `.uppercase()`, como el `.pgrid .k` del mock y como kollect, así que
@@ -132,45 +137,35 @@ class NadaSeSaleDePantallaTest : RobolectricTestBase() {
     private fun bordesDelPie(clave: String): DpRect = bordesDe(clave.uppercase(BUSINESS_LOCALE))
 
     @Test
-    fun `en NORMAL los tres datos comparten renglon`() {
+    fun `en NORMAL los dos datos comparten renglon`() {
         ventaA(FontSizeLevel.NORMAL)
-        val abonos = bordesDelPie("abonos")
         val parcialidad = bordesDelPie("parcialidad")
         val frecuencia = bordesDelPie("frecuencia")
-        assertEquals(abonos.top, parcialidad.top)
-        assertEquals(abonos.top, frecuencia.top)
-        assertTrue(
-            "no van en fila",
-            abonos.left < parcialidad.left && parcialidad.left < frecuencia.left
-        )
+        assertEquals(parcialidad.top, frecuencia.top)
+        assertTrue("no van en fila", parcialidad.left < frecuencia.left)
     }
 
     @Test
-    fun `en GRANDE los tres datos se apilan`() {
+    fun `en GRANDE los dos datos se apilan`() {
         ventaA(FontSizeLevel.GRANDE)
         afirmaApilados()
     }
 
     @Test
-    fun `en MUY_GRANDE los tres datos se apilan`() {
+    fun `en MUY_GRANDE los dos datos se apilan`() {
         ventaA(FontSizeLevel.MUY_GRANDE)
         afirmaApilados()
     }
 
     private fun afirmaApilados() {
-        val abonos = bordesDelPie("abonos")
         val parcialidad = bordesDelPie("parcialidad")
         val frecuencia = bordesDelPie("frecuencia")
         assertTrue(
-            "parcialidad sigue en el renglón de abonos: " + abonos.bottom + " vs " + parcialidad.top,
-            parcialidad.top >= abonos.bottom
-        )
-        assertTrue(
-            "frecuencia sigue en el renglón de parcialidad: " + parcialidad.bottom + " vs " + frecuencia.top,
+            "frecuencia sigue en el renglón de parcialidad: " +
+                parcialidad.bottom + " vs " + frecuencia.top,
             frecuencia.top >= parcialidad.bottom
         )
-        assertEquals(abonos.left, parcialidad.left)
-        assertEquals(abonos.left, frecuencia.left)
+        assertEquals(parcialidad.left, frecuencia.left)
     }
 
     // --- El alcance de la línea se desplaza, como sus vecinas ----------------

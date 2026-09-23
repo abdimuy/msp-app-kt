@@ -1,10 +1,8 @@
 package com.example.msp_app.feature.pagos.ui.components
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -16,13 +14,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
-import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.core.designsystem.component.MspMoneyText
-import com.example.msp_app.core.designsystem.component.MspProgressBar
-import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.Liquidacion
-import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import java.time.format.DateTimeFormatter
 
 /** `testTag` del botón "usar" de la tarjeta de liquidación. */
@@ -123,107 +117,6 @@ fun TarjetaDeLiquidacion(
                         horizontal = MspTheme.spacing.md,
                         vertical = MspTheme.spacing.md
                     )
-                )
-            }
-        }
-    }
-}
-
-/** `testTag` de una fila de venta dentro del detalle de cliente. */
-const val FILA_DE_VENTA_TAG: String = "pagos_fila_venta"
-
-/**
- * Una venta dentro del detalle del cliente (`.sale`): título, **chip de
- * estado**, el saldo, la barra de avance y el pie con **lo abonado**.
- *
- * **Por qué el chip y no el cuadro.** Kollect arma esta misma fila con
- * `SaleCard`, y `SaleCard.kt:107` pone `StatusChip(status, statusLabel)`: la
- * pastilla con ícono + texto dentro. Aquí había un cuadro de color de 28dp más
- * la etiqueta suelta al lado, en el color del estado — los dos portadores
- * estaban, pero es justo la pieza chica cuya ausencia hacía que la pantalla se
- * viera "suave" al lado de kollect. El chip queda debajo del título en vez de
- * a su izquierda porque a 360dp la fila título + chip + monto no cabe, y el
- * monto es el dato por el que el cobrador abrió la pantalla.
- *
- * El folio se queda, en gris apagado: dejó de compartir línea con el estado
- * (iban los dos en el color del estado, y un identificador no tiene estado).
- */
-@Composable
-fun FilaDeVenta(
-    venta: VentaDelCliente,
-    onAbrir: () -> Unit,
-    modifier: Modifier = Modifier,
-    ocultos: Boolean = false
-) {
-    Tarjeta(modifier = modifier.testTag(FILA_DE_VENTA_TAG), onClick = onAbrir) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(
-                    MspTheme.spacing.sm + MspTheme.spacing.xs
-                )
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = venta.descripcion.ifBlank { venta.folio },
-                        style = MspTheme.type.saleTitle,
-                        color = MspTheme.colors.onSurface,
-                        maxLines = 2
-                    )
-                    Spacer(Modifier.height(MspTheme.spacing.xs))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
-                    ) {
-                        ChipDeEstado(venta.estado)
-                        Text(
-                            text = venta.folio,
-                            style = MspTheme.type.saleMeta,
-                            color = MspTheme.colors.onSurfaceMuted
-                        )
-                    }
-                }
-                MspMoneyText(
-                    amount = venta.saldo.amount,
-                    masked = ocultos,
-                    style = MspTheme.type.amountRow,
-                    color = MspTheme.colors.onSurface
-                )
-            }
-            Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-            MspProgressBar(
-                progress = venta.avance,
-                height = 4.dp,
-                fillColor = MspTheme.colors.heroProgressFill,
-                trackColor = MspTheme.colors.progressTrack
-            )
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    // **Cuánto ha dado, no cuántas veces.** Decisión del dueño:
-                    // "18 de 24 abonos" cuenta eventos, y parado en la puerta la
-                    // pregunta es de dinero — la barra de avance de arriba ya
-                    // dice lo mismo que el conteo, y lo dice sin números.
-                    //
-                    // Enmascarado con el mismo interruptor que el saldo: es un
-                    // monto, y taparle uno al cobrador sin taparle el otro
-                    // dejaría abierta la mitad de la privacidad de esta fila.
-                    text = "Abonado " + if (ocultos) {
-                        MASKED_MONEY
-                    } else {
-                        formatMoneyMxn(venta.abonado.amount)
-                    },
-                    style = MspTheme.type.caption,
-                    color = MspTheme.colors.onSurfaceMuted,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "Ver venta",
-                    style = MspTheme.type.captionStrong,
-                    color = MspTheme.colors.brand
                 )
             }
         }

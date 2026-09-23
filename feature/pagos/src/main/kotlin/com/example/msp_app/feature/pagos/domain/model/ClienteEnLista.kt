@@ -64,11 +64,17 @@ data class ClienteEnLista(
 
 /**
  * Una venta dentro de la fila del cliente: lo que se pinta ([venta], el MISMO
- * tipo que ya usa el detalle de cliente, con el MISMO componente `FilaDeVenta`)
- * más lo que la ordena ([rango]).
+ * tipo [VentaDelCliente] que ya usa el detalle de cliente) más lo que la ordena
+ * ([rango]).
  *
  * Van juntos y no en dos listas paralelas porque el orden por cliente se hereda
  * de una venta concreta, y con dos listas nada garantiza que sea la misma.
+ *
+ * Esto decía además "con el MISMO componente `FilaDeVenta`". Esa tarjeta se
+ * retiró: llevaba tiempo sin un solo llamador, y la fila que el detalle de
+ * cliente pinta de verdad es
+ * [com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja]. Lo que de
+ * verdad se comparte —y es lo que el comentario quería decir— es el **tipo**.
  */
 data class VentaEnLista(
     val venta: VentaDelCliente,
