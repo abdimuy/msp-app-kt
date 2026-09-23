@@ -256,14 +256,19 @@ class CobranzaReconciler(
     private suspend fun collapseLegacyTwins(alive: List<PagoDto>, fase: String): Int {
         val doctoCcIds = alive.map { it.docto_cc_id }.filter { it > 0 }.distinct()
         if (doctoCcIds.isEmpty()) return 0
-        // Chunking obligatorio, NO cosmético: `mergePagos` corre sobre una
-        // página acotada (`limit=1000`), pero acá `alive` es el set completo
+        // Chunking obligatorio, NO cosmético. Acá `alive` es el set completo
         // de pagos faltantes — ByIdsChunker acota las llamadas HTTP, no el
         // resultado acumulado. Con minSdk 24 y Room sobre el SQLite del
         // framework, todo dispositivo por debajo de API 31 tiene
         // SQLITE_MAX_VARIABLE_NUMBER = 999, así que un `IN (:ids)` sin trocear
         // reventaría con "too many SQL variables" justo en el caso que más
         // importa: el teléfono muy desfasado, que es el que más gemelos tiene.
+        //
+        // Este comentario decía además que `mergePagos` no necesitaba trocear
+        // porque corre sobre una página acotada por `limit=1000`. Era al
+        // revés: 1000 es exactamente el número que rompe el tope de 999, con
+        // UNA fila de margen. `mergePagos` trocea con esta misma constante
+        // desde el arreglo del doble descuento del saldo.
         var borrados = 0
         doctoCcIds.chunked(SQLITE_MAX_IN_PARAMS).forEach { chunk ->
             borrados += paymentDao.deleteLegacyTwinsByDoctoCcIds(chunk)
@@ -452,13 +457,6 @@ class CobranzaReconciler(
 
         /** Barrido tras insertar filas numéricas traídas por by-ids en este mismo tick. */
         private const val FASE_POST_BY_IDS = "post-by-ids"
-
-        /**
-         * Tope de parámetros por `IN (...)`. SQLITE_MAX_VARIABLE_NUMBER es 999
-         * en el SQLite del framework para todo Android por debajo de API 31, y
-         * este módulo declara `minSdk = 24`. Se deja margen por debajo de 999.
-         */
-        private const val SQLITE_MAX_IN_PARAMS = 900
     }
 }
 
