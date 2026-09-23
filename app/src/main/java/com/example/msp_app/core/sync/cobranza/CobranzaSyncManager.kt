@@ -771,11 +771,16 @@ class CobranzaSyncManager(
      *    borra sin reponer nada.
      *
      * La partición evita una segunda pasada y mantiene la ergonomía del
-     * `paymentDao.saveAll` actual (un solo UPSERT batch). Los DELETE se
-     * ejecutan en secuencia por simplicidad — el volumen por página
-     * (`limit=1000`) hace que el costo de N statements sea despreciable
-     * comparado con un único `DELETE ... WHERE ID IN (...)`. Si crece la
-     * presión, [PaymentDao.deleteByIDs] está disponible para bulk.
+     * `paymentDao.saveAll` actual (un solo UPSERT batch). Los DELETE de
+     * tombstone se ejecutan en secuencia por simplicidad: son uno por fila
+     * cancelada, que es un puñado por página.
+     *
+     * **Los tres `IN (...)` van troceados a [SQLITE_MAX_IN_PARAMS].** El
+     * `limit` de `/sync/pagos` es **1000** y el tope de SQLite en Android ≤ 11
+     * es **999**: una página llena revienta con *"too many SQL variables"* por
+     * una sola fila de margen. No es teórico y no es cosmético — el margen
+     * era de uno. Ver [SQLITE_MAX_IN_PARAMS] para el porqué y para por qué
+     * ninguna prueba puede atraparlo.
      *
      * Todo el merge corre en una sola transacción para que el colapso del
      * gemelo UUID y el upsert/delete de la fila numérica sean atómicos: si
@@ -796,18 +801,24 @@ class CobranzaSyncManager(
             // mismo pago queda dos veces en Room y el cobrador ve todos sus
             // totales al doble. Aplica a `items` completo — vivos y
             // tombstones: si el cargo se canceló, el gemelo viejo también se
-            // va. Un solo DELETE por página, no uno por fila.
+            // va. Un DELETE por trozo, no uno por fila.
             if (doctoCcIds.isNotEmpty()) {
-                val legacyTwins = paymentDao.deleteLegacyTwinsByDoctoCcIds(doctoCcIds)
+                var legacyTwins = 0
+                doctoCcIds.chunked(SQLITE_MAX_IN_PARAMS).forEach { trozo ->
+                    legacyTwins += paymentDao.deleteLegacyTwinsByDoctoCcIds(trozo)
+                }
                 if (legacyTwins > 0) {
                     Log.i(TAG, "mergePagos: colapsando $legacyTwins gemelo(s) legacy")
                 }
             }
             if (pagoRecibidoIds.isNotEmpty()) {
-                val uuidTwins = paymentDao.filterExistingIDs(pagoRecibidoIds)
+                val uuidTwins = pagoRecibidoIds.chunked(SQLITE_MAX_IN_PARAMS)
+                    .flatMap { trozo -> paymentDao.filterExistingIDs(trozo) }
                 if (uuidTwins.isNotEmpty()) {
                     Log.i(TAG, "mergePagos: colapsando ${uuidTwins.size} gemelo(s) UUID")
-                    paymentDao.deleteByIDs(uuidTwins)
+                    uuidTwins.chunked(SQLITE_MAX_IN_PARAMS).forEach { trozo ->
+                        paymentDao.deleteByIDs(trozo)
+                    }
                 }
             }
             for (t in tombstones) {

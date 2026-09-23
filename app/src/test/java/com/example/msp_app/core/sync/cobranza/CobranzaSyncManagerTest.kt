@@ -2371,8 +2371,18 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             ventas = listOf(page(items = listOf(ventaDto(400)), hasMore = false)),
             pagos = listOf(pagoPage(emptyList(), hasMore = false))
         )
-        // Captura local: UUID, sin fila numérica que la nombre.
-        db.paymentDao().saveAll(listOf(samplePayment(400).copy(ID = "uuid-400", IMPORTE = 150.0)))
+        // Captura local todavía sin subir: Microsip no le asignó documento
+        // (DOCTO_CC_ID = 0), así que el saldo del servidor no puede traerla.
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(400).copy(
+                    ID = "uuid-400",
+                    IMPORTE = 150.0,
+                    DOCTO_CC_ID = 0,
+                    GUARDADO_EN_MICROSIP = false
+                )
+            )
+        )
 
         newManager(api).syncNow()
 
@@ -2429,7 +2439,16 @@ class CobranzaSyncManagerTest : RoomTestBase() {
         )
         // La venta ya estaba en el teléfono con el saldo viejo ya descontado.
         db.saleDao().insertAll(listOf(ventaDto(402).toEntity().copy(SALDO_REST = 3850.0)))
-        db.paymentDao().saveAll(listOf(samplePayment(402).copy(ID = "uuid-402", IMPORTE = 150.0)))
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(402).copy(
+                    ID = "uuid-402",
+                    IMPORTE = 150.0,
+                    DOCTO_CC_ID = 0,
+                    GUARDADO_EN_MICROSIP = false
+                )
+            )
+        )
 
         newManager(api).syncNow()
 
@@ -2463,11 +2482,302 @@ class CobranzaSyncManagerTest : RoomTestBase() {
             ventas = listOf(page(items = listOf(ventaDto(404)), hasMore = false)),
             pagos = listOf(pagoPage(emptyList(), hasMore = false))
         )
-        db.paymentDao().saveAll(listOf(samplePayment(999).copy(ID = "uuid-999", IMPORTE = 150.0)))
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(999).copy(
+                    ID = "uuid-999",
+                    IMPORTE = 150.0,
+                    DOCTO_CC_ID = 0,
+                    GUARDADO_EN_MICROSIP = false
+                )
+            )
+        )
 
         newManager(api).syncNow()
 
         assertEquals(4000.0, db.saleDao().findByDoctoCcId(404)!!.SALDO_REST, 0.001)
+    }
+
+    // ─── Los ÓRDENES de llegada de los dos canales ─────────────────────
+    //
+    // El defecto de "un pago de $100 baja el saldo $200" no vive en un
+    // estado: vive en una TRANSICIÓN. El saldo y el pago del mismo cobro
+    // viajan por canales distintos —/sync/ventas y /sync/pagos— con cursores
+    // independientes, y `syncNow` consulta pagos ANTES que ventas, así que la
+    // foto de pagos del servidor es siempre más vieja que la de ventas: todo
+    // pago aplicado en esa ventana llega con su saldo ya descontado y su fila
+    // numérica todavía no. Medido en producción (crédito 15689642, 2026-09-23)
+    // el saldo se publicó 3 ms antes que el pago.
+    //
+    // Las pruebas que ya existen precargan el estado FINAL con `saveAll(...)`
+    // y por eso ninguna vio el defecto. Estas cinco recorren las secuencias de
+    // llegada posibles para UN mismo pago y afirman el MISMO número final: el
+    // saldo del servidor una vez que reconoció el pago. Si dos secuencias dan
+    // números distintos, el orden de la red le está cambiando el dinero al
+    // cobrador.
+
+    /** Saldo del servidor antes de que el cobro entrara: 4900. */
+    private val saldoAntesDelCobro = "4900.00"
+
+    /** Saldo del servidor una vez aplicado el cobro: 4900 − 100. */
+    private val saldoDespuesDelCobro = "4800.00"
+
+    /** Importe del cobro capturado en el teléfono. */
+    private val importeDelCobro = 100.0
+
+    /**
+     * El único saldo correcto, y el mismo para las cinco secuencias: el del
+     * servidor con el pago ya aplicado. Cualquier otra cifra es dinero mal
+     * dicho — por debajo, la app ofrece liquidar con menos de lo que se debe.
+     */
+    private val saldoCorrecto = 4800.0
+
+    /**
+     * Deja el cobro como queda en el teléfono **una vez subido y aplicado**,
+     * que es el estado del que parten las cinco secuencias.
+     *
+     * Las dos escrituras de la captura, las mismas que hace
+     * `PaymentsLocalDataSource.insertPaymentAndUpdateSale`: la fila del pago y
+     * el descuento de `SALDO_REST` en el mismo paso. No se llama al data
+     * source real porque vive en otra capa; del camino de captura lo que
+     * importa son exactamente esas dos.
+     *
+     * Y una tercera, la de `PendingPaymentsWorker.persistDoctoCcId`: el
+     * `DOCTO_CC_ID` que devolvió el servidor al aplicar el abono. Sin ella el
+     * escenario sería incoherente — si Microsip no le hubiera asignado
+     * documento, el saldo del servidor no podría traer el pago descontado, y
+     * las cinco secuencias parten justo de que sí lo trae.
+     */
+    private suspend fun capturaElCobro(cargo: Int, uuid: String) {
+        db.saleDao().insertAll(
+            listOf(ventaDto(cargo).copy(saldo = saldoAntesDelCobro).toEntity())
+        )
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(cargo).copy(
+                    ID = uuid,
+                    IMPORTE = importeDelCobro,
+                    // Documento asignado por Microsip: el servidor ya lo aplicó.
+                    DOCTO_CC_ID = cargo + 1,
+                    GUARDADO_EN_MICROSIP = true
+                )
+            )
+        )
+        db.saleDao().updateTotal(cargo, importeDelCobro, EstadoCobranza.PAGADO)
+    }
+
+    /** La venta tal como la publica el servidor ya con el cobro aplicado. */
+    private fun ventaConElCobroAplicado(cargo: Int) =
+        ventaDto(cargo).copy(saldo = saldoDespuesDelCobro)
+
+    /** La fila numérica del cobro tal como la publica /sync/pagos. */
+    private fun pagoDelCobro(cargo: Int, uuid: String?) =
+        pagoDto(impteId = 9_000 + cargo, doctoCcId = cargo, pagoRecibidoId = uuid)
+            .copy(importe = "100.00")
+
+    private suspend fun assertSaldoCorrecto(cargo: Int, secuencia: String) {
+        val saldo = db.saleDao().findByDoctoCcId(cargo)!!.SALDO_REST
+        assertEquals(
+            "secuencia «$secuencia»: el saldo final debe ser el del servidor",
+            saldoCorrecto,
+            saldo,
+            0.001
+        )
+    }
+
+    /**
+     * SECUENCIA 1 — el saldo llega ANTES que el pago. Es la que fallaba en la
+     * calle: el tick bajaba la venta con el cobro ya descontado, el predicado
+     * de "en vuelo" no encontraba quién nombrara al UUID y se lo restaba otra
+     * vez. 4800 − 100 = 4700, y ahí se quedaba.
+     */
+    @Test
+    fun elSaldoFinalEsElMismoCuandoElSaldoLlegaAntesQueElPago() = runTest {
+        val cargo = 500
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = listOf(ventaConElCobroAplicado(cargo)), hasMore = false),
+                page(items = emptyList(), hasMore = false)
+            ),
+            pagos = listOf(
+                pagoPage(emptyList(), hasMore = false),
+                pagoPage(listOf(pagoDelCobro(cargo, "uuid-$cargo")), hasMore = false)
+            )
+        )
+        capturaElCobro(cargo, "uuid-$cargo")
+        val mgr = newManager(api)
+
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertSaldoCorrecto(cargo, "saldo antes que pago")
+    }
+
+    /**
+     * SECUENCIA 2 — el pago llega ANTES que el saldo. El gemelo se colapsa
+     * primero, así que cuando baja la venta ya no hay nada en vuelo.
+     */
+    @Test
+    fun elSaldoFinalEsElMismoCuandoElPagoLlegaAntesQueElSaldo() = runTest {
+        val cargo = 501
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = emptyList(), hasMore = false),
+                page(items = listOf(ventaConElCobroAplicado(cargo)), hasMore = false)
+            ),
+            pagos = listOf(
+                pagoPage(listOf(pagoDelCobro(cargo, "uuid-$cargo")), hasMore = false),
+                pagoPage(emptyList(), hasMore = false)
+            )
+        )
+        capturaElCobro(cargo, "uuid-$cargo")
+        val mgr = newManager(api)
+
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertSaldoCorrecto(cargo, "pago antes que saldo")
+    }
+
+    /** SECUENCIA 3 — los dos canales entregan en el MISMO tick. */
+    @Test
+    fun elSaldoFinalEsElMismoCuandoLosDosLleganEnElMismoTick() = runTest {
+        val cargo = 502
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = listOf(ventaConElCobroAplicado(cargo)), hasMore = false)
+            ),
+            pagos = listOf(
+                pagoPage(listOf(pagoDelCobro(cargo, "uuid-$cargo")), hasMore = false)
+            )
+        )
+        capturaElCobro(cargo, "uuid-$cargo")
+
+        newManager(api).syncNow()
+
+        assertSaldoCorrecto(cargo, "mismo tick")
+    }
+
+    /**
+     * SECUENCIA 4 — el pago llega PARTIDO en dos ticks: primero la fila
+     * numérica sin `pago_recibido_id` (el servidor aún no resuelve su origen)
+     * y en el tick siguiente la misma fila ya nombrando al UUID, que es
+     * cuando ocurre el colapso. Entre uno y otro baja el saldo.
+     */
+    @Test
+    fun elSaldoFinalEsElMismoCuandoElPagoLlegaPartidoEnDosTicks() = runTest {
+        val cargo = 503
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = listOf(ventaConElCobroAplicado(cargo)), hasMore = false),
+                page(items = emptyList(), hasMore = false)
+            ),
+            pagos = listOf(
+                pagoPage(listOf(pagoDelCobro(cargo, uuid = null)), hasMore = false),
+                pagoPage(listOf(pagoDelCobro(cargo, "uuid-$cargo")), hasMore = false)
+            )
+        )
+        capturaElCobro(cargo, "uuid-$cargo")
+        val mgr = newManager(api)
+
+        mgr.syncNow()
+        mgr.syncNow()
+
+        assertSaldoCorrecto(cargo, "pago partido en dos ticks")
+    }
+
+    /**
+     * SECUENCIA 5 — el gemelo ya venía colapsado de un tick anterior: en
+     * local sólo queda la fila numérica. Es el caso que las pruebas actuales
+     * ya cubrían, y aquí sirve de control: si ésta también fallara, el
+     * problema no sería el orden.
+     */
+    @Test
+    fun elSaldoFinalEsElMismoCuandoElGemeloYaVeniaColapsado() = runTest {
+        val cargo = 504
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = listOf(ventaConElCobroAplicado(cargo)), hasMore = false)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        capturaElCobro(cargo, "uuid-$cargo")
+        // El colapso del tick anterior: la UUID ya no está, queda la numérica.
+        db.paymentDao().deleteByID("uuid-$cargo")
+        db.paymentDao().saveAll(listOf(pagoDelCobro(cargo, "uuid-$cargo").toEntity()))
+
+        newManager(api).syncNow()
+
+        assertSaldoCorrecto(cargo, "gemelo ya colapsado")
+    }
+
+    /**
+     * El saldo NO se fosiliza aunque la fila numérica del pago no llegue
+     * nunca por `/sync/pagos`.
+     *
+     * Es la propiedad que faltaba: con el criterio anterior —"nadie la nombra
+     * por `PAGO_RECIBIDO_ID`"— el descuento dependía de una entrega que podía
+     * no ocurrir, y cuando por fin ocurría nadie recalculaba el saldo, porque
+     * `SALDO_REST` sólo se reescribe al llegar otro `VentaDto` y el cursor ya
+     * había pasado por ese cargo. Con el criterio del `DOCTO_CC_ID` la
+     * transición es local y no hay nada que esperar: tres ticks seguidos de
+     * ventas, ninguno de pagos, y el saldo se queda en el del servidor.
+     */
+    @Test
+    fun elSaldoNoSeFosilizaAunqueLaFilaNumericaNoLlegueNunca() = runTest {
+        val cargo = 505
+        val api = fakeApi(
+            ventas = List(3) {
+                page(items = listOf(ventaConElCobroAplicado(cargo)), hasMore = false)
+            },
+            pagos = List(3) { pagoPage(emptyList(), hasMore = false) }
+        )
+        capturaElCobro(cargo, "uuid-$cargo")
+        val mgr = newManager(api)
+
+        repeat(3) { mgr.syncNow() }
+
+        assertSaldoCorrecto(cargo, "la fila numérica no llega nunca")
+    }
+
+    /**
+     * Una fila legacy con llave compuesta `"<docto>-<impte>"` no se descuenta
+     * del saldo.
+     *
+     * Esas filas las dejó el sync Node para los abonos capturados en oficina.
+     * Cumplen `ID LIKE '%-%'` y **ningún `PAGO_RECIBIDO_ID` puede nombrarlas**
+     * —el servidor sólo nombra UUID de captura, y un abono de oficina no tiene
+     * fila en `MSP_PAGOS_RECIBIDOS`—, así que con el criterio anterior
+     * contaban como "en vuelo" **para siempre** y se restaban del saldo
+     * indefinidamente. El único que las quita es el colapso del gemelo legacy,
+     * detrás de tres cerrojos que pueden no cumplirse nunca.
+     *
+     * Con el criterio del `DOCTO_CC_ID` dejan de contar: traen el documento
+     * que Microsip les asignó, o sea que el saldo del servidor ya las incluye.
+     */
+    @Test
+    fun laFilaLegacyDeOficinaNoSeDescuentaDelSaldo() = runTest {
+        val cargo = 506
+        val api = fakeApi(
+            ventas = listOf(
+                page(items = listOf(ventaConElCobroAplicado(cargo)), hasMore = false)
+            ),
+            pagos = listOf(pagoPage(emptyList(), hasMore = false))
+        )
+        db.paymentDao().saveAll(
+            listOf(
+                samplePayment(cargo).copy(
+                    ID = "${cargo + 1}-77001",
+                    IMPORTE = importeDelCobro,
+                    DOCTO_CC_ID = cargo + 1,
+                    GUARDADO_EN_MICROSIP = true
+                )
+            )
+        )
+
+        newManager(api).syncNow()
+
+        assertSaldoCorrecto(cargo, "fila legacy de oficina")
     }
 
     private fun samplePayment(doctoCcId: Int) = PaymentEntity(
