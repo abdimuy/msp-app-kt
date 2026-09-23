@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.createGraph
 import androidx.navigation.testing.TestNavHostController
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.common.location.SaleDistance
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.speech.ui.DictadoRutas
 import com.example.msp_app.data.models.payment.Payment
@@ -14,6 +15,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
+import com.example.msp_app.features.home.components.homenearbyclientssection.NearbyClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -85,6 +87,21 @@ class ReglaDelOrigenTest {
     @Test
     fun `desde la lista, tocar una puerta entra al CLIENTE`() {
         nav.navigate(PagosRutas.detalleCliente(CLIENTE))
+        assertEquals(PagosRutas.DETALLE_CLIENTE, ruta())
+        assertEquals(CLIENTE, argInt(PagosRutas.ARG_CLIENTE_ID))
+    }
+
+    /**
+     * Punto de entrada: la lista de **clientes cercanos** de la pantalla
+     * principal. Estuvo fuera desde el `d76d8f69` y vuelve en esta rama; cuando
+     * existía llevaba al **detalle de venta**, porque la maquinaria de cercanía
+     * razona en ventas. Ahora la fila ya viene colapsada por cliente y entra por
+     * la misma puerta que la lista de cobranza: la regla del origen no tiene
+     * excepciones.
+     */
+    @Test
+    fun `desde la lista de cercanos se entra al CLIENTE`() {
+        nav.navigate(DestinosDeCobranza.clienteCercano(clienteCercano()))
         assertEquals(PagosRutas.DETALLE_CLIENTE, ruta())
         assertEquals(CLIENTE, argInt(PagosRutas.ARG_CLIENTE_ID))
     }
@@ -427,6 +444,15 @@ class ReglaDelOrigenTest {
         FORMA_COBRO_ID = 1,
         ZONA_CLIENTE_ID = 7,
         NOMBRE_CLIENTE = "María Guadalupe Rentería"
+    )
+
+    /** Una fila de la lista de clientes cercanos de la pantalla principal. */
+    private fun clienteCercano(): NearbyClient = NearbyClient(
+        clientId = CLIENTE,
+        name = "María Guadalupe Rentería",
+        address = "Av. Juárez 1188, Delicias",
+        accounts = 2,
+        distance = SaleDistance.of(850.0)
     )
 
     private fun venta(): Sale = Sale(
