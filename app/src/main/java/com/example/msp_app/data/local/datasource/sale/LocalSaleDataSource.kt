@@ -2,9 +2,11 @@ package com.example.msp_app.data.local.datasource.sale
 
 import android.content.Context
 import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.localsale.LocalSaleClaimLeases
 import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
 import com.example.msp_app.core.database.entities.LocalSaleEntity
 import com.example.msp_app.core.database.entities.LocalSaleImageEntity
+import com.example.msp_app.core.database.entities.SaleClaimSnapshot
 import javax.inject.Inject
 
 class LocalSaleDataSource @Inject constructor(
@@ -56,8 +58,112 @@ class LocalSaleDataSource @Inject constructor(
         localSaleDao.updateSaleStatus(saleId, enviado)
     }
 
+    /**
+     * TODAS las ventas sin enviar, tengan o no un candado vigente. Es el
+     * número que la UI enseña como "pendientes" (`NewLocalSaleViewModel`):
+     * una venta que el dueño está corrigiendo ahora mismo sigue siendo una
+     * venta pendiente para él. **No es la lista del barrido** — ésa es
+     * [getUploadableSales], que sí respeta el candado.
+     */
     suspend fun getPendingSales(): List<LocalSaleEntity> {
         return localSaleDao.getSalesByStatus(false)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // La compuerta de la carrera corregir-vs-subir (Task 4 del plan
+    // "Corregir una venta antes de que suba"). Los arrendamientos NO son
+    // parámetros de estos métodos a propósito: salen de
+    // [LocalSaleClaimLeases], la fuente única de producción, para que nadie
+    // pueda llamar al DAO con un arrendamiento inventado a mano.
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Ventas que el BARRIDO puede reencolar: sin enviar y sin candado
+     * vigente de ningún tipo. Reemplaza a [getPendingSales] en
+     * `PendingWorkSyncFactory` — sin esto el barrido encolaría en cada
+     * apertura de sesión la venta que el dueño está corrigiendo, y ese
+     * trabajo sólo puede chocar contra el fence del candado: quema un
+     * reintento y se pelea con el subidor.
+     */
+    suspend fun getUploadableSales(now: Long): List<LocalSaleEntity> {
+        return localSaleDao.getUploadableSales(
+            now = now,
+            editLeaseMs = LocalSaleClaimLeases.EDIT_LEASE_MS,
+            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+            remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
+        )
+    }
+
+    /**
+     * Reclama la venta para SUBIRLA. `false` = hay un candado vigente (de
+     * edición, de otra subida en vuelo, o de una corrección remota — nivel
+     * 2, en la práctica no debería coincidir porque `REMOTE` sólo se acuña
+     * sobre `ENVIADO = 1`) o la venta ya no es subible: el subidor debe
+     * frenarse SIN tocar la red.
+     */
+    suspend fun claimForUpload(saleId: String, claimId: String, now: Long): Boolean {
+        return localSaleDao.claimForUpload(
+            saleId = saleId,
+            claimId = claimId,
+            now = now,
+            editLeaseMs = LocalSaleClaimLeases.EDIT_LEASE_MS,
+            uploadLeaseMs = LocalSaleClaimLeases.UPLOAD_LEASE_MS,
+            remoteLeaseMs = LocalSaleClaimLeases.REMOTE_LEASE_MS
+        ) == 1
+    }
+
+    /**
+     * El latido: renueva el `CLAIMED_AT` de CUALQUIER candado propio
+     * mientras la operación sigue en vuelo (subida del nivel 1, o corrección
+     * remota del nivel 2). Devuelve las filas tocadas — 0 significa que el
+     * candado ya no es nuestro y el latido debe DETENERSE (nunca
+     * re-reclamar: eso le robaría la fila a quien la tiene).
+     */
+    suspend fun renewClaim(saleId: String, claimId: String, now: Long): Int {
+        return localSaleDao.renewClaim(saleId, claimId, now)
+    }
+
+    /** Suelta el candado si sigue siendo nuestro; no-op si ya no lo es. */
+    suspend fun releaseClaim(saleId: String, claimId: String) {
+        localSaleDao.releaseClaim(saleId, claimId)
+    }
+
+    /** Snapshot `(CLAIM_ID, REVISION, ENVIADO)` — el que el subidor toma al reclamar. */
+    suspend fun getSaleClaimSnapshot(saleId: String): SaleClaimSnapshot? {
+        return localSaleDao.getSaleClaimSnapshot(saleId)
+    }
+
+    /**
+     * Ancla la `REVISION` del cuerpo que va a viajar, la PRIMERA vez que se
+     * emite un `POST` para esta venta. Si ya había ancla no la pisa (y
+     * devuelve 0, que no es error). Contra ESE valor compara después
+     * [markSentAndCloseEdit] para decidir si hubo divergencia.
+     */
+    suspend fun recordPostedRevisionIfAbsent(saleId: String, revision: Int): Int {
+        return localSaleDao.recordPostedRevisionIfAbsent(saleId, revision)
+    }
+
+    /**
+     * Borra el ancla que puso ESTE intento, cuando el fallo demuestra que
+     * nunca salió un byte del teléfono. Sólo debe llamarlo quien acaba de
+     * anclar en esta corrida — ver el KDoc del DAO para el falso negativo que
+     * aparece si se llama sin esa condición.
+     */
+    suspend fun clearPostedRevisionIfMine(saleId: String, revision: Int): Int {
+        return localSaleDao.clearPostedRevisionIfMine(saleId, revision)
+    }
+
+    /**
+     * Marca la venta enviada y cierra cualquier candado en UNA sola
+     * sentencia. Si la `REVISION` actual ya no es la del PRIMER cuerpo
+     * posteado (`REVISION_POSTEADA`; [revisionAtClaim] sólo se usa como
+     * respaldo si no hay ancla), marca además `CORRECCION_NO_ENVIADA = 1`:
+     * la divergencia queda visible, nunca pisada en silencio — tanto si el
+     * 2xx llegó directo como si la venta se reconcilió por `GET` tras un
+     * `409`.
+     */
+    suspend fun markSentAndCloseEdit(saleId: String, revisionAtClaim: Int) {
+        localSaleDao.markSentAndCloseEdit(saleId, revisionAtClaim)
     }
 
     suspend fun updateSale(sale: LocalSaleEntity) {

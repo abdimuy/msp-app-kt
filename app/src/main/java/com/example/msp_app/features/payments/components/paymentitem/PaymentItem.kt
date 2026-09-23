@@ -26,11 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavController
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.models.PaymentMethod
 import com.example.msp_app.core.utils.toCurrency
@@ -42,24 +42,39 @@ enum class PaymentItemVariant {
     COMPACT
 }
 
+/** `testTag` del "⋯" de la fila de pago. */
+const val PAYMENT_ITEM_MENU_TAG: String = "payment_item_menu"
+
+/**
+ * Una fila de pago.
+ *
+ * ## Los dos destinos, y por qué son dos (Task 21)
+ *
+ * La fila es un **pago**, así que tocarla entra a **su venta**
+ * ([onClick] por defecto). El "⋯ → ver cliente" entra a la **persona**: es la
+ * puerta al cliente desde el mapa de rutas y desde los pagos del día, donde el
+ * contexto es "quién vive aquí", no "cuál mueble".
+ *
+ * Antes ese menú decía "Ver cliente" y navegaba al detalle de **venta** legado
+ * (`sales/sale_details/{DOCTO_CC_ACR_ID}`): la etiqueta y el destino no
+ * coincidían. Ahora coinciden.
+ *
+ * El componente ya no recibe un `NavController`: recibe las dos acciones. Así el
+ * destino se decide en un solo lugar ([com.example.msp_app.navigation.DestinosDeCobranza])
+ * y esta fila se prueba sin grafo de navegación.
+ */
 @SuppressLint("DefaultLocale")
 @Composable
 fun PaymentItem(
     payment: Payment,
     variant: PaymentItemVariant = PaymentItemVariant.DEFAULT,
-    navController: NavController,
+    onVerCliente: () -> Unit,
     onClick: () -> Unit = {}
 ) {
     val isDark = ThemeController.isDarkMode
     val menuExpanded = remember { mutableStateOf(false) }
 
     val paymentMethod = PaymentMethod.fromId(payment.FORMA_COBRO_ID).label.uppercase()
-
-    fun goToClientDetails() {
-        navController.navigate(
-            "sales/sale_details/${payment.DOCTO_CC_ACR_ID}"
-        )
-    }
 
     if (variant == PaymentItemVariant.DEFAULT) {
         Row(
@@ -129,6 +144,7 @@ fun PaymentItem(
                     modifier = Modifier
                         .size(30.dp)
                         .padding(start = 8.dp)
+                        .testTag(PAYMENT_ITEM_MENU_TAG)
                         .clickable { menuExpanded.value = true }
                 )
                 DropdownMenu(
@@ -139,7 +155,7 @@ fun PaymentItem(
                         text = { Text("Ver cliente") },
                         onClick = {
                             menuExpanded.value = false
-                            goToClientDetails()
+                            onVerCliente()
                         }
                     )
                 }
@@ -215,6 +231,7 @@ fun PaymentItem(
                     modifier = Modifier
                         .size(30.dp)
                         .padding(start = 8.dp)
+                        .testTag(PAYMENT_ITEM_MENU_TAG)
                         .clickable { menuExpanded.value = true }
                 )
                 DropdownMenu(
@@ -225,7 +242,7 @@ fun PaymentItem(
                         text = { Text("Ver cliente") },
                         onClick = {
                             menuExpanded.value = false
-                            goToClientDetails()
+                            onVerCliente()
                         }
                     )
                 }

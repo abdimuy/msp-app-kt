@@ -1,0 +1,315 @@
+package com.example.msp_app.feature.pagos.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.designsystem.component.MspMoneyText
+import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
+import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
+
+/** `testTag` de la hoja que pregunta a cuál cuenta va el abono. */
+const val HOJA_DE_ABONO_TAG: String = "pagos_hoja_abono"
+
+/** `testTag` del velo de la hoja del abono. */
+const val VELO_DEL_ABONO_TAG: String = "pagos_hoja_abono_velo"
+
+/** `testTag` de cada opción de cuenta dentro de la hoja. */
+const val OPCION_DE_CUENTA_TAG: String = "pagos_hoja_abono_opcion"
+
+/** `testTag` del botón que confirma a cuál cuenta entra el dinero. */
+const val CONTINUAR_CON_LA_CUENTA_TAG: String = "pagos_hoja_abono_continuar"
+
+/**
+ * `testTag` del estado de cada opción — "Pagó esta semana", "No estaba", "Cita
+ * 24 sept 16:30", etc. Distinto y por opción para que el dueño pueda diferenciar
+ * de un vistazo a cuál cuenta va el billete.
+ */
+const val ESTADO_DE_LA_OPCION_TAG: String = "pagos_hoja_abono_opcion_estado"
+
+/**
+ * **¿A cuál cuenta entra el abono?**
+ *
+ * ## Por qué es un radio y no casillas
+ *
+ * El dinero entra **completo a una cuenta**. No se reparte: cada abono se
+ * registra contra un `DOCTO_CC_ACR_ID`, y partir un billete entre dos cuentas
+ * serían dos abonos, no uno. La forma tiene que decir esa verdad — con casillas,
+ * el cobrador marcaría dos y esperaría que la app repartiera.
+ *
+ * ## Con una sola cuenta esta hoja NO aparece
+ *
+ * Lo decide `CuentaDelAbono.unica`, no esta pieza: con una cuenta cobrable el
+ * flujo es idéntico al de siempre, un toque y a la captura. La hoja es el precio
+ * de tener dos o más, y solo se cobra ahí.
+ *
+ * ## Qué trae cada opción, y por qué eso
+ *
+ * El nombre del producto (no el folio — "V-5021" no le dice nada a nadie parado
+ * en una puerta) y, debajo, **su estado** — "Pagó esta semana", "No estaba",
+ * "Cita 24 sept 16:30" — con la misma pieza ([ChipDeEstado]) que ya usan el
+ * detalle de cliente y el de venta, para que dos cuentas con estados distintos
+ * se vean distintas y el cobrador no tenga que adivinar cuál ya cobró y cuál
+ * sigue pendiente. A la derecha, lo que le toca de parcialidad y, si trae
+ * atrasos, la pastilla ámbar — dato DISTINTO al estado: atrasos cuenta cuántos
+ * periodos debe, el estado dice qué pasó en la puerta esta semana. Es
+ * exactamente lo que hace falta para decidir a cuál va el billete, sin tener
+ * que salir a mirar.
+ *
+ * **La selección va en `brand`, nunca en el color del estado.** El rojo de esta
+ * app significa "se negó"; usarlo para "elegiste esto" convierte una captura en
+ * una alarma.
+ *
+ * El velo consume el toque y equivale a cancelar: nada se registra.
+ *
+ * ## Por qué esta hoja pide su propio `navigationBarsPadding()`
+ *
+ * Es la **única rota de las cinco de la pantalla**, y lo fue por caer entre dos
+ * redes. Tres hojas heredan el `systemBarsPadding()` de `DetalleClienteContent`
+ * porque se invocan DENTRO de ese `Column` padeado; `HojaDeLaFicha` se salva
+ * sola porque el `ModalBottomSheet` de M3 1.3.0 ya aplica
+ * `safeDrawing.only(Bottom)`. Esta no es M3 y se invoca **fuera** del `Column`
+ * —que cierra antes de la llamada—, así que arrancaba pegada a `y = alto` con la
+ * ventana de navegación de SystemUI encima: en el SM-A256E el dueño lo vio en
+ * vidrio, **"Continuar" queda debajo de la barra y no se puede tocar**. No es que
+ * el toque no haga nada: el evento ni siquiera entra al proceso.
+ *
+ * **El padding va DESPUÉS del `.background(...)`, a propósito.** El precedente
+ * exacto es `BlurredActionBar.kt:126` (`:feature:collectionReport`): el fondo se
+ * pinta ANTES del padding, así que son los botones —no el fondo— los que suben.
+ * Al revés, el fondo se encogería con el contenido y quedaría una franja del color
+ * de la PANTALLA debajo de la hoja, justo encima de la barra: la hoja dejaría de
+ * estar pegada al borde de abajo.
+ *
+ * **Y es `navigationBarsPadding()`, no `systemBarsPadding()`.** La hoja arranca
+ * pegada abajo y nunca toca la barra de estado; el inset de arriba solo le metería
+ * una franja muerta encima del título — separación que nadie pidió en una hoja que
+ * no llega ahí. La compuerta es `LaHojaDelAbonoNoQuedaBajoLaBarraTest`.
+ */
+@Composable
+fun HojaDeAbono(
+    cuentas: List<VentaDelCliente>,
+    elegida: Int?,
+    onElegir: (Int) -> Unit,
+    onContinuar: () -> Unit,
+    onCerrar: () -> Unit,
+    modifier: Modifier = Modifier,
+    ocultos: Boolean = false
+) {
+    if (cuentas.isEmpty()) return
+    Box(modifier = modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(VELO)
+                .pointerInput(Unit) { detectTapGestures { onCerrar() } }
+                .testTag(VELO_DEL_ABONO_TAG)
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                // `background(color, shape)` y NO `clip(shape) + background`.
+                //
+                // **Con el `clip`, esta hoja no se puede probar.**
+                // `LaHojaDelAbonoDejaElegirCuentaTest` lo mide: bajo Robolectric,
+                // tocar una opción no llamaba a `onElegir` y tocar "Continuar" no
+                // llamaba a `onContinuar` — cero veces, sin error ni línea en
+                // logcat. Se aisló cuál de las dos trampas conocidas era,
+                // cambiando una a la vez: quitar SÓLO el `detectTapGestures` de
+                // abajo deja los toques igual de muertos; quitar SÓLO el `clip`
+                // los revive. El gesto inerte del padre no es el culpable.
+                //
+                // El mecanismo es el que `HojaDeConfirmacion` ya documenta: con
+                // esquinas DESIGUALES, `isInRoundedRect` no resuelve la
+                // contención con `cornersFit` y cae a `isInPath` -> `Path.op`,
+                // **que sin gráficos nativos** deja el hit-test de los
+                // descendientes en cero.
+                //
+                // **No está demostrado que fuera un defecto en el aparato, y hay
+                // evidencia de lo contrario**: el 2026-09-22, con este mismo
+                // `clip` puesto, se eligió una cuenta y se tocó "Continuar" en un
+                // Galaxy A25 y el flujo avanzó a la pantalla de abono con la
+                // cuenta correcta. O sea que la falla es del entorno de prueba —
+                // "sin gráficos nativos" es justo la condición que el teléfono no
+                // cumple. Quitar el `clip` se queda porque **una pantalla de
+                // dinero que no se puede probar es un problema por sí sola**, y
+                // porque el recorte no hacía falta: la hoja no desborda y la forma
+                // la pinta el propio `background`. No se queda por arreglar un
+                // defecto de producción que nadie ha visto.
+                .background(MspTheme.colors.surface, FORMA_DE_LA_HOJA)
+                // La hoja se come el toque para que nada de abajo se alcance
+                // mientras está arriba: la mitad de "ninguna ruta guarda dos veces".
+                .pointerInput(Unit) { detectTapGestures { } }
+                // DESPUÉS del `background` y ANTES del `padding`, como
+                // `BlurredActionBar.kt:126`: el fondo ya se pintó, así que suben
+                // los botones y no el fondo. Antes del `background` dejaría una
+                // franja del color de la pantalla debajo de la hoja.
+                .navigationBarsPadding()
+                .padding(MspTheme.spacing.md)
+                .testTag(HOJA_DE_ABONO_TAG)
+        ) {
+            Text(
+                text = "¿A cuál cuenta?",
+                style = MspTheme.type.cardTitle,
+                color = MspTheme.colors.onSurface
+            )
+            Spacer(Modifier.height(MspTheme.spacing.xs))
+            Text(
+                text = "El abono entra completo a una",
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted
+            )
+            Spacer(Modifier.height(MspTheme.spacing.md))
+            cuentas.forEach { cuenta ->
+                OpcionDeCuenta(
+                    cuenta = cuenta,
+                    seleccionada = cuenta.ventaId == elegida,
+                    ocultos = ocultos,
+                    onElegir = { onElegir(cuenta.ventaId) }
+                )
+                Spacer(Modifier.height(MspTheme.spacing.sm))
+            }
+            Spacer(Modifier.height(MspTheme.spacing.xs))
+            MspPrimaryFieldButton(
+                text = "Continuar",
+                onClick = onContinuar,
+                enabled = elegida != null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(CONTINUAR_CON_LA_CUENTA_TAG)
+            )
+        }
+    }
+}
+
+@Composable
+private fun OpcionDeCuenta(
+    cuenta: VentaDelCliente,
+    seleccionada: Boolean,
+    ocultos: Boolean,
+    onElegir: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onElegir,
+        shape = MspTheme.shapes.field,
+        color = if (seleccionada) MspTheme.colors.brandTint else MspTheme.colors.surface2,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = TOQUE_DE_LA_OPCION)
+            .testTag(OPCION_DE_CUENTA_TAG)
+    ) {
+        Row(
+            modifier = Modifier.padding(MspTheme.spacing.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)
+        ) {
+            Anillo(seleccionada)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = cuenta.descripcion.ifBlank { cuenta.folio },
+                    style = MspTheme.type.listTitle,
+                    color = MspTheme.colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(MspTheme.spacing.xs))
+                Box(modifier = Modifier.testTag(ESTADO_DE_LA_OPCION_TAG)) {
+                    ChipDeEstado(cuenta.estado)
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                MspMoneyText(
+                    amount = cuenta.parcialidad.amount,
+                    masked = ocultos,
+                    style = MspTheme.type.amountInline,
+                    color = MspTheme.colors.onSurface
+                )
+                if (cuenta.atrasos > 0) {
+                    Spacer(Modifier.height(MspTheme.spacing.xs))
+                    Text(
+                        text = if (cuenta.atrasos == 1) {
+                            "1 atraso"
+                        } else {
+                            "${cuenta.atrasos} atrasos"
+                        },
+                        style = MspTheme.type.chipLabel,
+                        color = MspTheme.colors.statusPartial,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(MspTheme.shapes.chip)
+                            .background(MspTheme.colors.statusPartialTint)
+                            .padding(
+                                horizontal = MspTheme.spacing.sm,
+                                vertical = MspTheme.spacing.xs
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * El anillo del radio.
+ *
+ * Es un portador que **no es color**: con solo el fondo tintado, en oscuro y a
+ * plena luz del sol la opción elegida y las otras se parecen demasiado. El punto
+ * lleno dentro del anillo se ve aunque el tint no se distinga.
+ */
+@Composable
+private fun Anillo(seleccionada: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(ANILLO)
+            .clip(MspTheme.shapes.chip)
+            .background(if (seleccionada) MspTheme.colors.brand else MspTheme.colors.progressTrack),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(if (seleccionada) PUNTO else ANILLO - BORDE)
+                .clip(MspTheme.shapes.chip)
+                .background(if (seleccionada) MspTheme.colors.onBrand else MspTheme.colors.surface2)
+        )
+    }
+}
+
+/** El velo que tapa la pantalla mientras la hoja está arriba. */
+private val VELO = Color(0x99000000)
+
+/** La hoja redondea solo arriba: abajo se pega al borde de la pantalla. */
+private val FORMA_DE_LA_HOJA = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+
+/** Alto mínimo de una opción — la regla de 50 dp del repo, no los 48 de Material. */
+private val TOQUE_DE_LA_OPCION = 50.dp
+
+private val ANILLO = 22.dp
+
+private val BORDE = 3.dp
+
+private val PUNTO = 8.dp

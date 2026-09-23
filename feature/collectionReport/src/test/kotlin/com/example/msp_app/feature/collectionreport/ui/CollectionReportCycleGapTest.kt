@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.feature.collectionreport.data.fake.FakeHistoricalTotalsPort
@@ -12,7 +13,6 @@ import com.example.msp_app.feature.collectionreport.data.fake.FakeUserCyclePort
 import com.example.msp_app.feature.collectionreport.data.fake.FakeVisitsPort
 import com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza

@@ -84,7 +84,21 @@ silencioso en cada tick**.
 
 ## 3. UI
 
-- Texto de usuario en **español**, minúsculas, sin punto final.
+- Texto de usuario en **español**, con **mayúscula inicial**, sin punto final.
+  - Se mide sobre **la primera letra, no el primer carácter**: `"¿A cuál cuenta?"`
+    y `"¡Listo!"` cumplen — `¿` y `¡` no son la letra.
+  - Un texto que **arranca con una interpolación o con una cifra** (`"$monto de
+    abono"`, `"3 atrasos"`) queda fuera: no tiene primera letra que medir.
+  - **La única excepción es el sumidero de versalitas**: `LabelDeSeccion`,
+    `TituloDeHoja` y las demás piezas que pintan con `.uppercase(BUSINESS_LOCALE)`.
+    El literal que pasa por ahí no necesita mayúscula inicial porque se la pone el
+    sumidero.
+  - **La fuente de verdad es el brief** (principio 10, rescatado en
+    `docs/superpowers/plans/2026-09-17-principios-cobranza-2026.md`), **nunca un
+    KDoc.** La regla ya se escribió al revés dentro del código —un KDoc dictando
+    minúsculas y un test cobrándolas— y el release salió con *"registrar abono"*.
+    La cobra una compuerta automática en
+    `app/src/test/java/com/example/msp_app/navigation/`.
 - **Minimalista: 2-4 palabras.** Nada de oraciones en banners.
 - **NUNCA diga "ciclo" en la UI** — se dice **"semana"**. El nombre interno sí
   puede ser ciclo.

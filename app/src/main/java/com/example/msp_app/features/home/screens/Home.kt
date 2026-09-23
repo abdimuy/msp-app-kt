@@ -1,10 +1,8 @@
 package com.example.msp_app.features.home.screens
 
 import android.Manifest
-import android.location.Location
 import android.os.Build
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,9 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,14 +47,9 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
-import com.example.msp_app.core.utils.Coord
-import com.example.msp_app.core.utils.LocationTracker
 import com.example.msp_app.core.utils.ResultState
-import com.example.msp_app.core.utils.SaleProximity
-import com.example.msp_app.core.utils.sortGroupsByClosestCentroid
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
-import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
@@ -69,10 +60,9 @@ import com.example.msp_app.features.home.components.homeweeklypaymentssection.Ho
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItem
 import com.example.msp_app.features.payments.components.paymentitem.PaymentItemVariant
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
-import com.example.msp_app.features.sales.components.sale_item.SaleItem
-import com.example.msp_app.features.sales.components.sale_item.SaleItemVariant
 import com.example.msp_app.features.sales.viewmodels.SalesViewModel
 import com.example.msp_app.features.visit.viewmodels.VisitsViewModel
+import com.example.msp_app.navigation.DestinosDeCobranza
 import com.example.msp_app.ui.theme.ThemeController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -89,7 +79,6 @@ fun HomeScreen(navController: NavController) {
     val isDark = ThemeController.isDarkMode
     val listState = rememberLazyListState()
     val primary = MaterialTheme.colorScheme.primary
-    val context = LocalContext.current
 
     val authViewModel = LocalAuthViewModel.current
     val userDataState by authViewModel.userData.collectAsState()
@@ -110,12 +99,6 @@ fun HomeScreen(navController: NavController) {
 
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
 
-    val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
-
-    var closestCentroidsSorted by remember {
-        mutableStateOf<List<SaleProximity>>(emptyList())
-    }
-
     val updateStartOfWeekDateState by authViewModel.updateStartOfWeekDateState.collectAsState()
 
     var showPaymentsDialog by remember { mutableStateOf(false) }
@@ -123,7 +106,6 @@ fun HomeScreen(navController: NavController) {
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
-    var currentLocation by remember { mutableStateOf<Location?>(null) }
 
     var showUpdateDialog by remember { mutableStateOf(false) }
     var dialogTitle by remember { mutableStateOf("") }
@@ -149,7 +131,6 @@ fun HomeScreen(navController: NavController) {
 
             is ResultState.Success -> {
                 salesViewModel.getLocalSales()
-                paymentsViewModel.getCentroidsBySale()
                 visitsViewModel.getPendingVisits()
                 startWeekDate?.let {
                     paymentsViewModel.getPaymentsGroupedByDayWeekly(it)
@@ -161,39 +142,21 @@ fun HomeScreen(navController: NavController) {
         }
     }
 
+    // **La petición de permiso se queda aunque la lista de cercanas se haya ido**
+    // (Task 21). Home es el ÚNICO lugar de la app que pide
+    // `ACCESS_FINE_LOCATION` al arrancar; el resto —`UpdateLocationService`, el
+    // adaptador de ubicación de la visita, el pago— solo lo *usa*. Quitarla con
+    // el bloque de cercanas habría dejado a los cobradores nuevos sin
+    // coordenadas en pagos y visitas, en silencio, hasta que abrieran un mapa.
+    // Lo que sí se fue es el `LocationTracker.locationUpdates()` continuo: su
+    // único consumidor era el orden por cercanía.
     LaunchedEffect(permissionState.status.isGranted) {
-        if (permissionState.status.isGranted) {
-            LocationTracker(context)
-                .locationUpdates()
-                .collect { loc -> currentLocation = loc }
-        } else {
+        if (!permissionState.status.isGranted) {
             permissionState.launchPermissionRequest()
         }
     }
 
-    LaunchedEffect(currentLocation) {
-        currentLocation?.let {
-            when (centroidsBySaleState) {
-                is ResultState.Success -> {
-                    val groups =
-                        (centroidsBySaleState as ResultState.Success<List<PaymentLocationsGroup>>).data
-                    val currentCoord = Coord(
-                        currentLocation!!.latitude,
-                        currentLocation!!.longitude
-                    )
-                    closestCentroidsSorted = sortGroupsByClosestCentroid(
-                        groups,
-                        currentCoord
-                    ).take(10)
-                }
-
-                else -> Unit
-            }
-        }
-    }
-
     LaunchedEffect(Unit) {
-        paymentsViewModel.getCentroidsBySale()
         visitsViewModel.getPendingVisits()
         paymentsViewModel.getPendingPayments()
         guaranteesViewModel.syncPendingGuarantees()
@@ -285,13 +248,6 @@ fun HomeScreen(navController: NavController) {
     val accountsPercentageRounded =
         String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
 
-    val salesMap = remember(salesState) {
-        (salesState as? ResultState.Success<List<SaleWithProducts>>)
-            ?.data
-            ?.associateBy { it.DOCTO_CC_ID }
-            ?: emptyMap()
-    }
-
     val dateInitWeek = userData?.FECHA_CARGA_INICIAL?.toDate()?.toInstant()
         ?.let { AppTime.toBusinessDate(it).toString() }
         ?: ""
@@ -364,42 +320,6 @@ fun HomeScreen(navController: NavController) {
                     }
 
                     item {
-                        Text(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            text = "VENTAS CERCANAS",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Start
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
-
-                    items(
-                        items = closestCentroidsSorted,
-                        key = { it.saleId }
-                    ) { (saleId, distanceToCurrentLocation) ->
-                        salesMap[saleId]?.let { sale ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                SaleItem(
-                                    sale = sale,
-                                    onClick = {
-                                        navController.navigate("sales/sale_details/$saleId")
-                                    },
-                                    variant = SaleItemVariant.SECONDARY,
-                                    distanceToCurrentLocation = distanceToCurrentLocation,
-                                    navController
-                                )
-                            }
-                            Spacer(Modifier.height(8.dp))
-                        }
-                    }
-
-                    item {
                         HomeFooterSection(
                             isDark = isDark,
                             visitsPendingState = visitsPendingState,
@@ -444,7 +364,18 @@ fun HomeScreen(navController: NavController) {
                             PaymentItem(
                                 payment = payment,
                                 variant = PaymentItemVariant.COMPACT,
-                                navController = navController
+                                // Desde un PAGO se entra a SU VENTA; el "⋯ →
+                                // ver cliente" entra a la persona (Task 21).
+                                onVerCliente = {
+                                    navController.navigate(
+                                        DestinosDeCobranza.clienteDeUnPago(payment)
+                                    )
+                                },
+                                onClick = {
+                                    navController.navigate(
+                                        DestinosDeCobranza.ventaDeUnPago(payment)
+                                    )
+                                }
                             )
                         }
                     }

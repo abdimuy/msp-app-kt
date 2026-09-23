@@ -62,8 +62,7 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
                 for (visit in pendingVisits) {
                     enqueuePendingVisitsWorker(
                         visitId = visit.ID,
-                        context = getApplication(),
-                        replace = true
+                        context = getApplication()
                     )
                 }
 
@@ -84,7 +83,9 @@ class VisitsViewModel(application: Application) : AndroidViewModel(application) 
 
             try {
                 withContext(Dispatchers.IO) {
-                    visitStore.insertVisitAndUpdateState(
+                    // Task 5: encola la subida en el mismo guardado, no
+                    // depende de que UpdateLocationService corra.
+                    visitStore.saveVisitAndEnqueue(
                         saleId = saleId,
                         visit = visit.toEntity(),
                         newState = status

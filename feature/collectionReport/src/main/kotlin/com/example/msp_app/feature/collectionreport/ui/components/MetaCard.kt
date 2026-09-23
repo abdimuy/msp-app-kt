@@ -35,7 +35,7 @@ import com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje
  * `period == ReportPeriod.SEMANA` — DÍA no tiene ventana de ciclo que reportar.
  *
  * **Sin `masked`:** a diferencia del resto del tablero, esta tarjeta no muestra ningún
- * [com.example.msp_app.feature.collectionreport.domain.model.Money] — los porcentajes NO se
+ * [com.example.msp_app.core.common.money.Money] — los porcentajes NO se
  * enmascaran (regla de privacidad del piloto: solo montos en pesos se ocultan).
  *
  * **Anillo capado visualmente a 100%** (el trazo nunca da más de una vuelta) aunque

@@ -6,11 +6,9 @@ import androidx.compose.runtime.remember
 import androidx.navigation.NavController
 import com.example.msp_app.core.common.location.SaleDistance
 import com.example.msp_app.data.models.sale.SaleWithProducts
-import com.example.msp_app.data.models.sale.toSale
-import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
 import com.example.msp_app.features.sales.components.primarysaleitem.PrimarySaleItem
 import com.example.msp_app.features.sales.components.secondarysaleitem.SecondarySaleItem
-import com.example.msp_app.features.visit.components.NewVisitDialog
+import com.example.msp_app.navigation.DestinosDeCobranza
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
@@ -19,6 +17,34 @@ enum class SaleItemVariant {
     SECONDARY
 }
 
+/**
+ * La tarjeta de una venta dentro de una lista.
+ *
+ * ## "Agregar visita" ya no abre un diálogo (Task 21)
+ *
+ * El `NewVisitDialog` quedó **retirado**: escribía la fecha de la cita dentro
+ * del texto libre de `NOTA`, así que "pidió reagendar" derivaba a `REGRESAS` y
+ * caía en *vencidos*, mientras el mismo hecho capturado en la pantalla nueva
+ * deriva a `DIFERIDO` y cae en *hoy*. El mismo hecho de campo en dos cubetas
+ * distintas según qué UI abrió el cobrador.
+ *
+ * Ahora la acción **navega** al destino de la Task 19
+ * (`visitas/registrar/{clienteId}?ventaId=…`), que escribe `PROMESA_FECHA`,
+ * `PROMESA_MONTO_CENTAVOS` y `CITA_HORA` en columnas reales.
+ *
+ * ## "Agregar pago" tampoco abre un diálogo (Task 21, ronda 1)
+ *
+ * El `NewPaymentDialog` quedó **retirado**. Acuñaba su clave de idempotencia con
+ * `remember { UUID.randomUUID() }` —que muere al rotar y al morir el proceso, y
+ * ahí el reintento entra como un cobro nuevo— y escribía el pago y el descuento
+ * del saldo por separado, porque su `@Transaction` está fuera de un `@Dao` y no
+ * hace nada. La acción navega ahora a `pagos/abono/{ventaId}`, donde la clave y
+ * el guard viven en el `SavedStateHandle` y las dos escrituras van dentro de
+ * `db.withTransaction`.
+ *
+ * El argumento es el `DOCTO_CC_ACR_ID` de esta fila — [DestinosDeCobranza] lo
+ * dice y lo prueba.
+ */
 @Composable
 fun SaleItem(
     sale: SaleWithProducts,
@@ -32,21 +58,27 @@ fun SaleItem(
     val dateFormatted = parsedDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
     fun onAgregarVisita() {
-        // Implementar la lógica para agregar una visita
+        navController.navigate(DestinosDeCobranza.visitaDeUnaVenta(sale))
+    }
+
+    fun onAgregarAbono() {
+        navController.navigate(DestinosDeCobranza.abonoDeUnaVenta(sale))
     }
 
     val menuExpanded = remember { mutableStateOf(false) }
-    val showPaymentDialog = remember { mutableStateOf(false) }
-    val showVisitDialog = remember { mutableStateOf(false) }
 
     val openMenu: () -> Unit = { menuExpanded.value = true }
     val closeMenu: () -> Unit = { menuExpanded.value = false }
 
-    val openPaymentDialog: () -> Unit = { showPaymentDialog.value = true }
-    val closePaymentDialog: () -> Unit = { showPaymentDialog.value = false }
-
-    val openVisitDialog: () -> Unit = { showVisitDialog.value = true }
-    val closeVisitDialog: () -> Unit = { showVisitDialog.value = false }
+    // Las dos "aperturas de diálogo" son ahora navegaciones a los destinos de
+    // las Tasks 18 y 19. Los cierres quedan en no-op y `showPaymentDialog` en
+    // `false`: la pantalla se cierra sola al volver, y `Primary`/
+    // `SecondarySaleItem` siguen recibiendo el mismo trío sin que haya que
+    // tocarlos ni mover sus goldens.
+    val openPaymentDialog: () -> Unit = { onAgregarAbono() }
+    val closePaymentDialog: () -> Unit = {}
+    val openVisitDialog: () -> Unit = { onAgregarVisita() }
+    val closeVisitDialog: () -> Unit = {}
 
     when (variant) {
         SaleItemVariant.DEFAULT -> {
@@ -61,7 +93,7 @@ fun SaleItem(
                 showMenu = menuExpanded.value,
                 openPaymentDialog = openPaymentDialog,
                 closePaymentDialog = closePaymentDialog,
-                showPaymentDialog = showPaymentDialog.value,
+                showPaymentDialog = false,
                 openVisitDialog = openVisitDialog,
                 closeVisitDialog = closeVisitDialog
             )
@@ -79,30 +111,11 @@ fun SaleItem(
                 showMenu = menuExpanded.value,
                 openPaymentDialog = openPaymentDialog,
                 closePaymentDialog = closePaymentDialog,
-                showPaymentDialog = showPaymentDialog.value,
+                showPaymentDialog = false,
                 distanceToCurrentLocation = distanceToCurrentLocation,
                 openVisitDialog = openVisitDialog,
                 closeVisitDialog = closeVisitDialog
             )
         }
-    }
-
-    if (showPaymentDialog.value) {
-        NewPaymentDialog(
-            show = true,
-            onDismissRequest = { showPaymentDialog.value = false },
-            sale = sale.toSale(),
-            suggestedPayment = sale.PARCIALIDAD,
-            navController = navController
-        )
-    }
-
-    if (showVisitDialog.value) {
-        NewVisitDialog(
-            show = true,
-            onDismissRequest = { showVisitDialog.value = false },
-            sale = sale.toSale(),
-            navController = navController
-        )
     }
 }

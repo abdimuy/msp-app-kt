@@ -72,5 +72,12 @@ gradlePlugin {
             id = "msp.detekt"
             implementationClass = "buildlogic.DetektConventionPlugin"
         }
+        // No configura módulos: publica la marca `CompuertaDelRepo` (el tipo con
+        // el que `prePushCheck` identifica a las compuertas de este repo) y la
+        // red que atrapa a la que se olvidó de llevarla. Lo aplica la raíz.
+        register("compuertas") {
+            id = "msp.compuertas"
+            implementationClass = "buildlogic.CompuertasConventionPlugin"
+        }
     }
 }

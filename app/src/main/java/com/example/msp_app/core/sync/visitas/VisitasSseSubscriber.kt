@@ -1,0 +1,291 @@
+package com.example.msp_app.core.sync.visitas
+
+import android.util.Log
+import com.example.msp_app.core.common.sync.pendingwork.domain.usecases.HandleVisitsPushEventUseCase
+import com.example.msp_app.core.sync.cobranza.UserContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.sse.EventSource
+import okhttp3.sse.EventSourceListener
+import okhttp3.sse.EventSources
+
+/**
+ * Opens the visitas SSE stream and turns each event into a reconciliation
+ * trigger — the fourth and fastest of the visits reconciler's triggers.
+ *
+ * ## Its own stream, not cobranza's
+ *
+ * The server serves visitas on a route of its own
+ * (`/v2/visitas/sync/visitas/zona/{zona}/stream`) rather than adding an event
+ * type to the pagos/saldos streams, and this class is the client half of that
+ * decision. The reason was measured: the cobranza subscriber already in the
+ * field reads the SSE event name into a log line
+ * ([com.example.msp_app.core.sync.cobranza.CobranzaSseSubscriber], the
+ * `onEvent` overrides) and then discards it, deciding what an event means from
+ * which socket delivered it. A second event type on that stream would not have
+ * broken old phones — it would have made every one of them run a full cobranza
+ * cursor sync on every visit confirmed anywhere.
+ *
+ * ## This subscriber does discriminate
+ *
+ * Every event goes through [HandleVisitsPushEventUseCase.onEvent], which
+ * switches on the event NAME and does nothing at all for a name it does not
+ * recognise. That is the forward-compatibility property worth having:
+ * surviving an unknown event is not enough if you then act on it.
+ *
+ * ## It marks nothing
+ *
+ * The event carries no visita ids and this class holds nothing that could
+ * write one. It calls the trigger; the reconciler confirms through `by-ids`.
+ * Task 10's single write path to "synced" is untouched.
+ *
+ * ## Failure behaviour
+ *
+ * - **503** — the server's `VISITAS_SSE_ENABLED` killswitch is off. Latch
+ *   [featureFlagOff], stop retrying, report once. The other three triggers
+ *   keep the reconciler correct; only latency degrades.
+ * - **anything else** — exponential backoff 1s → 2s → 4s → 8s → 16s → 30s
+ *   (cap), reset on each successful connection. Every failure reports.
+ *
+ ## Lifecycle, and why the scope arrives at [start] instead of the constructor
+ *
+ * [start] on ON_START, [stop] on ON_STOP. Both idempotent.
+ *
+ * The [CoroutineScope] every internal launch uses is **bound at [start], not
+ * captured at construction**, and that is a fix for a real defect rather than a
+ * style choice. This class is a process-wide singleton; the scope it was given
+ * is an Activity's `lifecycle.coroutineScope`. Backing out of the app and
+ * relaunching inside the same process destroys that Activity and cancels its
+ * scope, but the cached singleton survives — so a constructor-captured scope is
+ * dead from the second launch onward while the object holding it looks fine.
+ *
+ * The failure is silent in the worst possible way: the socket stays healthy, so
+ * [HandleVisitsPushEventUseCase.onStreamFailure] never fires. Every push would
+ * be dropped by a no-op `launch`, the zone-watch collector would never run, and
+ * the backoff reconnect would never fire — with zero telemetry. A dead fourth
+ * trigger that reports nothing is exactly the outcome this task exists to
+ * prevent.
+ *
+ * Binding at [start] was chosen over giving this class a process-lifetime scope
+ * of its own for two reasons. It is directly testable in the exact production
+ * sequence — cancel scope A, start with scope B, assert a push still triggers —
+ * and it keeps the SSE work inside the foreground lifecycle where it belongs; a
+ * process-lifetime scope would keep reconnect timers alive behind a
+ * backgrounded app unless separately cancelled, which is more state to get
+ * wrong, not less.
+ */
+class VisitasSseSubscriber(
+    private val okHttpClient: OkHttpClient,
+    private val baseUrl: String,
+    private val userContextFlow: StateFlow<UserContext?>,
+    private val handler: HandleVisitsPushEventUseCase
+) {
+    private val mu = Object()
+
+    private var source: EventSource? = null
+
+    private var attempt = 0
+
+    /** Job de observación de zona; se cancela en [stop]. */
+    private var zoneWatchJob: Job? = null
+
+    /**
+     * Se latchea a true cuando el servidor responde 503. Una vez verdadero,
+     * [start] es no-op — no tiene sentido reintentar contra un endpoint que
+     * alguien apagó a propósito.
+     */
+    @Volatile
+    private var featureFlagOff = false
+
+    /** true mientras el stream esté activo (idempotencia de [start]). */
+    @Volatile
+    private var running = false
+
+    /**
+     * El scope vivo del ciclo de vida actual. Se reasigna en cada [start] y se
+     * limpia en [stop], de modo que ningún lanzamiento use jamás el scope de
+     * una Activity ya destruida. Nulo mientras el suscriptor está detenido.
+     */
+    @Volatile
+    private var boundScope: CoroutineScope? = null
+
+    // ─── API pública ─────────────────────────────────────────────────────────
+
+    /**
+     * @param scope el scope del ciclo de vida ACTUAL. Se rebindea en cada
+     *   llamada: una Activity nueva trae un scope vivo y el suscriptor cacheado
+     *   deja de arrastrar el de la anterior, que ya fue cancelado.
+     */
+    fun start(scope: CoroutineScope) {
+        if (featureFlagOff) {
+            Log.i(TAG, "start: feature flag off — SSE de visitas deshabilitado")
+            return
+        }
+        // El rebind va ANTES del early-return por `running`: si el suscriptor
+        // quedó marcado como corriendo con un scope ya muerto, un `start` que
+        // solo retornara lo dejaría muerto para siempre.
+        boundScope = scope
+        if (running) return
+        running = true
+        connect()
+        zoneWatchJob = scope.launch {
+            userContextFlow
+                .distinctUntilChangedBy { it?.zona }
+                // drop(1): el StateFlow re-emite el valor actual al suscribirnos
+                // y `connect()` de arriba ya abrió el stream para esa zona. Sin
+                // el drop se abre un segundo stream y se cancela el primero a
+                // medio vivo — mismo razonamiento que CobranzaSseSubscriber.
+                .drop(1)
+                .collect { ctx ->
+                    if (ctx != null) {
+                        Log.i(TAG, "zona cambiada a ${ctx.zona} — reabriendo stream")
+                        reconnect()
+                    }
+                }
+        }
+    }
+
+    fun stop() {
+        running = false
+        boundScope = null
+        zoneWatchJob?.cancel()
+        zoneWatchJob = null
+        synchronized(mu) {
+            source?.cancel()
+            source = null
+        }
+        Log.i(TAG, "stop: stream cancelado")
+    }
+
+    // ─── Conexión ────────────────────────────────────────────────────────────
+
+    /**
+     * La ruta exige un `zona_id` positivo, así que sin zona no hay stream —
+     * el teléfono se queda con los otros tres disparadores hasta que la zona
+     * llegue, momento en el que [zoneWatchJob] abre el stream. Esto NO es una
+     * pérdida de correctitud: las visitas pendientes no están alcanzadas por
+     * la zona (el `by-ids` de visitas va sin `zona_id`), solo la latencia del
+     * push lo está.
+     */
+    private fun connect() {
+        val zona = userContextFlow.value?.zona ?: run {
+            // Se REPORTA, no solo se loguea: sin esto, "el push nunca se abrió
+            // para este cobrador" y "el push se abrió y está muerto" se ven
+            // idénticos desde fuera del teléfono.
+            Log.i(TAG, "connect: zona todavía null — esperando via zoneWatchJob")
+            handler.onStreamHasNoZone()
+            return
+        }
+        val path = "v2/visitas/sync/visitas/zona/$zona/stream"
+        val request = Request.Builder()
+            .url(baseUrl.trimEnd('/') + "/" + path)
+            .header("Accept", "text/event-stream")
+            .build()
+        val created = EventSources.createFactory(okHttpClient)
+            .newEventSource(request, Listener())
+        synchronized(mu) { source = created }
+        Log.i(TAG, "SSE visitas conectando zona=$zona")
+    }
+
+    private fun reconnect() {
+        synchronized(mu) {
+            source?.cancel()
+            source = null
+            attempt = 0
+        }
+        connect()
+    }
+
+    // ─── Backoff ─────────────────────────────────────────────────────────────
+
+    /** 1s, 2s, 4s, 8s, 16s, 30s, 30s, … */
+    internal fun backoffMillis(attempt: Int): Long {
+        val exp = minOf(attempt, MAX_BACKOFF_EXPONENT)
+        return minOf(BASE_BACKOFF_MS shl exp, MAX_BACKOFF_MS)
+    }
+
+    // ─── Listener ────────────────────────────────────────────────────────────
+
+    private inner class Listener : EventSourceListener() {
+
+        override fun onOpen(eventSource: EventSource, response: Response) {
+            Log.i(TAG, "SSE visitas abierto")
+            synchronized(mu) { attempt = 0 }
+        }
+
+        /**
+         * El `type` SÍ se usa — no es decoración. [HandleVisitsPushEventUseCase]
+         * decide, y un nombre desconocido no dispara nada.
+         */
+        override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+            val scope = boundScope ?: run {
+                // Sin scope vivo no hay a dónde lanzar. Se reporta en vez de
+                // descartarse en silencio: un push perdido sin rastro es
+                // justamente el modo de falla que esta clase evita.
+                handler.onStreamFailure(null, null)
+                return
+            }
+            scope.launch {
+                val outcome = handler.onEvent(type)
+                Log.i(TAG, "SSE visitas evento: type=$type outcome=$outcome")
+            }
+        }
+
+        override fun onClosed(eventSource: EventSource) {
+            Log.i(TAG, "SSE visitas cerrado (cliente)")
+        }
+
+        override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
+            if (response?.code == HTTP_SERVICE_UNAVAILABLE) {
+                Log.w(TAG, "SSE visitas: 503 — flag apagado en el servidor, deteniendo")
+                synchronized(mu) {
+                    featureFlagOff = true
+                    source = null
+                }
+                handler.onStreamDisabledByServer()
+                return
+            }
+            if (!running) return
+
+            // Un stream que se cae sin reportar es invisible por construcción:
+            // el único síntoma sería que las visitas se reconcilian en el tick
+            // de 15 minutos en vez de en segundos.
+            handler.onStreamFailure(t, response?.code)
+
+            val current: Int
+            synchronized(mu) {
+                current = attempt
+                attempt++
+            }
+            val wait = backoffMillis(current)
+            Log.w(TAG, "SSE visitas falló (attempt=$current) — reintento en ${wait}ms")
+            boundScope?.launch {
+                delay(wait)
+                if (running && !featureFlagOff) connect()
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "VisitasSseSubscriber"
+
+        private const val HTTP_SERVICE_UNAVAILABLE = 503
+
+        /** Delay base del backoff exponencial. */
+        const val BASE_BACKOFF_MS = 1_000L
+
+        /** Cap del backoff: no superar 30s. */
+        const val MAX_BACKOFF_MS = 30_000L
+
+        /** 2^5 = 32s → cap a 30s. */
+        private const val MAX_BACKOFF_EXPONENT = 5
+    }
+}

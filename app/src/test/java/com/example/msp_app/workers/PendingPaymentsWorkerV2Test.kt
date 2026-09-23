@@ -7,18 +7,24 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import androidx.work.testing.TestListenableWorkerBuilder
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.time.FakeClock
 import com.example.msp_app.data.api.services.payment.PagoRecibidoDTO
 import com.example.msp_app.data.api.services.payment.PaymentRequest
 import com.example.msp_app.data.api.services.payment.PaymentsApi
 import com.example.msp_app.data.api.services.payment.V2PaymentsApi
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.google.gson.JsonParser
+import java.io.File
 import java.io.IOException
+import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody
@@ -26,9 +32,13 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import retrofit2.HttpException
 import retrofit2.Response
 
@@ -49,6 +59,12 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
 
     private lateinit var context: Context
     private lateinit var paymentsStore: PaymentsLocalDataSource
+
+    /** El instante con el que se estampa `SUBIDA_EN`. Fijo para poder afirmarlo. */
+    private val clock = FakeClock(Instant.parse("2026-09-04T18:00:00Z"))
+
+    @get:Rule
+    val carpeta = TemporaryFolder()
 
     @Before
     fun setUpWorker() {
@@ -88,14 +104,23 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
     // ─── fakes ─────────────────────────────────────────────────────────────────
 
     // `crear` va AL FINAL para que la lambda de cola siga ligándose a ella.
+    //
+    // Las partes de comprobante (Task 22) se GRABAN en [onImagenes] en vez de
+    // pasarse a `crear`: así los tests que no hablan de fotos siguen escritos
+    // con dos parámetros, y los que sí, afirman sobre lo que realmente viajó.
     private fun fakeV2Api(
         obtener: suspend (id: String) -> PagoRecibidoDTO = { throw httpError(404) },
+        onImagenes: (List<MultipartBody.Part>) -> Unit = {},
         crear: suspend (idempotencyKey: String, datos: RequestBody) -> PagoRecibidoDTO
     ): V2PaymentsApi = object : V2PaymentsApi {
         override suspend fun crearPago(
             idempotencyKey: String,
-            datos: RequestBody
-        ): PagoRecibidoDTO = crear(idempotencyKey, datos)
+            datos: RequestBody,
+            imagenes: List<MultipartBody.Part>
+        ): PagoRecibidoDTO {
+            onImagenes(imagenes)
+            return crear(idempotencyKey, datos)
+        }
 
         override suspend fun obtenerPago(id: String): PagoRecibidoDTO = obtener(id)
     }
@@ -147,14 +172,336 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
         return buffer.readUtf8()
     }
 
+    // ─── comprobantes (Task 22) ──────────────────────────────────────────────
+
+    /**
+     * Los comprobantes pendientes del pago viajan **en el mismo request que el
+     * dinero**: campo `imagen` (singular, como declara el servidor) y su `id_<n>`
+     * pareado.
+     *
+     * **Control de reversión:** quitar `imagenes = comprobantes.partes` de la
+     * llamada a `crearPago` pone este test en ROJO.
+     */
+    @Test
+    fun v2_envia_los_comprobantes_pendientes() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+
+        val enviadas = mutableListOf<MultipartBody.Part>()
+        val api = fakeV2Api(onImagenes = { enviadas += it }) { _, _ ->
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertEquals(listOf("imagen", "id_0"), enviadas.map { it.nombre() })
+        assertEquals("IMG-1", enviadas.single { it.nombre() == "id_0" }.texto())
+    }
+
+    /** Un pago sin comprobantes viaja exactamente como antes: sin partes. */
+    @Test
+    fun v2_sin_comprobantes_no_manda_partes() = runTest {
+        seed(pendingPayment())
+
+        val enviadas = mutableListOf<MultipartBody.Part>()
+        val api = fakeV2Api(onImagenes = { enviadas += it }) { _, _ ->
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertTrue(enviadas.isEmpty())
+    }
+
+    /**
+     * **`SUBIDA_EN` marca solo lo que efectivamente subió.** La segunda imagen
+     * ya no tiene archivo, así que no viajó: estamparla sería declarar entregado
+     * un comprobante que el servidor nunca vio.
+     *
+     * La que sí subió pierde su archivo local — el servidor ya la tiene, y en un
+     * teléfono de gama baja cada foto retenida son cientos de KB.
+     */
+    @Test
+    fun v2_marca_subida_solo_lo_que_viajo() = runTest {
+        seed(pendingPayment())
+        val archivo = sembrarImagen("IMG-1", "uno.jpg")
+        sembrarImagenSinArchivo("IMG-2")
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = happyApi()))
+
+        val filas = db.paymentImageDao().getByPagoId("pago-001").associateBy { it.ID }
+        assertEquals("2026-09-04T18:00:00Z", filas.getValue("IMG-1").SUBIDA_EN)
+        assertNull("la que no viajo sigue pendiente", filas.getValue("IMG-2").SUBIDA_EN)
+        assertFalse("el archivo entregado se borra", archivo.exists())
+    }
+
+    /**
+     * **El contrato de la Task 9, del lado del teléfono: el reintento no
+     * duplica.**
+     *
+     * El primer intento se cae por red (nada se marca) y el segundo manda la
+     * MISMA imagen. Lo que hace que el servidor no acabe con dos copias es que
+     * el `id_0` sea el mismo UUID en los dos requests: sin él, el servidor
+     * inventa uno nuevo por intento (`parsePositionalImagenID`) y la foto se
+     * duplica. Después del éxito ya no queda nada pendiente, así que un tercer
+     * intento no mandaría nada.
+     */
+    @Test
+    fun v2_el_reintento_manda_el_mismo_id_de_imagen() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+
+        val idsPorIntento = mutableListOf<List<String>>()
+        val recolector: (List<MultipartBody.Part>) -> Unit = { partes ->
+            idsPorIntento += partes.filter { it.nombre()?.startsWith("id_") == true }
+                .map { it.texto() }
+        }
+
+        val primerIntento = fakeV2Api(onImagenes = recolector) { _, _ ->
+            throw IOException("sin señal en la calle")
+        }
+        assertEquals(ListenableWorker.Result.retry(), buildAndRunWorker(api = primerIntento))
+        assertNull(
+            "un intento fallido no marca nada",
+            db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN
+        )
+
+        val segundoIntento = fakeV2Api(onImagenes = recolector) { _, _ ->
+            PagoRecibidoDTO(id = "pago-001")
+        }
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = segundoIntento))
+
+        assertEquals(
+            "los dos intentos mandan el MISMO id de imagen",
+            listOf(listOf("IMG-1"), listOf("IMG-1")),
+            idsPorIntento
+        )
+        assertNotNull(db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN)
+    }
+
+    /**
+     * Y una imagen ya confirmada **no se vuelve a mandar**: el filtro es
+     * `SUBIDA_EN IS NULL`. Sin él, cada re-encolado del pago volvería a subir
+     * todas sus fotos.
+     */
+    @Test
+    fun v2_no_reenvia_una_imagen_ya_subida() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg", subidaEn = "2026-09-01T10:00:00Z")
+
+        val enviadas = mutableListOf<MultipartBody.Part>()
+        val api = fakeV2Api(onImagenes = { enviadas += it }) { _, _ ->
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertTrue("ya estaba entregada", enviadas.isEmpty())
+    }
+
+    /**
+     * **Control positivo de los dos vacíos de arriba.** El mismo montaje, con una
+     * imagen pendiente y su archivo en su lugar, SÍ manda partes: los `isEmpty()`
+     * de arriba son ausencias medidas, no un cableado que nunca funcionó.
+     */
+    @Test
+    fun v2_control_positivo_una_pendiente_si_viaja() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+
+        val enviadas = mutableListOf<MultipartBody.Part>()
+        val api = fakeV2Api(onImagenes = { enviadas += it }) { _, _ ->
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        buildAndRunWorker(api = api)
+        assertEquals(2, enviadas.size)
+    }
+
+    /**
+     * **Un fallo de LECTURA no sube el pago** (ronda 1, I-2).
+     *
+     * Subirlo sin evidencia quemaría su `datos.id`: el reintento cae en el
+     * replay idempotente del servidor —que descarta los blobs del segundo
+     * request— y `markUploaded` estamparía `SUBIDA_EN` y borraría el archivo
+     * local. Un error pasajero acabaría en un comprobante que nunca llegó al
+     * servidor y ya no existe en el teléfono. Es la misma trampa que
+     * `RECONCILED_VIA_GET` evita, entrando por la otra puerta.
+     *
+     * El pago no se pierde: se reintenta con su misma clave.
+     *
+     * **Control de reversión:** devolver `PartesDeComprobantes` vacío en vez de
+     * `null` desde `comprobantesDe` pone este test en ROJO.
+     */
+    @Test
+    fun v2_si_la_lectura_de_comprobantes_falla_no_se_sube_el_pago() = runTest {
+        seed(pendingPayment())
+        val archivo = sembrarImagen("IMG-1", "uno.jpg")
+
+        var llamadas = 0
+        val api = fakeV2Api { _, _ ->
+            llamadas++
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        val resultado = buildAndRunWorker(
+            api = api,
+            imagenes = PaymentImageDaoQueTruena(db.paymentImageDao())
+        )
+
+        assertEquals(ListenableWorker.Result.retry(), resultado)
+        assertEquals("el id del pago NO se quema", 0, llamadas)
+        assertFalse("y el pago sigue pendiente", guardadoFlag("pago-001"))
+        assertNull(
+            "el comprobante sigue pendiente",
+            db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN
+        )
+        // El mensaje viejo decía "y con su archivo" sin comprobar ningún
+        // archivo. Ahora se comprueba: es la otra mitad de "no se quemó nada".
+        assertTrue("y su archivo sigue en disco", archivo.exists())
+    }
+
+    /**
+     * **Control positivo del FAKE, y de la aserción que cuelga de él.**
+     *
+     * La aserción de arriba dice "el comprobante sigue pendiente". Para que eso
+     * signifique algo, el fake tiene que ser capaz de volverlo NO pendiente: el
+     * único escritor de producción de `SUBIDA_EN` es `marcarSubida`, y este fake
+     * lo declaraba `= Unit`. Con esa versión, la aserción leía su propia semilla
+     * y no podía fallar con ningún worker, correcto o roto.
+     *
+     * **Control de reversión:** volver `marcarSubida(...)` a `= Unit` en el fake
+     * pone este test en ROJO — que es exactamente lo que la undécima aserción
+     * inerte de este plan no tenía.
+     */
+    @Test
+    fun `el fake de comprobantes escribe de verdad, o la asercion de arriba es inerte`() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+        val fake = PaymentImageDaoQueTruena(db.paymentImageDao())
+
+        fake.marcarSubida("IMG-1", "2026-09-04T18:00:00Z")
+
+        assertEquals(
+            "un fake que no escribe vuelve decorativa toda asercion sobre SUBIDA_EN",
+            "2026-09-04T18:00:00Z",
+            db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN
+        )
+    }
+
+    /**
+     * **Control positivo del de arriba.** El mismo montaje con el DAO real SÍ
+     * sube: el `retry` de arriba lo produce el fallo de lectura, no un worker
+     * que dejó de subir.
+     */
+    @Test
+    fun v2_control_positivo_con_el_dao_real_si_sube() = runTest {
+        seed(pendingPayment())
+        sembrarImagen("IMG-1", "uno.jpg")
+
+        var llamadas = 0
+        val api = fakeV2Api { _, _ ->
+            llamadas++
+            PagoRecibidoDTO(id = "pago-001")
+        }
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = api))
+        assertEquals(1, llamadas)
+    }
+
+    /**
+     * Una imagen **omitida** no es un fallo de lectura: el pago sí sube —la foto
+     * nunca lo bloquea— y la fila se queda pendiente en vez de estamparse. Es la
+     * frontera exacta entre I-2 y el comportamiento que se quiere conservar.
+     */
+    @Test
+    fun v2_una_imagen_omitida_no_impide_subir_el_pago() = runTest {
+        seed(pendingPayment())
+        sembrarImagenSinArchivo("IMG-SIN-ARCHIVO")
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(api = happyApi()))
+        assertTrue(guardadoFlag("pago-001"))
+        assertNull(db.paymentImageDao().getByPagoId("pago-001").single().SUBIDA_EN)
+    }
+
+    /**
+     * DAO que revienta al LEER los pendientes y **delega todo lo demás al DAO
+     * real**: así el fallo que se prueba es el de lectura y no "la base entera
+     * caída".
+     *
+     * ## Por qué la delegación no es cosmética
+     *
+     * Este fake declaraba `marcarSubida(...) = Unit` — un no-op que nunca tocaba
+     * Room — mientras su gemelo de visitas (`DaoDeImagenesQueRevienta`) sí
+     * delegaba al DAO real. El único escritor de producción de `SUBIDA_EN` es
+     * `PendingPaymentsWorker` a través de este método, así que la aserción
+     * `assertNull(... .SUBIDA_EN)` de abajo **leía su propia semilla**: ningún
+     * comportamiento del worker, correcto o roto, podía volverla no-nula.
+     *
+     * Fue la **undécima aserción que no podía fallar** de este plan, y estaba en
+     * el camino del dinero. La regla que deja: **si un fake puede no hacer nada,
+     * lo que cuelga de él es decorativo.**
+     */
+    private class PaymentImageDaoQueTruena(private val real: PaymentImageDao) :
+        PaymentImageDao by real {
+        override suspend fun getPendientesDe(pagoId: String): List<PaymentImageEntity> =
+            error("la base no responde")
+    }
+
+    // ─── plomería de comprobantes ────────────────────────────────────────────
+
+    private suspend fun sembrarImagen(
+        id: String,
+        nombre: String,
+        pagoId: String = "pago-001",
+        subidaEn: String? = null
+    ): File {
+        val archivo = File(carpeta.root, nombre)
+        archivo.writeBytes(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0x00))
+        db.paymentImageDao().insertAll(
+            listOf(
+                PaymentImageEntity(
+                    ID = id,
+                    PAGO_ID = pagoId,
+                    URI = archivo.absolutePath,
+                    MIME = "image/jpeg",
+                    ORDEN = 0,
+                    CREADA_EN = "2026-09-04T17:00:00Z",
+                    SUBIDA_EN = subidaEn
+                )
+            )
+        )
+        return archivo
+    }
+
+    private suspend fun sembrarImagenSinArchivo(id: String) {
+        db.paymentImageDao().insertAll(
+            listOf(
+                PaymentImageEntity(
+                    ID = id,
+                    PAGO_ID = "pago-001",
+                    URI = File(carpeta.root, "$id-borrado.jpg").absolutePath,
+                    MIME = "image/jpeg",
+                    ORDEN = 1,
+                    CREADA_EN = "2026-09-04T17:00:00Z"
+                )
+            )
+        )
+    }
+
+    private fun MultipartBody.Part.nombre(): String? = headers?.get("Content-Disposition")
+        ?.substringAfter("name=\"", "")
+        ?.substringBefore('"')
+
+    private fun MultipartBody.Part.texto(): String = Buffer().also { body.writeTo(it) }.readUtf8()
+
     // ─── worker runner ───────────────────────────────────────────────────────────
 
+    @Suppress("LongParameterList") // un parámetro por pieza que el worker recibe.
     private fun buildAndRunWorker(
         paymentId: String? = "pago-001",
         api: V2PaymentsApi = happyApi(),
         legacyApi: PaymentsApi = throwingLegacyApi(),
         useV2: Boolean = true,
-        runAttemptCount: Int = 0
+        runAttemptCount: Int = 0,
+        imagenes: PaymentImageDao = db.paymentImageDao()
     ): ListenableWorker.Result {
         val inputBuilder = Data.Builder()
         if (paymentId != null) inputBuilder.putString("payment_id", paymentId)
@@ -175,7 +522,9 @@ class PendingPaymentsWorkerV2Test : RoomTestBase() {
                     paymentsStore = PaymentsLocalDataSource(appContext),
                     v2Api = api,
                     legacyApi = legacyApi,
-                    useV2 = useV2
+                    useV2 = useV2,
+                    imagenes = imagenes,
+                    clock = clock
                 )
             })
             .build()

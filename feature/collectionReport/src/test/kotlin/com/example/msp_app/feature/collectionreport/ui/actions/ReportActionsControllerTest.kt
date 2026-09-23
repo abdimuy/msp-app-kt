@@ -4,10 +4,10 @@ import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.core.testing.time.FakeClock
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.ui.ChipUi
 import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.MockupFixtures

@@ -22,7 +22,7 @@ class PaymentsPendingSynchronizerTest {
     }
 
     @Test
-    fun `enqueues all pending with REPLACE policy`() = runTest {
+    fun `enqueues all pending with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val sync = PaymentsPendingSynchronizer(
             fetchPending = { listOf(paymentWithId("p1"), paymentWithId("p2")) },
@@ -32,7 +32,11 @@ class PaymentsPendingSynchronizerTest {
         val result = sync.sync(ctx)
 
         assertEquals(SyncResult.Enqueued(itemCount = 2, workRequestCount = 2), result)
-        assertEquals(listOf("p1" to true, "p2" to true), enqueuer.calls)
+        assertEquals(listOf("p1", "p2"), enqueuer.calls)
+        // KEEP is no longer a runtime choice to assert on: PaymentsWorkEnqueuer
+        // no longer has a `replace` parameter, and enqueuePendingPaymentsWorker
+        // hardcodes ExistingWorkPolicy.KEEP internally — REPLACE is not
+        // reachable from this call at all (see SyncAllPendingWorkUseCase KDoc).
     }
 
     @Test
@@ -89,10 +93,10 @@ class PaymentsPendingSynchronizerTest {
     private class RecordingEnqueuer(
         private val failingIds: Set<String> = emptySet()
     ) : PaymentsWorkEnqueuer {
-        val calls: MutableList<Pair<String, Boolean>> = mutableListOf()
+        val calls: MutableList<String> = mutableListOf()
 
-        override fun enqueue(paymentId: String, replace: Boolean) {
-            calls += paymentId to replace
+        override fun enqueue(paymentId: String) {
+            calls += paymentId
             if (paymentId in failingIds) throw RuntimeException("boom")
         }
     }

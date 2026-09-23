@@ -117,7 +117,16 @@ dependencies {
     // no depende de :core:database (ver ledger Task 3, Ambiguity 1). Reemplaza
     // la copia interna `PaymentDateGrouping.kt` que este módulo tenía porque
     // esa dependencia se creía (incorrectamente) cíclica.
-    implementation(project(":core:common"))
+    //
+    // `api`, no `implementation` (Task 14): `EstadoCobranza.aEstadoCuenta()`
+    // devuelve `EstadoCuenta`, un tipo de :core:common, en su FIRMA PÚBLICA.
+    // Con `implementation` ese tipo no viaja en el classpath de compilación de
+    // los consumidores: hoy `:app` compila solo porque declara :core:common por
+    // su cuenta, y el primer módulo `:feature:*` que consuma el puente sin
+    // declararla —los que crea la Task 15— reventaría con un error de classpath
+    // que no apunta a su causa. `api` es el alcance correcto para un tipo que se
+    // filtra por la API pública del módulo.
+    api(project(":core:common"))
 
     implementation(libs.bundles.room) // room-runtime + room-ktx
     ksp(libs.androidx.room.compiler)

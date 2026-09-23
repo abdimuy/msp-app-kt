@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.collectionreport.data.fake
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.printing.domain.PreferredPrinterStore
 import com.example.msp_app.core.printing.domain.PrintableTicket
 import com.example.msp_app.core.printing.domain.PrinterDevice
@@ -9,7 +10,6 @@ import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayme
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionVisit
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza
 import com.example.msp_app.feature.collectionreport.domain.port.CycleStart
 import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotalsPort

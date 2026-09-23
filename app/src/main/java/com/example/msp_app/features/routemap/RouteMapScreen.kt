@@ -55,6 +55,7 @@ import com.example.msp_app.features.payments.utils.ReportFormatters
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
 import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
+import com.example.msp_app.navigation.DestinosDeCobranza
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
@@ -227,7 +228,14 @@ fun RouteMapScreen(navController: NavController, viewModel: PaymentsViewModel = 
                                     PaymentItem(
                                         payment = payment,
                                         variant = PaymentItemVariant.DEFAULT,
-                                        navController = navController,
+                                        // Desde el MAPA se entra al CLIENTE
+                                        // (Task 21): aquí el contexto es "quién
+                                        // vive en este punto", no cuál mueble.
+                                        onVerCliente = {
+                                            navController.navigate(
+                                                DestinosDeCobranza.clienteDeUnPago(payment)
+                                            )
+                                        },
                                         onClick = {
                                             val lat = payment.LAT
                                             val lng = payment.LNG

@@ -1,0 +1,304 @@
+<title>Fila de contactos</title>
+<style>
+  :root{
+    --bg:#EDF1EF; --page:#F4F6F5; --surf:#FFFFFF; --surf2:#FBFCFC; --line:#E4E8E6;
+    --ink:#141A18; --mut:#5C6863; --faint:#8C9994;
+    --brand:#2563EB; --brandTint:#EAF0FE; --onBrand:#FFFFFF;
+    --paid:#177245; --partial:#B26A00; --overdue:#B42318; --promise:#7A5AF8;
+    --devBg:#F4F6F5; --devSurf:#FFFFFF; --devInk:#141A18; --devMut:#5C6863;
+    --devLine:#E4E8E6; --devPaid:#177245; --devBrand:#2563EB;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+      --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+      --brand:#3B82F6; --brandTint:#0E2440; --onBrand:#FFFFFF;
+      --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C; --promise:#A78BFA;
+      --devBg:#000000; --devSurf:#141917; --devInk:#E9EFEC; --devMut:#8B968F;
+      --devLine:#28322C; --devPaid:#40CB84; --devBrand:#3B82F6;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#070A09; --page:#000000; --surf:#141917; --surf2:#1C2320; --line:#28322C;
+    --ink:#E9EFEC; --mut:#8B968F; --faint:#6B7772;
+    --brand:#3B82F6; --brandTint:#0E2440; --onBrand:#FFFFFF;
+    --paid:#40CB84; --partial:#E3AC4E; --overdue:#F26A5C; --promise:#A78BFA;
+    --devBg:#000000; --devSurf:#141917; --devInk:#E9EFEC; --devMut:#8B968F;
+    --devLine:#28322C; --devPaid:#40CB84; --devBrand:#3B82F6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);
+       -webkit-font-smoothing:antialiased;padding:0 16px 72px;line-height:1.5}
+  .wrap{max-width:1120px;margin:0 auto;padding-block:40px 0}
+  .nu{font-variant-numeric:tabular-nums lining-nums}
+
+  .kick{font-size:10.5px;font-weight:800;letter-spacing:.17em;text-transform:uppercase;
+        color:var(--brand);margin:0 0 10px}
+  h1{font-size:clamp(26px,4.4vw,34px);font-weight:750;letter-spacing:-.03em;margin:0 0 10px;
+     line-height:1.1;text-wrap:balance}
+  .sub{margin:0;color:var(--mut);font-size:14.5px;max-width:62ch}
+
+  h2{font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px;text-wrap:balance}
+  section{margin-top:46px}
+  .lede{margin:0 0 20px;color:var(--mut);font-size:14px;max-width:70ch}
+  .num{display:inline-block;min-width:24px;color:var(--faint);font-size:12.5px;font-weight:800;
+       letter-spacing:.1em}
+
+  /* ── teléfono ── */
+  .beds{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .unit{flex:1 1 300px;min-width:276px;display:flex;flex-direction:column;gap:11px}
+  .cap{font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+  .cap.bad{color:var(--overdue)} .cap.good{color:var(--paid)}
+  .dev{border-radius:26px;background:var(--devBg);border:1px solid var(--devLine);
+       padding:16px 14px;color:var(--devInk)}
+
+  .card{background:var(--devSurf);border:1px solid var(--devLine);border-radius:18px;padding:14px 4px 6px}
+  .card h3{margin:0 14px 10px;font-size:10.5px;font-weight:800;letter-spacing:.13em;
+           text-transform:uppercase;color:var(--devMut)}
+
+  /* fila de hoy */
+  .old{display:flex;gap:9px;padding:7px 12px}
+  .old .h{width:40px;font-size:11.5px;color:var(--devMut);padding-top:7px}
+  .old .dot{width:6px;height:6px;border-radius:50%;background:var(--devPaid);margin-top:9px;flex:0 0 auto}
+  .old .b{flex:1;min-width:0}
+  .old .t{display:flex;align-items:flex-end;gap:8px}
+  .old .t b{font-size:15px;font-weight:650;flex:1}
+  .old .m{font-size:11.5px;color:var(--devMut);margin-top:1px}
+  .old .pin{margin-top:6px;color:var(--devBrand)}
+  .old .amt{font-size:15px;font-weight:750}
+
+  /* fila propuesta: rejilla de 4 pistas */
+  .new{display:grid;grid-template-columns:46px 14px 1fr auto;column-gap:10px;
+       padding:9px 12px;align-items:start}
+  .new + .new{border-top:1px solid var(--devLine)}
+  .new .when{text-align:right}
+  .new .d{font-size:12.5px;font-weight:700;color:var(--devInk);line-height:19px}
+  .new .hh{font-size:11px;color:var(--devMut);line-height:1.25;margin-top:1px}
+  .new .mark{display:flex;align-items:center;justify-content:center;height:19px}
+  .new .mark i{width:7px;height:7px;border-radius:50%;background:var(--devPaid);display:block}
+  .new .body{min-width:0}
+  .new .ttl{font-size:15px;font-weight:650;line-height:19px}
+  .new .meta{font-size:11.5px;color:var(--devMut);line-height:1.35;margin-top:2px;
+             overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .new .quote{font-size:11.5px;color:var(--devMut);line-height:1.35;margin-top:2px}
+  .new .right{display:flex;align-items:center;gap:8px;height:19px}
+  .new .amt{font-size:15px;font-weight:750;line-height:19px}
+  .pinico{width:14px;height:14px;stroke:var(--devBrand);fill:none;stroke-width:2;display:block}
+
+  .mgroup{display:flex;align-items:center;gap:9px;padding:14px 14px 6px}
+  .mgroup .mn{font-size:10.5px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--devMut)}
+  .mgroup .hr{flex:1;height:1px;background:var(--devLine)}
+  .mgroup .tot{font-size:12.5px;font-weight:700;color:var(--devInk)}
+
+  /* filtros */
+  .pills{display:flex;gap:9px;padding:4px 12px 12px;flex-wrap:wrap}
+  .pill{padding:11px 20px;border-radius:999px;background:var(--devSurf);border:1px solid transparent;
+        font-size:13.5px;color:var(--devMut)}
+  .pill.on{background:var(--devBrand);color:#fff;font-weight:650}
+  .seg{display:flex;margin:4px 12px 12px;background:var(--devSurf);border:1px solid var(--devLine);
+       border-radius:11px;padding:3px;gap:2px}
+  .seg button{flex:1;appearance:none;border:0;background:transparent;color:var(--devMut);
+              font:inherit;font-size:12.5px;padding:7px 4px;border-radius:8px;cursor:pointer;
+              display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15}
+  .seg button span{font-size:10.5px;color:var(--devMut);font-variant-numeric:tabular-nums}
+  .seg button[aria-pressed="true"]{background:var(--devBrand);color:#fff;font-weight:650}
+  .seg button[aria-pressed="true"] span{color:rgba(255,255,255,.78)}
+  .seg button:focus-visible{outline:2px solid var(--devBrand);outline-offset:2px}
+
+  /* anatomía */
+  .anat{background:var(--surf);border:1px solid var(--line);border-radius:18px;padding:22px 20px;
+        overflow-x:auto}
+  .grid4{display:grid;grid-template-columns:70px 22px 1fr auto;column-gap:14px;min-width:420px}
+  .tick{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brand);
+        padding-bottom:7px;border-bottom:2px solid var(--brand);margin-bottom:12px}
+  .base{grid-column:1/-1;height:1px;background:var(--brand);opacity:.5;margin:2px 0 12px}
+  .note{font-size:12px;color:var(--mut);margin-top:12px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  .tbox{overflow-x:auto;background:var(--surf);border:1px solid var(--line);border-radius:16px}
+  th,td{padding:9px 13px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  tbody tr:last-child td{border-bottom:0}
+  td.n{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700}
+  .tag.a{background:var(--brandTint);color:var(--brand)}
+  .tag.b{background:var(--surf2);color:var(--mut);border:1px solid var(--line)}
+
+  .asks{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));margin-top:18px}
+  .ask{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:15px 16px}
+  .ask b{display:block;font-size:13.5px;margin-bottom:4px}
+  .ask p{margin:0;font-size:12.5px;color:var(--mut);line-height:1.5}
+  code{font-family:var(--mono);font-size:12.5px;background:var(--surf2);border:1px solid var(--line);
+       padding:1px 5px;border-radius:5px}
+</style>
+
+<div class="wrap">
+  <p class="kick">Detalle de cliente · Bitácora</p>
+  <h1>La fila de contactos</h1>
+  <p class="sub">Tres preguntas tuyas, contestadas: por qué el método sale en minúscula, qué son
+    los cobros repetidos al mismo minuto, y cómo se acomoda la fila para que todo caiga en línea.</p>
+
+  <section>
+    <h2><span class="num">01</span>Por qué dice “efectivo” en minúscula</h2>
+    <p class="lede">Es el mismo defecto que ya corregimos en los botones el 18 de septiembre, sólo que
+      ese barrido no llegó hasta aquí. La palabra no se construye en la pantalla: viene escrita en
+      minúscula dentro del catálogo de métodos, en
+      <code>HistorialDePagos.kt:207</code>, y de ahí la toman cuatro pantallas —la bitácora, la hoja
+      de confirmación, las pastillas de “Registrar abono” y el riel de ritmo—. Se arregla en un solo
+      lugar: <code>EFECTIVO("Efectivo")</code>, <code>CHEQUE("Cheque")</code>,
+      <code>TRANSFERENCIA("Transferencia")</code>, y las cuatro pantallas quedan parejas.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">02</span>Los cobros repetidos no son un error</h2>
+    <p class="lede">Los saqué de la base del teléfono. Edgar Cruz Merino tiene <b>dos ventas
+      abiertas</b>, y cada semana le cobran las dos, con segundos de diferencia: $400 a una y $100 a
+      la otra. Son pagos distintos, a cuentas distintas, con folios distintos. Lo que falla no es el
+      dato: es que la fila no dice a cuál cuenta fue, y por eso se ven como uno repetido.</p>
+    <div class="tbox">
+      <table>
+        <thead><tr><th>Fecha y hora</th><th>Importe</th><th>Folio del pago</th><th>Cuenta</th><th>Método</th></tr></thead>
+        <tbody>
+          <tr><td class="n">18 feb 14:30</td><td class="n">$400</td><td class="n">14937218</td><td><span class="tag a">Recámara Cántaro</span></td><td>Transferencia</td></tr>
+          <tr><td class="n">18 feb 14:31</td><td class="n">$100</td><td class="n">14937224</td><td><span class="tag b">Bocina Audiobahn</span></td><td>Transferencia</td></tr>
+          <tr><td class="n">05 feb 12:07</td><td class="n">$400</td><td class="n">14867842</td><td><span class="tag a">Recámara Cántaro</span></td><td>Transferencia</td></tr>
+          <tr><td class="n">05 feb 12:08</td><td class="n">$100</td><td class="n">14867845</td><td><span class="tag b">Bocina Audiobahn</span></td><td>Transferencia</td></tr>
+          <tr><td class="n">22 ene 14:56</td><td class="n">$400</td><td class="n">14789561</td><td><span class="tag a">Recámara Cántaro</span></td><td>Efectivo</td></tr>
+          <tr><td class="n">22 ene 14:56</td><td class="n">$100</td><td class="n">14789551</td><td><span class="tag b">Bocina Audiobahn</span></td><td>Efectivo</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Por eso ya no propongo unirlos en una sola fila: unirlos borraría la única
+      pregunta que importa, que es a cuál cuenta se abonó. La cuenta pasa al renglón de abajo, donde
+      hoy sólo va el método y el cobrador. Un detalle: la cuenta de la recámara trae dos artículos
+      (recámara y base de cama), así que el nombre de la fila sería el del primer producto. Si
+      prefieres algo exacto, va el folio —<code>Y00001786</code>—, pero nadie reconoce un folio
+      parado en una puerta.</p>
+  </section>
+
+  <section>
+    <h2><span class="num">03</span>La fila, hoy y como la propongo</h2>
+    <p class="lede">Misma tarjeta, mismos datos, misma altura. Lo que cambia es dónde cae cada cosa.</p>
+    <div class="beds">
+      <div class="unit">
+        <p class="cap bad">Hoy — cuatro alturas distintas</p>
+        <div class="dev">
+          <div class="card">
+            <h3>Últimos contactos</h3>
+            <div class="mgroup"><span class="mn">Antes</span><span class="hr"></span></div>
+            <div class="old">
+              <div class="h nu">14:30</div><div class="dot"></div>
+              <div class="b">
+                <div class="t"><b>Cobré</b><span class="amt nu">$400</span></div>
+                <div class="m">transferencia · RUTA 25 - NOE CORTERO</div>
+              </div>
+              <div class="pin"><svg class="pinico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg></div>
+            </div>
+            <div class="old">
+              <div class="h nu">14:31</div><div class="dot"></div>
+              <div class="b">
+                <div class="t"><b>Cobré</b><span class="amt nu">$100</span></div>
+                <div class="m">transferencia · RUTA 25 - NOE CORTERO</div>
+              </div>
+              <div class="pin"><svg class="pinico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg></div>
+            </div>
+          </div>
+          <div class="pills">
+            <span class="pill on">Todos</span><span class="pill">Cobros</span>
+            <span class="pill">Visitas</span><span class="pill">Promesas</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="unit">
+        <p class="cap good">Propuesta — una sola línea base</p>
+        <div class="dev">
+          <div class="card">
+            <h3>Últimos contactos</h3>
+            <div class="mgroup"><span class="mn">Febrero 2026</span><span class="hr"></span><span class="tot nu">$1,200</span></div>
+            <div class="new">
+              <div class="when"><div class="d nu">18 feb</div><div class="hh nu">14:30</div></div>
+              <div class="mark"><i></i></div>
+              <div class="body">
+                <div class="ttl">Abono</div>
+                <div class="meta">Recámara Cántaro · Transferencia</div>
+              </div>
+              <div class="right"><span class="amt nu">$400</span>
+                <svg class="pinico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg></div>
+            </div>
+            <div class="new">
+              <div class="when"><div class="d nu">18 feb</div><div class="hh nu">14:31</div></div>
+              <div class="mark"><i></i></div>
+              <div class="body">
+                <div class="ttl">Abono</div>
+                <div class="meta">Bocina Audiobahn · Transferencia</div>
+              </div>
+              <div class="right"><span class="amt nu">$100</span>
+                <svg class="pinico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg></div>
+            </div>
+            <div class="new">
+              <div class="when"><div class="d nu">09 feb</div><div class="hh nu">12:07</div></div>
+              <div class="mark"><i style="background:var(--partial)"></i></div>
+              <div class="body">
+                <div class="ttl">Prometió pagar</div>
+                <div class="meta">Noé Cortero</div>
+                <div class="quote">“El viernes que cobre mi esposo”</div>
+              </div>
+              <div class="right"></div>
+            </div>
+          </div>
+          <div class="seg" role="group" aria-label="Filtro de contactos">
+            <button type="button" aria-pressed="true">Todos <span>56</span></button>
+            <button type="button" aria-pressed="false">Cobros <span>50</span></button>
+            <button type="button" aria-pressed="false">Visitas <span>6</span></button>
+            <button type="button" aria-pressed="false">Promesas <span>0</span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">04</span>Por qué hoy no cae en línea</h2>
+    <p class="lede">La fila no tiene rejilla. La hora, el punto de estado y el pin se empujan cada uno
+      con su propio margen de arriba —<code>sm + xs</code>, <code>md × escala</code> y
+      <code>sm</code>— buscando a mano la primera línea del título. Como el título cambia de alto con
+      el tamaño de letra, los tres se despegan en cuanto algo se mueve.</p>
+    <div class="anat">
+      <div class="grid4">
+        <div class="tick">Cuándo</div><div class="tick">Estado</div><div class="tick">Qué pasó</div><div class="tick">Cuánto</div>
+        <div class="base"></div>
+        <div class="when" style="text-align:right"><div class="d nu" style="font-size:13px;font-weight:700">18 feb</div><div class="hh nu" style="font-size:11.5px;color:var(--mut)">14:30</div></div>
+        <div class="mark" style="display:flex;justify-content:center;height:20px"><i style="width:7px;height:7px;border-radius:50%;background:var(--paid);display:block"></i></div>
+        <div><div style="font-size:15px;font-weight:650;line-height:20px">Abono</div>
+          <div style="font-size:12px;color:var(--mut)">Recámara Cántaro · Transferencia</div></div>
+        <div style="display:flex;align-items:center;gap:8px;height:20px"><b class="nu" style="font-size:15px">$400</b>
+          <svg class="pinico" viewBox="0 0 24 24" aria-hidden="true" style="stroke:var(--brand)"><path d="M12 21s7-6 7-11a7 7 0 1 0-14 0c0 5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.6"/></svg></div>
+      </div>
+      <p class="note">Cuatro pistas fijas y una sola regla: <b>la primera línea del título manda</b>.
+        El día, el punto, el importe y el pin se alinean contra ella, no contra el borde de arriba de
+        la fila. Cuando el título se va a dos renglones o la letra crece, los cuatro siguen en su
+        sitio porque comparten la misma línea base.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="num">05</span>Lo que falta decidir</h2>
+    <div class="asks">
+      <div class="ask"><b>¿“Abono” o sólo el monto?</b>
+        <p>“Abono” es la palabra del botón y no está conjugada. La otra opción es dejar la fila sin
+          palabra, con el monto y la cuenta cargando el significado.</p></div>
+      <div class="ask"><b>¿Día y hora, o sólo el día?</b>
+        <p>La hora sirve para saber a qué hora pasas por esa casa. Si no la usas, la fila queda con
+          una línea menos y más aire.</p></div>
+      <div class="ask"><b>¿Conteos en el filtro?</b>
+        <p>“Promesas 0” avisa antes de tocar. La alternativa es apagar la opción cuando no hay nada
+          que enseñar.</p></div>
+      <div class="ask"><b>El cobrador, pendiente</b>
+        <p>Dijiste que “RUTA 25 - NOE CORTERO” se queda como está por ahora. En el mock lo dejé
+          limpio sólo para que se vea la rejilla.</p></div>
+    </div>
+  </section>
+</div>

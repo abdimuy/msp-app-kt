@@ -28,11 +28,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.theme.MspTheme
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.ui.DetailUi
 import com.example.msp_app.feature.collectionreport.ui.PaymentRowUi
 import com.example.msp_app.feature.collectionreport.ui.theme.REPORT_STANDARD_DURATION_MS

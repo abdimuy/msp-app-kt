@@ -22,7 +22,7 @@ class GuaranteesPendingSynchronizerTest {
     }
 
     @Test
-    fun `enqueues pending guarantees by EXTERNAL_ID`() = runTest {
+    fun `enqueues pending guarantees by EXTERNAL_ID with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val sync = GuaranteesPendingSynchronizer(
             fetchPending = {
@@ -38,6 +38,10 @@ class GuaranteesPendingSynchronizerTest {
 
         assertEquals(SyncResult.Enqueued(itemCount = 2, workRequestCount = 2), result)
         assertEquals(listOf("ext-1", "ext-2"), enqueuer.calls)
+        // KEEP is no longer a runtime choice to assert on: GuaranteesWorkEnqueuer
+        // no longer has a `replace` parameter, and enqueuePendingGuaranteesWorker
+        // hardcodes ExistingWorkPolicy.KEEP internally — REPLACE is not
+        // reachable from this call at all (see SyncAllPendingWorkUseCase KDoc).
     }
 
     @Test
@@ -91,7 +95,7 @@ class GuaranteesPendingSynchronizerTest {
     ) : GuaranteesWorkEnqueuer {
         val calls: MutableList<String> = mutableListOf()
 
-        override fun enqueue(guaranteeExternalId: String, replace: Boolean) {
+        override fun enqueue(guaranteeExternalId: String) {
             calls += guaranteeExternalId
             if (guaranteeExternalId in failingIds) throw RuntimeException("boom")
         }

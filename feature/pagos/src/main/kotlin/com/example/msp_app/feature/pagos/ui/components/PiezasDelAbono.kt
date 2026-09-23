@@ -1,0 +1,747 @@
+@file:Suppress(
+    "TooManyFunctions"
+) // una pieza por banda del mock; juntarlas no las haria mas legibles.
+
+package com.example.msp_app.feature.pagos.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspCard
+import com.example.msp_app.core.designsystem.component.formatMoneyMxn
+import com.example.msp_app.core.designsystem.theme.FontSizeLevel
+import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
+import com.example.msp_app.core.designsystem.theme.MspColors
+import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.feature.pagos.domain.AvisoDelMonto
+import com.example.msp_app.feature.pagos.domain.MontosSugeridos
+import com.example.msp_app.feature.pagos.domain.NivelDeAviso
+import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
+import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.ui.MontoCapturado
+
+/** `testTag` de la tarjeta del monto que se está capturando. */
+const val CAPTURA_TAG: String = "pagos_abono_captura"
+
+/** `testTag` de la banda roja del bloqueo duro por sobrepago. */
+const val BLOQUEO_TAG: String = "pagos_abono_bloqueo"
+
+/** `testTag` de la banda que dice que la parcialidad de la venta se ve mal. */
+const val CUOTA_DUDOSA_TAG: String = "pagos_abono_cuota_dudosa"
+
+/**
+ * `testTag` de la banda de aviso **en vivo**, la que sale mientras se teclea.
+ * Una sola para los dos niveles que hablan: lo que cambia es el color y el
+ * texto, no el lugar.
+ */
+const val AVISO_TAG: String = "pagos_abono_aviso"
+
+/** Prefijo del `testTag` de cada chip sugerido; se completa con el nombre del sugerido. */
+const val CHIP_SUGERIDO_TAG: String = "pagos_abono_sugerido_"
+
+/** Prefijo del `testTag` de cada pastilla de método de cobro. */
+const val METODO_TAG: String = "pagos_abono_metodo_"
+
+/** Prefijo del `testTag` de cada tecla del teclado. */
+const val TECLA_TAG: String = "pagos_abono_tecla_"
+
+/**
+ * Clave interna de la tecla de punto decimal — nunca se pinta, sólo entra al
+ * `testTag` que arma [TECLA_TAG]. Mayúscula inicial por lo mismo que
+ * cualquier otra constante de este archivo: nadie la lee, pero
+ * `CadaTextoDeUsuarioEmpiezaEnMayusculaTest` mide el literal de la
+ * declaración, no si algo la pinta.
+ */
+const val TECLA_PUNTO: String = "Punto"
+
+/** Clave interna de la tecla de borrado. Ver el KDoc de [TECLA_PUNTO]. */
+const val TECLA_BORRAR: String = "Borrar"
+
+/**
+ * Alto mínimo tocable. El plan pide >=50px; el token del design system (56dp)
+ * va por encima y es el que se usa. La Task 16 shipeó un control de 49.5dp y la
+ * Task 17 rechazó otro de ~38dp: aquí se mide en `AbonoSeVeYSeTocaTest`, no se
+ * declara.
+ */
+private val TOQUE = 56.dp
+
+/**
+ * Ancho mínimo de un chip sugerido. Sale del `SuggestionChips` de kollect
+ * (`feature/abono/.../AbonoSuggestions.kt`, `CHIP_MIN_WIDTH = 84.dp`), que es
+ * la misma pieza de la misma pantalla allá. Evita que el chip más corto
+ * ("LIQUIDAR") quede apretado ahora que los tres se miden por su contenido.
+ */
+private val ANCHO_MINIMO_DEL_CHIP = 84.dp
+
+/**
+ * El encabezado (`.head` del mock): "abono" y debajo el cliente, **con el
+ * botón de atrás en la misma fila**.
+ *
+ * En las pantallas de detalle el atrás vive en su propia barra
+ * ([BarraDeDetalle]). Aquí no cabe: medido en el golden, una fila extra de
+ * 56dp empujaba la última hilera del teclado —el `0`, el punto y el borrar—
+ * fuera de la pantalla, y un teclado al que hay que hacerle scroll para
+ * teclear un cero no es un teclado.
+ */
+@Composable
+fun EncabezadoDelAbono(cliente: String, onAtras: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = MspTheme.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+    ) {
+        Surface(
+            onClick = onAtras,
+            modifier = Modifier
+                .size(TOQUE)
+                .testTag(ATRAS_TAG),
+            shape = MspTheme.shapes.chip,
+            color = MspTheme.colors.surface
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Filled.ArrowBack,
+                    contentDescription = "Atrás",
+                    tint = MspTheme.colors.onSurface,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Column {
+            Text(
+                text = "Abono",
+                style = MspTheme.type.screenTitle,
+                color = MspTheme.colors.onSurface
+            )
+            Text(
+                text = cliente,
+                style = MspTheme.type.subtitle,
+                color = MspTheme.colors.onSurfaceMuted,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * La tira de contexto del mock (`.ctx`): venta, producto y saldo en una línea.
+ *
+ * El saldo va aquí y en negritas porque es **el techo del bloqueo duro**: el
+ * cobrador tiene que poder ver contra qué se está topando sin abrir otra
+ * pantalla.
+ */
+@Composable
+fun TiraDeContexto(folio: String, producto: String, saldo: Money, modifier: Modifier = Modifier) {
+    val colors = MspTheme.colors
+    val fuerte = SpanStyle(fontWeight = FontWeight.ExtraBold, color = colors.onSurface)
+    Tarjeta(modifier = modifier) {
+        Text(
+            text = buildAnnotatedString {
+                append("Venta ")
+                withStyle(fuerte) { append(folio) }
+                append(" · $producto · Saldo ")
+                withStyle(fuerte) { append(formatMoneyMxn(saldo.amount)) }
+            },
+            style = MspTheme.type.contextNote,
+            color = colors.onSurfaceMuted
+        )
+    }
+}
+
+/**
+ * La tarjeta de captura del mock (`.capa`): el monto es el protagonista, con su
+ * método debajo.
+ *
+ * En [conError] toma el tratamiento rojo del mock (`.capa.err`): borde y cifra
+ * en `statusOverdue`. **El color lo decide el veredicto**, no un cálculo local
+ * — la pantalla no vuelve a preguntarse si el monto excede el saldo.
+ *
+ * El verde por defecto es `statusPaid` por la tabla del Task 2 §3(b): el monto
+ * en captura es el estado "captura válida", análogo a pagado, no una acción.
+ */
+@Composable
+fun TarjetaDeCaptura(
+    monto: MontoCapturado,
+    metodo: MetodoDeCobro,
+    conError: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val colors = MspTheme.colors
+    val cifra = if (conError) colors.statusOverdue else colors.statusPaid
+    val marco = if (conError) {
+        Modifier.border(1.5.dp, colors.statusOverdue, MspTheme.shapes.card)
+    } else {
+        Modifier
+    }
+    Tarjeta(modifier = modifier.then(marco).testTag(CAPTURA_TAG)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "monto recibido".uppercase(BUSINESS_LOCALE),
+                style = MspTheme.type.overline,
+                color = MspTheme.colors.onSurfaceMuted
+            )
+            Text(
+                text = monto.enPantalla(),
+                style = MspTheme.type.amountHero,
+                color = cifra,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = MspTheme.spacing.xs)
+            )
+            Text(
+                text = metodo.etiqueta,
+                style = MspTheme.type.caption,
+                color = MspTheme.colors.onSurfaceMuted,
+                modifier = Modifier.padding(top = MspTheme.spacing.xs)
+            )
+        }
+    }
+}
+
+/**
+ * La banda del bloqueo duro (`.blockerr`). Se pinta solo cuando hay un monto
+ * positivo Y el veredicto lo prohíbe: con el teclado en blanco el CTA apagado ya
+ * lo dice todo y una banda roja sería regaño gratuito.
+ *
+ * Dice el **máximo registrable**, que es el saldo. No la liquidación: liquidar
+ * cierra la venta pero pagar el saldo completo también, y nombrar la
+ * liquidación como techo dejaría fuera montos que sí se pueden registrar.
+ */
+@Composable
+fun BandaDeBloqueo(mensaje: String, modifier: Modifier = Modifier) {
+    val colors = MspTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.statusOverdueTint, MspTheme.shapes.control)
+            .border(1.dp, colors.statusOverdue, MspTheme.shapes.control)
+            .padding(horizontal = 13.dp, vertical = 11.dp)
+            .testTag(BLOQUEO_TAG),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = colors.statusOverdue,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(text = mensaje, style = MspTheme.type.contextNote, color = colors.statusOverdue)
+    }
+}
+
+/**
+ * Los tres montos sugeridos (`.sugs`), **cada uno con su color propio** de la
+ * tabla del Task 2 §5: verde `statusPaid` lo esperado hoy, turquesa
+ * `statusTeal` ponerse al corriente, violeta `promise` liquidar.
+ *
+ * Ninguno puede exceder el saldo — lo garantiza
+ * [com.example.msp_app.feature.pagos.domain.MontosSugeridos], no esta fila.
+ *
+ * **Los tres chips se miden por su contenido, no en tercios iguales
+ * (corrección de la ronda 1).** En tercios de 360dp cada chip tiene 81dp de
+ * texto y "AL CORRIENTE" necesita ~88dp, así que a escala normal el rótulo se
+ * partía en dos renglones (`AL` / `CORRIENTE`) y la fila quedaba con dos chips
+ * altos y uno bajo. No es un problema de tamaño de letra: en tercios iguales
+ * **ningún** reparto alcanza, porque dos de los tres rótulos tienen 12
+ * caracteres y el tercero ("LIQUIDAR") ocho — sobra ancho justo donde no hace
+ * falta. Medidos por contenido los tres caben en un renglón y la fila queda
+ * pareja.
+ *
+ * Es además lo que hace kollect en **esta misma pantalla**: su
+ * `SuggestionChips` (`feature/abono/.../AbonoSuggestions.kt`) es un `Row` con
+ * `horizontalScroll` de chips medidos por contenido con
+ * `defaultMinSize(minWidth = 84.dp)`, y su rótulo es `type.eyebrow` en
+ * mayúsculas — el mismo rol que usamos. El `horizontalScroll` no se ve a 360dp
+ * (los tres chips entran), y es lo que impide que en una pantalla más angosta
+ * el tercer chip se quede sin ancho: un `Row` sin peso le da 0dp al último
+ * hijo cuando los primeros se comieron el espacio, y un chip de dinero
+ * invisible es peor que uno al que hay que arrastrar.
+ *
+ * A `GRANDE`/`MUY_GRANDE` no cambia nada: ahí siguen apilados a lo ancho
+ * ([EnFilaOApiladas]).
+ */
+@Composable
+fun ChipsSugeridos(
+    sugeridos: List<MontosSugeridos.Sugerido>,
+    onSugerido: (Money) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (sugeridos.isEmpty()) return
+    EnFilaOApiladas(modifier = modifier, porContenido = true) { anchoDeCadaUno ->
+        sugeridos.forEach { sugerido ->
+            ChipSugerido(
+                sugerido = sugerido,
+                onClick = { onSugerido(sugerido.importe) },
+                modifier = anchoDeCadaUno
+            )
+        }
+    }
+}
+
+/**
+ * Tres controles en fila cuando caben, apilados cuando no — mismo criterio (y
+ * misma razón) que [TresDatos].
+ *
+ * A `MUY_GRANDE` (2.0) los tres chips en tercios de 360dp dejaban de caber y el
+ * monto se truncaba: "liquidar $1,290" se leía **"$1,29"**. Un monto recortado
+ * no es un detalle visual, es un bug de dinero —lo dice el KDoc de
+ * `MspMoneyText`— y le pasa justo al usuario que más ayuda necesita. Se lee
+ * [LocalFontSizeLevel], la preferencia elegida en la app, no el `fontScale` del
+ * sistema.
+ *
+ * [porContenido] cambia solo la rama en fila: en vez de tercios iguales
+ * (`weight(1f)`) los hijos se miden por su contenido dentro de un `Row` con
+ * `horizontalScroll`, que es lo que necesitan los chips sugeridos y **no** las
+ * pastillas de método —esas sí quieren tercios iguales, y su rótulo
+ * ("efectivo", "transferencia") nunca se partió—. El porqué completo está en
+ * el KDoc de [ChipsSugeridos].
+ */
+@Composable
+private fun EnFilaOApiladas(
+    modifier: Modifier = Modifier,
+    porContenido: Boolean = false,
+    contenido: @Composable (Modifier) -> Unit
+) {
+    if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) {
+        Row(
+            modifier = if (porContenido) {
+                modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            } else {
+                modifier.fillMaxWidth()
+            },
+            horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            contenido(
+                if (porContenido) {
+                    Modifier.widthIn(min = ANCHO_MINIMO_DEL_CHIP)
+                } else {
+                    Modifier.weight(1f)
+                }
+            )
+        }
+    } else {
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        ) {
+            contenido(Modifier.fillMaxWidth())
+        }
+    }
+}
+
+@Composable
+private fun ChipSugerido(
+    sugerido: MontosSugeridos.Sugerido,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MspTheme.colors
+    val contenido = contenidoDelSugerido(sugerido.cual, colors)
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .heightIn(min = TOQUE)
+            .testTag(CHIP_SUGERIDO_TAG + sugerido.clave),
+        shape = MspTheme.shapes.field,
+        color = fondoDelSugerido(sugerido.cual, colors),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, contenido)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = MspTheme.spacing.sm),
+            verticalArrangement = Arrangement.Center
+        ) {
+            // SIN `maxLines`: un monto reflowea antes que perder dígitos
+            // (misma regla que `MspMoneyText`).
+            Text(
+                text = formatMoneyMxn(sugerido.importe.amount),
+                style = MspTheme.type.amountRow,
+                color = contenido
+            )
+            // Dos líneas: "esperado hoy" no cabe en una a 360dp y se cortaba
+            // sin puntos suspensivos — el chip decía "esperado" y el cobrador
+            // no podía saber de qué.
+            Text(
+                // `.sug .sk` del mock: `9px/800`, `.05em`, `uppercase`.
+                text = sugerido.cual.etiqueta.uppercase(BUSINESS_LOCALE),
+                style = MspTheme.type.eyebrow,
+                color = contenido
+            )
+        }
+    }
+}
+
+/**
+ * Color de contenido de cada sugerido — tabla del Task 2 §5, no la esmeralda del
+ * mock.
+ *
+ * Las dos fuentes nuevas NO reciben color de estado, y es deliberado: "lo de
+ * siempre" y los redondos no dicen nada del periodo de esta cuenta —no la ponen
+ * al corriente, no la cierran—, así que pintarlos de verde o de turquesa
+ * prometería una consecuencia que no tienen. "Lo de siempre" va en `brand`
+ * porque es un dato de ESTE cliente, y los redondos en `onSurfaceMuted` porque
+ * son la misma cifra para toda la ruta.
+ */
+fun contenidoDelSugerido(cual: MontosSugeridos.Sugerencia, colors: MspColors): Color = when (cual) {
+    // Los dos esperados comparten color: es el MISMO chip, en el mismo lugar y
+    // con el mismo importe. Lo único que cambia entre ellos es el rótulo, que es
+    // donde se dice de dónde salió la cifra.
+    MontosSugeridos.Sugerencia.ESPERADO_HOY,
+    MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE -> colors.statusPaid
+
+    MontosSugeridos.Sugerencia.AL_CORRIENTE -> colors.statusTeal
+    MontosSugeridos.Sugerencia.LIQUIDAR -> colors.promise
+    MontosSugeridos.Sugerencia.LO_DE_SIEMPRE -> colors.brand
+    MontosSugeridos.Sugerencia.REDONDO -> colors.onSurfaceMuted
+}
+
+/** Fondo (tint) de cada sugerido. */
+fun fondoDelSugerido(cual: MontosSugeridos.Sugerencia, colors: MspColors): Color = when (cual) {
+    MontosSugeridos.Sugerencia.ESPERADO_HOY,
+    MontosSugeridos.Sugerencia.ESPERADO_POR_COSTUMBRE -> colors.statusPaidTint
+
+    MontosSugeridos.Sugerencia.AL_CORRIENTE -> colors.statusTealTint
+    MontosSugeridos.Sugerencia.LIQUIDAR -> colors.promiseTint
+    MontosSugeridos.Sugerencia.LO_DE_SIEMPRE -> colors.brandTint
+    MontosSugeridos.Sugerencia.REDONDO -> colors.surface2
+}
+
+/**
+ * **La parcialidad de esta venta se ve mal.**
+ *
+ * No habla del abono del cobrador —él no hizo nada raro— sino del **dato de la
+ * venta**. Por eso vive arriba, pegada a la tira de contexto, y se pinta esté
+ * lo que esté tecleado: es una propiedad de la cuenta, no del monto.
+ *
+ * ## Por qué esto en lugar de "esperado $3,000"
+ *
+ * El caso que la trajo: una venta con `PARCIALIDAD = 3000` y ni un solo pago
+ * que la desmienta. La pantalla decía *"abono corto · esperado $3,000 · este
+ * abono $600"*, que es un aviso inútil —le reclama al cobrador el dato de
+ * otro— y encima ofrecía $3,000 en un chip. Con la cuota marcada como dudosa
+ * ([OrigenDeLaCuota.DUDOSA]) el esperado vale cero, o sea "no se sabe qué
+ * toca": el chip no se pinta, el teclado no se prellena y el abono corto no
+ * salta. Lo único que queda es esta línea, que sí es accionable.
+ *
+ * Dice el **hecho** y no un adjetivo: cuánto dice la venta, y que en esta ruta
+ * nadie paga tanto.
+ */
+@Composable
+fun BandaDeCuotaDudosa(parcialidad: Money, modifier: Modifier = Modifier) {
+    val colors = MspTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.statusPartialTint, MspTheme.shapes.control)
+            .border(1.dp, colors.statusPartial, MspTheme.shapes.control)
+            .padding(horizontal = 13.dp, vertical = 11.dp)
+            .testTag(CUOTA_DUDOSA_TAG),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = colors.statusPartial,
+            modifier = Modifier.size(18.dp)
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
+            Text(
+                text = "Revisa la parcialidad",
+                style = MspTheme.type.bodyStrong,
+                color = colors.statusPartial
+            )
+            Text(
+                text = detalleDeLaCuotaDudosa(parcialidad),
+                style = MspTheme.type.captionStrong,
+                color = colors.statusPartial
+            )
+        }
+    }
+}
+
+/** "La venta dice $3,000 · en esta ruta nadie paga tanto". El hecho, no el adjetivo. */
+private fun detalleDeLaCuotaDudosa(parcialidad: Money): String {
+    val cuota = formatMoneyMxn(parcialidad.amount)
+    return "La venta dice $cuota · en esta ruta nadie paga tanto"
+}
+
+/**
+ * **El aviso en vivo**, bajo la cifra que se está tecleando.
+ *
+ * Es el más importante de los dos lugares donde el aviso sale. Atrapar un cero
+ * de más en el teclado cuesta **un borrón**; atraparlo en la hoja de
+ * confirmación cuesta salir del paso dos, corregir y volver a entrar. El mismo
+ * hecho, dicho medio segundo antes, vale toda esa diferencia.
+ *
+ * Sólo hablan los dos niveles raros. `NINGUNO` es el 99 % de los abonos y no
+ * tiene nada que decir; `BLOQUEO` ya tiene su banda roja con el máximo
+ * registrable ([BandaDeBloqueo]); y `NOTA` tiene la suya, ámbar, dentro de la
+ * hoja. Repetir cualquiera de las dos aquí sería el mismo hecho dos veces en la
+ * misma pantalla.
+ *
+ * El `when` es **exhaustivo y sin `else`**: un nivel nuevo no compila hasta que
+ * alguien decida si se pinta y de qué color.
+ */
+@Composable
+fun BandaDeAviso(aviso: AvisoDelMonto, modifier: Modifier = Modifier) {
+    val colors = MspTheme.colors
+    val color = when (aviso.nivel) {
+        NivelDeAviso.NINGUNO, NivelDeAviso.BLOQUEO, NivelDeAviso.NOTA -> null
+        NivelDeAviso.CONFIRMAR -> colors.statusPartial
+        NivelDeAviso.TECLEAR -> colors.statusOverdue
+    } ?: return
+    // Un nivel que habla pero sin nada que decir no pinta una banda vacía.
+    if (aviso.mensajes.isEmpty()) return
+    val fondo = if (aviso.nivel == NivelDeAviso.TECLEAR) {
+        colors.statusOverdueTint
+    } else {
+        colors.statusPartialTint
+    }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(fondo, MspTheme.shapes.control)
+            .border(1.dp, color, MspTheme.shapes.control)
+            .padding(horizontal = 13.dp, vertical = 11.dp)
+            .testTag(AVISO_TAG),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Warning,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(18.dp)
+        )
+        Column(verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)) {
+            // Un renglón por mensaje. Son como mucho dos, y dicen cosas
+            // distintas del mismo monto (cuántas cuotas son, y que nadie en la
+            // ruta ha pagado tanto): juntarlas en una frase las volvería una
+            // sola afirmación más larga y menos leíble.
+            aviso.mensajes.forEach { mensaje ->
+                Text(
+                    text = mensaje,
+                    style = MspTheme.type.bodyStrong,
+                    color = color
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Las pastillas de método (`.meths`): **efectivo y transferencia. Sin
+ * terminal** — es lo que este negocio cobra.
+ *
+ * La selección va en `brand`/`brandTint`: es una selección genérica sin estado
+ * de cobro asociado, y el verde nunca es acción (regla dura del plan y del
+ * Task 2 §3(a), que nombra este caso explícitamente).
+ */
+@Composable
+fun SelectorDeMetodo(
+    seleccionado: MetodoDeCobro,
+    onMetodo: (MetodoDeCobro) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    EnFilaOApiladas(modifier = modifier) { anchoDeCadaUno ->
+        METODOS_DE_CAPTURA.forEach { metodo ->
+            PastillaDeMetodo(
+                metodo = metodo,
+                activa = metodo == seleccionado,
+                onClick = { onMetodo(metodo) },
+                modifier = anchoDeCadaUno
+            )
+        }
+    }
+}
+
+/**
+ * Los dos métodos que se pueden capturar. `MetodoDeCobro.CHEQUE` existe en el
+ * histórico (el riel lo pinta si aparece) pero no se ofrece en captura: nadie
+ * cobra cheques en la puerta.
+ */
+val METODOS_DE_CAPTURA: List<MetodoDeCobro> =
+    listOf(MetodoDeCobro.EFECTIVO, MetodoDeCobro.TRANSFERENCIA)
+
+@Composable
+private fun PastillaDeMetodo(
+    metodo: MetodoDeCobro,
+    activa: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MspTheme.colors
+    val contenido = if (activa) colors.brand else colors.onSurfaceMuted
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .heightIn(min = TOQUE)
+            .testTag(METODO_TAG + metodo.name.lowercase()),
+        shape = MspTheme.shapes.control,
+        color = if (activa) colors.brandTint else colors.surface,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.5.dp,
+            color = if (activa) colors.brand else colors.outline
+        )
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(text = metodo.etiqueta, style = MspTheme.type.methodLabel, color = contenido)
+        }
+    }
+}
+
+/** El teclado del mock (`.pad`): 1-9, punto, 0 y borrar. */
+@Composable
+fun TecladoDeMontos(
+    onDigito: (Int) -> Unit,
+    onPunto: () -> Unit,
+    onBorrar: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+    ) {
+        listOf(1..3, 4..6, 7..9).forEach { fila ->
+            Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)) {
+                fila.forEach { digito ->
+                    Tecla(
+                        etiqueta = digito.toString(),
+                        tag = digito.toString(),
+                        onClick = { onDigito(digito) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)) {
+            Tecla(
+                etiqueta = ".",
+                tag = TECLA_PUNTO,
+                onClick = onPunto,
+                modifier = Modifier.weight(1f),
+                apagada = true
+            )
+            Tecla(
+                etiqueta = "0",
+                tag = "0",
+                onClick = { onDigito(0) },
+                modifier = Modifier.weight(1f)
+            )
+            TeclaDeBorrado(onClick = onBorrar, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+/**
+ * Una tecla del teclado.
+ *
+ * Va en [MspCard] y no en un `Surface` pelado porque el `NumericKeypad` de
+ * kollect monta cada tecla en `CampoSurface` —su KDoc lo nombra: "hairline
+ * borders, 22sp tabular digits, muted decimal/backspace keys"— y sin el
+ * hairline el teclado se lee como doce huecos en vez de doce teclas.
+ */
+@Composable
+private fun Tecla(
+    etiqueta: String,
+    tag: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    apagada: Boolean = false
+) {
+    MspCard(
+        modifier = modifier
+            .heightIn(min = TOQUE)
+            .testTag(TECLA_TAG + tag),
+        shape = MspTheme.shapes.control,
+        onClick = onClick
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = etiqueta,
+                style = MspTheme.type.keypadKey,
+                color = if (apagada) MspTheme.colors.onSurfaceMuted else MspTheme.colors.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun TeclaDeBorrado(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    MspCard(
+        modifier = modifier
+            .heightIn(min = TOQUE)
+            .testTag(TECLA_TAG + TECLA_BORRAR),
+        shape = MspTheme.shapes.control,
+        onClick = onClick
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Filled.Clear,
+                contentDescription = "Borrar",
+                tint = MspTheme.colors.onSurfaceMuted,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+/** El "✓ registrado" del final: el abono ya está escrito y no hay nada que tocar. */
+@Composable
+fun BandaDeRegistrado(modifier: Modifier = Modifier) {
+    val colors = MspTheme.colors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(colors.statusPaidTint, MspTheme.shapes.control)
+            .padding(horizontal = 13.dp, vertical = 11.dp),
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Check,
+            contentDescription = null,
+            tint = colors.statusPaid,
+            modifier = Modifier.size(18.dp)
+        )
+        Text(
+            text = "Abono registrado",
+            style = MspTheme.type.bodyStrong,
+            color = colors.statusPaid
+        )
+    }
+}

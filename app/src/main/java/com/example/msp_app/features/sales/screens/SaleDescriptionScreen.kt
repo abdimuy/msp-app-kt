@@ -31,10 +31,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.core.utils.toCurrency
+import com.example.msp_app.feature.ventacorreccion.ui.EstadoCorreccionViewModel
+import com.example.msp_app.feature.ventacorreccion.ui.components.EntradaCorreccion
 import com.example.msp_app.features.productsInventory.components.CarouselItem
 import com.example.msp_app.features.productsInventory.components.CarrouselImage
 import com.example.msp_app.features.sales.components.comboinfocard.CombosInfoCard
@@ -42,6 +45,7 @@ import com.example.msp_app.features.sales.components.map.MapPin
 import com.example.msp_app.features.sales.components.map.MapView
 import com.example.msp_app.features.sales.components.productinfocard.ProductsInfoCard
 import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
+import com.example.msp_app.navigation.Screen
 import com.google.maps.android.compose.rememberCameraPositionState
 
 @Composable
@@ -52,11 +56,21 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
     val saleImages by viewModel.saleImages.collectAsState()
     val saleCombos by viewModel.saleCombos.collectAsState()
 
+    // Task 5 (plan "Corregir una venta antes de que suba"): consulta de SÓLO LECTURA, sin
+    // reclamar el candado de edición — reclamar (y cancelar el trabajo encolado) sólo debe
+    // correr cuando el vendedor de verdad entra a `EditSaleScreen`.
+    val estadoCorreccionViewModel: EstadoCorreccionViewModel = hiltViewModel()
+    val estadoCorreccion by estadoCorreccionViewModel.estado.collectAsState()
+
     LaunchedEffect(Unit) {
         viewModel.getSaleById(localSaleId)
         viewModel.loadImagesBySaleId(localSaleId)
         viewModel.loadProductsBySaleId(localSaleId)
         viewModel.loadCombosBySaleId(localSaleId)
+    }
+
+    LaunchedEffect(localSaleId) {
+        estadoCorreccionViewModel.consultar(localSaleId)
     }
 
     DrawerContainer(
@@ -83,14 +97,19 @@ fun SaleDescriptionScreen(localSaleId: String, navController: NavController) {
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.weight(1f)
                     )
-                    // Edición deshabilitada en Android: la creación de ventas
-                    // locales ya sube al API Go (POST /v2/ventas) pero la
-                    // edición seguía yendo al backend legacy por
-                    // LocalSaleSyncHandler (PUT ventas-locales/{id}), así que
-                    // no aplica sobre la venta creada por el Go. La edición se
-                    // hace desde el escritorio, donde sí funciona.
-                    // EditSaleScreen y la ruta Screen.EditSale se conservan
-                    // sin punto de entrada.
+                    // Task 5 (plan "Corregir una venta antes de que suba"): el botón
+                    // "Corregir venta" sólo aparece si el estado es Corregible; en
+                    // cualquier otro caso se ve el aviso correspondiente (o nada,
+                    // mientras la consulta no ha resuelto). La regla de qué se
+                    // pinta vive en `EntradaCorreccion` (:feature:ventaCorreccion),
+                    // no aquí — invariante del plan: nunca se ofrece corregir lo
+                    // que no se puede corregir.
+                    EntradaCorreccion(
+                        estado = estadoCorreccion,
+                        onCorregir = {
+                            navController.navigate(Screen.EditSale.createRoute(localSaleId))
+                        }
+                    )
                 }
             }
         ) { innerPadding ->

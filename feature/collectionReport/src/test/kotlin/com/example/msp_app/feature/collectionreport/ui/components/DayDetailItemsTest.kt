@@ -9,9 +9,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportContent
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
 import com.example.msp_app.feature.collectionreport.ui.DayRowUi

@@ -78,8 +78,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 60
-        versionName = "2.17.3"
+        versionCode = 61
+        versionName = "2.18.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
@@ -259,6 +259,13 @@ dependencies {
     // por `MainActivity` (override Opción C de `LocalDensity` + `LocalReduceMotion`
     // en la raíz de composición).
     implementation(project(":core:settings"))
+    // Dictado por voz (`:core:speech`). `:app` lo declara aunque quien lo usa sea
+    // `:feature:visitas`, y por dos razones concretas: los `@Module` de Hilt de
+    // un módulo transitivo no entran al grafo de la app por sí solos, y
+    // `NetworkKillSwitchGuardTest` exige que TODO `@Module` del árbol de fuentes
+    // llegue al classpath de prueba de `:app` — un módulo que la guarda no ve es
+    // un módulo sin guarda.
+    implementation(project(":core:speech"))
     // Piloto del reporte de cobranza unificado (Plan 5). `:app` provee el adapter
     // real de `UserCyclePort` (Firestore userData) en su composition root y monta
     // `CollectionReportScreen`/`...Tier2` en la ruta `daily_reports`.
@@ -268,6 +275,20 @@ dependencies {
     // real de `AppThemePort` (ThemeController) y monta `ConfiguracionScreen` en la
     // ruta `configuracion` + el ítem del drawer.
     implementation(project(":feature:configuracion"))
+    // Detalle de cliente y de venta (Plan 5, Task 16). `:app` provee los adapters
+    // reales de `LiquidacionPort` (el cálculo de liquidación que ya vive aquí) y de
+    // `PeriodoDeCobroPort` (`FECHA_CARGA_INICIAL` de Firestore) en su composition root.
+    implementation(project(":feature:pagos"))
+    // Corregir una venta local antes de que suba (plan 2026-09-20). `:app` provee el
+    // adapter real de `ReencolarSubidaPort` (WorkManager, necesita `PendingLocalSalesWorker`
+    // — no visible desde el feature module) y, en Task 5, monta `CorreccionVentaViewModel`
+    // en `EditSaleScreen`.
+    implementation(project(":feature:ventaCorreccion"))
+    // Registrar visita (Plan 5, Task 19). `:app` provee los adapters reales de
+    // `RegistroDeVisitaPort` (la escritura que ya corre en producción,
+    // `VisitsLocalDataSource.saveVisitAndEnqueue`) y de `UbicacionPort`
+    // (Play Services) en su composition root.
+    implementation(project(":feature:visitas"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
@@ -288,6 +309,7 @@ dependencies {
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.bundles.compose.test)
     testImplementation(project(":core:testing"))
+    testImplementation(libs.androidx.navigation.testing)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

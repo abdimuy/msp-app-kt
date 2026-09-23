@@ -6,6 +6,10 @@ import androidx.annotation.VisibleForTesting
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.msp_app.BuildConfig
+import com.example.msp_app.core.common.time.AppClock
+import com.example.msp_app.core.common.time.AppTime
+import com.example.msp_app.core.database.AppDatabase
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.upload.ExistenceVerifier
 import com.example.msp_app.core.upload.HEADER_INTENT_CAPTURED
@@ -19,7 +23,10 @@ import com.example.msp_app.data.api.services.payment.V2PaymentsApi
 import com.example.msp_app.data.api.services.payment.toCrearPagoBody
 import com.example.msp_app.data.local.datasource.payment.PaymentsLocalDataSource
 import com.example.msp_app.data.models.payment.toDomain
+import com.example.msp_app.data.pagos.PartesDeComprobantes
+import com.example.msp_app.data.pagos.partesDeComprobantes
 import com.google.gson.Gson
+import java.io.File
 import java.io.IOException
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -59,7 +66,12 @@ class PendingPaymentsWorker @JvmOverloads constructor(
     @VisibleForTesting
     internal val legacyApi: PaymentsApi = ApiProvider.create(PaymentsApi::class.java),
     @VisibleForTesting
-    internal val useV2: Boolean = BuildConfig.PAGOS_USE_V2
+    internal val useV2: Boolean = BuildConfig.PAGOS_USE_V2,
+    @VisibleForTesting
+    internal val imagenes: PaymentImageDao =
+        AppDatabase.getInstance(appContext).paymentImageDao(),
+    @VisibleForTesting
+    internal val clock: AppClock = AppClock.System
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -103,8 +115,22 @@ class PendingPaymentsWorker @JvmOverloads constructor(
         return try {
             val json = Gson().toJson(payment.toCrearPagoBody())
             val datos = json.toRequestBody("application/json".toMediaTypeOrNull())
-            val response = v2Api.crearPago(idempotencyKey = payment.ID, datos = datos)
+            // Un fallo de LECTURA no se traga: ver `comprobantesDe`.
+            val comprobantes = comprobantesDe(payment)
+                ?: return Result.retry().also {
+                    Log.w(
+                        TAG,
+                        "Pago ${payment.ID}: no se pudieron leer los comprobantes; " +
+                            "NO se sube el pago para no quemar su id sin la evidencia"
+                    )
+                }
+            val response = v2Api.crearPago(
+                idempotencyKey = payment.ID,
+                datos = datos,
+                imagenes = comprobantes.partes
+            )
             persistDoctoCcId(payment, response.docto_cc_id)
+            markUploaded(comprobantes)
             markDone(payment.ID)
             Log.i(TAG, "Pago aplicado en v2: ${payment.ID} (server=${response.id})")
             Result.success()
@@ -163,6 +189,72 @@ class PendingPaymentsWorker @JvmOverloads constructor(
                         "(reachedMspApi=$reachedMspApi), reintentando"
                 )
                 Result.retry()
+            }
+        }
+    }
+
+    /**
+     * Los comprobantes PENDIENTES del pago, ya convertidos en partes, o `null`
+     * si **la lectura falló**.
+     *
+     * Filtra por `PAGO_ID` —el del pago— y por `SUBIDA_EN IS NULL`: una imagen
+     * que el servidor ya confirmó no se vuelve a mandar.
+     *
+     * ## Por qué un fallo de lectura NO deja subir el pago
+     *
+     * Tentador: subir el pago sin fotos y no bloquear el dinero. Es una trampa,
+     * y es la misma que este worker ya evita en `RECONCILED_VIA_GET`, entrando
+     * por la otra puerta. Si el pago sube sin evidencia, **quema su `datos.id`**:
+     * el reintento cae en el replay idempotente del servidor, que descarta los
+     * blobs del segundo request, y `markUploaded` estampa `SUBIDA_EN` y borra el
+     * archivo local. Un error de lectura pasajero acaba en un comprobante que
+     * **nunca llegó al servidor y ya no existe en el teléfono**.
+     *
+     * El pago no se pierde: se reintenta con su misma clave, que es exactamente
+     * lo que el worker ya hace ante un `IOException`. Lo que se protege es que
+     * el pago y su evidencia viajen **juntos o en otro intento**, nunca a medias.
+     *
+     * Ojo con la distinción: una imagen **omitida** (sin archivo, o de tipo no
+     * permitido) NO es un fallo de lectura. Ahí sí se sube el pago —la foto no
+     * lo bloquea— y la fila se queda pendiente en vez de estamparse.
+     */
+    private suspend fun comprobantesDe(payment: PaymentEntity): PartesDeComprobantes? = try {
+        val pendientes = imagenes.getPendientesDe(payment.ID)
+        partesDeComprobantes(pendientes).also {
+            if (it.omitidas > 0) {
+                Log.w(
+                    TAG,
+                    "Pago ${payment.ID}: ${it.omitidas} comprobante(s) omitido(s) " +
+                        "(archivo ausente o tipo no permitido)"
+                )
+            }
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "Pago ${payment.ID}: no se pudieron leer los comprobantes", e)
+        null
+    }
+
+    /**
+     * Estampa `SUBIDA_EN` **solo en las que viajaron**, y borra su archivo.
+     *
+     * Marcar por pago —o marcar lo que había en la base al empezar— estamparía
+     * también las que se omitieron por no tener archivo, y esas tienen que
+     * quedarse pendientes para que se vean. El archivo local se va porque ya
+     * cumplió: el servidor tiene la foto, y en un teléfono de gama baja cada
+     * comprobante retenido son cientos de KB que no vuelven.
+     *
+     * Best-effort de punta a punta: una entrega que ya tuvo éxito no se puede
+     * tumbar por no poder escribir un timestamp.
+     */
+    private suspend fun markUploaded(comprobantes: PartesDeComprobantes) {
+        if (comprobantes.enviadas.isEmpty()) return
+        val subidaEn = AppTime.toWireFormat(clock.now())
+        comprobantes.enviadas.forEach { imagen ->
+            try {
+                imagenes.marcarSubida(imagen.ID, subidaEn)
+                File(imagen.URI).delete()
+            } catch (e: Exception) {
+                Log.w(TAG, "No se pudo cerrar el comprobante ${imagen.ID}", e)
             }
         }
     }

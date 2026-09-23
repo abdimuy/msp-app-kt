@@ -1,5 +1,16 @@
+import buildlogic.CompuertaDelRepo
+import buildlogic.CompuertaDelRepoTask
+import java.util.concurrent.Callable
+
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 plugins {
+    // (Arreglo B, ronda 4) La raíz aplica `msp.compuertas` — el único plugin de
+    // `build-logic` que NO configura un módulo. Trae dos cosas: el tipo
+    // `CompuertaDelRepo`, que es la identidad con la que `prePushCheck`
+    // reconoce a las compuertas de este repo, y la red que atrapa a la que se
+    // registre sin esa marca. Aplicarlo acá también exporta el tipo al
+    // classpath de los scripts de todos los módulos.
+    id("msp.compuertas")
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
@@ -26,6 +37,36 @@ plugins {
 // removed `DateUtils` API and the bugs it had by literally naming the old
 // APIs (`LocalDate.now()`, `ZoneId.systemDefault()`, etc.) in KDoc — a naive
 // whole-file grep would false-positive on that valuable history.
+//
+// ## `System.currentTimeMillis()` — FUERA de alcance, y ésta es la razón
+//
+// Va dos rondas señalado sin decidirse, así que se decide acá. **No entra a
+// `legacyDateApiPatterns`**, por cuatro hechos medidos (2026-09-08):
+//
+// 1. **En los 15 módulos migrados hay CERO usos.** Las dos únicas apariciones
+//    en `core/` y `feature/` están dentro de KDoc que prohíbe justamente eso
+//    (`VentanaCobro.kt:15`, `TelemetryEvent.kt:67`), y este barrido descarta
+//    comentarios antes de comparar. O sea que en el código que la migración
+//    fechas/AppTime tocó, la regla ya se cumple sola.
+// 2. **Los 51 usos restantes viven todos en `:app` legado** y son contabilidad
+//    en epoch-millis: `createdAt`/`updatedAt` de entidades Room, watermarks de
+//    sync, medición de duración (`t1 - t0`), edad de caché, nombres de archivo
+//    únicos y defaults de relojes inyectables (`val clock: () -> Long =
+//    System::currentTimeMillis`). Ninguno produce una fecha ni una zona.
+// 3. **La conversión sí está cubierta.** Un `Long` de epoch no es una fecha
+//    hasta que alguien le aplica una zona o un formato, y ese sitio SÍ lo
+//    atrapan los patrones de arriba: `ZoneId.systemDefault(`,
+//    `Calendar.getInstance(`, `SimpleDateFormat`, `java.util.Date`. El bug que
+//    esta compuerta persigue —una fecha de negocio derivada del reloj/zona del
+//    dispositivo— no puede escaparse por acá sin tocar uno de esos.
+// 4. **Agregarlo hoy DEBILITARÍA el guard.** Obligaría a allowlistear ~23
+//    archivos de `:app`, y el allowlist es a nivel de archivo: cada entrada
+//    ciega ese archivo también para los otros 8 patrones, justo en el código
+//    legado que más los necesita.
+//
+// Qué haría cambiar la decisión: que un módulo migrado gane su primer uso, o
+// que el allowlist pase a ser por línea. Mientras tanto es deuda declarada, no
+// un olvido — la diferencia es que está escrita.
 val legacyDateApiPatterns = listOf(
     "LocalDate.now(",
     "LocalDateTime.now(",
@@ -104,25 +145,34 @@ val legacyDateApiAllowlist = setOf(
     "app/src/main/java/com/example/msp_app/features/visit/screens/VisitTicketScreen.kt",
 )
 
-// Content-based allowlist (NOT file-level) for the three actively-edited
-// MONEY ViewModels flagged by fix round 1/5 review: file-level allowlisting
+// Content-based allowlist (NOT file-level) for actively-edited MONEY
+// ViewModels flagged by fix round 1/5 review: file-level allowlisting
 // them would hide a NEW/different forbidden call added later in the SAME
 // file, and these are the files most likely to keep changing (live sale/
 // payment ViewModels). Instead of allowlisting the whole file, this
 // allowlists only the EXACT (comment-stripped, trimmed) text of the one
 // known pre-existing violation in each — any OTHER hit in these files,
-// including a second one, still fails the build. All three are REAL DEBT:
-// a persisted date/timestamp field written from the DEVICE clock
+// including a second one, still fails the build. Both remaining entries are
+// REAL DEBT: a persisted date/timestamp field written from the DEVICE clock
 // (`java.time.Instant.now()`/`LocalDate.now()`) instead of `AppClock`.
+// (A third entry, `EditLocalSaleViewModel.kt`, was removed here when Task 5
+// of "Corregir una venta antes de que suba" deleted that file — its
+// `FECHA_SUBIDA` violation went with it, not left as a dead allowlist row.)
 // Trade-off: if this exact line is ever reformatted (e.g. ktlint rewraps
 // it) without a code change, the guard fires a false positive on an
 // unrelated formatting diff. Judged acceptable: a false positive here is
 // loud and immediately obvious at the point of the reformat, unlike a
 // silently-widened file-level hole in a money ViewModel.
 val legacyDateApiContentAllowlist = mapOf(
-    // FECHA_SUBIDA persisted for a sale-edit image (device clock).
-    "app/src/main/java/com/example/msp_app/features/sales/viewmodels/EditLocalSaleViewModel.kt" to setOf(
-        "java.time.Instant.now().toString()"
+    // ── Arreglo B: primera entrada que NO viene de `:app` ──────────────────
+    // `AppClock.System` es LA implementación del reloj: alguien tiene que
+    // llamar a `Instant.now()` una vez, y el punto entero de este guard es que
+    // sea exactamente aquí y en ningún otro lado. Va por contenido y no por
+    // archivo a propósito — un segundo `Instant.now()` en este mismo archivo
+    // (p. ej. un helper de conveniencia que se saltara la interfaz) volvería a
+    // fallar el gate, que es lo que se quiere.
+    "core/common/src/main/kotlin/com/example/msp_app/core/common/time/AppClock.kt" to setOf(
+        "override fun now(): Instant = Instant.now()"
     ),
     // `saleDate` persisted for a NEW sale (device clock) — the most
     // money-sensitive of the three.
@@ -208,20 +258,90 @@ fun stripKotlinCommentsAndStrings(text: String): String {
     return out.toString()
 }
 
-tasks.register("checkNoLegacyDateApi") {
-    group = "verification"
-    description = "Task 13 (fechas/AppTime): falla si :app introduce un NUEVO uso directo de " +
+// ─────────────────────────────────────────────────────────────────────────
+// Arreglo B (2026-09-08) — el alcance del guard se DESCUBRE, no se escribe.
+//
+// Hasta acá esta tarea barría UN directorio literal (`app/src/main`). Los
+// cinco módulos que la rama `feat/pagos-y-visitas` agregó —`:feature:pagos`,
+// `:feature:visitas`, `:core:printing`, `:core:common`, …— quedaban FUERA de
+// la única compuerta que impone "AppTime/AppClock es la fuente única de
+// fechas", y nadie se enteraba: un módulo nuevo escapaba por defecto.
+//
+// Ahora el alcance sale de `subprojects` (el grafo de Gradle). Un módulo
+// nuevo entra al gate el día que entra a `settings.gradle.kts`, sin tocar
+// este archivo. **Salir** es lo que ahora cuesta: hay que escribirlo en
+// `legacyDateApiScopeAllowlist` CON su razón.
+//
+// Los source sets de prueba (`test`, `androidTest`, `testFixtures`) quedan
+// fuera a propósito y con razón escrita: un test construye fechas fijas a
+// mano (`LocalDate.of`, `SimpleDateFormat` para armar un fixture) y eso no es
+// la deuda que este guard persigue — persigue código de producción que lee el
+// reloj o la zona del dispositivo. `:core:testing` SÍ está en alcance por su
+// `src/main`, que es código de producción de las pruebas de otros módulos.
+val legacyDateApiTestSourceSets = setOf("test", "androidTest", "testFixtures")
+
+/**
+ * Módulos exentos del barrido, cada uno con la razón por la que lo está.
+ * Vacío hoy, y esa es la forma correcta: si mañana algo no puede cumplir la
+ * regla, la salida es una entrada acá con su motivo, nunca ablandar el
+ * patrón ni volver a un directorio literal.
+ */
+val legacyDateApiScopeAllowlist: Map<String, String> = emptyMap()
+
+// El tipo es la marca: `CompuertaDelRepoTask` es lo que hace que esta compuerta
+// entre al gate. El grupo lo fija el propio tipo (ver `CompuertaDelRepo.kt`).
+tasks.register<CompuertaDelRepoTask>("checkNoLegacyDateApi") {
+    description = "Arreglo B (ex Task 13, fechas/AppTime): barre TODOS los módulos del build " +
+        "(descubiertos desde Gradle) y falla si aparece un NUEVO uso directo de " +
         "LocalDate/LocalDateTime/Instant.now(), Calendar.getInstance(), SimpleDateFormat, " +
         "java.util.Date, ZoneId.systemDefault() o Locale.getDefault() fuera del allowlist."
 
-    val appMainDir = layout.projectDirectory.dir("app/src/main")
     val repoRoot = layout.projectDirectory.asFile
 
-    inputs.files(fileTree(appMainDir) { include("**/*.kt") })
+    // Descubrimiento: cada subproyecto del build aporta sus source sets de
+    // producción. `subprojects` se evalúa en configuración, así que un módulo
+    // nuevo en `settings.gradle.kts` entra solo.
+    val scannedModules: List<Pair<String, File>> = subprojects
+        .filter { it.path !in legacyDateApiScopeAllowlist.keys }
+        .map { it.path to File(it.projectDir, "src") }
+        .filter { (_, srcDir) -> srcDir.isDirectory }
+        .sortedBy { it.first }
+
+    val scannedTrees = scannedModules.map { (_, srcDir) ->
+        fileTree(srcDir) {
+            include("**/*.kt")
+            legacyDateApiTestSourceSets.forEach { exclude("$it/**") }
+        }
+    }
+
+    val moduleCount = scannedModules.size
+    val moduleNames = scannedModules.joinToString(", ") { it.first }
+
+    inputs.files(scannedTrees)
+    inputs.property("legacyDateApiPatterns", legacyDateApiPatterns)
+    inputs.property("legacyDateApiScopeAllowlist", legacyDateApiScopeAllowlist)
 
     doLast {
+        // Control positivo del propio barrido: si el descubrimiento devuelve
+        // cero módulos o cero archivos, el "sin violaciones" de abajo no
+        // probaría nada. Una compuerta que sale verde sin medir es el defecto
+        // que esta tarea vino a cerrar; que no lo reintroduzca ella misma.
+        if (moduleCount == 0) {
+            throw GradleException(
+                "checkNoLegacyDateApi: el descubrimiento no encontró NINGÚN módulo. " +
+                    "El barrido no midió nada y su verde no vale."
+            )
+        }
+        val scannedFiles = scannedTrees.flatMap { it.files }
+        if (scannedFiles.isEmpty()) {
+            throw GradleException(
+                "checkNoLegacyDateApi: se descubrieron $moduleCount módulos pero CERO archivos " +
+                    "`.kt`. El barrido no midió nada y su verde no vale."
+            )
+        }
+
         val violations = mutableListOf<String>()
-        fileTree(appMainDir) { include("**/*.kt") }.forEach { file ->
+        scannedFiles.forEach { file ->
             val relativePath = file.relativeTo(repoRoot).invariantSeparatorsPath
             if (relativePath in legacyDateApiAllowlist) return@forEach
             val contentAllowlistForFile = legacyDateApiContentAllowlist[relativePath]
@@ -234,10 +354,95 @@ tasks.register("checkNoLegacyDateApi") {
                 violations += "$relativePath:${index + 1}: uso directo de `$hit`"
             }
         }
+        logger.lifecycle(
+            "checkNoLegacyDateApi: ${scannedFiles.size} archivos en $moduleCount módulos " +
+                "($moduleNames)"
+        )
         if (violations.isNotEmpty()) {
             throw GradleException(
                 "checkNoLegacyDateApi: uso directo de API de fecha/hora legado fuera del " +
                     "allowlist — usar AppTime/AppClock de :core:common en su lugar:\n" +
+                    violations.joinToString("\n") { "  - $it" }
+            )
+        }
+    }
+}
+
+// Task 5 (plan "Corregir una venta antes de que suba"): guarda de arquitectura calcada de
+// `checkNoLegacyDateApi` de arriba — mismo mecanismo (grep-equivalent sobre `:app/src/main`,
+// comentarios/strings ya despojados antes de comparar, para no reventar por la propia
+// documentación de este defecto). Los nombres prohibidos viven todos en
+// `app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt` y son los
+// puntos de entrada al backend LEGADO de ventas locales (`ventas-locales/{id}`, vía
+// `LocalSaleSyncWorker`): apunta a un servidor que ya no es la fuente de verdad, rota la
+// `Idempotency-Key` de quien lo llame y no conoce el candado de corrección de este plan.
+// `EditLocalSaleViewModel.kt` (el único llamador) se BORRÓ en la Task 5; su reemplazo,
+// `CorreccionVentaViewModel` (`:feature:ventaCorreccion`), nunca los nombra. Esta guarda es lo que
+// impide que alguien los reconecte por accidente — o a propósito, sin darse cuenta de por qué está
+// prohibido — en el futuro.
+//
+// **Ronda de arreglo 1 de la Task 6b**: la guarda existía pero cubría UN solo nombre
+// (`enqueueLocalSaleUpdate`), mientras `enqueueLocalSaleCreate` y `enqueueLocalSaleSync` —que
+// llevan al MISMO worker legado, y la segunda además despacha a la primera— quedaban sin
+// protección. Medido: hoy ninguno de los tres tiene llamador fuera de su archivo, así que
+// extenderla no rompe nada y cierra el hueco antes de que alguien lo use. `changeSaleStatus`
+// (`LocalSaleSyncHandler`) marca `ENVIADO=1` sin pasar por `markSentAndCloseEdit`, o sea sin
+// detectar divergencia: prohibir los tres encolados es lo que lo deja inalcanzable.
+//
+// El propio archivo que DEFINE la función (`LocalSaleSyncExtensions.kt`) se allowlistea por
+// archivo completo: no es una reintroducción, es la definición que se queda dormida (fuera de
+// alcance de este plan borrarla del todo — ver "Fuera de alcance" #4 del plan). Cualquier OTRO
+// archivo de `:app/src/main` que la nombre, sea llamándola o reexportándola, hace fallar el
+// build.
+val legacySaleEditAllowlist = setOf(
+    "app/src/main/java/com/example/msp_app/features/sales/sync/LocalSaleSyncExtensions.kt"
+)
+
+// Los tres encolados del camino legado. `enqueueLocalSaleSync` va en la lista aunque sólo
+// despache a los otros dos: es el nombre más fácil de llamar desde una pantalla nueva.
+val legacySaleEnqueueNames = listOf(
+    "enqueueLocalSaleUpdate",
+    "enqueueLocalSaleCreate",
+    "enqueueLocalSaleSync"
+)
+
+// El tipo es la marca, igual que `checkNoLegacyDateApi` de arriba: tras la
+// integración con la rama de pagos y visitas, `prePushCheck` ya no lleva una
+// lista escrita a mano de compuertas — las DESCUBRE por el tipo
+// `CompuertaDelRepo`. Registrada como un `DefaultTask` pelado, esta compuerta
+// quedaría fuera del gate, y además `verificarMarcaDeCompuertas` (la red que
+// corre dentro del propio `prePushCheck`) fallaría por verla en el grupo
+// `verification` sin marca. El grupo lo fija el propio tipo.
+tasks.register<CompuertaDelRepoTask>("checkNoLegacySaleEdit") {
+    description = "Task 5 + ronda 1 de Task 6b (editar-venta-antes-de-subir): falla si :app " +
+        "nombra enqueueLocalSaleUpdate/Create/Sync fuera de su propia definición — el camino " +
+        "legado de ventas locales no se revive."
+
+    val appMainDir = layout.projectDirectory.dir("app/src/main")
+    val repoRoot = layout.projectDirectory.asFile
+
+    inputs.files(fileTree(appMainDir) { include("**/*.kt") })
+
+    doLast {
+        val violations = mutableListOf<String>()
+        fileTree(appMainDir) { include("**/*.kt") }.forEach { file ->
+            val relativePath = file.relativeTo(repoRoot).invariantSeparatorsPath
+            if (relativePath in legacySaleEditAllowlist) return@forEach
+            val stripped = stripKotlinCommentsAndStrings(file.readText())
+            stripped.lineSequence().forEachIndexed { index, line ->
+                legacySaleEnqueueNames.forEach { prohibido ->
+                    if (line.contains(prohibido)) {
+                        violations += "$relativePath:${index + 1}: nombra `$prohibido` " +
+                            "(backend legado de ventas locales)"
+                    }
+                }
+            }
+        }
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "checkNoLegacySaleEdit: las ventas locales no pueden volver al " +
+                    "backend legado — usar CorreccionVentaViewModel " +
+                    "(:feature:ventaCorreccion) en su lugar:\n" +
                     violations.joinToString("\n") { "  - $it" }
             )
         }
@@ -297,209 +502,444 @@ tasks.named("prepareKotlinBuildScriptModel") {
     dependsOn("installGitPushHook")
 }
 
-// Task 10 (Plan 1): gate agregado que corre pre-push, sobre TODOS los
-// módulos existentes a la fecha (se suman más cuando lleguen en planes
-// siguientes). Un solo `./gradlew prePushCheck` cubre:
-//   - ktlint de :app, :core:common, :core:database, :core:designsystem,
-//     :core:testing, :build-tools:detekt-rules y :build-logic (build
-//     compuesto, referenciado vía `gradle.includedBuild` porque sus tareas no
-//     viven en el grafo de tareas del build principal).
-//   - unit tests de cada módulo con tests.
-//   - detekt, ruleset COMPLETO vía `msp.detekt` (Plan 2, detekt-strict):
-//     `:core:common`, `:core:database`, `:core:designsystem`, `:core:testing`,
-//     `:build-tools:detekt-rules` — todo módulo nuevo que aplique el
-//     convention plugin. `:app` (legacy) NO corre detekt, ni acá ni en
-//     ningún otro lado — sigue solo con ktlint + `checkNoLegacyDateApi`
-//     (Task 13, fechas/AppTime migration: guard `:app`-scoped contra usos
-//     nuevos de API de fecha legado, ver comentario junto a esa tarea).
-//   - `:core:common:koverVerify` — cobertura ~90% acotada al domain de
-//     `:core:common` (resolución del orquestador, Task 4/10: NO hay gate de
-//     cobertura repo-wide sobre `:app`).
-//   - `:app:assembleDevlocalDebug` — build real de la variante de gate.
-// Deliberadamente NO incluye tareas `connected*` (device/emulador): el e2e
-// instrumentado es de Plan 2/5, no de este gate local.
-// `:core:database:testDebugUnitTest`/`ktlintCheck` se suman aquí (cierre de
-// Plan 2, ver `docs/superpowers/plans/2026-08-07-plan2-database.md` sección
-// "Acciones") aprovechando este cierre de Task 13 para saldar esa deuda
-// explícita — el módulo ya aplica ktlint/msp.detekt y tenía tests corriendo
-// solo manualmente hasta ahora.
-// `:core:designsystem` (Plan 3, Task 1) se suma con ktlint/test/detekt desde
-// el día uno del esqueleto. `:core:designsystem:verifyRoborazziDebug` +
-// `:core:designsystem:koverVerifyDebug` se suman ahora en Task 10 (cierre de
-// Plan 3): antes de Task 10 el plugin Roborazzi estaba aplicado pero sin
-// goldens de referencia — agregarlo antes habría hecho fallar el gate por
-// falta de capturas; ahora el catálogo Tier×escala×tema completo (goldens
-// `catalog_*` + los `msp_*`/sueltos de Tasks 6-9) está committeado y
-// `verifyRoborazziDebug` puede correr en verde en cada pre-push.
-// `koverVerifyDebug` de este módulo usa el piso placeholder (0%, `msp.kover`)
-// igual que el resto de módulos nuevos que todavía no tienen una línea base
-// de cobertura fijada.
-// `:core:telemetry` (Plan 4, Task 1) se suma con ktlint/test/detekt desde el
-// esqueleto, mismo patrón que `:core:database`/`:core:designsystem`. El
-// umbral real de cobertura (90%, dominio + cola durable) entra al gate acá
-// en Task 3, con el agregado `koverVerify` (no `koverVerifyDebug`): en ese
-// momento el módulo no usaba Compose UI-test, así que sus tests (Robolectric+
-// Room de la cola durable) pasaban limpio bajo la variante `release`
-// minificada también.
-// Task 4 agrega `TrackClickTest`/`ScreenScopeTest` (`createComposeRule`,
-// `ActivityScenarioRule` por debajo) — mismo gotcha documentado arriba para
-// `:core:designsystem`: bajo la variante `release`, Robolectric no resuelve
-// la actividad de host de Compose-test (`ui-test-manifest` solo se agrega a
-// `debugImplementation` vía `msp.android.compose`) y `testReleaseUnitTest`
-// revienta en TODOS los tests Compose, sin relación con el código de este
-// plan. Por eso, desde Task 4, el gate pasa a `koverVerifyDebug` (como
-// `:core:designsystem`) — el piso de cobertura 90% sigue vivo, solo deja de
-// arrastrar la variante `release` que el módulo no necesita ejercitar acá.
-// `:core:network` (Plan 4, Task 5) se suma con ktlint/test/detekt desde el
-// esqueleto, mismo patrón que `:core:database`/`:core:designsystem`/
-// `:core:telemetry` al nacer: `msp.kover` queda aplicado pero SIN entrar a
-// este gate todavía (piso placeholder 0%) — el umbral real llega cuando T6+
-// construya el cliente Retrofit/interceptores sobre `ConnectivityMonitor`
-// (reubicado desde `:app` en esta misma tarea, comportamiento idéntico).
+// ─────────────────────────────────────────────────────────────────────────
+// `prePushCheck` — la compuerta de las compuertas, y la séptima lista.
 //
-// Task 8 (Plan 4, cierre): confirma que AMBOS módulos nuevos del plan quedan
-// cubiertos en este gate — ktlint/test/detekt de `:core:telemetry` y
-// `:core:network` ya viven arriba desde que cada módulo nació (T1/T5); esta
-// tarea no repite esas líneas, solo verifica que sigan presentes y cierra la
-// promesa de cobertura pendiente:
-//   - `:core:telemetry:koverVerifyDebug` (90% del dominio + cola durable, ver
-//     comentario de T4 arriba) es la forma FINAL del ítem "koverVerify" que
-//     pedía el brief de cierre — no `koverVerify` a secas, por el mismo
-//     gotcha Robolectric-bajo-`release` que ya obligó a `:core:designsystem`.
-//   - `:core:network:koverVerify(Debug)` DELIBERADAMENTE no entra a este gate
-//     todavía (infra pragmática — interceptores/factory sobre OkHttp/Retrofit,
-//     mismo criterio que `:core:database`): el módulo SÍ tiene tests reales
-//     (`AppVersionInterceptorTest`/`BearerAuthInterceptorTest`/
-//     `RetrofitClientFactoryTest`/`ConnectivityMonitorTest`, todos corriendo
-//     vía `:core:network:testDebugUnitTest` arriba), pero sin piso de
-//     cobertura estricto — igual que Task 8 brief lo pide explícitamente.
-// El adapter stub de telemetría (`TelemetryModule` → `DurableTelemetry` →
-// `StubTelemetrySink`) se cablea en el composition root de `:app`
-// (`MainActivity`, vía `LocalTelemetry`) en esta misma tarea — sin tarea de
-// build nueva que agregar acá, ya cubierto por `:app:testDevlocalDebugUnitTest`
-// + `:app:assembleDevlocalDebug` de abajo.
+// Hasta la ronda 1 del Arreglo B esto era **un `dependsOn` con sesenta rutas de
+// tarea escritas a mano**. O sea: el arreglo que puso a descubrir a
+// `checkNoLegacyDateApi`, al guard del kill-switch, al de `KEEP` y al de
+// `SaleIdSpaces` dejaba intacta la lista de la que dependen los cuatro. Un
+// módulo nuevo lo habrían visto las cuatro compuertas reescritas **y no** su
+// ktlint, su detekt, su kover, su roborazzi ni sus pruebas.
 //
-// `:feature:collectionReport` (Plan 5, Task 1 — EL PILOTO): módulo esqueleto
-// (Compose + Hilt + Roborazzi, sin dominio/UI todavía) que aísla "¿el módulo
-// se levanta?" del contenido del reporte de cobranza (Tasks 2+). Wiring
-// PARCIAL a propósito: solo ktlint/test/detekt entran acá, mismo patrón de
-// nacimiento que `:core:database`/`:core:designsystem`/`:core:telemetry`/
-// `:core:network`. `verifyRoborazziDebug` y `koverVerify(Debug)` se suman en
-// la Task 11 del plan, cuando ya existan goldens/línea base de cobertura —
-// agregarlos antes haría fallar el gate por falta de capturas/umbral. `:app`
-// deliberadamente NO depende todavía de este módulo (esa es harina de otra
-// tarea del plan), así que `:app:assembleDevlocalDebug` no lo ejercita.
-tasks.register("prePushCheck") {
-    group = "verification"
-    description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, todos los módulos."
+// Y no es hipotético: el comentario que estaba acá documentaba que
+// `:feature:configuracion` vivió en `settings.gradle.kts` **semanas** sin entrar
+// a esta lista — ni ktlint, ni pruebas, ni detekt, ni kover. La lista ya falló
+// una vez, del modo exacto que este arreglo persigue.
+//
+// Ahora el alcance sale de `subprojects` y las tareas de cada módulo se
+// DESCUBREN: por cada familia se toma la primera tarea que ese módulo realmente
+// tenga. Un módulo nuevo entra completo el día que entra al build, sin tocar
+// este archivo.
+//
+// ## Por qué la precedencia dentro de la familia, y no todas
+//
+// `koverVerify` (el agregado) arrastra `testReleaseUnitTest`, y en los módulos
+// con Robolectric —Compose UI, Roborazzi— la variante `release` minificada
+// revienta en TODOS los tests con `RoboMonitoringInstrumentation`, sin relación
+// con el código. Por eso la familia prefiere `koverVerifyDebug` cuando existe y
+// cae a `koverVerify` sólo en los módulos JVM planos (`:core:common`,
+// `:core:upload`), que es exactamente lo que la lista vieja hacía a mano.
+// Lo mismo con las pruebas: `:app` tiene sabores, así que su tarea es
+// `testDevlocalDebugUnitTest`; el resto usa `testDebugUnitTest`, y
+// `:build-tools:detekt-rules` (JVM puro) `test`.
+//
+// Las reglas de cobertura ACOTADAS por paquete (`:core:database` tiene
+// `koverVerifyMigrations` al 100% y `koverVerifyPagosDao` al 38%, porque Kover
+// 0.8 prohíbe filtrar dentro de una regla) se descubren aparte: toda tarea
+// `koverVerify*` con nombre propio entra sola. Antes había que acordarse de
+// agregarlas.
+//
+// `:build-logic` NO es un subproyecto sino un build incluido, así que su ktlint
+// se referencia explícito: `gradle.includedBuild(...)` es la única forma de
+// alcanzarlo, y la API pública de Gradle no deja ENUMERAR las tareas de un build
+// incluido. Ese aporte queda declarado, y la declaración la vigila
+// `verificarElBuildIncluido()` — ver su KDoc.
 
-    dependsOn(
-        gradle.includedBuild("build-logic").task(":ktlintCheck"),
-        ":app:ktlintCheck",
-        "checkNoLegacyDateApi",
-        ":core:common:ktlintCheck",
-        ":core:database:ktlintCheck",
-        ":core:designsystem:ktlintCheck",
-        ":core:network:ktlintCheck",
-        ":core:printing:ktlintCheck",
-        ":core:telemetry:ktlintCheck",
-        ":core:testing:ktlintCheck",
-        // `:core:upload` (política de entrega garantizada) y `:core:appgate`
-        // (bloqueo por versión) entran al gate desde su creación: son
-        // exactamente los dos módulos donde un error cuesta dinero — uno decide
-        // si se suelta una captura, el otro puede dejar a la flota sin app.
-        ":core:upload:ktlintCheck",
-        ":core:appgate:ktlintCheck",
-        ":core:settings:ktlintCheck",
-        ":feature:collectionReport:ktlintCheck",
-        // HUECO CERRADO (2026-08-16): `:feature:configuracion` estaba en
-        // `settings.gradle.kts` desde que nació pero NUNCA entró a esta lista —
-        // ni ktlint, ni sus pruebas, ni detekt, ni kover corrían en la compuerta
-        // local, así que el módulo podía romperse sin que el pre-push se
-        // enterara. Sus cuatro tareas pasan hoy tal cual (cobertura medida:
-        // 87.78% LINE), así que sumarlas no arrastra deuda nueva.
-        ":feature:configuracion:ktlintCheck",
-        ":build-tools:detekt-rules:ktlintCheck",
-        ":app:testDevlocalDebugUnitTest",
-        ":core:common:testDebugUnitTest",
-        ":core:database:testDebugUnitTest",
-        ":core:designsystem:testDebugUnitTest",
-        ":core:network:testDebugUnitTest",
-        ":core:printing:testDebugUnitTest",
-        ":core:telemetry:testDebugUnitTest",
-        ":core:testing:testDebugUnitTest",
-        ":core:upload:testDebugUnitTest",
-        ":core:appgate:testDebugUnitTest",
-        ":core:settings:testDebugUnitTest",
-        ":feature:collectionReport:testDebugUnitTest",
-        ":feature:configuracion:testDebugUnitTest", // ver "HUECO CERRADO" arriba
-        ":build-tools:detekt-rules:test",
-        ":core:common:koverVerify",
-        // `koverVerifyDebug`, no el agregado `koverVerify`: el agregado también
-        // arrastra `testReleaseUnitTest`, y el 100% de los tests de este módulo
-        // son Robolectric (Compose UI + Roborazzi) — Robolectric bajo la
-        // variante `release` (minificada) revienta con
-        // `RoboMonitoringInstrumentation` en CADA test, sin relación alguna con
-        // Task 10 ni con el código del catálogo. `:core:common` no pisa este
-        // gotcha porque sus tests son JVM plano, sin Robolectric.
-        ":core:designsystem:koverVerifyDebug",
-        // `:core:printing` (P1, port de kollect-app): usa `koverVerifyDebug` (no
-        // el agregado `koverVerify`) por el mismo gotcha Robolectric-bajo-`release`
-        // — sus tests de adapters (BluetoothPrinterDiscoveryTest /
-        // PreferredPrinterRepositoryTest) corren sobre Robolectric. Piso 0%
-        // (placeholder `msp.kover`), igual que el resto de módulos nuevos.
-        ":core:printing:koverVerifyDebug",
-        ":core:telemetry:koverVerifyDebug",
-        // `:core:database` (2026-08-16): sus PRUEBAS ya estaban en el gate desde
-        // el cierre de Plan 2, pero `koverVerify*` NO — o sea que sus migraciones
-        // y su DAO de pagos no tenían piso alguno. Entra ahora con las tres
-        // reglas reales de `core/database/build.gradle.kts` (migraciones 100%,
-        // DAO de pagos 38%, módulo 13%). `koverVerifyDebug` por el mismo gotcha
-        // Robolectric-bajo-`release` explicado arriba. Las otras dos tareas son
-        // las variantes de reporte acotadas por paquete (Kover 0.8 prohíbe
-        // filtrar dentro de una regla; ver el gotcha documentado en el
-        // `build.gradle.kts` del módulo): migraciones al 100% y DAO de pagos
-        // al 38%. Sin ellas el módulo quedaría sólo con el trinquete de 13%,
-        // que no dice nada sobre lo que de verdad importa acá.
-        ":core:database:koverVerifyDebug",
-        ":core:database:koverVerifyMigrations",
-        ":core:database:koverVerifyPagosDao",
-        // `:core:upload` es JVM plano (funcion pura + puerto), asi que aguanta
-        // el agregado `koverVerify` sin el gotcha Robolectric-bajo-`release`.
-        ":core:upload:koverVerify",
-        // `:core:appgate` y `:core:settings` si traen Robolectric (Compose):
-        // `koverVerifyDebug` por el mismo gotcha explicado arriba.
-        ":core:appgate:koverVerifyDebug",
-        ":core:settings:koverVerifyDebug",
-        // Mismo gotcha Robolectric-bajo-`release` de arriba — Task 11 (Plan 5,
-        // cierre del piloto) sumó el piso de cobertura de
-        // `:feature:collectionReport` al gate. Desde 2026-08-16 ese piso ya NO
-        // es el placeholder 0%: es 78, medido en 81.20% LINE (ver el bloque
-        // `kover` de su `build.gradle.kts`).
-        ":feature:collectionReport:koverVerifyDebug",
-        ":feature:configuracion:koverVerifyDebug", // ver "HUECO CERRADO" arriba
-        ":core:common:detekt",
-        ":core:database:detekt",
-        ":core:designsystem:detekt",
-        ":core:network:detekt",
-        ":core:printing:detekt",
-        ":core:telemetry:detekt",
-        ":core:testing:detekt",
-        ":core:upload:detekt",
-        ":core:appgate:detekt",
-        ":core:settings:detekt",
-        ":feature:collectionReport:detekt",
-        ":feature:configuracion:detekt", // ver "HUECO CERRADO" arriba
-        ":build-tools:detekt-rules:detekt",
-        ":core:designsystem:verifyRoborazziDebug",
-        // Task 11 (Plan 5, cierre del piloto): el gate de fidelidad visual
-        // completo del reporte de cobranza (matriz Tier 1/2 × {1.0,1.3,2.0} ×
-        // {light,dark} + estados clave, `MoneyNoTruncationTest`/
-        // `ContrastAAATest` ya viven en `testDebugUnitTest` de arriba) entra
-        // al gate agregado — hasta ahora deliberadamente diferido (Task 1:
-        // "agregarlos antes haría fallar el gate por falta de
-        // capturas/umbral"), esos goldens ya están committeados.
-        ":feature:collectionReport:verifyRoborazziDebug",
-        ":app:assembleDevlocalDebug",
+/** Familias de tareas. Dentro de cada una se toma la PRIMERA que exista. */
+val prePushTaskFamilies: List<List<String>> = listOf(
+    listOf("ktlintCheck"),
+    listOf("testDevlocalDebugUnitTest", "testDebugUnitTest", "test"),
+    listOf("detekt"),
+    listOf("verifyRoborazziDebug"),
+    listOf("assembleDevlocalDebug")
+)
+
+/**
+ * Las verificaciones de cobertura del módulo: **todas**, no una elegida.
+ *
+ * ## La razón que estaba escrita acá era falsa
+ *
+ * Decía que el agregado `koverVerify` arrastra `testReleaseUnitTest` y que
+ * Robolectric revienta bajo la variante `release` minificada, así que hacía
+ * falta un criterio —leer `src/test` buscando Robolectric— para elegir entre el
+ * agregado y `koverVerifyDebug`. **`testReleaseUnitTest` no existe en este
+ * build:** `AndroidLibraryConventionPlugin` apaga los unit tests de `release`
+ * en todos los módulos (`variant.enableUnitTest = variant.buildType !=
+ * "release"`). El criterio funcionaba —reproducía la lista vieja— pero su
+ * justificación era falsa, y una razón falsa que sostiene una decisión correcta
+ * es peor que ninguna: la próxima persona la usa para decidir otra cosa.
+ *
+ * Medido en vez de razonado: `./gradlew :core:designsystem:koverVerify` —el
+ * módulo más cargado de Robolectric/Roborazzi del repo— **pasa**. Lo único que
+ * agrega el agregado es compilar la variante `release` y fusionar su artefacto,
+ * vacío de cobertura porque ahí no corre un test. O sea que **no hay ningún
+ * hecho técnico** que distinga a `:core:common` y `:core:upload` del resto: la
+ * elección de la lista vieja era histórica, no técnica.
+ *
+ * Así que no se elige. Se toman **todas** las tareas `koverVerify*` del módulo
+ * —el agregado, la de `debug`, y las reglas acotadas por paquete que
+ * `:core:database` registra con nombre propio—, que es estrictamente más
+ * verificación que cualquiera por separado y no exige una decisión por módulo
+ * que nadie puede justificar hoy. Se excluyen las de `release` porque ahí no
+ * corre un solo test: verificar cobertura sobre una variante sin pruebas mide
+ * cero y no significa nada.
+ *
+ * Esto además borra la inconsistencia que señaló la revisión: la función que
+ * leía `src/test` para decidir contaba menciones **dentro de comentarios**,
+ * mientras `EscanerDeFuentes` las descarta a propósito. Ya no hay dos criterios
+ * porque ya no hay lectura.
+ *
+ * **Sigue decidiendo por NOMBRE** (ronda 5, para que el inventario esté
+ * completo): `startsWith("koverVerify")` y `!endsWith("Release")` son un
+ * criterio textual sobre nombres de tarea de plugin, igual que
+ * [prePushTaskFamilies] y que `nombresDePrueba` en el `doLast` del gate. Son
+ * tareas de Kover: no llevan ni pueden llevar la marca `CompuertaDelRepo`, así
+ * que hay que nombrarlas. Está acotado y con razón escrita, pero no es
+ * descubrimiento y cuenta como lista.
+ */
+fun tareasDeCoberturaDe(proyecto: Project): List<String> = proyecto.tasks.names
+    .filter { it.startsWith("koverVerify") && !it.endsWith("Release") }
+    .sorted()
+
+/**
+ * Módulos exentos del gate, con la razón por la que lo están. **Vacío**, y esa
+ * es la forma correcta: la única salida es escribir el módulo acá con su motivo.
+ */
+val prePushScopeAllowlist: Map<String, String> = emptyMap()
+
+/**
+ * Los módulos de verdad: los subproyectos que tienen script de build propio.
+ *
+ * `:core`, `:feature` y `:build-tools` también son subproyectos —Gradle crea un
+ * proyecto por cada segmento de `include(":core:common")`— pero son carpetas
+ * contenedoras sin script, sin código y sin una sola tarea que aportar. El
+ * primer intento del descubrimiento los contaba y el control positivo del gate
+ * los delató de inmediato ("estos módulos no aportaron NI UNA tarea"), que es
+ * exactamente para lo que ese control está.
+ *
+ * El filtro es por hecho verificable —¿tiene `build.gradle.kts`?— y no por
+ * nombre: una carpeta contenedora nueva no hay que agregarla a ningún lado, y
+ * un módulo nuevo entra por tener script, no por llamarse de cierta forma.
+ */
+val modulosDelBuild: List<Project>
+    get() = subprojects
+        .filter { File(it.projectDir, "build.gradle.kts").isFile }
+        .filterNot { it.path in prePushScopeAllowlist }
+
+/**
+ * Tareas sueltas excluidas, por `<módulo>:<tarea>`, con su razón. Se exime una
+ * TAREA, no un módulo entero: el resto de sus familias sigue en la compuerta.
+ */
+val prePushTaskAllowlist: Map<String, String> = mapOf(
+    // `:core:network` es infra pragmática sobre OkHttp/Retrofit (interceptores y
+    // factory) y nació con `msp.kover` aplicado pero SIN piso: el brief de su
+    // Task 8 lo pidió explícitamente así. Sus pruebas reales
+    // (`AppVersionInterceptorTest`, `BearerAuthInterceptorTest`,
+    // `RetrofitClientFactoryTest`, `ConnectivityMonitorTest`) SÍ corren en el
+    // gate por la familia de pruebas; lo que no corre es un umbral que nadie
+    // fijó todavía.
+    ":core:network:koverVerify" to
+        "sin línea base de cobertura fijada (decisión de su Task 8); sus pruebas sí entran",
+    ":core:network:koverVerifyDebug" to
+        "sin línea base de cobertura fijada (decisión de su Task 8); sus pruebas sí entran"
+)
+
+/**
+ * Las compuertas propias de [proyecto]: se las pregunta al **modelo de objetos**.
+ *
+ * ## Ronda 4 — el criterio dejó de ser textual
+ *
+ * Las rondas 2 y 3 contestaron "¿es nuestra esta compuerta?" **leyendo el código
+ * fuente**: un regex sobre los `tasks.register("…")` de tres rutas de archivo,
+ * cruzado con el grupo `verification`. Eso medía *cómo está escrito el registro*,
+ * no *qué es la tarea*, y el revisor lo probó con tres semillas: el nombre en una
+ * constante no entraba (verde, sin aviso), el nombre por variante desde un
+ * convention plugin tampoco, y una línea de **comentario** que mencionaba
+ * `tasks.register("lintDebug")` metía Android Lint en el pre-push de los 14
+ * módulos Android. Un criterio de texto no sólo omite: también agrega.
+ *
+ * Hoy la identidad es el **tipo**: una compuerta de este repo es una tarea que
+ * implementa `buildlogic.CompuertaDelRepo` (ver el KDoc de esa interfaz, que
+ * explica por qué una marca de tipo y no una propiedad, y por qué interfaz y no
+ * sólo clase base). `tasks.withType(...)` filtra por el tipo con el que la tarea
+ * fue **registrada**, sin realizarla: es exactamente la pregunta que había que
+ * hacerle a Gradle, y no hay ningún archivo que leer.
+ *
+ * Como corolario, el grupo dejó de ser criterio. No hace falta acotar por
+ * `verification` para no arrastrar `check`, `lint*` ni `connectedCheck`: esas
+ * tareas no llevan la marca, y ninguna cantidad de texto en un comentario puede
+ * dársela.
+ *
+ * ## Y si alguien la registra sin la marca
+ *
+ * No pasa desapercibido: `verificarMarcaDeCompuertas` —que `msp.compuertas`
+ * registra en la raíz, que lleva la marca y que por lo tanto este mismo
+ * descubrimiento mete al gate— falla ante cualquier tarea del grupo
+ * `verification` con la forma de una compuerta escrita a mano (tipo público
+ * `DefaultTask`) que no la lleve.
+ */
+fun compuertasDe(proyecto: Project): List<String> =
+    proyecto.tasks.withType(CompuertaDelRepo::class.java).names.sorted()
+
+/** Lo que cada módulo aportó, para el control positivo del propio descubrimiento. */
+val prePushAportes = linkedMapOf<String, List<String>>()
+
+/**
+ * Las tareas de gate que [proyecto] tiene HOY.
+ *
+ * Se llama tarde a propósito (ver el `Callable` de abajo): AGP, Kover y
+ * Roborazzi registran sus tareas por variante dentro de sus propios
+ * `afterEvaluate`, y un `afterEvaluate` de la raíz corre ANTES que los de ellos.
+ * Leer `tasks.names` ahí devolvía `koverVerify` en vez de `koverVerifyDebug` y
+ * dejaba fuera `testDevlocalDebugUnitTest`, `verifyRoborazziDebug`,
+ * `assembleDevlocalDebug` y las reglas de cobertura acotadas — o sea, un
+ * descubrimiento que descubría de menos. Lo detectó el control positivo del
+ * propio gate, comparando lo descubierto contra la lista vieja.
+ */
+fun tareasDeGateDe(proyecto: Project): List<String> {
+    val nombres = proyecto.tasks.names
+    val modulo = proyecto.path
+    val aportadas = mutableListOf<String>()
+
+    prePushTaskFamilies.forEach { familia ->
+        val elegida = familia.firstOrNull { it in nombres } ?: return@forEach
+        if ("$modulo:$elegida" in prePushTaskAllowlist) return@forEach
+        aportadas += elegida
+    }
+    tareasDeCoberturaDe(proyecto)
+        .filterNot { "$modulo:$it" in prePushTaskAllowlist }
+        .forEach { aportadas += it }
+    // (Ronda 4) Las compuertas propias del módulo, identificadas por su TIPO.
+    compuertasDe(proyecto)
+        .filterNot { "$modulo:$it" in prePushTaskAllowlist }
+        .forEach { if (it !in aportadas) aportadas += it }
+
+    prePushAportes[modulo] = aportadas
+    return aportadas
+}
+
+/**
+ * Bajas declaradas respecto de [prePushBaselineFile], con su razón.
+ *
+ * **Vacío.** Las tres tareas que la ronda 1 perdió en silencio se recuperaron:
+ * no había ninguna baja legítima, sólo un descubrimiento incompleto.
+ */
+val prePushBaselineBajas: Map<String, String> = emptyMap()
+
+/**
+ * Piso de tamaño de la base congelada: las 68 entradas que tenía el
+ * `dependsOn` escrito a mano de `d2073787`. Vaciar el archivo o recortarlo es
+ * la forma obvia de ablandar esta red, así que el tamaño también se afirma.
+ */
+val MINIMO_DE_LA_BASE = 68
+
+/** La base congelada del Ruling BB. Ver el encabezado del propio archivo. */
+val prePushBaselineFile: File = file("gradle/prepush-baseline.txt")
+
+/**
+ * El nombre canónico de [tarea] en la forma que usa la base congelada.
+ *
+ * Las tareas del build principal se nombran por su `path` (`:core:common:koverVerify`);
+ * las de un build INCLUIDO llevan el nombre de su build por delante
+ * (`build-logic:ktlintCheck`), porque su `path` es `:ktlintCheck` y chocaría con
+ * una tarea de la raíz.
+ */
+fun nombreCanonicoDe(tarea: Task): String =
+    if (tarea.project.gradle.parent != null) {
+        "${tarea.project.rootProject.name}${tarea.path}"
+    } else {
+        tarea.path
+    }
+
+/**
+ * Ruling BB — el control de NO-REGRESIÓN sobre la propia compuerta.
+ *
+ * Descubrir no basta: el conjunto descubierto puede ser **distinto** del que
+ * había, y como la lista ya no existe, no queda nada contra qué comparar. La
+ * ronda 1 perdió tres tareas así, en silencio, y una era `checkNoLegacyDateApi`.
+ *
+ * Esto exige que lo descubierto **contenga** la base congelada. Ganar tareas es
+ * el objetivo y no se toca; perder una hay que escribirla en
+ * [prePushBaselineBajas] con su motivo.
+ */
+fun Task.verificarLaBaseCongelada() {
+    // Control positivo del control: una base vacía o ausente convertiría la
+    // comprobación de abajo en un `emptySet - x = emptySet`, o sea un verde que
+    // no mide nada. Es el defecto que este arreglo persigue; no puede vivir
+    // dentro de la red que lo atrapa.
+    if (!prePushBaselineFile.isFile) {
+        throw GradleException(
+            "prePushCheck: falta ${prePushBaselineFile.path}, la base congelada del Ruling BB. " +
+                "Sin ella el control de no-regresión no compara contra nada."
+        )
+    }
+    val base = prePushBaselineFile.readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
+        .toSet()
+    if (base.size < MINIMO_DE_LA_BASE) {
+        throw GradleException(
+            "prePushCheck: la base congelada tiene ${base.size} entradas, menos que el mínimo " +
+                "de $MINIMO_DE_LA_BASE. O se vació por accidente, o alguien la recortó para " +
+                "que el gate pasara — que es la forma de ablandar esta red."
+        )
+    }
+
+    // El agujero DENTRO de la red, cerrado: hasta la ronda 2 esto comparaba
+    // contra un conjunto de cadenas que el propio descubrimiento iba armando, y
+    // `build-logic:ktlintCheck` se agregaba a mano ahí. O sea que esa entrada de
+    // la base **no podía fallar**: se satisfacía a sí misma, y borrar el
+    // `dependsOn` del build incluido dejaba el gate en verde diciendo "68/68".
+    // Ahora se mide contra el GRAFO REAL de dependencias de esta tarea: si la
+    // dependencia no existe, la entrada falta y la red lo dice.
+    val reales = taskDependencies.getDependencies(this).map { nombreCanonicoDe(it) }.toSet()
+    if (reales.isEmpty()) {
+        throw GradleException(
+            "prePushCheck: la tarea no declara NINGUNA dependencia. El gate no corrió nada."
+        )
+    }
+
+    val faltantes = (base - reales - prePushBaselineBajas.keys).sorted()
+    if (faltantes.isNotEmpty()) {
+        throw GradleException(
+            "prePushCheck: el descubrimiento PERDIÓ tareas que la compuerta escrita a mano sí " +
+                "corría: $faltantes.\n" +
+                "Cambiar una lista por un descubrimiento no es gratis: el conjunto nuevo puede " +
+                "ser distinto sin que nadie lo note. Recuperalas, o declaralas en " +
+                "`prePushBaselineBajas` CON su razón."
+        )
+    }
+
+    val bajasVivas = prePushBaselineBajas.keys.filter { it in reales }.sorted()
+    if (bajasVivas.isNotEmpty()) {
+        throw GradleException(
+            "prePushCheck: estas entradas de `prePushBaselineBajas` describen tareas que HOY sí " +
+                "se descubren: $bajasVivas. Bórralas — una baja declarada que ya no ocurre es " +
+                "una excusa escrita para algo que no pasa."
+        )
+    }
+
+    val ganadas = (reales - base).sorted()
+    logger.lifecycle(
+        "prePushCheck: base congelada ${base.size}/${base.size} cubierta contra el grafo real " +
+            "(${reales.size} dependencias)" +
+            if (ganadas.isEmpty()) "" else ", ${ganadas.size} tareas ganadas: $ganadas"
     )
+}
+
+/**
+ * `build-logic` — por qué su aporte al gate se declara, y la red que vigila esa
+ * declaración.
+ *
+ * **El descubrimiento no se le puede aplicar.** `subprojects` no ve a un build
+ * incluido, y `gradle.includedBuild("build-logic")` expone exactamente tres
+ * cosas —`name`, `projectDir` y `task(path)`—: la API pública de Gradle 8.11 no
+ * ofrece ninguna forma de ENUMERAR las tareas de un build incluido desde el
+ * build principal. No es una omisión de este arreglo: es el límite de la API.
+ *
+ * Así que se declara, con su razón. `build-logic` tiene cuatro tareas en el
+ * grupo `verification` (medido con `../gradlew tasks --group=verification`):
+ * `check` (ciclo de vida), `checkKotlinGradlePluginConfigurationErrors` (de
+ * KGP), `ktlintCheck` y `test`. La primera y la segunda no verifican nada
+ * propio; `ktlintCheck` es la que el gate corre; y `test` **no tiene un solo
+ * test que correr**, porque `build-logic/src` sólo tiene `main`.
+ *
+ * Una declaración que nadie vigila es una lista escrita a mano con otro nombre.
+ * Por eso se vigila el hecho del que depende: el día que alguien escriba
+ * `build-logic/src/test`, esto falla y obliga a decidir de nuevo, en vez de
+ * dejar unas pruebas fuera del gate en silencio — que es el defecto que el
+ * Arreglo B persigue.
+ */
+fun verificarElBuildIncluido() {
+    val sourceSets = File(rootDir, "build-logic/src").listFiles()
+        .orEmpty()
+        .filter { it.isDirectory }
+        .map { it.name }
+        .sorted()
+    if (sourceSets != listOf("main")) {
+        throw GradleException(
+            "prePushCheck: `build-logic/src` tiene los source sets $sourceSets. La declaración " +
+                "de este gate dice que sólo hay `main`, y de ese hecho depende que " +
+                "`build-logic:test` esté fuera de alcance sin que nadie lo note.\n" +
+                "Si ahora hay pruebas, sumalas con " +
+                "`dependsOn(gradle.includedBuild(\"build-logic\").task(\":test\"))`; si no, " +
+                "reescribí esta declaración CON su razón."
+        )
+    }
+}
+
+val prePushCheck = tasks.register("prePushCheck") {
+    group = "verification"
+    description = "Gate agregado pre-push: ktlint + tests + detekt + kover + roborazzi + build, " +
+        "sobre TODOS los módulos del build, descubiertos desde Gradle."
+
+    dependsOn(gradle.includedBuild("build-logic").task(":ktlintCheck"))
+
+    // `Callable` y no una lista: Gradle lo resuelve al armar el grafo de
+    // tareas, cuando TODOS los proyectos ya están configurados. Es la única
+    // forma de ver las tareas por variante (ver KDoc de `tareasDeGateDe`).
+    dependsOn(
+        Callable {
+            val deLaRaiz = compuertasDe(rootProject)
+            prePushAportes[":"] = deLaRaiz
+            val deLosModulos = modulosDelBuild
+                .flatMap { sub -> tareasDeGateDe(sub).map { "${sub.path}:$it" } }
+            deLaRaiz.map { ":$it" } + deLosModulos
+        }
+    )
+
+    doLast {
+        // Control positivo del descubrimiento. Los `dependsOn` de arriba ya
+        // corrieron; lo que se afirma acá es que corrieron sobre TODO el árbol.
+        // Sin esto, un descubrimiento roto dejaría el gate verde habiendo
+        // ejecutado nada — que es el defecto que esta compuerta vino a cerrar,
+        // y sería particularmente ridículo reintroducirlo justo aquí.
+        val esperados = modulosDelBuild.map { it.path }
+        if (esperados.isEmpty()) {
+            throw GradleException("prePushCheck: el descubrimiento no encontró NINGÚN módulo.")
+        }
+        verificarLaBaseCongelada()
+        verificarElBuildIncluido()
+
+        val sinAporte = esperados.filterNot { prePushAportes[it].orEmpty().isNotEmpty() }
+        if (sinAporte.isNotEmpty()) {
+            throw GradleException(
+                "prePushCheck: estos módulos no aportaron NI UNA tarea al gate: $sinAporte.\n" +
+                    "Un módulo que la compuerta no ejecuta es un módulo sin compuerta."
+            )
+        }
+        // ktlint y pruebas son el mínimo que todo módulo del repo puede dar. Un
+        // módulo que no los tiene está mal configurado, o es una excepción que
+        // alguien tiene que escribir.
+        // (Ronda 5) Espejo por NOMBRE de la familia 2 de `prePushTaskFamilies`:
+        // si alguien cambia una y no la otra, este chequeo de "media compuerta"
+        // miente. Cuenta como lista, junto con esa familia y con el
+        // `startsWith("koverVerify")` de `tareasDeCoberturaDe`.
+        val nombresDePrueba = listOf("testDevlocalDebugUnitTest", "testDebugUnitTest", "test")
+        val incompletos = esperados.filter { modulo ->
+            val aportadas = prePushAportes[modulo].orEmpty()
+            val tieneKtlint = "ktlintCheck" in aportadas ||
+                "$modulo:ktlintCheck" in prePushTaskAllowlist
+            val tienePruebas = aportadas.any { it in nombresDePrueba } ||
+                nombresDePrueba.any { "$modulo:$it" in prePushTaskAllowlist }
+            !tieneKtlint || !tienePruebas
+        }
+        if (incompletos.isNotEmpty()) {
+            throw GradleException(
+                "prePushCheck: estos módulos entraron al gate SIN ktlint o SIN pruebas: " +
+                    "$incompletos.\nEs media compuerta, que es peor que ninguna porque parece " +
+                    "una. Configurá la tarea que falta, o escribila en `prePushTaskAllowlist` " +
+                    "con su razón."
+            )
+        }
+        logger.lifecycle(
+            "prePushCheck: ${esperados.size} módulos + la raíz, " +
+                "${prePushAportes.values.sumOf { it.size }} tareas descubiertas " +
+                "(+ build-logic:ktlintCheck)"
+        )
+        prePushAportes.toSortedMap().forEach { (modulo, tareas) ->
+            logger.lifecycle("  $modulo → ${tareas.joinToString(", ")}")
+        }
+    }
 }

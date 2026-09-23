@@ -23,6 +23,7 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.features.sales.SaleIdSpaces
 import com.example.msp_app.features.sales.components.paymentcard.PaymentCard
 
 @Composable
@@ -31,7 +32,7 @@ fun PaymentsHistory(sale: Sale, navController: NavController) {
     val paymentsBySaleIdGroupedState by viewModel.paymentsBySaleIdGroupedState.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.getGroupedPaymentsBySaleId(saleId = sale.DOCTO_CC_ID)
+        viewModel.getGroupedPaymentsBySaleId(saleId = SaleIdSpaces.forSalePayments(sale))
     }
 
     Column(

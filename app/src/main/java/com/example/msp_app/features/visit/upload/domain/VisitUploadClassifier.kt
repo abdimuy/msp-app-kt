@@ -18,9 +18,12 @@ enum class VisitUploadDecision {
     DONE,
 
     /**
-     * Transient — retry without marking. The server either did not see the visita
-     * (401 token blip refreshed by the interceptor) or asked us to back off
-     * (408/409/425/429).
+     * Transient — retry without marking, no cap. Reserved for failures the
+     * worker itself never routes here today (kept for defensive/unknown
+     * codes, see the `else` branch below). Every *named* pure-retry HTTP
+     * code has its own capped policy — see [RETRY_THEN_FAIL] — because an
+     * uncapped RETRY is exactly the bug this classifier exists to prevent: a
+     * phone with an expired token retrying forever and draining the battery.
      */
     RETRY,
 
@@ -30,21 +33,62 @@ enum class VisitUploadDecision {
      * captured as a failed-intent, so the visita is recoverable from the desk and
      * the phone should stop spinning.
      */
-    RETRY_THEN_DONE
+    RETRY_THEN_DONE,
+
+    /**
+     * Pure-retry codes with NO server-side custody guarantee: 401 (token
+     * blip — may need re-auth, not just a resend), 408/425/429 (backoff
+     * signals from the gateway/rate-limiter, which sits in front of the
+     * cobranza failed-intent capture middleware and so never persists these).
+     * Retry with backoff below the attempt cap; at the cap, STOP asking
+     * WorkManager to retry — but never mark GUARDADO_EN_MICROSIP, because
+     * unlike RETRY_THEN_DONE there is no proof the server holds the visita.
+     * The worker returns `Result.failure()`, which ends that WorkManager job
+     * without losing the record: the visita stays pending in Room and is
+     * picked up again by `VisitsPendingSynchronizer`
+     * (`SyncAllPendingWorkUseCase`, `ExistingWorkPolicy.REPLACE`) on the next
+     * session — the same mechanism already built to resume workers stuck in
+     * a terminal state. Capped, not lost.
+     */
+    RETRY_THEN_FAIL
 }
 
 /**
  * Classifies a visit upload HTTP status. The golden rule: only ever reach
- * DONE when there is confidence the server holds the visita (a 2xx, or a 4xx that
- * the capture middleware guarantees is persisted). Network failures never reach
- * this function — they are always retried by the worker so the visita is never
+ * DONE when there is confidence the server holds the visita — a 2xx, or a
+ * 4xx that the capture middleware guarantees is persisted. (409 is also
+ * mapped to DONE, but defensively, not on that same confidence — see the
+ * comment on the 409 branch below.) Network failures never reach this
+ * function — they are always retried by the worker so the visita is never
  * lost from a device that alone still holds it.
  */
 object VisitUploadClassifier {
     fun classifyHttpCode(code: Int): VisitUploadDecision = when (code) {
-        // 401 is inside 400..499 but is a token blip, not a data rejection.
-        401 -> VisitUploadDecision.RETRY
-        408, 409, 425, 429 -> VisitUploadDecision.RETRY
+        // 409 = ErrVisitaYaExiste. DEFENSIVE, currently unreachable: on an ID
+        // collision, app/registrar_visita.go's RegistrarVisita catches
+        // ErrVisitaYaExiste, calls FindByID, and returns (visita, nil) — no
+        // error — so infra/visitashttp/handlers.go answers 201, not 409.
+        // If that FindByID itself fails, the raw error propagates unmapped
+        // and platform/apperror.mapAppError turns it into a generic 500 (even
+        // domain.ErrVisitaNoEncontrada maps to 404, per
+        // infra/visitasfb/repo.go); domain/errors.go states outright that
+        // nothing in the package produces 409 as an HTTP-facing error.
+        // POST /v2/visitas cannot currently return HTTP 409 at all. This
+        // branch is a defensive fallback, not a verified classification of an
+        // observed server signal: if a real 409 ever were observed, it would
+        // mean the server's confirming FindByID lookup was bypassed or
+        // broken — which is exactly the case where trusting it as proof of
+        // custody would be wrong. Kept as DONE anyway as a defensive choice
+        // (a real, currently-impossible 409 would mean the server already
+        // rejected the ID as a duplicate, so retrying it blindly is not
+        // obviously better either) — but this branch must NOT be read as
+        // "409 proves the server has it". It is unverified today.
+        409 -> VisitUploadDecision.DONE
+        // 401 (token blip), 408/425/429 (gateway/rate-limiter backoff
+        // signals): none of these reach the cobranza failed-intent capture
+        // middleware, so there is no custody guarantee to fall back on.
+        // Retry with a cap — see RETRY_THEN_FAIL.
+        401, 408, 425, 429 -> VisitUploadDecision.RETRY_THEN_FAIL
         in 500..599 -> VisitUploadDecision.RETRY_THEN_DONE
         // Any other 4xx (400 malformed, 403 missing permission, 422 validation)
         // is captured server-side → the desk corrects it.

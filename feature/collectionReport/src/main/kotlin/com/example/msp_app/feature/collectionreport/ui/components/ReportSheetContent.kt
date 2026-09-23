@@ -6,13 +6,13 @@ import com.composables.icons.lucide.Gauge
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Target
 import com.composables.icons.lucide.Wallet
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.feature.collectionreport.domain.CobranzaPorcentaje
 import com.example.msp_app.feature.collectionreport.domain.Insight
 import com.example.msp_app.feature.collectionreport.domain.ReportAggregator
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState

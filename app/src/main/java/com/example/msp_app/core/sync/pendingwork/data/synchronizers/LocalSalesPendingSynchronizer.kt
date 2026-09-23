@@ -26,7 +26,7 @@ class LocalSalesPendingSynchronizer(
         val capped = pending.take(MAX_ITEMS_PER_SYNC)
         var successCount = 0
         capped.forEach { sale ->
-            runCatching { enqueuer.enqueue(sale.LOCAL_SALE_ID, email, replace = true) }
+            runCatching { enqueuer.enqueue(sale.LOCAL_SALE_ID, email) }
                 .onSuccess { successCount++ }
         }
         SyncResult.Enqueued(itemCount = capped.size, workRequestCount = successCount)

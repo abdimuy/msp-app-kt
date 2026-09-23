@@ -229,7 +229,7 @@ interface SaleDao {
         """
         SELECT
             DOCTO_CC_ACR_ID,
-            DOCTO_CC_ID,
+            sales.DOCTO_CC_ID,
             sales.FOLIO,
             CLIENTE_ID,
             APLICADO,
@@ -241,7 +241,7 @@ interface SaleDao {
             ZONA_NOMBRE,
             IMPORTE_PAGO_PROMEDIO,
             TOTAL_IMPORTE,
-            NUM_IMPORTES,
+            sales.NUM_IMPORTES,
             FECHA,
             PARCIALIDAD,
             ENGANCHE,
@@ -253,7 +253,7 @@ interface SaleDao {
             PRECIO_TOTAL,
             IMPTE_REST,
             SALDO_REST,
-            FECHA_ULT_PAGO,
+            sales.FECHA_ULT_PAGO,
             CALLE,
             CIUDAD,
             ESTADO,
@@ -265,9 +265,11 @@ interface SaleDao {
             PRECIO_DE_CONTADO,
             AVAL_O_RESPONSABLE,
             FREC_PAGO,
-            GROUP_CONCAT(p.ARTICULO, ', ') AS PRODUCTOS
+            GROUP_CONCAT(p.ARTICULO, ', ') AS PRODUCTOS,
+            CAST(a.NUM_PAGOS_ATRASADOS AS INTEGER) AS NUM_PAGOS_ATRASADOS
         FROM sales
         LEFT JOIN products p ON p.FOLIO = sales.FOLIO
+        LEFT JOIN overdue_payments_view AS a ON a.DOCTO_CC_ID = sales.DOCTO_CC_ID
         WHERE sales.CLIENTE_ID = :clientId
         GROUP BY sales.DOCTO_CC_ID
         """
@@ -286,10 +288,47 @@ interface SaleDao {
     )
     suspend fun updateTotal(saleId: Int, amount: Double, estadoCobranza: EstadoCobranza)
 
+    /**
+     * Propaga un cambio de `ESTADO_COBRANZA` a TODAS las ventas ACTIVAS
+     * (`SALDO_REST > 0`) de un cliente. Es el escritor detrás de una visita
+     * de **alcance cliente** (Task 13, plan `pagos-y-visitas`): "no estaba"
+     * y "cita a una hora" son una condición del domicilio, no de una venta
+     * en particular, y deben verse en todas las cuentas abiertas del
+     * cliente — ver `VisitScopeMapper` en `:app`
+     * (`com.example.msp_app.core.utils`).
+     *
+     * "Activa" = `SALDO_REST > 0`. Una venta ya saldada no se toca: el
+     * resultado de tocar la puerta no aplica a una deuda que ya no existe,
+     * y tocarla igual falsearía el semáforo de una cuenta cerrada.
+     *
+     * Un solo `UPDATE` acotado por `CLIENTE_ID` — no un `IN (:ids)` ni un
+     * loop de updates por fila — así que no hereda el techo de variables
+     * SQL que documenta `VisitDao.markSyncedByIds`. Un `CLIENTE_ID` sin
+     * ventas activas no lanza: el `WHERE` no matchea ninguna fila y la
+     * actualización afecta 0.
+     *
+     * No toca `SALDO_REST` — una visita nunca abona, igual que
+     * [updateTotal] con `amount = 0.0`.
+     *
+     * @return cuántas filas se actualizaron (0 si el cliente no tiene
+     *   ventas activas).
+     */
     @Query(
         """
         UPDATE sales
-        SET 
+        SET ESTADO_COBRANZA = :estadoCobranza
+        WHERE CLIENTE_ID = :clienteId AND SALDO_REST > 0
+        """
+    )
+    suspend fun updateEstadoCobranzaActivasByClienteId(
+        clienteId: Int,
+        estadoCobranza: EstadoCobranza
+    ): Int
+
+    @Query(
+        """
+        UPDATE sales
+        SET
             DIA_TEMPORAL_COBRANZA = :newDate
         WHERE 
             DOCTO_CC_ACR_ID = :saleId
@@ -385,8 +424,19 @@ interface SaleDao {
     suspend fun getActiveIdsByZona(zonaId: Int): List<Int>
 
     /**
-     * Bulk delete por PK. Idempotente: si una de las PK no existe, simplemente
-     * no la borra. Usado por CobranzaReconciler para evictar phantoms.
+     * Bulk delete **por `DOCTO_CC_ID`, que NO es la PK de esta tabla** — la PK es
+     * `DOCTO_CC_ACR_ID`. Lo aclara este KDoc porque decía "delete por PK" y esa frase es
+     * exactamente la que induce la familia de defectos de identificador de este plan:
+     * manda a buscar el id equivocado, y aquí está encima de un `DELETE`.
+     *
+     * La columna es la correcta: los ids que llegan vienen de `getActiveIdsByZona`, que
+     * proyecta `DOCTO_CC_ID`, y del `/ids` del servidor, cuya venta tiene una sola columna
+     * de id (`MSP_SALDOS_VENTAS.DOCTO_CC_ID`). Hoy además da igual —el único escritor de
+     * `sales` pone el mismo número en las dos columnas—, pero el KDoc tiene que nombrar la
+     * columna que el `WHERE` usa, no la que suena a llave.
+     *
+     * Idempotente: si uno de los ids no existe, simplemente no borra esa fila. Usado por
+     * `CobranzaReconciler` para evictar phantoms.
      */
     @Query("DELETE FROM sales WHERE DOCTO_CC_ID IN (:doctoCcIds)")
     suspend fun deleteByDoctoCcIds(doctoCcIds: List<Int>)

@@ -5,8 +5,12 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.data.api.services.ventas.ActualizarClienteRequest
+import com.example.msp_app.data.api.services.ventas.ActualizarHeaderRequest
+import com.example.msp_app.data.api.services.ventas.ReemplazarLineasRequest
 import com.example.msp_app.data.api.services.ventas.VendedorDTO
 import com.example.msp_app.data.api.services.ventas.VentaDTO
+import com.example.msp_app.data.api.services.ventas.VentaSituacionDTO
 import com.example.msp_app.data.api.services.ventas.VentasApi
 import com.example.msp_app.data.local.datasource.sale.ComboLocalDataSource
 import com.example.msp_app.data.local.datasource.sale.LocalSaleDataSource
@@ -148,6 +152,27 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         ): VentaDTO = fakeVentaDTO
 
         override suspend fun obtenerVenta(id: String): VentaDTO = fakeVentaDTO
+
+        // El nivel 2 (corregir una venta YA subida) no entra en esta prueba: su camino es el
+        // worker de correcciones remotas, no el subidor. Lanzar en vez de devolver algo vacío
+        // hace que, si alguien lo cablea aquí sin querer, la prueba lo diga en vez de pasar.
+        override suspend fun reemplazarLineas(
+            id: String,
+            body: ReemplazarLineasRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("reemplazarLineas no debería llamarse en esta prueba")
+
+        override suspend fun actualizarHeader(
+            id: String,
+            body: ActualizarHeaderRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarHeader no debería llamarse en esta prueba")
+
+        override suspend fun actualizarCliente(
+            id: String,
+            body: ActualizarClienteRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarCliente no debería llamarse en esta prueba")
     }
 
     /**
@@ -167,6 +192,27 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
         ): VentaDTO = crear(idempotencyKey, datos, imagen)
 
         override suspend fun obtenerVenta(id: String): VentaDTO = obtener(id)
+
+        // El nivel 2 (corregir una venta YA subida) no entra en esta prueba: su camino es el
+        // worker de correcciones remotas, no el subidor. Lanzar en vez de devolver algo vacío
+        // hace que, si alguien lo cablea aquí sin querer, la prueba lo diga en vez de pasar.
+        override suspend fun reemplazarLineas(
+            id: String,
+            body: ReemplazarLineasRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("reemplazarLineas no debería llamarse en esta prueba")
+
+        override suspend fun actualizarHeader(
+            id: String,
+            body: ActualizarHeaderRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarHeader no debería llamarse en esta prueba")
+
+        override suspend fun actualizarCliente(
+            id: String,
+            body: ActualizarClienteRequest
+        ): VentaSituacionDTO =
+            throw AssertionError("actualizarCliente no debería llamarse en esta prueba")
     }
 
     // ─── scenario setup ───────────────────────────────────────────────────────
@@ -732,5 +778,120 @@ class PendingLocalSalesWorkerV2Test : RoomTestBase() {
 
         val sale = saleDataSource.getSaleById(saleId)
         assertFalse("ENVIADO must stay false when no camioneta", sale!!.ENVIADO)
+    }
+
+    // ─── el candado de subida (Task 4) ───────────────────────────────────
+    //
+    // Los escenarios adversariales de la carrera (editor vs. subidor, latido,
+    // divergencia) viven en `CorreccionCarreraTest`. Aquí queda lo que este
+    // archivo ya cubría y que el candado cambió: por dónde SALE el worker y en
+    // qué estado deja la fila.
+
+    @Test
+    fun upload_v2_exitoso_cierra_el_candado_sin_marcar_divergencia() = runTest {
+        val saleId = seedHappySale("sale-cierra-candado")
+
+        assertEquals(ListenableWorker.Result.success(), buildAndRunWorker(saleId = saleId))
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assert(sale.ENVIADO)
+        assertEquals(
+            "el candado no puede quedar huérfano sobre una venta enviada",
+            null,
+            sale.CLAIM_ID
+        )
+        assertEquals(null, sale.CLAIM_KIND)
+        assertEquals(null, sale.CLAIMED_AT)
+        assertFalse(
+            "nadie corrigió nada: no hay divergencia que marcar",
+            sale.CORRECCION_NO_ENVIADA
+        )
+    }
+
+    @Test
+    fun upload_v2_venta_ya_enviada_no_se_vuelve_a_subir() = runTest {
+        // El candado no se puede tomar sobre una venta con ENVIADO = 1. Antes
+        // de la Task 4 el worker la habría vuelto a subir; ahora termina en
+        // success sin red — reintentar eternamente una venta terminada sería
+        // peor todavía.
+        val saleId = seedHappySale("sale-ya-enviada")
+        saleDataSource.changeSaleStatus(saleId, true)
+
+        var apiCalled = false
+        val result = buildAndRunWorker(
+            saleId = saleId,
+            api = fakeApi(crear = { _, _, _ ->
+                apiCalled = true
+                fakeVentaDTO
+            })
+        )
+
+        assertEquals(ListenableWorker.Result.success(), result)
+        assertFalse("una venta ya enviada no se vuelve a mandar", apiCalled)
+    }
+
+    @Test
+    fun upload_v2_venta_inexistente_sigue_siendo_failure() = runTest {
+        var apiCalled = false
+        val result = buildAndRunWorker(
+            saleId = "sale-que-no-existe",
+            api = fakeApi(crear = { _, _, _ ->
+                apiCalled = true
+                fakeVentaDTO
+            })
+        )
+
+        assertEquals(ListenableWorker.Result.failure(), result)
+        assertFalse(apiCalled)
+    }
+
+    @Test
+    fun upload_v2_fallo_permanente_suelta_el_candado() = runTest {
+        val saleId = seedHappySale("sale-permanente-suelta")
+
+        val api = fakeApi(
+            crear = { _, _, _ ->
+                throw httpErrorConCabeceras(
+                    code = 422,
+                    body = """{"code":"plazo_invalido","detail":"el plazo en meses debe ser mayor a cero"}""",
+                    intentCaptured = "3f2a1c7e-0000-4000-8000-000000000002"
+                )
+            },
+            obtener = { throw notFound() }
+        )
+
+        assertEquals(
+            ListenableWorker.Result.failure(),
+            buildAndRunWorker(saleId = saleId, api = api)
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertEquals(true, sale.LAST_UPLOAD_PERMANENT)
+        assertEquals(
+            "salga por donde salga, el subidor suelta el candado: nadie retiene una venta",
+            null,
+            sale.CLAIM_ID
+        )
+    }
+
+    @Test
+    fun upload_v2_error_de_red_suelta_el_candado() = runTest {
+        val saleId = seedHappySale("sale-red-suelta")
+
+        assertEquals(
+            ListenableWorker.Result.retry(),
+            buildAndRunWorker(
+                saleId = saleId,
+                api = fakeApi(crear = { _, _, _ -> throw IOException("sin señal") })
+            )
+        )
+
+        val sale = saleDataSource.getSaleById(saleId)!!
+        assertFalse(sale.ENVIADO)
+        assertEquals(
+            "tras un intento fallido la venta queda corregible YA, sin esperar el arrendamiento",
+            null,
+            sale.CLAIM_ID
+        )
     }
 }

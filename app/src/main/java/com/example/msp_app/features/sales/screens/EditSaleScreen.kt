@@ -1,12 +1,6 @@
 package com.example.msp_app.features.sales.screens
 
-import android.content.Context
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,14 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.AlertDialog
@@ -39,12 +30,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,64 +45,75 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import coil.compose.rememberAsyncImagePainter
 import com.example.msp_app.components.ModernSpinner
 import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.database.entities.LocalSaleComboEntity
+import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.utils.ResultState
+import com.example.msp_app.feature.ventacorreccion.domain.CamposVentaCorregidos
+import com.example.msp_app.feature.ventacorreccion.domain.TextosCorreccion
+import com.example.msp_app.feature.ventacorreccion.ui.CorreccionUiState
+import com.example.msp_app.feature.ventacorreccion.ui.CorreccionVentaViewModel
+import com.example.msp_app.feature.ventacorreccion.ui.components.AvisoNoCorregible
+import com.example.msp_app.features.productsInventory.components.CarouselItem
+import com.example.msp_app.features.productsInventory.components.CarrouselImage
 import com.example.msp_app.features.sales.components.cityselector.CitySelector
 import com.example.msp_app.features.sales.components.combo.CreateComboDialog
 import com.example.msp_app.features.sales.components.productselector.ProductSaleSummary
 import com.example.msp_app.features.sales.components.productselector.ProductSelectionBottomSheet
-import com.example.msp_app.features.sales.components.saleimagesviewer.ImageViewerDialog
 import com.example.msp_app.features.sales.components.zoneselector.ZoneSelectorSimple
-import com.example.msp_app.features.sales.viewmodels.EditLocalSaleViewModel
+import com.example.msp_app.features.sales.viewmodels.NewLocalSaleViewModel
 import com.example.msp_app.features.sales.viewmodels.NewSaleFormState
 import com.example.msp_app.features.sales.viewmodels.NewSaleFormValidator
 import com.example.msp_app.features.sales.viewmodels.SaleProductsViewModel
-import com.example.msp_app.features.sales.viewmodels.SaveResult
 import com.example.msp_app.features.warehouses.WarehouseViewModel
-import java.io.File
+import com.example.msp_app.utils.PriceParser
 
+/**
+ * Cáscara sobre el formulario de edición (plan "Corregir una venta antes de que suba", Task 5):
+ * el formulario en sí (campos, selectores, resumen) es el MISMO de siempre — no se toca su
+ * layout — pero el guardado/candado/cancelación ya NO pasan por `EditLocalSaleViewModel`
+ * (borrado: apuntaba al backend legado, rotaba la `Idempotency-Key` y ponía `ENVIADO = false` a
+ * ciegas). Todo eso ahora es [CorreccionVentaViewModel]: reclama el candado al entrar, guarda por
+ * el caso de uso (guardia dentro de la MISMA transacción, sin tocar la llave), y suelta el
+ * candado al salir — con o sin guardado, el `cancelar()` de una corrección ya guardada es un
+ * no-op (el candado ya se cerró como parte del commit).
+ *
+ * Fuera de esta cáscara (decisión del plan, "Fuera de alcance" #6): las imágenes NO se editan
+ * aquí. `CorreccionUiState.Editando` no las trae — se ven en `SaleDescriptionScreen`, no se
+ * tocan durante la corrección.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditSaleScreen(localSaleId: String, navController: NavController) {
-    val viewModel: EditLocalSaleViewModel = viewModel()
+    val correccionViewModel: CorreccionVentaViewModel = hiltViewModel()
     val warehouseViewModel: WarehouseViewModel = hiltViewModel()
     val authViewModel = LocalAuthViewModel.current
     val saleProductsViewModel: SaleProductsViewModel = viewModel()
-    val context = LocalContext.current
+    // Sólo para VER las fotos de la venta (ronda de arreglo 1) — mismo viewmodel/componente que
+    // `SaleDescriptionScreen`, sin conectarlo al guardado de la corrección.
+    val imagesViewModel: NewLocalSaleViewModel = viewModel()
 
-    val selectedSale by viewModel.selectedSale.collectAsState()
-    val existingImages by viewModel.saleImages.collectAsState()
-    val existingProducts by viewModel.saleProducts.collectAsState()
-    val existingCombos by viewModel.saleCombos.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val imagesToDelete by viewModel.imagesToDelete.collectAsState()
-    val saveResult by viewModel.saveResult.collectAsState()
+    val correccionState by correccionViewModel.state.collectAsState()
+    val saleImages by imagesViewModel.saleImages.collectAsState()
+
+    // El servidor ya tiene esta venta, así que la corrección no viaja en el `POST` del alta sino
+    // en tres peticiones (header, cliente, líneas). **Ninguna de las tres lleva el tipo de
+    // venta** — no existe endpoint que lo cambie. Dejar el desplegable vivo sería ofrecer un
+    // cambio que se guarda en el teléfono y nunca llega a la oficina, sin que nada avise: el
+    // mismo defecto silencioso que el teléfono tuvo hasta que se agregó `PATCH /ventas/{id}`.
+    val ventaYaEnviada = (correccionState as? CorreccionUiState.Editando)?.yaEnviada == true
 
     var showProductSheet by remember { mutableStateOf(false) }
     var showCreateComboDialog by remember { mutableStateOf(false) }
-
-    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
-    var newImageUris by remember { mutableStateOf(listOf<Uri>()) }
-    var showImageViewer by remember { mutableStateOf(false) }
-    var selectedImageIndex by remember { mutableStateOf(0) }
-    var showImageSizeError by remember { mutableStateOf(false) }
 
     // Form state
     var defectName by remember { mutableStateOf(TextFieldValue("")) }
@@ -142,6 +144,9 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     var selectedZoneId by remember { mutableStateOf<Int?>(null) }
     var selectedZoneName by remember { mutableStateOf("") }
     var saleDate by remember { mutableStateOf("") }
+    // No editable en este formulario (sin campo propio): se conserva tal cual llegó en
+    // `CorreccionUiState.Editando.campos` y viaja de regreso sin cambios al guardar.
+    var clienteId by remember { mutableStateOf<Int?>(null) }
 
     // Dropdowns
     var expandedfrequency by remember { mutableStateOf(false) }
@@ -160,18 +165,22 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     var installmentError by remember { mutableStateOf(false) }
     var paymentFrequencyError by remember { mutableStateOf(false) }
     var collectionDayError by remember { mutableStateOf(false) }
-    var imageError by remember { mutableStateOf(false) }
     var productsError by remember { mutableStateOf(false) }
     var downpaymentError by remember { mutableStateOf(false) }
     var zoneError by remember { mutableStateOf(false) }
 
     // Dialogs
     var showSuccessDialog by remember { mutableStateOf(false) }
-    var showErrorDialog by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
 
     // Flag to track if form was initialized
     var formInitialized by remember { mutableStateOf(false) }
+
+    // Guarda contra doble-tap: `CorreccionUiState` no expone un estado intermedio de "guardando"
+    // (el guardado local es una transacción de Room, no una llamada de red) — sin este flag
+    // propio de la pantalla, dos toques rápidos sobre "Guardar corrección" lanzarían dos
+    // corrutinas `guardar()` concurrentes. Se apaga en cuanto `correccionState` sale de
+    // `Editando` (guardado aceptado → `Guardada`, o rechazado → `NoCorregible`).
+    var guardando by remember { mutableStateOf(false) }
 
     val frequencyOptions = listOf("Semanal", "Quincenal", "Mensual")
     val dayOptions =
@@ -191,9 +200,30 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         else -> emptyList()
     }
 
-    // Load sale data
+    // Reclama el candado de edición al entrar (Task 3: reentrante para una sesión ANTERIOR del
+    // mismo teléfono; una venta ajena/ya subida/en vuelo cae en `CorreccionUiState.NoCorregible`).
     LaunchedEffect(localSaleId) {
-        viewModel.loadSaleById(localSaleId)
+        correccionViewModel.reclamar(localSaleId)
+    }
+
+    // Carga las fotos para VERLAS (ronda de arreglo 1) — independiente del candado de corrección:
+    // una consulta de sólo lectura, no forma parte de `CorreccionUiState`.
+    LaunchedEffect(localSaleId) {
+        imagesViewModel.loadImagesBySaleId(localSaleId)
+    }
+
+    // Suelta el candado al salir de la pantalla, por CUALQUIER camino (flecha de regreso, gesto
+    // del sistema, o después de guardar). `CorreccionVentaViewModel.cancelar` es un no-op si el
+    // estado ya no es `Editando` — tras un guardado exitoso el candado ya se cerró como parte del
+    // commit, así que esta llamada no le quita nada a nadie.
+    DisposableEffect(localSaleId) {
+        onDispose {
+            val userEmail = when (val userState = authViewModel.userData.value) {
+                is ResultState.Success -> userState.data?.EMAIL ?: ""
+                else -> ""
+            }
+            correccionViewModel.cancelar(userEmail)
+        }
     }
 
     // Load warehouse products
@@ -203,33 +233,35 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         }
     }
 
-    // Initialize form with sale data
-    LaunchedEffect(selectedSale, existingProducts, existingCombos, productosCamioneta) {
-        if (!formInitialized && selectedSale != null && existingProducts.isNotEmpty() && productosCamioneta.isNotEmpty()) {
-            val sale = selectedSale!!
-            defectName = TextFieldValue(sale.NOMBRE_CLIENTE)
-            phone = TextFieldValue(sale.TELEFONO)
-            location = sale.DIRECCION
-            latitude = sale.LATITUD
-            longitude = sale.LONGITUD
-            numero = TextFieldValue(sale.NUMERO ?: "")
-            colonia = TextFieldValue(sale.COLONIA ?: "")
-            poblacion = TextFieldValue(sale.POBLACION ?: "")
-            ciudad = sale.CIUDAD ?: ""
-            tipoVenta = sale.TIPO_VENTA ?: "CREDITO"
+    // Initialize form with the sale reclamada
+    LaunchedEffect(correccionState, productosCamioneta) {
+        val editando = correccionState as? CorreccionUiState.Editando
+        if (!formInitialized && editando != null && productosCamioneta.isNotEmpty()) {
+            val campos = editando.campos
+            defectName = TextFieldValue(campos.nombreCliente)
+            phone = TextFieldValue(campos.telefono)
+            location = campos.direccion
+            latitude = campos.latitud
+            longitude = campos.longitud
+            numero = TextFieldValue(campos.numero ?: "")
+            colonia = TextFieldValue(campos.colonia ?: "")
+            poblacion = TextFieldValue(campos.poblacion ?: "")
+            ciudad = campos.ciudad ?: ""
+            tipoVenta = campos.tipoVenta ?: "CREDITO"
             saleProductsViewModel.setTipoVenta(tipoVenta)
-            downpayment = TextFieldValue(sale.ENGANCHE?.toString() ?: "")
-            installment = TextFieldValue(sale.PARCIALIDAD.toString())
-            guarantor = TextFieldValue(sale.AVAL_O_RESPONSABLE ?: "")
-            note = TextFieldValue(sale.NOTA ?: "")
-            collectionday = sale.DIA_COBRANZA
-            paymentfrequency = sale.FREC_PAGO
-            selectedZoneId = sale.ZONA_CLIENTE_ID
-            selectedZoneName = sale.ZONA_CLIENTE ?: ""
-            saleDate = sale.FECHA_VENTA
+            downpayment = TextFieldValue(campos.enganche?.toString() ?: "")
+            installment = TextFieldValue(campos.parcialidad.toString())
+            guarantor = TextFieldValue(campos.avalOResponsable ?: "")
+            note = TextFieldValue(campos.nota ?: "")
+            collectionday = campos.diaCobranza
+            paymentfrequency = campos.frecPago
+            selectedZoneId = campos.zonaClienteId
+            selectedZoneName = campos.zonaCliente ?: ""
+            saleDate = campos.fechaVenta
+            clienteId = campos.clienteId
 
             // Load products into SaleProductsViewModel with their comboId
-            existingProducts.forEach { productEntity ->
+            editando.productos.forEach { productEntity ->
                 val product = productosCamioneta.find { it.ARTICULO_ID == productEntity.ARTICULO_ID }
                 if (product != null) {
                     saleProductsViewModel.addProductToSaleWithCombo(
@@ -241,7 +273,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             }
 
             // Restore combo metadata
-            existingCombos.forEach { combo ->
+            editando.combos.forEach { combo ->
                 saleProductsViewModel.createComboWithId(
                     comboId = combo.COMBO_ID,
                     nombreCombo = combo.NOMBRE_COMBO,
@@ -255,73 +287,18 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         }
     }
 
-    // Handle save result
-    LaunchedEffect(saveResult) {
-        when (val result = saveResult) {
-            is SaveResult.Success -> {
+    // Handle save result: `Guardada` muestra el diálogo de confirmación con el texto exacto del
+    // plan; `NoCorregible` (candado ajeno-pero-reentrante, o la venta se volvió no editable entre
+    // el reclamo y el guardado) reusa el mismo aviso que `SaleDescriptionScreen` — no un diálogo
+    // de error de formulario, porque no es un error de validación.
+    LaunchedEffect(correccionState) {
+        when (correccionState) {
+            is CorreccionUiState.Guardada -> {
+                guardando = false
                 showSuccessDialog = true
-                viewModel.clearSaveResult()
             }
-            is SaveResult.Error -> {
-                errorMessage = result.message
-                showErrorDialog = true
-                viewModel.clearSaveResult()
-            }
-            null -> { }
-        }
-    }
-
-    // Image helpers
-    fun getImageSizeFromUri(context: Context, uri: Uri): Long {
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                inputStream.available().toLong()
-            } ?: 0L
-        } catch (e: Exception) {
-            0L
-        }
-    }
-
-    fun validateImageSize(context: Context, uri: Uri): Boolean {
-        val maxSizeInBytes = 20 * 1000 * 1000
-        val imageSize = getImageSizeFromUri(context, uri)
-        return imageSize <= maxSizeInBytes
-    }
-
-    fun createImageUri(context: Context): Uri {
-        val imageFile = File(context.cacheDir, "temp_image_${System.currentTimeMillis()}.jpg")
-        return FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            imageFile
-        )
-    }
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            if (validateImageSize(context, it)) {
-                newImageUris = newImageUris + it
-                showImageSizeError = false
-            } else {
-                showImageSizeError = true
-            }
-        }
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success: Boolean ->
-        if (success) {
-            cameraImageUri?.let { uri ->
-                if (validateImageSize(context, uri)) {
-                    newImageUris = newImageUris + uri
-                    showImageSizeError = false
-                } else {
-                    showImageSizeError = true
-                }
-            }
+            is CorreccionUiState.NoCorregible -> guardando = false
+            else -> Unit
         }
     }
 
@@ -417,15 +394,14 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
     )
 
     fun validateFields(): Boolean {
-        // En edición las imágenes válidas son las que siguen en el servidor
-        // (menos las marcadas para borrar) más las nuevas del carrete — un
-        // conteo que no cabe en `NewSaleFormState.imageUris`, por eso viaja
-        // aparte a `validateAll`.
-        val remainingExistingImages = existingImages.count { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
+        // Las imágenes no se editan en la corrección (Fuera de alcance #6 del plan): una venta
+        // sin imágenes ya es fallo permanente del subidor, así que llegar aquí en estado
+        // `Corregible` YA implica que las tiene — `hasImages = true` siempre, no hay un conteo
+        // que mantener en esta pantalla.
         val errors = NewSaleFormValidator.validateAll(
             state = currentFormState(),
             hasProducts = saleProductsViewModel.hasItems(),
-            hasImages = remainingExistingImages + newImageUris.size > 0
+            hasImages = true
         ).copy(
             // Única bandera que esta pantalla NO toma tal cual del alta; el porqué
             // está documentado en `NewSaleFormValidator.validateInstallmentEdit`.
@@ -443,13 +419,13 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
         collectionDayError = errors.collectionDay
         downpaymentError = errors.downpayment
         zoneError = errors.zone
-        imageError = errors.image
         productsError = errors.products
 
         return !errors.hasAny
     }
 
-    fun updateSale() {
+    fun guardar() {
+        correccionState as? CorreccionUiState.Editando ?: return
         val userEmail = when (val userState = userData) {
             is ResultState.Success -> userState.data?.EMAIL ?: ""
             else -> ""
@@ -466,62 +442,51 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             )
         }
 
-        viewModel.updateSaleWithImages(
-            saleId = localSaleId,
-            clientName = defectName.text,
-            saleDate = saleDate,
-            newImageUris = newImageUris,
-            latitude = latitude,
-            longitude = longitude,
-            address = location.trim(),
+        val productEntities = saleProductsViewModel.saleItems.map { saleItem ->
+            val parsedPrices = PriceParser.parsePricesFromString(saleItem.product.PRECIOS)
+            LocalSaleProductEntity(
+                LOCAL_SALE_ID = localSaleId,
+                ARTICULO_ID = saleItem.product.ARTICULO_ID,
+                ARTICULO = saleItem.product.ARTICULO,
+                CANTIDAD = saleItem.quantity,
+                PRECIO_LISTA = parsedPrices.precioLista,
+                PRECIO_CORTO_PLAZO = parsedPrices.precioCortoplazo,
+                PRECIO_CONTADO = parsedPrices.precioContado,
+                COMBO_ID = saleItem.comboId
+            )
+        }
+
+        val campos = CamposVentaCorregidos(
+            nombreCliente = defectName.text,
+            fechaVenta = saleDate,
+            latitud = latitude,
+            longitud = longitude,
             // Mismo `trim` que el alta: el servidor valida contra el valor ya
             // recortado, así que persistir "   " tal cual llegaría al API como
             // cadena vacía y reventaría en la cola, no en la pantalla.
+            direccion = location.trim(),
+            parcialidad = if (tipoVenta == "CONTADO") 0.0 else installment.text.toDoubleOrNull() ?: 0.0,
+            enganche = if (tipoVenta == "CONTADO") 0.0 else downpayment.text.toDoubleOrNull() ?: 0.0,
+            telefono = phone.text.trim(),
+            frecPago = if (tipoVenta == "CONTADO") "" else paymentfrequency,
+            avalOResponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
+            nota = note.text,
+            diaCobranza = if (tipoVenta == "CONTADO") "" else collectionday,
+            precioTotal = saleProductsViewModel.getTotalPrecioListaWithCombos(),
+            tiempoACortoPlazoMeses = 0,
+            montoACortoPlazo = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
+            montoDeContado = saleProductsViewModel.getTotalMontoContadoWithCombos(),
             numero = numero.text.trim().ifBlank { null },
             colonia = colonia.text.trim().ifBlank { null },
             poblacion = poblacion.text.trim().ifBlank { null },
             ciudad = ciudad.trim().ifBlank { null },
             tipoVenta = tipoVenta,
-            installment = if (tipoVenta == "CONTADO") 0.0 else installment.text.toDoubleOrNull() ?: 0.0,
-            downpayment = if (tipoVenta == "CONTADO") 0.0 else downpayment.text.toDoubleOrNull() ?: 0.0,
-            phone = phone.text.trim(),
-            paymentfrequency = if (tipoVenta == "CONTADO") "" else paymentfrequency,
-            avaloresponsable = if (tipoVenta == "CONTADO") "" else guarantor.text,
-            note = note.text,
-            collectionday = if (tipoVenta == "CONTADO") "" else collectionday,
-            totalprice = saleProductsViewModel.getTotalPrecioListaWithCombos(),
-            shorttermtime = 0,
-            shorttermamount = saleProductsViewModel.getTotalMontoCortoPlazoWithCombos(),
-            cashamount = saleProductsViewModel.getTotalMontoContadoWithCombos(),
-            saleProducts = saleProductsViewModel.saleItems,
-            combos = comboEntities,
-            context = context,
-            userEmail = userEmail,
             zonaClienteId = selectedZoneId,
-            zonaClienteNombre = selectedZoneName
+            zonaCliente = selectedZoneName,
+            clienteId = clienteId
         )
-    }
 
-    // All images to display (existing + new)
-    val displayableExistingImages = existingImages.filter { it.LOCAL_SALE_IMAGE_ID !in imagesToDelete }
-
-    // Image viewer
-    if (showImageViewer) {
-        val allImageUris = displayableExistingImages.mapNotNull { img ->
-            try {
-                Uri.parse("file://${img.IMAGE_URI}")
-            } catch (e: Exception) {
-                null
-            }
-        } + newImageUris
-
-        if (allImageUris.isNotEmpty()) {
-            ImageViewerDialog(
-                imageUris = allImageUris,
-                initialIndex = selectedImageIndex,
-                onDismiss = { showImageViewer = false }
-            )
-        }
+        correccionViewModel.guardar(campos, productEntities, comboEntities, userEmail)
     }
 
     // Success dialog
@@ -530,13 +495,13 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             onDismissRequest = { },
             title = {
                 Text(
-                    text = "Venta Actualizada",
+                    text = TextosCorreccion.CORRECCION_GUARDADA,
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             },
             text = {
-                Text("La venta se ha actualizado correctamente.")
+                Text("La venta se corrigió correctamente.")
             },
             confirmButton = {
                 TextButton(
@@ -546,38 +511,6 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                     }
                 ) {
                     Text("Aceptar")
-                }
-            }
-        )
-    }
-
-    // Error dialog
-    if (showErrorDialog) {
-        AlertDialog(
-            onDismissRequest = { showErrorDialog = false },
-            title = {
-                Text(
-                    text = "Error al Actualizar",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            },
-            text = {
-                Column {
-                    Text("No se pudo actualizar la venta:")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = errorMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { showErrorDialog = false }
-                ) {
-                    Text("Entendido")
                 }
             }
         )
@@ -642,7 +575,21 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
             }
         }
     ) { innerPadding ->
-        if (isLoading && selectedSale == null) {
+        val editando = correccionState as? CorreccionUiState.Editando
+        val noCorregible = correccionState as? CorreccionUiState.NoCorregible
+
+        if (noCorregible != null) {
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                // Mismo componente que `SaleDescriptionScreen` (`EntradaCorreccion`,
+                // `:feature:ventaCorreccion`) — el mismo estado se ve igual en las dos pantallas.
+                AvisoNoCorregible(mensaje = noCorregible.mensaje)
+            }
+        } else if (editando == null) {
             Box(
                 modifier = Modifier
                     .padding(innerPadding)
@@ -650,15 +597,6 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                 contentAlignment = Alignment.Center
             ) {
                 ModernSpinner(size = 60.dp)
-            }
-        } else if (selectedSale == null) {
-            Box(
-                modifier = Modifier
-                    .padding(innerPadding)
-                    .fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No se encontró la venta")
             }
         } else {
             Column(
@@ -684,21 +622,49 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                             value = tipoVenta,
                             onValueChange = { },
                             label = { Text("Tipo de Venta") },
+                            // `readOnly` y sin `clickable`, pero NO `enabled = false`: en Material 3
+                            // el deshabilitado apaga también el VALOR, y "CONTADO"/"CRÉDITO" es
+                            // justo el dato que hay que poder leer de un vistazo. El bloqueo lo dan
+                            // la ausencia de `clickable`, la flecha que no se pinta y el
+                            // desplegable que no se despliega.
                             readOnly = true,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { expandedTipoVenta = true },
-                            trailingIcon = {
-                                Icon(
-                                    Icons.Default.ArrowDropDown,
-                                    contentDescription = null,
-                                    modifier = Modifier.clickable { expandedTipoVenta = true }
-                                )
+                                .then(
+                                    if (ventaYaEnviada) {
+                                        Modifier
+                                    } else {
+                                        Modifier.clickable { expandedTipoVenta = true }
+                                    }
+                                ),
+                            trailingIcon = if (ventaYaEnviada) {
+                                null
+                            } else {
+                                {
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.clickable { expandedTipoVenta = true }
+                                    )
+                                }
+                            },
+                            // La cadena sale de `TextosCorreccion`, no escrita a mano aquí: un
+                            // literal suelto en esta pantalla es el hueco que ya se cerró una vez
+                            // con `GUARDAR_CORRECCION` (ronda 1 de la Task 5). `:app` no aplica
+                            // Roborazzi, así que nada impediría que alguien lo recortara o le
+                            // metiera un punto final sin que ninguna prueba se enterara; en
+                            // `TextosCorreccion` sí lo cubre `TextosCorreccionTest`.
+                            supportingText = if (ventaYaEnviada) {
+                                { Text(TextosCorreccion.YA_SE_ENVIO) }
+                            } else {
+                                null
                             },
                             shape = RoundedCornerShape(15.dp)
                         )
                         DropdownMenu(
-                            expanded = expandedTipoVenta,
+                            // Por si alguien llegara a abrirlo por otra vía: con la venta ya
+                            // enviada no se despliega nunca.
+                            expanded = expandedTipoVenta && !ventaYaEnviada,
                             onDismissRequest = { expandedTipoVenta = false }
                         ) {
                             tipoVentaOptions.forEach { option ->
@@ -1122,202 +1088,31 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
                     Spacer(Modifier.height(16.dp))
 
-                    Text(
-                        "Imágenes *",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        OutlinedButton(
-                            onClick = {
-                                cameraImageUri = createImageUri(context)
-                                cameraImageUri?.let { uri ->
-                                    cameraLauncher.launch(uri)
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Tomar foto",
-                                modifier = Modifier.size(18.dp)
+                    // Fotos en SÓLO LECTURA (ronda de arreglo 1, decisión del orquestador): el
+                    // plan prohíbe EDITARLAS aquí, no VERLAS — el vendedor debe poder confirmar
+                    // qué fotos lleva la venta que está corrigiendo. `NewLocalSaleViewModel` +
+                    // `CarrouselImage` son los MISMOS que ya usa `SaleDescriptionScreen`; sin
+                    // botones de agregar/borrar y sin tocar `CorreccionUiState` ni el guardado.
+                    val carouselItems = remember(saleImages) {
+                        saleImages.mapIndexed { index, image ->
+                            CarouselItem(
+                                id = index,
+                                imagePath = if (image.IMAGE_URI is String) {
+                                    image.IMAGE_URI as String
+                                } else {
+                                    (image.IMAGE_URI as Uri).path ?: ""
+                                },
+                                description = "Imagen ${index + 1}"
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Cámara")
-                        }
-
-                        OutlinedButton(
-                            onClick = { imagePickerLauncher.launch("image/*") },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Seleccionar imagen",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Galería")
                         }
                     }
-
-                    if (imageError) {
-                        Text(
-                            "Debes tener al menos una imagen",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp, start = 8.dp)
-                        )
+                    if (carouselItems.isNotEmpty()) {
+                        CarrouselImage(carouselItems = carouselItems)
+                    } else {
+                        Text(text = "No hay imágenes registradas")
                     }
 
-                    if (showImageSizeError) {
-                        Text(
-                            "La imagen es muy grande (máximo 20MB).",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 8.dp, start = 8.dp, end = 8.dp)
-                        )
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    // Display existing images
-                    if (displayableExistingImages.isNotEmpty() || newImageUris.isNotEmpty()) {
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            // Existing images
-                            items(displayableExistingImages) { imageEntity ->
-                                val imageUri = try {
-                                    Uri.parse("file://${imageEntity.IMAGE_URI}")
-                                } catch (e: Exception) {
-                                    null
-                                }
-
-                                if (imageUri != null) {
-                                    Box(modifier = Modifier.size(80.dp)) {
-                                        Image(
-                                            painter = rememberAsyncImagePainter(imageUri),
-                                            contentDescription = "Imagen existente",
-                                            modifier = Modifier
-                                                .matchParentSize()
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .border(
-                                                    1.dp,
-                                                    Color.Gray,
-                                                    shape = RoundedCornerShape(8.dp)
-                                                )
-                                                .clickable {
-                                                    val allImages = displayableExistingImages.mapNotNull { img ->
-                                                        try {
-                                                            Uri.parse("file://${img.IMAGE_URI}")
-                                                        } catch (
-                                                            e: Exception
-                                                        ) {
-                                                            null
-                                                        }
-                                                    } + newImageUris
-                                                    selectedImageIndex = allImages.indexOfFirst {
-                                                        it.toString().contains(imageEntity.IMAGE_URI)
-                                                    }.coerceAtLeast(0)
-                                                    showImageViewer = true
-                                                },
-                                            contentScale = ContentScale.Crop
-                                        )
-
-                                        Text(
-                                            "✕",
-                                            color = Color.White,
-                                            fontSize = 14.sp,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier
-                                                .align(Alignment.TopEnd)
-                                                .padding(2.dp)
-                                                .clickable {
-                                                    viewModel.markImageForDeletion(
-                                                        imageEntity.LOCAL_SALE_IMAGE_ID
-                                                    )
-                                                }
-                                                .background(
-                                                    Color.Black.copy(alpha = 0.6f),
-                                                    shape = RoundedCornerShape(50)
-                                                )
-                                                .padding(horizontal = 4.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // New images
-                            items(newImageUris) { uri ->
-                                Box(modifier = Modifier.size(80.dp)) {
-                                    Image(
-                                        painter = rememberAsyncImagePainter(uri),
-                                        contentDescription = "Nueva imagen",
-                                        modifier = Modifier
-                                            .matchParentSize()
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .border(
-                                                2.dp,
-                                                MaterialTheme.colorScheme.primary,
-                                                shape = RoundedCornerShape(8.dp)
-                                            )
-                                            .clickable {
-                                                val allImages = displayableExistingImages.mapNotNull { img ->
-                                                    try {
-                                                        Uri.parse("file://${img.IMAGE_URI}")
-                                                    } catch (
-                                                        e: Exception
-                                                    ) {
-                                                        null
-                                                    }
-                                                } + newImageUris
-                                                selectedImageIndex = displayableExistingImages.size + newImageUris.indexOf(uri)
-                                                showImageViewer = true
-                                            },
-                                        contentScale = ContentScale.Crop
-                                    )
-
-                                    Text(
-                                        "✕",
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        textAlign = TextAlign.Center,
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(2.dp)
-                                            .clickable {
-                                                newImageUris = newImageUris.filterNot { it == uri }
-                                            }
-                                            .background(
-                                                Color.Black.copy(alpha = 0.6f),
-                                                shape = RoundedCornerShape(50)
-                                            )
-                                            .padding(horizontal = 4.dp)
-                                    )
-
-                                    // Badge for new images
-                                    Text(
-                                        "NUEVA",
-                                        color = Color.White,
-                                        fontSize = 8.sp,
-                                        modifier = Modifier
-                                            .align(Alignment.BottomStart)
-                                            .padding(2.dp)
-                                            .background(
-                                                MaterialTheme.colorScheme.primary,
-                                                shape = RoundedCornerShape(4.dp)
-                                            )
-                                            .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    Spacer(Modifier.height(16.dp))
 
                     ProductSaleSummary(
                         saleProductsViewModel = saleProductsViewModel,
@@ -1332,17 +1127,18 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
 
                 Button(
                     onClick = {
-                        if (validateFields()) {
-                            updateSale()
+                        if (!guardando && validateFields()) {
+                            guardando = true
+                            guardar()
                         }
                     },
-                    enabled = !isLoading,
+                    enabled = !guardando,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    if (isLoading) {
+                    if (guardando) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             color = Color.White,
@@ -1351,7 +1147,7 @@ fun EditSaleScreen(localSaleId: String, navController: NavController) {
                         Spacer(Modifier.width(8.dp))
                     }
                     Text(
-                        "Actualizar Venta",
+                        TextosCorreccion.GUARDAR_CORRECCION,
                         color = Color.White
                     )
                 }

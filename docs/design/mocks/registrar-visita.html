@@ -1,0 +1,218 @@
+<title>Registrar visita</title>
+<style>
+  :root{
+    --bg:#080A09; --surf:#141A18; --surf2:#1B2220; --line:#242D2A;
+    --ink:#F4F7F6; --mut:#8E9995; --faint:#5D6864;
+    --ac:#34D399; --acDeep:#0F2A22; --acInk:#6EE7B7;
+    --teal:#3BC9DB; --tealDeep:#0D2830;
+    --amb:#E3AC4E; --ambDeep:#2A2210;
+    --red:#F0736A; --redDeep:#2A1613;
+    --vio:#A78BFA; --vioDeep:#1E1A33;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#050706;color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;padding:44px 20px 80px}
+  .wrap{max-width:1240px;margin:0 auto}
+  .top{text-align:center;max-width:62ch;margin:0 auto 40px}
+  .kick{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ac);margin:0 0 10px}
+  h1{font-size:30px;font-weight:700;letter-spacing:-.028em;margin:0 0 9px;line-height:1.12}
+  .top p{margin:0;color:var(--mut);font-size:14px;line-height:1.6}
+  .row{display:flex;gap:34px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+  .unit{display:flex;flex-direction:column;align-items:center;gap:12px;width:360px}
+  .cap{font-size:10.5px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);text-align:center;line-height:1.5}
+  .cap b{color:var(--ac)}
+  .nu{font-variant-numeric:tabular-nums lining-nums}
+
+  .dev{width:360px;padding:9px;border-radius:42px;background:#000;box-shadow:0 40px 80px -34px rgba(0,0,0,.95),0 0 0 1px rgba(255,255,255,.08)}
+  .scr{height:742px;border-radius:34px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column;position:relative}
+  .bar{height:34px;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;padding:3px 20px 0;font-size:12px;font-weight:600}
+  .bar .r{color:var(--mut);font-size:11.5px;font-weight:500}
+  .body{flex:1;overflow:hidden;padding:0 15px;display:flex;flex-direction:column;gap:9px}
+  .body > *{flex:0 0 auto}
+
+  .head{padding:6px 2px 2px}
+  .head .h{font-size:21px;font-weight:700;letter-spacing:-.025em}
+  .head .s{font-size:12px;color:var(--mut);margin-top:2px}
+  .ctx{display:flex;align-items:center;gap:11px;background:var(--surf);border-radius:14px;padding:11px 13px}
+  .ctx .av{width:36px;height:36px;border-radius:11px;background:var(--redDeep);color:var(--red);display:grid;place-items:center;font-weight:700;font-size:13px;flex:0 0 auto}
+  .ctx .cn{font-size:13.5px;font-weight:700}
+  .ctx .cs{font-size:11px;color:var(--faint);margin-top:2px}
+  .ctx .ct{margin-left:auto;text-align:right}
+  .ctx .ct .a{font-size:14.5px;font-weight:750}
+  .ctx .ct .b{font-size:10px;color:var(--faint);margin-top:1px}
+
+  .sl{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:12px 0 2px}
+
+  .st{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto}
+  .st svg{width:17px;height:17px;fill:none;stroke-width:2.2}
+  .st.nadie{background:var(--surf2)} .st.nadie svg{stroke:var(--mut)}
+  .st.vuelvo{background:var(--ambDeep)} .st.vuelvo svg{stroke:var(--amb)}
+  .st.prom{background:var(--redDeep)} .st.prom svg{stroke:var(--red)}
+  .st.cita{background:var(--vioDeep)} .st.cita svg{stroke:var(--vio)}
+  .st.nego{background:var(--red)} .st.nego svg{stroke:#1A0D0C}
+
+  .opt{display:flex;align-items:center;gap:12px;background:var(--surf);border-radius:15px;padding:12px 13px;box-shadow:inset 0 0 0 1.5px transparent}
+  .opt + .opt{margin-top:7px}
+  .opt .on{font-size:14px;font-weight:700;letter-spacing:-.012em}
+  .opt .od{font-size:11px;color:var(--faint);margin-top:3px;line-height:1.35}
+  .opt .oscope{margin-left:auto;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);
+               background:var(--surf2);padding:4px 7px;border-radius:6px;flex:0 0 auto}
+  .opt.sel{box-shadow:inset 0 0 0 1.5px var(--amb)}
+  .opt.sel-prom{box-shadow:inset 0 0 0 1.5px var(--red)}
+  .opt.sel-nadie{box-shadow:inset 0 0 0 1.5px var(--mut)}
+
+  .fold{background:var(--surf);border-radius:15px;padding:13px;margin-top:7px}
+  .fk{font-size:10px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-bottom:9px}
+  .chips{display:flex;gap:7px;flex-wrap:wrap}
+  .ch{font-size:12.5px;font-weight:650;padding:9px 12px;border-radius:11px;background:var(--surf2);color:var(--mut);box-shadow:inset 0 0 0 1.5px transparent}
+  .ch.on{background:var(--redDeep);color:#FFC7BF;box-shadow:inset 0 0 0 1.5px var(--red)}
+  .ch.ong{background:var(--acDeep);color:var(--acInk);box-shadow:inset 0 0 0 1.5px var(--ac)}
+  .ch.onm{background:var(--surf2);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--mut)}
+  .ch.full{width:100%;text-align:left}
+  .amt{display:flex;align-items:baseline;gap:8px;background:var(--surf2);border-radius:12px;padding:12px 13px;margin-top:9px}
+  .amt .k{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .amt .v{font-size:22px;font-weight:750;letter-spacing:-.03em;margin-left:auto;color:var(--red)}
+  .note{background:var(--surf2);border-radius:12px;padding:12px 13px;font-size:12.5px;color:var(--faint);margin-top:9px;line-height:1.45}
+  .note b{color:var(--mut);display:block;font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
+
+  .scope{display:flex;gap:9px;background:var(--surf2);border-radius:12px;padding:11px 12px;font-size:11.5px;color:var(--mut);line-height:1.4;font-weight:600}
+  .scope b{color:var(--ink);font-weight:750}
+
+  .photo{display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:13px;background:var(--surf);
+         color:var(--mut);font-size:13px;font-weight:650;box-shadow:inset 0 0 0 1.5px var(--line);margin-top:9px}
+  .photo svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9}
+
+  .acts{position:absolute;left:0;right:0;bottom:0;padding:14px 15px 20px;background:linear-gradient(transparent,var(--bg) 40%)}
+  .btn{min-height:52px;border-radius:15px;font-size:15px;font-weight:750;display:flex;align-items:center;justify-content:center}
+  .btn.pri{background:var(--ac);color:#062018}
+  .btn.off{background:var(--surf2);color:var(--faint)}
+
+  .notes{max-width:64ch;margin:52px auto 0;font-size:14px;line-height:1.75;color:var(--mut)}
+  .notes h3{font-size:16px;font-weight:650;color:var(--ink);margin:0 0 12px}
+  .notes p{margin:0 0 13px}
+  .notes b{color:var(--ink);font-weight:650}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <p class="kick">msp · cobranza en campo</p>
+    <h1>Registrar visita</h1>
+    <p>Ligera, porque el contexto ya se leyó en el detalle. Los cinco resultados que una visita puede producir — y la pregunta que cambia según si el estado es del cliente o de una venta.</p>
+  </div>
+
+  <div class="row">
+
+    <!-- 1 · ELEGIR RESULTADO -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:52</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="body">
+          <div class="head"><div class="h">Visita</div><div class="s">Victoria Flores Olmedo</div></div>
+          <div class="ctx"><span class="av">VF</span>
+            <div><div class="cn">Victoria Flores Olmedo</div><div class="cs">2 cuentas · C. Hidalgo 214</div></div>
+            <div class="ct"><div class="a nu">$3,550</div><div class="b">saldo total</div></div></div>
+
+          <div class="sl">¿Qué pasó?</div>
+
+          <div class="opt"><span class="st nadie"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg></span>
+            <div><div class="on">No estaba</div><div class="od">No había quién atendiera</div></div>
+            <span class="oscope">Cliente</span></div>
+
+          <div class="opt"><span class="st vuelvo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>
+            <div><div class="on">Visité — vuelvo</div><div class="od">Pasé y no se resolvió. Regreso este periodo</div></div>
+            <span class="oscope">Venta</span></div>
+
+          <div class="opt"><span class="st prom"><svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+            <div><div class="on">Prometió pagar</div><div class="od">Dijo cuándo y cuánto</div></div>
+            <span class="oscope">Venta</span></div>
+
+          <div class="opt"><span class="st cita"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <div><div class="on">Cita a una hora</div><div class="od">Quedaron de verse hoy</div></div>
+            <span class="oscope">Cliente</span></div>
+
+          <div class="opt"><span class="st nego"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg></span>
+            <div><div class="on">Se negó o hubo problema</div><div class="od">Se niega a pagar o hay conflicto</div></div>
+            <span class="oscope">Venta</span></div>
+        </div>
+        <div class="acts"><div class="btn off">Guardar visita</div></div>
+      </div></div>
+      <span class="cap">1 · Elegir resultado<br>cinco estados, con su alcance</span>
+    </div>
+
+    <!-- 2 · PROMETIÓ -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:53</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="body">
+          <div class="head"><div class="h">Visita</div><div class="s">Victoria Flores Olmedo</div></div>
+
+          <div class="opt sel-prom"><span class="st prom"><svg viewBox="0 0 24 24" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+            <div><div class="on">Prometió pagar</div><div class="od">Dijo cuándo y cuánto</div></div>
+            <span class="oscope">Venta</span></div>
+
+          <div class="fold">
+            <div class="fk">¿De cuál venta?</div>
+            <div class="chips">
+              <span class="ch full">Sala 3 piezas · $2,100</span>
+              <span class="ch on full">Refrigerador Mabe · $1,450</span>
+            </div>
+            <div class="fk" style="margin-top:14px">¿Cuándo?</div>
+            <div class="chips">
+              <span class="ch">Mañana</span><span class="ch on">Vie 5 sep</span><span class="ch">Otro día</span>
+            </div>
+            <div class="amt"><span class="k">Cuánto prometió</span><span class="v nu">$220</span></div>
+            <div class="note"><b>Qué dijo</b>“el viernes que cobre mi esposo”</div>
+          </div>
+
+          <div class="photo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg>Agregar foto (opcional)</div>
+        </div>
+        <div class="acts"><div class="btn pri">Guardar visita</div></div>
+      </div></div>
+      <span class="cap"><b>2 · Prometió</b><br>pide venta, fecha y monto</span>
+    </div>
+
+    <!-- 3 · NO ESTABA -->
+    <div class="unit">
+      <div class="dev"><div class="scr">
+        <div class="bar"><span>9:54</span><span class="r">Ruta Tehuacán</span></div>
+        <div class="body">
+          <div class="head"><div class="h">Visita</div><div class="s">Victoria Flores Olmedo</div></div>
+
+          <div class="opt sel-nadie"><span class="st nadie"><svg viewBox="0 0 24 24" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M6 6l12 12"/></svg></span>
+            <div><div class="on">No estaba</div><div class="od">No había quién atendiera</div></div>
+            <span class="oscope">Cliente</span></div>
+
+          <div class="scope"><span>ℹ</span><span>Aplica a <b>sus 2 ventas</b>. Es del cliente, no de una cuenta.</span></div>
+
+          <div class="fold">
+            <div class="fk">¿Cómo estaba?</div>
+            <div class="chips">
+              <span class="ch onm">No se encontraba</span>
+              <span class="ch">Casa cerrada con candado</span>
+              <span class="ch">Solo había menores</span>
+              <span class="ch">Se asomó pero no salió</span>
+              <span class="ch">No responde aunque está</span>
+              <span class="ch">Se escuchan ruidos pero no abre</span>
+            </div>
+            <div class="note"><b>Nota (opcional)</b>Preguntar por la mañana — la vecina dice que llega de trabajar a las 8.</div>
+          </div>
+
+          <div class="photo"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.5"/></svg>Agregar foto (opcional)</div>
+        </div>
+        <div class="acts"><div class="btn pri">Guardar visita</div></div>
+      </div></div>
+      <span class="cap">3 · No estaba<br>aplica a todas sus ventas</span>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <h3>Las tres decisiones de esta pantalla</h3>
+    <p><b>Los resultados son los estados de tu semáforo, no una taxonomía nueva.</b> Cinco de los ocho nacen de una visita; <i>pagó</i> y <i>abonó parcial</i> vienen del flujo de abono, y <i>sin tocar</i> es el estado base. Así lo que registra el cobrador es exactamente lo que después pinta la lista.</p>
+    <p><b>El alcance está a la vista.</b> Cada opción trae la etiqueta <b>cliente</b> o <b>venta</b>, y al elegir cambia la pregunta: “no estaba” avisa que aplica a las dos cuentas; “prometió” pide de cuál venta. Es la regla que ya está en tu catálogo, hecha visible en vez de implícita.</p>
+    <p><b>La promesa se estructura</b> — venta, fecha y monto como datos, más la cita textual aparte. Hoy eso es texto libre con una fecha, y por eso no se puede medir si se cumplió. Con esto se cruza contra los pagos posteriores sin capturar nada extra.</p>
+    <p>Las diez etiquetas de hoy siguen ahí, agrupadas bajo el resultado que les toca — el cobrador no tiene que reaprender nada, y el historial viejo sigue siendo comparable.</p>
+    <p>La foto va al final y <b>nunca bloquea el guardado</b>, igual que en abono.</p>
+  </div>
+</div>

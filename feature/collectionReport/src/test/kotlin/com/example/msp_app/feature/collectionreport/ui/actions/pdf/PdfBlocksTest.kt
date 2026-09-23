@@ -1,7 +1,7 @@
 package com.example.msp_app.feature.collectionreport.ui.actions.pdf
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.ui.ForgivenessRowUi
 import com.example.msp_app.feature.collectionreport.ui.PaymentRowUi

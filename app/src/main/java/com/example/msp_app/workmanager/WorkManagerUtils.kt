@@ -16,9 +16,25 @@ import com.example.msp_app.workers.PendingGuaranteesWorker
 import com.example.msp_app.workers.PendingLocalSalesWorker
 import com.example.msp_app.workers.PendingPaymentsWorker
 import com.example.msp_app.workers.PendingVisitsWorker
+import com.example.msp_app.workers.VisitsReconcileWorker
 import java.util.concurrent.TimeUnit
 
-fun enqueuePendingPaymentsWorker(context: Context, paymentId: String, replace: Boolean = false) {
+/**
+ * `ExistingWorkPolicy.KEEP` is not a default here — it is the only policy
+ * these five pending-work functions know how to produce. `REPLACE` cancels
+ * whatever is already running under the same unique name; `KEEP` only ever
+ * skips a fresh enqueue while that existing work is still
+ * ENQUEUED/RUNNING/BLOCKED, and once it reaches a terminal state
+ * (SUCCEEDED/FAILED/CANCELLED) `KEEP` enqueues the new request exactly like
+ * `REPLACE` would — so `REPLACE` never rescues anything `KEEP` doesn't
+ * already recover for free, and its only real effect is cancelling a live
+ * upload and risking a duplicate send. These five cover the money path
+ * (payments, visits, guarantees, guarantee events, local sales), so a
+ * `replace` parameter that a caller could set to `true` was a standing
+ * invitation to reopen that risk — removed instead of merely discouraged.
+ * See `SyncAllPendingWorkUseCase` KDoc for the full audit (Task 6).
+ */
+fun enqueuePendingPaymentsWorker(context: Context, paymentId: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -30,14 +46,13 @@ fun enqueuePendingPaymentsWorker(context: Context, paymentId: String, replace: B
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_payments_$paymentId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingVisitsWorker(context: Context, visitId: String, replace: Boolean = false) {
+fun enqueuePendingVisitsWorker(context: Context, visitId: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -48,18 +63,13 @@ fun enqueuePendingVisitsWorker(context: Context, visitId: String, replace: Boole
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_visit_$visitId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingGuaranteesWorker(
-    context: Context,
-    guaranteeExternalId: String,
-    replace: Boolean = false
-) {
+fun enqueuePendingGuaranteesWorker(context: Context, guaranteeExternalId: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -70,14 +80,13 @@ fun enqueuePendingGuaranteesWorker(
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_guarantee_$guaranteeExternalId"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingGuaranteeEventsWorker(context: Context, replace: Boolean = false) {
+fun enqueuePendingGuaranteeEventsWorker(context: Context) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -88,19 +97,21 @@ fun enqueuePendingGuaranteeEventsWorker(context: Context, replace: Boolean = fal
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
     val uniqueName = "sync_pending_guarantee_events"
 
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, request)
 }
 
-fun enqueuePendingLocalSalesWorker(
-    context: Context,
-    localSaleId: String,
-    userEmail: String,
-    replace: Boolean = false
-) {
+/**
+ * Nombre del trabajo único de WorkManager para la subida de una venta local — FUENTE ÚNICA
+ * (Minor #4 de la ronda 1 de arreglo de Task 3: antes este literal estaba duplicado en
+ * `WorkManagerReencolarSubidaAdapter.cancelarTrabajoEncolado`; renombrar en un lado sin el otro
+ * dejaba de cancelar SIN que nada fallara — ni un test, ni un error de compilación).
+ */
+fun localSaleUniqueWorkName(localSaleId: String): String = "sync_pending_local_sale_$localSaleId"
+
+fun enqueuePendingLocalSalesWorker(context: Context, localSaleId: String, userEmail: String) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -115,11 +126,8 @@ fun enqueuePendingLocalSalesWorker(
         .setInputData(input)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
-    val uniqueName = "sync_pending_local_sale_$localSaleId"
-
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(uniqueName, policy, request)
+        .enqueueUniqueWork(localSaleUniqueWorkName(localSaleId), ExistingWorkPolicy.KEEP, request)
 }
 
 /** Nombre del trabajo único que reconcilia **ya**, al abrir la app. */
@@ -148,8 +156,17 @@ const val COBRANZA_RECONCILE_PERIOD_MINUTES = 15L
  *
  * `KEEP` para que abrir y cerrar la app varias veces seguidas no apile
  * corridas: si ya hay una sin terminar, se conserva.
+ *
+ * **Arreglo B:** hasta acá esta función llevaba un `replace: Boolean = false`
+ * que ningún llamador usaba y que era el único camino vivo a
+ * `ExistingWorkPolicy.REPLACE` en todo el encolado de dinero. Es exactamente el
+ * parámetro que la Task 6 ya había borrado de las cinco funciones de trabajo
+ * pendiente, por la misma razón: `REPLACE` cancela lo que esté corriendo bajo
+ * el mismo nombre único y no rescata nada que `KEEP` no recupere solo (cuando
+ * el trabajo previo llega a un estado terminal, `KEEP` encola igual). Un
+ * parámetro muerto que solo puede hacer daño se borra, no se documenta.
  */
-fun enqueueCobranzaReconcileNowWorker(context: Context, replace: Boolean = false) {
+fun enqueueCobranzaReconcileNowWorker(context: Context) {
     val constraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
@@ -158,10 +175,8 @@ fun enqueueCobranzaReconcileNowWorker(context: Context, replace: Boolean = false
         .setConstraints(constraints)
         .build()
 
-    val policy = if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
-
     WorkManager.getInstance(context)
-        .enqueueUniqueWork(COBRANZA_RECONCILE_NOW_WORK, policy, request)
+        .enqueueUniqueWork(COBRANZA_RECONCILE_NOW_WORK, ExistingWorkPolicy.KEEP, request)
 }
 
 /**
@@ -183,6 +198,67 @@ fun enqueueCobranzaReconcilePeriodicWorker(context: Context) {
     WorkManager.getInstance(context)
         .enqueueUniquePeriodicWork(
             COBRANZA_RECONCILE_PERIODIC_WORK,
+            ExistingPeriodicWorkPolicy.KEEP,
+            request
+        )
+}
+
+/** Nombre del trabajo único que reconcilia visitas **ya**, al abrir la app. */
+const val VISITS_RECONCILE_NOW_WORK = "visits_reconcile_now"
+
+/** Nombre del trabajo único que mantiene la cadencia de respaldo de visitas. */
+const val VISITS_RECONCILE_PERIODIC_WORK = "visits_reconcile_periodic"
+
+/**
+ * Cadencia de respaldo del reconciliador de visitas — mismo valor que
+ * [COBRANZA_RECONCILE_PERIOD_MINUTES] y por la misma razón: 15 es el piso de
+ * WorkManager (`PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS`), no una
+ * eleccion de negocio. Sin razon documentada para desviarse, Task 11 usa el
+ * mismo numero que cobranza en vez de inventar uno nuevo.
+ */
+const val VISITS_RECONCILE_PERIOD_MINUTES = 15L
+
+/**
+ * Reconcilia visitas **de inmediato**, sin retraso inicial — disparador de
+ * "abrir la app". `KEEP`: si ya hay una corrida sin terminar (p. ej. el
+ * disparador de conectividad la encolo hace un instante), esta llamada no la
+ * cancela ni encola una segunda; y aunque WorkManager encolara ambas, el
+ * mutex de proceso en `TriggerVisitsReconciliationUseCase` deja pasar una
+ * sola. Ver `VisitsReconcileWorker`.
+ */
+fun enqueueVisitsReconcileNowWorker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = OneTimeWorkRequestBuilder<VisitsReconcileWorker>()
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniqueWork(VISITS_RECONCILE_NOW_WORK, ExistingWorkPolicy.KEEP, request)
+}
+
+/**
+ * Cadencia de respaldo del reconciliador de visitas, fuera del ciclo de vida
+ * de la UI: sigue corriendo aunque el cobrador cierre la app a los pocos
+ * segundos de abrirla.
+ */
+fun enqueueVisitsReconcilePeriodicWorker(context: Context) {
+    val constraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
+    val request = PeriodicWorkRequestBuilder<VisitsReconcileWorker>(
+        VISITS_RECONCILE_PERIOD_MINUTES,
+        TimeUnit.MINUTES
+    )
+        .setConstraints(constraints)
+        .build()
+
+    WorkManager.getInstance(context)
+        .enqueueUniquePeriodicWork(
+            VISITS_RECONCILE_PERIODIC_WORK,
             ExistingPeriodicWorkPolicy.KEEP,
             request
         )

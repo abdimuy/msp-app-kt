@@ -3,17 +3,21 @@ package com.example.msp_app.core.database.di
 import android.content.Context
 import com.example.msp_app.core.database.AppDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
+import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleProductDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.dao.visit.VisitImageDao
+import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -22,7 +26,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * Expone por Hilt la [AppDatabase] y sus 12 DAOs — el binding que las
+ * Expone por Hilt la [AppDatabase] y sus DAOs — el binding que las
  * Tasks 6-8 (datasources inyectados) y los futuros `@HiltViewModel`/
  * `@HiltWorker` consumen.
  *
@@ -61,11 +65,23 @@ object DatabaseModule {
     @Provides
     fun providePaymentDao(db: AppDatabase): PaymentDao = db.paymentDao()
 
+    /** `pago_imagenes` — los comprobantes del abono (Task 22). */
+    @Provides
+    fun providePaymentImageDao(db: AppDatabase): PaymentImageDao = db.paymentImageDao()
+
     @Provides
     fun provideProductDao(db: AppDatabase): ProductDao = db.productDao()
 
     @Provides
     fun provideVisitDao(db: AppDatabase): VisitDao = db.visitDao()
+
+    /** `visita_imagenes` — los comprobantes de la visita (Task 23). */
+    @Provides
+    fun provideVisitImageDao(db: AppDatabase): VisitImageDao = db.visitImageDao()
+
+    @Provides
+    fun provideVisitRecommendationDao(db: AppDatabase): VisitRecommendationDao =
+        db.visitRecommendationDao()
 
     @Provides
     fun provideGuaranteeDao(db: AppDatabase): GuaranteeDao = db.guaranteeDao()
@@ -94,4 +110,11 @@ object DatabaseModule {
     @Provides
     fun provideCobranzaSyncStateDao(db: AppDatabase): CobranzaSyncStateDao =
         db.cobranzaSyncStateDao()
+
+    /**
+     * `cliente_ficha` + `cliente_ficha_senales` — la ficha del cliente
+     * (Task 24). Sin `@Singleton`, igual que sus vecinos.
+     */
+    @Provides
+    fun provideClientProfileDao(db: AppDatabase): ClientProfileDao = db.clientProfileDao()
 }

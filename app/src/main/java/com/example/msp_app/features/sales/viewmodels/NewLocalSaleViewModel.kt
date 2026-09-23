@@ -441,8 +441,7 @@ class NewLocalSaleViewModel(application: Application) : AndroidViewModel(applica
                     enqueuePendingLocalSalesWorker(
                         getApplication<Application>().applicationContext,
                         sale.LOCAL_SALE_ID,
-                        userEmail,
-                        replace = true
+                        userEmail
                     )
                 }
                 Log.d(

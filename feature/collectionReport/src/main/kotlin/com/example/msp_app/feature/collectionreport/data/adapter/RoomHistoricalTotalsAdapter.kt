@@ -1,9 +1,9 @@
 package com.example.msp_app.feature.collectionreport.data.adapter
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.payment.PaymentDao
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.port.HistoricalTotalsPort
 
 /**

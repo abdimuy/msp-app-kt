@@ -1,0 +1,86 @@
+# Base congelada de `prePushCheck` — Ruling BB (Arreglo B, ronda 2)
+#
+# El conjunto EXACTO de tareas del que dependía el `prePushCheck` escrito a mano
+# en `d2073787`, el commit anterior a que la compuerta pasara a descubrir.
+#
+# Por qué existe: cambiar una lista por un descubrimiento **no es gratis**. El
+# conjunto nuevo puede ser distinto del viejo sin que nadie lo note, porque ya no
+# hay lista contra la cual comparar. Pasó: la primera versión del descubrimiento
+# perdió tres tareas en silencio — entre ellas `checkNoLegacyDateApi`, el
+# guardarraíl estrella de este mismo arreglo, que dejó de correr en pre-push.
+#
+# El gate exige que lo descubierto **contenga** esta base. Ganar tareas está
+# bien (es el punto); perderlas hay que declararlas en `prePushBaselineBajas`
+# con su razón, como cualquier allowlist de este arreglo.
+#
+# Esto NO es la lista de la compuerta: es la red que atrapa lo que el
+# descubrimiento deje caer. No se agrega nada acá cuando nace un módulo.
+
+build-logic:ktlintCheck
+:checkNoLegacyDateApi
+:app:assembleDevlocalDebug
+:app:ktlintCheck
+:app:testDevlocalDebugUnitTest
+:build-tools:detekt-rules:detekt
+:build-tools:detekt-rules:ktlintCheck
+:build-tools:detekt-rules:test
+:core:appgate:detekt
+:core:appgate:koverVerifyDebug
+:core:appgate:ktlintCheck
+:core:appgate:testDebugUnitTest
+:core:common:detekt
+:core:common:koverVerify
+:core:common:ktlintCheck
+:core:common:testDebugUnitTest
+:core:database:detekt
+:core:database:koverVerifyDebug
+:core:database:koverVerifyMigrations
+:core:database:koverVerifyPagosDao
+:core:database:ktlintCheck
+:core:database:testDebugUnitTest
+:core:designsystem:detekt
+:core:designsystem:koverVerifyDebug
+:core:designsystem:ktlintCheck
+:core:designsystem:testDebugUnitTest
+:core:designsystem:verifyRoborazziDebug
+:core:network:detekt
+:core:network:ktlintCheck
+:core:network:testDebugUnitTest
+:core:printing:detekt
+:core:printing:koverVerifyDebug
+:core:printing:ktlintCheck
+:core:printing:testDebugUnitTest
+:core:settings:detekt
+:core:settings:koverVerifyDebug
+:core:settings:ktlintCheck
+:core:settings:testDebugUnitTest
+:core:telemetry:detekt
+:core:telemetry:koverVerifyDebug
+:core:telemetry:ktlintCheck
+:core:telemetry:testDebugUnitTest
+:core:testing:detekt
+:core:testing:ktlintCheck
+:core:testing:testDebugUnitTest
+:core:upload:detekt
+:core:upload:koverVerify
+:core:upload:ktlintCheck
+:core:upload:testDebugUnitTest
+:feature:collectionReport:detekt
+:feature:collectionReport:koverVerifyDebug
+:feature:collectionReport:ktlintCheck
+:feature:collectionReport:testDebugUnitTest
+:feature:collectionReport:verifyRoborazziDebug
+:feature:configuracion:detekt
+:feature:configuracion:koverVerifyDebug
+:feature:configuracion:ktlintCheck
+:feature:configuracion:testDebugUnitTest
+:feature:pagos:detekt
+:feature:pagos:koverVerifyDebug
+:feature:pagos:ktlintCheck
+:feature:pagos:testDebugUnitTest
+:feature:pagos:verifyRoborazziDebug
+:feature:visitas:detekt
+:feature:visitas:koverVerifyDebug
+:feature:visitas:ktlintCheck
+:feature:visitas:testDebugUnitTest
+:feature:visitas:verifyRoborazziDebug

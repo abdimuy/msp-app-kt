@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.collectionreport.ui
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.printing.domain.PrintError
 import com.example.msp_app.core.printing.domain.PrinterDevice
 import com.example.msp_app.core.telemetry.TelemetryEventType
@@ -21,7 +22,6 @@ import com.example.msp_app.feature.collectionreport.domain.RangeCalculator
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.domain.model.SaleForCobranza

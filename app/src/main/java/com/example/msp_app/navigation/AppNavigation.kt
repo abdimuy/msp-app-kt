@@ -33,6 +33,7 @@ import com.example.msp_app.core.context.LocalAuthViewModel
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncObserver
 import com.example.msp_app.core.sync.cobranza.CobranzaSyncProvider
 import com.example.msp_app.core.sync.cobranza.UserContext
+import com.example.msp_app.core.sync.pendingwork.VisitsReconcileObserver
 import com.example.msp_app.core.sync.pendingwork.di.PendingWorkSyncFactory
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
@@ -64,7 +65,6 @@ import com.example.msp_app.features.sales.screens.SaleDescriptionScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsListScreen
 import com.example.msp_app.features.sales.screens.SaleDetailsScreen
 import com.example.msp_app.features.sales.screens.SaleMapScreen
-import com.example.msp_app.features.sales.screens.SalesScreen
 import com.example.msp_app.features.sales.screens.UnifiedSalesScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferScreen
 import com.example.msp_app.features.transfers.presentation.create.NewTransferViewModel
@@ -72,7 +72,6 @@ import com.example.msp_app.features.transfers.presentation.detail.TransferDetail
 import com.example.msp_app.features.transfers.presentation.detail.TransferDetailViewModel
 import com.example.msp_app.features.transfers.presentation.list.TransfersListScreen
 import com.example.msp_app.features.transfers.presentation.list.TransfersListViewModel
-import com.example.msp_app.features.visit.screens.VisitTicketScreen
 import com.example.msp_app.ui.theme.ThemeController
 import kotlinx.coroutines.launch
 
@@ -81,7 +80,39 @@ sealed class Screen(val route: String) {
     object NoModules : Screen("no_modules")
     object Login : Screen("login")
     object Home : Screen("home")
-    object Sales : Screen("sales")
+
+    /**
+     * El detalle de venta **legado**.
+     *
+     * Desde la Task 21 ya no es la puerta de ninguna lista. Hasta hace poco se
+     * llegaba también por el "⋯" del detalle de venta nuevo; el dueño lo quitó
+     * ("no quiero volver a verla nunca más") y la única puerta que queda es "Ver
+     * los N abonos" dentro de esa misma pantalla — donde vive la
+     * **condonación** —cuya lógica este plan declaró intacta— junto con el mapa
+     * de la venta, los productos, la garantía y el historial completo.
+     *
+     * ## Qué id espera esta ruta, y quién le manda otro
+     *
+     * `SaleDetailsScreen` resuelve su argumento con `SaleDao.getById`, que filtra
+     * **`DOCTO_CC_ACR_ID`** (la llave primaria de `sales`). Eso es lo que la ruta
+     * necesita, y lo que le manda el llamador nuevo —`destinosDeCobranza`, en el
+     * `onVerAbonos` de `:feature:pagos`—.
+     *
+     * La lista "otras ventas del cliente" (`SaleDetailsScreen`) navegaba con
+     * `saleItem.DOCTO_CC_ID`; ahora pasa por
+     * [com.example.msp_app.features.sales.SaleIdSpaces.forSaleRow], que entrega
+     * la PK. Ese archivo tiene el mapeo completo de qué id pide cada consumidor,
+     * medido contra la columna por la que filtra cada consulta.
+     *
+     * **Ya no queda ningún llamador mandando otro id.** El último era
+     * `GuaranteesScreen.kt:108`, que resolvía con `SaleDao.getById` (la PK) un
+     * `saleId` que la ruta `guarantee/{saleId}` trae como `DOCTO_CC_ID` — las
+     * garantías están indexadas por crédito. Se arregló donde correspondía, en la
+     * consulta (`SaleDetailsViewModel.loadSaleDetailsByCreditId` →
+     * `SaleDao.findByDoctoCcId`) y no en el argumento: ese argumento es el que la
+     * garantía necesita, y cambiarlo habría arreglado la venta rompiendo la
+     * garantía.
+     */
     object SaleDetails : Screen("sales/sale_details/{saleId}") {
         fun createRoute(saleId: Int) = "sales/sale_details/$saleId"
     }
@@ -101,12 +132,41 @@ sealed class Screen(val route: String) {
         fun createRoute(paymentId: String) = "payment_ticket/$paymentId"
     }
 
-    object VisitTicket : Screen("visit_ticket/{saleId}") {
-        fun createRoute(saleId: String) = "visit_ticket/$saleId"
-    }
-
     object Guarantee : Screen("guarantee/{saleId}") {
         fun createRoute(saleId: String) = "guarantee/$saleId"
+    }
+
+    /**
+     * La condonación, como destino propio.
+     *
+     * Hasta hoy la única puerta era el detalle de venta legado
+     * ([SaleDetails]) → "Ver los N abonos" → el botón rojo "Condonación", que
+     * abría [com.example.msp_app.features.forgiveness.components.NewForgivenessDialog]
+     * como un diálogo montado dentro de esa pantalla. El dueño la quiere
+     * también desde el detalle de venta NUEVO (`:feature:pagos`), que no
+     * puede depender de `:app` ni montar ese diálogo directamente — así que
+     * esta ruta es la puerta común: cualquier llamador manda el `ventaId` y
+     * llega aquí, sin que el módulo nuevo sepa que `NewForgivenessDialog`
+     * existe.
+     *
+     * **La captura NO se reescribe.** Este destino sólo resuelve la [Sale] por
+     * su id y monta el mismo diálogo con `show = true`; toda la lógica de
+     * condonar —prellenar `SALDO_REST`, validar `> 0` y `<= SALDO_REST`,
+     * escribir el `Payment` con `FORMA_COBRO_ID = Constants.CONDONACION_ID` y
+     * arrancar `UpdateLocationService`— sigue viviendo donde vivía.
+     *
+     * ## Qué id espera esta ruta
+     *
+     * El **`DOCTO_CC_ACR_ID`**, el mismo espacio que [SaleDetails] y que
+     * [com.example.msp_app.feature.pagos.ui.PagosRutas.ARG_VENTA_ID]: es lo que
+     * [com.example.msp_app.features.sales.viewmodels.SaleDetailsViewModel.loadSaleDetails]
+     * resuelve (`SaleDao.getById`, la PK de `sales`), y lo que
+     * `DetalleVentaViewModel.ventaId` ya trae resuelto del lado nuevo. **No**
+     * es el `DOCTO_CC_ID` del crédito — confundir los dos espacios ya costó un
+     * defecto de producción en este mismo plan (commit `721c5551`).
+     */
+    object Forgiveness : Screen("forgiveness/{saleId}") {
+        fun createRoute(saleId: Int) = "forgiveness/$saleId"
     }
 
     object RouteMap : Screen("route_map")
@@ -242,6 +302,17 @@ fun AppNavigation() {
         }
     }
 
+    val authedUserData = (userDataState as? ResultState.Success<User?>)?.data
+
+    // Task 11 — visitas reconciler triggers (app open, periodic, connectivity).
+    // Gated on "authenticated", not on ZONA_CLIENTE_ID like the cobranza block
+    // below: a pending visita can exist for a collector with no zone assigned
+    // yet. See VisitsReconcileObserver's KDoc for why it is not merged into
+    // CobranzaSyncObserver.
+    if (authedUserData != null) {
+        VisitsReconcileObserver()
+    }
+
     // Drive the cobranza incremental sync (ventas + pagos) while the user is
     // authenticated and has a zona assigned. The manager polls every 30 s
     // and reacts to connectivity changes; the observer ties its lifecycle
@@ -250,7 +321,6 @@ fun AppNavigation() {
     // FECHA_CARGA_INICIAL (Firestore) marca el inicio de la ventana visible
     // del cobrador: se envía como `?desde=` al backend para conservar las
     // saldadas con pago en ventana, y dispara el prune local cuando cambia.
-    val authedUserData = (userDataState as? ResultState.Success<User?>)?.data
     if (authedUserData != null && authedUserData.ZONA_CLIENTE_ID > 0) {
         val zonaActual = authedUserData.ZONA_CLIENTE_ID
         val fechaCargaInicialIso = authedUserData.FECHA_CARGA_INICIAL
@@ -412,10 +482,6 @@ fun AppNavigation() {
                 HomeScreen(navController = navController)
             }
 
-            composable(Screen.Sales.route) {
-                SalesScreen(navController = navController)
-            }
-
             composable(Screen.SaleDetails.route) { backStackEntry ->
                 val saleId = backStackEntry.arguments?.getString("saleId")?.toIntOrNull()
                 if (saleId != null) {
@@ -424,10 +490,9 @@ fun AppNavigation() {
                         navController = navController
                     )
                 } else {
-                    // Handle the case where saleId is null, maybe show an error or navigate back
-                    navController.navigate(Screen.Sales.route) {
-                        popUpTo(Screen.Sales.route) { inclusive = true }
-                    }
+                    // Sin argumento no hay venta que pintar: se vuelve por donde
+                    // se entró en vez de mandar a una lista que ya no existe.
+                    navController.popBackStack()
                 }
             }
 
@@ -483,14 +548,6 @@ fun AppNavigation() {
                         paymentId = paymentId,
                         navController = navController
                     )
-                }
-            }
-
-            composable(Screen.VisitTicket.route) { backStackEntry ->
-                val saleIdString = backStackEntry.arguments?.getString("saleId")
-                val saleId = saleIdString?.toIntOrNull()
-                if (saleId != null) {
-                    VisitTicketScreen(saleId = saleId, navController = navController)
                 }
             }
 
@@ -619,6 +676,12 @@ fun AppNavigation() {
                     viewModel = viewModel
                 )
             }
+
+            // Cobranza y visitas (Tasks 16-20), cableadas por la Task 21.
+            // El grafo vive en `DestinosDeCobranzaGraph.kt` para que un test
+            // pueda montarlo con un `TestNavHostController` y afirmar destino y
+            // argumentos sobre EL MISMO código que corre en la app.
+            destinosDeCobranza(navController)
 
             // Pantalla de Configuración (Task 3, spec
             // 2026-08-10-configuracion-tamano-letra-design.md). Se apila sobre la pantalla

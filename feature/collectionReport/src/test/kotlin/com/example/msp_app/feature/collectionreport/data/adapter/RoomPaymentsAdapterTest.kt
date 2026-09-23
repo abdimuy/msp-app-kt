@@ -1,11 +1,11 @@
 package com.example.msp_app.feature.collectionreport.data.adapter
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.entities.PaymentEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.testing.RoomTestBase
 import com.example.msp_app.feature.collectionreport.domain.model.DateRange
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import java.math.BigDecimal
 import java.time.Instant

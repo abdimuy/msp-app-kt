@@ -177,7 +177,7 @@ class PendingVisitsWorkerE2ETest {
                 .setBody("""{"id":"$visitId"}""")
         )
 
-        enqueuePendingVisitsWorker(context, visitId, replace = true)
+        enqueuePendingVisitsWorker(context, visitId)
         testDriver.setAllConstraintsMet(currentWorkId(visitId))
 
         val info = awaitWorkInfo(visitId) {
@@ -206,7 +206,7 @@ class PendingVisitsWorkerE2ETest {
         // Retrofit/OkHttp surface to the worker as an IOException.
         mockWebServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
 
-        enqueuePendingVisitsWorker(context, visitId, replace = true)
+        enqueuePendingVisitsWorker(context, visitId)
         testDriver.setAllConstraintsMet(currentWorkId(visitId))
 
         val info = awaitWorkInfo(visitId) {
@@ -244,7 +244,7 @@ class PendingVisitsWorkerE2ETest {
         mockWebServer.enqueue(
             MockResponse().setResponseCode(200).setBody("""{"id":"$visitId"}""")
         )
-        enqueuePendingVisitsWorker(context, visitId, replace = true)
+        enqueuePendingVisitsWorker(context, visitId)
         testDriver.setAllConstraintsMet(currentWorkId(visitId))
         val firstInfo = awaitWorkInfo(visitId) {
             it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED
@@ -259,7 +259,7 @@ class PendingVisitsWorkerE2ETest {
         mockWebServer.enqueue(
             MockResponse().setResponseCode(200).setBody("""{"id":"$visitId"}""")
         )
-        enqueuePendingVisitsWorker(context, visitId, replace = true)
+        enqueuePendingVisitsWorker(context, visitId)
         testDriver.setAllConstraintsMet(currentWorkId(visitId))
         val secondInfo = awaitWorkInfo(visitId) {
             it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED

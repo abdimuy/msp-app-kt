@@ -27,11 +27,13 @@ import java.time.temporal.ChronoUnit
  * the locally-stored string changes width. Idempotency is unaffected — the upload
  * Idempotency-Key is `payment.ID` (a UUID), never derived from the timestamp.
  *
- * Both [com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog]
- * and [com.example.msp_app.features.forgiveness.components.NewForgivenessDialog] generate this
- * value inline inside a `@Composable` local function — neither has a ViewModel to own the
- * clock injection — so this top-level function is the minimum-viable testable seam without
- * redesigning the payment save flow.
+ * Callers: [com.example.msp_app.features.forgiveness.components.NewForgivenessDialog], which
+ * generates this value inline inside a `@Composable` local function — it has no ViewModel to
+ * own the clock injection — and
+ * [com.example.msp_app.data.pagos.RegistroDeAbonoAdapter], which passes its injected
+ * [AppClock] explicitly. `NewPaymentDialog` was the third caller until Task 21 (fix round 1)
+ * retired it; this top-level function is what let the abono path reuse the exact same wire
+ * format without redesigning the payment save flow.
  */
 fun currentPaymentTimestamp(clock: AppClock = AppClock.System): String =
     AppTime.toWireFormat(clock.now().truncatedTo(ChronoUnit.SECONDS))

@@ -25,6 +25,12 @@ internal const val THEME_TOGGLE_TAG = "msp_theme_toggle"
 
 private val THEME_TOGGLE_SIZE = 40.dp
 
+/** Lo que anuncia el botón cuando el tema YA es oscuro: tocarlo lleva a claro. */
+const val DESCRIPCION_A_CLARO: String = "Cambiar a tema claro"
+
+/** Lo que anuncia el botón cuando el tema YA es claro: tocarlo lleva a oscuro. */
+const val DESCRIPCION_A_OSCURO: String = "Cambiar a tema oscuro"
+
 /**
  * Botón sol/luna del design system: icon-surface de 40dp, shape
  * [MspTheme.shapes.control] (1:1 kollect §7.2, `ThemeToggle`). Decide entre
@@ -45,6 +51,21 @@ private val THEME_TOGGLE_SIZE = 40.dp
  * animación asociada a este control vive en quien la maneje (la reveal o el
  * crossfade), ambas ya con su propio escape hatch — no hay nada extra que
  * gatear aquí por `rememberReducedMotionEnabled()`.
+ *
+ * ## El `contentDescription` que el port había perdido
+ *
+ * El `ThemeToggle` de kollect anuncia **la acción, no el estado**
+ * (`"Cambiar a tema claro"` cuando ya está oscuro, y al revés), y este port lo
+ * traía en `null`: un botón invisible para TalkBack. Se restituye — y desde
+ * que `CLAUDE.md` §3 pide **mayúscula inicial** en el texto de usuario, se
+ * restituye sin desviación ninguna: la minúscula que este párrafo defendía era
+ * la convención vieja, y era además el último punto en que el port se apartaba
+ * del 1:1 con kollect. Los otros controles del encabezado (`"Atrás"`,
+ * `"Borrar búsqueda"`) se movieron en el mismo cambio.
+ *
+ * Que describa la ACCIÓN es también lo que lo vuelve medible: un compose-test
+ * puede afirmar que el tap cambió el tema mirando cómo cambió esta cadena, sin
+ * leer píxeles.
  */
 @Composable
 fun MspThemeToggle(darkTheme: Boolean, onToggle: () -> Unit, modifier: Modifier = Modifier) {
@@ -68,7 +89,7 @@ fun MspThemeToggle(darkTheme: Boolean, onToggle: () -> Unit, modifier: Modifier 
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = if (darkTheme) MspIcons.Moon else MspIcons.Sun,
-                contentDescription = null,
+                contentDescription = if (darkTheme) DESCRIPCION_A_CLARO else DESCRIPCION_A_OSCURO,
                 tint = MspTheme.colors.onSurface
             )
         }

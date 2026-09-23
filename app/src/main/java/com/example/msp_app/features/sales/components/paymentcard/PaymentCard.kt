@@ -37,7 +37,25 @@ import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
+import com.example.msp_app.navigation.DestinosDeCobranza
 
+/**
+ * Una fila del historial de pagos de una venta — **un recibo ya emitido**.
+ *
+ * ## Los dos destinos (Task 21)
+ *
+ * - **El recibo del día** ([isFirstPayment]) sigue abriendo su **ticket**, que
+ *   es lo único que esta tarjeta hacía antes y la única forma de reimprimir un
+ *   cobro ya registrado. Se deja en la pantalla legada de ticket a propósito:
+ *   por aquí también pasan las **condonaciones**, que el ticket nuevo de la
+ *   Task 20 no sirve —`RoomPagosAdapter` excluye la forma 137026 por diseño— y
+ *   que quedarían con un ticket vacío. Cambiar ese destino sin cubrir la
+ *   condonación habría roto una impresión que hoy funciona.
+ * - **Cualquier otro recibo** entra ahora a **su venta**, que es la regla del
+ *   origen de la Task 21 ("desde un recibo existente se entra directo a su
+ *   venta"). Antes esas filas no eran tocables: es una puerta que se gana, no
+ *   una que se pierde.
+ */
 @Composable
 fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: Boolean = false) {
     val authViewModel: AuthViewModel = viewModel()
@@ -68,15 +86,13 @@ fun PaymentCard(payment: Payment, navController: NavController, isFirstPayment: 
             .fillMaxWidth()
             .padding(vertical = 2.dp)
             .height(70.dp)
-            .then(
+            .clickable {
                 if (isFirstPayment) {
-                    Modifier.clickable {
-                        navController.navigate("payment_ticket/${payment.ID}")
-                    }
+                    navController.navigate("payment_ticket/${payment.ID}")
                 } else {
-                    Modifier
+                    navController.navigate(DestinosDeCobranza.ventaDeUnRecibo(payment))
                 }
-            ),
+            },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(12.dp)
     ) {

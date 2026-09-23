@@ -17,11 +17,11 @@ fun <T> searchSimilarItems(
     threshold: Int = 60,
     selectText: (T) -> String
 ): List<T> {
-    val cleanQuery = normalize(query)
+    val cleanQuery = normalizeForSearch(query)
     if (cleanQuery.isEmpty()) return emptyList()
 
     val normalizedItems = items.map { item ->
-        normalize(selectText(item)) to item
+        normalizeForSearch(selectText(item)) to item
     }
     val qLen = cleanQuery.length
 
@@ -41,10 +41,36 @@ fun <T> searchSimilarItems(
         .map { it.first }
 }
 
-private fun normalize(text: String): String {
+/**
+ * Normalización única para búsqueda "tolerante a error de captura": minúsculas, sin
+ * marcas de acento y con espacios colapsados a uno solo (sin importar cuántos de más
+ * haya al inicio, al final o entre palabras). Es la ÚNICA función de normalización para
+ * el buscador de clientes — la usan tanto [searchSimilarItems] (para el ranking) como
+ * `ClienteRepository.searchClientes` y `ClienteRepository.syncFromServer` (para la
+ * columna `NOMBRE_NORMALIZADO` y la consulta SQL). El defecto clásico es normalizar la
+ * consulta pero no el dato (o viceversa); tenerla en un solo lugar hace que ese defecto
+ * ya no se pueda escribir por accidente.
+ *
+ * ## Decisión: la "ñ" cuenta como "n" para BUSCAR
+ *
+ * La descomposición NFD de Unicode ya hace este trabajo sin código extra: "ñ" (U+00F1)
+ * se descompone en "n" (U+006E) + tilde combinante (U+0303), y esa tilde es una marca
+ * que este normalizador descarta igual que el acento de "é" o "á". El resultado es que
+ * "pena" encuentra "PEÑA" — decisión deliberada, no un descuido: el cobrador teclea
+ * rápido y muchas veces con el teclado del teléfono en inglés, donde la "ñ" no está a
+ * un toque directo. Es seguro porque esta función solo se usa para COMPARAR: el nombre
+ * que se guarda (`NOMBRE`) y el que se muestra en la lista de resultados conservan la
+ * "ñ" real tal como vino de Microsip — normalizar para buscar nunca normaliza para
+ * mostrar ni para guardar.
+ */
+fun normalizeForSearch(text: String): String {
     val nfd = Normalizer.normalize(text.trim().lowercase(), Normalizer.Form.NFD)
-    return nfd.replace("\\p{M}".toRegex(), "")
+    val withoutAccents = nfd.replace(DIACRITIC_MARKS, "")
+    return withoutAccents.replace(MULTIPLE_SPACES, " ").trim()
 }
+
+private val DIACRITIC_MARKS = "\\p{M}".toRegex()
+private val MULTIPLE_SPACES = "\\s+".toRegex()
 
 private fun longestCommonSubstring(s1: String, s2: String): Int {
     val mod = 1_000_000_007L

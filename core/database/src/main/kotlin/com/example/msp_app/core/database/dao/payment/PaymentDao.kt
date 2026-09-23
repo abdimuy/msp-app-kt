@@ -56,6 +56,22 @@ private fun dayKeyOf(fechaHoraPago: String): String = AppTime.parseWireFormatOrN
     ?.let { AppTime.toBusinessDate(it).toString() }
     ?: fechaHoraPago
 
+/**
+ * ## Por qué TRES de estas proyecciones cargan `PAGO_RECIBIDO_ID` y las demás no
+ *
+ * Las lecturas que alimentan el HISTORIAL de abonos —[PaymentDao.getPaymentById],
+ * [PaymentDao.getPaymentsBySaleId] y [PaymentDao.getPaymentsByDate]— la traen
+ * porque el guard anti-duplicado de la pantalla de abono se resuelve preguntando
+ * *"¿está mi abono en el historial?"*, y `Payment.ID` **no sobrevive a la
+ * sincronización**: `CobranzaSyncManager.mergePagos` borra la fila del UUID y
+ * reinserta la canónica bajo la llave numérica de Microsip, conservando el UUID
+ * en esta columna. Sin ella en la proyección, la columna llega `null` por el
+ * default de la data class —Room no se queja— y el guard se suelta después de
+ * cada merge.
+ *
+ * Las demás proyecciones NO la cargan a propósito: no la leen, y una lista de
+ * columnas dice qué usa cada consulta.
+ */
 @Dao
 interface PaymentDao {
 
@@ -75,7 +91,8 @@ interface PaymentDao {
             COBRADOR_ID,
             FORMA_COBRO_ID,
             ZONA_CLIENTE_ID,
-            NOMBRE_CLIENTE
+            NOMBRE_CLIENTE,
+            PAGO_RECIBIDO_ID
         FROM Payment
         WHERE ID = :id
         """
@@ -97,7 +114,8 @@ interface PaymentDao {
         COBRADOR_ID,
         FORMA_COBRO_ID,
         ZONA_CLIENTE_ID,
-        NOMBRE_CLIENTE
+        NOMBRE_CLIENTE,
+        PAGO_RECIBIDO_ID
     FROM Payment
     WHERE DOCTO_CC_ACR_ID = :saleId"""
     )
@@ -118,7 +136,8 @@ interface PaymentDao {
                 COBRADOR_ID,
                 FORMA_COBRO_ID,
                 ZONA_CLIENTE_ID,
-                NOMBRE_CLIENTE
+                NOMBRE_CLIENTE,
+                PAGO_RECIBIDO_ID
             FROM Payment
             WHERE
                 FECHA_HORA_PAGO >= :start AND FECHA_HORA_PAGO < :end
@@ -132,6 +151,29 @@ interface PaymentDao {
         """
     )
     suspend fun getPaymentsByDate(start: String, end: String): List<PaymentEntity>
+
+    /**
+     * **Sólo los importes** de los abonos de las formas de cobro que le pasen,
+     * sin fecha y sin venta.
+     *
+     * Es la muestra de la que sale la línea base de la ruta (el percentil de lo
+     * que esta ruta paga de verdad). Son miles de filas y de cada una lo único
+     * que se mira es el peso, así que devolver `PaymentEntity` completa sería
+     * pagar catorce columnas por una.
+     *
+     * Las formas de cobro entran **como parámetro** y no escritas en el SQL a
+     * propósito: el conjunto canónico es `VentanaCobro.FORMAS_COBRO_COBRANZA` y
+     * duplicarlo aquí crearía una segunda definición de "qué cuenta como
+     * cobranza" que puede despegarse de la primera sin que nada avise.
+     */
+    @Query(
+        """
+            SELECT IMPORTE
+            FROM Payment
+            WHERE FORMA_COBRO_ID IN (:formasDeCobro) AND IMPORTE > 0
+        """
+    )
+    suspend fun getCollectedAmounts(formasDeCobro: Set<Int>): List<Double>
 
     @Query(
         """SELECT 

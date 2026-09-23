@@ -14,6 +14,7 @@ import com.example.msp_app.core.database.migrations.MIGRATION_25_26
 import com.example.msp_app.core.database.migrations.MIGRATION_26_27
 import com.example.msp_app.core.database.migrations.MIGRATION_27_28
 import com.example.msp_app.core.database.migrations.MIGRATION_28_29
+import com.example.msp_app.core.database.migrations.MIGRATION_29_30
 import com.example.msp_app.core.testing.RobolectricTestBase
 import java.io.File
 import org.junit.After
@@ -27,9 +28,11 @@ private const val START_VERSION = 20
 private const val SEEDED_PAYMENT_ID = "smoke-pago-001"
 private const val SEEDED_PAYMENT_IMPORTE = "725.50"
 private const val SEEDED_CURSOR = "2026-08-01T10:00:00.000000Z"
+private const val SEEDED_VISIT_ID = "smoke-visita-001"
+private const val SEEDED_VISIT_NOTA = "Pidio tiempo hasta el viernes"
 
 /**
- * Smoke de las 9 migraciones reales (20→29) sobre una base sembrada por
+ * Smoke de las 10 migraciones reales (20→30) sobre una base sembrada por
  * `execSQL` crudo (spec Plan 2 Task 4 — decisión del orquestador: sin JSONs
  * históricos v20-v26, ver [SchemaIntegrityTest] para el detalle de esa
  * limitación). No usa `MigrationTestHelper` porque ese helper solo puede
@@ -42,7 +45,7 @@ private const val SEEDED_CURSOR = "2026-08-01T10:00:00.000000Z"
  * secuencia — no una copia de su SQL.
  *
  * Qué rompería si este test fallara: cualquier migración de la cadena
- * 20→29 que hoy pasa silenciosamente porque nadie la ejecuta en secuencia
+ * 20→30 que hoy pasa silenciosamente porque nadie la ejecuta en secuencia
  * contra un esquema de partida real (columna con nombre distinto, tabla
  * prerrequisito faltante, orden de ALTER/DROP incorrecto). También sirve de
  * segunda red para money-safety: se siembra una fila de `Payment` no
@@ -150,6 +153,30 @@ class MigrationSmokeTest : RobolectricTestBase() {
         db.execSQL("CREATE INDEX index_Payment_DOCTO_CC_ID ON Payment (DOCTO_CC_ID)")
         db.execSQL("CREATE INDEX index_Payment_FECHA_HORA_PAGO ON Payment (FECHA_HORA_PAGO)")
 
+        // Prerrequisito de MIGRATION_29_30, que hace `ALTER TABLE Visit ADD COLUMN`:
+        // la cadena 20→29 nunca tocaba `Visit`, asi que el seed no la incluia.
+        // El DDL es el de la entidad real (identico en v20 y en v29: ninguna
+        // migracion de la cadena la modifico).
+        db.execSQL(
+            """
+            CREATE TABLE Visit (
+                ID TEXT PRIMARY KEY NOT NULL,
+                CLIENTE_ID INTEGER NOT NULL,
+                COBRADOR TEXT NOT NULL,
+                COBRADOR_ID INTEGER NOT NULL,
+                FECHA TEXT NOT NULL,
+                FORMA_COBRO_ID INTEGER NOT NULL,
+                LAT REAL NOT NULL,
+                LNG REAL NOT NULL,
+                NOTA TEXT,
+                TIPO_VISITA TEXT NOT NULL,
+                ZONA_CLIENTE_ID INTEGER NOT NULL,
+                IMPTE_DOCTO_CC_ID INTEGER NOT NULL,
+                GUARDADO_EN_MICROSIP INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+
         // Prerrequisitos minimos de MIGRATION_24_25/25_26 (solo ALTER TABLE ADD COLUMN).
         db.execSQL("CREATE TABLE local_sale (LOCAL_SALE_ID TEXT PRIMARY KEY NOT NULL)")
         db.execSQL(
@@ -194,6 +221,46 @@ class MigrationSmokeTest : RobolectricTestBase() {
             )
             """.trimIndent()
         )
+    }
+
+    private fun seedUnuploadedVisit(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            INSERT INTO Visit (
+                ID, CLIENTE_ID, COBRADOR, COBRADOR_ID, FECHA, FORMA_COBRO_ID,
+                LAT, LNG, NOTA, TIPO_VISITA, ZONA_CLIENTE_ID,
+                IMPTE_DOCTO_CC_ID, GUARDADO_EN_MICROSIP
+            ) VALUES (
+                '$SEEDED_VISIT_ID', 30144, 'Efrain Dominguez Reyes', 7,
+                '2026-08-01T10:05:00Z', 157, 19.043415, -98.198234,
+                '$SEEDED_VISIT_NOTA', 'PIDE_TIEMPO', 21, 91027, 0
+            )
+            """.trimIndent()
+        )
+    }
+
+    /**
+     * La visita no subida sembrada antes de migrar sigue entera al final, y
+     * estrena en NULL las cinco columnas que le agrego la 29→30.
+     */
+    private fun assertVisitSurvived(db: SupportSQLiteDatabase) {
+        db.query(
+            "SELECT NOTA, TIPO_VISITA, GUARDADO_EN_MICROSIP, PROMESA_FECHA, " +
+                "PROMESA_MONTO_CENTAVOS, CITA_HORA FROM Visit WHERE ID = ?",
+            arrayOf(SEEDED_VISIT_ID)
+        ).use { cursor ->
+            assertTrue("la visita no subida debe sobrevivir la cadena", cursor.moveToFirst())
+            assertEquals(SEEDED_VISIT_NOTA, cursor.getString(0))
+            assertEquals("PIDE_TIEMPO", cursor.getString(1))
+            assertEquals(
+                "migrar no puede marcarla como subida",
+                0,
+                cursor.getInt(2)
+            )
+            assertTrue("PROMESA_FECHA arranca NULL", cursor.isNull(3))
+            assertTrue("PROMESA_MONTO_CENTAVOS arranca NULL", cursor.isNull(4))
+            assertTrue("CITA_HORA arranca NULL", cursor.isNull(5))
+        }
     }
 
     /**
@@ -269,10 +336,11 @@ class MigrationSmokeTest : RobolectricTestBase() {
     }
 
     @Test
-    fun `las 9 migraciones 20 a 29 corren en secuencia sin error SQL sobre un esquema sembrado`() {
+    fun `las 10 migraciones 20 a 30 corren en secuencia sin error SQL sobre un esquema sembrado`() {
         // Abrir dispara onCreate -> seedStartingSchema, deja el archivo en v20.
         val db = helper.writableDatabase
         seedUnuploadedPayment(db)
+        seedUnuploadedVisit(db)
 
         listOf(
             MIGRATION_20_21,
@@ -283,7 +351,8 @@ class MigrationSmokeTest : RobolectricTestBase() {
             MIGRATION_25_26,
             MIGRATION_26_27,
             MIGRATION_27_28,
-            MIGRATION_28_29
+            MIGRATION_28_29,
+            MIGRATION_29_30
         ).forEach { migration ->
             migration.migrate(db)
             if (migration === MIGRATION_23_24) seedSyncStateRow(db)
@@ -291,6 +360,7 @@ class MigrationSmokeTest : RobolectricTestBase() {
 
         assertSyncStateSurvived(db)
         assertPaymentSchema(db)
+        assertVisitSurvived(db)
 
         db.query(
             "SELECT IMPORTE, GUARDADO_EN_MICROSIP, PAGO_RECIBIDO_ID FROM Payment WHERE ID = ?",

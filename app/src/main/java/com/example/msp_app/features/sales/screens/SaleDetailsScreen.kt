@@ -44,6 +44,7 @@ import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.products.viewmodels.ProductsViewModel
+import com.example.msp_app.features.sales.SaleIdSpaces
 import com.example.msp_app.features.sales.components.CustomMap
 import com.example.msp_app.features.sales.components.guaranteeSection.GuaranteeSection
 import com.example.msp_app.features.sales.components.paymentshistorysection.PaymentsHistory
@@ -78,7 +79,11 @@ fun SaleDetailsScreen(saleId: Int, navController: NavHostController) {
         saleSuccess.data.CLIENTE_ID.let { clientId ->
             salesViewModel.getSalesByClientId(clientId)
         }
-        salesViewModel.getOverduePaymentBySaleId(saleId)
+        // El argumento de la ruta es el `DOCTO_CC_ACR_ID` (lo exige `loadSaleDetails` de
+        // arriba, que resuelve con `SaleDao.getById`). `overdue_payments_view` indexa por
+        // `sales.DOCTO_CC_ID`, así que el id sale de la venta YA CARGADA, no de la ruta:
+        // los dos consumidores de este `LaunchedEffect` piden columnas distintas.
+        salesViewModel.getOverduePaymentBySaleId(SaleIdSpaces.forOverdueView(saleSuccess.data))
     }
 
     DrawerContainer(
@@ -162,7 +167,9 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
         ) {
             CustomMap(
                 onClick = {
-                    navController.navigate(Screen.SaleMap.createRoute(saleId = sale.DOCTO_CC_ID))
+                    navController.navigate(
+                        Screen.SaleMap.createRoute(saleId = SaleIdSpaces.forSalePayments(sale))
+                    )
                 }
             )
 
@@ -236,7 +243,7 @@ fun SaleDetailsContent(sale: Sale, navController: NavController, openDrawer: () 
                             onClick = {
                                 navController.navigate(
                                     Screen.SaleDetails.createRoute(
-                                        saleId = saleItem.DOCTO_CC_ID
+                                        saleId = SaleIdSpaces.forSaleRow(saleItem)
                                     )
                                 )
                             },

@@ -22,7 +22,7 @@ class VisitsPendingSynchronizerTest {
     }
 
     @Test
-    fun `enqueues each pending visit`() = runTest {
+    fun `enqueues each pending visit with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val sync = VisitsPendingSynchronizer(
             fetchPending = { listOf(visitWithId("v1"), visitWithId("v2"), visitWithId("v3")) },
@@ -33,6 +33,10 @@ class VisitsPendingSynchronizerTest {
 
         assertEquals(SyncResult.Enqueued(itemCount = 3, workRequestCount = 3), result)
         assertEquals(listOf("v1", "v2", "v3"), enqueuer.calls)
+        // KEEP is no longer a runtime choice to assert on: VisitsWorkEnqueuer
+        // no longer has a `replace` parameter, and enqueuePendingVisitsWorker
+        // hardcodes ExistingWorkPolicy.KEEP internally — REPLACE is not
+        // reachable from this call at all (see SyncAllPendingWorkUseCase KDoc).
     }
 
     @Test
@@ -83,7 +87,7 @@ class VisitsPendingSynchronizerTest {
     ) : VisitsWorkEnqueuer {
         val calls: MutableList<String> = mutableListOf()
 
-        override fun enqueue(visitId: String, replace: Boolean) {
+        override fun enqueue(visitId: String) {
             calls += visitId
             if (visitId in failingIds) throw RuntimeException("boom")
         }

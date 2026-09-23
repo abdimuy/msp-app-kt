@@ -206,6 +206,8 @@ class ComboLocalDataSourceTest : RoomTestBase() {
         override suspend fun deleteCombosForSale(saleId: String) = Unit
         override suspend fun updateServerUuid(comboId: String, saleId: String, serverUuid: String) =
             Unit
+
+        override suspend fun deleteCombosByIds(saleId: String, comboIds: List<String>) = Unit
     }
 
     // ─── equivalencia inyectado ⇔ puente context ──────────────────────────────

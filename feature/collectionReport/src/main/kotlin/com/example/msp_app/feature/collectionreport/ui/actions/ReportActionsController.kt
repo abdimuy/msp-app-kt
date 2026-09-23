@@ -8,9 +8,9 @@ import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.printing.CollectionReportFormatter
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState

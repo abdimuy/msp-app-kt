@@ -105,7 +105,10 @@ fun GuaranteeScreen(saleId: Int, navController: NavController, clock: AppClock =
     LaunchedEffect(Unit) {
         try {
             guaranteeState.value = guaranteesViewModel.getGuaranteeSaleById(saleId)
-            saleViewModel.loadSaleDetails(saleId)
+            // `guarantee/{saleId}` trae el id del CRÉDITO, no la PK de `sales`: es lo
+            // que la garantía necesita (`getGuaranteeSaleById` filtra
+            // `garantias.DOCTO_CC_ID`). La venta se resuelve por esa misma columna.
+            saleViewModel.loadSaleDetailsByCreditId(saleId)
         } catch (e: Exception) {
             println("Error loading guarantee or sale: ${e.message}")
         }

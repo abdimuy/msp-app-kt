@@ -21,7 +21,7 @@ class GuaranteeEventsPendingSynchronizer(
         if (pending.isEmpty()) return@withContext SyncResult.NothingPending
 
         val capped = pending.take(MAX_ITEMS_PER_SYNC)
-        val enqueued = runCatching { enqueuer.enqueue(replace = true) }.isSuccess
+        val enqueued = runCatching { enqueuer.enqueue() }.isSuccess
         SyncResult.Enqueued(
             itemCount = capped.size,
             workRequestCount = if (enqueued) 1 else 0

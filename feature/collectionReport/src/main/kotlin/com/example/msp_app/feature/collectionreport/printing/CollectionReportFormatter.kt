@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.collectionreport.printing
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
@@ -7,7 +8,6 @@ import com.example.msp_app.core.printing.application.TicketRenderer
 import com.example.msp_app.core.printing.domain.PrintableTicket
 import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.core.printing.domain.TicketLine
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.ui.CollectionReportUiState
 import com.example.msp_app.feature.collectionreport.ui.DetailSort

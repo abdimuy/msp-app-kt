@@ -1,0 +1,173 @@
+<title>Historial de pagos · 4 opciones</title>
+<style>
+  :root{
+    --bg:#080A09; --surf:#141A18; --surf2:#1B2220; --line:#242D2A;
+    --ink:#F4F7F6; --mut:#8E9995; --faint:#5D6864;
+    --ac:#34D399; --acDeep:#0F2A22; --acInk:#6EE7B7;
+    --red:#F0736A; --redDeep:#2A1613;
+    --amb:#E3AC4E; --ambDeep:#2A2210;
+    --ui:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#050706;color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased;padding:44px 20px 80px}
+  .wrap{max-width:1120px;margin:0 auto}
+  .top{text-align:center;max-width:58ch;margin:0 auto 42px}
+  .kick{font-size:10.5px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ac);margin:0 0 10px}
+  h1{font-size:29px;font-weight:700;letter-spacing:-.028em;margin:0 0 9px;line-height:1.12}
+  .top p{margin:0;color:var(--mut);font-size:14px;line-height:1.6}
+
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:34px}
+  @media(max-width:900px){.grid{grid-template-columns:1fr;max-width:420px;margin:0 auto}}
+  .opt{background:#0B0F0E;border:1px solid var(--line);border-radius:26px;padding:22px;cursor:pointer;transition:.16s}
+  .opt:hover{border-color:#31413B}
+  .opt.sel{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+  .oh{display:flex;align-items:baseline;gap:10px;margin-bottom:5px}
+  .on{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--faint)}
+  .ot{font-size:17px;font-weight:700;letter-spacing:-.02em}
+  .od{font-size:13px;color:var(--mut);line-height:1.55;margin:0 0 18px}
+
+  .panel{background:var(--bg);border-radius:20px;padding:16px}
+  .sl{font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin:0 0 12px}
+  .nu{font-variant-numeric:tabular-nums lining-nums}
+
+  /* A · ritmo */
+  .weeks{display:flex;gap:4px;align-items:flex-end;height:46px}
+  .weeks span{flex:1;border-radius:4px;background:var(--ac)}
+  .weeks span.l{background:var(--amb)} .weeks span.m{background:var(--redDeep);border:1px solid #3A211E}
+  .wl{display:flex;justify-content:space-between;margin-top:10px;font-size:11px;color:var(--faint)}
+  .sum{display:flex;gap:8px;margin-top:14px}
+  .sum div{flex:1;background:var(--surf);border-radius:12px;padding:10px 11px}
+  .sum .k{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .sum .v{font-size:15px;font-weight:700;margin-top:3px}
+  .leg{display:flex;gap:14px;margin-top:12px;font-size:11px;color:var(--faint)}
+  .leg i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:middle}
+
+  /* B · timeline */
+  .tl{position:relative;padding-left:22px}
+  .tl::before{content:"";position:absolute;left:5px;top:6px;bottom:12px;width:2px;background:var(--line)}
+  .ti{position:relative;padding:0 0 16px}
+  .ti::before{content:"";position:absolute;left:-21px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--ac);border:2px solid var(--bg)}
+  .ti.big::before{width:12px;height:12px;left:-22px}
+  .tr{display:flex;align-items:baseline;gap:9px}
+  .tam{font-size:16px;font-weight:700;letter-spacing:-.02em}
+  .tmet{font-size:11.5px;color:var(--faint)}
+  .tdt{margin-left:auto;font-size:11.5px;color:var(--faint);font-weight:600}
+  .tnote{font-size:11.5px;color:var(--mut);margin-top:3px}
+
+  /* C · por mes */
+  .mo{display:flex;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+  .mo .mn{font-size:13.5px;font-weight:650}
+  .mo .mc{margin-left:auto;font-size:11.5px;color:var(--faint);margin-right:12px}
+  .mo .mv{font-size:14.5px;font-weight:700}
+  .mo .ch{color:var(--faint);font-size:15px;margin-left:10px}
+  .sub{padding:9px 0 9px 14px;border-bottom:1px solid var(--line);display:flex;font-size:12.5px;color:var(--mut)}
+  .sub .sd{width:46px;color:var(--faint);font-size:11.5px}
+  .sub .sv{margin-left:auto;font-weight:650;color:var(--ink)}
+
+  /* D · curva */
+  .chart{height:96px;position:relative;margin-bottom:6px}
+  .chart svg{width:100%;height:100%;display:block;overflow:visible}
+  .cl{display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:4px}
+  .last{display:flex;align-items:center;gap:10px;margin-top:14px;background:var(--surf);border-radius:13px;padding:11px 12px}
+  .last .lk{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .last .lv{font-size:15px;font-weight:700;margin-top:2px}
+  .last .lr{margin-left:auto;text-align:right}
+  .last .lr .d{font-size:11.5px;color:var(--faint)}
+
+  .why{font-size:12.5px;color:var(--faint);line-height:1.55;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+  .why b{color:var(--mut);font-weight:650}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <p class="kick">msp · cobranza en campo</p>
+    <h1>Historial de pagos</h1>
+    <p>Cuatro formas de resolver el bloque. La pregunta que decide cuál sirve: ¿el cobrador necesita <b>el último pago</b>, o necesita saber <b>si este cliente paga parejo</b>?</p>
+  </div>
+
+  <div class="grid" data-multiselect>
+
+    <!-- A -->
+    <div class="opt" data-choice="ritmo" onclick="toggleSelect(this)">
+      <div class="oh"><span class="on">A</span><span class="ot">Ritmo de pago</span></div>
+      <p class="od">Las últimas 12 semanas como barras: pagó, pagó tarde, no pagó. El patrón se lee de un vistazo — no los eventos, la conducta.</p>
+      <div class="panel">
+        <div class="sl">Ritmo · últimas 12 semanas</div>
+        <div class="weeks">
+          <span style="height:70%"></span><span style="height:70%"></span><span class="l" style="height:48%"></span>
+          <span style="height:70%"></span><span class="m" style="height:26%"></span><span style="height:70%"></span>
+          <span style="height:100%"></span><span class="l" style="height:48%"></span><span style="height:70%"></span>
+          <span class="m" style="height:26%"></span><span class="m" style="height:26%"></span><span class="m" style="height:26%"></span>
+        </div>
+        <div class="wl"><span>jun</span><span>ago</span></div>
+        <div class="sum">
+          <div><div class="k">Cumple</div><div class="v nu">8 de 12</div></div>
+          <div><div class="k">Promedio</div><div class="v nu">$385</div></div>
+          <div><div class="k">Último</div><div class="v nu">3 ago</div></div>
+        </div>
+        <div class="leg"><span><i style="background:var(--ac)"></i>a tiempo</span><span><i style="background:var(--amb)"></i>tarde</span><span><i style="background:var(--redDeep);border:1px solid #3A211E"></i>sin pago</span></div>
+      </div>
+      <div class="why"><b>Sirve si</b> lo importante es negociar: “lleva tres semanas sin abonar” es un argumento; “su último pago fue el 3 de agosto” no tanto.</div>
+    </div>
+
+    <!-- B -->
+    <div class="opt" data-choice="timeline" onclick="toggleSelect(this)">
+      <div class="oh"><span class="on">B</span><span class="ot">Línea de tiempo</span></div>
+      <p class="od">Riel vertical con el monto como protagonista y la fecha a la derecha. Mismo dato que hoy, con jerarquía real y espacio para notas.</p>
+      <div class="panel">
+        <div class="sl">Últimos pagos</div>
+        <div class="tl">
+          <div class="ti big"><div class="tr"><span class="tam nu">$350</span><span class="tmet">Efectivo</span><span class="tdt">3 ago</span></div>
+            <div class="tnote">Recibo COB-A-10388</div></div>
+          <div class="ti"><div class="tr"><span class="tam nu">$350</span><span class="tmet">Transferencia</span><span class="tdt">27 jul</span></div></div>
+          <div class="ti"><div class="tr"><span class="tam nu">$700</span><span class="tmet">Efectivo</span><span class="tdt">20 jul</span></div>
+            <div class="tnote">Cubrió la semana atrasada</div></div>
+          <div class="ti"><div class="tr"><span class="tam nu">$350</span><span class="tmet">Efectivo</span><span class="tdt">13 jul</span></div></div>
+        </div>
+      </div>
+      <div class="why"><b>Sirve si</b> el detalle importa — recibo, método, notas. Es lo más cercano a lo que hay hoy, mejor resuelto.</div>
+    </div>
+
+    <!-- C -->
+    <div class="opt" data-choice="mes" onclick="toggleSelect(this)">
+      <div class="oh"><span class="on">C</span><span class="ot">Agrupado por mes</span></div>
+      <p class="od">Dieciocho abonos comprimidos en cuatro renglones con su subtotal. El mes en curso viene abierto; los demás se despliegan.</p>
+      <div class="panel">
+        <div class="sl">Pagos por mes</div>
+        <div class="mo"><span class="mn">Agosto</span><span class="mc nu">1 abono</span><span class="mv nu">$350</span><span class="ch">⌄</span></div>
+        <div class="sub"><span class="sd">3 ago</span><span>Efectivo</span><span class="sv nu">$350</span></div>
+        <div class="mo"><span class="mn">Julio</span><span class="mc nu">4 abonos</span><span class="mv nu">$1,750</span><span class="ch">›</span></div>
+        <div class="mo"><span class="mn">Junio</span><span class="mc nu">3 abonos</span><span class="mv nu">$1,050</span><span class="ch">›</span></div>
+        <div class="mo" style="border-bottom:0"><span class="mn">Mayo</span><span class="mc nu">4 abonos</span><span class="mv nu">$1,400</span><span class="ch">›</span></div>
+      </div>
+      <div class="why"><b>Sirve si</b> el problema es el volumen: dieciocho renglones no caben, cuatro sí, y el subtotal por mes ya dice si viene cayendo.</div>
+    </div>
+
+    <!-- D -->
+    <div class="opt" data-choice="curva" onclick="toggleSelect(this)">
+      <div class="oh"><span class="on">D</span><span class="ot">Curva del saldo</span></div>
+      <p class="od">El saldo bajando hacia cero, con cada abono como punto. Muestra el avance real y dónde se estancó.</p>
+      <div class="panel">
+        <div class="sl">Saldo en el tiempo</div>
+        <div class="chart">
+          <svg viewBox="0 0 300 96" preserveAspectRatio="none">
+            <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#34D399" stop-opacity=".28"/><stop offset="1" stop-color="#34D399" stop-opacity="0"/>
+            </linearGradient></defs>
+            <path d="M0,8 L40,18 L80,26 L120,38 L160,44 L200,58 L240,62 L300,62 L300,96 L0,96 Z" fill="url(#g)"/>
+            <path d="M0,8 L40,18 L80,26 L120,38 L160,44 L200,58 L240,62 L300,62" fill="none" stroke="#34D399" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="240" cy="62" r="3.5" fill="#34D399"/>
+            <circle cx="300" cy="62" r="4.5" fill="#0B0F0E" stroke="#F0736A" stroke-width="2.5"/>
+          </svg>
+        </div>
+        <div class="cl"><span>feb · $8,400</span><span style="color:var(--red)">hoy · $2,100</span></div>
+        <div class="last">
+          <div><div class="lk">Último abono</div><div class="lv nu">$350</div></div>
+          <div class="lr"><div class="d">3 ago · efectivo</div><div class="d" style="color:var(--red);font-weight:650">3 semanas sin pago</div></div>
+        </div>
+      </div>
+      <div class="why"><b>Sirve si</b> lo que motiva es el avance: “ya bajó de $8,400 a $2,100” es el argumento para no soltar. La meseta final delata el estancamiento.</div>
+    </div>
+
+  </div>
+</div>

@@ -72,7 +72,7 @@ class PendingPaymentsWorkerE2ETest : PagosE2ETestBase() {
                 .setBody("""{"id":"$paymentId","estado":"ok"}""")
         )
 
-        enqueuePendingPaymentsWorker(context, paymentId, replace = true)
+        enqueuePendingPaymentsWorker(context, paymentId)
         testDriver.setAllConstraintsMet(currentWorkId(paymentId))
 
         val info = awaitWorkInfo(paymentId) {
@@ -102,7 +102,7 @@ class PendingPaymentsWorkerE2ETest : PagosE2ETestBase() {
         // Retrofit/OkHttp surface to the worker as an IOException.
         mockWebServer.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
 
-        enqueuePendingPaymentsWorker(context, paymentId, replace = true)
+        enqueuePendingPaymentsWorker(context, paymentId)
         testDriver.setAllConstraintsMet(currentWorkId(paymentId))
 
         val info = awaitWorkInfo(paymentId) {
@@ -141,7 +141,7 @@ class PendingPaymentsWorkerE2ETest : PagosE2ETestBase() {
         mockWebServer.enqueue(
             MockResponse().setResponseCode(200).setBody("""{"id":"$paymentId","estado":"ok"}""")
         )
-        enqueuePendingPaymentsWorker(context, paymentId, replace = true)
+        enqueuePendingPaymentsWorker(context, paymentId)
         testDriver.setAllConstraintsMet(currentWorkId(paymentId))
         val firstInfo = awaitWorkInfo(paymentId) {
             it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED
@@ -156,7 +156,7 @@ class PendingPaymentsWorkerE2ETest : PagosE2ETestBase() {
         mockWebServer.enqueue(
             MockResponse().setResponseCode(200).setBody("""{"id":"$paymentId","estado":"ok"}""")
         )
-        enqueuePendingPaymentsWorker(context, paymentId, replace = true)
+        enqueuePendingPaymentsWorker(context, paymentId)
         testDriver.setAllConstraintsMet(currentWorkId(paymentId))
         val secondInfo = awaitWorkInfo(paymentId) {
             it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED

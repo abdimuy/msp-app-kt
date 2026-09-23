@@ -11,6 +11,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -41,19 +43,51 @@ internal const val STATUS_CHIP_ICON_TAG = "msp_status_chip_icon"
 @Composable
 fun MspStatusChip(status: ChipStatus, text: String, modifier: Modifier = Modifier) {
     val colors = MspTheme.colors
-    val content = status.contentColor(colors)
+    MspStatusChip(
+        icon = status.icon(),
+        text = text,
+        contentColor = status.contentColor(colors),
+        containerColor = status.tintColor(colors),
+        modifier = modifier
+    )
+}
+
+/**
+ * El MISMO chip, con la terna ya resuelta por el llamador.
+ *
+ * Existe porque [ChipStatus] enumera **cinco** estados —los cinco de kollect— y
+ * `:feature:pagos` consume un catálogo de **ocho** (`TratoDelEstado`: además de
+ * pagado/parcial/vencido/pendiente/promesa hay *se negó*, *cita a una hora* y
+ * *no estaba*, cada uno con su propio matiz e ícono). Colapsar ocho en cinco
+ * cambiaría el significado de tres estados —"se negó" dejaría de ser el único
+ * relleno sólido invertido, y la cita perdería su violeta—, así que en vez de
+ * forzar el enum ajeno o rehacer el chip localmente el llamador pasa la terna
+ * que su propio mapa de estados ya resolvió.
+ *
+ * **La regla dura no se relaja:** sigue siendo ícono + texto + color, los tres
+ * juntos. Un overload que aceptara `text` vacío o `icon` nulo abriría la puerta
+ * al chip de solo color, y por eso ninguno de los dos es opcional.
+ */
+@Composable
+fun MspStatusChip(
+    icon: ImageVector,
+    text: String,
+    contentColor: Color,
+    containerColor: Color,
+    modifier: Modifier = Modifier
+) {
     Row(
         modifier = modifier
             .clip(MspTheme.shapes.chip)
-            .background(status.tintColor(colors))
+            .background(containerColor)
             .padding(horizontal = MspTheme.spacing.sm, vertical = MspTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
     ) {
         Icon(
-            imageVector = status.icon(),
+            imageVector = icon,
             contentDescription = null,
-            tint = content,
+            tint = contentColor,
             modifier = Modifier
                 .size(14.dp)
                 .testTag(STATUS_CHIP_ICON_TAG)
@@ -61,7 +95,7 @@ fun MspStatusChip(status: ChipStatus, text: String, modifier: Modifier = Modifie
         Text(
             text = text,
             style = MspTheme.type.chipLabel,
-            color = content
+            color = contentColor
         )
     }
 }

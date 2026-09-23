@@ -23,7 +23,7 @@ class PaymentsPendingSynchronizer(
         val capped = pending.take(MAX_ITEMS_PER_SYNC)
         var successCount = 0
         capped.forEach { payment ->
-            runCatching { enqueuer.enqueue(payment.ID, replace = true) }
+            runCatching { enqueuer.enqueue(payment.ID) }
                 .onSuccess { successCount++ }
         }
         SyncResult.Enqueued(itemCount = capped.size, workRequestCount = successCount)

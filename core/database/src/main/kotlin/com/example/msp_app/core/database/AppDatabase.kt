@@ -5,17 +5,23 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.example.msp_app.core.database.dao.ClienteDao
+import com.example.msp_app.core.database.dao.clientprofile.ClientProfileDao
 import com.example.msp_app.core.database.dao.cobranzasync.CobranzaSyncStateDao
 import com.example.msp_app.core.database.dao.guarantee.GuaranteeDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleComboDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleDao
 import com.example.msp_app.core.database.dao.localsale.LocalSaleProductDao
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.payment.PaymentImageDao
 import com.example.msp_app.core.database.dao.product.ProductDao
 import com.example.msp_app.core.database.dao.productInventory.ProductInventoryDao
 import com.example.msp_app.core.database.dao.productInventoryImage.ProductInventoryImageDao
 import com.example.msp_app.core.database.dao.sale.SaleDao
 import com.example.msp_app.core.database.dao.visit.VisitDao
+import com.example.msp_app.core.database.dao.visit.VisitImageDao
+import com.example.msp_app.core.database.dao.visit.VisitRecommendationDao
+import com.example.msp_app.core.database.entities.ClientProfileEntity
+import com.example.msp_app.core.database.entities.ClientProfileSignalEntity
 import com.example.msp_app.core.database.entities.ClienteEntity
 import com.example.msp_app.core.database.entities.CobranzaSyncStateEntity
 import com.example.msp_app.core.database.entities.GuaranteeEntity
@@ -27,11 +33,14 @@ import com.example.msp_app.core.database.entities.LocalSaleImageEntity
 import com.example.msp_app.core.database.entities.LocalSaleProductEntity
 import com.example.msp_app.core.database.entities.OverduePaymentsEntity
 import com.example.msp_app.core.database.entities.PaymentEntity
+import com.example.msp_app.core.database.entities.PaymentImageEntity
 import com.example.msp_app.core.database.entities.ProductEntity
 import com.example.msp_app.core.database.entities.ProductInventoryEntity
 import com.example.msp_app.core.database.entities.ProductInventoryImageEntity
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
+import com.example.msp_app.core.database.entities.VisitImageEntity
+import com.example.msp_app.core.database.entities.VisitRecommendationEntity
 import com.example.msp_app.core.database.migrations.MIGRATION_20_21
 import com.example.msp_app.core.database.migrations.MIGRATION_21_22
 import com.example.msp_app.core.database.migrations.MIGRATION_22_23
@@ -41,6 +50,10 @@ import com.example.msp_app.core.database.migrations.MIGRATION_25_26
 import com.example.msp_app.core.database.migrations.MIGRATION_26_27
 import com.example.msp_app.core.database.migrations.MIGRATION_27_28
 import com.example.msp_app.core.database.migrations.MIGRATION_28_29
+import com.example.msp_app.core.database.migrations.MIGRATION_29_30
+import com.example.msp_app.core.database.migrations.MIGRATION_30_31
+import com.example.msp_app.core.database.migrations.MIGRATION_31_32
+import com.example.msp_app.core.database.migrations.MIGRATION_32_33
 
 @Database(
     entities = [
@@ -58,17 +71,31 @@ import com.example.msp_app.core.database.migrations.MIGRATION_28_29
         LocalSaleProductEntity::class,
         LocalSaleComboEntity::class,
         ClienteEntity::class,
-        CobranzaSyncStateEntity::class
+        CobranzaSyncStateEntity::class,
+        VisitImageEntity::class,
+        PaymentImageEntity::class,
+        VisitRecommendationEntity::class,
+        ClientProfileEntity::class,
+        ClientProfileSignalEntity::class
     ],
     views = [OverduePaymentsEntity::class],
-    version = 29,
+    version = 33,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
     abstract fun paymentDao(): PaymentDao
+
+    /** `pago_imagenes` — los comprobantes del abono (Task 22). */
+    abstract fun paymentImageDao(): PaymentImageDao
     abstract fun productDao(): ProductDao
     abstract fun visitDao(): VisitDao
+
+    /** `visita_imagenes` — los comprobantes de la visita (Task 23). */
+    abstract fun visitImageDao(): VisitImageDao
+
+    /** `visita_recomendaciones` — el par sugerencia/desenlace (Task 19). */
+    abstract fun visitRecommendationDao(): VisitRecommendationDao
     abstract fun guaranteeDao(): GuaranteeDao
     abstract fun productInventoryDao(): ProductInventoryDao
     abstract fun productInventoryImageDao(): ProductInventoryImageDao
@@ -76,6 +103,12 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun localSaleProduct(): LocalSaleProductDao
     abstract fun localSaleComboDao(): LocalSaleComboDao
     abstract fun clienteDao(): ClienteDao
+
+    /**
+     * `cliente_ficha` + `cliente_ficha_senales` — la ficha del cliente
+     * (Task 26 / consumida por la Task 24).
+     */
+    abstract fun clientProfileDao(): ClientProfileDao
     abstract fun cobranzaSyncStateDao(): CobranzaSyncStateDao
 
     companion object {
@@ -93,7 +126,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         /**
          * Única fuente de verdad para la configuración del builder de producción
-         * (las 9 migraciones + el fallback destructivo pre-20). `getInstance`
+         * (las 13 migraciones + el fallback destructivo pre-20). `getInstance`
          * llama a esta función; los tests de migración de este mismo módulo
          * (`internal`, visible por friend-path del compilador Kotlin/AGP entre
          * `main` y su propio `test` source set) también, en vez de duplicar esta
@@ -122,7 +155,11 @@ abstract class AppDatabase : RoomDatabase() {
                     MIGRATION_25_26,
                     MIGRATION_26_27,
                     MIGRATION_27_28,
-                    MIGRATION_28_29
+                    MIGRATION_28_29,
+                    MIGRATION_29_30,
+                    MIGRATION_30_31,
+                    MIGRATION_31_32,
+                    MIGRATION_32_33
                 )
                 .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19)
         }

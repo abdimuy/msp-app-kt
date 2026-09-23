@@ -40,4 +40,12 @@ class SalesLocalDataSource @Inject constructor(
     suspend fun getById(id: Int): SaleEntity? {
         return saleDao.getById(id)
     }
+
+    /**
+     * La venta por el id del **crédito** (`sales.DOCTO_CC_ID`), no por la PK.
+     * Es el camino de las garantías, que están indexadas por crédito.
+     */
+    suspend fun findByDoctoCcId(doctoCcId: Int): SaleEntity? {
+        return saleDao.findByDoctoCcId(doctoCcId)
+    }
 }

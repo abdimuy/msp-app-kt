@@ -25,7 +25,7 @@ class GuaranteeEventsPendingSynchronizerTest {
     }
 
     @Test
-    fun `5 pending events batch-enqueue as single work request`() = runTest {
+    fun `5 pending events batch-enqueue as single work request with KEEP policy`() = runTest {
         val enqueuer = RecordingEnqueuer()
         val events = (1..5).map { eventWithId("e$it") }
         val sync = GuaranteeEventsPendingSynchronizer(
@@ -37,7 +37,11 @@ class GuaranteeEventsPendingSynchronizerTest {
 
         assertEquals(SyncResult.Enqueued(itemCount = 5, workRequestCount = 1), result)
         assertEquals(1, enqueuer.calls)
-        assertEquals(true, enqueuer.lastReplace)
+        // KEEP is no longer a runtime choice to assert on:
+        // GuaranteeEventsWorkEnqueuer no longer has a `replace` parameter, and
+        // enqueuePendingGuaranteeEventsWorker hardcodes ExistingWorkPolicy.KEEP
+        // internally — REPLACE is not reachable from this call at all (see
+        // SyncAllPendingWorkUseCase KDoc, Task 6 audit).
     }
 
     @Test
@@ -80,11 +84,9 @@ class GuaranteeEventsPendingSynchronizerTest {
         private val shouldFail: Boolean = false
     ) : GuaranteeEventsWorkEnqueuer {
         var calls: Int = 0
-        var lastReplace: Boolean = false
 
-        override fun enqueue(replace: Boolean) {
+        override fun enqueue() {
             calls++
-            lastReplace = replace
             if (shouldFail) throw RuntimeException("boom")
         }
     }

@@ -53,6 +53,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.auth.viewModels.AuthViewModel
 import com.example.msp_app.features.payments.newpayment.currentPaymentTimestamp
 import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
+import com.example.msp_app.features.sales.SaleIdSpaces
 import com.example.msp_app.services.UpdateLocationService
 import com.example.msp_app.ui.theme.ThemeController
 import java.util.UUID
@@ -136,7 +137,7 @@ fun NewForgivenessDialog(
                 showAlertDialog = false
                 onDismissRequest()
 
-                paymentsViewModel.getGroupedPaymentsBySaleId(sale.DOCTO_CC_ID)
+                paymentsViewModel.getGroupedPaymentsBySaleId(SaleIdSpaces.forSalePayments(sale))
             }
         } else {
             errorMessage = "Ingrese un monto válido"

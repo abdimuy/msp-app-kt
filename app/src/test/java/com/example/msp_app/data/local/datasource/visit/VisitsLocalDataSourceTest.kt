@@ -1,10 +1,19 @@
 package com.example.msp_app.data.local.datasource.visit
 
+import android.location.Location
 import androidx.test.core.app.ApplicationProvider
+import com.example.msp_app.core.common.sync.pendingwork.domain.ports.VisitsWorkEnqueuer
 import com.example.msp_app.core.database.dao.sale.EstadoCobranza
 import com.example.msp_app.core.database.entities.SaleEntity
 import com.example.msp_app.core.database.entities.VisitEntity
 import com.example.msp_app.core.testing.RoomTestBase
+import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
+import com.example.msp_app.core.utils.Constants
+import com.example.msp_app.data.models.sale.FrecuenciaPago
+import com.example.msp_app.data.models.sale.Sale
+import com.example.msp_app.data.models.visit.toEntity
+import com.example.msp_app.features.visit.newvisit.VisitFactory
+import com.example.msp_app.services.UpdateLocationHandler
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -23,10 +32,23 @@ import org.junit.Test
 class VisitsLocalDataSourceTest : RoomTestBase() {
 
     private lateinit var store: VisitsLocalDataSource
+    private lateinit var enqueuer: RecordingVisitsWorkEnqueuer
 
     @Before
     fun setUpStore() {
-        store = VisitsLocalDataSource(db.visitDao(), db.saleDao())
+        enqueuer = RecordingVisitsWorkEnqueuer()
+        store = VisitsLocalDataSource(db.visitDao(), db.saleDao(), enqueuer)
+    }
+
+    /** Fake a mano (sin MockK): estado publico + lista publica de llamadas. */
+    private class RecordingVisitsWorkEnqueuer : VisitsWorkEnqueuer {
+        data class Call(val visitId: String)
+
+        val calls: MutableList<Call> = mutableListOf()
+
+        override fun enqueue(visitId: String) {
+            calls += Call(visitId)
+        }
     }
 
     // ─── fixtures ────────────────────────────────────────────────────────────
@@ -37,10 +59,12 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         fecha: String = "2026-06-02T15:00:00Z",
         saleCargoId: Int = 5000,
         lat: Double = 0.0,
-        lng: Double = 0.0
+        lng: Double = 0.0,
+        clienteId: Int = 4821,
+        tipoVisita: String = "SIN_PAGO"
     ) = VisitEntity(
         ID = id,
-        CLIENTE_ID = 4821,
+        CLIENTE_ID = clienteId,
         COBRADOR = "Ramirez Ortiz, Fernando",
         COBRADOR_ID = 7,
         FECHA = fecha,
@@ -48,52 +72,103 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         LAT = lat,
         LNG = lng,
         NOTA = "El cliente pidio pasar la proxima semana",
-        TIPO_VISITA = "SIN_PAGO",
+        TIPO_VISITA = tipoVisita,
         ZONA_CLIENTE_ID = 21,
         IMPTE_DOCTO_CC_ID = saleCargoId,
         GUARDADO_EN_MICROSIP = guardado
     )
 
-    private fun sale(saleId: Int, saldoRest: Double = 1000.0, estado: String = "PENDIENTE") =
-        SaleEntity(
-            DOCTO_CC_ACR_ID = saleId,
-            DOCTO_CC_ID = saleId + 1,
-            FOLIO = "A-$saleId",
-            CLIENTE_ID = 4821,
-            APLICADO = "S",
-            COBRADOR_ID = 7,
-            CLIENTE = "Guadalupe Hernandez Soto",
-            ZONA_CLIENTE_ID = 21,
-            LIMITE_CREDITO = 0.0,
-            NOTAS = "",
-            ZONA_NOMBRE = "Centro",
-            IMPORTE_PAGO_PROMEDIO = 350.0,
-            TOTAL_IMPORTE = 3500.0,
-            NUM_IMPORTES = 10,
-            FECHA = "2026-01-01T00:00:00Z",
-            PARCIALIDAD = 350,
-            ENGANCHE = 500.0,
-            TIEMPO_A_CORTO_PLAZOMESES = 0,
-            MONTO_A_CORTO_PLAZO = 0.0,
-            VENDEDOR_1 = "",
-            VENDEDOR_2 = "",
-            VENDEDOR_3 = "",
-            PRECIO_TOTAL = 3500.0,
-            IMPTE_REST = saldoRest,
-            SALDO_REST = saldoRest,
-            FECHA_ULT_PAGO = null,
-            CALLE = "Av. Reforma 100",
-            CIUDAD = "Tehuacan",
-            ESTADO = "Puebla",
-            TELEFONO = "2381234567",
-            NOMBRE_COBRADOR = "Ramirez Ortiz, Fernando",
-            ESTADO_COBRANZA = estado,
-            DIA_COBRANZA = "LUNES",
-            DIA_TEMPORAL_COBRANZA = "",
-            PRECIO_DE_CONTADO = 3000.0,
-            AVAL_O_RESPONSABLE = "",
-            FREC_PAGO = "SEMANAL"
-        )
+    private fun sale(
+        saleId: Int,
+        saldoRest: Double = 1000.0,
+        estado: String = "PENDIENTE",
+        clienteId: Int = 4821
+    ) = SaleEntity(
+        DOCTO_CC_ACR_ID = saleId,
+        DOCTO_CC_ID = saleId + 1,
+        FOLIO = "A-$saleId",
+        CLIENTE_ID = clienteId,
+        APLICADO = "S",
+        COBRADOR_ID = 7,
+        CLIENTE = "Guadalupe Hernandez Soto",
+        ZONA_CLIENTE_ID = 21,
+        LIMITE_CREDITO = 0.0,
+        NOTAS = "",
+        ZONA_NOMBRE = "Centro",
+        IMPORTE_PAGO_PROMEDIO = 350.0,
+        TOTAL_IMPORTE = 3500.0,
+        NUM_IMPORTES = 10,
+        FECHA = "2026-01-01T00:00:00Z",
+        PARCIALIDAD = 350,
+        ENGANCHE = 500.0,
+        TIEMPO_A_CORTO_PLAZOMESES = 0,
+        MONTO_A_CORTO_PLAZO = 0.0,
+        VENDEDOR_1 = "",
+        VENDEDOR_2 = "",
+        VENDEDOR_3 = "",
+        PRECIO_TOTAL = 3500.0,
+        IMPTE_REST = saldoRest,
+        SALDO_REST = saldoRest,
+        FECHA_ULT_PAGO = null,
+        CALLE = "Av. Reforma 100",
+        CIUDAD = "Tehuacan",
+        ESTADO = "Puebla",
+        TELEFONO = "2381234567",
+        NOMBRE_COBRADOR = "Ramirez Ortiz, Fernando",
+        ESTADO_COBRANZA = estado,
+        DIA_COBRANZA = "LUNES",
+        DIA_TEMPORAL_COBRANZA = "",
+        PRECIO_DE_CONTADO = 3000.0,
+        AVAL_O_RESPONSABLE = "",
+        FREC_PAGO = "SEMANAL"
+    )
+
+    /**
+     * [Sale] de dominio — la forma que recibía `NewVisitDialog`, retirado por
+     * la Task 21 (no [SaleEntity]) — con `DOCTO_CC_ACR_ID` y `DOCTO_CC_ID` deliberadamente
+     * distintos, mismo patrón que `VisitFactoryTest`. Usada por el test de
+     * la ronda 1 de revisión que cruza el limite real de `VisitFactory`
+     * (ver [saleScopeVisit_usesTheIdVisitFactoryComputes_notSaleDoctoCcId]).
+     */
+    private fun saleDomain(doctoCcAcrId: Int, doctoCcId: Int, clienteId: Int = 4821) = Sale(
+        DOCTO_CC_ACR_ID = doctoCcAcrId,
+        DOCTO_CC_ID = doctoCcId,
+        FOLIO = "A-$doctoCcAcrId",
+        CLIENTE_ID = clienteId,
+        APLICADO = "S",
+        COBRADOR_ID = 7,
+        CLIENTE = "Guadalupe Hernandez Soto",
+        ZONA_CLIENTE_ID = 21,
+        LIMITE_CREDITO = 0.0,
+        NOTAS = "",
+        ZONA_NOMBRE = "Centro",
+        IMPORTE_PAGO_PROMEDIO = 350.0,
+        TOTAL_IMPORTE = 3500.0,
+        NUM_IMPORTES = 10,
+        FECHA = "2026-01-01T00:00:00Z",
+        PARCIALIDAD = 350,
+        ENGANCHE = 500.0,
+        TIEMPO_A_CORTO_PLAZOMESES = 0,
+        MONTO_A_CORTO_PLAZO = 0.0,
+        VENDEDOR_1 = "",
+        VENDEDOR_2 = "",
+        VENDEDOR_3 = "",
+        PRECIO_TOTAL = 3500.0,
+        IMPTE_REST = 700.0,
+        SALDO_REST = 700.0,
+        FECHA_ULT_PAGO = null,
+        CALLE = "Av. Reforma 100",
+        CIUDAD = "Tehuacan",
+        ESTADO = "Puebla",
+        TELEFONO = "2381234567",
+        NOMBRE_COBRADOR = "Ramirez Ortiz, Fernando",
+        ESTADO_COBRANZA = EstadoCobranza.PENDIENTE,
+        DIA_COBRANZA = "LUNES",
+        DIA_TEMPORAL_COBRANZA = "",
+        PRECIO_DE_CONTADO = 3000.0,
+        AVAL_O_RESPONSABLE = "",
+        FREC_PAGO = FrecuenciaPago.SEMANAL
+    )
 
     // ─── saveVisit / getPendingVisits ────────────────────────────────────────
 
@@ -177,6 +252,68 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
         assertEquals(-97.3902, got.LNG, 1e-9)
     }
 
+    // ─── Task 5, robustez suprema: la ubicacion tardia nunca duplica la subida ─
+    // Round 1 de revision (Important): estos dos tests antes llamaban
+    // store.updateVisitLocation directo — un metodo que NUNCA toco el
+    // enqueuer, ni antes ni despues del fix. Pasaban igual con el codigo
+    // sin arreglar (tautologicos). Ahora ejercitan UpdateLocationHandler.handle(),
+    // que es el camino real que toma una ubicacion tardia en produccion —
+    // el mismo que UpdateLocationService invoca. El hecho de que handle()
+    // ya no tenga un parametro `enqueueVisit` (fue borrado del constructor,
+    // no dejado sin llamar) hace que "no puede volver a encolar" sea una
+    // garantia del sistema de tipos, no de una asercion: no hay reversion
+    // que probar ahi porque no queda ninguna dependencia que observar. Ver
+    // task-5-report.md para el control de reversion real de este round
+    // (revertir el fix de saveVisitAndEnqueue, no el parametro borrado).
+
+    private fun locationHandler() = UpdateLocationHandler(
+        telemetry = RecordingTelemetry(),
+        updatePaymentLocation = { _, _, _ -> },
+        updateVisitLocation = { id, lat, lng -> store.updateVisitLocation(id, lat, lng) },
+        enqueuePayment = { _ -> }
+    )
+
+    private fun fakeLocation(lat: Double, lng: Double): Location = Location("fused").apply {
+        latitude = lat
+        longitude = lng
+    }
+
+    @Test
+    fun handlerLlegaTardeSobreVisitaYaSubida_noLaPisa() = runTest {
+        store.saveVisit(visit(id = "up-1", guardado = 1, lat = 0.0, lng = 0.0))
+
+        locationHandler().handle(paymentId = null, visitId = "up-1") {
+            fakeLocation(18.99, -97.11)
+        }
+
+        val got = store.getVisitById("up-1")
+        assertEquals("la ubicacion tardia si se persiste", 18.99, got.LAT, 1e-9)
+        assertEquals("la ubicacion tardia si se persiste", -97.11, got.LNG, 1e-9)
+        assertEquals(
+            "sigue marcada como subida; la ubicacion tardia no pisa GUARDADO_EN_MICROSIP",
+            1,
+            got.GUARDADO_EN_MICROSIP
+        )
+    }
+
+    @Test
+    fun handlerLlegaTardeSobreVisitaPendiente_noLaMarcaSubida() = runTest {
+        store.saveVisit(visit(id = "pend-loc-1", guardado = 0, lat = 0.0, lng = 0.0))
+
+        locationHandler().handle(paymentId = null, visitId = "pend-loc-1") {
+            fakeLocation(18.99, -97.11)
+        }
+
+        val got = store.getVisitById("pend-loc-1")
+        assertEquals("la ubicacion tardia si se persiste", 18.99, got.LAT, 1e-9)
+        assertEquals("la ubicacion tardia si se persiste", -97.11, got.LNG, 1e-9)
+        assertEquals(
+            "sigue pendiente; la ubicacion tardia no la marca subida por error",
+            0,
+            got.GUARDADO_EN_MICROSIP
+        )
+    }
+
     // ─── insertVisitAndUpdateState: visita + estado de cobranza de la venta ───
 
     @Test
@@ -200,6 +337,320 @@ class VisitsLocalDataSourceTest : RoomTestBase() {
             1e-9
         )
         assertEquals("VISITADO", updated.ESTADO_COBRANZA)
+    }
+
+    // ─── Task 13: alcance CLIENTE vs VENTA (VisitScopeMapper) ─────────────────
+    // "no estaba" / "cita a una hora" son del CLIENTE y se propagan a TODAS
+    // sus ventas activas; "vuelvo" / "se nego" / "prometio" son de LA VENTA
+    // y tocan solo la que el cobrador tenia abierta. Antes de este fix, TODA
+    // visita colapsaba a `saleId` sin importar el tipo — ver task-13-report.md
+    // para el control de reversion (revertir el fix, correr, ver el rojo).
+
+    @Test
+    fun clientScopeVisit_oneSale_propagatesToIt() = runTest {
+        db.saleDao().insertAll(listOf(sale(saleId = 7000, saldoRest = 800.0)))
+
+        store.insertVisitAndUpdateState(
+            saleId = 7000,
+            visit = visit(id = "cs-1sale", tipoVisita = Constants.NO_SE_ENCONTRABA),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals(
+            "unica venta activa del cliente: recibe el estado",
+            "VOLVER_VISITAR",
+            db.saleDao().findByDoctoCcId(7001)!!.ESTADO_COBRANZA
+        )
+    }
+
+    @Test
+    fun clientScopeVisit_twoSales_propagatesToBoth() = runTest {
+        db.saleDao().insertAll(
+            listOf(
+                sale(saleId = 7100, saldoRest = 800.0),
+                sale(saleId = 7200, saldoRest = 300.0)
+            )
+        )
+
+        store.insertVisitAndUpdateState(
+            saleId = 7100,
+            visit = visit(id = "cs-2sales", tipoVisita = Constants.CASA_CERRADA),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals("VOLVER_VISITAR", db.saleDao().findByDoctoCcId(7101)!!.ESTADO_COBRANZA)
+        assertEquals(
+            "la segunda venta del mismo cliente TAMBIEN recibe el estado, aunque " +
+                "`saleId` solo apuntaba a la primera",
+            "VOLVER_VISITAR",
+            db.saleDao().findByDoctoCcId(7201)!!.ESTADO_COBRANZA
+        )
+    }
+
+    /**
+     * Cabecera del control de reversion de esta tarea (ver task-13-report.md
+     * para la evidencia pegada): revertir `insertVisitAndUpdateState` a
+     * `saleDao.updateTotal(saleId, 0.0, newState)` sin el `when` de alcance
+     * deja 7401 y 7501 en "PENDIENTE" — este test se pone ROJO.
+     */
+    @Test
+    fun clientScopeVisit_threeSales_propagatesToAllThree() = runTest {
+        db.saleDao().insertAll(
+            listOf(
+                sale(saleId = 7300, saldoRest = 800.0),
+                sale(saleId = 7400, saldoRest = 300.0),
+                sale(saleId = 7500, saldoRest = 150.0)
+            )
+        )
+
+        store.insertVisitAndUpdateState(
+            saleId = 7300,
+            visit = visit(id = "cs-3sales", tipoVisita = Constants.SOLO_MENORES),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        listOf(7301, 7401, 7501).forEach { doctoCcId ->
+            assertEquals(
+                "las tres ventas activas del cliente ven el mismo estado propagado",
+                "VOLVER_VISITAR",
+                db.saleDao().findByDoctoCcId(doctoCcId)!!.ESTADO_COBRANZA
+            )
+        }
+    }
+
+    @Test
+    fun saleScopeVisit_touchesOnlyItsOwnSale() = runTest {
+        db.saleDao().insertAll(
+            listOf(
+                sale(saleId = 7600, saldoRest = 800.0),
+                sale(saleId = 7700, saldoRest = 300.0)
+            )
+        )
+
+        store.insertVisitAndUpdateState(
+            saleId = 7600,
+            visit = visit(id = "ss-1", tipoVisita = Constants.PIDE_REAGENDAR),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals(
+            "la venta que el cobrador tenia abierta cambia",
+            "VOLVER_VISITAR",
+            db.saleDao().findByDoctoCcId(7601)!!.ESTADO_COBRANZA
+        )
+        assertEquals(
+            "la otra venta del MISMO cliente no se toca: 'prometio' es de alcance venta",
+            "PENDIENTE",
+            db.saleDao().findByDoctoCcId(7701)!!.ESTADO_COBRANZA
+        )
+    }
+
+    /**
+     * Ronda 1 de revisión (fix): `NewVisitDialog.kt:189/191` pasaba
+     * `sale.DOCTO_CC_ID` como `saleId` — `SaleEntity` declara
+     * `DOCTO_CC_ACR_ID` como `@PrimaryKey` y `DOCTO_CC_ID` como columna
+     * `unique` SEPARADA, no un alias. `SaleDao.updateTotal` filtra por
+     * `DOCTO_CC_ACR_ID`, así que toda visita de alcance VENTA actualizaba
+     * cero filas (o la equivocada). El fix usa `visit.IMPTE_DOCTO_CC_ID`
+     * — el id que `VisitFactory.fromSale` YA calcula correctamente desde
+     * `sale.DOCTO_CC_ACR_ID` (ver `VisitFactoryTest`) — en vez de leer
+     * `sale.DOCTO_CC_ID` por segunda vez, de forma independiente y falible.
+     *
+     * Este test cruza el límite real que ningún otro test cruzaba: construye
+     * el [Sale] de dominio que recibe el diálogo (no un [VisitEntity] armado
+     * a mano) con `DOCTO_CC_ACR_ID` != `DOCTO_CC_ID`, pasa por
+     * [VisitFactory.fromSale] — la función que usaba `NewVisitDialog`, y que hoy
+     * no tiene llamador de producción: la Task 21 retiró el diálogo y la
+     * escritura vive en `RegistroDeVisitaAdapter` —
+     * y llama [VisitsLocalDataSource.insertVisitAndUpdateState] con el valor
+     * que el call site corregido pasa hoy: `visit.IMPTE_DOCTO_CC_ID`.
+     *
+     * **Control de reversión (verificado, ver task-13-report.md):** cambiar
+     * `visit.IMPTE_DOCTO_CC_ID` por `theSale.DOCTO_CC_ID` en el `saleId` de
+     * abajo — el valor EXACTO que `NewVisitDialog.kt` pasaba antes del fix —
+     * pone este test en ROJO: `findByDoctoCcId` sigue en "PENDIENTE" porque
+     * el `UPDATE` cae sobre un `DOCTO_CC_ACR_ID` que no existe.
+     */
+    @Test
+    fun saleScopeVisit_usesTheIdVisitFactoryComputes_notSaleDoctoCcId() = runTest {
+        val theSale = saleDomain(doctoCcAcrId = 9100, doctoCcId = 9400)
+        db.saleDao().insertAll(listOf(sale(saleId = 9100, saldoRest = 700.0)))
+
+        val visit = VisitFactory.fromSale(
+            sale = theSale,
+            currentUser = null,
+            tipoVisita = Constants.PIDE_REAGENDAR,
+            formaCobroId = 0,
+            nota = "",
+            id = "boundary-1",
+            fecha = "2026-06-02T15:00:00Z"
+        )
+
+        store.insertVisitAndUpdateState(
+            saleId = visit.IMPTE_DOCTO_CC_ID,
+            visit = visit.toEntity(),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals(
+            "la venta real (DOCTO_CC_ACR_ID) debe recibir el estado — este es EXACTAMENTE " +
+                "el valor que NewVisitDialog.kt pasaba antes del fix (sale.DOCTO_CC_ID)",
+            "VOLVER_VISITAR",
+            db.saleDao().findByDoctoCcId(9101)!!.ESTADO_COBRANZA
+        )
+    }
+
+    @Test
+    fun clientScopeVisit_noSalesAtAll_doesNotThrow() = runTest {
+        // Cliente sin NINGUNA venta en local: la propagacion no tiene donde
+        // caer y no debe reventar.
+        store.insertVisitAndUpdateState(
+            saleId = 9999,
+            visit = visit(id = "cs-none", tipoVisita = Constants.NO_SE_ENCONTRABA),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals("cs-none", store.getVisitById("cs-none").ID)
+    }
+
+    @Test
+    fun clientScopeVisit_onlySaldadaSales_doesNotThrowAndLeavesThemUntouched() = runTest {
+        db.saleDao().insertAll(listOf(sale(saleId = 8000, saldoRest = 0.0, estado = "PAGADO")))
+
+        store.insertVisitAndUpdateState(
+            saleId = 8000,
+            visit = visit(id = "cs-saldada", tipoVisita = Constants.NO_SE_ENCONTRABA),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals(
+            "una venta ya saldada (SALDO_REST = 0) no es 'activa': su estado no se pisa",
+            "PAGADO",
+            db.saleDao().findByDoctoCcId(8001)!!.ESTADO_COBRANZA
+        )
+    }
+
+    @Test
+    fun clientScopeVisit_neverTouchesAnotherClientsSale() = runTest {
+        db.saleDao().insertAll(
+            listOf(
+                // cliente 4821, el mismo de `visit()`
+                sale(saleId = 8100, saldoRest = 500.0),
+                // otro cliente
+                sale(saleId = 8200, saldoRest = 500.0, clienteId = 9999)
+            )
+        )
+
+        store.insertVisitAndUpdateState(
+            saleId = 8100,
+            visit = visit(id = "cs-cross", tipoVisita = Constants.NO_SE_ENCONTRABA),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals("VOLVER_VISITAR", db.saleDao().findByDoctoCcId(8101)!!.ESTADO_COBRANZA)
+        assertEquals(
+            "la venta de OTRO cliente jamas se toca, aunque comparta la tabla `sales`",
+            "PENDIENTE",
+            db.saleDao().findByDoctoCcId(8201)!!.ESTADO_COBRANZA
+        )
+    }
+
+    // ─── Task 5: saveVisitAndEnqueue — el guardado encola la subida el mismo ──
+    // ─── (headline test, task-5-brief.md) ──────────────────────────────────────
+
+    /**
+     * Headline test del plan (task-5-brief.md): "guardar una visita con el
+     * servicio de ubicacion completamente ausente y comprobar que igual
+     * queda encolada para subir". Ni [com.example.msp_app.services.UpdateLocationService]
+     * ni [com.example.msp_app.services.UpdateLocationHandler] se referencian
+     * en ningun punto de este test — el servicio de ubicacion no solo no
+     * corre, no existe en este camino. Esto tambien cubre el caso de
+     * robustez suprema "la ubicacion nunca llega": la visita queda subible
+     * sin depender de que updateVisitLocation se llame jamas.
+     *
+     * **Control de reversion (verificado, ver task-5-report.md):** comentar
+     * la linea `enqueuer.enqueue(...)` en
+     * [VisitsLocalDataSource.saveVisitAndEnqueue] pone este test en ROJO —
+     * `enqueuer.calls` queda vacio.
+     */
+    @Test
+    fun saveVisitAndEnqueue_enqueuesUploadEvenWithoutLocationService() = runTest {
+        db.saleDao().insertAll(
+            listOf(sale(saleId = 5000, saldoRest = 1000.0, estado = "PENDIENTE"))
+        )
+
+        store.saveVisitAndEnqueue(
+            saleId = 5000,
+            visit = visit(id = "no-loc-1", saleCargoId = 5000),
+            newState = EstadoCobranza.VISITADO
+        )
+
+        assertEquals(
+            "la visita se escribio localmente",
+            "no-loc-1",
+            store.getVisitById("no-loc-1").ID
+        )
+        assertEquals(
+            "el guardado local encola por si mismo, sin esperar la ubicacion",
+            listOf(RecordingVisitsWorkEnqueuer.Call("no-loc-1")),
+            enqueuer.calls
+        )
+        assertEquals(
+            "todavia pendiente de subir (nadie confirmo el servidor)",
+            0,
+            store.getVisitById("no-loc-1").GUARDADO_EN_MICROSIP
+        )
+    }
+
+    @Test
+    fun saveVisitAndEnqueue_setsEstadoDeCobranzaLikeInsertVisitAndUpdateState() = runTest {
+        db.saleDao().insertAll(
+            listOf(sale(saleId = 6000, saldoRest = 500.0, estado = "PENDIENTE"))
+        )
+
+        store.saveVisitAndEnqueue(
+            saleId = 6000,
+            visit = visit(id = "sve-1", saleCargoId = 6000),
+            newState = EstadoCobranza.VISITADO
+        )
+
+        val updated = db.saleDao().findByDoctoCcId(6001)!!
+        assertEquals(
+            "conserva el comportamiento de insertVisitAndUpdateState: no abona",
+            500.0,
+            updated.SALDO_REST,
+            1e-9
+        )
+        assertEquals("VISITADO", updated.ESTADO_COBRANZA)
+    }
+
+    /**
+     * Regresion de Task 5 aplicada al rewrite de Task 13: este archivo
+     * reescribe [VisitsLocalDataSource.insertVisitAndUpdateState] para
+     * bifurcar por alcance, y [VisitsLocalDataSource.saveVisitAndEnqueue]
+     * lo envuelve sin tocarlo. El encolado debe seguir disparando tambien
+     * por la rama CLIENTE, no solo por la rama VENTA que ya cubren los
+     * tests de arriba.
+     */
+    @Test
+    fun saveVisitAndEnqueue_stillEnqueues_forClientScopeVisit() = runTest {
+        db.saleDao().insertAll(listOf(sale(saleId = 8300, saldoRest = 500.0)))
+
+        store.saveVisitAndEnqueue(
+            saleId = 8300,
+            visit = visit(id = "cs-enqueue", tipoVisita = Constants.CASA_CERRADA),
+            newState = EstadoCobranza.VOLVER_VISITAR
+        )
+
+        assertEquals(
+            "el fix de Task 5 sigue en pie tambien para una visita de alcance cliente",
+            listOf(RecordingVisitsWorkEnqueuer.Call("cs-enqueue")),
+            enqueuer.calls
+        )
+        assertEquals(
+            "VOLVER_VISITAR",
+            db.saleDao().findByDoctoCcId(8301)!!.ESTADO_COBRANZA
+        )
     }
 
     // ─── updateTemporaryCollectionDate ────────────────────────────────────────

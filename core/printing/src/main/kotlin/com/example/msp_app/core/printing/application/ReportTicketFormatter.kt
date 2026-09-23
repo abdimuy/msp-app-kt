@@ -1,12 +1,12 @@
 package com.example.msp_app.core.printing.application
 
+import com.example.msp_app.core.common.time.BUSINESS_ZONE
 import com.example.msp_app.core.printing.domain.PrintableTicket
 import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.core.printing.domain.ReportPaymentLine
 import com.example.msp_app.core.printing.domain.ReportTicket
 import com.example.msp_app.core.printing.domain.TicketLine
 import java.time.Instant
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
@@ -134,12 +134,24 @@ constructor() {
 
     /**
      * Hora (`HH:mm`) for the diario ticket, fecha+hora (`dd/MM HH:mm`) for the
-     * corte/semana ticket — device-local zone (the ticket shows when the
-     * collector's device recorded it, the same device-local formatting discipline
-     * the receipt side applies to its own `fechaHora`/history rows).
+     * corte/semana ticket — **[BUSINESS_ZONE], never the device's zone**.
+     *
+     * Hasta el Arreglo B esto usaba `ZoneId.systemDefault()`, y era una fuga
+     * real: la ventana que decide QUÉ pagos entran al corte se calcula en
+     * `America/Mexico_City` ([PrintDayRule] y `VentanaCobro` ya lo hacen así),
+     * así que un cobro cerca de medianoche en un teléfono con la zona torcida
+     * —o de viaje— se imprimía bajo un día calendario distinto del que lo
+     * liquida. El ticket es el papel que el cobrador le deja al cliente; que
+     * su fecha discrepe del corte es exactamente la discusión que nadie puede
+     * ganar en la calle.
+     *
+     * Era además invisible por partida doble: `:core:printing` estaba fuera de
+     * `checkNoLegacyDateApi` (que barría solo `app/src/main`), y el test de
+     * este formateador afirmaba `09:15` apoyado en que la máquina que lo corre
+     * tiene la zona del negocio — pasaba por accidente, no por diseño.
      */
     private fun formatPaymentPrefix(epochMillis: Long, isWeekly: Boolean): String {
-        val zoned = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault())
+        val zoned = Instant.ofEpochMilli(epochMillis).atZone(BUSINESS_ZONE)
         val formatter = if (isWeekly) PAYMENT_DATE_TIME_FORMATTER else PAYMENT_TIME_FORMATTER
         return formatter.format(zoned)
     }

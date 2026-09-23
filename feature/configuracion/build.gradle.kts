@@ -5,6 +5,10 @@ plugins {
     id("msp.detekt")
     id("msp.kover")
     alias(libs.plugins.ktlint)
+    // Goldens de la sección "Descargas" (claro x oscuro x las tres escalas).
+    // Este módulo no tenía ninguno: sus dos secciones anteriores se probaban
+    // solo con asserts, y un assert no ve un renglón encimado a escala 2.0.
+    alias(libs.plugins.roborazzi)
 }
 
 android {
@@ -41,6 +45,12 @@ kover {
 dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:settings"))
+    // La descarga opcional del dictado. Se ve el PUERTO (`domain/port`) y el
+    // paquete anunciado del módulo, NUNCA sus adaptadores — ahí viven
+    // WorkManager, OkHttp y el `File`, y el contrato hexagonal prohíbe que `ui`
+    // los importe. Es el caso 3 del Ruling BF, escrito en el KDoc del puerto:
+    // el consumidor vive en una capa que no puede ver la implementación.
+    implementation(project(":core:speech"))
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

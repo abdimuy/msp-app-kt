@@ -1,8 +1,8 @@
 package com.example.msp_app.feature.collectionreport.domain
 
+import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.feature.collectionreport.domain.model.CollectionPayment
 import com.example.msp_app.feature.collectionreport.domain.model.Forgiveness
-import com.example.msp_app.feature.collectionreport.domain.model.Money
 import com.example.msp_app.feature.collectionreport.domain.model.PaymentMethod
 import java.math.BigDecimal
 import java.time.Instant

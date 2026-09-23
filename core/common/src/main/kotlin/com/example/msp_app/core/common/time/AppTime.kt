@@ -4,6 +4,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -196,6 +197,21 @@ object AppTime {
         .ofPattern(pattern, locale)
         .withZone(BUSINESS_ZONE)
         .format(instant)
+
+    /**
+     * Format a [LocalTime] for UI.
+     *
+     * Added with the visit ticket (Task 20), which prints the appointment hour:
+     * without it that one format was an inline `DateTimeFormatter.ofPattern` in a
+     * feature module — the only date format in the new code outside this single
+     * source. `checkNoLegacyDateApi` does not scan `:feature:*`, so nothing would
+     * have caught it.
+     */
+    fun formatTime(
+        time: LocalTime,
+        pattern: String = Formats.TIME_24H,
+        locale: Locale = BUSINESS_LOCALE
+    ): String = time.format(DateTimeFormatter.ofPattern(pattern, locale))
 
     /** Format a [LocalDate] for UI. */
     fun formatDate(

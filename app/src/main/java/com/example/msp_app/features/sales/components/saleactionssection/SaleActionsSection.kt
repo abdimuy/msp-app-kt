@@ -12,7 +12,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,49 +22,49 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.features.forgiveness.components.NewForgivenessDialog
-import com.example.msp_app.features.payments.components.newpaymentdialog.NewPaymentDialog
-import com.example.msp_app.features.payments.viewmodels.PaymentsViewModel
-import com.example.msp_app.features.visit.components.NewVisitDialog
+import com.example.msp_app.navigation.DestinosDeCobranza
 
+/**
+ * El bloque de acciones del detalle de venta legado.
+ *
+ * ## "Agregar Visita" navega, ya no abre un diálogo (Task 21)
+ *
+ * El `NewVisitDialog` quedó retirado: embebía la fecha de la cita en el texto
+ * libre de `NOTA`, y por eso el mismo hecho de campo ("pidió reagendar") caía en
+ * *vencidos* por esta puerta y en *hoy* por la pantalla nueva. El botón lleva
+ * ahora al destino de la Task 19, que escribe la promesa y la cita en columnas
+ * reales.
+ *
+ * ## "Agregar Pago" también navega (Task 21, ronda 1)
+ *
+ * El `NewPaymentDialog` quedó retirado. Los dos capturadores escribían la MISMA
+ * tabla por el MISMO `PaymentFactory`, pero divergían en las dos direcciones y
+ * el legado perdía en todas las que importan: su clave de idempotencia era un
+ * `remember { UUID.randomUUID() }` —muere al rotar o al morir el proceso, y el
+ * reintento cobra dos veces—, su "atomicidad" era un `@Transaction` inerte fuera
+ * de un `@Dao` —un fallo entre las dos escrituras dejaba el pago contado con el
+ * saldo intacto— y sus errores morían en un `printStackTrace()`. El botón lleva
+ * ahora a `pagos/abono/{ventaId}`, que persiste la clave y el guard en su
+ * `SavedStateHandle` y escribe dentro de `db.withTransaction`.
+ *
+ * El argumento es el **`DOCTO_CC_ACR_ID`** —la llave primaria de `sales`, que es
+ * lo que `SaleDao.getById` filtra—, no el `DOCTO_CC_ID` del crédito ni el
+ * `CLIENTE_ID`.
+ *
+ * **La condonación no se toca**: sigue siendo el mismo `NewForgivenessDialog`
+ * con la misma lógica, y este bloque sigue siendo su única puerta.
+ */
 @Composable
 fun SaleActionSection(sale: Sale, navController: NavController) {
-    val viewModel: PaymentsViewModel = viewModel()
-    val paymentsBySaleIdState by viewModel.paymentsBySaleIdState.collectAsState()
-
-    var open by remember { mutableStateOf(false) }
-    var openVisitDialog by remember { mutableStateOf(false) }
     var openForgivenessDialog by remember { mutableStateOf(false) }
 
-    val paymentAmounts: List<Int> = if (paymentsBySaleIdState is ResultState.Success) {
-        (paymentsBySaleIdState as ResultState.Success).data.map { it.IMPORTE.toInt() }.distinct()
-    } else {
-        emptyList()
-    }
-
-    // Dialogs
-    NewPaymentDialog(
-        open,
-        onDismissRequest = { open = false },
-        suggestions = paymentAmounts,
-        suggestedPayment = sale.PARCIALIDAD,
-        sale,
-        navController = navController
-    )
     NewForgivenessDialog(
         show = openForgivenessDialog,
         onDismissRequest = { openForgivenessDialog = false },
         sale,
-        navController = navController
-    )
-    NewVisitDialog(
-        show = openVisitDialog,
-        onDismissRequest = { openVisitDialog = false },
-        sale = sale,
         navController = navController
     )
 
@@ -75,7 +74,9 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
     ) {
         // Primary action
         Button(
-            onClick = { open = true },
+            onClick = {
+                navController.navigate(DestinosDeCobranza.abonoDeUnaVenta(sale))
+            },
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF388E3C)),
             modifier = Modifier
                 .fillMaxWidth()
@@ -115,7 +116,9 @@ fun SaleActionSection(sale: Sale, navController: NavController) {
             }
 
             Button(
-                onClick = { openVisitDialog = true },
+                onClick = {
+                    navController.navigate(DestinosDeCobranza.visitaDeUnaVenta(sale))
+                },
                 modifier = Modifier
                     .weight(1f)
                     .height(56.dp),
