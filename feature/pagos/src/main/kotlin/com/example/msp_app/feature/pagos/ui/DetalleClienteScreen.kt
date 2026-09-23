@@ -57,7 +57,6 @@ import com.example.msp_app.feature.pagos.ui.components.HojaContinua
 import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
-import com.example.msp_app.feature.pagos.ui.components.ProductoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.RitmoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
@@ -479,10 +478,19 @@ private fun CuerpoDelCliente(
         HojaDeDinero(detalle, ocultos)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeVentas(detalle, ocultos, onAbrirVenta)
-        if (detalle.productos.isNotEmpty()) {
-            Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-            HojaDeProductos(detalle)
-        }
+        // **Sin hoja de "productos".** Decisión del dueño: esos mismos nombres
+        // ya encabezan cada renglón de "sus ventas" justo arriba —la cuenta se
+        // nombra por su producto, no por su folio (ver `VentaEnLaHoja`)—, así
+        // que la hoja repetía la lista completa un dedo más abajo y empujaba
+        // hacia el fondo la bitácora y la ficha.
+        //
+        // El dato NO se dejó de leer: `DetalleCliente.productos` sigue viajando,
+        // y la consulta que lo llena (`ProductosPort.productosPorVenta`) sigue
+        // siendo obligatoria — de ella sale también el nombre de la cuenta de
+        // cada contacto de la bitácora. Aquí sólo se dejó de pintar.
+        //
+        // La sección "productos" del detalle de VENTA sí se queda: ahí no es
+        // redundante, es la única lista de lo que se compró en esa cuenta.
         if (detalle.contactos.isNotEmpty()) {
             Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
             HojaDeContactos(detalle, ocultos, onVerContactos, onVerUbicacionDelContacto, toque)
@@ -663,17 +671,6 @@ private fun HojaDeVentas(detalle: DetalleCliente, ocultos: Boolean, onAbrirVenta
                 onAbrir = { onAbrirVenta(venta.ventaId) },
                 ocultos = ocultos
             )
-        }
-    }
-}
-
-@Composable
-private fun HojaDeProductos(detalle: DetalleCliente) {
-    HojaContinua {
-        TituloDeHoja("productos")
-        detalle.productos.forEachIndexed { indice, producto ->
-            if (indice > 0) Separador()
-            ProductoDelCliente(producto)
         }
     }
 }

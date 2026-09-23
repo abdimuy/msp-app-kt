@@ -318,7 +318,9 @@ object ListaFixtures {
         totalVenta = dinero(total),
         precioContado = dinero("5200"),
         enganche = dinero(enganche),
-        vendedor = "J. Carlos Méndez",
+        mesesACortoPlazo = 4,
+        montoACortoPlazo = dinero("5800"),
+        vendedores = listOf("J. Carlos Méndez"),
         atrasos = atrasos,
         fechaUltimoPago = ultimoPago?.let(LocalDate::parse)
     )

@@ -33,7 +33,40 @@ data class DetalleVenta(
     val precioContado: Money,
     override val enganche: Money,
     override val abonado: Money,
-    val vendedor: String,
+    /**
+     * El precio si liquida a [mesesACortoPlazo] — `MONTO_A_CORTO_PLAZO`.
+     *
+     * Va con su plazo y **ninguno de los dos se pinta solo**: los dos en cero
+     * significan "esta venta no tiene oferta a corto plazo", y la ficha calla
+     * la fila en vez de escribir "$0 a 0 meses". Ver
+     * [DatosDeVenta.mesesACortoPlazo].
+     */
+    val montoACortoPlazo: Money,
+    /** A cuántos meses corre [montoACortoPlazo]. `0` = la venta no la tiene. */
+    val mesesACortoPlazo: Int,
+    /**
+     * Los tres datos del domicilio que la pantalla legada enseñaba y el detalle
+     * nuevo había perdido: a quién llamar, dónde es y de qué ruta.
+     *
+     * **Son de la venta, no de una segunda consulta al cliente**: salen de la
+     * MISMA fila de `sales` de la que ya salían el folio y las cifras, así que
+     * traerlos no cuesta una lectura más. El cobrador los consulta parado en la
+     * puerta sin tener que volver al detalle de cliente.
+     */
+    val telefono: String,
+    val direccion: String,
+    val zona: String,
+    /** `AVAL_O_RESPONSABLE` — quién responde por esta venta. Vacío si no trae. */
+    val aval: String,
+    /**
+     * Quiénes vendieron, en orden y sin vacíos — ver [DatosDeVenta.vendedores].
+     *
+     * Lista y no `String` ya pegado porque son hasta tres y la pantalla los
+     * pinta uno por renglón: concatenarlos aquí obligaría a la UI a volver a
+     * partirlos para saber cuántos hay, que es lo que decide si la etiqueta va
+     * en singular o en plural.
+     */
+    val vendedores: List<String>,
     override val estado: EstadoDelPeriodo,
     val productos: List<ProductoDeVenta>,
     val historial: HistorialDePagos,

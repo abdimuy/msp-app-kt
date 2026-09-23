@@ -88,7 +88,16 @@ class CargarDetalleVenta @Inject constructor(
             precioContado = venta.precioContado,
             enganche = venta.enganche,
             abonado = venta.abonado,
-            vendedor = venta.vendedor,
+            montoACortoPlazo = venta.montoACortoPlazo,
+            mesesACortoPlazo = venta.mesesACortoPlazo,
+            // Los datos de la puerta salen de la MISMA fila que ya se leyó, sin
+            // una consulta extra al cliente. `direccionCompleta` —y no
+            // `direccion`— porque aquí sí va la entidad federativa: ver su KDoc.
+            telefono = venta.telefono,
+            direccion = venta.direccionCompleta,
+            zona = venta.zona,
+            aval = venta.aval,
+            vendedores = venta.vendedores,
             estado = cobranza.estados[ventaId] ?: EstadoDelPeriodo.sinTocar(venta.parcialidad),
             productos = productosDeLaVenta(
                 productosPorVenta,

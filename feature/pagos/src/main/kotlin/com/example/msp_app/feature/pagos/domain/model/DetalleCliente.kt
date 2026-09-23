@@ -107,6 +107,13 @@ data class DetalleCliente(
      * cobrador la reconoce ("el refri y la sala"). Sale de `products`, no del
      * `GROUP_CONCAT` de la venta — ver
      * [com.example.msp_app.feature.pagos.domain.port.ProductosPort].
+     *
+     * **Ya no se pinta** (decisión del dueño): esos mismos nombres encabezan
+     * cada renglón de "sus ventas" —la cuenta se nombra por su producto—, así
+     * que la hoja repetía la lista un dedo más abajo. Se queda en el modelo
+     * porque la lectura que lo llena sigue siendo obligatoria: de ella sale
+     * también el nombre de la cuenta de cada contacto de la bitácora, así que
+     * exponerla no cuesta una consulta. Quitarla es alcance aparte.
      */
     val productos: List<ProductoDeVenta> = emptyList(),
     /**

@@ -444,7 +444,16 @@ object PagosFixtures {
             precioContado = dinero("5200"),
             enganche = dinero("900"),
             abonado = abonado,
-            vendedor = "J. Carlos Méndez",
+            montoACortoPlazo = dinero("5800"),
+            mesesACortoPlazo = 4,
+            telefono = "238 162 7597",
+            direccion = "C. Hidalgo 214, Centro, Puebla",
+            zona = "ruta 25 · centro",
+            aval = "Rosa María Ramírez",
+            // DOS, no uno: el segundo vendedor es el caso que la pantalla
+            // legada enseñaba y el detalle nuevo había perdido, y si el fixture
+            // trajera uno solo el golden no fotografiaría el arreglo.
+            vendedores = listOf("J. Carlos Méndez", "Laura Iveth Zepeda"),
             estado = estado,
             productos = listOf(ProductoDeVenta("Refrigerador Mabe 14'", total)),
             historial = historial(),
@@ -511,7 +520,9 @@ object PagosFixtures {
         totalVenta = cifras.total,
         precioContado = dinero("5200"),
         enganche = dinero("900"),
-        vendedor = "J. Carlos Méndez",
+        mesesACortoPlazo = 4,
+        montoACortoPlazo = dinero("5800"),
+        vendedores = listOf("J. Carlos Méndez", "Laura Iveth Zepeda"),
         atrasos = 2,
         fechaUltimoPago = LocalDate.of(2026, 9, 6)
     )
