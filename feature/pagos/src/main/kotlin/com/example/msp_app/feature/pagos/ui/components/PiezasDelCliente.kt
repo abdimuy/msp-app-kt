@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -1031,7 +1032,19 @@ private fun SenasDeLaPuerta(
         // es precisamente eso.
         Text(
             text = calle.ifBlank { SIN_DIRECCION },
-            style = if (apretado) MspTheme.type.captionStrong else MspTheme.type.metricLarge,
+            // `detailTitle` (18 sp) y no `metricLarge` (26): a 26 la calle llenaba
+            // el ancho del cuadro y el bloque se leía como un letrero, no como
+            // la seña de una puerta. Y `lineHeightStyle` con los dos `Trim`
+            // porque la rampa da `lineHeight = fontSize * 1.4`
+            // (`MspType.kt:75`): ese 40 % sobrante se reparte arriba y abajo de
+            // la caja del texto y separaba las tres señas ~40 dp en vez de los
+            // 10 de [AIRE_ENTRE_SENAS]. Recortarlo deja el bloque compacto sin
+            // tocar un solo token.
+            style = if (apretado) {
+                MspTheme.type.captionStrong
+            } else {
+                MspTheme.type.detailTitle.copy(lineHeightStyle = SIN_AIRE_DE_LINEA)
+            },
             color = MspTheme.colors.onSurface,
             maxLines = if (apretado) 1 else RENGLONES_DE_LA_CALLE,
             overflow = TextOverflow.Ellipsis,
@@ -1044,7 +1057,7 @@ private fun SenasDeLaPuerta(
             Spacer(Modifier.height(AIRE_ENTRE_SENAS))
             Text(
                 text = apoyo,
-                style = MspTheme.type.input,
+                style = MspTheme.type.input.copy(lineHeightStyle = SIN_AIRE_DE_LINEA),
                 color = MspTheme.colors.onSurfaceMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -1300,6 +1313,33 @@ private const val RENGLONES_DE_LA_CALLE = 2
  * sin margen arriba y abajo. El mockup fija 10 y es el número que deja las tres
  * cosas como tres cosas.
  */
+/**
+ * Recorta el aire que la rampa mete arriba de la primera línea y debajo de la
+ * última.
+ *
+ * La rampa da `lineHeight = fontSize * 1.4` a TODOS sus roles
+ * (`MspType.kt:75`), que es lo correcto para un párrafo de varias líneas. En un
+ * renglón suelto ese 40 % se convierte en relleno vertical invisible dentro de
+ * la caja del texto.
+ *
+ * **Cuánto recupera, medido sobre el PNG del golden y no a ojo:** el hueco
+ * visible entre el chip y la calle pasó de 18.0 a 15.5 dp. Son **2.5 dp**, no
+ * los ~40 que aparentaba el bloque antes de bajar la letra: lo que de verdad lo
+ * compactó fue pasar la calle de 26 a 18 sp (el alto del renglón cayó de 25.5 a
+ * 18 dp y el bloque entero de 102.5 a 91.5). Se deja porque 2.5 dp por hueco son
+ * reales y gratis, pero **no se le atribuya más de lo que hace** — quien quiera
+ * los 10 dp exactos de [AIRE_ENTRE_SENAS] tiene que bajar el `Spacer`, porque
+ * los ~6 dp que sobran no salen de aquí.
+ *
+ * `Trim.Both` porque sobra en los dos extremos, y `Alignment.Center` para que
+ * lo que quede se reparta parejo y el texto no suba ni baje respecto a donde
+ * estaba.
+ */
+private val SIN_AIRE_DE_LINEA = LineHeightStyle(
+    alignment = LineHeightStyle.Alignment.Center,
+    trim = LineHeightStyle.Trim.Both
+)
+
 private val AIRE_ENTRE_SENAS = 10.dp
 
 /** Lo que dice el chip cuando la puerta tiene coordenada de un cobro real. */
