@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.visitas.domain.model
 
 import com.example.msp_app.core.common.money.Money
+import java.time.LocalDate
 
 /**
  * La puerta a la que el cobrador está parado: el cliente y sus cuentas.
@@ -49,7 +50,38 @@ data class VentaParaVisitar(
      * tiene la mitad de las entradas, y las dos pantallas dirían cifras
      * distintas de la misma cuenta.
      */
-    val parcialidad: Money
+    val parcialidad: Money,
+    /**
+     * `sales.FECHA` —el alta del crédito— **ya parseada**, o `null` cuando el
+     * texto no se pudo leer.
+     *
+     * Se parsea en el adaptador y con el parser tolerante del repo
+     * (`AppTime.parseWireFormatOrNull`), igual que `ReunirCartera` en
+     * `:feature:pagos`: la columna es texto que viene del servidor, y este
+     * código corre con la impresora en la mano frente al cliente. Una fecha
+     * ilegible es un dato que falta, nunca una excepción.
+     */
+    val fechaVenta: LocalDate?,
+    /**
+     * `TIEMPO_A_CORTO_PLAZOMESES` crudo. **Se lee, no se interpreta**: quién
+     * decide qué significa cada valor es [VencimientoDelCredito].
+     */
+    val plazoMeses: Int,
+    /**
+     * `PRECIO_TOTAL` — lo que **costó** la compra, que no es lo que falta por
+     * pagar. Eso último es [saldo]; son dos cifras distintas y el papel las
+     * nombra por separado, igual que las nombraba el ticket viejo.
+     */
+    val totalDeCompra: Money,
+    /**
+     * `NUM_PAGOS_ATRASADOS` de `overdue_payments_view`, que
+     * `SaleDao.getByClientId` ya trae con su `LEFT JOIN`.
+     *
+     * **Cero cuando la vista no tiene fila para la cuenta**: ahí no hay atraso
+     * que reportar. El papel no distingue ese cero del cero literal porque en
+     * los dos casos no imprime nada.
+     */
+    val pagosVencidos: Int
 ) {
     /**
      * Cómo se llama esta cuenta **para el cobrador**: el producto.

@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.visitas.domain.model
 
 import com.example.msp_app.core.common.money.Money
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -52,8 +53,51 @@ data class TicketDeVisita(
     val cita: CitaImpresa?
 )
 
-/** Una cuenta del cliente en el ticket: folio y lo que debe. */
-data class CuentaImpresa(val folio: String, val saldo: Money)
+/**
+ * Una cuenta del cliente en el ticket: folio, lo que debe y lo que le toca
+ * abonar por periodo.
+ *
+ * [parcialidad] **se lee, no se deriva**: es la misma columna cruda que ya
+ * viaja en [VentaParaVisitar] y que pinta `HojaDeAbono` en `:feature:pagos`.
+ * Llega hasta aquí porque la carta de "visité, vuelvo" la nombra ("SU
+ * COMPROMISO FUE DAR ABONOS SEMANALES DE ..."), y el ticket viejo la imprimía
+ * como el literal `$200.00`, igual para todos los clientes.
+ *
+ * [vencimiento] llega **ya resuelto** por
+ * [com.example.msp_app.feature.visitas.domain.VencimientoDelCredito]: `null`
+ * significa "no se puede afirmar cuándo vence", y entonces el papel no lo dice.
+ */
+data class CuentaImpresa(
+    val folio: String,
+    val saldo: Money,
+    val parcialidad: Money,
+    val vencimiento: LocalDate?,
+    /** `PRECIO_TOTAL`: lo que costó la compra, no lo que falta por pagar. */
+    val totalDeCompra: Money,
+    /** `NUM_PAGOS_ATRASADOS`; cero cuando la cuenta no está atrasada. */
+    val pagosVencidos: Int
+) {
+    /**
+     * **"SUGERIDO PARA REGULARIZARSE"**: lo que habría que dar para ponerse al
+     * corriente, que es [pagosVencidos] × [parcialidad] — la misma
+     * multiplicación que hacía el ticket viejo.
+     *
+     * Es `null` —y entonces el papel calla— **en cuanto falta cualquiera de las
+     * dos entradas**. Sin atraso no hay nada que regularizar; sin parcialidad el
+     * producto sería `$0`, que en un papel de cobranza se lee como "no tiene que
+     * dar nada". Son dos mentiras distintas y ninguna se imprime.
+     *
+     * La multiplicación va sobre el [java.math.BigDecimal] de [Money], nunca
+     * sobre un `Double`: el viejo calculaba `lost * sale.PARCIALIDAD` en coma
+     * flotante y redondeaba al final.
+     */
+    val sugeridoParaRegularizarse: Money?
+        get() {
+            if (pagosVencidos <= 0 || parcialidad <= Money.ZERO) return null
+            val veces = BigDecimal.valueOf(pagosVencidos.toLong())
+            return Money.of(parcialidad.amount.multiply(veces))
+        }
+}
 
 /** El compromiso que el cliente hizo: cuándo y —si lo dijo— cuánto. */
 data class PromesaImpresa(val fecha: LocalDate, val monto: Money?)
@@ -73,33 +117,72 @@ data class CitaImpresa(val fecha: LocalDate, val hora: LocalTime?)
  * Aquí el texto **lo decide el desenlace ya registrado** (Task 19), así que el
  * papel y la base de datos no pueden contar historias distintas.
  *
- * [mensaje] va en párrafos: el formatter los envuelve al ancho del rollo.
+ * ## Las tres cartas del ticket viejo, de vuelta
+ *
+ * Lo que se retiró con la pantalla legada no fue el mecanismo —elegir la carta
+ * a mano era el defecto— sino **las palabras**, que llevan años imprimiéndose y
+ * que el cliente reconoce. Vuelven literales, en mayúsculas y sin acentos, y es
+ * el desenlace el que las escoge:
+ *
+ * | Ticket viejo (`DropdownMenu`)   | Desenlace           |
+ * |---------------------------------|---------------------|
+ * | 1 · "Ticket de Visita"          | [NO_ESTABA]         |
+ * | 2 · "Ticket de Cliente Moroso"  | [SE_NEGO]           |
+ * | 3 · "Ticket de no Pago"         | [VISITE_VUELVO]     |
+ *
+ * [PROMETIO] y [CITA] **no tienen carta vieja**: el ticket legado no conocía la
+ * promesa ni la cita —no existían como dato— así que conservan su texto propio.
+ * Inventarles una de las tres sería dejar la carta equivocada en la puerta, que
+ * es el defecto que la Task 19 vino a cerrar.
+ *
+ * [mensaje] va en párrafos: el formatter los envuelve al ancho del rollo. Los
+ * textos viejos venían pre-cortados a mano a 32 columnas; aquí van como párrafo
+ * y el corte lo hace `TicketLayout.wrap`, que es el único mecanismo de ancho del
+ * papel. Las palabras son las mismas; los saltos de línea los pone el rollo.
+ *
  * Todo es ASCII a propósito — el fold del codepage descarta lo que no puede
  * imprimir, y un carácter descartado corre una línea ya centrada.
  */
 enum class DesenlaceImpreso(val titulo: String, val mensaje: List<String>) {
 
-    /** Nadie atendió. Es el texto que más se imprime en campo. */
+    /**
+     * Nadie atendió. Es el texto que más se imprime en campo.
+     *
+     * Carta 1 del ticket viejo ("Ticket de Visita"), literal.
+     */
     NO_ESTABA(
         titulo = "NO LO ENCONTRAMOS",
         mensaje = listOf(
-            "Pasamos a su domicilio para el pago de esta semana y no fue posible " +
-                "encontrarlo.",
-            "Volveremos mas tarde. Si no se encuentra, puede dejar su pago con la " +
-                "persona que este en el domicilio, o llamarnos para acordar un horario."
+            "SU AGENTE DE COBRANZA DE MUEBLES SAN PABLO PASO A VISITAR EN SU " +
+                "DOMICILIO PARA SU PAGO CORRESPONDIENTE DE ESTA SEMANA, PERO NO FUE " +
+                "POSIBLE ENCONTRARLO, LE INFORMO QUE PASARE NUEVAMENTE A VISITARLO " +
+                "MAS TARDE. EN CASO DE NO ENCONTRARSE LE PEDIMOS DE FAVOR NOS PUEDA " +
+                "APOYAR DEJANDO SU PAGO CORRESPONDIENTE CON LA PERSONA QUE SE " +
+                "ENCUENTRE EN SU DOMICILIO O LLAMAME PARA COORDINARNOS EN EL HORARIO " +
+                "QUE LO PUEDA VISITAR."
         )
     ),
 
-    /** Se visitó y no se resolvió. Vuelve en los próximos días. */
+    /**
+     * Se visitó y no se resolvió. Vuelve en los próximos días.
+     *
+     * Carta 3 del ticket viejo ("Ticket de no Pago"), literal. El recordatorio
+     * del abono por periodo y el exhorto a regularizarse van en el formatter y
+     * no aquí: el primero lleva una cifra, y una cifra no cabe en un `enum`.
+     */
     VISITE_VUELVO(
         titulo = "PASAMOS A VISITARLO",
         mensaje = listOf(
-            "Pasamos a su domicilio y no fue posible resolver su pago.",
-            "Volveremos en los proximos dias. Puede llamarnos para acordar un horario."
+            "RECUERDE QUE LA PUNTUALIDAD EN SUS PAGOS ES IMPORTANTE PARA SU " +
+                "HISTORIAL DE CREDITO."
         )
     ),
 
-    /** Prometió. El papel repite la fecha y el monto que quedaron escritos. */
+    /**
+     * Prometió. El papel repite la fecha y el monto que quedaron escritos.
+     *
+     * **Sin carta vieja**: el ticket legado no conocía la promesa.
+     */
     PROMETIO(
         titulo = "GRACIAS POR SU COMPROMISO",
         mensaje = listOf(
@@ -108,7 +191,11 @@ enum class DesenlaceImpreso(val titulo: String, val mensaje: List<String>) {
         )
     ),
 
-    /** Quedaron de verse. El papel repite el día y la hora. */
+    /**
+     * Quedaron de verse. El papel repite el día y la hora.
+     *
+     * **Sin carta vieja**: el ticket legado no conocía la cita.
+     */
     CITA(
         titulo = "QUEDAMOS DE VERNOS",
         mensaje = listOf(
@@ -117,14 +204,22 @@ enum class DesenlaceImpreso(val titulo: String, val mensaje: List<String>) {
         )
     ),
 
-    /** Se negó o hubo conflicto. El texto de cobranza dura, y solo aquí. */
+    /**
+     * Se negó o hubo conflicto. El texto de cobranza dura, y solo aquí.
+     *
+     * Carta 2 del ticket viejo ("Ticket de Cliente Moroso"), literal, con el
+     * mismo corte en dos párrafos que tenía en el papel.
+     */
     SE_NEGO(
         titulo = "AVISO DE COBRANZA",
         mensaje = listOf(
-            "Hemos intentado acercarnos a usted para resolver su adeudo pendiente " +
-                "sin obtener una respuesta favorable.",
-            "Para evitar continuar el cobro por otra via y gastos innecesarios, lo " +
-                "invitamos a que juntos encontremos una alternativa."
+            "EN REITERADAS OCASIONES HEMOS TRATADO DE ACERCARNOS A USTED PARA " +
+                "SOLUCIONAR SU ADEUDO PENDIENTE, SIN EMBARGO, NO HEMOS TENIDO UNA " +
+                "RESPUESTA FAVORABLE.",
+            "CON LA INTENCION DE EVITARLE CONTINUAR CON EL PROCESO DE COBRO POR " +
+                "OTRA VIA, ASI COMO GASTOS INNECESARIOS, LO INVITAMOS A QUE JUNTOS " +
+                "ENCONTREMOS LA ALTERNATIVA QUE MAS SE ACOMODE PARA SOLUCIONAR EN " +
+                "DEFINITIVA ESTA SITUACION."
         )
     )
 }

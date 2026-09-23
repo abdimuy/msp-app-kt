@@ -10,6 +10,7 @@ import com.example.msp_app.core.printing.application.TicketRenderer
 import com.example.msp_app.core.printing.domain.PrintableTicket
 import com.example.msp_app.core.printing.domain.PrinterProfile
 import com.example.msp_app.core.printing.domain.TicketLine
+import com.example.msp_app.feature.visitas.domain.model.DesenlaceImpreso
 import com.example.msp_app.feature.visitas.domain.model.TicketDeVisita
 
 /**
@@ -25,23 +26,34 @@ import com.example.msp_app.feature.visitas.domain.model.TicketDeVisita
  * 1. **El mensaje ya no se elige a mano.** El `DropdownMenu` de tres cartas
  *    —"visita", "cliente moroso", "no pago"— no tenía ninguna relación con lo
  *    registrado: se podía dejar una carta de cobranza dura donde el cliente
- *    acababa de prometer pagar. Ahora el texto sale del desenlace que quedó
- *    escrito (`CargarTicketDeVisita`), así que el papel y la base no se
- *    contradicen.
+ *    acababa de prometer pagar. **Las tres cartas siguen siendo las mismas
+ *    palabras** (ver [DesenlaceImpreso]); lo que cambia es que ahora la escoge
+ *    el desenlace que quedó escrito (`CargarTicketDeVisita`), así que el papel
+ *    y la base no se contradicen.
  * 2. **La promesa y la cita se imprimen desde sus campos**, no desde la nota. El
  *    ticket viejo no las imprimía en absoluto porque no existían como dato.
  * 3. **El dinero nunca pasa por `Double`.** [Money] escala 2 por dentro,
  *    [formatMoneyMxn] (peso entero, HALF_UP) solo en el borde del papel. El
  *    ticket viejo usaba `Double.toCurrency(noDecimals = true)`, que redondea
  *    desde un flotante.
- * 4. **Ya no se inventa nada.** El viejo imprimía "SU COMPROMISO FUE DAR ABONOS
- *    SEMANALES DE $200.00" como literal, para todos los clientes por igual, y
- *    una "fecha de vencimiento" calculada como *fecha de venta + 1 año* sin
- *    ningún respaldo. Las dos se van: un papel con una cifra inventada es peor
- *    que un papel sin ella.
+ * 4. **Las cifras se leen, no se inventan.** El viejo imprimía "SU COMPROMISO
+ *    FUE DAR ABONOS SEMANALES DE $200.00" como literal, para todos los clientes
+ *    por igual; aquí esa línea sale de `CuentaImpresa.parcialidad`, la columna
+ *    real, y se omite cuando no hay una sola cuenta que la sostenga (ver
+ *    [agregaExhorto]). El bloque de números —vencimiento, total de compra,
+ *    pagos vencidos y sugerido para regularizarse— vuelve entero, pero cada
+ *    cifra **sale de su columna** y **ninguna se imprime en cero o sin dato**
+ *    (ver [agregaNumeros]). La "fecha de vencimiento" además queda
+ *    **acotada**: el viejo la estampaba en todas las ventas como *fecha de
+ *    venta + 1 año* sin nada que la respaldara, y aquí sale solo donde el
+ *    crédito sí corre a un año — la regla, con su porqué, vive en
+ *    `VencimientoDelCredito`.
  * 5. **Lenguaje visual del reporte de cobranza:** encabezado centrado, reglas de
  *    ancho completo, dos columnas con el importe a la derecha, bloques con
  *    rótulo. Y la marca de reimpresión ([ReprintMark]) arriba del todo.
+ *
+ * El "SALDO ACTUAL" del ticket viejo tampoco se perdió: es el bloque
+ * "SUS CUENTAS" con su renglón "Saldo total", que además desglosa por cuenta.
  *
  * Todo literal es ASCII: el fold del codepage **descarta** lo que no puede
  * imprimir, y un carácter descartado corre una línea ya centrada.
@@ -60,6 +72,31 @@ object TicketDeVisitaFormatter {
     private const val LABEL_HORA = "Hora"
     private const val LABEL_ATENDIO = "Visito"
     private const val SIN_HORA = "sin hora"
+
+    /** Primera línea del cierre de la carta 3; le sigue la cifra. */
+    private const val ABONOS = "SU COMPROMISO FUE DAR ABONOS SEMANALES DE"
+
+    /** Segunda línea del cierre de la carta 3, literal del ticket viejo. */
+    private const val EXHORTO = "SE LE EXHORTA A REGULARIZARSE PARA EVITAR PENALIZACIONES."
+
+    /** Rótulo del vencimiento, literal del ticket viejo; le sigue la fecha. */
+    private const val VENCIMIENTO = "SU FECHA DE VENCIMIENTO DE SU CREDITO ES EL DIA:"
+
+    /** Rótulo del precio de la compra, literal del ticket viejo. */
+    private const val TOTAL_DE_COMPRA = "TOTAL DE COMPRA:"
+
+    /** Rótulo del atraso, literal del ticket viejo. */
+    private const val PAGOS_VENCIDOS = "PAGOS VENCIDOS:"
+
+    /**
+     * Rótulo del sugerido. En el viejo venía partido a mano en dos líneas
+     * ("SUGERIDO PARA" / "REGULARIZARSE: $X"); aquí el corte lo hace el rollo.
+     */
+    private const val SUGERIDO = "SUGERIDO PARA REGULARIZARSE:"
+
+    /** Los desenlaces cuyas cartas llevaban el bloque de números en el viejo. */
+    private val CON_NUMEROS = setOf(DesenlaceImpreso.SE_NEGO, DesenlaceImpreso.VISITE_VUELVO)
+
     private const val SALTO = "\n"
     private const val PATRON_FECHA_LARGA = "dd/MM/yyyy HH:mm"
     private const val PATRON_FECHA_CORTA = "dd/MM/yyyy"
@@ -123,6 +160,87 @@ object TicketDeVisitaFormatter {
             if (indice > 0) add(TicketLine.Blank)
             TicketLayout.wrap(parrafo, ancho).forEach { add(TicketLine.Line(it)) }
         }
+        agregaExhorto(ticket, ancho)
+        agregaNumeros(ticket, ancho)
+    }
+
+    /**
+     * **El bloque de números que el ticket viejo imprimía bajo las cartas 2 y
+     * 3**, en su orden: vencimiento, total de compra, pagos vencidos y sugerido
+     * para regularizarse.
+     *
+     * ## Ninguna cifra se calcula aquí
+     *
+     * El vencimiento llega resuelto por `VencimientoDelCredito` (que es donde
+     * está escrito por qué un crédito de cuatro meses de corto plazo vence a un
+     * año) y el sugerido por `CuentaImpresa.sugeridoParaRegularizarse`. Este
+     * método solo decide **qué se pinta y qué se calla**.
+     *
+     * ## Las dos guardas, y por qué son las mismas de siempre
+     *
+     * 1. **Una sola cuenta.** Dos ventas del mismo cliente tienen su propio
+     *    precio, su propio atraso y su propia fecha de vencimiento; una cifra
+     *    suelta bajo dos folios mentiría sobre una de las dos. Es el mismo
+     *    criterio del abono por periodo ([agregaExhorto]). El cobrador llega
+     *    con una cuenta en la mano siempre que entró por una venta, que es el
+     *    caso en que este bloque sirve.
+     * 2. **Cero o ausente no se imprime.** "PAGOS VENCIDOS: 0" es ruido y
+     *    "TOTAL DE COMPRA: $0" es un dato falso. Mismo criterio que la promesa
+     *    sin monto: el renglón se omite entero en vez de estampar un cero.
+     *
+     * El "SALDO ACTUAL" del viejo no se repite aquí: es el bloque "SUS CUENTAS"
+     * con su renglón "Saldo total", que además desglosa por cuenta.
+     */
+    private fun MutableList<TicketLine>.agregaNumeros(ticket: TicketDeVisita, ancho: Int) {
+        if (ticket.desenlace !in CON_NUMEROS) return
+        val cuenta = ticket.cuentas.singleOrNull() ?: return
+
+        val renglones = buildList {
+            cuenta.vencimiento?.let {
+                add("$VENCIMIENTO ${AppTime.formatDate(it, PATRON_FECHA_CORTA)}")
+            }
+            cuenta.totalDeCompra.takeIf { it > Money.ZERO }?.let {
+                add("$TOTAL_DE_COMPRA ${dinero(it)}")
+            }
+            cuenta.pagosVencidos.takeIf { it > 0 }?.let { add("$PAGOS_VENCIDOS $it") }
+            cuenta.sugeridoParaRegularizarse?.let { add("$SUGERIDO ${dinero(it)}") }
+        }
+        if (renglones.isEmpty()) return
+
+        add(TicketLine.Blank)
+        renglones.forEach { renglon ->
+            TicketLayout.wrap(renglon, ancho).forEach { add(TicketLine.Line(it)) }
+        }
+    }
+
+    /**
+     * El cierre de la **carta 3 del ticket viejo** ("Ticket de no Pago"): el
+     * recordatorio del abono por periodo y el exhorto a regularizarse.
+     *
+     * Vive aquí y no en [DesenlaceImpreso] por una razón concreta: la primera
+     * línea lleva una cifra, y una cifra no cabe en un `enum`.
+     *
+     * **La cifra se lee, no se inventa.** El ticket viejo imprimía
+     * "SU COMPROMISO FUE DAR ABONOS SEMANALES DE $200.00" como literal, igual
+     * para todos; aquí sale de `CuentaImpresa.parcialidad`, la misma columna
+     * cruda que pinta `HojaDeAbono` en `:feature:pagos`. Y solo se imprime
+     * cuando el papel nombra **una sola** cuenta con parcialidad positiva: con
+     * dos cuentas "abonos semanales de $X" no dice de cuál es, y un `$0`
+     * significaría un compromiso de no pagar. Sin la cifra queda el exhorto,
+     * que se sostiene solo — es exactamente el mismo criterio que
+     * [agregaCompromiso] aplica a una promesa sin monto.
+     */
+    private fun MutableList<TicketLine>.agregaExhorto(ticket: TicketDeVisita, ancho: Int) {
+        if (ticket.desenlace != DesenlaceImpreso.VISITE_VUELVO) return
+        add(TicketLine.Blank)
+        ticket.cuentas.singleOrNull()
+            ?.parcialidad
+            ?.takeIf { it > Money.ZERO }
+            ?.let { parcialidad ->
+                TicketLayout.wrap("$ABONOS ${dinero(parcialidad)}", ancho)
+                    .forEach { add(TicketLine.Line(it)) }
+            }
+        TicketLayout.wrap(EXHORTO, ancho).forEach { add(TicketLine.Line(it)) }
     }
 
     /**
