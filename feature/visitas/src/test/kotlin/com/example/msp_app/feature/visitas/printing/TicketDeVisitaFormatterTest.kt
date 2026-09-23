@@ -23,9 +23,10 @@ import org.junit.Test
  *    la carta de cobranza dura donde el cliente acababa de prometer pagar.
  *  - **el compromiso se imprime desde sus campos**, no desde la nota.
  *  - **las tres cartas del ticket viejo vuelven literales** y cada una cae en
- *    su desenlace. Las cifras que aquel inventaba no vuelven con ellas: el
- *    abono por periodo sale de la cuenta y el vencimiento solo donde
- *    `VencimientoDelCredito` puede afirmarlo.
+ *    su desenlace.
+ *  - **ninguna cifra se estampa sin el dato que la sostiene.** El bloque de
+ *    números del viejo vuelve entero, pero cada línea sale de su columna y se
+ *    calla en cero, sin dato o con más de una cuenta en el papel.
  */
 class TicketDeVisitaFormatterTest {
 
@@ -217,18 +218,162 @@ class TicketDeVisitaFormatterTest {
         assertTrue(papel.contains("SE LE EXHORTA A REGULARIZARSE"))
     }
 
+    /**
+     * **Sucesora de `las cifras que el ticket viejo inventaba NO vuelven al
+     * papel`**, que se quedó sin nada que vigilar: las cuatro cifras del bloque
+     * tienen hoy su columna —`PRECIO_TOTAL`, `NUM_PAGOS_ATRASADOS`, la
+     * parcialidad y la regla de `VencimientoDelCredito`—, así que ninguna está
+     * prohibida por sí misma y una lista de rótulos vetados sería cobertura de
+     * adorno.
+     *
+     * Lo que sigue necesitando guardia es **el otro lado de la misma moneda**:
+     * que ninguna cifra se estampe sin el dato que la sostiene. Una cuenta que
+     * no tiene nada que decir no puede producir un papel con cifras.
+     */
     @Test
-    fun `las cifras que el ticket viejo inventaba NO vuelven al papel`() {
-        // El total de compra, los pagos vencidos y el sugerido para
-        // regularizarse siguen fuera: este módulo no los lee. El vencimiento ya
-        // NO está en esta lista — vuelve acotado por `VencimientoDelCredito`, y
-        // sus bordes los cuidan las cuatro pruebas de abajo.
-        DesenlaceImpreso.entries.forEach { desenlace ->
-            val papel = corrido(texto(TicketDeVisitaFixtures.ticket(desenlace = desenlace)))
+    fun `sin datos que las sostengan, ninguna cifra del bloque sale al papel`() {
+        val papel = corrido(
+            texto(
+                TicketDeVisitaFixtures.ticket(
+                    desenlace = DesenlaceImpreso.SE_NEGO,
+                    cuentas = TicketDeVisitaFixtures.unaCuenta(
+                        parcialidad = Money.ZERO,
+                        vencimiento = null,
+                        totalDeCompra = Money.ZERO,
+                        pagosVencidos = 0
+                    )
+                )
+            )
+        )
+
+        assertFalse(papel.contains("SU FECHA DE VENCIMIENTO"))
+        assertFalse(papel.contains("TOTAL DE COMPRA"))
+        assertFalse(papel.contains("PAGOS VENCIDOS"))
+        assertFalse(papel.contains("SUGERIDO PARA"))
+        assertFalse(papel.contains("ABONOS SEMANALES"))
+        assertFalse(papel.contains("$0"))
+        // Control positivo: la carta sí se imprimió, así que el papel existe y
+        // la ausencia de las cifras significa algo.
+        assertTrue(papel.contains("NO HEMOS TENIDO UNA RESPUESTA FAVORABLE"))
+    }
+
+    @Test
+    fun `el bloque de numeros sale completo cuando la cuenta lo sostiene`() {
+        // Cartas 2 y 3 del ticket viejo, en su orden: vencimiento, total de
+        // compra, pagos vencidos y sugerido. El sugerido son 3 x $220.
+        listOf(DesenlaceImpreso.SE_NEGO, DesenlaceImpreso.VISITE_VUELVO).forEach { desenlace ->
+            val papel = corrido(
+                texto(
+                    TicketDeVisitaFixtures.ticket(
+                        desenlace = desenlace,
+                        cuentas = TicketDeVisitaFixtures.unaCuenta()
+                    )
+                )
+            )
+
+            assertTrue(desenlace.name, papel.contains("TOTAL DE COMPRA: $8,400"))
+            assertTrue(desenlace.name, papel.contains("PAGOS VENCIDOS: 3"))
+            assertTrue(desenlace.name, papel.contains("SUGERIDO PARA REGULARIZARSE: $660"))
+        }
+    }
+
+    @Test
+    fun `un total de compra en cero NO se imprime`() {
+        // "TOTAL DE COMPRA: $0" es un dato falso, no un dato vacío.
+        val papel = corrido(
+            texto(
+                TicketDeVisitaFixtures.ticket(
+                    desenlace = DesenlaceImpreso.SE_NEGO,
+                    cuentas = TicketDeVisitaFixtures.unaCuenta(totalDeCompra = Money.ZERO)
+                )
+            )
+        )
+
+        assertFalse(papel.contains("TOTAL DE COMPRA"))
+        // Control positivo: el resto del bloque sí salió.
+        assertTrue(papel.contains("PAGOS VENCIDOS: 3"))
+        assertTrue(papel.contains("SUGERIDO PARA REGULARIZARSE: $660"))
+    }
+
+    @Test
+    fun `sin pagos vencidos no se imprime ni el atraso ni el sugerido`() {
+        // Una cuenta al corriente no tiene atraso que reportar, y sin atraso no
+        // hay nada que regularizar: las dos líneas se van juntas.
+        val papel = corrido(
+            texto(
+                TicketDeVisitaFixtures.ticket(
+                    desenlace = DesenlaceImpreso.SE_NEGO,
+                    cuentas = TicketDeVisitaFixtures.unaCuenta(pagosVencidos = 0)
+                )
+            )
+        )
+
+        assertFalse(papel.contains("PAGOS VENCIDOS"))
+        assertFalse(papel.contains("SUGERIDO PARA"))
+        // Control positivo: las otras dos cifras del bloque sí salieron.
+        assertTrue(papel.contains("TOTAL DE COMPRA: $8,400"))
+        assertTrue(papel.contains("SU FECHA DE VENCIMIENTO DE SU CREDITO ES EL DIA: 14/03/2027"))
+    }
+
+    @Test
+    fun `el sugerido falta si falta cualquiera de sus dos entradas`() {
+        val sinParcialidad = corrido(
+            texto(
+                TicketDeVisitaFixtures.ticket(
+                    desenlace = DesenlaceImpreso.SE_NEGO,
+                    cuentas = TicketDeVisitaFixtures.unaCuenta(parcialidad = Money.ZERO)
+                )
+            )
+        )
+        val sinAtraso = corrido(
+            texto(
+                TicketDeVisitaFixtures.ticket(
+                    desenlace = DesenlaceImpreso.SE_NEGO,
+                    cuentas = TicketDeVisitaFixtures.unaCuenta(pagosVencidos = 0)
+                )
+            )
+        )
+
+        assertFalse(sinParcialidad.contains("SUGERIDO PARA"))
+        assertFalse(sinAtraso.contains("SUGERIDO PARA"))
+        // Control positivo en cada uno: la otra entrada sí se imprimió sola.
+        assertTrue(sinParcialidad.contains("PAGOS VENCIDOS: 3"))
+        assertTrue(sinAtraso.contains("TOTAL DE COMPRA: $8,400"))
+    }
+
+    @Test
+    fun `con dos cuentas ninguna cifra del bloque sale`() {
+        // Cada venta tiene su precio, su atraso y su fecha; una cifra suelta
+        // bajo dos folios mentiría sobre una de las dos.
+        val papel = corrido(texto(TicketDeVisitaFixtures.ticket(DesenlaceImpreso.SE_NEGO)))
+
+        assertFalse(papel.contains("TOTAL DE COMPRA"))
+        assertFalse(papel.contains("PAGOS VENCIDOS"))
+        assertFalse(papel.contains("SUGERIDO PARA"))
+        assertTrue(papel.contains("NO HEMOS TENIDO UNA RESPUESTA FAVORABLE"))
+    }
+
+    @Test
+    fun `los desenlaces sin bloque de numeros no imprimen ninguna cifra`() {
+        listOf(
+            DesenlaceImpreso.NO_ESTABA,
+            DesenlaceImpreso.PROMETIO,
+            DesenlaceImpreso.CITA
+        ).forEach { desenlace ->
+            val papel = corrido(
+                texto(
+                    TicketDeVisitaFixtures.ticket(
+                        desenlace = desenlace,
+                        cuentas = TicketDeVisitaFixtures.unaCuenta()
+                    )
+                )
+            )
 
             assertFalse(desenlace.name, papel.contains("TOTAL DE COMPRA"))
             assertFalse(desenlace.name, papel.contains("PAGOS VENCIDOS"))
             assertFalse(desenlace.name, papel.contains("SUGERIDO PARA"))
+            // Control positivo: el papel de ese desenlace sí se imprimió.
+            assertTrue(desenlace.name, papel.contains(desenlace.titulo))
         }
     }
 

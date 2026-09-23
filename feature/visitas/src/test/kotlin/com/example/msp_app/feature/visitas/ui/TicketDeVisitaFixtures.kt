@@ -64,33 +64,41 @@ object TicketDeVisitaFixtures {
             folio = "V-5021",
             saldo = dinero("2100"),
             parcialidad = dinero("220"),
-            vencimiento = VENCIMIENTO
+            vencimiento = VENCIMIENTO,
+            totalDeCompra = dinero("8400"),
+            pagosVencidos = 3
         ),
         CuentaImpresa(
             folio = "V-5188",
             saldo = dinero("1450"),
             parcialidad = dinero("150"),
-            // Otra fecha a propósito: dos cuentas del mismo cliente pueden
-            // vencer en días distintos, que es justo por lo que el papel no
-            // imprime el vencimiento cuando lista más de una.
-            vencimiento = LocalDate.of(2027, 7, 2)
+            // Todo distinto a propósito: dos cuentas del mismo cliente tienen su
+            // propia fecha, su propio precio y su propio atraso, que es justo
+            // por lo que el papel calla el bloque cuando lista más de una.
+            vencimiento = LocalDate.of(2027, 7, 2),
+            totalDeCompra = dinero("5200"),
+            pagosVencidos = 1
         )
     )
 
     /**
      * Una sola cuenta, que es como llega el papel cuando la visita entró por una
      * venta. Es el único caso en que las cartas viejas pueden nombrar el abono
-     * por periodo y el vencimiento sin ambigüedad.
+     * por periodo y el bloque de números sin ambigüedad.
      */
     fun unaCuenta(
         parcialidad: Money = dinero("220"),
-        vencimiento: LocalDate? = VENCIMIENTO
+        vencimiento: LocalDate? = VENCIMIENTO,
+        totalDeCompra: Money = dinero("8400"),
+        pagosVencidos: Int = 3
     ): List<CuentaImpresa> = listOf(
         CuentaImpresa(
             folio = "V-5021",
             saldo = dinero("2100"),
             parcialidad = parcialidad,
-            vencimiento = vencimiento
+            vencimiento = vencimiento,
+            totalDeCompra = totalDeCompra,
+            pagosVencidos = pagosVencidos
         )
     )
 

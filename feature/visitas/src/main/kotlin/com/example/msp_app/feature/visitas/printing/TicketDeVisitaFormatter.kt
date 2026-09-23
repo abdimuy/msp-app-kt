@@ -40,12 +40,14 @@ import com.example.msp_app.feature.visitas.domain.model.TicketDeVisita
  *    FUE DAR ABONOS SEMANALES DE $200.00" como literal, para todos los clientes
  *    por igual; aquí esa línea sale de `CuentaImpresa.parcialidad`, la columna
  *    real, y se omite cuando no hay una sola cuenta que la sostenga (ver
- *    [agregaExhorto]). La "fecha de vencimiento" vuelve **acotada**: el viejo
- *    la imprimía para todas las ventas como *fecha de venta + 1 año*, sin nada
- *    que la respaldara; aquí sale solo donde el crédito sí corre a un año, y la
- *    regla —con su porqué— vive en `VencimientoDelCredito`. No vuelven "TOTAL
- *    DE COMPRA", "PAGOS VENCIDOS" ni "SUGERIDO PARA REGULARIZARSE": un papel
- *    con una cifra inventada es peor que un papel sin ella.
+ *    [agregaExhorto]). El bloque de números —vencimiento, total de compra,
+ *    pagos vencidos y sugerido para regularizarse— vuelve entero, pero cada
+ *    cifra **sale de su columna** y **ninguna se imprime en cero o sin dato**
+ *    (ver [agregaNumeros]). La "fecha de vencimiento" además queda
+ *    **acotada**: el viejo la estampaba en todas las ventas como *fecha de
+ *    venta + 1 año* sin nada que la respaldara, y aquí sale solo donde el
+ *    crédito sí corre a un año — la regla, con su porqué, vive en
+ *    `VencimientoDelCredito`.
  * 5. **Lenguaje visual del reporte de cobranza:** encabezado centrado, reglas de
  *    ancho completo, dos columnas con el importe a la derecha, bloques con
  *    rótulo. Y la marca de reimpresión ([ReprintMark]) arriba del todo.
@@ -80,8 +82,20 @@ object TicketDeVisitaFormatter {
     /** Rótulo del vencimiento, literal del ticket viejo; le sigue la fecha. */
     private const val VENCIMIENTO = "SU FECHA DE VENCIMIENTO DE SU CREDITO ES EL DIA:"
 
+    /** Rótulo del precio de la compra, literal del ticket viejo. */
+    private const val TOTAL_DE_COMPRA = "TOTAL DE COMPRA:"
+
+    /** Rótulo del atraso, literal del ticket viejo. */
+    private const val PAGOS_VENCIDOS = "PAGOS VENCIDOS:"
+
+    /**
+     * Rótulo del sugerido. En el viejo venía partido a mano en dos líneas
+     * ("SUGERIDO PARA" / "REGULARIZARSE: $X"); aquí el corte lo hace el rollo.
+     */
+    private const val SUGERIDO = "SUGERIDO PARA REGULARIZARSE:"
+
     /** Los desenlaces cuyas cartas llevaban el bloque de números en el viejo. */
-    private val CON_VENCIMIENTO = setOf(DesenlaceImpreso.SE_NEGO, DesenlaceImpreso.VISITE_VUELVO)
+    private val CON_NUMEROS = setOf(DesenlaceImpreso.SE_NEGO, DesenlaceImpreso.VISITE_VUELVO)
 
     private const val SALTO = "\n"
     private const val PATRON_FECHA_LARGA = "dd/MM/yyyy HH:mm"
@@ -147,31 +161,56 @@ object TicketDeVisitaFormatter {
             TicketLayout.wrap(parrafo, ancho).forEach { add(TicketLine.Line(it)) }
         }
         agregaExhorto(ticket, ancho)
-        agregaVencimiento(ticket, ancho)
+        agregaNumeros(ticket, ancho)
     }
 
     /**
-     * La línea "SU FECHA DE VENCIMIENTO DE SU CREDITO ES EL DIA: ...", del
-     * bloque de números que el ticket viejo imprimía bajo las cartas 2 y 3.
+     * **El bloque de números que el ticket viejo imprimía bajo las cartas 2 y
+     * 3**, en su orden: vencimiento, total de compra, pagos vencidos y sugerido
+     * para regularizarse.
      *
-     * **La fecha no se calcula aquí**: llega resuelta en
-     * `CuentaImpresa.vencimiento` por `VencimientoDelCredito`, que es donde
-     * está escrito por qué un crédito de cuatro meses de corto plazo sí vence a
-     * un año y por qué fuera de ese caso no se afirma nada. `null` = no se
-     * puede afirmar, y entonces la línea no sale.
+     * ## Ninguna cifra se calcula aquí
      *
-     * Y **solo con una cuenta en el papel**, por el mismo motivo que el abono
-     * por periodo: dos ventas pueden vencer en fechas distintas, y una sola
-     * fecha suelta bajo dos folios mentiría sobre una de las dos. El cobrador
-     * llega a este papel con una cuenta en la mano siempre que entró por una
-     * venta, que es el caso en que esta línea sirve.
+     * El vencimiento llega resuelto por `VencimientoDelCredito` (que es donde
+     * está escrito por qué un crédito de cuatro meses de corto plazo vence a un
+     * año) y el sugerido por `CuentaImpresa.sugeridoParaRegularizarse`. Este
+     * método solo decide **qué se pinta y qué se calla**.
+     *
+     * ## Las dos guardas, y por qué son las mismas de siempre
+     *
+     * 1. **Una sola cuenta.** Dos ventas del mismo cliente tienen su propio
+     *    precio, su propio atraso y su propia fecha de vencimiento; una cifra
+     *    suelta bajo dos folios mentiría sobre una de las dos. Es el mismo
+     *    criterio del abono por periodo ([agregaExhorto]). El cobrador llega
+     *    con una cuenta en la mano siempre que entró por una venta, que es el
+     *    caso en que este bloque sirve.
+     * 2. **Cero o ausente no se imprime.** "PAGOS VENCIDOS: 0" es ruido y
+     *    "TOTAL DE COMPRA: $0" es un dato falso. Mismo criterio que la promesa
+     *    sin monto: el renglón se omite entero en vez de estampar un cero.
+     *
+     * El "SALDO ACTUAL" del viejo no se repite aquí: es el bloque "SUS CUENTAS"
+     * con su renglón "Saldo total", que además desglosa por cuenta.
      */
-    private fun MutableList<TicketLine>.agregaVencimiento(ticket: TicketDeVisita, ancho: Int) {
-        if (ticket.desenlace !in CON_VENCIMIENTO) return
-        val vencimiento = ticket.cuentas.singleOrNull()?.vencimiento ?: return
+    private fun MutableList<TicketLine>.agregaNumeros(ticket: TicketDeVisita, ancho: Int) {
+        if (ticket.desenlace !in CON_NUMEROS) return
+        val cuenta = ticket.cuentas.singleOrNull() ?: return
+
+        val renglones = buildList {
+            cuenta.vencimiento?.let {
+                add("$VENCIMIENTO ${AppTime.formatDate(it, PATRON_FECHA_CORTA)}")
+            }
+            cuenta.totalDeCompra.takeIf { it > Money.ZERO }?.let {
+                add("$TOTAL_DE_COMPRA ${dinero(it)}")
+            }
+            cuenta.pagosVencidos.takeIf { it > 0 }?.let { add("$PAGOS_VENCIDOS $it") }
+            cuenta.sugeridoParaRegularizarse?.let { add("$SUGERIDO ${dinero(it)}") }
+        }
+        if (renglones.isEmpty()) return
+
         add(TicketLine.Blank)
-        val fecha = AppTime.formatDate(vencimiento, PATRON_FECHA_CORTA)
-        TicketLayout.wrap("$VENCIMIENTO $fecha", ancho).forEach { add(TicketLine.Line(it)) }
+        renglones.forEach { renglon ->
+            TicketLayout.wrap(renglon, ancho).forEach { add(TicketLine.Line(it)) }
+        }
     }
 
     /**

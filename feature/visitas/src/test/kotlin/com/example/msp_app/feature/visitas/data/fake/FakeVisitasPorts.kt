@@ -65,7 +65,9 @@ object VisitasFixtures {
             fechaVenta = FECHA_DE_LA_SALA,
             // Cuatro meses de corto plazo: el único caso con vencimiento
             // conocido, ver `VencimientoDelCredito`.
-            plazoMeses = VencimientoDelCredito.PLAZO_CON_VENCIMIENTO_CONOCIDO
+            plazoMeses = VencimientoDelCredito.PLAZO_CON_VENCIMIENTO_CONOCIDO,
+            totalDeCompra = dinero("8400"),
+            pagosVencidos = 3
         ),
         VentaParaVisitar(
             ventaId = REFRIGERADOR,
@@ -74,7 +76,10 @@ object VisitasFixtures {
             saldo = dinero("1450"),
             parcialidad = dinero("220"),
             fechaVenta = LocalDate.of(2026, 7, 2),
-            plazoMeses = 8
+            plazoMeses = 8,
+            totalDeCompra = dinero("5200"),
+            // Al corriente: `overdue_payments_view` no tiene fila para ella.
+            pagosVencidos = 0
         )
     )
 

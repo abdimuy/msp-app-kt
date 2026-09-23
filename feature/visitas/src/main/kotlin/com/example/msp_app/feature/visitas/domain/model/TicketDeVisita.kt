@@ -1,6 +1,7 @@
 package com.example.msp_app.feature.visitas.domain.model
 
 import com.example.msp_app.core.common.money.Money
+import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -70,8 +71,33 @@ data class CuentaImpresa(
     val folio: String,
     val saldo: Money,
     val parcialidad: Money,
-    val vencimiento: LocalDate?
-)
+    val vencimiento: LocalDate?,
+    /** `PRECIO_TOTAL`: lo que costó la compra, no lo que falta por pagar. */
+    val totalDeCompra: Money,
+    /** `NUM_PAGOS_ATRASADOS`; cero cuando la cuenta no está atrasada. */
+    val pagosVencidos: Int
+) {
+    /**
+     * **"SUGERIDO PARA REGULARIZARSE"**: lo que habría que dar para ponerse al
+     * corriente, que es [pagosVencidos] × [parcialidad] — la misma
+     * multiplicación que hacía el ticket viejo.
+     *
+     * Es `null` —y entonces el papel calla— **en cuanto falta cualquiera de las
+     * dos entradas**. Sin atraso no hay nada que regularizar; sin parcialidad el
+     * producto sería `$0`, que en un papel de cobranza se lee como "no tiene que
+     * dar nada". Son dos mentiras distintas y ninguna se imprime.
+     *
+     * La multiplicación va sobre el [java.math.BigDecimal] de [Money], nunca
+     * sobre un `Double`: el viejo calculaba `lost * sale.PARCIALIDAD` en coma
+     * flotante y redondeaba al final.
+     */
+    val sugeridoParaRegularizarse: Money?
+        get() {
+            if (pagosVencidos <= 0 || parcialidad <= Money.ZERO) return null
+            val veces = BigDecimal.valueOf(pagosVencidos.toLong())
+            return Money.of(parcialidad.amount.multiply(veces))
+        }
+}
 
 /** El compromiso que el cliente hizo: cuándo y —si lo dijo— cuánto. */
 data class PromesaImpresa(val fecha: LocalDate, val monto: Money?)

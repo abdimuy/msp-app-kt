@@ -87,7 +87,9 @@ class CargarTicketDeVisita @Inject constructor(
                 folio = it.folio,
                 saldo = it.saldo,
                 parcialidad = it.parcialidad,
-                vencimiento = VencimientoDelCredito.de(it.fechaVenta, it.plazoMeses)
+                vencimiento = VencimientoDelCredito.de(it.fechaVenta, it.plazoMeses),
+                totalDeCompra = it.totalDeCompra,
+                pagosVencidos = it.pagosVencidos
             )
         }
     }

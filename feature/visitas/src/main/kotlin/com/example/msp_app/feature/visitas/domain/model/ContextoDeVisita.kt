@@ -66,7 +66,22 @@ data class VentaParaVisitar(
      * `TIEMPO_A_CORTO_PLAZOMESES` crudo. **Se lee, no se interpreta**: quién
      * decide qué significa cada valor es [VencimientoDelCredito].
      */
-    val plazoMeses: Int
+    val plazoMeses: Int,
+    /**
+     * `PRECIO_TOTAL` — lo que **costó** la compra, que no es lo que falta por
+     * pagar. Eso último es [saldo]; son dos cifras distintas y el papel las
+     * nombra por separado, igual que las nombraba el ticket viejo.
+     */
+    val totalDeCompra: Money,
+    /**
+     * `NUM_PAGOS_ATRASADOS` de `overdue_payments_view`, que
+     * `SaleDao.getByClientId` ya trae con su `LEFT JOIN`.
+     *
+     * **Cero cuando la vista no tiene fila para la cuenta**: ahí no hay atraso
+     * que reportar. El papel no distingue ese cero del cero literal porque en
+     * los dos casos no imprime nada.
+     */
+    val pagosVencidos: Int
 ) {
     /**
      * Cómo se llama esta cuenta **para el cobrador**: el producto.
