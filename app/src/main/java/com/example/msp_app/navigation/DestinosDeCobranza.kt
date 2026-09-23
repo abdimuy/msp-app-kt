@@ -5,6 +5,7 @@ import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
+import com.example.msp_app.features.home.components.homenearbyclientssection.NearbyClient
 import com.example.msp_app.features.sales.SaleIdSpaces
 
 /**
@@ -42,6 +43,18 @@ object DestinosDeCobranza {
      * (`DOCTO_CC_ACR_ID`), así que no hay nada que elegir.
      */
     fun ventaDeUnPago(payment: Payment): String = PagosRutas.detalleVenta(payment.DOCTO_CC_ACR_ID)
+
+    /**
+     * Una fila de la **lista de clientes cercanos** de la pantalla principal →
+     * **el cliente**.
+     *
+     * Es la regla de la lista, sin excepción: se entra a la persona, no a una de
+     * sus cuentas. La fila ya viene colapsada por cliente
+     * (`nearbyClientsFrom`), así que acá no hay nada que elegir — y por eso no
+     * existe una variante que lleve a la venta más cercana: sería la regla del
+     * origen diciendo dos cosas distintas en la misma lista.
+     */
+    fun clienteCercano(cliente: NearbyClient): String = PagosRutas.detalleCliente(cliente.clientId)
 
     /**
      * El **cliente** de un pago — el "ver cliente" del menú, que es como se

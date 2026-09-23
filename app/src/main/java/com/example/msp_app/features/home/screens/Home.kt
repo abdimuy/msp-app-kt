@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -47,13 +48,18 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
+import com.example.msp_app.core.utils.Coord
+import com.example.msp_app.core.utils.CurrentLocationReader
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
+import com.example.msp_app.data.models.payment.PaymentLocationsGroup
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.features.guarantees.screens.viewmodels.GuaranteesViewModel
 import com.example.msp_app.features.home.components.homefootersection.HomeFooterSection
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
+import com.example.msp_app.features.home.components.homenearbyclientssection.HomeNearbyClientsSection
+import com.example.msp_app.features.home.components.homenearbyclientssection.nearbyClientsFrom
 import com.example.msp_app.features.home.components.homestartweeksection.HomeStartWeekSection
 import com.example.msp_app.features.home.components.homesummary.HomeSummarySection
 import com.example.msp_app.features.home.components.homeweeklypaymentssection.HomeWeeklyPaymentsSection
@@ -79,6 +85,7 @@ fun HomeScreen(navController: NavController) {
     val isDark = ThemeController.isDarkMode
     val listState = rememberLazyListState()
     val primary = MaterialTheme.colorScheme.primary
+    val context = LocalContext.current
 
     val authViewModel = LocalAuthViewModel.current
     val userDataState by authViewModel.userData.collectAsState()
@@ -99,6 +106,8 @@ fun HomeScreen(navController: NavController) {
 
     val guaranteesViewModel: GuaranteesViewModel = viewModel()
 
+    val centroidsBySaleState by paymentsViewModel.centroidsBySaleState.collectAsState()
+
     val updateStartOfWeekDateState by authViewModel.updateStartOfWeekDateState.collectAsState()
 
     var showPaymentsDialog by remember { mutableStateOf(false) }
@@ -106,6 +115,12 @@ fun HomeScreen(navController: NavController) {
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+
+    // Dónde está parado el cobrador AHORA. `null` mientras no se sepa —y se
+    // queda en `null` para siempre si dijo que no al permiso o si el proveedor
+    // no da fix—, que es justo lo que `nearbyClientsFrom` traduce a "no pintes
+    // la lista".
+    var currentPosition by remember { mutableStateOf<Coord?>(null) }
 
     var showUpdateDialog by remember { mutableStateOf(false) }
     var dialogTitle by remember { mutableStateOf("") }
@@ -131,6 +146,7 @@ fun HomeScreen(navController: NavController) {
 
             is ResultState.Success -> {
                 salesViewModel.getLocalSales()
+                paymentsViewModel.getCentroidsBySale()
                 visitsViewModel.getPendingVisits()
                 startWeekDate?.let {
                     paymentsViewModel.getPaymentsGroupedByDayWeekly(it)
@@ -142,21 +158,34 @@ fun HomeScreen(navController: NavController) {
         }
     }
 
-    // **La petición de permiso se queda aunque la lista de cercanas se haya ido**
-    // (Task 21). Home es el ÚNICO lugar de la app que pide
+    // **La petición de permiso se queda pase lo que pase con la lista de
+    // cercanos** (Task 21). Home es el ÚNICO lugar de la app que pide
     // `ACCESS_FINE_LOCATION` al arrancar; el resto —`UpdateLocationService`, el
-    // adaptador de ubicación de la visita, el pago— solo lo *usa*. Quitarla con
-    // el bloque de cercanas habría dejado a los cobradores nuevos sin
+    // adaptador de ubicación de la visita, el pago— solo lo *usa*. Quitarla
+    // junto con el bloque de cercanas habría dejado a los cobradores nuevos sin
     // coordenadas en pagos y visitas, en silencio, hasta que abrieran un mapa.
-    // Lo que sí se fue es el `LocationTracker.locationUpdates()` continuo: su
-    // único consumidor era el orden por cercanía.
+    //
+    // **La lista de cercanos vuelve, pero NO vuelve el flujo continuo.** El
+    // `LocationTracker.locationUpdates()` que alimentaba esta pantalla pedía un
+    // fix de alta precisión cada 2 s —en un teléfono que anda en la calle todo
+    // el día— sólo para reordenar diez renglones. Acá se lee la ubicación UNA
+    // vez, al abrir y al conceder el permiso, con `CurrentLocationReader`.
+    // `LocationTracker` sigue vivo para su consumidor legítimo: el mapa en vivo
+    // de `SaleLocationMap`, donde el flujo sí se justifica.
+    //
+    // Si el cobrador dice que no, o el proveedor no da fix, `current()` devuelve
+    // `null` y `currentPosition` se queda como estaba: no hay excepción, no hay
+    // estado de carga colgado y el resto de la pantalla no se entera.
     LaunchedEffect(permissionState.status.isGranted) {
         if (!permissionState.status.isGranted) {
             permissionState.launchPermissionRequest()
+            return@LaunchedEffect
         }
+        currentPosition = CurrentLocationReader(context).current()
     }
 
     LaunchedEffect(Unit) {
+        paymentsViewModel.getCentroidsBySale()
         visitsViewModel.getPendingVisits()
         paymentsViewModel.getPendingPayments()
         guaranteesViewModel.syncPendingGuarantees()
@@ -248,6 +277,19 @@ fun HomeScreen(navController: NavController) {
     val accountsPercentageRounded =
         String.format(Locale.getDefault(), "%.2f", accountsPercentage) + "%"
 
+    // Las puertas más cercanas. Se recalcula sólo cuando cambia alguno de los
+    // tres insumos, no en cada recomposición: ordenar y colapsar cuesta poco,
+    // pero la pantalla principal recompone seguido.
+    val nearbyClients = remember(currentPosition, centroidsBySaleState, salesState) {
+        nearbyClientsFrom(
+            position = currentPosition,
+            centroidsBySale = (
+                centroidsBySaleState as? ResultState.Success<List<PaymentLocationsGroup>>
+                )?.data.orEmpty(),
+            sales = (salesState as? ResultState.Success<List<SaleWithProducts>>)?.data.orEmpty()
+        )
+    }
+
     val dateInitWeek = userData?.FECHA_CARGA_INICIAL?.toDate()?.toInstant()
         ?.let { AppTime.toBusinessDate(it).toString() }
         ?: ""
@@ -316,6 +358,22 @@ fun HomeScreen(navController: NavController) {
                         HomeStartWeekSection(
                             startDate = startDate,
                             isDark = isDark
+                        )
+                    }
+
+                    item {
+                        // Vuelve al mismo lugar donde estuvo hasta el
+                        // `d76d8f69`: después del inicio de semana y antes del
+                        // pie. Con la lista vacía no ocupa nada, así que el pie
+                        // sube solo y no queda un hueco.
+                        HomeNearbyClientsSection(
+                            clients = nearbyClients,
+                            isDark = isDark,
+                            onClientClick = { client ->
+                                navController.navigate(
+                                    DestinosDeCobranza.clienteCercano(client)
+                                )
+                            }
                         )
                     }
 
