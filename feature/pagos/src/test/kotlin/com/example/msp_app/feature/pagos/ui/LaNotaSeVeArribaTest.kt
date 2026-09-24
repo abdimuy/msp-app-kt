@@ -292,6 +292,89 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
     }
 
     /**
+     * **A escala MUY GRANDE el indicador no le quita ancho al rótulo.**
+     *
+     * Este test existe porque **el golden encontró el defecto y ninguna prueba
+     * lo encontró**. Al mover el *"Ver más"* al renglón del rótulo —para que no
+     * costara dp— a 2.0 le quitaba ~90 dp de ancho al `FlowRow`, y
+     * `pagos_cliente_light_2_0` enseñaba **"LO QUE ANOTA"**: la palabra
+     * *"ANOTASTE"* cortada a la mitad. Una palabra no tiene dónde quebrarse, así
+     * que ningún `maxLines` ni ninguna elipsis lo arreglan: hay que devolverle el
+     * ancho, y por eso a las escalas grandes el indicador baja bajo el párrafo.
+     *
+     * ## Por qué se mide el ANCHO DEL HUECO y no "si se recortó"
+     *
+     * Porque "se recortó" no es observable desde semantics: el nodo sigue
+     * diciendo su texto completo aunque se pinte a la mitad, y sus bordes son
+     * los del hueco, no los de las letras. Lo que sí es observable —y es la
+     * causa, no el síntoma— es que el hueco **encoja** cuando aparece el
+     * indicador. Con la nota corta no hay indicador y con la larga sí, así que
+     * la misma pantalla medida dos veces da el control positivo sola.
+     *
+     * [GraphicsMode.Mode.NATIVE] es obligatorio: sin métricas reales el rótulo
+     * mide 8 dp, todo cabe en todas partes y esto daría verde contra el código
+     * roto — la misma trampa que ya documenta el test de arriba.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `a escala MUY GRANDE el indicador no le quita ancho al rotulo`() {
+        // La nota del fixture **también** se recorta a 2.0, así que no sirve de
+        // control: con ella el indicador está puesto en los dos lados de la
+        // comparación y la diferencia da cero pase lo que pase. Se midió: el
+        // primer intento de este test daba verde contra el layout roto por
+        // exactamente eso. El estado "sin indicador" necesita una nota que a 2.0
+        // quepa de verdad, y [NOTA_QUE_SIEMPRE_CABE] es esa.
+        cliente(
+            ficha = PagosFixtures.fichaDelCliente().copy(nota = NOTA_QUE_SIEMPRE_CABE),
+            nivel = FontSizeLevel.MUY_GRANDE
+        )
+        assertEquals(
+            "el control no controla: la nota corta también ofreció desplegarse",
+            0,
+            composeTestRule.onAllNodesWithTag(ALTERNAR_LA_NOTA_TAG).fetchSemanticsNodes().size
+        )
+        val sinIndicador = anchoDelRotulo()
+
+        fichaEnPantalla.value = PagosFixtures.fichaDelCliente().copy(nota = NOTA_LARGA)
+        composeTestRule.waitForIdle()
+
+        assertEquals(
+            "el rótulo tenía " + sinIndicador + " de ancho y con la nota larga tiene " +
+                anchoDelRotulo() + ": el indicador se lo comió y \"ANOTASTE\" se corta",
+            sinIndicador,
+            anchoDelRotulo()
+        )
+    }
+
+    /**
+     * El otro lado de la misma regla, y lo que la hace valer la pena: **a escala
+     * nominal el indicador SÍ va en el renglón del rótulo**, que es donde no
+     * cuesta un dp porque el botón ya fija los 50.
+     *
+     * Se afirma por geometría —el indicador termina antes de que empiece el
+     * párrafo— y no por un `testTag` de posición, que sería afirmar la
+     * implementación en vez del efecto. Si alguien lo devuelve abajo del
+     * párrafo para "que se lea mejor", esto se pone rojo y hay que volver a
+     * medir el dinero antes de decidirlo.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `a escala nominal el indicador va en el renglon del rotulo`() {
+        cliente(ficha = PagosFixtures.fichaDelCliente().copy(nota = NOTA_LARGA))
+
+        val indicador = composeTestRule
+            .onNodeWithTag(INDICADOR_DE_LA_NOTA_TAG, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        val texto = composeTestRule.onNodeWithTag(TEXTO_DE_LA_NOTA_TAG, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        assertTrue(
+            "el indicador va de " + indicador.top + " a " + indicador.bottom +
+                " y el párrafo empieza en " + texto.top + ": bajó y volvió a costar alto",
+            indicador.bottom <= texto.top
+        )
+    }
+
+    /**
      * **La nota que cabe no ofrece nada**, porque no hay nada que desplegar y un
      * control que no hace nada es ruido con forma de control.
      *
@@ -380,6 +463,12 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
 
     private fun bordesDe(tag: String): DpRect =
         composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+
+    /** El ancho del hueco que el layout le da al rótulo. */
+    private fun anchoDelRotulo(): Dp =
+        composeTestRule.onNodeWithText("LO QUE ANOTASTE", useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+            .let { it.right - it.left }
 
     /** El alto del párrafo de la nota, que es lo que crece al desplegarla. */
     private fun altoDelTexto(): Dp =
@@ -477,6 +566,12 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
                 "fábrica y no llega antes de las siete. El portón negro está " +
                 "abierto pero hay que tocar fuerte porque la señora no oye bien " +
                 "desde el patio de atrás."
+
+        /**
+         * Una nota que cabe en dos renglones **incluso a 2.0**, para poder medir
+         * el estado sin indicador. La del fixture no sirve: a 2.0 se recorta.
+         */
+        const val NOTA_QUE_SIEMPRE_CABE = "Casa azul"
 
         /**
          * El techo de "dos renglones de `listTitle`" a escala nominal. La rampa

@@ -260,87 +260,114 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **El criterio del dueño, y cuánto falta para cumplirlo.**
+     * **El criterio del dueño, cumplido**: *"a escala 1.0 el `SALDO TOTAL` tiene
+     * que caber entero sobre el dock"*.
      *
-     * Lo que pidió por escrito es *"a escala 1.0 el `SALDO TOTAL` tiene que
-     * caber entero sobre el dock"*. **Hoy no se cumple**, y esto no lo disimula:
-     * mide cuánto queda tapado y prohíbe que ese número crezca.
+     * Y cumplido con la dirección **real** del padrón, que es lo que hace que
+     * esto signifique algo: el fixture de `PagosFixtures` trae desde el 24-sep la
+     * cadena que compone el API —calle, número, colonia y población—, de dos
+     * renglones, y no los veintiséis caracteres de antes que cabían en cualquier
+     * lado. Con la dirección corta esta medición habría dado verde sobre una
+     * pantalla que en la calle no cabe.
      *
-     * ## Por qué no se cumple, con los dp de cada cosa
+     * ## Los dp, y de dónde salió cada uno
      *
-     * Dos cambios empujan el dinero a la vez y la suma no cabe. Medido a
-     * `NORMAL` con gráficos NATIVOS, `w360dp-h800dp`:
+     * Medido a `NORMAL` con gráficos NATIVOS en `w360dp-h800dp`, contra la banda
+     * del dock (655.0 dp):
      *
-     * | | Alto | Saldo termina en | Tapado |
-     * |---|---|---|---|
-     * | Antes de esta pasada | tarjeta 154.5, sin dirección | 669.5 dp | 14.5 dp |
-     * | Tarjeta adelgazada sola | tarjeta 131.5 | 646.5 dp | **cabe, por 8.5** |
-     * | Con la dirección devuelta | + renglón de 19.0 | 665.5 dp | 10.5 dp |
-     * | Con una dirección REAL (dos renglones) | + 34.5 | 681.0 dp | 26.0 dp |
+     * | | Saldo termina en | Tapado |
+     * |---|---|---|
+     * | Antes de esta pasada (dirección corta, sin renglón) | 669.5 dp | 14.5 |
+     * | Tarjeta de nota adelgazada (−23.0 dp) | 646.5 dp | cabe por 8.5 |
+     * | Con la dirección escrita de vuelta, ya REAL (+34.5) | 681.0 dp | 26.0 |
+     * | Con el cuadro de la puerta a 100 dp (−30.0) | **651.0 dp** | **cabe por 4.0** |
      *
-     * O sea: **adelgazar la tarjeta alcanzaba; devolver la dirección escrita lo
-     * vuelve a romper.** Y la dirección no es negociable — *"eso no se puede
-     * quitar nunca"*—, así que los 26 dp que faltan tienen que salir de otro
-     * lado y ese otro lado es una decisión de diseño que el dueño no ha tomado.
-     * El candidato obvio es el cuadro de la puerta, que a `NORMAL` mide 130 dp
-     * de banda y cuyo propio KDoc ya dice que *"entre un dibujo y un dato, cede
-     * el dibujo"*.
+     * Los 26 dp los pagó el cuadro, con permiso del dueño y aplicando el
+     * criterio que su propio KDoc ya declaraba —*"entre un dibujo y un dato,
+     * cede el dibujo"*—, el mismo con el que ya había cedido a 40 dp en las
+     * escalas grandes. Ver `CUADRO_DEL_MOCK` en `PiezasDelCliente.kt`.
      *
-     * ## Por qué un tope y no una afirmación
+     * ## Entero quiere decir el BLOQUE
      *
-     * Porque una afirmación falsa se borra el día que estorba, y un tope
-     * medido no: mientras [TAPADO_MAXIMO] esté acá, nadie puede empujar el
-     * dinero un dp más sin que esto se ponga rojo, y el día que alguien pague
-     * los 10.5 dp que faltan el test se pone rojo **también** y hay que bajar el
-     * número hasta cero. Es la misma razón por la que el delta de la tarjeta se
-     * mide contra su propio alto y no contra una constante.
+     * Se mide [SALDO_DEL_CLIENTE_TAG] —rótulo, cifra y pastilla de atrasos— y no
+     * el rótulo: apuntando al rótulo la aserción daba verde con el `$3,550`
+     * partido a la mitad, que es lo que el golden enseñaba.
      *
-     * Va con gráficos NATIVOS y el KDoc de la clase explica por qué: en modo
-     * legado esto ya estaba "verde" mientras el golden mostraba la cifra
-     * cortada.
+     * ## Y contra [DOCK_DE_ACCIONES_TAG], no contra el botón
      *
-     * ## Y se mide contra [DOCK_DE_ACCIONES_TAG], no contra el botón
+     * Entre el canto del dock y el botón primario hay 17 dp de hairline y padding
+     * que el botón no cubre y la banda sí. Con `CTA_PRIMARIO_TAG` esta medición
+     * daba holgura sobre una pantalla cuyo golden enseñaba la cifra cortada.
      *
-     * Entre el canto del dock y el botón primario hay 17 dp de hairline y
-     * padding que el botón no cubre y la banda sí. Con `CTA_PRIMARIO_TAG` esta
-     * medición daba 6.5 dp de holgura sobre una pantalla cuyo golden enseñaba el
-     * `$3,550` cortado — la aserción medía la línea equivocada.
+     * ## A `GRANDE` y `MUY_GRANDE` sigue sin caber, y no se maquilla
+     *
+     * Es aritmética: a `GRANDE`, sin tarjeta de nota, el saldo ya termina en
+     * 553.0 dp contra una banda que empieza en 611.0 — y con la tarjeta más
+     * chica posible no alcanza, porque un solo renglón de nota más el padding de
+     * la tarjeta ya son 63.5 dp. El control positivo de abajo lo deja medido.
      */
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     @Test
-    fun `con nota, lo que el dock tapa del SALDO TOTAL no crece`() {
+    fun `con nota, el SALDO TOTAL cabe entero arriba del dock a escala NORMAL`() {
         cliente(ficha = PagosFixtures.fichaDelCliente())
 
         val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
         val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
-        val tapado = saldo.bottom - dock.top
         assertTrue(
-            "el dock tapa " + tapado + " del saldo total y el tope son " + TAPADO_MAXIMO +
-                ": algo volvió a empujar el dinero",
-            tapado <= TAPADO_MAXIMO
+            "el saldo total termina en " + saldo.bottom + " y la banda del dock empieza en " +
+                dock.top + ": el dinero volvió a quedar tapado",
+            saldo.bottom <= dock.top
         )
     }
 
     /**
-     * Control positivo del de arriba: **sin nota el saldo no se tapa**, con el
-     * MISMO selector y la misma línea de flotación.
+     * **Y con la nota LARGA tampoco se tapa**, que es el caso que de verdad
+     * aprieta: la nota del fixture cabe en los dos renglones asomados, así que
+     * la de arriba mide la tarjeta en su estado más barato.
      *
-     * Sin esto, un `SALDO_DEL_CLIENTE_TAG` mal escrito devolvería `Rect.Zero`
-     * —la trampa que este repo ya pagó— y un "tapado negativo" pasaría el tope
-     * sin haber medido nada. Acá el mismo tag tiene que dar un rectángulo que sí
-     * cabe: sólo un nodo real distingue los dos casos.
+     * Con una nota que no cabe, la tarjeta paga además el renglón del *"Ver
+     * más"*. Si ese renglón hubiera costado más de los 4.0 dp de margen, el
+     * criterio del dueño se cumpliría sólo para las puertas con nota corta — que
+     * es la clase de "verde" que este archivo existe para no producir.
      */
     @GraphicsMode(GraphicsMode.Mode.NATIVE)
     @Test
-    fun `control positivo - sin nota el saldo total no se tapa`() {
-        cliente(ficha = PagosFixtures.fichaSinNota())
+    fun `con nota LARGA, el SALDO TOTAL tambien cabe entero`() {
+        cliente(ficha = PagosFixtures.fichaDelCliente().copy(nota = NOTA_QUE_NO_CABE))
 
         val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
         val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
         assertTrue(
-            "el saldo total termina en " + saldo.bottom + " y el dock empieza en " +
-                dock.top + ": sin nota el dinero también se tapó",
+            "el saldo total termina en " + saldo.bottom + " y la banda del dock empieza en " +
+                dock.top + ": con la nota larga el dinero se tapa",
             saldo.bottom <= dock.top
+        )
+    }
+
+    /**
+     * **A `GRANDE` NO cabe**, y se afirma para que el límite quede medido y no
+     * como una frase en un KDoc.
+     *
+     * Es también el control positivo de los dos de arriba: sin esto, un
+     * `SALDO_DEL_CLIENTE_TAG` mal escrito devolvería `Rect.Zero` —la trampa que
+     * este repo ya pagó— y "0 <= 655" pasaría en verde sin haber medido nada.
+     * Acá el mismo tag tiene que dar un rectángulo que NO cabe: sólo un nodo
+     * real puede fallar.
+     *
+     * El día que esto se ponga rojo será porque a `GRANDE` ya cabe, y entonces
+     * hay que subirlo a afirmación en vez de borrarlo.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `control positivo - con nota, a escala GRANDE el saldo NO cabe`() {
+        cliente(ficha = PagosFixtures.fichaDelCliente(), nivel = FontSizeLevel.GRANDE)
+
+        val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
+        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
+        assertTrue(
+            "el saldo total termina en " + saldo.bottom + " y la banda del dock empieza en " +
+                dock.top + ": a GRANDE ya cabe, sube esto a afirmación",
+            saldo.bottom > dock.top
         )
     }
 
@@ -623,14 +650,13 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         val SEPARACION_DE_LA_TARJETA = 12.dp
 
         /**
-         * Cuánto del bloque de saldo total le queda tapado al dock **hoy**, con
-         * nota puesta y a escala nominal.
-         *
-         * **No es un objetivo: es una deuda medida**, y el objetivo es cero. Ver
-         * el KDoc de `con nota, lo que el dock tapa del SALDO TOTAL no crece`
-         * para de dónde salen estos dp y qué habría que decidir para pagarlos.
-         * El número baja cuando alguien los pague; no sube nunca.
+         * Una nota que NO cabe en los dos renglones que la tarjeta asoma, para
+         * medir el criterio del dueño en el caso caro y no sólo en el barato.
          */
-        val TAPADO_MAXIMO = 10.5.dp
+        const val NOTA_QUE_NO_CABE =
+            "El cliente pidió que pasen el viernes porque cobra ese día en la " +
+                "fábrica y no llega antes de las siete. El portón negro está " +
+                "abierto pero hay que tocar fuerte porque la señora no oye bien " +
+                "desde el patio de atrás."
     }
 }

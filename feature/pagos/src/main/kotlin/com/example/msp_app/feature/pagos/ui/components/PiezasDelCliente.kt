@@ -1014,8 +1014,8 @@ private const val POR_RENGLON_APILADO = 2
  * colonia y población en un campo de varios renglones (ver el KDoc de
  * [BloqueDeIdentidad] y `buildCalle` en msp-api). Lo que esta banda pinta en
  * grande es *el bloque de calle tal como la oficina lo escribió*, aplanado a un
- * renglón por `RoomVentasAdapter`. Se recorta a [RENGLONES_DE_LA_CALLE] y eso es
- * aceptable **porque la dirección entera está arriba**.
+ * renglón por `RoomVentasAdapter`. Se recorta a **un solo renglón** y eso es
+ * aceptable porque la dirección entera está arriba, a todas las escalas.
  *
  * **La línea de apoyo dice sólo la ruta, y la ciudad ya no.** Ésa era la queja
  * legítima de `f8621920` —el cuadro repetía las dos cadenas del bloque de
@@ -1106,6 +1106,15 @@ fun CuadroDeLaPuerta(
  * que esta elección ya **no** es lo que salva a la pantalla de quedarse sin
  * dirección — eso lo garantiza el renglón de arriba, a todas las escalas—, y
  * por eso el recorte de acá es aceptable.
+ *
+ * ## Y a `NORMAL` la calle también es UN renglón
+ *
+ * Tuvo dos mientras esta banda era el único sitio donde la dirección se
+ * pintaba. Con el renglón de [BloqueDeIdentidad] de vuelta, el segundo renglón
+ * de acá no decía nada nuevo y costaba 25.0 dp de los 26.0 que el dock le
+ * estaba tapando al saldo con una dirección real. Medido: el contenido de la
+ * banda pasa de **114.0 a 88.5 dp**, que es lo que deja bajarla a 100 dp sin
+ * apretar el aire — ver [CUADRO_DEL_MOCK].
  */
 @Composable
 private fun SenasDeLaPuerta(ubicacion: UbicacionDelCobro?, calle: String, zona: String) {
@@ -1140,7 +1149,13 @@ private fun SenasDeLaPuerta(ubicacion: UbicacionDelCobro?, calle: String, zona: 
                 MspTheme.type.detailTitle.copy(lineHeightStyle = SIN_AIRE_DE_LINEA)
             },
             color = MspTheme.colors.onSurface,
-            maxLines = if (apretado) 1 else RENGLONES_DE_LA_CALLE,
+            // UN renglón a todas las escalas. Tuvo dos mientras esta banda era
+            // el único sitio donde vivía la dirección: media calle no es una
+            // dirección incompleta, es una equivocada. Desde que el renglón de
+            // `BloqueDeIdentidad` la dice entera —y a todas las escalas— el
+            // segundo renglón de acá no agregaba un dato, sólo 25 dp, y esos
+            // 25 dp son parte de los 26 que el dock le estaba tapando al saldo.
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.testTag(CALLE_DEL_CUADRO_TAG)
         )
@@ -1356,8 +1371,29 @@ private fun altoDelCuadro(): Dp = when (LocalFontSizeLevel.current) {
     else -> CUADRO_APRETADO
 }
 
-/** Los 130 dp del mock, a escala normal. */
-private val CUADRO_DEL_MOCK = 130.dp
+/**
+ * Lo que el cuadro mide a escala normal: **100 dp**, no los 130 del mock.
+ *
+ * El número sale de una medición, no de un gusto. Con la dirección real del
+ * padrón —dos renglones arriba— y una nota puesta, el bloque del saldo terminaba
+ * en 681.0 dp contra una banda de dock que empieza en 655.0: **26.0 dp de dinero
+ * tapado**. Bajar el cuadro 30 dp los paga y deja 4.0 de margen.
+ *
+ * Es el criterio que este archivo ya tenía escrito y ya había aplicado a las
+ * escalas grandes —ver [CUADRO_APRETADO] y el KDoc de [altoDelCuadro]—:
+ * **entre un dibujo y un dato, cede el dibujo**. Lo nuevo no es el principio,
+ * es que ahora también se aplica a `NORMAL`, con la autorización del dueño y
+ * con los dp delante.
+ *
+ * Lo que la banda tiene que seguir diciendo **cabe, y también está medido**: el
+ * chip, la calle y la ruta ocupan **88.5 dp** de los 100 (de 213.0 a 301.5 en
+ * una banda que va de 203.5 a 303.5), así que ninguno se recorta ni se encima y
+ * el aire de arriba pasa de 11.5 a 9.5 dp. Con la calle en dos renglones el
+ * contenido medía **114.0 dp** y no habría entrado — por eso ese segundo
+ * renglón se fue, ver [SenasDeLaPuerta]. La tipografía no se tocó: el chip
+ * sigue en `chipLabel`, la calle en `detailTitle` (18 sp) y la ruta en `input`.
+ */
+private val CUADRO_DEL_MOCK = 100.dp
 
 /** Lo que mide a `GRANDE` y `MUY_GRANDE`, donde el cuadro ya no lleva texto. */
 private val CUADRO_APRETADO = 40.dp
@@ -1377,17 +1413,6 @@ private val AIRE_DEL_CHIP_H = 13.dp
 
 /** El aire arriba y abajo del chip: los 7 px del mockup. */
 private val AIRE_DEL_CHIP_V = 7.dp
-
-/**
- * Cuántas líneas se le dan a la calle en la banda.
- *
- * Dos. Con la ciudad fuera, la mayoría de las calles entran en una —que es de
- * lo que se trataba el cambio—, pero *"C. Miguel Hidalgo y Costilla 214"* a
- * 26 sp no cabe en 360 dp, y media calle no es una dirección incompleta: es una
- * dirección equivocada. Tres empezarían a empujar el dinero sin ganar
- * direcciones nuevas.
- */
-private const val RENGLONES_DE_LA_CALLE = 2
 
 /**
  * El aire entre el chip, la calle y la línea de apoyo: los 10 px del mockup.

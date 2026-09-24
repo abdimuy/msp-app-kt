@@ -178,36 +178,39 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
      * `maxLines = 1`. A escala grande el renglón decía *"ruta 25 · centro · C.
      * Hi…"*: la zona entera y media dirección. El dueño lo vio en vidrio.
      *
-     * **Dónde vive la dirección cambió, lo que se afirma no.** Ya no está en el
-     * renglón de identidad —se retiró porque el cuadro de la puerta la decía a
-     * tres dedos con las mismas palabras—; hoy la dice ese cuadro, la calle en
-     * grande y la ciudad en su línea de apoyo. Esto se pone rojo igual si
-     * alguien vuelve a pegarlas en una sola cadena: con la cadena pegada no
-     * existe un nodo cuyo texto sea la calle sola.
+     * **La dirección escrita volvió a su renglón** y esto sigue midiendo lo
+     * mismo que siempre midió: que exista un nodo cuyo texto sea la dirección
+     * **entera**, y no una cadena que la mezcle con otra cosa y la recorte. Se
+     * pone rojo igual si alguien vuelve a pegarlas.
+     *
+     * El cuadro se mide aparte, abajo: ahí la cadena que llega es la misma pero
+     * se pinta en un solo renglón con elipsis, y eso es aceptable porque el dato
+     * completo está acá.
      */
     @Test
-    fun `la calle se ve completa y en su propio renglon`() {
+    fun `la direccion se ve completa y en su propio renglon`() {
         cliente()
 
-        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
+        composeTestRule.onNodeWithTag(DIRECCION_TAG)
             .assertIsDisplayed()
-            .assertTextEquals(CALLE)
+            .assertTextEquals(DIRECCION)
     }
 
     /**
      * Y en las tres escalas, que es donde se rompía. Un `assertTextEquals` mide
      * el texto del nodo, no los píxeles pintados, así que esto sólo prueba que
-     * la calle **llega entera al nodo**; que quepa sin elipsis lo miran los
+     * la dirección **llega entera al nodo**; que quepa sin elipsis lo miran los
      * goldens `pagos_cliente_*`, que un assert no puede ver.
      *
-     * A `MUY_GRANDE` el cuadro se aprieta a 40 dp y deja **sólo** este renglón:
-     * es la escala en la que el dueño reportó *"la dirección ni se ve casi"*, así
-     * que es justo donde no se puede perder.
+     * A `MUY_GRANDE` el cuadro de abajo se aprieta a 40 dp y sólo pinta la
+     * calle recortada: es la escala en la que el dueño reportó *"la dirección ni
+     * se ve casi"*, así que es justo donde este renglón no se puede perder.
      */
     @Test
-    fun `la calle llega entera tambien a escala muy grande`() {
+    fun `la direccion llega entera tambien a escala muy grande`() {
         cliente(nivel = FontSizeLevel.MUY_GRANDE)
 
+        composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
         composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
     }
 
@@ -249,24 +252,28 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
     }
 
     /**
-     * **La dirección se dice UNA vez.** El defecto que el dueño vio en el
-     * golden: el bloque de identidad y el cuadro decían las mismas palabras a
-     * tres dedos de distancia, y eso no se lee como jerarquía sino como un
-     * error de copiado.
+     * **La dirección ESCRITA se dice una vez.**
      *
-     * Se cuenta el texto de la calle en la pantalla entera, sin anclar a ningún
-     * `testTag`: si alguien devuelve el renglón a identidad, el conteo da dos y
-     * esto se pone rojo. El control positivo es el propio `assertEquals`, que
-     * exige UNO y no CERO — un selector ciego daría cero y también fallaría.
+     * Ojo con lo que esto afirma y lo que no, porque la afirmación cambió. La
+     * queja original del dueño era que el bloque de identidad y el cuadro decían
+     * *las dos mismas cadenas* —dirección y ruta— en el mismo orden, y eso se
+     * leía como un error de copiado. Se resolvió sacando la ciudad del cuadro,
+     * no quitando el dato: hoy el bloque de calle sí aparece en los dos sitios,
+     * en dos registros distintos, y eso es deliberado.
+     *
+     * Lo que no puede haber es **dos copias de la dirección escrita completa**,
+     * que es lo que este conteo mide. El control positivo es el propio
+     * `assertEquals`, que exige UNO y no CERO — un selector ciego daría cero y
+     * también fallaría.
      */
     @Test
-    fun `la calle aparece una sola vez en la pantalla`() {
+    fun `la direccion escrita aparece una sola vez en la pantalla`() {
         cliente()
 
         assertEquals(
-            "la calle se pinta dos veces: el bloque de identidad volvió a decirla",
+            "la dirección escrita se pinta dos veces",
             1,
-            composeTestRule.onAllNodesWithText(CALLE).fetchSemanticsNodes().size
+            composeTestRule.onAllNodesWithText(DIRECCION).fetchSemanticsNodes().size
         )
     }
 
@@ -384,11 +391,15 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
         .size
 
     private companion object {
-        /** El bloque de calle, que es lo que el cuadro pinta en grande. */
-        const val CALLE = "C. Hidalgo 214"
+        /**
+         * El bloque de calle del fixture, que es lo que el cuadro pinta en
+         * grande. Trae calle, número, colonia y población porque así lo compone
+         * el API — ver el KDoc de `PagosFixtures.detalleCliente`.
+         */
+        const val CALLE = "C. Miguel Hidalgo y Costilla 214 Col. Emiliano Zapata, Tehuacán"
 
-        /** La ciudad del fixture. Entra a la dirección escrita, no al cuadro. */
-        const val CIUDAD = "Centro"
+        /** La ciudad del fixture (`POBLACION`). Entra a la dirección escrita. */
+        const val CIUDAD = "Tehuacán"
 
         /** La ruta, encabezado de la tarjeta de identidad. */
         const val ZONA = "ruta 25"

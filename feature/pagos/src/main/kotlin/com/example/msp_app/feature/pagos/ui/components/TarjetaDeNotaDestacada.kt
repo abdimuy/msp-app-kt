@@ -25,6 +25,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspCard
+import com.example.msp_app.core.designsystem.theme.FontSizeLevel
+import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /** `testTag` de la tarjeta de nota destacada — la que va ARRIBA del saldo. */
@@ -109,10 +111,19 @@ const val INDICADOR_DE_LA_NOTA_TAG: String = "pagos_nota_destacada_indicador"
  * Con el tope de 500 caracteres una nota larga son ~diez renglones; cuatro ya
  * eran demasiados.
  *
- * Lo que la nota larga **no** pierde es su texto: cuando no cabe aparece
- * [ALTERNAR_LA_NOTA_TAG] y un toque la despliega entera, en la misma tarjeta y
- * sin salir de la pantalla. La nota corta no ve indicador ninguno — no hay nada
- * que desplegar, y un control que no hace nada es ruido con forma de control.
+ * Lo que la nota larga **no** pierde es su texto: cuando no cabe, un toque en el
+ * párrafo la despliega entera, en la misma tarjeta y sin salir de la pantalla, y
+ * el *"Ver más"* del renglón del rótulo lo anuncia. La nota corta no ve
+ * indicador ninguno — no hay nada que desplegar, y un control que no hace nada
+ * es ruido con forma de control.
+ *
+ * **Y el indicador no cuesta un dp.** Vivió un renglón propio bajo el párrafo y
+ * ahí costaba 19.0 dp: medido con la dirección real del padrón, con eso el
+ * saldo volvía a taparse 15.0 dp **sólo en las puertas con nota larga** — la
+ * clase de verde que pasa la prueba del caso barato y falla en la calle. En el
+ * renglón del rótulo el alto ya está pagado por el botón (50 dp de piso
+ * tocable), así que el indicador entra gratis y el criterio del dueño se cumple
+ * con nota corta y con nota larga por igual.
  *
  * ## El botón de editar comparte renglón con el rótulo
  *
@@ -143,6 +154,9 @@ fun TarjetaDeNotaDestacada(
     // texto que ya cabe estaría mintiendo sobre que hay más.
     var expandida by remember(nota) { mutableStateOf(false) }
     var recortada by remember(nota) { mutableStateOf(false) }
+    // El indicador vive en el renglón del rótulo SÓLO a escala nominal, que es
+    // donde cabe y donde el dp importa. Ver [IndicadorDeLaNota].
+    val enElRotulo = recortada && LocalFontSizeLevel.current == FontSizeLevel.NORMAL
     MspCard(
         modifier = modifier
             .fillMaxWidth()
@@ -163,6 +177,8 @@ fun TarjetaDeNotaDestacada(
             RenglonDelRotulo(
                 rotulo = rotulo.uppercase(BUSINESS_LOCALE),
                 antiguedad = antiguedad,
+                indicador = enElRotulo,
+                expandida = expandida,
                 onEditar = onEditar
             )
             // El párrafo y su indicador son UN bloque tocable, no un texto y un
@@ -197,16 +213,8 @@ fun TarjetaDeNotaDestacada(
                     onTextLayout = { if (!expandida) recortada = it.hasVisualOverflow },
                     modifier = Modifier.testTag(TEXTO_DE_LA_NOTA_TAG)
                 )
-                if (recortada) {
-                    Text(
-                        text = if (expandida) "Ver menos" else "Ver más",
-                        style = MspTheme.type.captionStrong,
-                        color = MspTheme.colors.statusPartial,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .align(Alignment.End)
-                            .testTag(INDICADOR_DE_LA_NOTA_TAG)
-                    )
+                if (recortada && !enElRotulo) {
+                    IndicadorDeLaNota(expandida, Modifier.align(Alignment.End))
                 }
             }
         }
@@ -256,15 +264,32 @@ fun TarjetaDeNotaDestacada(
  * que el botón ya ocupaba. En las dos escalas el encabezado cuesta 50 dp, y no
  * 50 + lo que mida el texto.
  *
- * ## La antigüedad sigue pudiendo bajar de renglón
+ * ## La antigüedad y el *"Ver más"* siguen pudiendo bajar de renglón
  *
  * Que es lo que el `FlowRow` estaba resolviendo y sigue resolviendo, ahora
  * dentro de su propio ancho. A 2.0 el rótulo mide hasta ~260 dp y la antigüedad
  * no cabe a su lado; baja, y ninguno de los dos se trunca.
+ *
+ * ## El *"Ver más"* va en el `Row` exterior, al lado del botón
+ *
+ * Y no dentro del `FlowRow`, que fue el primer intento y el golden lo rechazó:
+ * ahí envolvía y quedaba **debajo del rótulo y alineado a la izquierda**, como
+ * si fuera un subtítulo de *"LO QUE ANOTASTE"* en vez de un control. Al lado del
+ * botón se lee como lo que es —algo que se toca— y cuesta **cero dp**, porque el
+ * alto del renglón lo fija el botón (50 dp de piso tocable) y no el texto.
+ *
+ * A escalas grandes no cabe y se va bajo el párrafo: el porqué, con los dp, en
+ * [IndicadorDeLaNota].
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RenglonDelRotulo(rotulo: String, antiguedad: String?, onEditar: (() -> Unit)?) {
+private fun RenglonDelRotulo(
+    rotulo: String,
+    antiguedad: String?,
+    indicador: Boolean,
+    expandida: Boolean,
+    onEditar: (() -> Unit)?
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -291,8 +316,50 @@ private fun RenglonDelRotulo(rotulo: String, antiguedad: String?, onEditar: (() 
                 )
             }
         }
+        if (indicador) IndicadorDeLaNota(expandida)
         if (onEditar != null) BotonDeEditarNota(onEditar = onEditar)
     }
+}
+
+/**
+ * *"Ver más"* / *"Ver menos"* — la parte visible del control que despliega la
+ * nota. Lo que se toca es el párrafo entero; esto sólo lo anuncia.
+ *
+ * ## Dónde se pinta, y por qué depende de la escala
+ *
+ * **A `NORMAL` va en el renglón del rótulo, y ahí cuesta cero dp**: el alto de
+ * ese renglón lo fija el botón de editar (50 dp de piso tocable), así que un
+ * texto de 12 sp más no lo mueve. Importa: bajo el párrafo costaba 19.0 dp y,
+ * medido con la dirección real del padrón, con eso el saldo volvía a taparse
+ * 15.0 dp **sólo en las puertas con nota larga** — la clase de verde que pasa el
+ * caso barato y falla en la calle.
+ *
+ * **A `GRANDE` y `MUY_GRANDE` va bajo el párrafo**, y esto también salió del
+ * golden y no de una sospecha. En el renglón del rótulo le quita ~90 dp de ancho
+ * al `FlowRow`, y a 2.0 el rótulo se queda con ~112 dp para una palabra
+ * —*"ANOTASTE"*— que mide ~150: `pagos_cliente_light_2_0` la enseñaba **cortada
+ * a media palabra**, que es exactamente el defecto que el `FlowRow` se había
+ * ganado el derecho a no repetir. Una palabra no tiene dónde quebrarse; la
+ * única salida es devolverle el ancho.
+ *
+ * El intercambio es honesto porque los 19 dp que cuesta abajo **no cambian nada
+ * a esas escalas**: ahí el dinero ya está tapado por aritmética —sin tarjeta el
+ * saldo termina en 553.0 dp contra una banda de dock que empieza en 611.0— y
+ * ningún tamaño de esta tarjeta lo arregla. Se paga donde no se cobra.
+ *
+ * La condición se escribe con el mismo `LocalFontSizeLevel` que ya reparten
+ * `AccionesDelCliente`, `DockDeAcciones` y `SenasDeLaPuerta`: no es un patrón
+ * nuevo, es el de esta pantalla.
+ */
+@Composable
+private fun IndicadorDeLaNota(expandida: Boolean, modifier: Modifier = Modifier) {
+    Text(
+        text = if (expandida) "Ver menos" else "Ver más",
+        style = MspTheme.type.captionStrong,
+        color = MspTheme.colors.statusPartial,
+        maxLines = 1,
+        modifier = modifier.testTag(INDICADOR_DE_LA_NOTA_TAG)
+    )
 }
 
 /**

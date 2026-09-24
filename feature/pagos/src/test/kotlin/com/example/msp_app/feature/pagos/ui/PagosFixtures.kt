@@ -336,8 +336,25 @@ object PagosFixtures {
             telefono = "238 162 7597",
             // Calle y ciudad SEPARADAS, igual que las trae `RoomVentasAdapter`
             // de `Sale.CALLE`/`Sale.CIUDAD`. `direccion` se deriva de las dos.
-            calle = "C. Hidalgo 214",
-            ciudad = "Centro",
+            //
+            // **La forma REAL del campo, no una corta que quepa en todos lados.**
+            // Hasta el 24-sep esto decía `"C. Hidalgo 214"` + `"Centro"`, y esos
+            // veintiséis caracteres **escondieron un defecto en producción**: con
+            // ellos el cuadro de la puerta sí decía la dirección entera, el golden
+            // lo confirmaba, y sobre esa confirmación `f8621920` retiró el renglón
+            // de dirección del bloque de identidad. El dueño lo refutó desde el
+            // teléfono. Un fixture que no se parece al dato es una compuerta que
+            // aprueba lo que la calle rechaza.
+            //
+            // De dónde sale la forma: `DIRS_CLIENTES.CALLE` la compone msp-api en
+            // `internal/ventas/infra/microsip/cliente_writer.go` (`buildCalle`)
+            // como `NOMBRE_CALLE + " " + NUM_EXT + "\n" + COLONIA + ", " +
+            // POBLACION`, y `RoomVentasAdapter` aplana el salto a un espacio. Por
+            // eso la población aparece **dos veces** en `direccion`: una dentro de
+            // `calle` y otra en `ciudad`, que es `d.POBLACION` en la consulta del
+            // API. No es un error del fixture; es lo que el API entrega.
+            calle = "C. Miguel Hidalgo y Costilla 214 Col. Emiliano Zapata, Tehuacán",
+            ciudad = "Tehuacán",
             // Sin el "· centro" que tenía antes: la ciudad ya va aparte, y el
             // cuadro de la puerta arma "ciudad · ruta". Con el sufijo puesto,
             // esa línea decía "Centro · ruta 25 · centro".
