@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -280,12 +279,42 @@ private fun estiloDeProsa(): TextStyle = MspTheme.type.caption.copy(fontFeatureS
 /**
  * El encabezado de un tramo: su nombre y, a la derecha, lo que entró.
  *
- * El hairline que los separa va **entre** el nombre y el subtotal y no debajo:
- * así el renglón se lee como una sola cosa —*"septiembre trajo $450"*— en vez de
- * como un título con un número suelto al lado.
+ * ## La raya se fue, y no la reemplazó otra raya
+ *
+ * Hasta el 2026-09-23 entre el nombre y el subtotal corría un hairline de ancho
+ * completo. El dueño lo miró y dijo *"no me gusta esta raya enorme ahí"*. No es
+ * sólo gusto: esa raya era el trazo más largo de la pantalla —se llevaba la
+ * mirada— mientras el nombre del mes, que es lo que de verdad separa, iba en
+ * `overline`, o sea 12 sp `SemiBold` en gris. El renglón gritaba con lo que no
+ * importa y susurraba lo que sí.
+ *
+ * Ahora el nombre va en `listTitle` —15 sp `Bold`— y en `onSurface` en vez de
+ * `onSurfaceMuted`: más grande, más pesado y más contrastado, que es el
+ * *"encabezado más fuerte"* que el dueño pidió. Lo que empuja el subtotal a la
+ * derecha es el `weight` del título, no un relleno dibujado. Quien parte los
+ * meses es el canto del bloque ([BloqueDelMes]), no una línea.
+ *
+ * El título admite **dos renglones con elipsis**. Con `maxLines = 1` y el
+ * overflow por default (`Clip`, sin elipsis) un `"SEPTIEMBRE 2026"` a escala
+ * 2.0 se habría cortado en silencio, y un mes mutilado se sigue leyendo como un
+ * mes: el mismo defecto que la columna del día ya pagó una vez.
  *
  * [GrupoDeContactos.cobrado] en `null` no pinta nada. Un `$0` ahí diría que ese
  * mes se midió y dio cero, cuando lo que pasó es que sólo hubo visitas.
+ *
+ * Lo usan los tres agrupamientos —mes en la bitácora y en el detalle de venta,
+ * cercanía en el detalle de cliente—, así que *"Hoy"* y *"AGOSTO 2026"* pesan
+ * igual. Es a propósito: son la misma pieza de la misma lista.
+ *
+ * ## Los 8 dp de los costados
+ *
+ * Sin ellos el nombre del mes quedaba **pegado al canto** del bloque, con la
+ * esquina redonda mordiéndole el hombro a la primera letra, y el subtotal al ras
+ * del otro lado. Se corrige aquí y no en el bloque a propósito: un padding en el
+ * contenedor habría corrido **también los renglones de pago**, que es justo lo
+ * que el dueño pidió que no pasara. Así el encabezado se separa del canto y el
+ * renglón se queda donde estaba, alineado con el canalón de 11 dp que la fila
+ * ya se reserva para la marca de la venta.
  */
 @Composable
 fun EncabezadoDeGrupo(
@@ -296,28 +325,25 @@ fun EncabezadoDeGrupo(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = MspTheme.spacing.md, bottom = MspTheme.spacing.xs)
+            .padding(top = MspTheme.spacing.md, bottom = MspTheme.spacing.sm)
+            .padding(horizontal = MspTheme.spacing.sm)
             .testTag(ENCABEZADO_DE_GRUPO_TAG),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
         Text(
             text = grupo.titulo,
-            style = MspTheme.type.overline,
-            color = MspTheme.colors.onSurfaceMuted,
-            maxLines = 1
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(MspTheme.colors.outline)
+            style = MspTheme.type.listTitle,
+            color = MspTheme.colors.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
         grupo.cobrado?.let {
             MspMoneyText(
                 amount = it.amount,
                 masked = ocultos,
-                style = MspTheme.type.captionStrong,
+                style = MspTheme.type.amountInline,
                 color = MspTheme.colors.onSurfaceMuted,
                 modifier = Modifier.testTag(COBRADO_DEL_GRUPO_TAG)
             )

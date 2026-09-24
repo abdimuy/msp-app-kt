@@ -40,6 +40,7 @@ import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
+import com.example.msp_app.feature.pagos.ui.components.BloqueDelMes
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.CuadroDeEstado
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
@@ -583,15 +584,21 @@ internal fun LineaDeLaVenta(
             )
         }
     } else {
-        GruposDeContactos.porMes(visibles).forEach { grupo ->
-            EncabezadoDeGrupo(grupo)
-            grupo.contactos.forEach { contacto ->
-                ContactoEnLinea(
-                    contacto = contacto,
-                    deEstaVenta = contacto.ventaId == detalle.ventaId,
-                    onVerUbicacion = onVerUbicacion,
-                    toque = toque
-                )
+        // Aquí sí cabe el bloque entero: esta sección vive en un `Column` con
+        // scroll, no en una lista perezosa, así que el mes puede ser UN
+        // contenedor. La bitácora tiene que repartirlo tramo por tramo — ver
+        // `tramoDelMes`. Las dos comparten el tono y la forma.
+        GruposDeContactos.porMes(visibles).forEachIndexed { indice, grupo ->
+            BloqueDelMes(indice = indice) {
+                EncabezadoDeGrupo(grupo)
+                grupo.contactos.forEach { contacto ->
+                    ContactoEnLinea(
+                        contacto = contacto,
+                        deEstaVenta = contacto.ventaId == detalle.ventaId,
+                        onVerUbicacion = onVerUbicacion,
+                        toque = toque
+                    )
+                }
             }
         }
     }
