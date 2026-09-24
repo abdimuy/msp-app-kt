@@ -41,6 +41,7 @@ import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.APOYO_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CUADRO_DE_LA_PUERTA_TAG
+import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.PUNTO_MEDIDO_TAG
 import com.example.msp_app.feature.pagos.ui.components.SIN_DIRECCION
@@ -116,16 +117,21 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
     }
 
     /**
-     * **La calle NO lleva la ciudad pegada.** Es el defecto que el dueño vio en
-     * el golden: con *"C. Hidalgo 214, Centro"* a 26 sp la cadena se come el
-     * ancho entero y la tipografía grande deja de servir para algo.
+     * **El cuadro no repite la ciudad, y la ciudad NO se perdió.**
      *
-     * El control positivo va incluido y es lo que hace honesta la afirmación:
-     * la ciudad **sí** se encuentra, en la línea de apoyo. Sin él, un cuadro que
-     * hubiera tirado la ciudad a la basura pasaría igual de verde.
+     * Las dos mitades importan y la segunda es la que hace honesta a la primera.
+     * `f8621920` fue exactamente esto mal hecho: quitó el renglón de dirección
+     * creyendo que el cuadro la decía entera, y la ciudad terminó viviendo sólo
+     * en una banda de 40 dp que a escala grande no la pinta. El dueño lo reportó
+     * desde el aparato — *"siempre se tiene que ver la dirección escrita"*.
+     *
+     * Así que acá se afirman las dos cosas a la vez: el renglón grande del
+     * cuadro no trae la ciudad, **y** la dirección escrita de arriba sí. Sin la
+     * segunda mitad, un cuadro que tirara la ciudad a la basura pasaría en
+     * verde, que es el defecto que este test existe para no repetir.
      */
     @Test
-    fun `la calle del cuadro no incluye la ciudad`() {
+    fun `el cuadro no repite la ciudad, pero la direccion escrita la dice`() {
         monta(conCoordenada = true)
 
         val calle = composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
@@ -136,8 +142,16 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
             "el renglón grande dice \"$calle\": la ciudad volvió a pegarse a la calle",
             calle.contains(CIUDAD)
         )
-        // Control positivo: la ciudad no se perdió, cambió de renglón.
-        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(APOYO)
+        assertFalse(
+            "la línea de apoyo volvió a decir la ciudad que el renglón de arriba ya dice",
+            composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG)
+                .fetchSemanticsNode().textoPlano().contains(CIUDAD)
+        )
+        // Control positivo, y la regla del dueño: la ciudad no se perdió, la
+        // dice la dirección escrita del bloque de identidad.
+        composeTestRule.onNodeWithTag(DIRECCION_TAG)
+            .performScrollTo()
+            .assertTextEquals("$CALLE, $CIUDAD")
     }
 
     /**
@@ -192,17 +206,20 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
     }
 
     /**
-     * Sin ciudad, la línea de apoyo lleva **sólo la ruta** — nunca un separador
-     * colgando. Con la ciudad puesta el test de arriba ya midió la frase entera,
-     * así que éste es el borde que faltaba.
+     * Sin ciudad, la dirección escrita lleva **sólo la calle** — nunca una coma
+     * colgando al final. Es el borde que el reparto nuevo movió de sitio: la
+     * línea de apoyo del cuadro ya no depende de la ciudad, pero la dirección
+     * de arriba sí la une, y unir con una cadena vacía es cómo se producen los
+     * *"C. Hidalgo 214, "* que se leen como un defecto de la app.
      */
     @Test
-    fun `sin ciudad la linea de apoyo lleva solo la ruta`() {
+    fun `sin ciudad la direccion escrita lleva solo la calle`() {
         monta(conCoordenada = true, ciudad = "")
 
-        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG)
+        composeTestRule.onNodeWithTag(DIRECCION_TAG)
             .performScrollTo()
-            .assertTextEquals(ZONA)
+            .assertTextEquals(CALLE)
+        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(ZONA)
     }
 
     /**
@@ -490,8 +507,15 @@ class ElCuadroDeLaPuertaYLosDatosTest : RobolectricTestBase() {
         const val CIUDAD = "Centro"
         const val ZONA = "ruta 25"
 
-        /** La línea de apoyo del cuadro: ciudad primero, ruta después. */
-        const val APOYO = "$CIUDAD · $ZONA"
+        /**
+         * La línea de apoyo del cuadro: **sólo la ruta**.
+         *
+         * Llevó la ciudad delante (*"Centro · ruta 25"*) entre `f8621920` y el
+         * arreglo de la regresión de la dirección. Desde que el renglón de
+         * dirección volvió a `BloqueDeIdentidad` —y dice la ciudad— repetirla
+         * acá era la duplicación que el dueño había reportado.
+         */
+        const val APOYO = ZONA
 
         /**
          * Los tres renglones del cuadro con punto medido: chip, calle y ruta.

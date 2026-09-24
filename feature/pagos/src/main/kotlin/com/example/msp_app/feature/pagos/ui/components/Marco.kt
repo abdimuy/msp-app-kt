@@ -39,6 +39,18 @@ const val ATRAS_TAG: String = "pagos_atras"
 /** `testTag` del CTA primario del dock. */
 const val CTA_PRIMARIO_TAG: String = "pagos_cta_primario"
 
+/**
+ * `testTag` del dock ENTERO — la banda que de verdad tapa lo que hay debajo.
+ *
+ * No es lo mismo que [CTA_PRIMARIO_TAG] y la diferencia importa: entre el canto
+ * de la banda y el botón hay un hairline y el padding de la columna
+ * (`spacing.md` a `NORMAL`), o sea **17 dp** que el botón no cubre pero la banda
+ * sí. Medir contra el botón daba verde con el `$3,550` cortado, que es lo que el
+ * golden `pagos_cliente_light_1_0` estuvo enseñando mientras el test decía que
+ * el dinero cabía. La línea de flotación es ésta.
+ */
+const val DOCK_DE_ACCIONES_TAG: String = "pagos_dock"
+
 /** `testTag` del CTA de visita del dock. */
 const val CTA_VISITA_TAG: String = "pagos_cta_visita"
 
@@ -246,7 +258,7 @@ fun DockDeAcciones(
     // costaba el texto partido, y a cambio no hay una sola palabra rota. A
     // NORMAL no se toca nada: los goldens de 1.0 se quedan como estaban.
     val apilado = LocalFontSizeLevel.current != FontSizeLevel.NORMAL
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth().testTag(DOCK_DE_ACCIONES_TAG)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()

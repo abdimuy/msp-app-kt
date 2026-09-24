@@ -36,11 +36,51 @@ class NotaDeLaVentaScreenshotTest : PagosScreenshotTest() {
     @Test
     fun `nota de la venta dark`() = nota(dark = true)
 
+    /**
+     * La tarjeta del detalle de CLIENTE con una nota que no cabe: botón de
+     * editar en el renglón del rótulo, dos renglones asomados y *"Ver más"*.
+     *
+     * Existe porque es el estado que ningún golden de pantalla completa retrata
+     * —el fixture del detalle trae una nota de dos renglones que cabe— y es
+     * justamente el que paga el adelgazamiento de la tarjeta. Un assert cuenta
+     * que el indicador está; esto enseña que la tarjeta sigue leyéndose.
+     */
+    @Test
+    fun `nota recortada light`() = recortada(dark = false)
+
+    @Test
+    fun `nota recortada dark`() = recortada(dark = true)
+
     private fun nota(dark: Boolean) = capture(
         name = "pagos_venta_nota_${if (dark) "dark" else "light"}",
         dark = dark
     ) {
         Notas()
+    }
+
+    private fun recortada(dark: Boolean) = capture(
+        name = "pagos_nota_recortada_${if (dark) "dark" else "light"}",
+        dark = dark
+    ) {
+        NotaQueNoCabe()
+    }
+}
+
+@Composable
+private fun NotaQueNoCabe() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = MspTheme.spacing.md)
+    ) {
+        TarjetaDeNotaDestacada(
+            rotulo = "lo que anotaste",
+            nota = "El cliente pidió que pasen el viernes porque cobra ese día en la " +
+                "fábrica y no llega antes de las siete. El portón negro está abierto " +
+                "pero hay que tocar fuerte porque la señora no oye bien desde el patio.",
+            antiguedad = "hace 1 semana",
+            onEditar = {}
+        )
     }
 }
 

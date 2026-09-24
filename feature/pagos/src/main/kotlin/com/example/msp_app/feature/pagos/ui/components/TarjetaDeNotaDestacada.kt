@@ -1,10 +1,12 @@
 package com.example.msp_app.feature.pagos.ui.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -12,6 +14,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -29,6 +35,21 @@ const val EDITAR_NOTA_DESTACADA_TAG: String = "pagos_nota_destacada_editar"
 
 /** `testTag` de la antigüedad de la nota, a la derecha del rótulo. */
 const val ANTIGUEDAD_DE_LA_NOTA_TAG: String = "pagos_nota_destacada_antiguedad"
+
+/** `testTag` del párrafo de la nota — el que se recorta y se despliega. */
+const val TEXTO_DE_LA_NOTA_TAG: String = "pagos_nota_destacada_texto"
+
+/**
+ * `testTag` del bloque tocable —párrafo más indicador— que despliega la nota.
+ *
+ * Sólo existe en el árbol cuando la nota **no cabe** en [RENGLONES_ASOMADOS];
+ * contar sus nodos es cómo se afirma, sin leer píxeles, que una nota corta no
+ * ofrece desplegar nada.
+ */
+const val ALTERNAR_LA_NOTA_TAG: String = "pagos_nota_destacada_alternar"
+
+/** `testTag` del *"Ver más"* / *"Ver menos"* — la parte visible del control. */
+const val INDICADOR_DE_LA_NOTA_TAG: String = "pagos_nota_destacada_indicador"
 
 /**
  * **La nota, arriba y notoria.** Rótulo, antigüedad, el texto en grande y —si
@@ -80,12 +101,27 @@ const val ANTIGUEDAD_DE_LA_NOTA_TAG: String = "pagos_nota_destacada_antiguedad"
  * `listTitle`. `input` es el rol de un campo de captura y esto no se captura
  * aquí.
  *
- * ## Sigue siendo un ASOMO, no la nota entera
+ * ## Sigue siendo un ASOMO, y ahora un asomo de DOS renglones
  *
- * [RENGLONES_DE_LA_NOTA] recorta igual que antes, y por el mismo motivo: con el
- * tope de 500 caracteres una nota larga son ~diez renglones, y diez renglones
- * arriba del saldo es exactamente lo que el test del dinero prohíbe. El texto
- * completo vive en el editor, a un toque del botón de esta misma tarjeta.
+ * [RENGLONES_ASOMADOS] recorta a dos, no a los cuatro de la primera versión, y
+ * el motivo es el mismo argumento de siempre llevado hasta el final: esta
+ * tarjeta vive arriba del dinero y cada renglón de acá se lo quita al saldo.
+ * Con el tope de 500 caracteres una nota larga son ~diez renglones; cuatro ya
+ * eran demasiados.
+ *
+ * Lo que la nota larga **no** pierde es su texto: cuando no cabe aparece
+ * [ALTERNAR_LA_NOTA_TAG] y un toque la despliega entera, en la misma tarjeta y
+ * sin salir de la pantalla. La nota corta no ve indicador ninguno — no hay nada
+ * que desplegar, y un control que no hace nada es ruido con forma de control.
+ *
+ * ## El botón de editar comparte renglón con el rótulo
+ *
+ * Y no es cosmética: **son 23.5 dp de dinero**, medidos a `NORMAL` en
+ * `w360dp-h800dp`. En su propio renglón el botón costaba su alto tocable
+ * (50 dp) más la separación de la columna (8 dp) y sólo hacía crecer la
+ * tarjeta; en el renglón del rótulo lo único que paga es la diferencia entre su
+ * alto y el del rótulo, que ya estaba ahí. Es lo que devolvió el `SALDO TOTAL`
+ * arriba del dock a escala nominal — ver `LaFichaSeVeYSeTocaTest`.
  *
  * ## [onEditar] nulo es un caso real, no un default de cortesía
  *
@@ -101,6 +137,12 @@ fun TarjetaDeNotaDestacada(
     antiguedad: String? = null,
     onEditar: (() -> Unit)? = null
 ) {
+    // Las dos banderas se reinician cuando cambia la nota —`remember(nota)`— y
+    // no sólo al recomponer: editarla desde la hoja puede volverla corta, y una
+    // tarjeta que se quedara "expandida" o con el indicador puesto sobre un
+    // texto que ya cabe estaría mintiendo sobre que hay más.
+    var expandida by remember(nota) { mutableStateOf(false) }
+    var recortada by remember(nota) { mutableStateOf(false) }
     MspCard(
         modifier = modifier
             .fillMaxWidth()
@@ -120,27 +162,59 @@ fun TarjetaDeNotaDestacada(
             // pone rojo un texto que sí se pinta en mayúsculas.
             RenglonDelRotulo(
                 rotulo = rotulo.uppercase(BUSINESS_LOCALE),
-                antiguedad = antiguedad
+                antiguedad = antiguedad,
+                onEditar = onEditar
             )
-            Text(
-                text = nota,
-                style = MspTheme.type.listTitle,
-                color = MspTheme.colors.onSurface,
-                maxLines = RENGLONES_DE_LA_NOTA,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (onEditar != null) {
-                BotonDeEditarNota(
-                    onEditar = onEditar,
-                    modifier = Modifier.align(Alignment.End)
+            // El párrafo y su indicador son UN bloque tocable, no un texto y un
+            // botoncito: lo que se toca es la nota, que mide 60 dp o más, y no
+            // un renglón de 12 sp al que hay que apuntar. Así el indicador puede
+            // ser pequeño —cuesta menos alto— sin dejar de ser accionable.
+            Column(
+                modifier = if (recortada) {
+                    Modifier
+                        .clickable(onClickLabel = LEER_LA_NOTA) { expandida = !expandida }
+                        .testTag(ALTERNAR_LA_NOTA_TAG)
+                } else {
+                    Modifier
+                },
+                verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+            ) {
+                Text(
+                    text = nota,
+                    style = MspTheme.type.listTitle,
+                    color = MspTheme.colors.onSurface,
+                    maxLines = if (expandida) Int.MAX_VALUE else RENGLONES_ASOMADOS,
+                    overflow = TextOverflow.Ellipsis,
+                    // `hasVisualOverflow` lo dice el LAYOUT, que es el único que
+                    // sabe cuántos renglones pide esta nota con esta tipografía
+                    // a esta escala. Contar caracteres o `\n` aquí sería
+                    // adivinarlo, y se equivocaría en cuanto cambie la escala
+                    // del sistema.
+                    //
+                    // Sólo se mira colapsada: expandida no hay overflow que
+                    // medir, y dejarlo escribir apagaría el control que se acaba
+                    // de usar.
+                    onTextLayout = { if (!expandida) recortada = it.hasVisualOverflow },
+                    modifier = Modifier.testTag(TEXTO_DE_LA_NOTA_TAG)
                 )
+                if (recortada) {
+                    Text(
+                        text = if (expandida) "Ver menos" else "Ver más",
+                        style = MspTheme.type.captionStrong,
+                        color = MspTheme.colors.statusPartial,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .align(Alignment.End)
+                            .testTag(INDICADOR_DE_LA_NOTA_TAG)
+                    )
+                }
             }
         }
     }
 }
 
 /**
- * El rótulo y, a su derecha, qué tan vieja es la nota.
+ * El rótulo y, a su derecha, qué tan vieja es la nota **y el botón de editar**.
  *
  * La antigüedad **no se calcula acá**: llega ya dicha por
  * [com.example.msp_app.core.common.time.TiempoRelativo], que es quien sabe
@@ -165,30 +239,59 @@ fun TarjetaDeNotaDestacada(
  * antigüedad **baja a un segundo renglón** en vez de comerse el rótulo. Se
  * prefiere eso a darle `weight` a uno de los dos, que es elegir cuál de los dos
  * se trunca; acá ninguno se trunca.
+ *
+ * ## El botón queda FUERA del `FlowRow`, y esto está medido
+ *
+ * La versión obvia —meterlo como un hijo más del `FlowRow`— sale **más cara** a
+ * escala grande, no más barata. Medido a `GRANDE` en `w360dp-h800dp`: el botón
+ * empuja al `FlowRow` a envolver, y entonces se paga el renglón del rótulo
+ * (~22 dp) **más** los 50 dp del botón en el renglón de abajo: 76.5 dp de
+ * encabezado contra los 22 de antes. La tarjeta crecía 21 dp justo en la escala
+ * que peor viene.
+ *
+ * Así que el botón vive en un `Row` exterior, con el `FlowRow` tomando el ancho
+ * que queda (`weight`). El alto del encabezado pasa a ser
+ * `max(50 dp, lo que mida el texto)`: a `NORMAL` los tres caben en un renglón y
+ * a `GRANDE` la antigüedad baja debajo del rótulo **dentro** del hueco de 50 dp
+ * que el botón ya ocupaba. En las dos escalas el encabezado cuesta 50 dp, y no
+ * 50 + lo que mida el texto.
+ *
+ * ## La antigüedad sigue pudiendo bajar de renglón
+ *
+ * Que es lo que el `FlowRow` estaba resolviendo y sigue resolviendo, ahora
+ * dentro de su propio ancho. A 2.0 el rótulo mide hasta ~260 dp y la antigüedad
+ * no cabe a su lado; baja, y ninguno de los dos se trunca.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RenglonDelRotulo(rotulo: String, antiguedad: String?) {
-    FlowRow(
+private fun RenglonDelRotulo(rotulo: String, antiguedad: String?, onEditar: (() -> Unit)?) {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
     ) {
-        Text(
-            text = rotulo,
-            style = MspTheme.type.eyebrow,
-            color = MspTheme.colors.statusPartial
-        )
-        if (antiguedad != null) {
+        FlowRow(
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+        ) {
             Text(
-                text = antiguedad,
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.statusPartial,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag(ANTIGUEDAD_DE_LA_NOTA_TAG)
+                text = rotulo,
+                style = MspTheme.type.eyebrow,
+                color = MspTheme.colors.statusPartial
             )
+            if (antiguedad != null) {
+                Text(
+                    text = antiguedad,
+                    style = MspTheme.type.caption,
+                    color = MspTheme.colors.statusPartial,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag(ANTIGUEDAD_DE_LA_NOTA_TAG)
+                )
+            }
         }
+        if (onEditar != null) BotonDeEditarNota(onEditar = onEditar)
     }
 }
 
@@ -225,10 +328,15 @@ private fun BotonDeEditarNota(onEditar: () -> Unit, modifier: Modifier = Modifie
 }
 
 /**
- * Cuántos renglones de la nota se asoman en la tarjeta. Los mismos cuatro que
- * se asomaban al fondo: subirla no era licencia para que creciera.
+ * Cuántos renglones de la nota se asoman **colapsada**.
+ *
+ * Dos, y no los cuatro que se asomaban al fondo de la pantalla: al fondo un
+ * renglón de más no le quitaba nada a nadie, y arriba del saldo cada renglón de
+ * `listTitle` son ~21 dp que dejan de ser dinero. Lo que no cabe en dos se lee
+ * con un toque — ver [AlternarLaNota]—, así que no se pierde texto: se pierde
+ * la obligación de mirarlo.
  */
-private const val RENGLONES_DE_LA_NOTA = 4
+private const val RENGLONES_ASOMADOS = 2
 
 /**
  * Piso tocable del botón. 50 dp es el piso del repo —el mismo de
@@ -236,3 +344,12 @@ private const val RENGLONES_DE_LA_NOTA = 4
  * tarjeta vive ARRIBA del saldo y cada dp de acá se lo quita al dinero.
  */
 private val ALTO_TOCABLE = 50.dp
+
+/**
+ * Lo que TalkBack anuncia del bloque tocable de la nota.
+ *
+ * *"Activar para leer la nota completa"* no serviría: el mismo toque la vuelve
+ * a colapsar, y anunciar sólo una de las dos direcciones convierte el control
+ * en una trampa para quien no ve la elipsis.
+ */
+private const val LEER_LA_NOTA = "Mostrar u ocultar la nota completa"

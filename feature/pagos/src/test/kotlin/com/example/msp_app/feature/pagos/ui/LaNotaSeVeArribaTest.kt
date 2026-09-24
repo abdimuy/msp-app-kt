@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
@@ -23,10 +24,13 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
+import com.example.msp_app.feature.pagos.ui.components.ALTERNAR_LA_NOTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.ANTIGUEDAD_DE_LA_NOTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_NOTA_DESTACADA_TAG
+import com.example.msp_app.feature.pagos.ui.components.INDICADOR_DE_LA_NOTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DESTACADA_TAG
 import com.example.msp_app.feature.pagos.ui.components.PARCIALIDAD_DEL_CLIENTE_TAG
+import com.example.msp_app.feature.pagos.ui.components.TEXTO_DE_LA_NOTA_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -214,6 +218,100 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
         )
     }
 
+    // --- La tarjeta adelgazada: botón arriba y nota de dos renglones ---------
+
+    /**
+     * **El botón de editar comparte renglón con el rótulo**, y no gasta uno
+     * propio.
+     *
+     * Lo que se afirma es geometría y no estilo: el botón termina **antes** de
+     * que empiece el párrafo de la nota. En la versión anterior vivía debajo del
+     * párrafo, así que esta misma aserción la habría puesto roja — que es lo que
+     * la hace servir de algo.
+     *
+     * Los 23.5 dp que esto devolvió al dinero los mide
+     * `LaFichaSeVeYSeTocaTest`; acá sólo se fija la forma.
+     */
+    @Test
+    fun `el boton de editar va en el renglon del rotulo, no debajo de la nota`() {
+        cliente()
+
+        val boton = bordesDe(EDITAR_NOTA_DESTACADA_TAG)
+        val texto = composeTestRule.onNodeWithTag(TEXTO_DE_LA_NOTA_TAG, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        assertTrue(
+            "el botón va de " + boton.top + " a " + boton.bottom + " y la nota empieza en " +
+                texto.top + ": el botón volvió a gastar su propio renglón",
+            boton.bottom <= texto.top
+        )
+    }
+
+    /**
+     * **La nota larga se asoma en dos renglones y ofrece desplegarse.**
+     *
+     * [GraphicsMode.Mode.NATIVE] es obligatorio acá y no es ceremonia: quien
+     * decide que la nota no cabe es `hasVisualOverflow`, o sea el layout del
+     * texto. Sin métricas de fuente reales Robolectric cree que todo cabe, el
+     * indicador nunca aparece y este test daría verde contra una tarjeta que
+     * recorta en silencio.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `la nota larga se recorta y ofrece desplegarla`() {
+        cliente(ficha = PagosFixtures.fichaDelCliente().copy(nota = NOTA_LARGA))
+
+        composeTestRule.onNodeWithTag(INDICADOR_DE_LA_NOTA_TAG, useUnmergedTree = true)
+            .assertTextEquals("Ver más")
+        val asomada = altoDelTexto()
+        assertTrue(
+            "la nota asomada mide " + asomada + ": no se recortó a dos renglones",
+            asomada <= DOS_RENGLONES
+        )
+    }
+
+    /**
+     * **Y un toque la despliega entera.** El par con el de arriba: sin esto, la
+     * tarjeta podría recortar y no devolver nunca el texto, que es peor que el
+     * defecto original.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `un toque despliega la nota entera`() {
+        cliente(ficha = PagosFixtures.fichaDelCliente().copy(nota = NOTA_LARGA))
+        val asomada = altoDelTexto()
+
+        composeTestRule.onNodeWithTag(ALTERNAR_LA_NOTA_TAG).performClick()
+
+        assertTrue(
+            "la nota mide " + altoDelTexto() + " desplegada y medía " + asomada +
+                " asomada: el toque no la desplegó",
+            altoDelTexto() > asomada
+        )
+        composeTestRule.onNodeWithTag(INDICADOR_DE_LA_NOTA_TAG, useUnmergedTree = true)
+            .assertTextEquals("Ver menos")
+    }
+
+    /**
+     * **La nota que cabe no ofrece nada**, porque no hay nada que desplegar y un
+     * control que no hace nada es ruido con forma de control.
+     *
+     * Es el control positivo del par de arriba, con el MISMO selector: si
+     * [ALTERNAR_LA_NOTA_TAG] estuviera mal escrito, aquellos tests fallarían y
+     * éste pasaría, así que el verde de los tres junto sólo se consigue
+     * distinguiendo los dos casos.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `la nota corta no ofrece desplegar nada`() {
+        cliente()
+
+        assertEquals(
+            "se ofreció desplegar una nota que ya se ve entera",
+            0,
+            composeTestRule.onAllNodesWithTag(ALTERNAR_LA_NOTA_TAG).fetchSemanticsNodes().size
+        )
+    }
+
     // --- El detalle de venta: la nota de la oficina --------------------------
 
     @Test
@@ -282,6 +380,12 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
 
     private fun bordesDe(tag: String): DpRect =
         composeTestRule.onNodeWithTag(tag).getUnclippedBoundsInRoot()
+
+    /** El alto del párrafo de la nota, que es lo que crece al desplegarla. */
+    private fun altoDelTexto(): Dp =
+        composeTestRule.onNodeWithTag(TEXTO_DE_LA_NOTA_TAG, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+            .let { it.bottom - it.top }
 
     /**
      * La pantalla de cliente, con la escala tipográfica que se le pida.
@@ -361,6 +465,26 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
 
         /** El rótulo de la tarjeta de saldo del detalle de venta, en versalitas. */
         const val SALDO_DE_LA_VENTA = "SALDO DE ESTA VENTA"
+
+        /**
+         * Una nota que NO cabe en dos renglones a 360 dp. Es larga a propósito:
+         * el tope del editor son 500 caracteres y una nota así son ~diez
+         * renglones, que es el caso que la tarjeta existe para no pintar entero
+         * arriba del saldo.
+         */
+        const val NOTA_LARGA =
+            "El cliente pidió que pasen el viernes porque cobra ese día en la " +
+                "fábrica y no llega antes de las siete. El portón negro está " +
+                "abierto pero hay que tocar fuerte porque la señora no oye bien " +
+                "desde el patio de atrás."
+
+        /**
+         * El techo de "dos renglones de `listTitle`" a escala nominal. La rampa
+         * da `lineHeight = fontSize * 1.4`, o sea 21 dp por renglón a 15 sp; se
+         * afirma con holgura porque lo que se mide es *dos y no tres*, no el
+         * redondeo exacto del layout.
+         */
+        val DOS_RENGLONES = 50.dp
 
         /**
          * El aire mínimo entre el rótulo y la antigüedad cuando comparten

@@ -27,12 +27,13 @@ import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.AFORDANTE_TEXTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
-import com.example.msp_app.feature.pagos.ui.components.CTA_PRIMARIO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
+import com.example.msp_app.feature.pagos.ui.components.DOCK_DE_ACCIONES_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DESTACADA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DE_LA_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.PARCIALIDAD_DEL_CLIENTE_TAG
+import com.example.msp_app.feature.pagos.ui.components.SALDO_DEL_CLIENTE_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
 import com.example.msp_app.feature.pagos.ui.components.TARJETA_DE_LA_FICHA_TAG
 import org.junit.Assert.assertEquals
@@ -41,6 +42,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /**
  * **La ficha no puede tapar el dinero.** Éste es el test que fija el criterio
@@ -80,11 +82,11 @@ import org.robolectric.annotation.Config
  * tres escalas— y el punto 1, que es el que de verdad vigila a la ficha, se
  * queda intacto y en verde.
  *
- * ## Lo que cambió con la nota arriba, y esto SÍ es aflojar el test
+ * ## Lo que cambió con la nota arriba, y qué se recuperó después
  *
  * No se disimula: **el dueño decidió subir la nota del cobrador a una tarjeta
- * propia arriba del dinero**, y eso rompe el punto 2 **cuando hay nota**.
- * Medido en esta misma pantalla, con el fixture de siempre:
+ * propia arriba del dinero**, y eso rompió el punto 2 **cuando hay nota**.
+ * Medido entonces en esta misma pantalla, con el fixture de siempre:
  *
  * | Escala | Parcialidad sin nota | Con nota | Tope del dock |
  * |---|---|---|---|
@@ -92,14 +94,26 @@ import org.robolectric.annotation.Config
  * | GRANDE | 549.0 dp | 725.5 dp | 620.0 dp |
  * | MUY_GRANDE | 549.0 dp | 732.0 dp | 620.0 dp |
  *
- * O sea: con nota la parcialidad se va abajo del dock en las tres escalas, y a
- * GRANDE y MUY_GRANDE **ni el saldo total cabe** (termina en 648.5 / 655.0 dp
- * contra un dock que empieza en 620.0). A NORMAL el saldo total sí sigue
- * arriba, por 21.5 dp.
+ * Eso quedó pendiente de la decisión del dueño, que eligió **adelgazar la
+ * tarjeta**: el botón de editar al renglón del rótulo y la nota recortada a dos
+ * renglones con un toque para desplegarla. Medido con gráficos NATIVOS —ver
+ * abajo por qué eso importa— la tarjeta pasó de 154.5 a 131.5 dp a `NORMAL`, de
+ * 214.5 a 179.5 a `GRANDE` y de 313.0 a 244.5 a `MUY_GRANDE`.
  *
- * Eso contradice lo que el dueño pidió en la ronda anterior, así que **queda
- * pendiente de su decisión**, no resuelto acá. Lo que estos tests hacen mientras
- * tanto es dejar de afirmar algo falso y seguir midiendo lo que sí es cierto:
+ * Esos 23 dp habrían bastado a escala nominal. Lo que se los comió fue el otro
+ * arreglo de la misma pasada: **la dirección escrita volvió** al bloque de
+ * identidad, porque `f8621920` la había quitado y el dueño lo reportó desde el
+ * teléfono. Cuesta 19.0 dp con la dirección corta del fixture y 34.5 con una
+ * real de dos renglones. La cuenta completa está en el KDoc de
+ * `con nota, lo que el dock tapa del SALDO TOTAL no crece`.
+ *
+ * **A `GRANDE` y `MUY_GRANDE` no cabe, y no se puede hacer caber.** Es
+ * aritmética, no una opinión: a `GRANDE` el bloque del saldo termina en 553.0 dp
+ * SIN tarjeta y el dock empieza en 620.0, así que la tarjeta entera tendría que
+ * medir menos de 55 dp — y un solo renglón de nota más el padding de la tarjeta
+ * ya son 63.5. Se reporta en vez de disimularse.
+ *
+ * Lo que estos tests miden hoy:
  *
  * 1. **Sin nota no cambió nada** — el punto 2 sigue entero, en las tres
  *    escalas. Es el estado de la mayoría de las puertas.
@@ -107,8 +121,25 @@ import org.robolectric.annotation.Config
  *    la ficha, se queda tal cual: agregar un valor al catálogo no empuja nada.
  * 3. **La tarjeta es TODO lo que se movió** — el delta se mide contra el alto
  *    de la propia tarjeta, así que nadie puede colarle alto a la pantalla por
- *    otro lado mientras esto siga verde, y una tarjeta más chica pone el
- *    dinero de vuelta sin tocar ningún umbral.
+ *    otro lado mientras esto siga verde.
+ * 4. **Con nota, lo que el dock tapa del `SALDO TOTAL` no crece** — el criterio
+ *    del dueño todavía NO se cumple a escala nominal, y en vez de afirmar algo
+ *    falso se mide la deuda y se prohíbe que aumente. El KDoc de ese test tiene
+ *    los dp de cada cosa y qué falta decidir.
+ *
+ * ## Por qué el criterio del dueño se mide con [GraphicsMode.Mode.NATIVE]
+ *
+ * Porque el resto de este archivo NO lo usa, y con los gráficos legado de
+ * Robolectric las métricas de fuente son inventadas: los números de la tabla de
+ * arriba son los de ese modo, y **no son los del golden que el dueño mira**. En
+ * legado el saldo total ya "cabía" a `NORMAL` por 21.5 dp mientras el golden
+ * `pagos_cliente_light_1_0` lo enseñaba cortado por el dock. Una aserción sobre
+ * el criterio del dueño en modo legado habría dado verde contra la pantalla
+ * rota, que es exactamente la trampa que este repo ya documentó para los anchos
+ * de texto y que vale igual para los altos.
+ *
+ * Los otros tests se quedan en legado a propósito: miden **diferencias** entre
+ * dos estados de la misma pantalla, y ahí el modo se cancela.
  */
 @Config(qualifiers = "w360dp-h800dp-xhdpi")
 class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
@@ -229,6 +260,91 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
+     * **El criterio del dueño, y cuánto falta para cumplirlo.**
+     *
+     * Lo que pidió por escrito es *"a escala 1.0 el `SALDO TOTAL` tiene que
+     * caber entero sobre el dock"*. **Hoy no se cumple**, y esto no lo disimula:
+     * mide cuánto queda tapado y prohíbe que ese número crezca.
+     *
+     * ## Por qué no se cumple, con los dp de cada cosa
+     *
+     * Dos cambios empujan el dinero a la vez y la suma no cabe. Medido a
+     * `NORMAL` con gráficos NATIVOS, `w360dp-h800dp`:
+     *
+     * | | Alto | Saldo termina en | Tapado |
+     * |---|---|---|---|
+     * | Antes de esta pasada | tarjeta 154.5, sin dirección | 669.5 dp | 14.5 dp |
+     * | Tarjeta adelgazada sola | tarjeta 131.5 | 646.5 dp | **cabe, por 8.5** |
+     * | Con la dirección devuelta | + renglón de 19.0 | 665.5 dp | 10.5 dp |
+     * | Con una dirección REAL (dos renglones) | + 34.5 | 681.0 dp | 26.0 dp |
+     *
+     * O sea: **adelgazar la tarjeta alcanzaba; devolver la dirección escrita lo
+     * vuelve a romper.** Y la dirección no es negociable — *"eso no se puede
+     * quitar nunca"*—, así que los 26 dp que faltan tienen que salir de otro
+     * lado y ese otro lado es una decisión de diseño que el dueño no ha tomado.
+     * El candidato obvio es el cuadro de la puerta, que a `NORMAL` mide 130 dp
+     * de banda y cuyo propio KDoc ya dice que *"entre un dibujo y un dato, cede
+     * el dibujo"*.
+     *
+     * ## Por qué un tope y no una afirmación
+     *
+     * Porque una afirmación falsa se borra el día que estorba, y un tope
+     * medido no: mientras [TAPADO_MAXIMO] esté acá, nadie puede empujar el
+     * dinero un dp más sin que esto se ponga rojo, y el día que alguien pague
+     * los 10.5 dp que faltan el test se pone rojo **también** y hay que bajar el
+     * número hasta cero. Es la misma razón por la que el delta de la tarjeta se
+     * mide contra su propio alto y no contra una constante.
+     *
+     * Va con gráficos NATIVOS y el KDoc de la clase explica por qué: en modo
+     * legado esto ya estaba "verde" mientras el golden mostraba la cifra
+     * cortada.
+     *
+     * ## Y se mide contra [DOCK_DE_ACCIONES_TAG], no contra el botón
+     *
+     * Entre el canto del dock y el botón primario hay 17 dp de hairline y
+     * padding que el botón no cubre y la banda sí. Con `CTA_PRIMARIO_TAG` esta
+     * medición daba 6.5 dp de holgura sobre una pantalla cuyo golden enseñaba el
+     * `$3,550` cortado — la aserción medía la línea equivocada.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `con nota, lo que el dock tapa del SALDO TOTAL no crece`() {
+        cliente(ficha = PagosFixtures.fichaDelCliente())
+
+        val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
+        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
+        val tapado = saldo.bottom - dock.top
+        assertTrue(
+            "el dock tapa " + tapado + " del saldo total y el tope son " + TAPADO_MAXIMO +
+                ": algo volvió a empujar el dinero",
+            tapado <= TAPADO_MAXIMO
+        )
+    }
+
+    /**
+     * Control positivo del de arriba: **sin nota el saldo no se tapa**, con el
+     * MISMO selector y la misma línea de flotación.
+     *
+     * Sin esto, un `SALDO_DEL_CLIENTE_TAG` mal escrito devolvería `Rect.Zero`
+     * —la trampa que este repo ya pagó— y un "tapado negativo" pasaría el tope
+     * sin haber medido nada. Acá el mismo tag tiene que dar un rectángulo que sí
+     * cabe: sólo un nodo real distingue los dos casos.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `control positivo - sin nota el saldo total no se tapa`() {
+        cliente(ficha = PagosFixtures.fichaSinNota())
+
+        val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
+        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
+        assertTrue(
+            "el saldo total termina en " + saldo.bottom + " y el dock empieza en " +
+                dock.top + ": sin nota el dinero también se tapó",
+            saldo.bottom <= dock.top
+        )
+    }
+
+    /**
      * **La medición, no la impresión.** `assertIsDisplayed()` NO sirve para
      * esto y se comprobó: da verde con el nodo apenas asomado, así que pasaba
      * igual con la ficha empujando el dinero fuera de pantalla. Lo que sí
@@ -241,7 +357,7 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
         // va debajo del saldo total, en la segunda banda de la hoja del dinero.
         // Si ella cabe, el saldo cabe. Medir la de abajo es la afirmación fuerte.
         val dinero = bordesDe(PARCIALIDAD_DEL_CLIENTE_TAG)
-        val dock = bordesDe(CTA_PRIMARIO_TAG)
+        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
         assertTrue(
             "el dinero termina en " + dinero.bottom +
                 " y el dock empieza en " + dock.top + ": queda tapado",
@@ -505,5 +621,16 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
          * pantalla, y que la tarjeta paga junto con su alto.
          */
         val SEPARACION_DE_LA_TARJETA = 12.dp
+
+        /**
+         * Cuánto del bloque de saldo total le queda tapado al dock **hoy**, con
+         * nota puesta y a escala nominal.
+         *
+         * **No es un objetivo: es una deuda medida**, y el objetivo es cero. Ver
+         * el KDoc de `con nota, lo que el dock tapa del SALDO TOTAL no crece`
+         * para de dónde salen estos dp y qué habría que decidir para pagarlos.
+         * El número baja cuando alguien los pague; no sube nunca.
+         */
+        val TAPADO_MAXIMO = 10.5.dp
     }
 }

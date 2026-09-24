@@ -21,13 +21,34 @@ data class DatosDeVenta(
     val clienteNombre: String,
     val telefono: String,
     /**
-     * `Sale.CALLE` — la calle y el número, **sin la ciudad pegada**.
+     * `Sale.CALLE` — **el bloque de calle tal como la oficina lo escribió**, no
+     * "la calle" a secas.
      *
-     * Viaja aparte de [ciudad] porque hay quien necesita nada más esto: el
-     * cuadro de la puerta del detalle de cliente pinta la calle en grande y la
-     * ciudad en la línea de apoyo, y armarlas juntas para volver a partirlas
-     * sería una derivación que se rompe sola —`CALLE` puede traer comas—. Quien
-     * quiere las dos pegadas pide [direccion], que es lo que era antes.
+     * ## Qué trae de verdad, medido en el productor
+     *
+     * Viene de `DIRS_CLIENTES.CALLE` de Microsip, y msp-api la **compone**
+     * (`internal/ventas/infra/microsip/cliente_writer.go`, `buildCalle`):
+     *
+     * ```
+     * NOMBRE_CALLE + " " + NUM_EXT + "\n" + COLONIA + ", " + POBLACION
+     * ```
+     *
+     * O sea: calle, número, colonia y población, en un campo de **varios
+     * renglones**. `RoomVentasAdapter` lo aplana a uno, igual que el código
+     * viejo de `:app`, que lo pinta con `.replace("\n", " ")`.
+     *
+     * Un KDoc anterior decía que esto era *"la calle y el número, sin la ciudad
+     * pegada"*. **Era falso**, y se deja anotado porque de esa creencia salió
+     * una regresión que el dueño reportó desde el teléfono: el detalle de
+     * cliente retiró su renglón de dirección suponiendo que un cuadro de 40 dp
+     * podía decir esta cadena entera.
+     *
+     * ## Por qué viaja aparte de [ciudad]
+     *
+     * Porque hay quien necesita sólo este bloque —el cuadro de la puerta lo
+     * pinta en grande— y armarlo junto a [ciudad] para volver a partirlo sería
+     * una derivación que se rompe sola: esta cadena trae comas propias. Quien
+     * quiere las dos pegadas pide [direccion].
      */
     val calle: String,
     /** `Sale.CIUDAD`. Vacía cuando la fila no la trae — ver [calle]. */

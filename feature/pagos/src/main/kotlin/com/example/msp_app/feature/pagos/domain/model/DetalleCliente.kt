@@ -27,14 +27,17 @@ data class DetalleCliente(
     val nombre: String,
     val telefono: String,
     /**
-     * La calle y el número, **sin la ciudad pegada** — ver [DatosDeVenta.calle].
+     * El bloque de calle escrito por la oficina —calle, número, colonia y
+     * población— **sin la ciudad de [ciudad] pegada al final**. Qué trae
+     * exactamente y por qué no es sólo "la calle": [DatosDeVenta.calle].
      *
-     * Es lo que el cuadro de la puerta pinta en grande: *"C. Hidalgo 214"*. Con
-     * la ciudad pegada la cadena se come el ancho entero y la tipografía grande
-     * pierde su efecto, que es lo que el dueño vio en el golden.
+     * Es lo que el cuadro de la puerta pinta en grande. **No es donde vive la
+     * dirección escrita de esta pantalla**: ésa es [direccion], en el renglón
+     * de `BloqueDeIdentidad`, porque el cuadro mide 40 dp a escalas grandes y
+     * ahí esta cadena se recorta.
      */
     val calle: String,
-    /** La ciudad, para la línea de apoyo *"ciudad · ruta"*. Vacía si no la trae. */
+    /** La ciudad (`POBLACION`). Entra a [direccion]. Vacía si no la trae. */
     val ciudad: String,
     val zona: String,
     val aval: String,
@@ -139,11 +142,17 @@ data class DetalleCliente(
     val cuentas: Int get() = ventas.size
 
     /**
-     * [calle] y [ciudad] en un renglón, que es lo que este campo era antes.
+     * **La dirección escrita, entera**: [calle] y [ciudad] en un renglón, que es
+     * lo que este campo era antes.
      *
-     * **Derivada y no almacenada**, para que las tres no puedan despegarse. La
-     * piden la bitácora del cliente y el intent de "cómo llegar", que necesitan
-     * la dirección entera en una cadena y no sus pedazos.
+     * **Derivada y no almacenada**, para que las tres no puedan despegarse.
+     *
+     * La pinta el renglón de `BloqueDeIdentidad` del detalle de cliente, y esa
+     * no es una decisión de layout que se pueda revisitar a la ligera: el dueño
+     * la fijó como regla —*"siempre se tiene que ver la dirección escrita"*—
+     * después de que `f8621920` la retirara. La piden además la bitácora del
+     * cliente y el intent de "cómo llegar", que necesitan la dirección entera en
+     * una cadena y no sus pedazos.
      */
     val direccion: String
         get() = listOf(calle, ciudad)

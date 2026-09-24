@@ -625,14 +625,20 @@ private fun HojaDeIdentidad(
     val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
     HojaContinua {
         SeccionDeHoja(primera = true) {
-            // Sin la dirección: la dice el cuadro de abajo, más grande y entera.
-            // Decirla en los dos sitios, con las mismas palabras y a tres dedos
-            // de distancia, no se leía como jerarquía sino como un error de
-            // copiado. Ver el KDoc de `BloqueDeIdentidad`.
+            // **Con la dirección escrita, siempre.** Regla del dueño, dicha
+            // mirando el aparato: *"eso no se puede quitar nunca, siempre se
+            // tiene que ver la dirección escrita"*. `f8621920` la había retirado
+            // creyendo que el cuadro de abajo la decía entera; no la dice —a
+            // escala grande el cuadro son 40 dp y un renglón con elipsis—. Ver
+            // el KDoc de `BloqueDeIdentidad` para la medición.
+            //
+            // Va `detalle.direccion` (calle + ciudad) y no `detalle.calle`: lo
+            // que no puede faltar es la dirección COMPLETA.
             BloqueDeIdentidad(
                 estados = visuales.map { it.icono },
                 colores = visuales.map { it.fondo to it.contenido },
-                zona = detalle.zona
+                zona = detalle.zona,
+                direccion = detalle.direccion
             )
             // Los dos datos que el rediseño perdió sin que nadie lo notara, DENTRO
             // de esta sección y no en una propia: todo lo que se agrega a la hoja
@@ -658,17 +664,18 @@ private fun HojaDeIdentidad(
         // de verdad que cablea `:app`, y sin ella las señas de la puerta.
         //
         // El dibujo que hacía de respaldo se retiró: el dueño lo revisó y en su
-        // lugar va una composición tipográfica —chip, calle y "ciudad · ruta"—.
-        // Ésta es **la** banda que dice la dirección en esta pantalla; arriba ya
-        // no se repite.
+        // lugar va una composición tipográfica —chip, calle y ruta—.
         //
-        // `calle` y `ciudad` llegan SEPARADAS desde el modelo (ver
-        // `DetalleCliente.calle`): acá no se parte ninguna cadena.
+        // Esta banda **no** es donde vive la dirección escrita: eso lo hace el
+        // renglón de `BloqueDeIdentidad`, arriba. Acá va el vistazo que contesta
+        // "¿es aquí?" parado en la puerta, y por eso puede recortarse.
+        //
+        // La ciudad NO se le pasa: la dice el renglón de arriba, y repetirla acá
+        // era la duplicación que el dueño reportó. Ver `CuadroDeLaPuerta`.
         Separador()
         CuadroDeLaPuerta(
             ubicacion = detalle.ultimoCobroAqui,
             calle = detalle.calle,
-            ciudad = detalle.ciudad,
             zona = detalle.zona,
             onVerUbicacion = onVerUbicacion,
             suelo = suelo

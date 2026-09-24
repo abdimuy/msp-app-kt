@@ -28,6 +28,7 @@ import com.example.msp_app.feature.pagos.ui.components.AVISO_DE_LAS_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
+import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
 import com.example.msp_app.feature.pagos.ui.components.DISTINTIVO_DE_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDAD_DE_LA_NOTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
@@ -211,16 +212,20 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
     }
 
     /**
-     * La **ciudad** no se pierde al sacarla del renglón grande: baja a la línea
-     * de apoyo del cuadro, junto a la ruta.
+     * La **ciudad** no se pierde al sacarla del renglón grande del cuadro: la
+     * dice la dirección escrita del bloque de identidad, arriba.
      *
      * Es el control que impide "arreglar" el ancho de la calle tirando la ciudad
-     * a la basura — que pasaría en verde con sólo el test de arriba.
+     * a la basura — que pasaría en verde con sólo el test de arriba. Tuvo que
+     * cambiar de destino una vez: entre `f8621920` y el arreglo de la regresión
+     * la ciudad vivía en la línea de apoyo del cuadro, que es una banda de 40 dp
+     * a escala grande y por lo tanto no es un sitio donde un dato pueda vivir.
      */
     @Test
-    fun `la ciudad baja a la linea de apoyo, con la ruta`() {
+    fun `la ciudad la dice la direccion escrita, no el cuadro`() {
         cliente()
 
+        composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
         composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(APOYO)
     }
 
@@ -231,7 +236,7 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
      * dirección pasaría en verde.
      *
      * Se apunta por `testTag` y no por texto: la ruta se dice en DOS lugares
-     * —acá y dentro de *"Centro · ruta 25"*—, y un `onNodeWithText` a secas
+     * —acá y en la línea de apoyo del cuadro—, y un `onNodeWithText` a secas
      * encuentra los dos y falla por ambigüedad.
      */
     @Test
@@ -379,14 +384,20 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
         .size
 
     private companion object {
-        /** La calle SOLA, que es lo que el cuadro pinta en grande. */
+        /** El bloque de calle, que es lo que el cuadro pinta en grande. */
         const val CALLE = "C. Hidalgo 214"
+
+        /** La ciudad del fixture. Entra a la dirección escrita, no al cuadro. */
+        const val CIUDAD = "Centro"
 
         /** La ruta, encabezado de la tarjeta de identidad. */
         const val ZONA = "ruta 25"
 
-        /** La línea de apoyo del cuadro: ciudad primero, ruta después. */
-        const val APOYO = "Centro · ruta 25"
+        /** La dirección escrita del bloque de identidad: calle y ciudad. */
+        const val DIRECCION = "$CALLE, $CIUDAD"
+
+        /** La línea de apoyo del cuadro: sólo la ruta. */
+        const val APOYO = ZONA
     }
 
     private fun cliente(
