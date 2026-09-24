@@ -26,11 +26,12 @@ import com.example.msp_app.feature.pagos.ui.components.ACCION_DE_CONTACTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.APOYO_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AVISO_DE_LAS_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
-import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
 import com.example.msp_app.feature.pagos.ui.components.DISTINTIVO_DE_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDAD_DE_LA_NOTA_TAG
+import com.example.msp_app.feature.pagos.ui.components.MENU_DEL_DOCK_TAG
+import com.example.msp_app.feature.pagos.ui.components.MENU_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
 import com.example.msp_app.feature.pagos.ui.components.SUGERENCIA_TAG
 import com.example.msp_app.feature.pagos.ui.components.ZONA_DEL_CLIENTE_TAG
@@ -75,13 +76,41 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
 
     // --- El botón en el dock -------------------------------------------------
 
+    /**
+     * **Las Notas se movieron una vez más: del botón del dock al "⋯".**
+     *
+     * Decisión del dueño sobre un mock interactivo. A la vista quedan las dos
+     * acciones diarias —abono y visita—; adentro Condonar y Notas. El argumento
+     * para Notas es que **ya no es el único camino**: la tarjeta de la nota,
+     * arriba del dinero, trae su propio *Editar*.
+     *
+     * Lo que este test sigue protegiendo es lo mismo de antes y no se relajó:
+     * el camino **se ve sin desplazar**. Lo que cambió es que ahora son dos
+     * toques, y los dos se afirman — con sólo el primero, un menú vacío pasaría
+     * en verde.
+     */
     @Test
-    fun `el boton de Notas vive en el dock y se ve sin desplazar`() {
+    fun `el camino a las Notas se ve sin desplazar, dentro del menu`() {
         cliente()
 
         // Sin `performScrollTo`: el dock está fijo abajo. Si algún día volviera
         // a la hoja desplazable, esto se pone rojo, que es lo correcto.
-        composeTestRule.onNodeWithTag(CTA_NOTAS_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
+        composeTestRule.onNodeWithTag(MENU_NOTAS_TAG).assertIsDisplayed()
+    }
+
+    /** Control positivo del de arriba: cerrado, el renglón NO está. */
+    @Test
+    fun `con el menu cerrado el renglon de Notas no existe`() {
+        cliente()
+
+        assertEquals(
+            "el renglón de Notas se pinta con el menú cerrado: entonces el " +
+                "test de arriba no prueba que abrirlo haga nada",
+            0,
+            composeTestRule.onAllNodesWithTag(MENU_NOTAS_TAG).fetchSemanticsNodes().size
+        )
     }
 
     @Test
@@ -89,9 +118,10 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
         var abierto = 0
         cliente(onEditar = { abierto += 1 })
 
-        composeTestRule.onNodeWithTag(CTA_NOTAS_TAG).performClick()
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
+        composeTestRule.onNodeWithTag(MENU_NOTAS_TAG).performClick()
 
-        assertEquals("el botón del dock no abrió las Notas", 1, abierto)
+        assertEquals("el renglón del menú no abrió las Notas", 1, abierto)
     }
 
     /**
@@ -105,6 +135,7 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
     @Test
     fun `con la puerta en blanco el boton NO lleva distintivo`() {
         cliente(ficha = FichaDelCliente())
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
 
         assertEquals(
             "se pintó el distintivo sobre una puerta sin nada anotado: entonces no " +
@@ -118,6 +149,7 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
     @Test
     fun `con algo anotado el boton lleva distintivo, y lo dice`() {
         cliente(ficha = FichaDelCliente(nota = "atiende la suegra"))
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
 
         composeTestRule.onNodeWithTag(DISTINTIVO_DE_NOTAS_TAG, useUnmergedTree = true)
             .assertIsDisplayed()
@@ -133,6 +165,7 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
     @Test
     fun `con una advertencia el distintivo lo dice, no solo lo pinta`() {
         cliente(ficha = FichaDelCliente(senales = setOf(SenalDeFicha.HAY_PERRO)))
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
 
         composeTestRule.onNodeWithTag(DISTINTIVO_DE_NOTAS_TAG, useUnmergedTree = true)
             .assertContentDescriptionEquals("Con advertencia")
@@ -211,6 +244,9 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
         cliente(nivel = FontSizeLevel.MUY_GRANDE)
 
         composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
+        // La calle también sigue en la seña del FONDO, que es lo que reemplazó
+        // al cuadro de 100 dp. A escalas grandes el fondo se aprieta y la seña
+        // se queda con un solo renglón: la calle.
         composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
     }
 
@@ -225,11 +261,17 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
      * a escala grande y por lo tanto no es un sitio donde un dato pueda vivir.
      */
     @Test
-    fun `la ciudad la dice la direccion escrita, no el cuadro`() {
+    fun `la ciudad la dice la direccion escrita, no el fondo`() {
         cliente()
 
         composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
-        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(APOYO)
+        // Y el fondo ya no tiene dónde repetirla: su línea de apoyo se fue
+        // cuando el fondo bajó a 118 dp para no taparle el sitio al dinero.
+        assertEquals(
+            "volvió la línea de apoyo del fondo",
+            0,
+            composeTestRule.onAllNodesWithTag(APOYO_DEL_CUADRO_TAG).fetchSemanticsNodes().size
+        )
     }
 
     /**

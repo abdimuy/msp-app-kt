@@ -27,18 +27,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspProgressBar
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
+import com.example.msp_app.core.designsystem.component.altoDeLaBarra
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
+import com.example.msp_app.core.designsystem.component.mspBackdropSource
+import com.example.msp_app.core.designsystem.component.rememberMspBackdrop
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
+import com.example.msp_app.feature.pagos.ui.components.AIRE_DEL_DOCK_TAG
 import com.example.msp_app.feature.pagos.ui.components.BarraDeDetalle
 import com.example.msp_app.feature.pagos.ui.components.BloqueDelMes
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
@@ -203,7 +209,8 @@ fun DetalleVentaContent(
     // comentario gemelo en `BitacoraContent` para por qué vive aquí y no en el
     // `UiState`.
     var preguntaPor by rememberSaveable { mutableStateOf<String?>(null) }
-    Column(
+    val backdrop = rememberMspBackdrop()
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MspTheme.colors.background)
@@ -220,11 +227,22 @@ fun DetalleVentaContent(
             .systemBarsPadding()
     ) {
         val detalle = state.detalle
-        Box(modifier = Modifier.weight(1f)) {
+        // **El dock pasó a estar ENCIMA del contenido, no debajo.** Antes era
+        // un hermano en un `Column` con el cuerpo en `weight(1f)`, y eso quiere
+        // decir que el contenido **se cortaba** donde el dock empezaba: pintar
+        // ahí un degradado no habría enseñado nada, sólo el color del fondo
+        // difuminándose contra sí mismo. Para que se vea "un poco lo de atrás"
+        // el contenido tiene que pasar por debajo. El aire de abajo del scroll
+        // lo pone `CuerpoDeLaVenta` con el alto MEDIDO del dock — que cambia
+        // con la escala de letra (89 dp a NORMAL, 133 a las grandes), así que
+        // no puede ser una constante.
+        Box(modifier = Modifier.fillMaxSize()) {
             when {
                 state.cargando -> Cargando()
                 detalle == null -> MensajeDeError(state.error, onAtras)
                 else -> CuerpoDeLaVenta(
+                    aireAbajo = backdrop.altoDeLaBarra(),
+                    backdrop = backdrop,
                     detalle = detalle,
                     onAtras = onAtras,
                     onUsarLiquidacion = onUsarLiquidacion,
@@ -257,6 +275,7 @@ fun DetalleVentaContent(
                 textoPrimario = "Abonar " + formatMoneyMxn(detalle.parcialidad.amount),
                 onPrimario = onRegistrarAbono,
                 onVisita = onRegistrarVisita,
+                backdrop = backdrop,
                 // El "⋯" que llevaba a la pantalla legada ya no existe: el
                 // dueño no lo quiere ver más. "Ver los N abonos", más abajo en
                 // LineaDeLaVenta, sigue abriendo esa misma pantalla — es una
@@ -296,6 +315,8 @@ fun DetalleVentaContent(
 
 @Composable
 private fun CuerpoDeLaVenta(
+    aireAbajo: Dp,
+    backdrop: MspBackdrop,
     detalle: DetalleVenta,
     onAtras: () -> Unit,
     onUsarLiquidacion: () -> Unit,
@@ -308,6 +329,7 @@ private fun CuerpoDeLaVenta(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .mspBackdropSource(backdrop)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.md)
     ) {
@@ -410,6 +432,11 @@ private fun CuerpoDeLaVenta(
             TarjetaDeNotaDeLaVenta()
         }
         Spacer(Modifier.height(MspTheme.spacing.lg))
+        // El aire que el dock tapa. Sale de [aireAbajo], que la barra mide por
+        // su cuenta: a letra normal son 89 dp y a las grandes 133, porque el
+        // dock se apila. Una constante acá dejaría el último renglón debajo del
+        // tramo sólido la primera vez que alguien le agregue un botón.
+        Spacer(Modifier.height(aireAbajo).testTag(AIRE_DEL_DOCK_TAG))
     }
 }
 

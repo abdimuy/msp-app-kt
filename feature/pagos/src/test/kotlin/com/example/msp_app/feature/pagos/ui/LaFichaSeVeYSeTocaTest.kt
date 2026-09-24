@@ -26,10 +26,11 @@ import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.AFORDANTE_TEXTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_FICHA_TAG
-import com.example.msp_app.feature.pagos.ui.components.CTA_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.DOCK_DE_ACCIONES_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_FICHA_TAG
+import com.example.msp_app.feature.pagos.ui.components.MENU_DEL_DOCK_TAG
+import com.example.msp_app.feature.pagos.ui.components.MENU_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DESTACADA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DE_LA_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.PARCIALIDAD_DEL_CLIENTE_TAG
@@ -479,10 +480,15 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     fun `control positivo - sin advertencia no hay pastilla, pero si hay camino`() {
         cliente()
         composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).assertDoesNotExist()
-        // El camino ya no es el icono de la fila de acciones: las Notas se
-        // fueron al dock, que se ve sin desplazar. Lo que este test protege no
-        // cambió — que el camino NO se pierda cuando la pastilla no está.
-        composeTestRule.onNodeWithTag(CTA_NOTAS_TAG).assertIsDisplayed()
+        // El camino ya no es un botón del dock: las Notas se fueron al "⋯",
+        // junto con Condonar, y a la vista quedan las dos acciones diarias. Lo
+        // que este test protege no cambió — que el camino NO se pierda cuando
+        // la pastilla no está —, así que se afirma entero: el "⋯" se ve sin
+        // desplazar **y** abrirlo enseña las Notas. Sólo con lo primero, un
+        // menú vacío pasaría en verde.
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
+        composeTestRule.onNodeWithTag(MENU_NOTAS_TAG).assertIsDisplayed()
     }
 
     @Test
@@ -511,10 +517,15 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     fun `sin ficha tampoco hay pastilla, y el camino sigue`() {
         cliente(ficha = FichaDelCliente())
         composeTestRule.onNodeWithTag(EDITAR_FICHA_TAG).assertDoesNotExist()
-        // El camino ya no es el icono de la fila de acciones: las Notas se
-        // fueron al dock, que se ve sin desplazar. Lo que este test protege no
-        // cambió — que el camino NO se pierda cuando la pastilla no está.
-        composeTestRule.onNodeWithTag(CTA_NOTAS_TAG).assertIsDisplayed()
+        // El camino ya no es un botón del dock: las Notas se fueron al "⋯",
+        // junto con Condonar, y a la vista quedan las dos acciones diarias. Lo
+        // que este test protege no cambió — que el camino NO se pierda cuando
+        // la pastilla no está —, así que se afirma entero: el "⋯" se ve sin
+        // desplazar **y** abrirlo enseña las Notas. Sólo con lo primero, un
+        // menú vacío pasaría en verde.
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
+        composeTestRule.onNodeWithTag(MENU_NOTAS_TAG).assertIsDisplayed()
     }
 
     // --- El afordante --------------------------------------------------------
@@ -529,6 +540,7 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     @Test
     fun `tocar la tarjeta tambien abre el editor`() {
         cliente()
+        composeTestRule.desplazaSobreElDock()
         composeTestRule.onNodeWithTag(TARJETA_DE_LA_FICHA_TAG).performScrollTo().performClick()
         assertEquals(1, abrio)
     }

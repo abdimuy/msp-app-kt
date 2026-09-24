@@ -39,6 +39,8 @@ import androidx.navigation.NavController
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspMoneyText
+import com.example.msp_app.core.designsystem.component.mspBackdropSource
+import com.example.msp_app.core.designsystem.component.rememberMspBackdrop
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.collectionreport.domain.model.ReportPeriod
 import com.example.msp_app.feature.collectionreport.ui.ChipUi
@@ -151,8 +153,14 @@ fun CollectionReportScreenTier2(
         viewModel.openSheet(SheetKind.DIA_CICLO, index.toString())
     }
     ThemeRevealRoot(darkTheme = state.darkTheme, onToggleTheme = viewModel::toggleTheme) {
+        // El desenfoque de lo que pasa por detrás de la barra de acciones. El
+        // degradado ya estaba —es el piloto del que salió la pieza compartida—;
+        // lo nuevo es la capa borrosa, que corre sólo en Android 12+ y que
+        // dibuja el CONTENIDO, no la barra. Ver `mspBackdropSource`.
+        val backdrop = rememberMspBackdrop()
         Box(modifier = Modifier.fillMaxSize()) {
             CollectionReportContentTier2(
+                modifier = Modifier.mspBackdropSource(backdrop),
                 state = state,
                 onMenuClick = onMenuClick,
                 onPrivacyToggle = viewModel::toggleMask,
@@ -170,6 +178,7 @@ fun CollectionReportScreenTier2(
                 onDaySelect = viewModel::selectDay
             )
             BlurredActionBar(
+                backdrop = backdrop,
                 onCompartirClick = {
                     context.startActivity(
                         Intent.createChooser(ReportActionsController.buildShareIntent(state), null)

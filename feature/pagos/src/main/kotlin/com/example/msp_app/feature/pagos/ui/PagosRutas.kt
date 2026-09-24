@@ -204,6 +204,30 @@ data class UbicacionEnElDetalle(
 )
 
 /**
+ * **Las dos acciones de dinero del detalle de cliente, que van sobre una CUENTA.**
+ *
+ * Abonar y condonar reciben las dos un `ventaId` —el `DOCTO_CC_ACR_ID`— y
+ * ninguna de las dos es de una persona: el dinero entra a una cuenta y se
+ * perdona en una cuenta. Cuál, lo decide la pantalla: directo cuando hay una
+ * sola y preguntando en la hoja *"¿a cuál cuenta?"* cuando hay varias.
+ *
+ * Van en un objeto y no en dos parámetros sueltos por lo mismo que
+ * [UbicacionEnElDetalle]: con ellos sueltos [destinoDeDetalleCliente] pasa de
+ * los siete parámetros que detekt corta (`LongParameterList`). Es además el
+ * mismo criterio con el que la pantalla agrupa sus lambdas en
+ * `AccionesDeContacto` y `AccionesDeLaFicha`.
+ *
+ * **Condonar desde el cliente no es una ruta nueva**: es la misma que el detalle
+ * de venta ya usaba, con el mismo `NewForgivenessDialog` sin reescribir. Lo
+ * único que cambió es de dónde sale el `ventaId`.
+ */
+@Immutable
+data class DineroDeLaCuenta(
+    val onRegistrarAbono: (Int) -> Unit = {},
+    val onCondonar: (Int) -> Unit = {}
+)
+
+/**
  * Registra el **detalle de cliente** en el grafo.
  *
  * Va aparte de [destinosDePagos] por la misma razón que la lista y el abono: la
@@ -231,9 +255,9 @@ data class UbicacionEnElDetalle(
 fun NavGraphBuilder.destinoDeDetalleCliente(
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
-    onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
     onVerContactos: (Int) -> Unit,
+    dinero: DineroDeLaCuenta = DineroDeLaCuenta(),
     ubicacion: UbicacionEnElDetalle = UbicacionEnElDetalle()
 ) {
     composable(
@@ -244,10 +268,11 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
             viewModel = hiltViewModel(),
             onAtras = onAtras,
             onAbrirVenta = onAbrirVenta,
-            onRegistrarAbono = onRegistrarAbono,
+            onRegistrarAbono = dinero.onRegistrarAbono,
             onRegistrarVisita = onRegistrarVisita,
             onVerContactos = onVerContactos,
             onVerUbicacion = ubicacion.onVer,
+            onCondonar = dinero.onCondonar,
             onVerTicket = ubicacion.onVerTicket,
             suelo = ubicacion.suelo
         )

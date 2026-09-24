@@ -4,17 +4,22 @@
 
 package com.example.msp_app.feature.pagos.ui
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -28,15 +33,23 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.common.time.TiempoRelativo
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
+import com.example.msp_app.core.designsystem.component.altoDeLaBarra
+import com.example.msp_app.core.designsystem.component.mspBackdropSource
+import com.example.msp_app.core.designsystem.component.rememberMspBackdrop
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
@@ -44,32 +57,41 @@ import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
+import com.example.msp_app.feature.pagos.ui.components.AIRE_DEL_DOCK_TAG
+import com.example.msp_app.feature.pagos.ui.components.ALTO_DEL_NOMBRE_SOBRE_EL_FONDO
+import com.example.msp_app.feature.pagos.ui.components.AccionDeCondonar
 import com.example.msp_app.feature.pagos.ui.components.AccionDeNotas
 import com.example.msp_app.feature.pagos.ui.components.AccionesDelCliente
 import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.BloqueDeIdentidad
 import com.example.msp_app.feature.pagos.ui.components.CifrasDelCliente
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
-import com.example.msp_app.feature.pagos.ui.components.CuadroDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
+import com.example.msp_app.feature.pagos.ui.components.EncabezadoCompacto
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
+import com.example.msp_app.feature.pagos.ui.components.FondoDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.HojaContinua
 import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
+import com.example.msp_app.feature.pagos.ui.components.MenuDelDock
+import com.example.msp_app.feature.pagos.ui.components.RECORRIDO_DEL_FONDO
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.RitmoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.Separador
+import com.example.msp_app.feature.pagos.ui.components.TOQUE_DEL_FONDO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeNotaDestacada
 import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
 import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
+import com.example.msp_app.feature.pagos.ui.components.VER_LA_UBICACION
 import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
 import com.example.msp_app.feature.pagos.ui.components.VerLosContactos
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
+import com.example.msp_app.feature.pagos.ui.components.altoDelFondo
 
 /** `testTag` del título de la pantalla — el nombre del cliente. */
 const val TITULO_DE_CLIENTE_TAG: String = "pagos_titulo_cliente"
@@ -156,6 +178,7 @@ fun DetalleClienteScreen(
     onVerContactos: (Int) -> Unit,
     onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
     modifier: Modifier = Modifier,
+    onCondonar: (Int) -> Unit = {},
     onVerTicket: (String) -> Unit = {},
     suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
 ) {
@@ -180,9 +203,25 @@ fun DetalleClienteScreen(
             // El ViewModel contesta la cuenta cuando hay una sola; con dos o más
             // abre la hoja y contesta `null`, así que no se navega todavía.
             onRegistrarAbono = { viewModel.registrarAbono()?.let(onRegistrarAbono) },
+            // Condonar desde el cliente pasa por la MISMA hoja: con una cuenta
+            // va directo, con dos o más pregunta. Lo decide el ViewModel, no
+            // esta lambda, por lo mismo que el abono.
+            onCondonar = { viewModel.condonar()?.let(onCondonar) },
             abono = AccionesDelAbono(
                 onElegir = viewModel::elegirCuenta,
-                onContinuar = { viewModel.confirmarCuenta()?.let(onRegistrarAbono) },
+                // A dónde lleva el "continuar" lo dice el destino de la
+                // elección, que la hoja ya está pintando. Se lee ANTES de
+                // confirmar porque confirmar la cierra.
+                onContinuar = {
+                    val destino = viewModel.state.value.eleccionDeCuenta?.destino
+                    viewModel.confirmarCuenta()?.let { ventaId ->
+                        if (destino == DestinoDeLaCuenta.CONDONACION) {
+                            onCondonar(ventaId)
+                        } else {
+                            onRegistrarAbono(ventaId)
+                        }
+                    }
+                },
                 onCerrar = viewModel::cerrarEleccionDeCuenta
             ),
             onRegistrarVisita = { onRegistrarVisita(viewModel.clienteId, null) },
@@ -297,6 +336,7 @@ fun DetalleClienteContent(
     contacto: AccionesDeContacto = AccionesDeContacto(),
     abono: AccionesDelAbono = AccionesDelAbono(),
     fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
+    onCondonar: () -> Unit = {},
     onVerUbicacion: (() -> Unit)? = null,
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
     onVerTicket: ((String) -> Unit)? = null,
@@ -306,7 +346,16 @@ fun DetalleClienteContent(
     // comentario gemelo en `BitacoraContent` para por qué vive aquí y no en el
     // `UiState`.
     var preguntaPor by rememberSaveable { mutableStateOf<String?>(null) }
-    Column(
+    val backdrop = rememberMspBackdrop()
+    // El desplazamiento vive acá y no dentro del cuerpo porque lo leen DOS
+    // capas que no son hermanas: el fondo, que se va con él, y el encabezado
+    // compacto, que entra cuando el fondo terminó de irse.
+    val riel = rememberScrollState()
+    val inset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val recorrido = with(LocalDensity.current) { RECORRIDO_DEL_FONDO.toPx() }
+    val avance = { (riel.value / recorrido).coerceIn(0f, 1f) }
+    val sinMovimiento = rememberMspReducedMotion()
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MspTheme.colors.background)
@@ -315,14 +364,34 @@ fun DetalleClienteContent(
             // app corre `enableEdgeToEdge()` y la ventana `StatusBar` del sistema queda
             // ENCIMA del encabezado y se come sus taps. La compuerta es
             // `CadaPantallaDeCobranzaRespetaLaBarraDeEstadoTest`.
+            //
+            // El FONDO sí pasa por debajo de la barra, y eso no lo contradice: lo hace con
+            // un desplazamiento negativo propio, no quitando el inset de acá. Ver
+            // `FondoDeLaPuerta`.
             .systemBarsPadding()
     ) {
         val detalle = state.detalle
-        Box(modifier = Modifier.weight(1f)) {
+        if (detalle != null) {
+            FondoDeLaPuerta(
+                ubicacion = detalle.ultimoCobroAqui,
+                calle = detalle.calle,
+                zona = detalle.zona,
+                avance = avance,
+                desplazamientoPx = { riel.value.toFloat() },
+                sinMovimiento = sinMovimiento,
+                insetDeArriba = inset,
+                onVerUbicacion = onVerUbicacion,
+                suelo = suelo
+            )
+        }
+        Box(modifier = Modifier.fillMaxSize()) {
             when {
                 state.cargando -> Cargando()
                 detalle == null -> MensajeDeError(state.error, onAtras)
                 else -> CuerpoDelCliente(
+                    riel = riel,
+                    backdrop = backdrop,
+                    aireAbajo = backdrop.altoDeLaBarra(),
                     detalle = detalle,
                     ocultos = state.montosOcultos,
                     temaOscuro = state.temaOscuro,
@@ -332,8 +401,8 @@ fun DetalleClienteContent(
                     onAlternarPrivacidad = onAlternarPrivacidad,
                     contacto = contacto,
                     onEditarFicha = fichaDelCliente.onEditar,
-                    onVerUbicacion = onVerUbicacion,
                     onVerUbicacionDelContacto = onVerUbicacionDelContacto,
+                    onVerUbicacion = onVerUbicacion,
                     toque = ToqueDeLaFila(
                         // Los TRES que esta hoja pinta, que son un prefijo de la
                         // línea completa: recortar sólo quita filas viejas, así
@@ -350,29 +419,46 @@ fun DetalleClienteContent(
                         onVerTicket = onVerTicket?.let { ver ->
                             { contacto -> ver(contacto.id) }
                         }
-                    ),
-                    suelo = suelo
+                    )
                 )
             }
         }
         if (detalle != null) {
+            EncabezadoCompacto(
+                nombre = detalle.nombre,
+                direccion = detalle.direccion,
+                avance = avance,
+                backdrop = backdrop
+            )
             DockDeAcciones(
                 textoPrimario = "Registrar abono",
                 onPrimario = onRegistrarAbono,
                 onVisita = onRegistrarVisita,
-                // El tercer espacio del dock, que el rediseño dejó diseñado y
-                // vacío. Las Notas viven aquí y no en la fila de iconos porque
-                // aquí se ven sin desplazar y pueden llevar el distintivo: hoy
-                // no se puede saber si una puerta tiene algo anotado sin abrirla.
+                backdrop = backdrop,
+                // **Notas y Condonar se fueron al "⋯".** A la vista quedan las
+                // dos acciones diarias. Decisión del dueño sobre un mock
+                // interactivo: condonar es ~3 % de los movimientos y Notas es
+                // medio redundante —la tarjeta de la nota ya trae su `Editar`
+                // arriba del dinero—. Ver `MenuDelDock`.
                 //
-                // Con la ficha ILEGIBLE el botón sigue abriendo: `HojaDeLaFicha`
+                // Con la ficha ILEGIBLE el renglón sigue abriendo: `HojaDeLaFicha`
                 // no monta nada si el estado no trae edición, así que el camino
                 // ya está cerrado donde tiene que estarlo, y apagarlo aquí
                 // también dejaría un control muerto sin decir por qué.
-                notas = AccionDeNotas(
-                    onAbrir = fichaDelCliente.onEditar,
-                    conContenido = detalle.ficha?.vacia == false,
-                    advierte = detalle.ficha?.advertencias?.isNotEmpty() == true
+                menu = MenuDelDock(
+                    // Condonar desde el CLIENTE tiene que preguntar a cuál
+                    // cuenta, y reusa la hoja que el abono ya usa para eso. El
+                    // conteo viaja al renglón para que el cobrador sepa, antes
+                    // de tocar, que no va a condonar "todo".
+                    condonar = AccionDeCondonar(
+                        onAbrir = onCondonar,
+                        cuentas = CuentaDelAbono.cobrables(detalle.ventas).size
+                    ),
+                    notas = AccionDeNotas(
+                        onAbrir = fichaDelCliente.onEditar,
+                        conContenido = detalle.ficha?.vacia == false,
+                        advierte = detalle.ficha?.advertencias?.isNotEmpty() == true
+                    )
                 )
             )
         }
@@ -392,7 +478,8 @@ fun DetalleClienteContent(
             onElegir = abono.onElegir,
             onContinuar = abono.onContinuar,
             onCerrar = abono.onCerrar,
-            ocultos = state.montosOcultos
+            ocultos = state.montosOcultos,
+            destino = eleccion.destino
         )
     }
     // Hermana de las otras dos hojas y por el mismo motivo: el velo tapa la
@@ -446,6 +533,9 @@ data class AccionesDeLaFicha(
 
 @Composable
 private fun CuerpoDelCliente(
+    riel: ScrollState,
+    backdrop: MspBackdrop,
+    aireAbajo: Dp,
     detalle: DetalleCliente,
     ocultos: Boolean,
     temaOscuro: Boolean,
@@ -455,17 +545,46 @@ private fun CuerpoDelCliente(
     onAlternarPrivacidad: () -> Unit,
     contacto: AccionesDeContacto,
     onEditarFicha: () -> Unit,
-    onVerUbicacion: (() -> Unit)?,
     onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?,
-    toque: ToqueDeLaFila,
-    suelo: (@Composable (onTocar: () -> Unit) -> Unit)?
+    onVerUbicacion: (() -> Unit)?,
+    toque: ToqueDeLaFila
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            // El desenfoque de la barra de abajo se dibuja ACÁ, no en la barra:
+            // al desplazar lo que se invalida es este nodo, y una tira grabada
+            // por la barra enseñaría el cuadro anterior. Ver `mspBackdropSource`.
+            .mspBackdropSource(backdrop)
+            .verticalScroll(riel)
             .padding(horizontal = MspTheme.spacing.md)
     ) {
+        // **El aire del fondo.** Es lo único que el mapa cuesta en la pila: de
+        // fondo no ocupa alto propio, y lo que decide dónde arranca el contenido
+        // es este hueco. El encabezado va DENTRO del desplazamiento —y no fijo—
+        // porque el nombre tiene que poder irse para que entre el encabezado
+        // compacto; si se quedara clavado arriba, el compacto diría el nombre
+        // dos veces.
+        // **Y es el hueco el que recibe el toque del mapa**, no la capa del
+        // fondo: el contenido desplazable se dibuja encima de ella y su
+        // `scrollable` se queda con el evento, así que un `clickable` allá abajo
+        // sería un control muerto. Ver el KDoc de `FondoDeLaPuerta`.
+        val abrirElMapa = onVerUbicacion.takeIf { detalle.ultimoCobroAqui != null }
+        Spacer(
+            Modifier
+                .fillMaxWidth()
+                .height(altoDelFondo() - ALTO_DEL_NOMBRE_SOBRE_EL_FONDO)
+                .then(
+                    if (abrirElMapa != null) {
+                        Modifier
+                            .clickable(onClick = abrirElMapa)
+                            .semantics { contentDescription = VER_LA_UBICACION }
+                    } else {
+                        Modifier
+                    }
+                )
+                .testTag(TOQUE_DEL_FONDO_TAG)
+        )
         EncabezadoDelCliente(
             detalle = detalle,
             ocultos = ocultos,
@@ -475,7 +594,7 @@ private fun CuerpoDelCliente(
             onEditarFicha = onEditarFicha
         )
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-        HojaDeIdentidad(detalle, contacto, onVerUbicacion, suelo)
+        HojaDeIdentidad(detalle, contacto)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         // **La nota, arriba.** Decisión del dueño: *"están hasta abajo y en
         // diminuto, casi no se ven"*. Sube ANTES del bloque del dinero, que es
@@ -524,6 +643,11 @@ private fun CuerpoDelCliente(
             onEditar = onEditarFicha
         )
         Spacer(Modifier.height(MspTheme.spacing.lg))
+        // El aire que la barra tapa, con el alto que ella misma midió: 89 dp a
+        // letra normal y 133 a las grandes, porque el dock se apila. Copiarlo
+        // como constante es cómo el último renglón termina debajo del tramo
+        // sólido la primera vez que alguien le agrega un botón.
+        Spacer(Modifier.height(aireAbajo).testTag(AIRE_DEL_DOCK_TAG))
     }
 }
 
@@ -616,12 +740,7 @@ private fun EncabezadoDelCliente(
 }
 
 @Composable
-private fun HojaDeIdentidad(
-    detalle: DetalleCliente,
-    contacto: AccionesDeContacto,
-    onVerUbicacion: (() -> Unit)?,
-    suelo: (@Composable (onTocar: () -> Unit) -> Unit)?
-) {
+private fun HojaDeIdentidad(detalle: DetalleCliente, contacto: AccionesDeContacto) {
     val visuales = detalle.ventas.take(CUADROS_EN_EL_RACIMO).map { estadoVisualDe(it.estado) }
     HojaContinua {
         SeccionDeHoja(primera = true) {
@@ -652,34 +771,13 @@ private fun HojaDeIdentidad(
                 ultimaVisita = detalle.ultimaVisita?.let(AppTime::toBusinessDate)
             )
         }
-        // El cuadro de ubicación, **a sangre**: sin el padding de `SeccionDeHoja`,
-        // porque un mapa con margen se lee como una foto pegada encima de la hoja
-        // y no como una banda de la hoja. Su hairline lo pone el `Separador` de
-        // arriba, que es el mismo que usa cualquier otra sección.
+        // **El cuadro de ubicación ya no vive acá: es el FONDO de la pantalla.**
+        // Era una banda de 100 dp metida en esta hoja, con su `Separador`
+        // encima, y por estar en la pila **empujaba el dinero**. De fondo no
+        // cuesta un dp: lo que cuesta es dónde arranca el contenido, y eso lo
+        // fija `altoDelFondo()` con los dp medidos delante. Ver
+        // `FondoDeLaPuerta`.
         //
-        // Se pinta SIEMPRE, con punto medido y sin él. Antes era condicional y sin
-        // punto quedaba un hueco: el dueño lo vio en vidrio y pidió lo contrario
-        // —*"tiene que ser un mapa o un dibujo"*—. Lo que cambia entre los dos
-        // casos es el suelo, no si hay banda: con coordenada el suelo es el mapa
-        // de verdad que cablea `:app`, y sin ella las señas de la puerta.
-        //
-        // El dibujo que hacía de respaldo se retiró: el dueño lo revisó y en su
-        // lugar va una composición tipográfica —chip, calle y ruta—.
-        //
-        // Esta banda **no** es donde vive la dirección escrita: eso lo hace el
-        // renglón de `BloqueDeIdentidad`, arriba. Acá va el vistazo que contesta
-        // "¿es aquí?" parado en la puerta, y por eso puede recortarse.
-        //
-        // La ciudad NO se le pasa: la dice el renglón de arriba, y repetirla acá
-        // era la duplicación que el dueño reportó. Ver `CuadroDeLaPuerta`.
-        Separador()
-        CuadroDeLaPuerta(
-            ubicacion = detalle.ultimoCobroAqui,
-            calle = detalle.calle,
-            zona = detalle.zona,
-            onVerUbicacion = onVerUbicacion,
-            suelo = suelo
-        )
         // "Cómo llegar" es una acción más de la fila, permanente, y NO vuelve a
         // vivir dentro del cuadro. Cuando vivía ahí, cuál de los dos caminos se
         // pintaba lo decidía un dato —había cobro con GPS o no había—, así que el

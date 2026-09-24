@@ -269,6 +269,11 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
      * las filas.
      */
     private fun tocar(indice: Int, desplazando: Boolean = false) {
+        // Hasta el hueco del dock y no sólo hasta la fila: desde que la barra
+        // está ENCIMA del contenido, `performScrollTo` deja el renglón dentro
+        // de la ventana pero por detrás de los botones, y el toque se lo lleva
+        // el dock. Ver `desplazaSobreElDock`.
+        if (desplazando) composeTestRule.desplazaSobreElDock()
         val fila = composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[indice]
         if (desplazando) fila.performScrollTo()
         fila.assertHasClickAction().performClick()

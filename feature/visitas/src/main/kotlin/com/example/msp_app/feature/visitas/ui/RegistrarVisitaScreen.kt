@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -34,8 +36,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspRevealedContent
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
+import com.example.msp_app.core.designsystem.component.altoDeLaBarra
+import com.example.msp_app.core.designsystem.component.mspBackdropSource
+import com.example.msp_app.core.designsystem.component.rememberMspBackdrop
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.core.speech.ui.CampoDictado
@@ -329,13 +335,19 @@ fun RegistrarVisitaContent(
             // `background`; lo único que se corre es el CONTENIDO.
             .systemBarsPadding()
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        // **El dock pasó a estar ENCIMA del contenido.** Antes era un hermano
+        // en un `Column` con el cuerpo en `weight(1f)`: el contenido se cortaba
+        // donde el dock empezaba, así que un degradado ahí no habría enseñado
+        // nada. El aire de abajo lo pone el cuerpo con el alto MEDIDO del dock,
+        // que no es constante.
+        val backdrop = rememberMspBackdrop()
+        Box(modifier = Modifier.fillMaxSize()) {
             val contexto = state.contexto
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 when {
                     state.cargando -> CargandoLaVisita()
                     contexto == null -> MensajeDeError(state, acciones)
-                    else -> CuerpoDeLaVisita(state, acciones)
+                    else -> CuerpoDeLaVisita(state, acciones, backdrop)
                 }
             }
             if (contexto != null) {
@@ -343,7 +355,9 @@ fun RegistrarVisitaContent(
                     texto = if (state.registrada == null) "Guardar visita" else "Visita guardada",
                     habilitado = state.sePuedeGuardar,
                     pie = state.pieDelCta,
-                    onGuardar = acciones.onGuardar
+                    onGuardar = acciones.onGuardar,
+                    backdrop = backdrop,
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
         }
@@ -390,11 +404,19 @@ private fun MensajeDeError(state: RegistrarVisitaUiState, acciones: AccionesDeLa
 }
 
 @Composable
-private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDeLaVisita) {
+private fun CuerpoDeLaVisita(
+    state: RegistrarVisitaUiState,
+    acciones: AccionesDeLaVisita,
+    backdrop: MspBackdrop
+) {
     val contexto = requireNotNull(state.contexto)
+    val aireAbajo = backdrop.altoDeLaBarra()
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // El desenfoque de la barra lo dibuja el contenido, que es lo que
+            // se invalida al desplazar. Ver `mspBackdropSource`.
+            .mspBackdropSource(backdrop)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.md),
         verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
@@ -486,6 +508,8 @@ private fun CuerpoDeLaVisita(state: RegistrarVisitaUiState, acciones: AccionesDe
             onQuitar = acciones.onQuitarFoto
         )
         Box(modifier = Modifier.padding(bottom = MspTheme.spacing.md))
+        // El aire que la barra tapa, con su alto medido.
+        Spacer(Modifier.height(aireAbajo))
     }
 }
 

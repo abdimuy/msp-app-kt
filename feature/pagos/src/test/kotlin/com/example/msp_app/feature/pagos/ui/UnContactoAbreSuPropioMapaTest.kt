@@ -96,6 +96,10 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
     @Test
     fun `en el detalle, el contacto con punto abre el mapa en SU punto`() {
         detalle()
+        // Desde que el dock está ENCIMA del contenido, `performScrollTo` deja el
+        // renglón dentro de la ventana pero por detrás de los botones, y el
+        // toque se lo lleva el dock. Ver `desplazaSobreElDock`.
+        composeTestRule.desplazaSobreElDock()
 
         composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
             .performScrollTo()

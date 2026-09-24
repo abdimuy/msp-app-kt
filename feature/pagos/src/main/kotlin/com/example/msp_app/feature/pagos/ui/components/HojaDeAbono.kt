@@ -30,6 +30,7 @@ import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
+import com.example.msp_app.feature.pagos.ui.DestinoDeLaCuenta
 
 /** `testTag` de la hoja que pregunta a cuál cuenta va el abono. */
 const val HOJA_DE_ABONO_TAG: String = "pagos_hoja_abono"
@@ -117,7 +118,8 @@ fun HojaDeAbono(
     onContinuar: () -> Unit,
     onCerrar: () -> Unit,
     modifier: Modifier = Modifier,
-    ocultos: Boolean = false
+    ocultos: Boolean = false,
+    destino: DestinoDeLaCuenta = DestinoDeLaCuenta.ABONO
 ) {
     if (cuentas.isEmpty()) return
     Box(modifier = modifier.fillMaxSize()) {
@@ -172,14 +174,25 @@ fun HojaDeAbono(
                 .padding(MspTheme.spacing.md)
                 .testTag(HOJA_DE_ABONO_TAG)
         ) {
+            // **La misma hoja, dos destinos.** Condonar desde el cliente
+            // pregunta lo mismo con las mismas opciones y la misma
+            // preselección; lo que cambia es qué va a pasar al continuar, y eso
+            // tiene que decirlo la hoja. Un cobrador que llegó por el "⋯" del
+            // dock no puede leer "el abono entra completo a una" y tocar
+            // Continuar creyendo que va a abonar.
+            val condonando = destino == DestinoDeLaCuenta.CONDONACION
             Text(
-                text = "¿A cuál cuenta?",
+                text = if (condonando) "¿De cuál cuenta?" else "¿A cuál cuenta?",
                 style = MspTheme.type.cardTitle,
                 color = MspTheme.colors.onSurface
             )
             Spacer(Modifier.height(MspTheme.spacing.xs))
             Text(
-                text = "El abono entra completo a una",
+                text = if (condonando) {
+                    "Se condona el resto de una"
+                } else {
+                    "El abono entra completo a una"
+                },
                 style = MspTheme.type.caption,
                 color = MspTheme.colors.onSurfaceMuted
             )
@@ -195,7 +208,7 @@ fun HojaDeAbono(
             }
             Spacer(Modifier.height(MspTheme.spacing.xs))
             MspPrimaryFieldButton(
-                text = "Continuar",
+                text = if (condonando) "Continuar a condonar" else "Continuar",
                 onClick = onContinuar,
                 enabled = elegida != null,
                 modifier = Modifier

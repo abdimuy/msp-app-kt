@@ -162,7 +162,28 @@ internal object AccionesIconos {
 
     /** Archivo → hoja con la esquina doblada. Es el único que alcanza un PDF. */
     val Archivo: ImageVector = trazo("archivo", GROSOR_NORMAL, HOJA, ESQUINA_DE_LA_HOJA)
+
+    /**
+     * Los tres puntos del menú del dock, **verticales**.
+     *
+     * Verticales y no horizontales porque el botón que los lleva es cuadrado y
+     * angosto: en horizontal, a 20 dp de glifo, los tres puntos ocupan casi todo
+     * el ancho y el botón se lee como una barra. Vertical es además el "⋯" que
+     * Android usa para un menú de más acciones, que es lo que esto es.
+     *
+     * Son **trazos de longitud casi cero con remate redondo**, no círculos
+     * rellenos: así heredan el mismo grosor y el mismo remate que el resto de
+     * este objeto y no hay que abrir un segundo camino de dibujo por tres
+     * puntos. Ver [trazo].
+     */
+    val Puntos: ImageVector = trazo("puntos", GROSOR_GRUESO, PUNTO_ALTO, PUNTO_MEDIO, PUNTO_BAJO)
 }
+
+private const val PUNTO_ALTO = "M12 6.5h0.01"
+
+private const val PUNTO_MEDIO = "M12 12h0.01"
+
+private const val PUNTO_BAJO = "M12 17.5h0.01"
 
 private const val CUERPO_DE_CAMARA =
     "M3 8.5A2 2 0 0 1 5 6.5h2l1.2-2h7.6L17 6.5h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"

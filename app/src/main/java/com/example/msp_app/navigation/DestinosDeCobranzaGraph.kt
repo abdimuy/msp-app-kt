@@ -8,6 +8,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.msp_app.core.speech.ui.DescargaDelDictadoConectada
 import com.example.msp_app.core.speech.ui.DictadoRutas
+import com.example.msp_app.feature.pagos.ui.DineroDeLaCuenta
 import com.example.msp_app.feature.pagos.ui.PagosRutas
 import com.example.msp_app.feature.pagos.ui.UbicacionEnElDetalle
 import com.example.msp_app.feature.pagos.ui.UbicacionEnLaBitacora
@@ -56,13 +57,23 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
     destinoDeDetalleCliente(
         onAtras = { navController.popBackStack() },
         onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) },
-        onRegistrarAbono = { ventaId ->
-            navController.navigate(PagosRutas.registrarAbono(ventaId))
-        },
         onRegistrarVisita = { clienteId, ventaId ->
             navController.navigate(VisitasRutas.registrar(clienteId, ventaId))
         },
         onVerContactos = { clienteId -> navController.navigate(PagosRutas.bitacora(clienteId)) },
+        // Las dos acciones de dinero de una CUENTA. Condonar desde el cliente,
+        // por el "⋯" del dock, es la MISMA ruta que el detalle de venta ya
+        // usaba y el mismo `NewForgivenessDialog` sin reescribir: lo único
+        // nuevo es de dónde sale el `ventaId`, que ahora puede venir de la hoja
+        // "¿de cuál cuenta?".
+        dinero = DineroDeLaCuenta(
+            onRegistrarAbono = { ventaId ->
+                navController.navigate(PagosRutas.registrarAbono(ventaId))
+            },
+            onCondonar = { ventaId ->
+                navController.navigate(Screen.Forgiveness.createRoute(ventaId))
+            }
+        ),
         // Ver la puerta con zoom es un destino de `:app`: el mapa completo
         // necesita `play-services-maps`, que se declara acá y no en el feature.
         ubicacion = UbicacionEnElDetalle(

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.Density
@@ -129,18 +130,26 @@ class LaDireccionEscritaSiempreSeVeTest : RobolectricTestBase() {
     }
 
     /**
-     * Y el cuadro **no la repite**: su renglón grande no dice la ciudad y su
-     * línea de apoyo tampoco. Era la queja legítima que originó `f8621920` —el
-     * cuadro decía las mismas dos cadenas del bloque de arriba, en el mismo
-     * orden— y se resuelve por acá y no quitando el dato.
+     * Y el fondo **no la repite**: su renglón grande no dice la ciudad, y la
+     * línea de apoyo que podía repetir la ruta **ya no se pinta**. Era la queja
+     * legítima que originó `f8621920` —el cuadro decía las mismas dos cadenas
+     * del bloque de arriba, en el mismo orden— y se resuelve por acá y no
+     * quitando el dato.
+     *
+     * Con el renglón de apoyo fuera, la duplicación queda cerrada por
+     * construcción y no por vigilancia: no se puede repetir lo que no se pinta.
      */
     @Test
-    fun `el cuadro no repite la ciudad`() {
+    fun `el fondo no repite la ciudad ni la ruta`() {
         cliente()
 
         val grande = composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
         grande.assertTextEquals(CALLE_REAL)
-        composeTestRule.onNodeWithTag(APOYO_DEL_CUADRO_TAG).assertTextEquals(RUTA)
+        assertEquals(
+            "volvió la línea de apoyo del fondo, que es la que repetía la ruta",
+            0,
+            composeTestRule.onAllNodesWithTag(APOYO_DEL_CUADRO_TAG).fetchSemanticsNodes().size
+        )
     }
 
     /**

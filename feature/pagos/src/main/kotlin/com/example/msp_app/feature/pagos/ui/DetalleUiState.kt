@@ -47,14 +47,33 @@ data class DetalleClienteUiState(
 )
 
 /**
- * La elección de cuenta para el abono, en curso.
+ * La elección de cuenta, en curso.
  *
  * [elegida] arranca en la que trae más atrasos —no en la primera de la lista,
  * que era el defecto— y cambia con cada toque. Nada se registra hasta
  * "continuar": esta hoja solo decide **a dónde** va el dinero, no lo mueve.
+ *
+ * [destino] existe desde que **condonar también pregunta a cuál cuenta**. Es la
+ * MISMA hoja y el mismo criterio de preselección: lo que cambia es a dónde
+ * lleva el "continuar". Un segundo selector con otra pinta para la misma
+ * pregunta sería dos formas de decidir lo mismo, que es lo que esta app evita
+ * en todos lados.
  */
 @Immutable
-data class EleccionDeCuenta(val elegida: Int?)
+data class EleccionDeCuenta(
+    val elegida: Int?,
+    val destino: DestinoDeLaCuenta = DestinoDeLaCuenta.ABONO
+)
+
+/**
+ * Para qué se está eligiendo la cuenta.
+ *
+ * Las dos son acciones de dinero y **no son la misma**: una mete dinero y la
+ * otra perdona lo que falta. Por eso la hoja cambia de título y de botón según
+ * el destino en vez de decir "continuar" a secas — un cobrador que llegó por el
+ * "⋯" tiene que poder leer, en la hoja, que lo que sigue es condonar.
+ */
+enum class DestinoDeLaCuenta { ABONO, CONDONACION }
 
 /** Estado observable del detalle de venta. */
 @Immutable

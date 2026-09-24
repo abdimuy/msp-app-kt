@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -37,8 +36,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
+import com.example.msp_app.core.designsystem.component.MspSoftEdgeActionBar
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.visitas.domain.model.ContextoDeVisita
@@ -718,19 +719,18 @@ fun DockDeLaVisita(
     habilitado: Boolean,
     pie: String?,
     onGuardar: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    backdrop: MspBackdrop? = null
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MspTheme.colors.outline)
-        )
+    // **Sin hairline.** El canto duro se fue con el rediseño: la barra se
+    // disuelve hacia arriba y el contenido pasa por detrás. La pieza es la
+    // compartida de `:core:designsystem`, la misma que el dock de cobranza y la
+    // del reporte — `:feature:pagos` y `:feature:visitas` no se ven entre sí,
+    // así que el único lugar del que las dos alcanzan es el design system.
+    MspSoftEdgeActionBar(modifier = modifier, backdrop = backdrop) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MspTheme.colors.background)
                 .padding(MspTheme.spacing.md),
             verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
         ) {

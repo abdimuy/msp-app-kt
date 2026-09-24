@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -20,6 +20,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,10 +32,13 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
+import com.example.msp_app.core.designsystem.component.MspSoftEdgeActionBar
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
+import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 
 /** `testTag` del botón "atrás". */
 const val ATRAS_TAG: String = "pagos_atras"
@@ -50,6 +57,36 @@ const val CTA_PRIMARIO_TAG: String = "pagos_cta_primario"
  * el dinero cabía. La línea de flotación es ésta.
  */
 const val DOCK_DE_ACCIONES_TAG: String = "pagos_dock"
+
+/**
+ * `testTag` de la barra COMPLETA, degradado incluido.
+ *
+ * Aparte de [DOCK_DE_ACCIONES_TAG] y la diferencia es exactamente el punto del
+ * rediseño: desde que la barra se disuelve hacia arriba, "donde empieza la
+ * barra" y "donde la barra tapa" dejaron de ser el mismo renglón. El degradado
+ * arranca transparente y **el contenido de atrás se ve a través de él a
+ * propósito**; lo que de verdad esconde es el tramo sólido, que empieza en el
+ * 44 % de esta banda.
+ *
+ * Medir el dinero contra este nodo sería la lectura dura y dejaría el fondo del
+ * mapa en menos de lo que mide hoy. La línea de flotación del saldo es el punto
+ * opaco — ver `ElDineroNoSeMeteBajoLaBarraTest`, que lo calcula con
+ * `MSP_SOFT_EDGE_SOLID_STOP` en vez de con un número a mano.
+ */
+const val BARRA_BLANDA_TAG: String = "pagos_dock_barra"
+
+/**
+ * `testTag` del hueco que el contenido reserva abajo, del alto exacto de la
+ * barra.
+ *
+ * Existe **para las pruebas**, y la razón no es cosmética: desde que la barra
+ * está ENCIMA del contenido, `performScrollTo()` ya no garantiza que el nodo se
+ * pueda tocar — deja el nodo dentro de la ventana, y la ventana ahora llega
+ * hasta abajo del todo, o sea **por detrás de los botones**. Un test que
+ * desplace hasta este hueco deja todo el contenido restante arriba de la barra,
+ * porque este hueco mide exactamente lo que la barra tapa.
+ */
+const val AIRE_DEL_DOCK_TAG: String = "pagos_dock_aire"
 
 /** `testTag` del CTA de visita del dock. */
 const val CTA_VISITA_TAG: String = "pagos_cta_visita"
@@ -244,6 +281,8 @@ fun DockDeAcciones(
     onPrimario: () -> Unit,
     onVisita: () -> Unit,
     modifier: Modifier = Modifier,
+    backdrop: MspBackdrop? = null,
+    menu: MenuDelDock? = null,
     notas: AccionDeNotas? = null,
     condonar: (() -> Unit)? = null
 ) {
@@ -258,44 +297,80 @@ fun DockDeAcciones(
     // costaba el texto partido, y a cambio no hay una sola palabra rota. A
     // NORMAL no se toca nada: los goldens de 1.0 se quedan como estaban.
     val apilado = LocalFontSizeLevel.current != FontSizeLevel.NORMAL
-    Column(modifier = modifier.fillMaxWidth().testTag(DOCK_DE_ACCIONES_TAG)) {
-        Box(
+    val conMenu = menu != null && !menu.vacio
+    var abierto by rememberSaveable { mutableStateOf(false) }
+    // El menú se cierra solo si la pantalla deja de ofrecerlo: un menú abierto
+    // sobre un dock que ya no lo tiene sería un velo que nadie puede quitar.
+    if (!conMenu && abierto) abierto = false
+    val sinMovimiento = rememberMspReducedMotion()
+    Box(modifier = modifier.fillMaxSize()) {
+        if (abierto) {
+            VeloDelMenu(onCerrar = { abierto = false }, modifier = Modifier.matchParentSize())
+        }
+        MspSoftEdgeActionBar(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(MspTheme.colors.outline)
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MspTheme.colors.background)
-                // A escalas grandes el aire del dock se aprieta: cada dp que se
-                // queda acá es un dp que le quita al saldo, y el saldo es por lo
-                // que el cobrador abrió la pantalla.
-                .padding(if (apilado) MspTheme.spacing.sm else MspTheme.spacing.md),
-            verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
+                .align(Alignment.BottomCenter)
+                .testTag(BARRA_BLANDA_TAG),
+            backdrop = backdrop
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // A escalas grandes el aire del dock se aprieta: cada dp que se
+                    // queda acá es un dp que le quita al saldo, y el saldo es por lo
+                    // que el cobrador abrió la pantalla.
+                    .padding(if (apilado) MspTheme.spacing.sm else MspTheme.spacing.md)
+                    .testTag(DOCK_DE_ACCIONES_TAG),
+                verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
             ) {
-                MspPrimaryFieldButton(
-                    text = textoPrimario,
-                    onClick = onPrimario,
-                    modifier = Modifier
-                        .weight(if (apilado) 1f else PESO_DEL_CTA)
-                        .testTag(CTA_PRIMARIO_TAG)
-                )
-                if (!apilado) AccionesDelDock(onVisita, notas, condonar)
-            }
-            if (apilado) {
+                if (conMenu) {
+                    HojaDelMenu(
+                        menu = menu,
+                        abierto = abierto,
+                        sinMovimiento = sinMovimiento,
+                        onCerrar = { abierto = false }
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AccionesDelDock(onVisita, notas, condonar)
+                    MspPrimaryFieldButton(
+                        text = textoPrimario,
+                        onClick = onPrimario,
+                        modifier = Modifier
+                            .weight(if (apilado) 1f else PESO_DEL_CTA)
+                            .testTag(CTA_PRIMARIO_TAG)
+                    )
+                    if (!apilado) {
+                        AccionesDelDock(onVisita, notas, condonar)
+                        if (conMenu) {
+                            BotonDelMenu(
+                                abierto = abierto,
+                                sinMovimiento = sinMovimiento,
+                                onClick = { abierto = !abierto },
+                                modifier = Modifier.testTag(MENU_DEL_DOCK_TAG)
+                            )
+                        }
+                    }
+                }
+                if (apilado) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AccionesDelDock(onVisita, notas, condonar)
+                        if (conMenu) {
+                            BotonDelMenu(
+                                abierto = abierto,
+                                sinMovimiento = sinMovimiento,
+                                onClick = { abierto = !abierto },
+                                modifier = Modifier.testTag(MENU_DEL_DOCK_TAG)
+                            )
+                        }
+                    }
                 }
             }
         }

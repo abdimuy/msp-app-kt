@@ -178,6 +178,27 @@ class DetalleClienteViewModel @Inject constructor(
         return null
     }
 
+    /**
+     * "Condonar", desde el cliente: la misma mecánica que [registrarAbono] con
+     * otro destino.
+     *
+     * Va directo con una sola cuenta cobrable y abre la hoja con dos o más. **No
+     * adivina nunca**, por el mismo motivo por el que el abono dejó de hacerlo:
+     * condonar la cuenta equivocada perdona dinero que nadie perdonó.
+     */
+    fun condonar(): Int? {
+        val ventas = state.value.detalle?.ventas.orEmpty()
+        CuentaDelAbono.unica(ventas)?.let { return it }
+        if (CuentaDelAbono.cobrables(ventas).isEmpty()) return null
+        mutableState.value = mutableState.value.copy(
+            eleccionDeCuenta = EleccionDeCuenta(
+                elegida = CuentaDelAbono.preseleccionada(ventas),
+                destino = DestinoDeLaCuenta.CONDONACION
+            )
+        )
+        return null
+    }
+
     /** Cambia la cuenta marcada dentro de la hoja. Nada se registra todavía. */
     fun elegirCuenta(ventaId: Int) {
         val eleccion = mutableState.value.eleccionDeCuenta ?: return

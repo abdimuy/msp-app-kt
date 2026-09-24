@@ -8,8 +8,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -22,13 +24,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.money.Money
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
+import com.example.msp_app.core.designsystem.component.MspSoftEdgeActionBar
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
+import com.example.msp_app.core.designsystem.component.altoDeLaBarra
 import com.example.msp_app.core.designsystem.component.formatMoneyMxn
+import com.example.msp_app.core.designsystem.component.mspBackdropSource
+import com.example.msp_app.core.designsystem.component.rememberMspBackdrop
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.BloqueoDelAbono
@@ -37,6 +45,7 @@ import com.example.msp_app.feature.pagos.domain.MontosSugeridos
 import com.example.msp_app.feature.pagos.domain.OrigenDeLaCuota
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.MetodoDeCobro
+import com.example.msp_app.feature.pagos.ui.components.AIRE_DEL_DOCK_TAG
 import com.example.msp_app.feature.pagos.ui.components.BandaDeAviso
 import com.example.msp_app.feature.pagos.ui.components.BandaDeBloqueo
 import com.example.msp_app.feature.pagos.ui.components.BandaDeCuotaDudosa
@@ -226,13 +235,16 @@ fun RegistrarAbonoContent(
             // `background`; lo único que se corre es el CONTENIDO.
             .systemBarsPadding()
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        val backdrop = rememberMspBackdrop()
+        Box(modifier = Modifier.fillMaxSize()) {
             val venta = state.venta
-            Box(modifier = Modifier.weight(1f)) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 when {
                     state.cargando -> CargandoElAbono()
                     venta == null -> MensajeDeErrorDelAbono(state.error, onAtras)
                     else -> CuerpoDelAbono(
+                        aireAbajo = backdrop.altoDeLaBarra(),
+                        backdrop = backdrop,
                         state = state,
                         venta = venta,
                         onAtras = onAtras,
@@ -248,7 +260,12 @@ fun RegistrarAbonoContent(
                 }
             }
             if (venta != null) {
-                DockDeRegistro(state = state, onRegistrar = onRegistrar)
+                DockDeRegistro(
+                    state = state,
+                    onRegistrar = onRegistrar,
+                    backdrop = backdrop,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
         }
         if (state.eligiendoOrigen) {
@@ -282,6 +299,8 @@ fun RegistrarAbonoContent(
 
 @Composable
 private fun CuerpoDelAbono(
+    aireAbajo: Dp,
+    backdrop: MspBackdrop,
     state: RegistrarAbonoUiState,
     venta: DetalleVenta,
     onAtras: () -> Unit,
@@ -297,6 +316,9 @@ private fun CuerpoDelAbono(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // El desenfoque de la barra lo dibuja el contenido: es lo único que
+            // se invalida al desplazar. Ver `mspBackdropSource`.
+            .mspBackdropSource(backdrop)
             .verticalScroll(rememberScrollState())
             .padding(horizontal = MspTheme.spacing.md)
             .padding(bottom = MspTheme.spacing.sm),
@@ -338,6 +360,10 @@ private fun CuerpoDelAbono(
             onAgregar = onAgregarFoto,
             onQuitar = onQuitarFoto
         )
+        // El aire que la barra tapa, con el alto que ella misma midió. Desde
+        // que el dock está ENCIMA del contenido y no debajo, sin esto la última
+        // foto queda detrás del CTA.
+        Spacer(Modifier.height(aireAbajo).testTag(AIRE_DEL_DOCK_TAG))
     }
 }
 
@@ -396,22 +422,28 @@ private fun MensajeDeFallo(state: RegistrarAbonoUiState, onRevisar: () -> Unit) 
  * usa para un botón deshabilitado.
  */
 @Composable
-private fun DockDeRegistro(state: RegistrarAbonoUiState, onRegistrar: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(MspTheme.colors.background)
-            .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm)
-    ) {
-        MspPrimaryFieldButton(
-            text = "Registrar abono " + formatMoneyMxn(state.monto.importe.amount),
-            onClick = onRegistrar,
-            enabled = state.sePuedeRegistrar,
-            maxLines = 1,
+private fun DockDeRegistro(
+    state: RegistrarAbonoUiState,
+    onRegistrar: () -> Unit,
+    modifier: Modifier = Modifier,
+    backdrop: MspBackdrop? = null
+) {
+    MspSoftEdgeActionBar(modifier = modifier, backdrop = backdrop) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .testTag(CTA_ABONO_TAG)
-        )
+                .padding(horizontal = MspTheme.spacing.md, vertical = MspTheme.spacing.sm)
+        ) {
+            MspPrimaryFieldButton(
+                text = "Registrar abono " + formatMoneyMxn(state.monto.importe.amount),
+                onClick = onRegistrar,
+                enabled = state.sePuedeRegistrar,
+                maxLines = 1,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(CTA_ABONO_TAG)
+            )
+        }
     }
 }
 

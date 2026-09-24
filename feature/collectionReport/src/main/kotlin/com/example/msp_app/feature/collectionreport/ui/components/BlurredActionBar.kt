@@ -11,8 +11,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
 import com.example.msp_app.core.designsystem.component.PrimaryFieldButtonVariant
+import com.example.msp_app.core.designsystem.component.mspBackdropBar
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.collectionreport.ui.tier2.ReportTier
 
@@ -109,11 +111,26 @@ fun BlurredActionBar(
     onImprimirClick: () -> Unit,
     onPdfClick: () -> Unit,
     modifier: Modifier = Modifier,
-    tier: ReportTier = ReportTier.TIER_1
+    tier: ReportTier = ReportTier.TIER_1,
+    backdrop: MspBackdrop? = null
 ) {
     val background = MspTheme.colors.background
     val containerModifier = modifier
         .fillMaxWidth()
+        // **El nombre de este componente miente, y ahora deja de mentir a
+        // medias.** Durante todo el piloto "Blurred" fue un degradado de tres
+        // paradas y **nada más**: no desenfocaba, y no podía — `Modifier.blur`
+        // desenfoca su propio contenido, no lo que está detrás. Se creyó
+        // cierto, se midió falso, y acá queda escrito porque en este repo lo
+        // refutado no se borra.
+        //
+        // Con [backdrop] el desenfoque de verdad sí entra, y lo dibuja el
+        // contenido —no esta barra—, detrás de `SDK_INT >= S`. El degradado
+        // sigue siendo la base y corre desde API 24, que es el `minSdk` real
+        // del proyecto. El nombre se conserva para no mover cinco callers y sus
+        // goldens en la misma pasada; ver `MspSoftEdgeActionBar`, que es la
+        // pieza compartida y la que se lleva el nombre honesto.
+        .mspBackdropBar(backdrop)
         .background(
             Brush.verticalGradient(
                 colorStops = arrayOf(
