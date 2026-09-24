@@ -247,6 +247,47 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
     }
 
     /**
+     * **El área tocable de *"Editar"* sigue midiendo 50 dp aunque ya no se
+     * vea.**
+     *
+     * Ésta es la prueba que este arreglo necesitaba. La queja del dueño fue
+     * que el botón *"se ve horrible"* —una caja rellena de 50 dp recortada en
+     * la tarjeta ámbar— y la corrección fue quitarle la superficie pintada.
+     * El riesgo de esa corrección tiene nombre: **quitar la caja y llevarse
+     * con ella el piso tocable**, dejando un blanco de 19 dp de alto al que
+     * hay que apuntar desde la banqueta. Lo visible se encogió; **lo tocable
+     * no**, y eso es lo que se afirma acá.
+     *
+     * Se miden los **dos ejes** a propósito. El alto lo fija `heightIn` y
+     * costaría trabajo romperlo sin querer; el **ancho** depende de que el
+     * `widthIn` siga puesto, porque la palabra *"Editar"* más su relleno mide
+     * menos de 50 dp y sin ese mínimo el objetivo se angosta solo.
+     *
+     * [GraphicsMode.Mode.NATIVE] no es ceremonia: sin métricas de fuente
+     * reales el ancho del texto lo inventa Robolectric, y una aserción de
+     * ancho daría verde contra cualquier cosa — la trampa que este repo ya
+     * documentó.
+     *
+     * El control positivo es el propio umbral: se compara contra
+     * [ALTO_TOCABLE_ESPERADO] y no contra cero, así que un nodo que midiera
+     * `Rect.Zero` —el caso que de verdad da falsos verdes— lo pondría rojo.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `editar dejo de pintarse pero sigue midiendo 50dp tocables`() {
+        cliente()
+
+        val boton = bordesDe(EDITAR_NOTA_DESTACADA_TAG)
+        val alto = boton.bottom - boton.top
+        val ancho = boton.right - boton.left
+        assertTrue(
+            "el área tocable de Editar mide " + ancho + " x " + alto +
+                ": se bajó del piso de " + ALTO_TOCABLE_ESPERADO,
+            alto >= ALTO_TOCABLE_ESPERADO && ancho >= ALTO_TOCABLE_ESPERADO
+        )
+    }
+
+    /**
      * **La nota larga se asoma en dos renglones y ofrece desplegarse.**
      *
      * [GraphicsMode.Mode.NATIVE] es obligatorio acá y no es ceremonia: quien
@@ -545,6 +586,15 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
     private companion object {
         /** La escala de la medición: la nominal, que es donde el dueño mira. */
         val NIVEL = FontSizeLevel.NORMAL
+
+        /**
+         * El piso tocable del repo — el mismo `ALTO_TOCABLE` privado de
+         * `TarjetaDeNotaDestacada` y el mismo `ALTO_DEL_ALCANCE` de
+         * `DetalleVentaScreen`. Se repite acá a propósito: si alguien baja el
+         * de allá, este número **no** lo sigue y la prueba se pone roja, que
+         * es justamente para lo que sirve.
+         */
+        val ALTO_TOCABLE_ESPERADO = 50.dp
 
         /** El primer renglón de la nota del fixture, que es lo que se asoma. */
         const val NOTA = "atiende la suegra"

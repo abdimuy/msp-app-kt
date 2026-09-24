@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,7 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
@@ -363,34 +364,76 @@ private fun IndicadorDeLaNota(expandida: Boolean, modifier: Modifier = Modifier)
 }
 
 /**
- * El botón que abre la hoja de edición — **la misma** que abre el dock.
+ * La acción que abre la hoja de edición — **la misma** que abre el dock.
  *
- * Va en azul de marca sobre `surface` y no en el ámbar de la tarjeta, y no se
- * contradice con la regla de arriba: lo que no puede ir de azul es la NOTA,
- * porque no es una acción. Esto sí lo es, y el azul es como esta app dice
- * "esto se toca". En ámbar sobre ámbar además no se leería como control.
+ * ## Esto NO es un botón con caja, y el error anterior vale escribirlo
+ *
+ * Hasta aquí era un `Surface` relleno de `surface` puesto encima del ámbar, y
+ * el dueño lo describió como *"una basura"*: **una caja oscura de 50 dp de alto
+ * recortada en la tarjeta**, tres veces el alto del renglón que la rodea. El
+ * defecto de fondo no era el color sino haber hecho la **caja visible** del
+ * tamaño del **área tocable**, que son dos cosas distintas.
+ *
+ * El área tocable sigue siendo [ALTO_TOCABLE] en los dos ejes —eso no se baja
+ * nunca— pero ahora es **invisible**: `heightIn`/`widthIn` fijan el hueco, el
+ * `padding` reparte el aire alrededor del texto y **no se pinta ninguna
+ * superficie**. Lo único que se pinta al tocar es el ripple, y va recortado a
+ * [MspTheme.shapes.control] porque el `clip` va antes del `clickable`.
+ *
+ * ## Por qué texto pelón y no un ícono de lápiz
+ *
+ * El ícono sería más angosto y se distinguiría de *"Ver más"* por forma y no
+ * sólo por color, que es lo ideal. **No se puede hoy**: `MspIcons` es
+ * `internal` a `:core:designsystem` y ningún módulo de la arquitectura nueva
+ * importa `Icons.Filled.*` por su cuenta (sólo el `:app` legado lo hace). Meter
+ * un lápiz aquí obliga a abrir el design system, y eso es un patrón nuevo que
+ * se pregunta antes de crearlo.
+ *
+ * ## Por qué [MspTheme.type.buttonSmall] y no el `captionStrong` de *"Ver más"*
+ *
+ * Porque pegados y del mismo tamaño no se distinguirían, que es la otra mitad
+ * de la queja. Con `buttonSmall` (14 sp / ExtraBold / azul) contra el
+ * `captionStrong` (11 sp / Bold / ámbar) del indicador, los dos difieren en
+ * **tamaño, peso y color** — y el orden es el correcto: *"Editar"* es el único
+ * control de verdad del renglón, *"Ver más"* sólo anuncia que el párrafo de
+ * abajo se toca.
+ *
+ * Y hay una razón medida, no sólo de gusto: **azul sobre el tinte ámbar da
+ * 4.52:1 en claro y 4.25:1 en oscuro**. A 11 sp eso queda por debajo del piso
+ * AA-normal (4.5:1); a 14 sp/700 el texto es "grande" y el piso que aplica es
+ * 3:1, que sostiene con margen en los dos temas. Sigue estando por encima del
+ * ámbar sobre ámbar que la tarjeta ya usaba y que `ContrastAAATest` documenta
+ * en ≈3.7:1 en claro.
+ *
+ * El azul de marca se queda: lo que no puede ir de azul es la NOTA, porque no
+ * es una acción. Esto sí lo es.
+ *
+ * ## No cuesta un dp
+ *
+ * El renglón sigue midiendo [ALTO_TOCABLE], que es lo que ya costaba, así que
+ * los 23.5 dp que este botón le devolvió al dinero —y el `SALDO TOTAL` que
+ * termina en 651.0 dp contra un dock que empieza en 655.0— no se mueven. El
+ * ancho incluso baja: el relleno horizontal pasa de `md` a `sm` porque ya no
+ * hay caja que rellenar, y ese ancho se lo queda el rótulo.
  */
 @Composable
 private fun BotonDeEditarNota(onEditar: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(
-        onClick = onEditar,
+    Box(
         modifier = modifier
             .heightIn(min = ALTO_TOCABLE)
             .widthIn(min = ALTO_TOCABLE)
+            .clip(MspTheme.shapes.control)
+            .clickable(role = Role.Button, onClick = onEditar)
+            .padding(horizontal = MspTheme.spacing.sm)
             .testTag(EDITAR_NOTA_DESTACADA_TAG),
-        shape = MspTheme.shapes.control,
-        color = MspTheme.colors.surface
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier.padding(horizontal = MspTheme.spacing.md),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "Editar",
-                style = MspTheme.type.captionStrong,
-                color = MspTheme.colors.brand
-            )
-        }
+        Text(
+            text = "Editar",
+            style = MspTheme.type.buttonSmall,
+            color = MspTheme.colors.brand,
+            maxLines = 1
+        )
     }
 }
 
