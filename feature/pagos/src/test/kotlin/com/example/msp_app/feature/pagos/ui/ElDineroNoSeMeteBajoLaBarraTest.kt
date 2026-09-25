@@ -109,6 +109,51 @@ class ElDineroNoSeMeteBajoLaBarraTest : RobolectricTestBase() {
     }
 
     /**
+     * **La regla DURA: el dinero arriba de donde la banda EMPIEZA.**
+     *
+     * ## Por qué hacía falta, si ya había dos afirmaciones
+     *
+     * Porque las dos medían contra el **punto opaco** (el 44 % de la banda), y
+     * ése es el criterio *blando* que el KDoc de `MSP_SOFT_EDGE_FADE` documenta
+     * haber **abandonado**: con el saldo dentro de la banda pero arriba del punto
+     * opaco, el degradado ya lo cubre al 90 % y el desenfoque lo borronea — el
+     * `$3,550` salía gris pálido en `pagos_cliente_light_1_0`.
+     *
+     * O sea que la regla estaba escrita en el KDoc y **no la cobraba nadie**.
+     * Medido el 2026-09-24 con el reparto nuevo:
+     *
+     * ```
+     * saldo.bottom = 568.0     banda.top = 568.0     puntoOpaco = 645.44
+     * ```
+     *
+     * **77 dp de holgura falsa.** Con `FONDO_NORMAL` subido a 120 dp —muy por
+     * encima del presupuesto de 162— las tres afirmaciones seguían **verdes**.
+     * Es la misma familia de `E-INF-011`: la regla existía, el consumidor no la
+     * comprobaba.
+     *
+     * ## El margen real es CERO, y es deliberado
+     *
+     * 568.0 contra 568.0. El dueño eligió la disolución completa (80 dp) sabiendo
+     * que deja al fondo en 82 y al presupuesto sin holgura. Esta afirmación es lo
+     * que hace que el siguiente dp se caiga al rojo en vez de comerse un colchón
+     * que no existe.
+     */
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Test
+    fun `el SALDO TOTAL queda arriba de donde la banda EMPIEZA`() {
+        cliente(PagosFixtures.fichaDelCliente().copy(nota = NOTA_QUE_NO_CABE))
+
+        val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
+        val banda = bordesDe(BARRA_BLANDA_TAG)
+        assertTrue(
+            "el saldo termina en " + saldo.bottom + " y la banda empieza en " + banda.top +
+                ": el dinero entró en la disolución. El presupuesto es M + fade <= 162 y " +
+                "no tiene margen — ver el KDoc de MSP_SOFT_EDGE_FADE",
+            saldo.bottom.value <= banda.top.value
+        )
+    }
+
+    /**
      * **Y también cabe arriba de los BOTONES**, que es la lectura dura.
      *
      * No es redundante con la de arriba: mide el otro extremo. Si algún día

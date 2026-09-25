@@ -337,14 +337,13 @@ fun MspSoftEdgeTopBar(
 /**
  * Lo que la barra reserva **arriba** de sus botones para disolverse.
  *
- * **40 dp, y el número lo fijó un golden, no un gusto.**
+ * **66 dp — todo lo que cabe sin cortar la calle del fondo.**
  *
- * ## La primera medición se quedó corta, y el golden lo enseñó
+ * ## Hubo un 80, y se cayó DOS veces por razones distintas
  *
- * El primer valor fueron 80 dp, para dar los ~176 dp de recorrido total que el
- * dueño aprobó. El criterio con el que se aceptó era la *lectura blanda*: que el
- * `SALDO TOTAL` quedara arriba del **punto opaco** del degradado (el 44 %).
- * Medido daba 7.4 dp de margen y el test estaba verde.
+ * **La primera**, bajo la *lectura blanda*: se pedía que el `SALDO TOTAL`
+ * quedara arriba del **punto opaco** del degradado (el 44 %). Daba 7.4 dp de
+ * margen y el test estaba verde.
  *
  * **El golden lo desmintió.** Con el saldo dentro de la banda pero por encima
  * del punto opaco, el degradado ya lo cubre al **90 %** y la capa de desenfoque
@@ -365,16 +364,47 @@ fun MspSoftEdgeTopBar(
  * cabe  ⟺  M + fade ≤ 162
  * ```
  *
- * Los 96 dp son el dock del detalle de cliente a letra normal, medido. El
- * reparto de esos 162 dp es una decisión del dueño y está documentada en el
- * KDoc de `altoDelFondo`; 40 + 122 es el punto que deja una disolución real
- * —se ve a través de los primeros 60 dp de la banda— con el mapa todavía
- * **1.34 veces** el área del cuadro viejo.
+ * Los 96 dp son el dock del detalle de cliente a letra normal, medido.
+ *
+ * ## La SEGUNDA vez que se cayó el 80, y el límite que dejó
+ *
+ * Con la regla dura puesta, el dueño pidió los **176 dp de barra completos**:
+ * `fade = 80` y, por presupuesto, `FONDO_NORMAL = 82`. Cabía — 568.0 contra
+ * 568.0, exacto — **y aun así se retiró**, porque rompía otra cosa que la
+ * ecuación no mira: **la calle del fondo se partía a la mitad**.
+ *
+ * Medido el 2026-09-24 sobre los píxeles de `pagos_cliente_light_1_0`, y la
+ * relación resultó lineal —cada dp de fondo devuelve 1 dp de calle—:
+ *
+ * | `FONDO_NORMAL` | calle visible (de 17.5 dp) |
+ * |---|---|
+ * | 82 | **4.0** — queda el 23 % |
+ * | 86 | 8.0 |
+ * | 90 | 12.0 |
+ * | 94 | 16.0 |
+ * | **96** | **17.5 — entera** |
+ *
+ * En claro **y en oscuro**, los dos a 1.0. (A 2.0 no aparece porque esa escala
+ * usa `FONDO_APRETADO`, que ya vale 96.)
+ *
+ * De ahí sale el techo real: **la calle exige `M ≥ 96`, así que `fade ≤ 66`** y
+ * la barra total no puede pasar de **162 dp**. Los 176 y una calle legible son
+ * incompatibles; no es un reparto que se pueda afinar.
+ *
+ * ## El margen es CERO
+ *
+ * `96 + 66 = 162`, y la regla es `≤ 162`. El reparto de antes (118 + 40 = 158)
+ * dejaba **4 dp**; éste no deja ninguno. Cualquier dp que se le sume a
+ * cualquiera de los dos mete el dinero debajo de la banda — el siguiente cambio
+ * se cae directo al rojo en vez de comerse un colchón en silencio, que es lo que
+ * se quiere.
+ *
+ * Y sigue siendo **26 dp más de disolución** que los 136 dp commiteados.
  *
  * Subirlo tapa el dinero dp por dp. La regla del repo es subir la
  * implementación, no bajar el test: ver `ElDineroNoSeMeteBajoLaBarraTest`.
  */
-val MSP_SOFT_EDGE_FADE: Dp = 40.dp
+val MSP_SOFT_EDGE_FADE: Dp = 66.dp
 
 /**
  * Cuánto desenfoca la tira de atrás. 20 dp: por debajo de ~12 el efecto no se

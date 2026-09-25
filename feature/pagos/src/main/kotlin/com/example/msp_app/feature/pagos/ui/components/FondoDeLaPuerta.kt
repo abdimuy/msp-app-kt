@@ -273,16 +273,34 @@ private const val TINTA_DEL_FONDO = 0.10f
 /**
  * **Cuánto del fondo se ve antes de que empiece el contenido.**
  *
- * 152 dp a letra normal y [FONDO_APRETADO] a las grandes. Medido, no elegido —
- * ver el KDoc de [FondoDeLaPuerta] para la ecuación y para por qué no son los
- * 261 que daría el mock. **Subirlo tapa el saldo**, y la regla del repo es
- * subir la implementación, no bajar el test.
+ * **96 dp** a letra normal y [FONDO_APRETADO] a las grandes. Medido, no
+ * elegido — ver el KDoc de [FondoDeLaPuerta] para la ecuación y para por qué no
+ * son los 261 que daría el mock. **Subirlo tapa el saldo**, y la regla del repo
+ * es subir la implementación, no bajar el test.
+ *
+ * ## Por qué 96, y por qué NO se puede bajar
+ *
+ * El presupuesto es uno solo y se reparte entre este número y la disolución de
+ * la barra: `M + fade ≤ 162` (ver `MSP_SOFT_EDGE_FADE`).
+ *
+ * Pero **96 no sale del presupuesto: sale de la calle.** Medido sobre los
+ * píxeles del golden, este número es el punto exacto en que la dirección del
+ * fondo deja de cortarse — a 94 se ve en 16.0 dp de sus 17.5, a 90 en 12.0, y a
+ * 82 en **4.0**, o sea partida a la mitad. En claro y en oscuro.
+ *
+ * Así que **este lado manda y el otro se acomoda**: 96 fija `fade ≤ 66` y con
+ * ello el techo de la barra en 162 dp. Se intentaron los 176 que el dueño
+ * quería y se retiraron por esto mismo.
+ *
+ * **El margen es cero.** 96 + 66 = 162 exactos, contra los 4 dp que dejaba el
+ * reparto anterior (118 + 40 = 158). Un dp más de cualquiera de los dos mete el
+ * `SALDO TOTAL` debajo de la banda.
  */
 @Composable
 fun altoDelFondo(): Dp =
     if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) FONDO_NORMAL else FONDO_APRETADO
 
-private val FONDO_NORMAL: Dp = 118.dp
+private val FONDO_NORMAL: Dp = 96.dp
 
 /**
  * **Lo que el fondo mide a `GRANDE` y `MUY_GRANDE`: 112 dp.**
