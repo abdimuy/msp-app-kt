@@ -12,6 +12,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,6 +103,13 @@ fun TelonDelNombre(
         modifier = modifier.fillMaxWidth().testTag(TELON_DEL_NOMBRE_TAG),
         backdrop = backdrop,
         fade = FADE_DEL_TELON,
+        // **Cristal esmerilado.** La meseta se queda a [VELO_DEL_TELON] y sólo
+        // cierra a sólido en el último [CIERRE_DEL_TELON] de la franja, justo
+        // donde toca las tarjetas. Así el mapa **se distingue detrás del nombre
+        // y de la dirección** —lo que el dueño pidió— y aun así no queda
+        // costura al llegar al contenido.
+        velo = VELO_DEL_TELON,
+        cierre = CIERRE_DEL_TELON,
         // El telón no vive en la orilla de abajo: vive en la parte baja del
         // MAPA, a media pantalla. El inset de la barra de navegación sería aire
         // muerto ahí.
@@ -115,7 +125,8 @@ fun TelonDelNombre(
                 text = nombre,
                 style = MspTheme.type.cardTitle.copy(
                     fontSize = TAMANO_DEL_NOMBRE,
-                    fontWeight = FontWeight.ExtraBold
+                    fontWeight = FontWeight.ExtraBold,
+                    shadow = SOMBRA_SOBRE_EL_MAPA
                 ),
                 color = MspTheme.colors.onSurface,
                 maxLines = 1,
@@ -124,8 +135,12 @@ fun TelonDelNombre(
             )
             Text(
                 text = direccion.ifBlank { SIN_DIRECCION },
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.onSurfaceMuted,
+                style = MspTheme.type.caption.copy(shadow = SOMBRA_SOBRE_EL_MAPA),
+                // Un punto más clara que `onSurfaceMuted`: con el velo bajado
+                // para dejar ver el mapa, el gris apagado desaparecía sobre una
+                // calle blanca. Es la otra mitad del trato — se baja el tinte y
+                // se compensa la legibilidad por el lado del texto.
+                color = MspTheme.colors.onSurface.copy(alpha = TINTA_DE_LA_DIRECCION),
                 maxLines = if (abierto) Int.MAX_VALUE else RENGLONES_DE_LA_DIRECCION,
                 overflow = TextOverflow.Ellipsis,
                 // `onTextLayout` y no `length`: pregunta por el resultado real
@@ -158,14 +173,53 @@ fun TelonDelNombre(
 private val AIRE_DEL_TELON: Dp = 22.dp
 
 /**
- * Lo que el telón reserva arriba para disolverse sobre el mapa.
+ * Lo que el telón reserva arriba para disolverse sobre el mapa: **24 dp**.
  *
- * Más largo que el de la barra de abajo: ahí el degradado esconde botones con
- * su propio relleno, y acá tiene que hacer desaparecer **teselas de mapa**, que
- * son foto y no tienen dónde apoyarse. Con un fade corto se ve el renglón donde
- * el mapa se apaga, que es justo el canto que este telón existe para no tener.
+ * ## Eran 96, y dejaban un hueco de negro muerto
+ *
+ * El dueño lo vio en el aparato, con la versión que sí pinta teselas: *"el blur
+ * del nombre y la dirección está demasiado arriba, debe estar más abajo pegado
+ * al nombre"*. Medido sobre su captura, el mapa empezaba a apagarse a ~130 dp,
+ * quedaba **completamente negro a ~200** y el nombre no empezaba hasta ~222.
+ * Esos ~22 dp no eran ni mapa ni telón: eran **un hueco**.
+ *
+ * Con 24 dp de fade y la rampa atada a él —transparente hasta la mitad, cerrada
+ * al final— el mapa se ve limpio hasta ~12 dp antes del nombre y el fondo cierra
+ * justo donde el texto empieza. Son los números del mock: la franja entra al
+ * 13 % y está a pleno al 26 %.
+ *
+ * **No se puede bajar más.** Con menos recorrido aparece una línea donde el
+ * desenfoque empieza, y ese canto es lo único que este telón no puede regalar.
+ * Lo cobra `ElTelonNoDejaHuecoTest`.
  */
-private val FADE_DEL_TELON: Dp = 96.dp
+private val FADE_DEL_TELON: Dp = 24.dp
+
+/**
+ * **La sombra de NUESTRO texto sobre el mapa.**
+ *
+ * Es lo que permite bajar el tinte del velo hasta dejar ver las calles: sobre
+ * una calle blanca, texto gris sin nada detrás desaparece, y el desenfoque solo
+ * no alcanza. Suave y sin desplazamiento —un halo, no un relieve—: lo que hace
+ * falta es que el glifo tenga borde contra el fondo, no que parezca despegado.
+ *
+ * **Ésta sí se puede**, y conviene no confundirla con la que no: la que no se
+ * puede es en la hora y los iconos del sistema, que los dibuja SystemUI en su
+ * propia ventana. Ver `VeloDeLaBarraDeEstado`.
+ */
+private val SOMBRA_SOBRE_EL_MAPA = Shadow(
+    color = Color(0x66000000),
+    offset = Offset.Zero,
+    blurRadius = 10f
+)
+
+/** Qué tan opaco llega el velo del telón en la zona del texto. */
+private const val VELO_DEL_TELON = 0.36f
+
+/** En qué fracción de la franja el velo cierra a sólido: el último 10 %. */
+private const val CIERRE_DEL_TELON = 0.90f
+
+/** La dirección, un punto más clara que `onSurfaceMuted` para el mapa de atrás. */
+private const val TINTA_DE_LA_DIRECCION = 0.82f
 
 /** El nombre del cliente en el telón: 19 sp, el tamaño del mock. */
 private val TAMANO_DEL_NOMBRE = 19.sp

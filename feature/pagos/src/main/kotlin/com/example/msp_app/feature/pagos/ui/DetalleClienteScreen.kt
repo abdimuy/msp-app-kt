@@ -72,6 +72,8 @@ import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.MenuDelDock
+import com.example.msp_app.feature.pagos.ui.components.RADIO_DEL_TELON
+import com.example.msp_app.feature.pagos.ui.components.RADIO_DEL_VELO
 import com.example.msp_app.feature.pagos.ui.components.RECORRIDO_DEL_FONDO
 import com.example.msp_app.feature.pagos.ui.components.RecargaAlVolver
 import com.example.msp_app.feature.pagos.ui.components.RitmoDelCliente
@@ -355,7 +357,14 @@ fun DetalleClienteContent(
     // del fondo lo escriben el telón y el velo de la barra de estado, que van
     // encima del MAPA. Compartir uno haría que el dock y el telón se pisaran el
     // alto y la tira borrosa se grabara del tamaño equivocado.
-    val backdropDelFondo = rememberMspBackdrop()
+    // **Radios chicos sobre el mapa**, y no el de la barra de abajo. Atrás del
+    // dock lo que pasa es contenido de la app y da igual volverlo una mancha;
+    // atrás del telón y del velo pasan **teselas**, y el dueño pidió que se
+    // sigan reconociendo las calles: *"sólo un poco de blur"*.
+    val backdropDelFondo = rememberMspBackdrop(
+        radioAbajo = RADIO_DEL_TELON,
+        radioArriba = RADIO_DEL_VELO
+    )
     // El desplazamiento vive acá y no dentro del cuerpo porque lo leen DOS
     // capas que no son hermanas: el fondo, que se va con él, y el encabezado
     // compacto, que entra cuando el fondo terminó de irse.

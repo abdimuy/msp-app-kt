@@ -140,6 +140,24 @@ fun SueloDelControlFlotante(modifier: Modifier = Modifier, contenido: @Composabl
     }
 }
 
+/**
+ * **Cuánto desenfoca el velo de la barra de estado: 7 dp.**
+ *
+ * Eran 14, y con ese radio el mapa dejaba de reconocerse: una mancha de color no
+ * es *"el mapa desenfocado"*, es otra cosa. Con la mitad se lee el esmerilado y
+ * las calles siguen ahí.
+ */
+val RADIO_DEL_VELO: Dp = 7.dp
+
+/**
+ * **Cuánto desenfoca el telón del nombre: 9 dp.**
+ *
+ * Un punto más que el velo porque acá encima va texto y el fondo tiene que
+ * aquietarse un poco más para que el nombre no compita con una calle; pero
+ * sigue siendo *"sólo un poco de blur"*, que es lo que el dueño pidió.
+ */
+val RADIO_DEL_TELON: Dp = 9.dp
+
 /** `true` cuando el teléfono puede desenfocar lo que pasa por detrás. */
 internal val HAY_DESENFOQUE: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
@@ -152,8 +170,17 @@ internal val HAY_DESENFOQUE: Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CO
  */
 private val COLA_DEL_VELO: Dp = 28.dp
 
-/** Qué tan opaco llega a ser el velo en su parte alta. */
-private const val TINTA_DEL_VELO = 0.72f
+/**
+ * Qué tan opaco llega a ser el velo en su parte alta: **0.22**.
+ *
+ * Eran 0.72, y a esa tinta el velo dejaba de ser velo: tapaba el mapa. El dueño
+ * lo reportó mirando el aparato —*"no se ve el mapa de atrás, ni en el nombre ni
+ * en las notificaciones"*—. Lo que hace legibles la hora y los iconos no es la
+ * opacidad sino el **desenfoque** de lo que pasa por detrás, que rompe el
+ * contraste de las calles sin borrarlas; el tinte sólo tiene que empujar un
+ * poco. A 0.22 el mapa se sigue distinguiendo.
+ */
+private const val TINTA_DEL_VELO = 0.22f
 
 /** Qué tan opaco es el suelo de un control flotante. */
 private const val SUELO_DEL_CONTROL = 0.88f

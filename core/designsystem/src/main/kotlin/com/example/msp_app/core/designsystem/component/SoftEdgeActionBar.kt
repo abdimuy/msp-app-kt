@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -89,20 +91,70 @@ fun MspSoftEdgeActionBar(
     backdrop: MspBackdrop? = null,
     fade: Dp = MSP_SOFT_EDGE_FADE,
     conInsetDeAbajo: Boolean = true,
+    velo: Float = 1f,
+    cierre: Float = 1f,
     contenido: @Composable ColumnScope.() -> Unit
 ) {
     val fondo = MspTheme.colors.background
+    // **La rampa vive DENTRO del fade y termina donde empieza el contenido.**
+    //
+    // Antes eran fracciones fijas de la banda entera —transparente en 0, sólido
+    // en el 44 %— y eso tenía un defecto que sólo se ve en vidrio: la banda
+    // empieza a atenuar **desde su primer píxel**, así que se come el renglón
+    // que va justo encima. El dueño lo reportó dos veces el mismo día, con las
+    // dos orillas: *"el blur del nombre está demasiado arriba"* y *"también
+    // está muy arriba el blur de los botones fijos"*.
+    //
+    // Con la rampa atada al fade, lo de arriba se lee **limpio** hasta la mitad
+    // del fade, y para cuando llega al contenido el fondo ya cerró. Y como el
+    // fade es un dp y la banda crece con la tipografía, las fracciones se
+    // recalculan solas: a 2.0 el contenido mide más y la rampa sigue cayendo
+    // donde tiene que caer.
+    var altoPx by remember { mutableIntStateOf(0) }
+    val fadePx = with(LocalDensity.current) { fade.toPx() }
+    val solido = if (altoPx > 0) (fadePx / altoPx).coerceIn(0f, 1f) else MSP_SOFT_EDGE_SOLID_STOP
+    val inicio = solido * ARRANQUE_DE_LA_RAMPA
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .onSizeChanged { altoPx = it.height }
             .mspBackdropBar(backdrop)
             .background(
                 Brush.verticalGradient(
-                    colorStops = arrayOf(
-                        0f to fondo.copy(alpha = 0f),
-                        MSP_SOFT_EDGE_SOLID_STOP to fondo,
-                        1f to fondo
-                    )
+                    // **Siguen siendo tres paradas**, y la tercera repite el
+                    // color con alpha 1 a propósito: sin ella el degradado
+                    // interpola hasta el final y el fondo nunca termina de
+                    // cerrar, así que lo de atrás se transparenta a través de
+                    // los botones. Ese defecto ya se pagó una vez en el reporte
+                    // de cobranza. Lo que se movió es DÓNDE empiezan, no
+                    // cuántas son.
+                    colorStops = if (velo >= 1f) {
+                        arrayOf(
+                            inicio to fondo.copy(alpha = 0f),
+                            solido to fondo,
+                            1f to fondo
+                        )
+                    } else {
+                        // **Cristal esmerilado, no una pared.** Con [velo] por
+                        // debajo de 1 la meseta se queda a media tinta y lo de
+                        // atrás —el mapa— **se sigue distinguiendo**. Es lo que
+                        // el dueño pidió mirando el aparato: *"debe solo verse
+                        // un poco blur el mapa, se debe distinguir el mapa de
+                        // atrás"*.
+                        //
+                        // La cuarta parada no rompe la regla de las tres: la
+                        // regla existe para que **la cola cierre**, y cierra —en
+                        // [cierre], justo donde la banda toca el contenido—. Lo
+                        // que se agrega es la meseta translúcida del medio, que
+                        // es precisamente lo que deja ver el mapa sin dejar
+                        // costura al llegar a las tarjetas.
+                        arrayOf(
+                            inicio to fondo.copy(alpha = 0f),
+                            solido to fondo.copy(alpha = velo),
+                            cierre to fondo.copy(alpha = velo),
+                            1f to fondo
+                        )
+                    }
                 )
             )
             // **El inset va DESPUÉS del degradado, y el orden es la mitad del
@@ -162,6 +214,10 @@ fun MspSoftEdgeActionBar(
  */
 @Stable
 class MspBackdrop internal constructor(
+    /** Cuánto desenfoca la tira de abajo — la de la barra o la del telón. */
+    internal val radioAbajo: Dp,
+    /** Cuánto desenfoca la tira de arriba — la del velo de la barra de estado. */
+    internal val radioArriba: Dp,
     /** Alto TOTAL de la barra en px —degradado incluido—, que ella misma mide. */
     internal val altoDeLaBarraPx: MutableIntState,
     /** Lo mismo para la cabecera de arriba, cuando la pantalla tiene una. */
@@ -223,10 +279,15 @@ fun MspBackdrop.altoDeLaBarra(): Dp = with(LocalDensity.current) {
 
 /** Crea el [MspBackdrop] de una pantalla. Uno por pantalla, no uno por barra. */
 @Composable
-fun rememberMspBackdrop(): MspBackdrop {
+fun rememberMspBackdrop(
+    radioAbajo: Dp = RADIO_DEL_DESENFOQUE,
+    radioArriba: Dp = RADIO_DEL_DESENFOQUE
+): MspBackdrop {
     val alto = remember { mutableIntStateOf(0) }
     val cabecera = remember { mutableIntStateOf(0) }
-    return remember { MspBackdrop(alto, cabecera) }
+    return remember(radioAbajo, radioArriba) {
+        MspBackdrop(radioAbajo, radioArriba, alto, cabecera)
+    }
 }
 
 /**
@@ -251,9 +312,14 @@ fun Modifier.mspBackdropSource(backdrop: MspBackdrop): Modifier {
         val nitido = obtainGraphicsLayer()
         val borroso = obtainGraphicsLayer()
         val superior = obtainGraphicsLayer()
-        val radio = RADIO_DEL_DESENFOQUE.toPx()
-        borroso.renderEffect = BlurEffect(radio, radio, TileMode.Decal)
-        superior.renderEffect = BlurEffect(radio, radio, TileMode.Decal)
+        // Un radio por tira, no uno para las dos. Sobre teselas de mapa, el
+        // radio decide si lo de atrás se **distingue** o se vuelve una mancha:
+        // el dueño pidió *"sólo un poco de blur"* para poder seguir
+        // reconociendo las calles detrás del nombre.
+        val abajo = backdrop.radioAbajo.toPx()
+        val arriba = backdrop.radioArriba.toPx()
+        borroso.renderEffect = BlurEffect(abajo, abajo, TileMode.Decal)
+        superior.renderEffect = BlurEffect(arriba, arriba, TileMode.Decal)
         onDrawWithContent {
             nitido.record { this@onDrawWithContent.drawContent() }
             drawLayer(nitido)
@@ -439,7 +505,7 @@ val MSP_SOFT_EDGE_FADE: Dp = 66.dp
  * Cuánto desenfoca la tira de atrás. 20 dp: por debajo de ~12 el efecto no se
  * distingue de una simple opacidad y deja de valer lo que cuesta.
  */
-private val RADIO_DEL_DESENFOQUE: Dp = 20.dp
+val RADIO_DEL_DESENFOQUE: Dp = 20.dp
 
 /**
  * La fracción de alto donde el degradado llega a opacidad **sólida**.
@@ -457,3 +523,18 @@ private val RADIO_DEL_DESENFOQUE: Dp = 20.dp
  */
 @Suppress("MagicNumber")
 const val MSP_SOFT_EDGE_SOLID_STOP: Float = 0.44f
+
+/**
+ * **Dónde arranca la rampa dentro del fade: a la mitad.**
+ *
+ * La mitad de arriba del fade se queda **completamente transparente** —ahí el
+ * contenido de atrás se lee limpio— y la rampa ocupa la mitad de abajo, cerrando
+ * justo cuando empieza el contenido de la barra.
+ *
+ * Bajarlo a 0 es volver al defecto que el dueño reportó: la banda atenúa desde
+ * su primer píxel. Subirlo a 1 es el otro extremo, y peor: la rampa se queda sin
+ * recorrido y aparece **una línea** donde empieza el desenfoque, que es
+ * exactamente el canto que esta pieza existe para no tener.
+ */
+@Suppress("MagicNumber")
+private const val ARRANQUE_DE_LA_RAMPA = 0.5f
