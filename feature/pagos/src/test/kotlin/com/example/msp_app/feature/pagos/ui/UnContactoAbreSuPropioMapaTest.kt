@@ -24,6 +24,7 @@ import com.example.msp_app.feature.pagos.ui.components.CONTACTO_EN_LINEA_TAG
 import java.math.BigDecimal
 import java.time.Instant
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -57,6 +58,16 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
 
     private var abierto: UbicacionDelCobro? = null
 
+    /**
+     * El `pagoId` con el que se abrió el mapa.
+     *
+     * Es lo que hace que la pantalla de ubicación destaque **esa** medición
+     * entre todas las del cliente: sin él, tocar un renglón de la bitácora
+     * abriría el mismo mapa indiferenciado que el cuadro de la puerta, y la
+     * pregunta del cobrador —*\"¿dónde fue ESA vez?\"*— quedaría sin contestar.
+     */
+    private var resaltado: String? = null
+
     // --- La bitácora completa -------------------------------------------------------------
 
     @Test
@@ -68,6 +79,28 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
             .performClick()
 
         assertEquals("abrió el mapa en otra puerta", PUNTO_DE_LA_VISITA, abierto)
+        assertEquals("no viajó el id del renglón que se tocó", "visita", resaltado)
+    }
+
+    @Test
+    fun `en la bitacora, el id que viaja es el de la fila tocada, no el primero`() {
+        // **Lo que esta prueba cuida.** La pantalla de ubicación enseña TODOS
+        // los lugares del cliente; el `pagoId` es lo único que le dice cuál
+        // medición destacar. Si viajara un id fijo —el primero de la lista, o
+        // el del último cobro— la bitácora abriría siempre el mismo mapa y la
+        // pregunta del cobrador, *"¿dónde fue ESA vez?"*, quedaría contestada
+        // con otra cosa.
+        //
+        // Se toca la fila CON punto, que en el fixture es la segunda por fecha
+        // y tiene id "visita"; el id "abono" existe justamente para que un
+        // acierto por casualidad se note.
+        bitacora()
+
+        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
+            .performClick()
+
+        assertEquals("visita", resaltado)
+        assertNotEquals("viajó el id de otro renglón", "abono", resaltado)
     }
 
     @Test
@@ -155,7 +188,10 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
                         )
                     ),
                     onAtras = {},
-                    onVerUbicacion = { punto -> abierto = punto }
+                    onVerUbicacion = { punto, pagoId ->
+                        abierto = punto
+                        resaltado = pagoId
+                    }
                 )
             }
         }
@@ -176,7 +212,10 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
                     onVerContactos = {},
                     onAlternarTema = {},
                     onAlternarPrivacidad = {},
-                    onVerUbicacionDelContacto = { punto -> abierto = punto }
+                    onVerUbicacionDelContacto = { punto, pagoId ->
+                        abierto = punto
+                        resaltado = pagoId
+                    }
                 )
             }
         }

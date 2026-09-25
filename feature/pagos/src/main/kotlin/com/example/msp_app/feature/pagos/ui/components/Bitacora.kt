@@ -88,13 +88,13 @@ data class ToqueDeLaFila(
  */
 internal fun abridorDe(
     contacto: ContactoDeCobranza,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)?,
+    onVerUbicacion: ((UbicacionDelCobro, pagoId: String) -> Unit)?,
     toque: ToqueDeLaFila = ToqueDeLaFila()
 ): ToqueResuelto {
     val mapa: () -> ToqueResuelto = {
         val punto = contacto.ubicacion
         if (punto != null && onVerUbicacion != null) {
-            ToqueResuelto({ onVerUbicacion(punto) }, VER_DONDE_FUE)
+            ToqueResuelto({ onVerUbicacion(punto, contacto.id) }, VER_DONDE_FUE)
         } else {
             ToqueResuelto(null, VER_DONDE_FUE)
         }

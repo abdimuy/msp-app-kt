@@ -157,6 +157,12 @@ android {
         }
         create("prod") {
             dimension = "environment"
+            // TEMPORAL — NO COMMITEAR. APK de prueba para el dueño: sin esto el
+            // versionName sale "2.18.1" a secas y no se distingue del release
+            // 2.18.1 (62) que ya trae instalado. Mismo mecanismo que devlocal y
+            // devserver; no toca versionCode ni el versionName base, y todo lo
+            // que compara versiones recorta en "-" / "+".
+            versionNameSuffix = "-prueba+${gitShortSha()}"
             resValue("string", "app_name", "msp-app")
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://msp2025.loclx.io/\"")
             // apidev.loclx.io dejó de ser el túnel de pruebas y ES el del API
@@ -279,6 +285,9 @@ dependencies {
     // reales de `LiquidacionPort` (el cálculo de liquidación que ya vive aquí) y de
     // `PeriodoDeCobroPort` (`FECHA_CARGA_INICIAL` de Firestore) en su composition root.
     implementation(project(":feature:pagos"))
+    // El mapa de todos los lugares del cliente. Declara `play-services-maps`
+    // por su cuenta: existe PARA el mapa, así que la dependencia le toca.
+    implementation(project(":feature:ubicacion"))
     // Corregir una venta local antes de que suba (plan 2026-09-20). `:app` provee el
     // adapter real de `ReencolarSubidaPort` (WorkManager, necesita `PendingLocalSalesWorker`
     // — no visible desde el feature module) y, en Task 5, monta `CorreccionVentaViewModel`

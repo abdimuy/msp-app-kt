@@ -210,7 +210,7 @@ class CadaPantallaConTemaAnimaElCambioTest {
             "RegistrarVisitaScreen",
             "TicketDeVisitaScreen",
             "DescargaDelDictadoScreen",
-            "UbicacionDelClienteScreen"
+            "UbicacionScreen"
         )
 
         /** `MspThemeRevealHost(` — la instalación del mecanismo. */

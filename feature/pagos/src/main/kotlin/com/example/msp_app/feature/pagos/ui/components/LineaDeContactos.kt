@@ -139,7 +139,7 @@ fun ContactoEnLinea(
     modifier: Modifier = Modifier,
     ocultos: Boolean = false,
     deEstaVenta: Boolean = false,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerUbicacion: ((UbicacionDelCobro, pagoId: String) -> Unit)? = null,
     toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
     val resuelto = abridorDe(contacto, onVerUbicacion, toque)

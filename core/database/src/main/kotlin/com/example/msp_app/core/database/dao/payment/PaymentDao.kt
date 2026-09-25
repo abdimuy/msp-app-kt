@@ -175,8 +175,103 @@ interface PaymentDao {
     )
     suspend fun getCollectedAmounts(formasDeCobro: Set<Int>): List<Double>
 
+    /**
+     * **Todos los puntos medidos de la ruta, de todos los clientes.**
+     *
+     * Es la consulta que alimenta la detección de **puntos compartidos** de
+     * `:core:geo`: un punto sólo se puede saber compartido **mirando a los demás
+     * clientes**, así que a diferencia de casi todo lo demás en este DAO, aquí
+     * NO hay filtro por cliente ni por venta. Ése es justamente el punto.
+     *
+     * Existe porque el 2026-09-24 se midió que hay lugares donde cobran a
+     * decenas de clientes distintos —la tienda, con 381 clientes de 30
+     * cobradores; el punto fijo de un cobrador, con 48 clientes y 86 % de
+     * transferencias— y **sin esta lectura el 6.4 % de los clientes tendría su
+     * "puerta" señalando un lugar donde no vive**.
+     *
+     * ## Cuatro columnas y no la entidad entera
+     *
+     * De cada fila sólo se miran cliente, cobrador y coordenada. Son decenas de
+     * miles de filas en un teléfono cargado; devolver `PaymentEntity` sería
+     * pagar catorce columnas por cuatro. Mismo criterio que [getCollectedAmounts].
+     *
+     * ## El filtro de `LAT`/`LNG`
+     *
+     * `IS NOT NULL` descarta lo que nunca se midió, y el `NOT (LAT = 0 AND
+     * LNG = 0)` descarta el **centinela de "sin señal"**: el par `(0, 0)` es un
+     * punto de verdad —está en el Golfo de Guinea— y contarlo como un lugar
+     * contagiaría de "compartido" a todos los clientes que alguna vez cobraron
+     * sin GPS. Es el mismo criterio que `UbicacionDelCobro.medida` aplica del
+     * lado del dominio.
+     *
+     * **No lleva filtro por forma de cobro, a propósito.** Una transferencia
+     * también ocupa lugar en el mapa y también aporta a saber que un punto es
+     * compartido. Lo que no hace es votar por la puerta, y esa regla vive en
+     * `LugaresDelCliente`, no aquí.
+     */
     @Query(
-        """SELECT 
+        """
+            SELECT CLIENTE_ID, COBRADOR, LAT, LNG
+            FROM Payment
+            WHERE LAT IS NOT NULL AND LNG IS NOT NULL
+              AND NOT (LAT = 0.0 AND LNG = 0.0)
+        """
+    )
+    suspend fun getPuntosDeLaRuta(): List<PuntoDeLaRutaRow>
+
+    /**
+     * **Los abonos medidos de un cliente**, con lo justo para agrupar, filtrar y
+     * decidir cuál lugar es la puerta.
+     *
+     * Va **por `CLIENTE_ID` y no por venta**, a diferencia de
+     * [getPaymentsBySaleId]: la pantalla de ubicación se abre desde el detalle
+     * de cliente y lo que enseña son los lugares del cliente, no los de una
+     * cuenta. Medido el 2026-09-24: de los clientes con dos o más ventas con
+     * GPS, el **65 % las tiene a menos de 40 m entre sí** — la misma puerta.
+     * Partir por venta sería partir un lugar en dos por un accidente de
+     * contabilidad.
+     *
+     * `DOCTO_CC_ACR_ID` viaja igual, porque el **filtro por venta** de la
+     * pantalla lo necesita; lo que no hace es decidir el agrupamiento.
+     *
+     * Mismo filtro de coordenada que [getPuntosDeLaRuta]: fuera los nulos y
+     * fuera el par `(0, 0)`, que es el centinela de "sin señal" y no un lugar.
+     * Y **sin filtro por forma de cobro**, por lo mismo: una transferencia se
+     * dibuja; que no vote por la puerta lo decide `LugaresDelCliente`.
+     */
+    @Query(
+        """
+            SELECT ID, DOCTO_CC_ACR_ID, FECHA_HORA_PAGO, COBRADOR, FORMA_COBRO_ID, LAT, LNG
+            FROM Payment
+            WHERE CLIENTE_ID = :clienteId
+              AND LAT IS NOT NULL AND LNG IS NOT NULL
+              AND NOT (LAT = 0.0 AND LNG = 0.0)
+            ORDER BY FECHA_HORA_PAGO DESC
+        """
+    )
+    suspend fun getPuntosDelCliente(clienteId: Int): List<MedicionDelClienteRow>
+
+    /**
+     * El cliente dueño de una venta.
+     *
+     * Existe porque el detalle de venta conoce el `DOCTO_CC_ACR_ID` y **no** el
+     * `CLIENTE_ID`, y el mapa de ubicación enseña los lugares del **cliente**:
+     * medido el 2026-09-24, de los clientes con dos o más ventas con GPS el
+     * 65 % las tiene a menos de 40 m entre sí — o sea la misma puerta. Abrir el
+     * mapa acotado a una venta partiría un lugar en dos por un accidente de
+     * contabilidad.
+     *
+     * `LIMIT 1` sin `ORDER BY` a propósito: **todas las filas de una venta
+     * tienen el mismo `CLIENTE_ID`**, así que cualquiera sirve y ordenar sería
+     * pagar por una garantía que la columna ya da. Devuelve `null` cuando la
+     * venta no tiene ningún abono en el teléfono, y entonces no hay nada que
+     * mapear.
+     */
+    @Query("SELECT CLIENTE_ID FROM Payment WHERE DOCTO_CC_ACR_ID = :ventaId LIMIT 1")
+    suspend fun getClienteDeVenta(ventaId: Int): Int?
+
+    @Query(
+        """SELECT
                 ID,
                 COBRADOR,
                 DOCTO_CC_ACR_ID,

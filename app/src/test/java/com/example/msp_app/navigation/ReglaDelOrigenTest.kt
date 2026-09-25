@@ -14,6 +14,7 @@ import com.example.msp_app.data.models.sale.FrecuenciaPago
 import com.example.msp_app.data.models.sale.Sale
 import com.example.msp_app.data.models.sale.SaleWithProducts
 import com.example.msp_app.feature.pagos.ui.PagosRutas
+import com.example.msp_app.feature.ubicacion.ui.UbicacionRutas
 import com.example.msp_app.feature.visitas.ui.VisitasRutas
 import com.example.msp_app.features.home.components.homenearbyclientssection.NearbyClient
 import org.junit.Assert.assertEquals
@@ -371,8 +372,8 @@ class ReglaDelOrigenTest {
      */
     @Test
     fun `desde el cuadro del detalle se llega al mapa de la puerta`() {
-        nav.navigate(RutasDelMapa.ubicacion(LAT_DE_PRUEBA, LNG_DE_PRUEBA, DIRECCION_DE_PRUEBA))
-        assertEquals(RutasDelMapa.UBICACION, ruta())
+        nav.navigate(UbicacionRutas.lugares(CLIENTE, DIRECCION_DE_PRUEBA))
+        assertEquals(UbicacionRutas.LUGARES, ruta())
     }
 
     // -----------------------------------------------------------------------
@@ -403,7 +404,7 @@ class ReglaDelOrigenTest {
             VisitasRutas.REGISTRAR,
             VisitasRutas.TICKET,
             DictadoRutas.DESCARGA,
-            RutasDelMapa.UBICACION,
+            UbicacionRutas.LUGARES,
             Screen.Forgiveness.route
         ) + legados
         assertEquals(esperadas, registradas)
@@ -541,12 +542,6 @@ class ReglaDelOrigenTest {
 
     private companion object {
         const val RAIZ = "raiz_de_prueba"
-
-        /** Una coordenada cualquiera: lo que se prueba es la ruta, no el punto. */
-        const val LAT_DE_PRUEBA = 18.4609
-
-        /** Idem. */
-        const val LNG_DE_PRUEBA = -97.3926
 
         /** Con coma y acento a propósito: la ruta la codifica con `Uri.encode`. */
         const val DIRECCION_DE_PRUEBA = "C. Hidalgo 214, Centro"

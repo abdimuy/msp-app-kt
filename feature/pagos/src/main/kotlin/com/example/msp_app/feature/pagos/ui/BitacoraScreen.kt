@@ -104,7 +104,8 @@ fun BitacoraScreen(
     viewModel: BitacoraViewModel,
     onAtras: () -> Unit,
     modifier: Modifier = Modifier,
-    onVerUbicacion: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
+    onVerUbicacion: (UbicacionDelCobro, direccion: String, pagoId: String) -> Unit =
+        { _, _, _ -> },
     onVerTicket: (String) -> Unit = {}
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -128,8 +129,8 @@ fun BitacoraScreen(
             // La dirección que viaja al mapa es la del CLIENTE, no una del
             // contacto: la app no guarda una calle por abono ni por visita. Ver
             // el KDoc de `BitacoraCompleta.direccion`.
-            onVerUbicacion = { punto ->
-                state.bitacora?.let { onVerUbicacion(punto, it.direccion) }
+            onVerUbicacion = { punto, pagoId ->
+                state.bitacora?.let { onVerUbicacion(punto, it.direccion, pagoId) }
             },
             onVerTicket = onVerTicket
         )
@@ -149,7 +150,7 @@ fun BitacoraContent(
     onAtras: () -> Unit,
     modifier: Modifier = Modifier,
     onFiltrar: (FiltroDeContactos) -> Unit = {},
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerUbicacion: ((UbicacionDelCobro, pagoId: String) -> Unit)? = null,
     onVerTicket: ((String) -> Unit)? = null
 ) {
     // Cuál renglón está preguntando, por su `ContactoDeCobranza.id`. En un
@@ -197,7 +198,9 @@ fun BitacoraContent(
         HojaDelContacto(
             onVerUbicacion = {
                 preguntaPor = null
-                preguntando.ubicacion?.let { punto -> onVerUbicacion?.invoke(punto) }
+                preguntando.ubicacion?.let { punto ->
+                    onVerUbicacion?.invoke(punto, preguntando.id)
+                }
             },
             onVerTicket = {
                 preguntaPor = null
@@ -215,7 +218,7 @@ private fun Contactos(
     filtro: FiltroDeContactos,
     onFiltrar: (FiltroDeContactos) -> Unit,
     onAtras: () -> Unit,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)?,
+    onVerUbicacion: ((UbicacionDelCobro, pagoId: String) -> Unit)?,
     toque: ToqueDeLaFila
 ) {
     Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {

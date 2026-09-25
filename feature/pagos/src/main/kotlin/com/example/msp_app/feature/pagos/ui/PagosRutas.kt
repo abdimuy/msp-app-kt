@@ -148,7 +148,10 @@ fun NavGraphBuilder.destinosDePagos(
     composable(
         route = PagosRutas.DETALLE_VENTA,
         arguments = listOf(navArgument(PagosRutas.ARG_VENTA_ID) { type = NavType.IntType })
-    ) {
+    ) { entrada ->
+        // Este destino conoce la VENTA, no al cliente. Viaja el `ventaId` y
+        // quien lo resuelve es el módulo de ubicación, que es el que lee Room.
+        val ventaId = entrada.arguments?.getInt(PagosRutas.ARG_VENTA_ID) ?: 0
         DetalleVentaScreen(
             viewModel = hiltViewModel(),
             onAtras = onAtras,
@@ -156,7 +159,9 @@ fun NavGraphBuilder.destinosDePagos(
             onRegistrarVisita = onRegistrarVisita,
             onVerAbonos = onVerAbonos,
             onVerGarantia = onVerGarantia,
-            onVerUbicacion = ubicacion.onVer,
+            onVerUbicacion = { _, direccion, pagoId ->
+                ubicacion.onVerLugares(null, ventaId, direccion, pagoId)
+            },
             onCondonar = onCondonar,
             onVerTicket = ubicacion.onVerTicket
         )
@@ -186,6 +191,20 @@ fun NavGraphBuilder.destinosDePagos(
 @Immutable
 data class UbicacionEnElDetalle(
     val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
+    /**
+     * **El mapa de TODOS los lugares del cliente**, con su id.
+     *
+     * Es aditivo a [onVer] a propósito: [onVer] sólo lleva un punto, y la
+     * pantalla de ubicación dejó de enseñar un punto para enseñar **los lugares
+     * del cliente** —agrupados, con el más grande marcado como la puerta cuando
+     * se la gana—. Para eso hace falta a quién mirar, y el `clienteId` sólo
+     * existe aquí, en el argumento de navegación de este destino.
+     *
+     * No reemplaza a [onVer] para no tocar la firma que las pantallas ya usan:
+     * el destino envuelve la llamada y le agrega el id.
+     */
+    val onVerLugares: (clienteId: Int, direccion: String, pagoId: String) -> Unit =
+        { _, _, _ -> },
     val suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null,
     /**
      * A dónde lleva la opción "Ticket" de [HojaDelContacto]: al ticket del abono
@@ -263,7 +282,11 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
     composable(
         route = PagosRutas.DETALLE_CLIENTE,
         arguments = listOf(navArgument(PagosRutas.ARG_CLIENTE_ID) { type = NavType.IntType })
-    ) {
+    ) { entrada ->
+        // El `clienteId` sólo existe aquí, en el argumento de navegación. La
+        // pantalla no lo lleva en su callback, así que el destino lo agrega al
+        // pasar — ver `UbicacionEnElDetalle.onVerLugares`.
+        val clienteId = entrada.arguments?.getInt(PagosRutas.ARG_CLIENTE_ID) ?: 0
         DetalleClienteScreen(
             viewModel = hiltViewModel(),
             onAtras = onAtras,
@@ -271,7 +294,9 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
             onRegistrarAbono = dinero.onRegistrarAbono,
             onRegistrarVisita = onRegistrarVisita,
             onVerContactos = onVerContactos,
-            onVerUbicacion = ubicacion.onVer,
+            onVerUbicacion = { _, direccion, pagoId ->
+                ubicacion.onVerLugares(clienteId, direccion, pagoId)
+            },
             onCondonar = dinero.onCondonar,
             onVerTicket = ubicacion.onVerTicket,
             suelo = ubicacion.suelo
@@ -306,6 +331,19 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
 data class UbicacionEnLaBitacora(
     val onVer: (UbicacionDelCobro, String) -> Unit = { _, _ -> },
     /**
+     * **El mapa de todos los lugares**, con el id que este destino conoce.
+     *
+     * La bitácora conoce el `clienteId`; el detalle de venta conoce el
+     * `ventaId`. Los dos usan este objeto, así que viajan los dos y el que no
+     * aplica va en `null` — resolverlo es trabajo del módulo de ubicación, que
+     * es quien sabe leer Room.
+     *
+     * Ver el gemelo en [UbicacionEnElDetalle.onVerLugares] para por qué es
+     * aditivo y no un cambio de [onVer].
+     */
+    val onVerLugares: (clienteId: Int?, ventaId: Int?, direccion: String, pagoId: String) -> Unit =
+        { _, _, _, _ -> },
+    /**
      * A dónde lleva la opción "Ticket" de [HojaDelContacto] — ver el gemelo en
      * [UbicacionEnElDetalle.onVerTicket], incluido por qué entra como miembro de
      * este objeto y no como un parámetro más.
@@ -336,11 +374,14 @@ fun NavGraphBuilder.destinoDeBitacora(
     composable(
         route = PagosRutas.BITACORA,
         arguments = listOf(navArgument(PagosRutas.ARG_CLIENTE_ID) { type = NavType.IntType })
-    ) {
+    ) { entrada ->
+        val clienteId = entrada.arguments?.getInt(PagosRutas.ARG_CLIENTE_ID) ?: 0
         BitacoraScreen(
             viewModel = hiltViewModel(),
             onAtras = onAtras,
-            onVerUbicacion = ubicacion.onVer,
+            onVerUbicacion = { _, direccion, pagoId ->
+                ubicacion.onVerLugares(clienteId, null, direccion, pagoId)
+            },
             onVerTicket = ubicacion.onVerTicket
         )
     }

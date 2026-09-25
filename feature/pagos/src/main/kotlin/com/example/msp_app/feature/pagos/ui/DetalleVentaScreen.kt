@@ -129,7 +129,7 @@ fun DetalleVentaScreen(
     onRegistrarVisita: (Int, Int?) -> Unit,
     onVerAbonos: (Int) -> Unit,
     onVerGarantia: (Int) -> Unit,
-    onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
+    onVerUbicacion: (UbicacionDelCobro, direccion: String, pagoId: String) -> Unit,
     onCondonar: (Int) -> Unit,
     modifier: Modifier = Modifier,
     onVerTicket: (String) -> Unit = {}
@@ -176,7 +176,7 @@ fun DetalleVentaScreen(
             // dirección propia —a diferencia del cliente, no es un domicilio—,
             // así que viaja vacía y la hoja del mapa la enseña como ausente
             // (`HojaDeLaUbicacion`, `direccion.ifBlank { SIN_DIRECCION }`).
-            onVerUbicacionDelContacto = { punto -> onVerUbicacion(punto, "") },
+            onVerUbicacionDelContacto = { punto, pagoId -> onVerUbicacion(punto, "", pagoId) },
             onVerTicket = onVerTicket,
             modifier = modifier
         )
@@ -201,7 +201,7 @@ fun DetalleVentaContent(
     onVerGarantia: () -> Unit,
     modifier: Modifier = Modifier,
     linea: AccionesDeLaLinea = AccionesDeLaLinea(),
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)? = null,
     onVerTicket: ((String) -> Unit)? = null,
     onCondonar: () -> Unit = {}
 ) {
@@ -302,7 +302,9 @@ fun DetalleVentaContent(
         HojaDelContacto(
             onVerUbicacion = {
                 preguntaPor = null
-                preguntando.ubicacion?.let { punto -> onVerUbicacionDelContacto?.invoke(punto) }
+                preguntando.ubicacion?.let { punto ->
+                    onVerUbicacionDelContacto?.invoke(punto, preguntando.id)
+                }
             },
             onVerTicket = {
                 preguntaPor = null
@@ -323,7 +325,7 @@ private fun CuerpoDeLaVenta(
     onVerAbonos: () -> Unit,
     onVerGarantia: () -> Unit,
     linea: AccionesDeLaLinea,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)? = null,
     toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
     Column(
@@ -583,7 +585,7 @@ internal fun LineaDeLaVenta(
     detalle: DetalleVenta,
     linea: AccionesDeLaLinea,
     onVerAbonos: () -> Unit,
-    onVerUbicacion: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerUbicacion: ((UbicacionDelCobro, pagoId: String) -> Unit)? = null,
     toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
     val delAlcance = if (linea.soloEstaVenta) {

@@ -176,7 +176,7 @@ fun DetalleClienteScreen(
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
     onVerContactos: (Int) -> Unit,
-    onVerUbicacion: (UbicacionDelCobro, String) -> Unit,
+    onVerUbicacion: (UbicacionDelCobro, direccion: String, pagoId: String) -> Unit,
     modifier: Modifier = Modifier,
     onCondonar: (Int) -> Unit = {},
     onVerTicket: (String) -> Unit = {},
@@ -248,7 +248,9 @@ fun DetalleClienteScreen(
             onVerUbicacion = {
                 val detalle = state.detalle
                 detalle?.ultimoCobroAqui?.let { punto ->
-                    onVerUbicacion(punto, detalle.direccion)
+                    // Sin `pagoId`: el cuadro de la puerta no sale de un
+                    // renglón, así que no hay medición que destacar.
+                    onVerUbicacion(punto, detalle.direccion, "")
                 }
             },
             // El MISMO callback del cuadro, con otro punto. No hace falta un
@@ -256,8 +258,12 @@ fun DetalleClienteScreen(
             // el mapa en este punto, con esta dirección" es UNA operación, y
             // duplicarla dejaría dos lambdas que `:app` tendría que cablear a la
             // misma ruta (principio 5).
-            onVerUbicacionDelContacto = { punto ->
-                state.detalle?.let { onVerUbicacion(punto, it.direccion) }
+            // La fila de un contacto SÍ lleva su `pagoId`: es lo que hace que
+            // el mapa abra con ESA medición destacada sobre el resto. El cuadro
+            // de la puerta, en cambio, manda cadena vacía — no viene de un
+            // renglón y no hay nada que destacar.
+            onVerUbicacionDelContacto = { punto, pagoId ->
+                state.detalle?.let { onVerUbicacion(punto, it.direccion, pagoId) }
             },
             onVerTicket = onVerTicket,
             suelo = suelo?.let { puesto ->
@@ -338,7 +344,7 @@ fun DetalleClienteContent(
     fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
     onCondonar: () -> Unit = {},
     onVerUbicacion: (() -> Unit)? = null,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)? = null,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)? = null,
     onVerTicket: ((String) -> Unit)? = null,
     suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
 ) {
@@ -489,7 +495,9 @@ fun DetalleClienteContent(
         HojaDelContacto(
             onVerUbicacion = {
                 preguntaPor = null
-                preguntando.ubicacion?.let { punto -> onVerUbicacionDelContacto?.invoke(punto) }
+                preguntando.ubicacion?.let { punto ->
+                    onVerUbicacionDelContacto?.invoke(punto, preguntando.id)
+                }
             },
             onVerTicket = {
                 preguntaPor = null
@@ -545,7 +553,7 @@ private fun CuerpoDelCliente(
     onAlternarPrivacidad: () -> Unit,
     contacto: AccionesDeContacto,
     onEditarFicha: () -> Unit,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)?,
     onVerUbicacion: (() -> Unit)?,
     toque: ToqueDeLaFila
 ) {
@@ -869,7 +877,7 @@ internal fun HojaDeContactos(
     detalle: DetalleCliente,
     ocultos: Boolean,
     onVerContactos: () -> Unit,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro) -> Unit)?,
+    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)?,
     toque: ToqueDeLaFila = ToqueDeLaFila()
 ) {
     HojaContinua {

@@ -294,7 +294,7 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
                         )
                     ),
                     onAtras = {},
-                    onVerUbicacion = { punto -> mapa = punto },
+                    onVerUbicacion = { punto, _ -> mapa = punto },
                     onVerTicket = { pagoId -> ticket = pagoId }
                 )
             }
@@ -319,7 +319,7 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
                     onVerContactos = {},
                     onAlternarTema = {},
                     onAlternarPrivacidad = {},
-                    onVerUbicacionDelContacto = { punto -> mapa = punto },
+                    onVerUbicacionDelContacto = { punto, _ -> mapa = punto },
                     onVerTicket = { pagoId -> ticket = pagoId }
                 )
             }
@@ -343,7 +343,7 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
                     onUsarLiquidacion = {},
                     onVerAbonos = {},
                     onVerGarantia = {},
-                    onVerUbicacionDelContacto = { punto -> mapa = punto },
+                    onVerUbicacionDelContacto = { punto, _ -> mapa = punto },
                     onVerTicket = { pagoId -> ticket = pagoId }
                 )
             }

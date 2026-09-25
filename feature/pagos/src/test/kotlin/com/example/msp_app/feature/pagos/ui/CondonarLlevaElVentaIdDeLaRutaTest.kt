@@ -123,7 +123,7 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
                 onRegistrarVisita = { _, _ -> },
                 onVerAbonos = {},
                 onVerGarantia = {},
-                onVerUbicacion = { _, _ -> },
+                onVerUbicacion = { _, _, _ -> },
                 onCondonar = { ventaId -> recibido = ventaId }
             )
         }
@@ -151,7 +151,7 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
                 onRegistrarVisita = { _, _ -> },
                 onVerAbonos = {},
                 onVerGarantia = {},
-                onVerUbicacion = { _, _ -> },
+                onVerUbicacion = { _, _, _ -> },
                 onCondonar = { ventaId -> recibido = ventaId }
             )
         }
