@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableIntState
@@ -87,6 +88,7 @@ fun MspSoftEdgeActionBar(
     modifier: Modifier = Modifier,
     backdrop: MspBackdrop? = null,
     fade: Dp = MSP_SOFT_EDGE_FADE,
+    conInsetDeAbajo: Boolean = true,
     contenido: @Composable ColumnScope.() -> Unit
 ) {
     val fondo = MspTheme.colors.background
@@ -103,6 +105,19 @@ fun MspSoftEdgeActionBar(
                     )
                 )
             )
+            // **El inset va DESPUÉS del degradado, y el orden es la mitad del
+            // arreglo.** Así el degradado llega al borde de abajo de la pantalla
+            // —la orilla se comporta igual que la de arriba, donde el mapa
+            // sangra— y lo que sube para no quedar debajo de los botones del
+            // sistema es el CONTENIDO. Al revés quedaría una franja del color de
+            // la pantalla por debajo de la barra, que es el canto que esto
+            // existe para no tener. Mismo patrón que `BlurredActionBar`.
+            //
+            // [conInsetDeAbajo] en `false` es para quien no vive en la orilla:
+            // el telón del nombre usa esta misma pieza en la parte baja del
+            // MAPA, y ahí un inset de barra de navegación sería aire muerto en
+            // medio de la pantalla.
+            .then(if (conInsetDeAbajo) Modifier.navigationBarsPadding() else Modifier)
             .padding(top = fade),
         content = contenido
     )
@@ -171,6 +186,20 @@ class MspBackdrop internal constructor(
  * [MspSoftEdgeActionBar] lo aplica por su cuenta; no hace falta ponerlo dos
  * veces.
  */
+/**
+ * **Lo mismo que [mspBackdropBar], para la orilla de ARRIBA.**
+ *
+ * Lo usa el velo de la barra de estado del detalle de cliente: declara cuánto
+ * alto ocupa para que la tira borrosa se grabe de ese tamaño exacto y no de uno
+ * inventado. Quien la dibuja sigue siendo el contenido —ver [mspBackdropSource]
+ * para por qué el orden de dibujo obliga a repartirlo así—.
+ */
+fun Modifier.mspBackdropCabecera(backdrop: MspBackdrop?): Modifier = if (backdrop == null) {
+    this
+} else {
+    onSizeChanged { backdrop.altoDeLaCabeceraPx.intValue = it.height }
+}
+
 fun Modifier.mspBackdropBar(backdrop: MspBackdrop?): Modifier =
     if (backdrop == null) this else onSizeChanged { backdrop.altoDeLaBarraPx.intValue = it.height }
 

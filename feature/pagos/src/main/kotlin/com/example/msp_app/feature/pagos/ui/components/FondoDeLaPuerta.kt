@@ -16,9 +16,11 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.theme.FontSizeLevel
 import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -141,12 +143,14 @@ const val TOQUE_DEL_FONDO_TAG: String = "pagos_cliente_toque_fondo"
 fun FondoDeLaPuerta(
     ubicacion: UbicacionDelCobro?,
     calle: String,
-    zona: String,
+    nombre: String,
+    direccion: String,
     avance: () -> Float,
     desplazamientoPx: () -> Float,
     sinMovimiento: Boolean,
     insetDeArriba: Dp,
     modifier: Modifier = Modifier,
+    backdrop: MspBackdrop? = null,
     onVerUbicacion: (() -> Unit)? = null,
     suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
 ) {
@@ -189,32 +193,47 @@ fun FondoDeLaPuerta(
             }
             .testTag(FONDO_DE_LA_PUERTA_TAG)
     ) {
-        Box(modifier = Modifier.fillMaxSize().padding(top = insetDeArriba)) {
-            // **La textura va a sangre, detrás de TODO** —incluido el renglón
-            // del nombre—, y por eso se pinta fuera del margen de abajo. Con
-            // ella encerrada en la misma franja que la seña legible, las dos
-            // cadenas caían una encima de la otra y el fondo se leía como un
+        Box(modifier = Modifier.fillMaxSize()) {
+            // **La textura va a sangre, detrás de TODO**, incluido el tramo que
+            // queda bajo la barra de estado. Con ella encerrada en un margen las
+            // dos cadenas caían una encima de la otra y el fondo se leía como un
             // texto mal dibujado en vez de como una textura. Se vio en el golden
             // `pagos_cliente_sin_punto_light`.
-            if (ubicacion == null) FondoSinPunto(calle = calle)
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    // **La seña no puede bajar hasta donde va el nombre.** El
-                    // renglón del título flota sobre los últimos
-                    // [ALTO_DEL_NOMBRE_SOBRE_EL_FONDO] dp de este fondo —es lo
-                    // que hace que el nombre se lea sobre el mapa, como en el
-                    // mock—, y sin este margen la calle de la seña se escribía
-                    // encima del nombre. Se vio en el golden
-                    // `pagos_cliente_light_1_0`.
-                    .padding(bottom = ALTO_DEL_NOMBRE_SOBRE_EL_FONDO)
-            ) {
-                SenasDelFondo(calle = calle, zona = zona)
+            // **El piso se pinta SIEMPRE, con punto y sin él**, y esto es una
+            // corrección medida hoy en el aparato del dueño, no una precaución.
+            //
+            // Estaba condicionado a que NO hubiera punto medido: con punto, el
+            // mapa era lo único que se pintaba. Instalado en el SM-A256E sobre
+            // un cliente **con** coordenada, el mapa no pintó ni una tesela y
+            // lo que quedó fueron **300 dp de negro** — exactamente el estado
+            // que este fondo existe para no tener nunca.
+            //
+            // Es el mismo hallazgo que el cuadro viejo ya había medido en este
+            // mismo teléfono (`Authorization failure … INVALID_ARGUMENT`, la
+            // llave no autorizaba el paquete de esa build) y que también se da
+            // en la calle sin señal la primera vez que se abre una puerta
+            // nueva. La regla de las dos capas vuelve a su forma correcta: el
+            // piso siempre, el mapa encima cuando puede. **El peor caso pasa a
+            // ser el estado aceptable.**
+            //
+            // Y no estorba al caso bueno: con teselas, el mapa lo tapa entero.
+            Box(modifier = Modifier.fillMaxSize().padding(top = insetDeArriba)) {
+                FondoSinPunto(calle = calle)
             }
-            // El mapa, encima de las señas y sólo con punto medido. Sin punto
+            // El mapa, encima de la textura y sólo con punto medido. Sin punto
             // no hay dónde centrarlo, y centrarlo en cualquier otra cosa diría
             // "es aquí" sobre una puerta que nadie midió.
             if (ubicacion != null) suelo?.invoke(abrir ?: {})
+            // **El telón, pegado abajo y por encima del mapa.** Es lo que hace
+            // que estos 300 dp no terminen en un canto, y crece hacia arriba
+            // cuando la dirección no cabe: come mapa, nunca contenido. Ver
+            // `TelonDelNombre`.
+            TelonDelNombre(
+                nombre = nombre,
+                direccion = direccion,
+                backdrop = backdrop,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
     }
 }
@@ -240,6 +259,11 @@ private fun FondoSinPunto(calle: String) {
     Box(modifier = Modifier.fillMaxSize()) {
         Text(
             text = calle.ifBlank { SIN_DIRECCION },
+            // `lineHeightStyle` con los dos `Trim`: la rampa da
+            // `lineHeight = fontSize * 1.4` y ese 40 % sobrante se reparte
+            // arriba y abajo de cada renglón. En una textura de tres renglones
+            // eso son ~30 dp de aire muerto que la separan del borde de arriba
+            // y la empujan detrás del telón.
             style = MspTheme.type.metricLarge.copy(lineHeightStyle = SIN_AIRE_DE_LINEA),
             color = MspTheme.colors.onSurface.copy(alpha = TINTA_DEL_FONDO),
             // Tres renglones y **sin elipsis**: de una textura no se recorta,
@@ -247,9 +271,14 @@ private fun FondoSinPunto(calle: String) {
             // un dato incompleto, que es justo lo que no es.
             maxLines = 3,
             overflow = TextOverflow.Clip,
+            // **Arriba, no abajo.** La mitad baja de estos 300 dp se la lleva
+            // el telón, y con la textura plantada ahí quedaba entera detrás de
+            // su degradado: invisible. Se vio en el golden
+            // `pagos_cliente_sin_punto_dark`, con el fondo completamente negro.
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.TopStart)
                 .padding(horizontal = MspTheme.spacing.md)
+                .padding(top = MspTheme.spacing.lg)
                 .testTag(FONDO_SIN_PUNTO_TAG)
         )
     }
@@ -271,66 +300,55 @@ private val RADIO_DEL_DESENFOQUE = 14.dp
 private const val TINTA_DEL_FONDO = 0.10f
 
 /**
- * **Cuánto del fondo se ve antes de que empiece el contenido.**
+ * El recorte del aire de línea de la textura.
  *
- * **96 dp** a letra normal y [FONDO_APRETADO] a las grandes. Medido, no
- * elegido — ver el KDoc de [FondoDeLaPuerta] para la ecuación y para por qué no
- * son los 261 que daría el mock. **Subirlo tapa el saldo**, y la regla del repo
- * es subir la implementación, no bajar el test.
+ * Vivía en `PiezasDelCliente.kt` mientras la seña del fondo existía; se mudó
+ * acá con su único consumidor cuando esa seña se retiró.
+ */
+private val SIN_AIRE_DE_LINEA = LineHeightStyle(
+    alignment = LineHeightStyle.Alignment.Center,
+    trim = LineHeightStyle.Trim.Both
+)
+
+/**
+ * **Cuánto del fondo se ve antes de que empiece el contenido: 300 dp.**
  *
- * ## Por qué 96, y por qué NO se puede bajar
+ * ## Lo que este número reemplazó, y por qué
  *
- * El presupuesto es uno solo y se reparte entre este número y la disolución de
- * la barra: `M + fade ≤ 162` (ver `MSP_SOFT_EDGE_FADE`).
+ * Fue 152, luego 118, luego **96**, cada bajada peleada contra el mismo
+ * invariante: que el `SALDO TOTAL` cupiera entero sobre la barra sin desplazar.
+ * El presupuesto era `M + fade ≤ 162` y el reparto final —96 de mapa, 66 de
+ * disolución— lo agotaba exacto, con margen cero.
  *
- * Pero **96 no sale del presupuesto: sale de la calle.** Medido sobre los
- * píxeles del golden, este número es el punto exacto en que la dirección del
- * fondo deja de cortarse — a 94 se ve en 16.0 dp de sus 17.5, a 90 en 12.0, y a
- * 82 en **4.0**, o sea partida a la mitad. En claro y en oscuro.
+ * **El 2026-09-25 el dueño vio ese resultado en su teléfono y lo rechazó**:
+ * *"está horrible y no se parece en nada al mock"*. Tenía razón, y la causa era
+ * del mock, no de la medición: estaba dibujado a 390×844 —proporciones de
+ * iPhone— sobre una pantalla real de 360×744, así que prometía un mapa que no
+ * cabía. Rehecho a las medidas reales y con la línea de flotación marcada,
+ * **eligió el mapa alto sabiendo el costo**.
  *
- * Así que **este lado manda y el otro se acomoda**: 96 fija `fade ≤ 66` y con
- * ello el techo de la barra en 162 dp. Se intentaron los 176 que el dueño
- * quería y se retiraron por esto mismo.
+ * ## El costo, dicho sin adornos
  *
- * **El margen es cero.** 96 + 66 = 162 exactos, contra los 4 dp que dejaba el
- * reparto anterior (118 + 40 = 158). Un dp más de cualquiera de los dos mete el
- * `SALDO TOTAL` debajo de la banda.
+ * **El `SALDO TOTAL` queda abajo del pliegue.** Hay que desplazar para verlo.
+ * Es una reversión consciente de lo que se protegió durante dos días, decidida
+ * por el dueño con el número delante. Lo que ya NO rige es "el dinero cabe"; lo
+ * que rige ahora es "el dinero no se aleja más", y eso lo ancla
+ * `ElDineroPideUnSoloDesplazamientoTest` con la cifra medida.
+ *
+ * ## Y a las escalas grandes mide lo mismo
+ *
+ * [FONDO_APRETADO] también son 300. El fondo dejó de apretarse con la letra
+ * porque ya no compite con el dinero por los mismos dp: desde que el saldo vive
+ * abajo del pliegue, encoger el mapa a 2.0 no le devuelve nada a nadie —sólo
+ * deja un mapa chico y un telón que igual crece con la tipografía—.
  */
 @Composable
 fun altoDelFondo(): Dp =
     if (LocalFontSizeLevel.current == FontSizeLevel.NORMAL) FONDO_NORMAL else FONDO_APRETADO
 
-private val FONDO_NORMAL: Dp = 96.dp
+private val FONDO_NORMAL: Dp = 300.dp
 
-/**
- * **Lo que el fondo mide a `GRANDE` y `MUY_GRANDE`: 112 dp.**
- *
- * El cuadro viejo hacía exactamente esto —100 dp a normal, 40 a las grandes— y
- * por la misma razón medida: a esas escalas cada renglón crece y el dock **se
- * apila en dos**, así que el dinero se queda sin sitio. Con el fondo a 152 el
- * bloque de la parcialidad terminaba en **617.5 dp** contra un dock que empieza
- * en **612.0**: 5.5 dp tapados en el caso *sin nota*, que antes de este
- * rediseño sí cabía. A 112 vuelve a caber con margen.
- *
- * Es el mismo criterio de siempre, aplicado al dibujo nuevo: **entre un dibujo
- * y un dato, cede el dibujo.**
- */
-private val FONDO_APRETADO: Dp = 96.dp
-
-/**
- * **Cuánto del fondo se lleva el renglón del nombre.**
- *
- * 64 dp: los 56 del renglón del título más su aire de arriba. El nombre vive
- * DENTRO del desplazamiento y flota sobre el último tramo del fondo —así es
- * como el mock lo pide, y es lo que deja que el encabezado compacto entre
- * después sin decir el nombre dos veces—.
- *
- * Lo usan dos sitios y por eso es público: este archivo, para no escribir la
- * seña encima del nombre, y `DetalleClienteScreen`, para que el hueco con el
- * que arranca el contenido deje el título justo ahí. Si los dos números se
- * separaran, la seña volvería a chocar con el nombre.
- */
-val ALTO_DEL_NOMBRE_SOBRE_EL_FONDO: Dp = 64.dp
+private val FONDO_APRETADO: Dp = 300.dp
 
 /**
  * **El recorrido de la animación: 230 dp.**

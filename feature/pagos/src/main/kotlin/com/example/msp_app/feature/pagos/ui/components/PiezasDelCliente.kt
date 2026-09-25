@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -29,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,12 +82,6 @@ const val VER_LOS_CONTACTOS_TAG: String = "pagos_cliente_ver_contactos"
 
 /** `testTag` del cuadro de la puerta — el mapa, o las señas cuando no hay mapa. */
 const val CUADRO_DE_LA_PUERTA_TAG: String = "pagos_cliente_cuadro_puerta"
-
-/** `testTag` del renglón grande del cuadro: la calle y el número. */
-const val CALLE_DEL_CUADRO_TAG: String = "pagos_cliente_calle"
-
-/** `testTag` de la línea tenue del cuadro: *"ciudad · ruta"*. */
-const val APOYO_DEL_CUADRO_TAG: String = "pagos_cliente_apoyo_del_cuadro"
 
 /**
  * Lo que anuncia el cuadro cuando se puede tocar.
@@ -258,7 +250,6 @@ fun BloqueDeIdentidad(
     estados: List<androidx.compose.ui.graphics.vector.ImageVector>,
     colores: List<Pair<Color, Color>>,
     zona: String,
-    direccion: String,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -300,19 +291,19 @@ fun BloqueDeIdentidad(
                     .testTag(ZONA_DEL_CLIENTE_TAG)
             )
         }
-        // La dirección en su propio renglón y a todo el ancho: acá no compite con
-        // el racimo por los ~110 dp que éste se lleva, que era el defecto que el
-        // dueño había reportado como "ni se ve casi".
-        Text(
-            text = direccion.ifBlank { SIN_DATO },
-            style = MspTheme.type.captionStrong,
-            color = MspTheme.colors.onSurface,
-            maxLines = RENGLONES_DE_LA_DIRECCION,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .fillMaxWidth()
-                .testTag(DIRECCION_TAG)
-        )
+        // **La dirección ya no se pinta acá: la dice el telón, sobre el mapa.**
+        //
+        // Tuvo su renglón propio a todo el ancho desde que el dueño reportó que
+        // *"ni se ve casi"*, y ese arreglo sigue siendo correcto — lo que cambió
+        // es dónde. Con el telón diciéndola completa arriba, repetirla en esta
+        // tarjeta es exactamente la duplicación que él ya había rechazado una
+        // vez: *"se lee como un error de copiado"*.
+        //
+        // La regla dura —*"eso no se puede quitar nunca, siempre se tiene que
+        // ver la dirección escrita"*— **se sigue cumpliendo**, y por eso este
+        // cambio es legítimo y no una regresión a `f8621920`: se ve entera, sin
+        // desplazar, y con un "Ver más" explícito cuando no cabe en dos
+        // renglones. Ver `TelonDelNombre`.
     }
 }
 
@@ -324,28 +315,6 @@ fun BloqueDeIdentidad(
  * encuentra los dos y falla por ambigüedad.
  */
 const val ZONA_DEL_CLIENTE_TAG: String = "pagos_cliente_zona"
-
-/**
- * `testTag` de la dirección escrita del domicilio.
- *
- * Aparte del racimo y de la zona porque lo que hay que poder afirmar es que la
- * dirección **entera** se ve. Volvió con el renglón tras la regresión que
- * `f8621920` introdujo y el dueño reportó desde el aparato: *"siempre se tiene
- * que ver la dirección escrita"*. `LaDireccionEscritaSiempreSeVeTest` es quien
- * lo mide, y el nombre de la constante no cambió para que la prueba de entonces
- * y la de ahora hablen de lo mismo.
- */
-const val DIRECCION_TAG: String = "pagos_direccion"
-
-/**
- * Cuántas líneas se le dan a la dirección escrita.
- *
- * Dos. Una no alcanza para `"C. Miguel Hidalgo y Costilla 214, Col. Centro"`
- * —que es la forma real del campo, ver el KDoc de [BloqueDeIdentidad]— y tres
- * empiezan a empujar el dinero sin ganar direcciones nuevas: las que no entran
- * en dos tampoco entran en tres.
- */
-private const val RENGLONES_DE_LA_DIRECCION = 2
 
 /** Una acción de la fila: su etiqueta, su glifo y qué hace. */
 private data class AccionDelCliente(
@@ -899,146 +868,24 @@ private val TOQUE_DE_ACCION = 50.dp
  */
 private const val POR_RENGLON_APILADO = 2
 
-/**
- * Las señas: el chip de punto medido, el bloque de calle en grande y, debajo,
- * **la ruta** en tenue.
- *
- * **A la izquierda y centradas verticalmente**, con `spacing.lg` de aire lateral
- * y [AIRE_ENTRE_SENAS] entre las tres. Centrar el texto lo habría dejado
- * flotando como un cartel; alineado a la izquierda la banda se lee como parte de
- * la hoja y no como una estampa pegada encima.
- *
- * El aire lateral es **más generoso que el de las secciones** (`spacing.md`), y
- * a propósito: el mockup le da ~10 % del ancho. Sin ese margen la calle a 26 sp
- * queda pegada al canto y los tres tamaños dejan de leerse como jerarquía — el
- * efecto de esta banda es **la distancia entre los tres tamaños y el aire que
- * los rodea**, y es lo primero que se pierde si se aprieta.
- *
- * ## El bloque de calle en grande, y la ciudad fuera de acá
- *
- * La primera versión pintaba la dirección entera —*"C. Hidalgo 214, Centro"*— a
- * 26 sp. El dueño lo vio en el golden: la cadena se come el ancho completo y la
- * tipografía grande **pierde todo su efecto**, que era la única razón de subirla
- * a 26 sp. La ciudad no es lo que contesta *"¿es aquí?"* parado en la banqueta
- * —eso lo contesta el número de la calle—, así que sale de la banda.
- *
- * La segunda versión la bajó a la línea de apoyo (*"Centro · ruta 25"*), y ahí
- * duró hasta que el renglón de dirección de [BloqueDeIdentidad] volvió: desde
- * que ese renglón dice la ciudad, repetirla acá es la duplicación que el dueño
- * había reportado. **La línea de apoyo dice sólo la ruta.**
- *
- * ## Sin punto medido no hay chip, y no se rellena el hueco
- *
- * El chip dice *"esta puerta está medida"*. Sin [ubicacion] esa frase sería
- * falsa, así que **no se dice nada en su lugar**: se quedan la calle y la línea
- * de apoyo. No se sustituye por *"sin ubicación"* ni por un chip apagado — el
- * cobrador no abre esta pantalla a ver qué le falta al registro, y un chip gris
- * ocupando el mismo sitio que uno de marca es ruido con forma de dato.
- *
- * ## A las escalas grandes cabe UN solo renglón, y es la calle
- *
- * A 2.0 la calle en `metricLarge` pediría ~73 dp y las tres señas no entran. El
- * renglón que se queda es **la calle**, en `captionStrong`, y no el chip:
- * puestos a dejar uno, el vistazo a la puerta sirve más que el contexto. Esta
- * elección ya **no** es lo que salva a la pantalla de quedarse sin dirección
- * —eso lo garantiza el renglón de [BloqueDeIdentidad], a todas las escalas—, y
- * por eso el recorte de acá es aceptable.
- *
- * ## Y a `NORMAL` la calle también es UN renglón
- *
- * Tuvo dos mientras esta banda era el único sitio donde la dirección se
- * pintaba. Con el renglón de [BloqueDeIdentidad] de vuelta, el segundo renglón
- * de acá no decía nada nuevo y costaba 25.0 dp que el dock le estaba tapando al
- * saldo con una dirección real.
- *
- * ## Dónde se planta ahora: ABAJO, no al centro
- *
- * Mientras esto vivía dentro de una banda de 100 dp, centrarlo verticalmente
- * era lo único que cabía. De fondo a 160 dp el centro queda a media altura del
- * mapa, donde compite con las teselas y con el pin. Plantado abajo, la seña
- * queda justo encima de donde arranca la primera tarjeta y se lee como el pie
- * del fondo — que es lo que es.
- */
-@Composable
-internal fun SenasDelFondo(calle: String, zona: String) {
-    val apretado = LocalFontSizeLevel.current != FontSizeLevel.NORMAL
-    val apoyo = zona.trim()
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = MspTheme.spacing.lg, vertical = MspTheme.spacing.xs),
-        verticalArrangement = Arrangement.Top
-    ) {
-        // **El chip "Punto medido" ya no se pinta, y no es un olvido.**
-        //
-        // De fondo, la seña dispone de **54 dp**: los 118 del fondo menos los 64
-        // que se lleva el renglón del nombre, que flota encima del mapa. El chip
-        // mide 29 y la calle 25, y con el aire mínimo no entran los dos — se vio
-        // en el golden `pagos_cliente_light_1_0`, con la calle cortada por la
-        // mitad.
-        //
-        // Puestos a dejar uno, **se queda la calle**. No es una elección nueva:
-        // es el criterio que este mismo archivo ya había escrito para las
-        // escalas grandes —*"el vistazo a la puerta sirve más que el
-        // contexto"*—, aplicado ahora también a NORMAL porque el fondo cedió
-        // alto para que el `SALDO TOTAL` no quedara debajo de la barra.
-        //
-        // Lo que el chip decía **no se pierde en el caso normal**: cuando hay
-        // punto medido lo que se ve aquí es el mapa, con su pin. Se pierde sólo
-        // cuando el mapa no carga, que es justo cuando la calle vale más. Y la
-        // distinción entre una puerta medida y una sin medir sigue siendo
-        // visible sin abrir nada: sin punto el fondo es la dirección en grande
-        // y muy tenue, no un mapa. Ver `FondoSinPunto`.
-        // Con la calle en blanco va una frase y no un hueco: la banda existe para
-        // que nunca se lea como una pantalla a medio cargar, y un renglón vacío
-        // es precisamente eso.
-        Text(
-            text = calle.ifBlank { SIN_DIRECCION },
-            // `detailTitle` (18 sp) y no `metricLarge` (26): a 26 la calle llenaba
-            // el ancho del cuadro y el bloque se leía como un letrero, no como
-            // la seña de una puerta. Y `lineHeightStyle` con los dos `Trim`
-            // porque la rampa da `lineHeight = fontSize * 1.4`
-            // (`MspType.kt:75`): ese 40 % sobrante se reparte arriba y abajo de
-            // la caja del texto y separaba las tres señas ~40 dp en vez de los
-            // 10 de [AIRE_ENTRE_SENAS]. Recortarlo deja el bloque compacto sin
-            // tocar un solo token.
-            style = if (apretado) {
-                MspTheme.type.captionStrong
-            } else {
-                MspTheme.type.detailTitle.copy(lineHeightStyle = SIN_AIRE_DE_LINEA)
-            },
-            color = MspTheme.colors.onSurface,
-            // UN renglón a todas las escalas. Tuvo dos mientras esta banda era
-            // el único sitio donde vivía la dirección: media calle no es una
-            // dirección incompleta, es una equivocada. Desde que el renglón de
-            // `BloqueDeIdentidad` la dice entera —y a todas las escalas— el
-            // segundo renglón de acá no agregaba un dato, sólo 25 dp, y esos
-            // 25 dp son parte de los 26 que el dock le estaba tapando al saldo.
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.testTag(CALLE_DEL_CUADRO_TAG)
-        )
-        // **La línea de apoyo ya no se pinta de fondo.** Decía sólo la ruta, y la
-        // ruta la dice el encabezado de la tarjeta de identidad dos dedos más
-        // abajo — o sea que era la duplicación que el dueño ya había reportado
-        // una vez, sobreviviendo en el único renglón que quedaba. Lo que la
-        // quitó de verdad fue el espacio: de los 122 dp del fondo, el renglón
-        // del nombre se lleva 56, y en los 66 que quedan entran el chip y la
-        // calle. Entre repetir la ruta y que la calle no choque con el nombre,
-        // gana la calle.
-        if (apoyo.isNotBlank() && !apretado && CON_LINEA_DE_APOYO) {
-            Spacer(Modifier.height(AIRE_ENTRE_SENAS))
-            Text(
-                text = apoyo,
-                style = MspTheme.type.input.copy(lineHeightStyle = SIN_AIRE_DE_LINEA),
-                color = MspTheme.colors.onSurfaceMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.testTag(APOYO_DEL_CUADRO_TAG)
-            )
-        }
-    }
-}
+// ---------------------------------------------------------------------------
+// LA SEÑA DEL FONDO SE FUE, Y LA REEMPLAZÓ EL TELÓN
+//
+// Era el chip "Punto medido", la calle en grande y la ruta en tenue, plantados
+// sobre la parte alta del fondo. Sobrevivió a tres recortes del mapa y en cada
+// uno perdió un renglón: primero la ruta, luego el chip, hasta quedarse con la
+// calle sola en 54 dp.
+//
+// Desde el 2026-09-25 el fondo mide 300 dp y lleva `TelonDelNombre` abajo, que
+// dice el NOMBRE y la dirección COMPLETA con su "Ver más". La seña decía menos
+// en el mismo sitio, así que dejarla habría sido pintar la calle dos veces a
+// dos dedos de distancia — la duplicación que el dueño ya rechazó una vez.
+//
+// Lo que NO se fue es el criterio que la encogió tres veces, porque sigue
+// mandando en cualquier cosa que se ponga sobre el mapa:
+//
+//   **Entre un dibujo y un dato, cede el dibujo.**
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // EL CHIP "PUNTO MEDIDO" SE RETIRÓ, Y ACÁ QUEDA POR QUÉ
@@ -1200,42 +1047,4 @@ private fun DatoDeLaPuerta(clave: String, valor: String, modifier: Modifier = Mo
  * sin margen arriba y abajo. El mockup fija 10 y es el número que deja las tres
  * cosas como tres cosas.
  */
-/**
- * Recorta el aire que la rampa mete arriba de la primera línea y debajo de la
- * última.
- *
- * La rampa da `lineHeight = fontSize * 1.4` a TODOS sus roles
- * (`MspType.kt:75`), que es lo correcto para un párrafo de varias líneas. En un
- * renglón suelto ese 40 % se convierte en relleno vertical invisible dentro de
- * la caja del texto.
- *
- * **Cuánto recupera, medido sobre el PNG del golden y no a ojo:** el hueco
- * visible entre el chip y la calle pasó de 18.0 a 15.5 dp. Son **2.5 dp**, no
- * los ~40 que aparentaba el bloque antes de bajar la letra: lo que de verdad lo
- * compactó fue pasar la calle de 26 a 18 sp (el alto del renglón cayó de 25.5 a
- * 18 dp y el bloque entero de 102.5 a 91.5). Se deja porque 2.5 dp por hueco son
- * reales y gratis, pero **no se le atribuya más de lo que hace** — quien quiera
- * los 10 dp exactos de [AIRE_ENTRE_SENAS] tiene que bajar el `Spacer`, porque
- * los ~6 dp que sobran no salen de aquí.
- *
- * `Trim.Both` porque sobra en los dos extremos, y `Alignment.Center` para que
- * lo que quede se reparta parejo y el texto no suba ni baje respecto a donde
- * estaba.
- */
-internal val SIN_AIRE_DE_LINEA = LineHeightStyle(
-    alignment = LineHeightStyle.Alignment.Center,
-    trim = LineHeightStyle.Trim.Both
-)
-
-private val AIRE_ENTRE_SENAS = 10.dp
-
-/**
- * Si la seña del fondo pinta su línea de apoyo.
- *
- * `false`, y el renglón se conserva en el código en vez de borrarse porque la
- * decisión es de **espacio**, no de contenido: el día que el fondo vuelva a
- * tener alto de sobra, esto es una palabra. Ver el comentario en [SenasDelFondo].
- */
-private const val CON_LINEA_DE_APOYO = false
-
 /** Lo que dice el chip cuando la puerta tiene coordenada de un cobro real. */

@@ -90,7 +90,15 @@ fun EncabezadoCompacto(
         backdrop = backdrop,
         fade = FADE_DEL_ENCABEZADO
     ) {
-        Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
+        // El aire de la derecha deja libre la esquina de los controles
+        // flotantes: el ojo y el sol/luna viven ahí fijos, y sin este margen el
+        // nombre y la dirección se les meterían debajo al entrar.
+        Column(
+            modifier = Modifier.padding(
+                start = MspTheme.spacing.md,
+                end = ESQUINA_DE_LOS_CONTROLES
+            )
+        ) {
             Text(
                 text = nombre,
                 style = MspTheme.type.cardTitle,
@@ -117,6 +125,14 @@ fun EncabezadoCompacto(
  * sigue ahí es la tarjeta pegada que este diseño existe para no tener.
  */
 private const val ARRANQUE = 0.7f
+
+/**
+ * Lo que el encabezado compacto le deja a la esquina de los controles.
+ *
+ * Dos botones de 48 dp con su aire, más el margen de la pantalla. Medido en el
+ * aparato: sin esto la dirección pasaba por debajo del ojo y del sol/luna.
+ */
+private val ESQUINA_DE_LOS_CONTROLES = 128.dp
 
 /** Cuánto baja al entrar. Corto: es un relevo, no una entrada. */
 private val DESLIZAMIENTO = 12.dp

@@ -7,7 +7,6 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.Density
@@ -17,9 +16,7 @@ import com.example.msp_app.core.designsystem.theme.LocalFontSizeLevel
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
-import com.example.msp_app.feature.pagos.ui.components.APOYO_DEL_CUADRO_TAG
-import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
-import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
+import com.example.msp_app.feature.pagos.ui.components.DIRECCION_DEL_TELON_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -83,7 +80,7 @@ class LaDireccionEscritaSiempreSeVeTest : RobolectricTestBase() {
     fun `la direccion escrita completa se ve a escala NORMAL`() {
         cliente()
 
-        composeTestRule.onNodeWithTag(DIRECCION_TAG)
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG)
             .assertIsDisplayed()
             .assertTextEquals(DIRECCION_COMPLETA)
         noEsUnRectanguloVacio()
@@ -98,7 +95,7 @@ class LaDireccionEscritaSiempreSeVeTest : RobolectricTestBase() {
     fun `la direccion escrita completa se ve a escala MUY GRANDE`() {
         cliente(nivel = FontSizeLevel.MUY_GRANDE)
 
-        composeTestRule.onNodeWithTag(DIRECCION_TAG)
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG)
             .assertIsDisplayed()
             .assertTextEquals(DIRECCION_COMPLETA)
         noEsUnRectanguloVacio()
@@ -126,29 +123,33 @@ class LaDireccionEscritaSiempreSeVeTest : RobolectricTestBase() {
             composeTestRule.onAllNodesWithText(DIRECCION_COMPLETA, substring = true)
                 .fetchSemanticsNodes().size
         )
-        composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION_COMPLETA)
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG).assertTextEquals(DIRECCION_COMPLETA)
     }
 
     /**
-     * Y el fondo **no la repite**: su renglón grande no dice la ciudad, y la
-     * línea de apoyo que podía repetir la ruta **ya no se pinta**. Era la queja
-     * legítima que originó `f8621920` —el cuadro decía las mismas dos cadenas
-     * del bloque de arriba, en el mismo orden— y se resuelve por acá y no
-     * quitando el dato.
+     * **El fondo ya no puede repetir nada, y por eso este test cambió de
+     * pregunta.**
      *
-     * Con el renglón de apoyo fuera, la duplicación queda cerrada por
-     * construcción y no por vigilancia: no se puede repetir lo que no se pinta.
+     * Había una seña sobre el mapa —calle y ruta— y este test vigilaba que no
+     * dijera lo mismo que la tarjeta de abajo. Desde el 2026-09-25 esa seña no
+     * existe: el fondo lleva `TelonDelNombre`, que dice el nombre y la
+     * dirección completa, y **la tarjeta de identidad dejó de decir la
+     * dirección**. O sea que la duplicación se cerró por construcción y no por
+     * vigilancia.
+     *
+     * Lo que sí hay que seguir vigilando es lo contrario: que la dirección no
+     * se diga **dos veces** ahora que cambió de dueño. Eso es lo que mide
+     * `la direccion escrita aparece una sola vez en la pantalla`.
      */
     @Test
-    fun `el fondo no repite la ciudad ni la ruta`() {
+    fun `la tarjeta de identidad ya no dice la direccion`() {
         cliente()
 
-        val grande = composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
-        grande.assertTextEquals(CALLE_REAL)
         assertEquals(
-            "volvió la línea de apoyo del fondo, que es la que repetía la ruta",
-            0,
-            composeTestRule.onAllNodesWithTag(APOYO_DEL_CUADRO_TAG).fetchSemanticsNodes().size
+            "la tarjeta volvió a decir la dirección que el telón ya dice arriba: es la " +
+                "duplicación que el dueño llamó \"un error de copiado\"",
+            1,
+            composeTestRule.onAllNodesWithText(DIRECCION_COMPLETA).fetchSemanticsNodes().size
         )
     }
 
@@ -161,7 +162,9 @@ class LaDireccionEscritaSiempreSeVeTest : RobolectricTestBase() {
      * pero un nodo de área cero también "está dentro".
      */
     private fun noEsUnRectanguloVacio() {
-        val bordes = composeTestRule.onNodeWithTag(DIRECCION_TAG).getUnclippedBoundsInRoot()
+        val bordes = composeTestRule.onNodeWithTag(
+            DIRECCION_DEL_TELON_TAG
+        ).getUnclippedBoundsInRoot()
         assertTrue(
             "el renglón de dirección mide " + (bordes.right - bordes.left) + " x " +
                 (bordes.bottom - bordes.top) + ": es un rectángulo vacío, no un texto",

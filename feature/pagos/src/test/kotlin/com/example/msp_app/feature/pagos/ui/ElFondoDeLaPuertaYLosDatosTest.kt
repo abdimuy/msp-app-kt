@@ -13,9 +13,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
@@ -37,17 +35,15 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
-import com.example.msp_app.feature.pagos.ui.components.APOYO_DEL_CUADRO_TAG
-import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
-import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
+import com.example.msp_app.feature.pagos.ui.components.DIRECCION_DEL_TELON_TAG
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.FONDO_DE_LA_PUERTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.FONDO_SIN_PUNTO_TAG
+import com.example.msp_app.feature.pagos.ui.components.NOMBRE_DEL_TELON_TAG
 import com.example.msp_app.feature.pagos.ui.components.SIN_DIRECCION
 import com.example.msp_app.feature.pagos.ui.components.TOQUE_DEL_FONDO_TAG
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -120,127 +116,52 @@ class ElFondoDeLaPuertaYLosDatosTest : RobolectricTestBase() {
     // --- La composición tipográfica que reemplazó al dibujo -------------------
 
     /**
-     * **La seña del fondo es la CALLE, y ya no el chip.**
+     * **Lo que el fondo dice ahora lo dice el telón, y lo dice completo.**
      *
-     * El chip *"Punto medido"* se retiró: de fondo, la seña dispone de 54 dp
-     * —los 118 del fondo menos los 64 que se lleva el renglón del nombre, que
-     * flota encima del mapa— y el chip más la calle no entran. Se vio en el
-     * golden, con la calle cortada por la mitad.
+     * Los cinco tests que vivían acá medían la seña que flotaba sobre el mapa
+     * —chip, calle y ruta— y su pelea por no repetir lo que decía la tarjeta.
+     * Esa seña se retiró el 2026-09-25: con el fondo a 300 dp, abajo va
+     * `TelonDelNombre`, que dice el NOMBRE y la dirección COMPLETA. La seña
+     * decía menos en el mismo sitio.
      *
-     * Puestos a dejar uno se queda la calle, que es el criterio que este módulo
-     * ya tenía escrito para las escalas grandes. Lo que el chip decía no se
-     * pierde donde importa: con punto medido lo que se ve es el mapa con su
-     * pin, y sin punto el fondo es la dirección en grande y muy tenue — que es
-     * lo que mide `sin punto medido el fondo es la direccion en grande`.
+     * Así que la pregunta cambió, y estos tres la hacen sobre el telón: que
+     * diga el nombre, que diga la dirección entera, y que con la dirección en
+     * blanco no quede un hueco.
      */
     @Test
-    fun `con punto medido la sena del fondo es la calle`() {
+    fun `el telon dice el nombre y la direccion completa`() {
         monta(conCoordenada = true)
 
-        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
-        assertEquals(
-            "volvió el chip al fondo: con la calle no caben los dos en 54 dp",
-            0,
-            composeTestRule.onAllNodesWithText(PUNTO_MEDIDO).fetchSemanticsNodes().size
-        )
-    }
-
-    /**
-     * **El cuadro no repite la ciudad, y la ciudad NO se perdió.**
-     *
-     * Las dos mitades importan y la segunda es la que hace honesta a la primera.
-     * `f8621920` fue exactamente esto mal hecho: quitó el renglón de dirección
-     * creyendo que el cuadro la decía entera, y la ciudad terminó viviendo sólo
-     * en una banda de 40 dp que a escala grande no la pinta. El dueño lo reportó
-     * desde el aparato — *"siempre se tiene que ver la dirección escrita"*.
-     *
-     * Así que acá se afirman las dos cosas a la vez: el renglón grande del
-     * cuadro no trae la ciudad, **y** la dirección escrita de arriba sí. Sin la
-     * segunda mitad, un cuadro que tirara la ciudad a la basura pasaría en
-     * verde, que es el defecto que este test existe para no repetir.
-     */
-    @Test
-    fun `el cuadro no repite la ciudad, pero la direccion escrita la dice`() {
-        monta(conCoordenada = true)
-
-        val calle = composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG)
-            .fetchSemanticsNode()
-            .textoPlano()
-        assertFalse(
-            "el renglón grande dice \"$calle\": la ciudad volvió a pegarse a la calle",
-            calle.contains(CIUDAD)
-        )
-        // **La línea de apoyo ya no existe**, y eso cierra la duplicación por
-        // construcción en vez de por vigilancia: decía sólo la ruta, que el
-        // encabezado de la tarjeta ya dice dos dedos más abajo, y el fondo se
-        // quedó sin alto para ella cuando bajó a 118 dp para no taparle el sitio
-        // al dinero. No se puede repetir lo que no se pinta.
-        assertEquals(
-            "volvió la línea de apoyo del fondo: es el renglón que repetía la ruta",
-            0,
-            composeTestRule.onAllNodesWithTag(APOYO_DEL_CUADRO_TAG).fetchSemanticsNodes().size
-        )
-        // Control positivo, y la regla del dueño: la ciudad no se perdió, la
-        // dice la dirección escrita del bloque de identidad.
-        composeTestRule.onNodeWithTag(DIRECCION_TAG)
-            .performScrollTo()
+        composeTestRule.onNodeWithTag(NOMBRE_DEL_TELON_TAG)
+            .assertTextEquals(PagosFixtures.detalleCliente().nombre)
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG)
             .assertTextEquals("$CALLE, $CIUDAD")
     }
 
     /**
-     * **Sin punto medido no se afirma que lo haya.** El chip dice "esta puerta
-     * está medida"; sin coordenada esa frase es falsa, así que el chip no está —
-     * y no se sustituye por uno apagado que diga lo contrario a media voz.
-     */
-    /**
-     * **Sin punto medido no se afirma que lo haya.**
-     *
-     * El chip decía *"esta puerta está medida"*, y sin coordenada esa frase es
-     * falsa. Hoy el chip no existe en ninguno de los dos casos —se fue por
-     * espacio, ver el comentario en `PiezasDelCliente.kt`—, así que lo que se
-     * afirma es lo que quedó: que la frase no aparece por ningún lado, y que la
-     * banda **no queda muda** — la calle sigue, que es lo que contesta *"¿es
-     * aquí?"* parado en la banqueta.
-     */
-    @Test
-    fun `sin punto medido no se afirma que la puerta este medida`() {
-        monta(conCoordenada = false)
-
-        assertEquals(
-            "se afirmó \"Punto medido\" en una puerta que ningún abono midió",
-            0,
-            composeTestRule.onAllNodesWithText(PUNTO_MEDIDO).fetchSemanticsNodes().size
-        )
-        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
-    }
-
-    /**
-     * **Con la calle en blanco no queda un renglón vacío.** El cuadro existe
-     * para que esa banda nunca se lea como una pantalla a medio cargar, y un
-     * renglón en blanco es exactamente eso. Va el mismo texto que ya dice la hoja
-     * del mapa grande — [SIN_DIRECCION], un solo lugar para las dos pantallas.
-     */
-    @Test
-    fun `con direccion vacia se dice que no hay direccion, no un hueco`() {
-        monta(conCoordenada = true, calle = "")
-
-        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(SIN_DIRECCION)
-    }
-
-    /**
-     * Sin ciudad, la dirección escrita lleva **sólo la calle** — nunca una coma
-     * colgando al final. Es el borde que el reparto nuevo movió de sitio: la
-     * línea de apoyo del cuadro ya no depende de la ciudad, pero la dirección
-     * de arriba sí la une, y unir con una cadena vacía es cómo se producen los
+     * Sin ciudad, la dirección lleva **sólo la calle** — nunca una coma
+     * colgando al final. Unir con una cadena vacía es cómo se producen los
      * *"C. Hidalgo 214, "* que se leen como un defecto de la app.
      */
     @Test
-    fun `sin ciudad la direccion escrita lleva solo la calle`() {
+    fun `sin ciudad el telon lleva solo la calle`() {
         monta(conCoordenada = true, ciudad = "")
 
-        composeTestRule.onNodeWithTag(DIRECCION_TAG)
-            .performScrollTo()
-            .assertTextEquals(CALLE)
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG).assertTextEquals(CALLE)
+    }
+
+    /**
+     * **Con la dirección en blanco no queda un renglón vacío.** El telón existe
+     * para que el mapa no termine en un canto, y un renglón en blanco debajo
+     * del nombre se lee como una pantalla a medio cargar. Va el mismo texto que
+     * ya dice la hoja del mapa grande — [SIN_DIRECCION], un solo lugar para las
+     * dos pantallas.
+     */
+    @Test
+    fun `con direccion vacia el telon lo dice, no deja un hueco`() {
+        monta(conCoordenada = true, calle = "", ciudad = "")
+
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG).assertTextEquals(SIN_DIRECCION)
     }
 
     /**
@@ -417,32 +338,40 @@ class ElFondoDeLaPuertaYLosDatosTest : RobolectricTestBase() {
      * Decisión del dueño para esta pasada. No es un mapa —no hay dónde
      * centrarlo— ni un dibujo de calles —se confunde con la traza real de la
      * colonia, que es dato falso dibujado—. Es el dato que sí existe, usado como
-     * textura, con la seña legible encima.
+     * textura, con el telón legible encima.
      */
     @Test
     fun `sin punto medido el fondo es la direccion en grande`() {
         monta(conCoordenada = false)
 
         composeTestRule.onNodeWithTag(FONDO_SIN_PUNTO_TAG).assertTextEquals(CALLE)
-        // Y la seña legible sigue encima: el esqueleto es el MISMO que con
-        // punto, para que la pantalla no salte entre un cliente y otro.
-        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
+        // Y el telón sigue encima con la dirección legible: el esqueleto es el
+        // MISMO que con punto —mismo alto, mismo telón, mismo arranque de
+        // contenido—, para que la pantalla no salte entre un cliente y otro.
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG)
+            .assertTextEquals("$CALLE, $CIUDAD")
     }
 
     /**
-     * Control positivo del de arriba: **con** punto medido el fondo tipográfico
-     * NO se pinta, porque ahí lo que va es el mapa. Sin esto, un fondo que se
-     * pintara siempre pasaría el test de arriba sin distinguir nada.
+     * **Y con punto medido el piso TAMBIÉN se pinta** — esto cambió el
+     * 2026-09-25 y el motivo está medido en el aparato del dueño.
+     *
+     * Hasta hoy la textura estaba condicionada a que NO hubiera punto: con
+     * coordenada, lo único que se pintaba era el mapa. Instalado en el SM-A256E
+     * sobre un cliente **con** punto, el mapa no pintó ni una tesela y lo que
+     * quedó fueron **300 dp de negro**, que es exactamente el estado que este
+     * fondo existe para no tener.
+     *
+     * Así que la regla de las dos capas vuelve a su forma correcta: **el piso
+     * siempre, el mapa encima cuando puede**. Con teselas el mapa lo tapa
+     * entero, así que no estorba al caso bueno; sin ellas, lo que queda es la
+     * dirección en grande y no un rectángulo vacío.
      */
     @Test
-    fun `control positivo - con punto medido no hay fondo tipografico`() {
+    fun `con punto medido el piso tambien se pinta, por si el mapa no carga`() {
         monta(conCoordenada = true)
 
-        assertEquals(
-            "se pintó la dirección de fondo debajo de un mapa: son dos fondos a la vez",
-            0,
-            composeTestRule.onAllNodesWithTag(FONDO_SIN_PUNTO_TAG).fetchSemanticsNodes().size
-        )
+        composeTestRule.onNodeWithTag(FONDO_SIN_PUNTO_TAG).assertTextEquals(CALLE)
     }
 
     @Test
@@ -566,10 +495,6 @@ class ElFondoDeLaPuertaYLosDatosTest : RobolectricTestBase() {
             }
         }
     }
-
-    /** El texto de un nodo, ya aplanado — un `Text` sólo trae uno. */
-    private fun SemanticsNode.textoPlano(): String =
-        config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" ") { it.text }
 
     private fun detalle(conCoordenada: Boolean, calle: String, ciudad: String): DetalleCliente =
         PagosFixtures.detalleCliente().copy(

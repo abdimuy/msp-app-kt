@@ -25,6 +25,7 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.FondoDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.RECORRIDO_DEL_FONDO
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -168,10 +169,18 @@ class ElFondoSeVaAlDesplazarTest : RobolectricTestBase() {
         val quieto = pinta(0f)
         val medio = pinta(0.5f)
 
-        assertEquals(
-            "con movimiento reducido el fondo se deslizó: eso es justo lo que el ajuste apaga",
-            ultimoRenglonConTinta(quieto),
-            ultimoRenglonConTinta(medio)
+        // Con **tolerancia de un par de píxeles**, y no por flojera: con
+        // movimiento reducido lo único que cambia es el alpha, y a media
+        // opacidad la última fila del degradado del telón cae por debajo del
+        // umbral de tinta. Medido: 554 quieto contra 553 a media carrera. Lo
+        // que este test tiene que distinguir es un deslizamiento real —a mitad
+        // del recorrido son ~96 px—, y [ROCE] deja pasar el antialias sin
+        // dejar pasar eso.
+        val corrimiento = abs(ultimoRenglonConTinta(quieto) - ultimoRenglonConTinta(medio))
+        assertTrue(
+            "con movimiento reducido el fondo se corrió $corrimiento px: eso es justo lo " +
+                "que el ajuste apaga",
+            corrimiento <= ROCE
         )
         assertTrue(
             "con movimiento reducido el fondo dejó de apagarse: entonces se queda debajo " +
@@ -196,7 +205,8 @@ class ElFondoSeVaAlDesplazarTest : RobolectricTestBase() {
                     FondoDeLaPuerta(
                         ubicacion = PUNTO,
                         calle = CALLE,
-                        zona = ZONA,
+                        nombre = NOMBRE,
+                        direccion = CALLE,
                         // Los dos se leen del MISMO estado, igual que en la
                         // pantalla: el paralaje es lineal con el desplazamiento
                         // y lo demás sigue la curva.
@@ -324,8 +334,16 @@ class ElFondoSeVaAlDesplazarTest : RobolectricTestBase() {
         /** Por debajo de esto un canal cuenta como tinta y no como lienzo. */
         const val UMBRAL = 200
 
+        /**
+         * Cuántos píxeles de corrimiento se perdonan por el antialias del borde.
+         *
+         * Cuatro. El paralaje real que este archivo vigila mueve ~96 px a mitad
+         * del recorrido, así que el margen no puede esconderlo.
+         */
+        const val ROCE = 4
+
         const val CALLE = "C. Hidalgo 214"
-        const val ZONA = "ruta 25"
+        const val NOMBRE = "Victoria Flores Olmedo"
         val PUNTO = UbicacionDelCobro(lat = 18.4609, lng = -97.3926)
     }
 }

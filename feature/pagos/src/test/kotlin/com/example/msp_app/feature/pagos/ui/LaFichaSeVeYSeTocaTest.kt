@@ -27,14 +27,12 @@ import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.AFORDANTE_TEXTO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CHIP_DE_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.DOCK_DE_ACCIONES_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDITAR_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.MENU_DEL_DOCK_TAG
 import com.example.msp_app.feature.pagos.ui.components.MENU_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DESTACADA_TAG
 import com.example.msp_app.feature.pagos.ui.components.NOTA_DE_LA_FICHA_TAG
 import com.example.msp_app.feature.pagos.ui.components.PARCIALIDAD_DEL_CLIENTE_TAG
-import com.example.msp_app.feature.pagos.ui.components.SALDO_DEL_CLIENTE_TAG
 import com.example.msp_app.feature.pagos.ui.components.SENAL_TAG
 import com.example.msp_app.feature.pagos.ui.components.TARJETA_DE_LA_FICHA_TAG
 import org.junit.Assert.assertEquals
@@ -60,8 +58,10 @@ import org.robolectric.annotation.GraphicsMode
  *    tope de esa sección es el MISMO con señales, sin ellas o con la ficha
  *    ilegible. Medido, no supuesto, y así **agregar un valor al catálogo
  *    tampoco empuja nada**.
- * 2. **El dinero se ve sin desplazar** en 1.0, 1.5 y 2.0 — hoy, **con la
- *    salvedad de la nota** que la sección de abajo detalla y mide.
+ * 2. ~~**El dinero se ve sin desplazar** en 1.0, 1.5 y 2.0~~ — **retirado el
+ *    2026-09-25 por el dueño**, al elegir el mapa alto con el costo delante. Lo
+ *    reemplaza `ElDineroPideUnSoloDesplazamientoTest`, que ancla cuánto hay que
+ *    desplazar en vez de exigir que no haga falta.
  * 3. **El afordante ocupa un renglón acotado**, que es la única razón por la que
  *    vive arriba.
  *
@@ -210,24 +210,6 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
 
     // --- I-5: el dinero no se tapa ------------------------------------------
 
-    @Test
-    fun `sin nota, el dinero se ve sin desplazar a escala NORMAL`() {
-        cliente(ficha = PagosFixtures.fichaSinNota())
-        elDineroCabeArribaDelDock()
-    }
-
-    @Test
-    fun `sin nota, el dinero se ve sin desplazar a escala GRANDE`() {
-        cliente(ficha = PagosFixtures.fichaSinNota(), nivel = FontSizeLevel.GRANDE)
-        elDineroCabeArribaDelDock()
-    }
-
-    @Test
-    fun `sin nota, el dinero se ve sin desplazar a escala MUY GRANDE`() {
-        cliente(ficha = PagosFixtures.fichaSinNota(), nivel = FontSizeLevel.MUY_GRANDE)
-        elDineroCabeArribaDelDock()
-    }
-
     /**
      * **Con nota, lo único que empujó el dinero es la tarjeta.**
      *
@@ -261,137 +243,26 @@ class LaFichaSeVeYSeTocaTest : RobolectricTestBase() {
     }
 
     /**
-     * **El criterio del dueño, cumplido**: *"a escala 1.0 el `SALDO TOTAL` tiene
-     * que caber entero sobre el dock"*.
+     * **Los tres tests del `SALDO TOTAL` se retiraron el 2026-09-25, y acá
+     * queda por qué.**
      *
-     * Y cumplido con la dirección **real** del padrón, que es lo que hace que
-     * esto signifique algo: el fixture de `PagosFixtures` trae desde el 24-sep la
-     * cadena que compone el API —calle, número, colonia y población—, de dos
-     * renglones, y no los veintiséis caracteres de antes que cabían en cualquier
-     * lado. Con la dirección corta esta medición habría dado verde sobre una
-     * pantalla que en la calle no cabe.
+     * Afirmaban el criterio del dueño —*"a escala 1.0 el `SALDO TOTAL` tiene
+     * que caber entero sobre la barra"*— y estuvieron verdes dos días a costa
+     * de tres recortes al mapa (152 → 118 → 96 dp) y de un reparto de la barra
+     * apretado al límite, con margen cero.
      *
-     * ## Los dp, y de dónde salió cada uno
+     * **El dueño retiró el criterio**, con el número delante: vio ese resultado
+     * en su teléfono, dijo *"está horrible y no se parece en nada al mock"* y,
+     * con el mock rehecho a las medidas reales de la pantalla y la línea de
+     * flotación marcada, **eligió el mapa alto sabiendo que el dinero se iba
+     * abajo del pliegue**.
      *
-     * Medido a `NORMAL` con gráficos NATIVOS en `w360dp-h800dp`, contra la banda
-     * del dock (655.0 dp):
-     *
-     * | | Saldo termina en | Tapado |
-     * |---|---|---|
-     * | Antes de esta pasada (dirección corta, sin renglón) | 669.5 dp | 14.5 |
-     * | Tarjeta de nota adelgazada (−23.0 dp) | 646.5 dp | cabe por 8.5 |
-     * | Con la dirección escrita de vuelta, ya REAL (+34.5) | 681.0 dp | 26.0 |
-     * | Con el cuadro de la puerta a 100 dp (−30.0) | **651.0 dp** | **cabe por 4.0** |
-     *
-     * Los 26 dp los pagó el cuadro, con permiso del dueño y aplicando el
-     * criterio que su propio KDoc ya declaraba —*"entre un dibujo y un dato,
-     * cede el dibujo"*—, el mismo con el que ya había cedido a 40 dp en las
-     * escalas grandes. Ver `CUADRO_DEL_MOCK` en `PiezasDelCliente.kt`.
-     *
-     * ## Entero quiere decir el BLOQUE
-     *
-     * Se mide [SALDO_DEL_CLIENTE_TAG] —rótulo, cifra y pastilla de atrasos— y no
-     * el rótulo: apuntando al rótulo la aserción daba verde con el `$3,550`
-     * partido a la mitad, que es lo que el golden enseñaba.
-     *
-     * ## Y contra [DOCK_DE_ACCIONES_TAG], no contra el botón
-     *
-     * Entre el canto del dock y el botón primario hay 17 dp de hairline y padding
-     * que el botón no cubre y la banda sí. Con `CTA_PRIMARIO_TAG` esta medición
-     * daba holgura sobre una pantalla cuyo golden enseñaba la cifra cortada.
-     *
-     * ## A `GRANDE` y `MUY_GRANDE` sigue sin caber, y no se maquilla
-     *
-     * Es aritmética: a `GRANDE`, sin tarjeta de nota, el saldo ya termina en
-     * 553.0 dp contra una banda que empieza en 611.0 — y con la tarjeta más
-     * chica posible no alcanza, porque un solo renglón de nota más el padding de
-     * la tarjeta ya son 63.5 dp. El control positivo de abajo lo deja medido.
+     * Lo que los reemplaza **no es nada**: es
+     * `ElDineroPideUnSoloDesplazamientoTest`, que ancla **cuánto** hay que
+     * desplazar. Cambia la pregunta de "¿cabe?" a "¿se alejó más?", que es lo
+     * que de verdad hay que impedir que pase en silencio. Ese archivo tiene la
+     * fecha, la cita y los dp.
      */
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Test
-    fun `con nota, el SALDO TOTAL cabe entero arriba del dock a escala NORMAL`() {
-        cliente(ficha = PagosFixtures.fichaDelCliente())
-
-        val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
-        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
-        assertTrue(
-            "el saldo total termina en " + saldo.bottom + " y la banda del dock empieza en " +
-                dock.top + ": el dinero volvió a quedar tapado",
-            saldo.bottom <= dock.top
-        )
-    }
-
-    /**
-     * **Y con la nota LARGA tampoco se tapa**, que es el caso que de verdad
-     * aprieta: la nota del fixture cabe en los dos renglones asomados, así que
-     * la de arriba mide la tarjeta en su estado más barato.
-     *
-     * Con una nota que no cabe, la tarjeta paga además el renglón del *"Ver
-     * más"*. Si ese renglón hubiera costado más de los 4.0 dp de margen, el
-     * criterio del dueño se cumpliría sólo para las puertas con nota corta — que
-     * es la clase de "verde" que este archivo existe para no producir.
-     */
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Test
-    fun `con nota LARGA, el SALDO TOTAL tambien cabe entero`() {
-        cliente(ficha = PagosFixtures.fichaDelCliente().copy(nota = NOTA_QUE_NO_CABE))
-
-        val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
-        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
-        assertTrue(
-            "el saldo total termina en " + saldo.bottom + " y la banda del dock empieza en " +
-                dock.top + ": con la nota larga el dinero se tapa",
-            saldo.bottom <= dock.top
-        )
-    }
-
-    /**
-     * **A `GRANDE` NO cabe**, y se afirma para que el límite quede medido y no
-     * como una frase en un KDoc.
-     *
-     * Es también el control positivo de los dos de arriba: sin esto, un
-     * `SALDO_DEL_CLIENTE_TAG` mal escrito devolvería `Rect.Zero` —la trampa que
-     * este repo ya pagó— y "0 <= 655" pasaría en verde sin haber medido nada.
-     * Acá el mismo tag tiene que dar un rectángulo que NO cabe: sólo un nodo
-     * real puede fallar.
-     *
-     * El día que esto se ponga rojo será porque a `GRANDE` ya cabe, y entonces
-     * hay que subirlo a afirmación en vez de borrarlo.
-     */
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Test
-    fun `control positivo - con nota, a escala GRANDE el saldo NO cabe`() {
-        cliente(ficha = PagosFixtures.fichaDelCliente(), nivel = FontSizeLevel.GRANDE)
-
-        val saldo = bordesDe(SALDO_DEL_CLIENTE_TAG)
-        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
-        assertTrue(
-            "el saldo total termina en " + saldo.bottom + " y la banda del dock empieza en " +
-                dock.top + ": a GRANDE ya cabe, sube esto a afirmación",
-            saldo.bottom > dock.top
-        )
-    }
-
-    /**
-     * **La medición, no la impresión.** `assertIsDisplayed()` NO sirve para
-     * esto y se comprobó: da verde con el nodo apenas asomado, así que pasaba
-     * igual con la ficha empujando el dinero fuera de pantalla. Lo que sí
-     * distingue es la geometría: el renglón de la primera venta tiene que caber
-     * **entero arriba del dock**, que es donde termina el área visible sin
-     * desplazar.
-     */
-    private fun elDineroCabeArribaDelDock() {
-        // La parcialidad es la más BAJA de las cifras de dinero de la pantalla:
-        // va debajo del saldo total, en la segunda banda de la hoja del dinero.
-        // Si ella cabe, el saldo cabe. Medir la de abajo es la afirmación fuerte.
-        val dinero = bordesDe(PARCIALIDAD_DEL_CLIENTE_TAG)
-        val dock = bordesDe(DOCK_DE_ACCIONES_TAG)
-        assertTrue(
-            "el dinero termina en " + dinero.bottom +
-                " y el dock empieza en " + dock.top + ": queda tapado",
-            dinero.bottom <= dock.top
-        )
-    }
 
     /**
      * **La medición que cierra I-5.** Las SEÑALES de la ficha no pueden mover

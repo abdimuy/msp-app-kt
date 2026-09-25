@@ -10,17 +10,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,9 +35,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.common.time.TiempoRelativo
@@ -58,7 +54,6 @@ import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
 import com.example.msp_app.feature.pagos.ui.components.AIRE_DEL_DOCK_TAG
-import com.example.msp_app.feature.pagos.ui.components.ALTO_DEL_NOMBRE_SOBRE_EL_FONDO
 import com.example.msp_app.feature.pagos.ui.components.AccionDeCondonar
 import com.example.msp_app.feature.pagos.ui.components.AccionDeNotas
 import com.example.msp_app.feature.pagos.ui.components.AccionesDelCliente
@@ -66,6 +61,7 @@ import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.BloqueDeIdentidad
 import com.example.msp_app.feature.pagos.ui.components.CifrasDelCliente
 import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
+import com.example.msp_app.feature.pagos.ui.components.ControlesFlotantes
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoCompacto
@@ -83,11 +79,13 @@ import com.example.msp_app.feature.pagos.ui.components.SaldoDelCliente
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeHoja
 import com.example.msp_app.feature.pagos.ui.components.SeccionDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.Separador
+import com.example.msp_app.feature.pagos.ui.components.SueloDelControlFlotante
 import com.example.msp_app.feature.pagos.ui.components.TOQUE_DEL_FONDO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeNotaDestacada
 import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
 import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 import com.example.msp_app.feature.pagos.ui.components.VER_LA_UBICACION
+import com.example.msp_app.feature.pagos.ui.components.VeloDeLaBarraDeEstado
 import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
 import com.example.msp_app.feature.pagos.ui.components.VerLosContactos
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
@@ -353,6 +351,11 @@ fun DetalleClienteContent(
     // `UiState`.
     var preguntaPor by rememberSaveable { mutableStateOf<String?>(null) }
     val backdrop = rememberMspBackdrop()
+    // **Dos backdrops, no uno.** El del contenido lo escribe el dock, abajo; el
+    // del fondo lo escriben el telón y el velo de la barra de estado, que van
+    // encima del MAPA. Compartir uno haría que el dock y el telón se pisaran el
+    // alto y la tira borrosa se grabara del tamaño equivocado.
+    val backdropDelFondo = rememberMspBackdrop()
     // El desplazamiento vive acá y no dentro del cuerpo porque lo leen DOS
     // capas que no son hermanas: el fondo, que se va con él, y el encabezado
     // compacto, que entra cuando el fondo terminó de irse.
@@ -374,14 +377,16 @@ fun DetalleClienteContent(
             // El FONDO sí pasa por debajo de la barra, y eso no lo contradice: lo hace con
             // un desplazamiento negativo propio, no quitando el inset de acá. Ver
             // `FondoDeLaPuerta`.
-            .systemBarsPadding()
+            .statusBarsPadding()
     ) {
         val detalle = state.detalle
         if (detalle != null) {
             FondoDeLaPuerta(
                 ubicacion = detalle.ultimoCobroAqui,
                 calle = detalle.calle,
-                zona = detalle.zona,
+                nombre = detalle.nombre,
+                direccion = detalle.direccion,
+                backdrop = backdropDelFondo,
                 avance = avance,
                 desplazamientoPx = { riel.value.toFloat() },
                 sinMovimiento = sinMovimiento,
@@ -400,11 +405,8 @@ fun DetalleClienteContent(
                     aireAbajo = backdrop.altoDeLaBarra(),
                     detalle = detalle,
                     ocultos = state.montosOcultos,
-                    temaOscuro = state.temaOscuro,
                     onAbrirVenta = onAbrirVenta,
                     onVerContactos = onVerContactos,
-                    onAlternarTema = onAlternarTema,
-                    onAlternarPrivacidad = onAlternarPrivacidad,
                     contacto = contacto,
                     onEditarFicha = fichaDelCliente.onEditar,
                     onVerUbicacionDelContacto = onVerUbicacionDelContacto,
@@ -430,12 +432,47 @@ fun DetalleClienteContent(
             }
         }
         if (detalle != null) {
+            // Las tres orillas se comportan igual: el mapa sangra por arriba y
+            // el degradado del dock por abajo. Lo que va encima de cada una es
+            // lo que las hace legibles sin cortar con un canto.
+            VeloDeLaBarraDeEstado(
+                modifier = Modifier.align(Alignment.TopCenter),
+                backdrop = backdropDelFondo
+            )
             EncabezadoCompacto(
                 nombre = detalle.nombre,
                 direccion = detalle.direccion,
                 avance = avance,
                 backdrop = backdrop
             )
+            // **Los controles van DESPUÉS del encabezado compacto, y el orden
+            // se vio en el aparato.** Dibujados antes, el compacto les pasaba
+            // su degradado por encima al entrar: el ojo y el sol/luna quedaban
+            // lavados y la dirección del encabezado se escribía debajo de
+            // ellos. Van arriba de todo porque son lo único tocable de esta
+            // esquina.
+            ControlesFlotantes(modifier = Modifier.align(Alignment.TopEnd)) {
+                // La advertencia, y sólo la advertencia. Desde que el nombre se
+                // fue al telón ésta es la única fila que se ve sin desplazar,
+                // así que es acá donde *"hay perro"* tiene que aparecer.
+                if (detalle.ficha == null || detalle.ficha.advertencias.isNotEmpty()) {
+                    SueloDelControlFlotante {
+                        AfordanteDeLaFicha(
+                            ficha = detalle.ficha,
+                            onEditar = fichaDelCliente.onEditar
+                        )
+                    }
+                }
+                SueloDelControlFlotante {
+                    MspPrivacyEyeToggle(
+                        masked = state.montosOcultos,
+                        onToggle = onAlternarPrivacidad
+                    )
+                }
+                SueloDelControlFlotante {
+                    MspThemeToggle(darkTheme = state.temaOscuro, onToggle = onAlternarTema)
+                }
+            }
             DockDeAcciones(
                 textoPrimario = "Registrar abono",
                 onPrimario = onRegistrarAbono,
@@ -546,11 +583,8 @@ private fun CuerpoDelCliente(
     aireAbajo: Dp,
     detalle: DetalleCliente,
     ocultos: Boolean,
-    temaOscuro: Boolean,
     onAbrirVenta: (Int) -> Unit,
     onVerContactos: () -> Unit,
-    onAlternarTema: () -> Unit,
-    onAlternarPrivacidad: () -> Unit,
     contacto: AccionesDeContacto,
     onEditarFicha: () -> Unit,
     onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)?,
@@ -581,7 +615,7 @@ private fun CuerpoDelCliente(
         Spacer(
             Modifier
                 .fillMaxWidth()
-                .height(altoDelFondo() - ALTO_DEL_NOMBRE_SOBRE_EL_FONDO)
+                .height(altoDelFondo())
                 .then(
                     if (abrirElMapa != null) {
                         Modifier
@@ -593,15 +627,6 @@ private fun CuerpoDelCliente(
                 )
                 .testTag(TOQUE_DEL_FONDO_TAG)
         )
-        EncabezadoDelCliente(
-            detalle = detalle,
-            ocultos = ocultos,
-            temaOscuro = temaOscuro,
-            onAlternarTema = onAlternarTema,
-            onAlternarPrivacidad = onAlternarPrivacidad,
-            onEditarFicha = onEditarFicha
-        )
-        Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         HojaDeIdentidad(detalle, contacto)
         Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
         // **La nota, arriba.** Decisión del dueño: *"están hasta abajo y en
@@ -685,67 +710,23 @@ private fun NotaDeLaPuerta(detalle: DetalleCliente, onEditar: () -> Unit) {
     Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
 }
 
-/**
- * El nombre como título, con el ojo y el tema a su derecha — el mismo renglón que
- * la lista, para que las dos pantallas de nivel de cliente se sientan una sola.
- *
- * El nombre se recorta con elipsis en vez de partirse en dos renglones: a dos
- * líneas el encabezado empuja todo lo de abajo y el saldo deja de verse sin
- * desplazar.
- */
-@Composable
-private fun EncabezadoDelCliente(
-    detalle: DetalleCliente,
-    ocultos: Boolean,
-    temaOscuro: Boolean,
-    onAlternarTema: () -> Unit,
-    onAlternarPrivacidad: () -> Unit,
-    onEditarFicha: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = MspTheme.spacing.sm)
-            // Alto FIJO, y no el que resulte del contenido. El afordante aparece y
-            // desaparece con el estado de la ficha, así que sin este piso la fila
-            // mediría distinto con advertencia que sin ella y **la ficha movería el
-            // dinero** — que es justo lo que `LaFichaSeVeYSeTocaTest` prohíbe. El
-            // valor es el alto del afordante, que es la pieza más alta de la fila.
-            .heightIn(min = ALTO_DEL_ENCABEZADO),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
-    ) {
-        Text(
-            text = detalle.nombre,
-            style = MspTheme.type.greeting,
-            color = MspTheme.colors.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .weight(1f)
-                .testTag(TITULO_DE_CLIENTE_TAG)
-        )
-        // El afordante va EN el renglón del título —cuesta cero dp verticales, que
-        // es su razón de ser— y **solo cuando tiene algo que gritar**.
-        //
-        // En el golden se vio el costo de ponerlo siempre: con "ver ficha" puesto,
-        // el nombre se recortaba a "Victoria Fl…". Y "ver ficha" no aporta nada
-        // nuevo, porque la ficha ya tiene su icono dos filas abajo, en las
-        // acciones: la pastilla era el MISMO camino dicho dos veces, comiéndose el
-        // título de la pantalla.
-        //
-        // Lo que el icono NO puede decir es la advertencia. *"Hay perro"* y *"no ir
-        // solo"* tienen que llegarle al cobrador antes de que abra el portón, y una
-        // ficha ilegible tiene que avisarse para que nadie crea que está vacía. En
-        // esos dos casos la pastilla aparece y el nombre cede el ancho: entre un
-        // nombre entero y una advertencia a tiempo, gana la advertencia.
-        if (detalle.ficha == null || detalle.ficha.advertencias.isNotEmpty()) {
-            AfordanteDeLaFicha(ficha = detalle.ficha, onEditar = onEditarFicha)
-        }
-        MspPrivacyEyeToggle(masked = ocultos, onToggle = onAlternarPrivacidad)
-        MspThemeToggle(darkTheme = temaOscuro, onToggle = onAlternarTema)
-    }
-}
+// ---------------------------------------------------------------------------
+// EL RENGLÓN DEL NOMBRE SE FUE AL TELÓN
+//
+// Era una fila dentro del desplazamiento con el nombre a la izquierda y, a la
+// derecha, la pastilla de la ficha, el ojo de privacidad y el sol/luna. Tenía
+// alto FIJO a propósito: la pastilla aparece y desaparece con el estado de la
+// ficha, y sin ese piso la ficha habría movido el dinero.
+//
+// Desde el 2026-09-25 el nombre vive en `TelonDelNombre`, sobre la parte baja
+// del mapa, junto con la dirección completa. Los tres controles pasaron a
+// `ControlesFlotantes`, fijos arriba a la derecha — el dueño los quiere ahí y
+// ahora se alcanzan sin desplazar SIEMPRE, no sólo al principio.
+//
+// Lo que no cambió es por qué la pastilla sólo se pinta con algo que gritar:
+// *"hay perro"* tiene que llegarle al cobrador antes de que abra el portón, y
+// esa fila flotante es hoy lo único que se ve sin desplazar.
+// ---------------------------------------------------------------------------
 
 @Composable
 private fun HojaDeIdentidad(detalle: DetalleCliente, contacto: AccionesDeContacto) {
@@ -764,8 +745,7 @@ private fun HojaDeIdentidad(detalle: DetalleCliente, contacto: AccionesDeContact
             BloqueDeIdentidad(
                 estados = visuales.map { it.icono },
                 colores = visuales.map { it.fondo to it.contenido },
-                zona = detalle.zona,
-                direccion = detalle.direccion
+                zona = detalle.zona
             )
             // Los dos datos que el rediseño perdió sin que nadie lo notara, DENTRO
             // de esta sección y no en una propia: todo lo que se agrega a la hoja
@@ -936,12 +916,3 @@ internal fun MensajeDeError(error: ErrorDeDetalle?, onAtras: () -> Unit) {
  * renglón de zona y dirección, que es texto y pesa más que un cuadro de más.
  */
 private const val CUADROS_EN_EL_RACIMO = 4
-
-/**
- * El alto fijo del renglón del título.
- *
- * Es el alto del afordante de la ficha —la pieza más alta de esa fila— para que
- * la fila mida lo mismo con advertencia y sin ella. Ver el comentario en
- * [EncabezadoDelCliente].
- */
-private val ALTO_DEL_ENCABEZADO = 56.dp

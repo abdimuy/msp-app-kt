@@ -23,11 +23,9 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.model.FichaDelCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.ui.components.ACCION_DE_CONTACTO_TAG
-import com.example.msp_app.feature.pagos.ui.components.APOYO_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.AVISO_DE_LAS_NOTAS_TAG
-import com.example.msp_app.feature.pagos.ui.components.CALLE_DEL_CUADRO_TAG
 import com.example.msp_app.feature.pagos.ui.components.CuerpoDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.DIRECCION_TAG
+import com.example.msp_app.feature.pagos.ui.components.DIRECCION_DEL_TELON_TAG
 import com.example.msp_app.feature.pagos.ui.components.DISTINTIVO_DE_NOTAS_TAG
 import com.example.msp_app.feature.pagos.ui.components.EDAD_DE_LA_NOTA_TAG
 import com.example.msp_app.feature.pagos.ui.components.MENU_DEL_DOCK_TAG
@@ -224,7 +222,7 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
     fun `la direccion se ve completa y en su propio renglon`() {
         cliente()
 
-        composeTestRule.onNodeWithTag(DIRECCION_TAG)
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG)
             .assertIsDisplayed()
             .assertTextEquals(DIRECCION)
     }
@@ -243,35 +241,7 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
     fun `la direccion llega entera tambien a escala muy grande`() {
         cliente(nivel = FontSizeLevel.MUY_GRANDE)
 
-        composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
-        // La calle también sigue en la seña del FONDO, que es lo que reemplazó
-        // al cuadro de 100 dp. A escalas grandes el fondo se aprieta y la seña
-        // se queda con un solo renglón: la calle.
-        composeTestRule.onNodeWithTag(CALLE_DEL_CUADRO_TAG).assertTextEquals(CALLE)
-    }
-
-    /**
-     * La **ciudad** no se pierde al sacarla del renglón grande del cuadro: la
-     * dice la dirección escrita del bloque de identidad, arriba.
-     *
-     * Es el control que impide "arreglar" el ancho de la calle tirando la ciudad
-     * a la basura — que pasaría en verde con sólo el test de arriba. Tuvo que
-     * cambiar de destino una vez: entre `f8621920` y el arreglo de la regresión
-     * la ciudad vivía en la línea de apoyo del cuadro, que es una banda de 40 dp
-     * a escala grande y por lo tanto no es un sitio donde un dato pueda vivir.
-     */
-    @Test
-    fun `la ciudad la dice la direccion escrita, no el fondo`() {
-        cliente()
-
-        composeTestRule.onNodeWithTag(DIRECCION_TAG).assertTextEquals(DIRECCION)
-        // Y el fondo ya no tiene dónde repetirla: su línea de apoyo se fue
-        // cuando el fondo bajó a 118 dp para no taparle el sitio al dinero.
-        assertEquals(
-            "volvió la línea de apoyo del fondo",
-            0,
-            composeTestRule.onAllNodesWithTag(APOYO_DEL_CUADRO_TAG).fetchSemanticsNodes().size
-        )
+        composeTestRule.onNodeWithTag(DIRECCION_DEL_TELON_TAG).assertTextEquals(DIRECCION)
     }
 
     /**
