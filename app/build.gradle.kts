@@ -78,8 +78,8 @@ android {
         applicationId = "com.example.msp_app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 62
-        versionName = "2.18.1"
+        versionCode = 63
+        versionName = "2.19.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
@@ -157,12 +157,6 @@ android {
         }
         create("prod") {
             dimension = "environment"
-            // TEMPORAL — NO COMMITEAR. APK de prueba para el dueño: sin esto el
-            // versionName sale "2.18.1" a secas y no se distingue del release
-            // 2.18.1 (62) que ya trae instalado. Mismo mecanismo que devlocal y
-            // devserver; no toca versionCode ni el versionName base, y todo lo
-            // que compara versiones recorta en "-" / "+".
-            versionNameSuffix = "-prueba+${gitShortSha()}"
             resValue("string", "app_name", "msp-app")
             buildConfigField("String", "LEGACY_BASE_URL", "\"https://msp2025.loclx.io/\"")
             // apidev.loclx.io dejó de ser el túnel de pruebas y ES el del API
