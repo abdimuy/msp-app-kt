@@ -14,6 +14,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.testing.RobolectricTestBase
+import com.github.takahirom.roborazzi.RoborazziOptions
+import com.github.takahirom.roborazzi.RoborazziTaskType
 import com.github.takahirom.roborazzi.captureRoboImage
 import java.io.File
 import org.junit.After
@@ -119,8 +121,16 @@ class ElRenderEffectSeAplicaDeVerdadTest : RobolectricTestBase() {
     }
 
     private fun pinta(nombre: String, radio: Dp?): Bitmap {
-        val archivo = File.createTempFile("render_effect_$nombre", ".png")
-        captureRoboImage(filePath = archivo.absolutePath) {
+        // Sin archivo previo, y en modo GRABACIÓN explícito: `prePushCheck`
+        // corre Roborazzi en modo verificación, y ahí `captureRoboImage`
+        // COMPARA contra lo que haya en esa ruta en vez de escribir. El temporal
+        // vacío que deja `createTempFile` se leía como golden y reventaba con
+        // `read(...) must not be null`, que es lo que tumbó el push de la 2.19.0.
+        val archivo = File.createTempFile("render_effect_$nombre", ".png").apply { delete() }
+        captureRoboImage(
+            filePath = archivo.absolutePath,
+            roborazziOptions = RoborazziOptions(taskType = RoborazziTaskType.Record)
+        ) {
             Box(
                 modifier = Modifier
                     .size(LADO)
