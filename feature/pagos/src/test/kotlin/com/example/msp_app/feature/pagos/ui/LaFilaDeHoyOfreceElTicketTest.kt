@@ -37,15 +37,19 @@ import org.junit.Test
 import org.robolectric.annotation.Config
 
 /**
- * **El toque se comporta igual en las TRES pantallas que pintan contactos.**
+ * **El toque se comporta igual en las DOS pantallas que pintan contactos.**
  *
- * La bitácora, el detalle de cliente y el detalle de venta pintan la misma fila
+ * La bitácora y el detalle de venta pintan la misma fila
  * ([com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea]) y cada una
  * la cablea por su cuenta. Arreglar el gesto en una sola dejaría que el cobrador
  * encontrara la reimpresión o no **según por dónde entró**, que es peor que no
  * tenerla: una función que aparece y desaparece no se aprende.
  *
- * Por eso cada caso se afirma tres veces, contra los tres `*Content`. El
+ * **Ya no hay un tercer caso "detalle de cliente"**: esa pantalla perdió su
+ * sección "últimos contactos" (decisión del dueño) y con ella la única fila que
+ * podía preguntar "¿qué abrir?".
+ *
+ * Por eso cada caso se afirma dos veces, contra los dos `*Content` que quedan. El
  * veredicto en sí —cuándo pregunta y cuándo no— ya lo cobra
  * `ToqueDelContactoTest` sin pantalla; lo que se mide aquí es el **cableado**:
  * que las tres le pasen a la fila el `hoy` y la lista, que las tres monten la
@@ -117,38 +121,6 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
         assertEquals(PUNTO_DE_AYER, mapa)
     }
 
-    // --- El detalle de cliente ------------------------------------------------
-
-    @Test
-    fun `en el detalle de cliente, el cobro de hoy pregunta`() {
-        detalleCliente()
-
-        tocar(EL_DE_HOY, desplazando = true)
-
-        composeTestRule.onNodeWithTag(HOJA_DEL_CONTACTO_TAG).assertExists()
-        assertNull(mapa)
-    }
-
-    @Test
-    fun `en el detalle de cliente, el ticket de la hoja es el del abono que se toco`() {
-        detalleCliente()
-
-        tocar(EL_DE_HOY, desplazando = true)
-        composeTestRule.onNodeWithTag(OPCION_TICKET_TAG).performClick()
-
-        assertEquals(ID_DE_HOY, ticket)
-    }
-
-    @Test
-    fun `en el detalle de cliente, el cobro de ayer abre el mapa directo`() {
-        detalleCliente()
-
-        tocar(EL_DE_AYER, desplazando = true)
-
-        composeTestRule.onNodeWithTag(HOJA_DEL_CONTACTO_TAG).assertDoesNotExist()
-        assertEquals(PUNTO_DE_AYER, mapa)
-    }
-
     // --- El detalle de venta --------------------------------------------------
 
     @Test
@@ -198,16 +170,6 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
         composeTestRule.onNodeWithTag(HOJA_DEL_CONTACTO_TAG).assertDoesNotExist()
         assertEquals(ID_DE_HOY, ticket)
         assertNull("no había punto que abrir", mapa)
-    }
-
-    @Test
-    fun `en el detalle de cliente, el cobro de hoy sin punto abre el ticket directo`() {
-        detalleCliente(SIN_PUNTO)
-
-        tocar(EL_DE_HOY, desplazando = true)
-
-        composeTestRule.onNodeWithTag(HOJA_DEL_CONTACTO_TAG).assertDoesNotExist()
-        assertEquals(ID_DE_HOY, ticket)
     }
 
     @Test
@@ -287,7 +249,9 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
                         cargando = false,
                         bitacora = BitacoraCompleta(
                             clienteId = PagosFixtures.CLIENTE_ID,
+                            ventaId = PagosFixtures.VENTA_EN_PROMESA,
                             nombre = "Victoria Flores Olmedo",
+                            titulo = "Refrigerador Mabe 14'",
                             direccion = "C. Hidalgo 214, Centro",
                             contactos = contactos,
                             hoy = PagosFixtures.HOY
@@ -295,31 +259,6 @@ class LaFilaDeHoyOfreceElTicketTest : RobolectricTestBase() {
                     ),
                     onAtras = {},
                     onVerUbicacion = { punto, _ -> mapa = punto },
-                    onVerTicket = { pagoId -> ticket = pagoId }
-                )
-            }
-        }
-    }
-
-    private fun detalleCliente(contactos: List<ContactoDeCobranza> = CONTACTOS) {
-        composeTestRule.setContent {
-            Tema {
-                DetalleClienteContent(
-                    state = DetalleClienteUiState(
-                        cargando = false,
-                        detalle = PagosFixtures.detalleCliente().copy(
-                            contactos = contactos,
-                            hoy = PagosFixtures.HOY
-                        )
-                    ),
-                    onAtras = {},
-                    onAbrirVenta = {},
-                    onRegistrarAbono = {},
-                    onRegistrarVisita = {},
-                    onVerContactos = {},
-                    onAlternarTema = {},
-                    onAlternarPrivacidad = {},
-                    onVerUbicacionDelContacto = { punto, _ -> mapa = punto },
                     onVerTicket = { pagoId -> ticket = pagoId }
                 )
             }

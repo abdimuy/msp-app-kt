@@ -440,7 +440,6 @@ class LasNotasDeLaPuertaTest : RobolectricTestBase() {
                         onAbrirVenta = {},
                         onRegistrarAbono = {},
                         onRegistrarVisita = {},
-                        onVerContactos = {},
                         onAlternarTema = {},
                         onAlternarPrivacidad = {},
                         fichaDelCliente = AccionesDeLaFicha(onEditar = onEditar)

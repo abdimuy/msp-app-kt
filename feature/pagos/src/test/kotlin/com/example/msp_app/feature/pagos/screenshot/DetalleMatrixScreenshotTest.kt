@@ -6,7 +6,6 @@ import com.example.msp_app.feature.pagos.ui.DetalleClienteContent
 import com.example.msp_app.feature.pagos.ui.DetalleClienteUiState
 import com.example.msp_app.feature.pagos.ui.DetalleVentaContent
 import com.example.msp_app.feature.pagos.ui.DetalleVentaUiState
-import com.example.msp_app.feature.pagos.ui.HojaDeContactos
 import com.example.msp_app.feature.pagos.ui.PagosFixtures
 import org.junit.Test
 
@@ -108,12 +107,7 @@ class DetalleMatrixScreenshotTest : PagosScreenshotTest() {
         // no alimentan ese campo. La fixture no tiene ninguna, así que aquí el
         // único pin en juego es el del abono.)
         val detalle = PagosFixtures.detalleCliente()
-        Cliente(
-            detalle.copy(
-                ultimoCobroAqui = null,
-                contactos = detalle.contactos.map { it.copy(ubicacion = null) }
-            )
-        )
+        Cliente(detalle.copy(ultimoCobroAqui = null))
     }
 
     private fun cliente(dark: Boolean, nivel: FontSizeLevel) = capture(
@@ -129,7 +123,20 @@ class DetalleMatrixScreenshotTest : PagosScreenshotTest() {
         dark = dark,
         nivel = nivel
     ) {
-        Venta(PagosFixtures.detalleVenta())
+        Venta(ventaDelMock())
+    }
+
+    // --- El rediseño aprobado: `detalle-de-venta-final.html` -------------------
+
+    /** (e) del mock: el ojo cerrado tapa toda cantidad y el CTA queda en "Abonar". */
+    @Test
+    fun `venta montos ocultos light`() = capture(name = "pagos_venta_ocultos_light") {
+        Venta(ventaDelMock(), ocultos = true)
+    }
+
+    @Test
+    fun `venta montos ocultos dark`() = capture(name = "pagos_venta_ocultos_dark", dark = true) {
+        Venta(ventaDelMock(), ocultos = true)
     }
 
     private fun clientePromesaSinFecha(dark: Boolean) = capture(
@@ -143,107 +150,15 @@ class DetalleMatrixScreenshotTest : PagosScreenshotTest() {
         name = "pagos_venta_promesa_sin_fecha_${tema(dark)}",
         dark = dark
     ) {
-        Venta(PagosFixtures.detalleVenta(PagosFixtures.estadoPromesaSinFecha()))
+        Venta(ventaDelMock().copy(estado = PagosFixtures.estadoPromesaSinFecha()))
     }
 
-    // --- La tarjeta "Últimos contactos" sola — Task 5, hallazgo 5 ------------------------
-
-    /**
-     * La tarjeta `HojaDeContactos` del detalle de cliente, fotografiada SOLA
-     * —no la pantalla completa—: es la superficie donde el dueño vio el
-     * defecto original de la fila de contactos, y la única de las tres
-     * (bitácora, detalle de venta, detalle de cliente) que ningún golden
-     * fotografiaba — `pagos_cliente_*` la deja bajo el pliegue, sin scroll.
-     */
-    @Test
-    fun `hoja de contactos light normal`() = hojaDeContactos(
-        dark = false,
-        nivel = FontSizeLevel.NORMAL
-    )
-
-    @Test
-    fun `hoja de contactos light grande`() = hojaDeContactos(
-        dark = false,
-        nivel = FontSizeLevel.GRANDE
-    )
-
-    @Test
-    fun `hoja de contactos light muy grande`() =
-        hojaDeContactos(dark = false, nivel = FontSizeLevel.MUY_GRANDE)
-
-    @Test
-    fun `hoja de contactos dark normal`() = hojaDeContactos(
-        dark = true,
-        nivel = FontSizeLevel.NORMAL
-    )
-
-    @Test
-    fun `hoja de contactos dark grande`() = hojaDeContactos(
-        dark = true,
-        nivel = FontSizeLevel.GRANDE
-    )
-
-    @Test
-    fun `hoja de contactos dark muy grande`() =
-        hojaDeContactos(dark = true, nivel = FontSizeLevel.MUY_GRANDE)
-
-    /**
-     * **Datos reales, no de fixture — Task 5, hallazgo 6.** Cobrador
-     * `"RUTA 25 - NOE CORTERO"` (36 caracteres, ya visto en producción) y
-     * un producto largo real en vez de `"Refrigerador Mabe 14'"`. El peor
-     * caso está medido (`ElCobradorNoSeRecortaTest`,
-     * `ElRenglonDeAbajoNoSeSaleTest`) pero nunca visto en esta tarjeta.
-     */
-    @Test
-    fun `hoja de contactos datos reales light`() = hojaDeContactosConDatosReales(dark = false)
-
-    @Test
-    fun `hoja de contactos datos reales dark`() = hojaDeContactosConDatosReales(dark = true)
-
-    private fun hojaDeContactos(dark: Boolean, nivel: FontSizeLevel) = capture(
-        name = "pagos_hoja_contactos_${tema(dark)}_${sufijoDe(nivel)}",
-        dark = dark,
-        nivel = nivel
-    ) {
-        Contactos(PagosFixtures.detalleCliente())
-    }
-
-    private fun hojaDeContactosConDatosReales(dark: Boolean) = capture(
-        name = "pagos_hoja_contactos_datos_reales_${tema(dark)}",
-        dark = dark
-    ) {
-        val detalle = PagosFixtures.detalleCliente()
-        Contactos(
-            detalle.copy(
-                contactos = detalle.contactos.map {
-                    it.copy(
-                        cobrador = COBRADOR_REAL,
-                        cuenta = it.cuenta?.let { PRODUCTO_REAL }
-                    )
-                }
-            )
-        )
-    }
+    // La tarjeta "Últimos contactos" (`pagos_hoja_contactos_*`) se quitó: el
+    // detalle de cliente ya no pinta esa sección (decisión del dueño). Los PNG
+    // que sólo esta tarjeta producía se borran junto con esta clase — no queda
+    // ningún llamador que los regrabe.
 
     private fun tema(dark: Boolean) = if (dark) "dark" else "light"
-
-    private companion object {
-        /** El nombre real de un cobrador, tal como llega de producción — ver `ElCobradorNoSeRecortaTest`. */
-        const val COBRADOR_REAL = "RUTA 25 - NOE CORTERO"
-
-        /** 36 caracteres ya normalizados — ver `ElRenglonDeAbajoNoSeSaleTest`. */
-        const val PRODUCTO_REAL = "Recamara cantaro king size chocolate"
-    }
-}
-
-@Composable
-private fun Contactos(detalle: com.example.msp_app.feature.pagos.domain.model.DetalleCliente) {
-    HojaDeContactos(
-        detalle = detalle,
-        ocultos = false,
-        onVerContactos = {},
-        onVerUbicacionDelContacto = null
-    )
 }
 
 @Composable
@@ -254,16 +169,40 @@ private fun Cliente(detalle: com.example.msp_app.feature.pagos.domain.model.Deta
         onAbrirVenta = {},
         onRegistrarAbono = {},
         onRegistrarVisita = {},
-        onVerContactos = {},
         onAlternarTema = {},
         onAlternarPrivacidad = {}
     )
 }
 
+/**
+ * La venta con las MISMAS cifras del mock aprobado (`detalle-de-venta-final.html`),
+ * para poder comparar golden y mock lado a lado sin que los números distraigan.
+ */
+internal fun ventaDelMock(): com.example.msp_app.feature.pagos.domain.model.DetalleVenta {
+    fun pesos(p: String) = com.example.msp_app.core.common.money.Money.of(java.math.BigDecimal(p))
+    return PagosFixtures.detalleVenta().copy(
+        totalVenta = pesos("4400"),
+        abonado = pesos("2950"),
+        precioContado = pesos("3600"),
+        enganche = pesos("400"),
+        montoACortoPlazo = pesos("3900"),
+        mesesACortoPlazo = 3,
+        avance = 2950f / 4400f,
+        telefono = "238 104 5521",
+        direccion = "C. Miguel Hidalgo y Costilla 214, Col. Emiliano Zapata, Tehuacán",
+        zona = "Ruta 25",
+        vendedores = listOf("Luis Ángel Mora", "Karina Sosa"),
+        ultimoPago = java.time.LocalDate.of(2026, 9, 17)
+    )
+}
+
 @Composable
-private fun Venta(detalle: com.example.msp_app.feature.pagos.domain.model.DetalleVenta) {
+private fun Venta(
+    detalle: com.example.msp_app.feature.pagos.domain.model.DetalleVenta,
+    ocultos: Boolean = false
+) {
     DetalleVentaContent(
-        state = DetalleVentaUiState(cargando = false, detalle = detalle),
+        state = DetalleVentaUiState(cargando = false, detalle = detalle, montosOcultos = ocultos),
         onAtras = {},
         onRegistrarAbono = {},
         onRegistrarVisita = {},

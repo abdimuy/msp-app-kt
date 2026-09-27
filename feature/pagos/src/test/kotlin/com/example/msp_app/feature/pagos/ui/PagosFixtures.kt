@@ -369,15 +369,9 @@ object PagosFixtures {
             telefonoAval = null,
             saldoTotal = dinero("3550"),
             ventas = ventasDelCliente,
-            contactos = bitacoraDelDomicilio(),
-            totalContactos = 27,
             diaDeRuta = "jueves",
             frecuencia = "semanal",
             resumen = resumenDelCliente(ventasDelCliente),
-            productos = listOf(
-                ProductoDeVenta("Sala 3 piezas + base", dinero("6300")),
-                ProductoDeVenta("Refrigerador Mabe 14'", dinero("4950"))
-            ),
             ultimoCobroAqui = PUNTO_DEL_ULTIMO_COBRO,
             notaDeLaVenta = "entrega en la puerta de atrás",
             ficha = fichaDelCliente(),
@@ -501,9 +495,125 @@ object PagosFixtures {
             contactos = bitacoraDelDomicilio(),
             liquidacion = liquidacionDeLaVenta(),
             garantia = garantiaDeLaVenta(),
-            nota = "entrega en la puerta de atrás"
+            ultimoPago = pagosDeLaVenta().maxOf { it.fecha }.let(AppTime::toBusinessDate)
         )
     }
+
+    /**
+     * **La MISMA venta de [detalleVenta], con una historia larga de verdad.**
+     *
+     * `bitacoraDelDomicilio()` sólo trae UN contacto de [VENTA_EN_PROMESA] —
+     * bastaba para probar la mezcla, pero deja los goldens `pagos_venta_linea_*`
+     * y `pagos_bitacora_*` sin nada que fotografiar: ni el tope de cinco, ni dos
+     * meses distintos, ni "Ver los N contactos" con una N que diga algo. Esta
+     * función es aparte y NO toca `bitacoraDelDomicilio()` — cambiar esa
+     * compartida movería goldens de `pagos_cliente_*` y `pagos_venta_*` que no
+     * son parte de este arreglo.
+     *
+     * Ocho contactos de ESTA venta —seis cobros, una visita "No estaba" y una
+     * promesa— repartidos en tres meses de calendario (junio a agosto 2026), así
+     * que los cinco más recientes que pinta el detalle de venta caen en DOS
+     * meses distintos y el resto sólo se ve por "Ver los 8 contactos". Se suman
+     * dos contactos de LA OTRA venta del cliente y una visita registrada SIN
+     * cuenta, con fechas más recientes que varios de los propios — el caso que
+     * de verdad prueba el filtro: si `ventaId == detalle.ventaId` se rompiera,
+     * estos tres se colarían entre los cinco visibles antes que los propios más
+     * viejos.
+     */
+    fun detalleVentaConHistoriaLarga(): DetalleVenta {
+        val propios = listOf(
+            cobro("cobro-ago-31", "2026-08-31T17:10:00Z", "220", "Gabriel Roque"),
+            cobro("cobro-ago-24", "2026-08-24T17:05:00Z", "220", "Gabriel Roque"),
+            cobro("cobro-ago-17", "2026-08-17T16:55:00Z", "220", "Fernanda Lizbeth Cano"),
+            visitaDeLaVenta(
+                id = "promesa-ago-06",
+                fechaIso = "2026-08-06T18:20:00Z",
+                tipoVisita = "Pidió reagendar visita",
+                estado = EstadoCuenta.PROMETIO_PROXIMA,
+                nota = "el viernes que le paguen"
+            ),
+            visitaDeLaVenta(
+                id = "no-estaba-jul-28",
+                fechaIso = "2026-07-28T19:00:00Z",
+                tipoVisita = "No estaba",
+                estado = EstadoCuenta.NO_ESTABA
+            ),
+            cobro("cobro-jul-20", "2026-07-20T17:15:00Z", "220", "Fernanda Lizbeth Cano"),
+            cobro("cobro-jul-10", "2026-07-10T17:00:00Z", "220", "Gabriel Roque"),
+            cobro("cobro-jun-25", "2026-06-25T16:40:00Z", "220", "Gabriel Roque")
+        )
+        // Dos de la OTRA cuenta del cliente, fechadas ENTRE los propios más
+        // recientes: si el filtro por `ventaId` fallara, éstas desplazarían a
+        // los propios más viejos de los cinco visibles.
+        val ajenos = listOf(
+            cobro(
+                "cobro-ajeno-ago-29",
+                "2026-08-29T12:00:00Z",
+                "350",
+                "Itzel Guadalupe Pérez",
+                ventaId = VENTA_PAGADA,
+                cuenta = "Sala 3 piezas + base"
+            ),
+            cobro(
+                "cobro-ajeno-ago-20",
+                "2026-08-20T12:00:00Z",
+                "350",
+                "Itzel Guadalupe Pérez",
+                ventaId = VENTA_PAGADA,
+                cuenta = "Sala 3 piezas + base"
+            )
+        )
+        // Una visita registrada SIN elegir cuenta — no le pertenece a nadie.
+        val sinCuenta = visitaDeLaVenta(
+            id = "visita-sin-cuenta-ago-30",
+            fechaIso = "2026-08-30T15:00:00Z",
+            tipoVisita = "No responde aunque está",
+            estado = EstadoCuenta.VISITE_VUELVO,
+            ventaId = null
+        )
+        val todos = (propios + ajenos + listOf(sinCuenta)).sortedByDescending { it.fecha }
+        return detalleVenta().copy(contactos = todos)
+    }
+
+    private fun cobro(
+        id: String,
+        fechaIso: String,
+        pesos: String,
+        cobrador: String,
+        ventaId: Int = VENTA_EN_PROMESA,
+        cuenta: String? = "Refrigerador Mabe 14'"
+    ) = ContactoDeCobranza(
+        id = id,
+        fecha = Instant.parse(fechaIso),
+        etiqueta = "Abono",
+        nota = null,
+        estado = EstadoCuenta.PAGO,
+        importe = dinero(pesos),
+        tipo = TipoDeContacto.COBRO,
+        metodo = MetodoDeCobro.EFECTIVO,
+        cobrador = cobrador,
+        ventaId = ventaId,
+        cuenta = cuenta
+    )
+
+    private fun visitaDeLaVenta(
+        id: String,
+        fechaIso: String,
+        tipoVisita: String,
+        estado: EstadoCuenta,
+        nota: String? = null,
+        ventaId: Int? = VENTA_EN_PROMESA
+    ) = ContactoDeCobranza(
+        id = id,
+        fecha = Instant.parse(fechaIso),
+        etiqueta = tipoVisita,
+        nota = nota,
+        estado = estado,
+        importe = null,
+        tipo = TipoDeContacto.VISITA,
+        cobrador = "Gabriel Roque",
+        ventaId = ventaId
+    )
 
     /** Las dos ventas del cliente como datos crudos de puerto. */
     fun datosDeVentas(): List<DatosDeVenta> = listOf(

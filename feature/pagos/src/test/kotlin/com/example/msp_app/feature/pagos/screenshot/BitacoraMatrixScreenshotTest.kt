@@ -98,13 +98,24 @@ class BitacoraMatrixScreenshotTest : PagosScreenshotTest() {
         )
     }
 
+    // La bitácora es por VENTA, no por cliente (decisión del dueño: el detalle
+    // de cliente perdió su sección "últimos contactos"), así que se deriva con
+    // el MISMO filtro que `CargarBitacoraDeLaVenta` —sólo los contactos de esa
+    // cuenta— y no de `detalleCliente()`, que ya no trae contactos.
+    //
+    // `detalleVentaConHistoriaLarga()` y no `detalleVenta()`: ésta sólo trae UN
+    // contacto de la venta, y la bitácora completa —a diferencia de la vista
+    // previa del detalle— es la lista COMPLETA, así que necesita algo que
+    // partir en más de un mes con subtotal.
     private fun deLaFixture(): BitacoraCompleta {
-        val detalle = PagosFixtures.detalleCliente()
+        val detalle = PagosFixtures.detalleVentaConHistoriaLarga()
         return BitacoraCompleta(
             clienteId = detalle.clienteId,
-            nombre = detalle.nombre,
+            ventaId = detalle.ventaId,
+            nombre = detalle.clienteNombre,
+            titulo = detalle.titulo,
             direccion = detalle.direccion,
-            contactos = detalle.contactos,
+            contactos = detalle.contactos.filter { it.ventaId == detalle.ventaId },
             hoy = detalle.hoy
         )
     }

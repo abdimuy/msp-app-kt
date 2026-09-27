@@ -26,9 +26,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -43,13 +40,12 @@ import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspPrivacyEyeToggle
 import com.example.msp_app.core.designsystem.component.MspThemeRevealHost
 import com.example.msp_app.core.designsystem.component.MspThemeToggle
-import com.example.msp_app.core.designsystem.component.altoDeLaBarra
+import com.example.msp_app.core.designsystem.component.altoQueLaBarraTapa
 import com.example.msp_app.core.designsystem.component.mspBackdropSource
 import com.example.msp_app.core.designsystem.component.rememberMspBackdrop
 import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.core.designsystem.theme.rememberMspReducedMotion
 import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
-import com.example.msp_app.feature.pagos.domain.GruposDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
@@ -60,17 +56,14 @@ import com.example.msp_app.feature.pagos.ui.components.AccionesDelCliente
 import com.example.msp_app.feature.pagos.ui.components.AfordanteDeLaFicha
 import com.example.msp_app.feature.pagos.ui.components.BloqueDeIdentidad
 import com.example.msp_app.feature.pagos.ui.components.CifrasDelCliente
-import com.example.msp_app.feature.pagos.ui.components.ContactoEnLinea
 import com.example.msp_app.feature.pagos.ui.components.ControlesFlotantes
 import com.example.msp_app.feature.pagos.ui.components.DatosDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.DockDeAcciones
 import com.example.msp_app.feature.pagos.ui.components.EncabezadoCompacto
-import com.example.msp_app.feature.pagos.ui.components.EncabezadoDeGrupo
 import com.example.msp_app.feature.pagos.ui.components.FondoDeLaPuerta
 import com.example.msp_app.feature.pagos.ui.components.HojaContinua
 import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
 import com.example.msp_app.feature.pagos.ui.components.HojaDeLaFicha
-import com.example.msp_app.feature.pagos.ui.components.HojaDelContacto
 import com.example.msp_app.feature.pagos.ui.components.MenuDelDock
 import com.example.msp_app.feature.pagos.ui.components.RADIO_DEL_TELON
 import com.example.msp_app.feature.pagos.ui.components.RADIO_DEL_VELO
@@ -85,11 +78,9 @@ import com.example.msp_app.feature.pagos.ui.components.SueloDelControlFlotante
 import com.example.msp_app.feature.pagos.ui.components.TOQUE_DEL_FONDO_TAG
 import com.example.msp_app.feature.pagos.ui.components.TarjetaDeNotaDestacada
 import com.example.msp_app.feature.pagos.ui.components.TituloDeHoja
-import com.example.msp_app.feature.pagos.ui.components.ToqueDeLaFila
 import com.example.msp_app.feature.pagos.ui.components.VER_LA_UBICACION
 import com.example.msp_app.feature.pagos.ui.components.VeloDeLaBarraDeEstado
 import com.example.msp_app.feature.pagos.ui.components.VentaEnLaHoja
-import com.example.msp_app.feature.pagos.ui.components.VerLosContactos
 import com.example.msp_app.feature.pagos.ui.components.VerTodos
 import com.example.msp_app.feature.pagos.ui.components.altoDelFondo
 
@@ -142,31 +133,11 @@ const val TITULO_DE_CLIENTE_TAG: String = "pagos_titulo_cliente"
  * mapa centrado en cualquier otra cosa diría "es aquí" sobre una puerta que
  * nadie midió.
  *
- * ## Un renglón de "últimos contactos" también abre el mapa
- *
- * El dueño lo pidió así: *"cuando se dé click en un pago o visita se debe abrir
- * el mapa también, pero solo con la ubicación de ese pago o visita en
- * particular"*. Un renglón CON punto abre el mapa en el punto de ESE contacto;
- * uno sin punto no se puede tocar.
- *
- * Reusa [onVerUbicacion] —el mismo destino y los mismos dos argumentos— en vez de
- * pedirle a `:app` un callback nuevo: lo que cambia entre el cuadro y el renglón
- * es el punto, no la operación. La dirección que viaja sigue siendo la del
- * cliente: es la puerta, y el abono se cobró y la visita se hizo ahí.
- *
- * ## [onVerTicket] — la reimpresión del último cobro del día
- *
- * Sobre el cobro de HOY que además es el ÚLTIMO de esa cuenta, tocar el renglón
- * **pregunta** qué abrir —ubicación o ticket— en vez de ir derecho al mapa. En
- * cualquier otro renglón el gesto es el de siempre: si el toque cambiara de
- * significado en todos los pagos, dejaría de ser predecible por una función que
- * sólo sirve en un caso. Quién lo decide es
- * [com.example.msp_app.feature.pagos.domain.ToqueDelContacto], dominio puro.
- *
- * Es un destino de `:app` como el mapa, y la ruta ya existía
- * ([PagosRutas.ticketDePago]): la pantalla del ticket es la misma a la que llega
- * la captura de un abono. **La regla de "sólo se imprime el día del cobro" no
- * se toca aquí**: se comprueba al imprimir, dentro del ticket.
+ * **Sin renglón de contactos que reusar [onVerUbicacion].** La sección
+ * "últimos contactos" se quitó de esta pantalla (decisión del dueño): la única
+ * puerta a "ver los N contactos" es hoy el detalle de VENTA, no el de cliente.
+ * [onVerUbicacion] se queda para el cuadro de la puerta, que sigue siendo lo
+ * único de esta pantalla que abre el mapa.
  */
 @Composable
 fun DetalleClienteScreen(
@@ -175,11 +146,9 @@ fun DetalleClienteScreen(
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
-    onVerContactos: (Int) -> Unit,
-    onVerUbicacion: (UbicacionDelCobro, direccion: String, pagoId: String) -> Unit,
+    onVerUbicacion: (UbicacionDelCobro, direccion: String) -> Unit,
     modifier: Modifier = Modifier,
     onCondonar: (Int) -> Unit = {},
-    onVerTicket: (String) -> Unit = {},
     suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -225,7 +194,6 @@ fun DetalleClienteScreen(
                 onCerrar = viewModel::cerrarEleccionDeCuenta
             ),
             onRegistrarVisita = { onRegistrarVisita(viewModel.clienteId, null) },
-            onVerContactos = { onVerContactos(viewModel.clienteId) },
             // Las tres acciones que salen de la app las resuelve el ViewModel
             // por `AccionesExternasPort`, no la navegación: `:app` no tiene por
             // qué saber cómo se marca un teléfono, y el fallo de abrirlas tiene
@@ -248,24 +216,9 @@ fun DetalleClienteScreen(
             onVerUbicacion = {
                 val detalle = state.detalle
                 detalle?.ultimoCobroAqui?.let { punto ->
-                    // Sin `pagoId`: el cuadro de la puerta no sale de un
-                    // renglón, así que no hay medición que destacar.
-                    onVerUbicacion(punto, detalle.direccion, "")
+                    onVerUbicacion(punto, detalle.direccion)
                 }
             },
-            // El MISMO callback del cuadro, con otro punto. No hace falta un
-            // destino nuevo ni un miembro nuevo en `UbicacionEnElDetalle`: "abrir
-            // el mapa en este punto, con esta dirección" es UNA operación, y
-            // duplicarla dejaría dos lambdas que `:app` tendría que cablear a la
-            // misma ruta (principio 5).
-            // La fila de un contacto SÍ lleva su `pagoId`: es lo que hace que
-            // el mapa abra con ESA medición destacada sobre el resto. El cuadro
-            // de la puerta, en cambio, manda cadena vacía — no viene de un
-            // renglón y no hay nada que destacar.
-            onVerUbicacionDelContacto = { punto, pagoId ->
-                state.detalle?.let { onVerUbicacion(punto, it.direccion, pagoId) }
-            },
-            onVerTicket = onVerTicket,
             suelo = suelo?.let { puesto ->
                 { tocar -> puesto(state.detalle?.ultimoCobroAqui, tocar) }
             }
@@ -335,7 +288,6 @@ fun DetalleClienteContent(
     onAbrirVenta: (Int) -> Unit,
     onRegistrarAbono: () -> Unit,
     onRegistrarVisita: () -> Unit,
-    onVerContactos: () -> Unit,
     onAlternarTema: () -> Unit,
     onAlternarPrivacidad: () -> Unit,
     modifier: Modifier = Modifier,
@@ -344,14 +296,8 @@ fun DetalleClienteContent(
     fichaDelCliente: AccionesDeLaFicha = AccionesDeLaFicha(),
     onCondonar: () -> Unit = {},
     onVerUbicacion: (() -> Unit)? = null,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)? = null,
-    onVerTicket: ((String) -> Unit)? = null,
     suelo: (@Composable (onTocar: () -> Unit) -> Unit)? = null
 ) {
-    // Cuál renglón está preguntando, por su `ContactoDeCobranza.id`. Ver el
-    // comentario gemelo en `BitacoraContent` para por qué vive aquí y no en el
-    // `UiState`.
-    var preguntaPor by rememberSaveable { mutableStateOf<String?>(null) }
     val backdrop = rememberMspBackdrop()
     // **Dos backdrops, no uno.** El del contenido lo escribe el dock, abajo; el
     // del fondo lo escriben el telón y el velo de la barra de estado, que van
@@ -411,32 +357,20 @@ fun DetalleClienteContent(
                 else -> CuerpoDelCliente(
                     riel = riel,
                     backdrop = backdrop,
-                    aireAbajo = backdrop.altoDeLaBarra(),
+                    // **Lo que la barra TAPA, no lo que mide.** Con el alto
+                    // completo la última fila se clavaba en el borde de arriba
+                    // de la banda y por detrás de los botones no pasaba nada
+                    // nunca — la disolución se quedaba sin nada que disolver.
+                    // Decisión del dueño el 2026-09-25 con el costo delante: la
+                    // última fila queda parcialmente velada. Ver
+                    // `altoQueLaBarraTapa`.
+                    aireAbajo = backdrop.altoQueLaBarraTapa(),
                     detalle = detalle,
                     ocultos = state.montosOcultos,
                     onAbrirVenta = onAbrirVenta,
-                    onVerContactos = onVerContactos,
                     contacto = contacto,
                     onEditarFicha = fichaDelCliente.onEditar,
-                    onVerUbicacionDelContacto = onVerUbicacionDelContacto,
-                    onVerUbicacion = onVerUbicacion,
-                    toque = ToqueDeLaFila(
-                        // Los TRES que esta hoja pinta, que son un prefijo de la
-                        // línea completa: recortar sólo quita filas viejas, así
-                        // que "el último de la cuenta" sigue saliendo bien para
-                        // cualquier renglón que se esté viendo. Ver el KDoc de
-                        // `ToqueDelContacto.de`.
-                        contactos = detalle.contactos,
-                        hoy = detalle.hoy,
-                        onPreguntar = onVerTicket?.let {
-                            { contacto -> preguntaPor = contacto.id }
-                        },
-                        // Sin punto medido no hay hoja que abrir: el ticket
-                        // sale derecho. Ver `ToqueDelContacto.TICKET`.
-                        onVerTicket = onVerTicket?.let { ver ->
-                            { contacto -> ver(contacto.id) }
-                        }
-                    )
+                    onVerUbicacion = onVerUbicacion
                 )
             }
         }
@@ -534,24 +468,6 @@ fun DetalleClienteContent(
             destino = eleccion.destino
         )
     }
-    // Hermana de las otras dos hojas y por el mismo motivo: el velo tapa la
-    // pantalla entera, dock incluido.
-    val preguntando = state.detalle?.contactos?.firstOrNull { it.id == preguntaPor }
-    if (preguntando != null) {
-        HojaDelContacto(
-            onVerUbicacion = {
-                preguntaPor = null
-                preguntando.ubicacion?.let { punto ->
-                    onVerUbicacionDelContacto?.invoke(punto, preguntando.id)
-                }
-            },
-            onVerTicket = {
-                preguntaPor = null
-                onVerTicket?.invoke(preguntando.id)
-            },
-            onCerrar = { preguntaPor = null }
-        )
-    }
 }
 
 /**
@@ -593,12 +509,9 @@ private fun CuerpoDelCliente(
     detalle: DetalleCliente,
     ocultos: Boolean,
     onAbrirVenta: (Int) -> Unit,
-    onVerContactos: () -> Unit,
     contacto: AccionesDeContacto,
     onEditarFicha: () -> Unit,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)?,
-    onVerUbicacion: (() -> Unit)?,
-    toque: ToqueDeLaFila
+    onVerUbicacion: (() -> Unit)?
 ) {
     Column(
         modifier = Modifier
@@ -665,10 +578,13 @@ private fun CuerpoDelCliente(
         //
         // La sección "productos" del detalle de VENTA sí se queda: ahí no es
         // redundante, es la única lista de lo que se compró en esa cuenta.
-        if (detalle.contactos.isNotEmpty()) {
-            Spacer(Modifier.height(MspTheme.spacing.sm + MspTheme.spacing.xs))
-            HojaDeContactos(detalle, ocultos, onVerContactos, onVerUbicacionDelContacto, toque)
-        }
+        //
+        // **Sin la sección "últimos contactos".** Decisión del dueño: la única
+        // puerta a "ver los N contactos" es hoy el detalle de VENTA, que ya
+        // enseña la línea de tiempo de su propia cuenta con el mismo criterio
+        // ([BitacoraDelCliente.VISIBLES_EN_LA_VENTA]). Repetirla acá mezclaba
+        // TODAS las cuentas del cliente en una pantalla que ya pelea cada dp
+        // contra el saldo.
         // Lo que queda de la ficha vive AL FONDO, donde la puso la Task 16: las
         // señales marcadas, la nota de la venta y los estados "sin notas" /
         // "no se pudieron leer". **La nota libre ya no está acá** — subió a
@@ -830,62 +746,6 @@ private fun HojaDeVentas(detalle: DetalleCliente, ocultos: Boolean, onAbrirVenta
                 ocultos = ocultos
             )
         }
-    }
-}
-
-/**
- * **La línea de contactos del detalle**, agrupada por cercanía.
- *
- * Por cercanía y no por mes porque aquí se enseñan tres: con tres filas el mes
- * casi siempre da UN solo encabezado, o sea un separador que no separa nada.
- * *"Hoy / Esta semana / Antes"* sí parte, y es como se habla parado en la
- * puerta. La lista completa —"ver los N"— sí va por mes, con su subtotal.
- *
- * **Sin filtros, a propósito.** Unas pastillas arriba de tres filas ocuparían
- * más alto que las filas que filtran, en la pantalla que ya pelea cada dp
- * contra el saldo. Viven en las listas largas — ver `FiltroDeContactos`.
- *
- * ## [ocultos] baja hasta la fila, y no es opcional
- *
- * El defecto que esto cierra: esta hoja no recibía el ojo de privacidad y sus
- * piezas caían al default `ocultos = false`. Con "esconder cantidades" puesto,
- * el saldo de arriba se enmascaraba y el `Cobré · $350` de acá abajo seguía a
- * la vista **en la misma pantalla** — o sea que el ojo mentía justo donde el
- * cobrador lo prende: parado frente a alguien que está mirando el teléfono.
- * `BitacoraScreen` ya lo cableaba bien; aquí se copia.
- *
- * `internal` y no `private`: es la superficie donde el dueño vio el defecto
- * original de la fila de contactos, y hasta la Task 5 era la única de las
- * tres (bitácora, detalle de venta, detalle de cliente) sin golden propio —
- * queda bajo el pliegue en `pagos_cliente_*`, que fotografía la pantalla
- * completa sin scroll. `DetalleMatrixScreenshotTest` la monta directo, sin
- * pasar por `DetalleClienteContent` entero, para fotografiar la tarjeta sola.
- */
-@Composable
-internal fun HojaDeContactos(
-    detalle: DetalleCliente,
-    ocultos: Boolean,
-    onVerContactos: () -> Unit,
-    onVerUbicacionDelContacto: ((UbicacionDelCobro, pagoId: String) -> Unit)?,
-    toque: ToqueDeLaFila = ToqueDeLaFila()
-) {
-    HojaContinua {
-        TituloDeHoja("últimos contactos")
-        Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
-            GruposDeContactos.porCercania(detalle.contactos, detalle.hoy).forEach { grupo ->
-                EncabezadoDeGrupo(grupo = grupo, ocultos = ocultos)
-                grupo.contactos.forEach { contacto ->
-                    ContactoEnLinea(
-                        contacto = contacto,
-                        ocultos = ocultos,
-                        onVerUbicacion = onVerUbicacionDelContacto,
-                        toque = toque
-                    )
-                }
-            }
-        }
-        Separador()
-        VerLosContactos(cuantos = detalle.totalContactos, onVer = onVerContactos)
     }
 }
 

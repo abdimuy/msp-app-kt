@@ -118,11 +118,9 @@ class CargarDetalleVenta @Inject constructor(
             ),
             liquidacion = cobranza.liquidaciones[ventaId],
             garantia = garantiasPort.garantiaDe(venta.creditoId),
-            // La nota de ESTA cuenta, no la de la primera del domicilio: a
-            // diferencia de `CargarDetalleCliente.notaDeLaVenta` —una
-            // aproximación, la de la cuenta que encabeza— aquí no hace falta
-            // aproximar nada, la venta ya está resuelta.
-            nota = venta.notas.takeIf { it.isNotBlank() }
+            // El último abono de ESTA cuenta: `pagos` ya viene filtrado por
+            // `ventaId`. Ni la última visita ni un pago de otra venta cuentan.
+            ultimoPago = pagos.maxOfOrNull { it.fecha }?.let(AppTime::toBusinessDate)
         )
     }
 

@@ -194,7 +194,6 @@ class LaDireccionEscritaSiempreSeVeTest : RobolectricTestBase() {
             onAbrirVenta = {},
             onRegistrarAbono = {},
             onRegistrarVisita = {},
-            onVerContactos = {},
             onAlternarTema = {},
             onAlternarPrivacidad = {},
             fichaDelCliente = AccionesDeLaFicha(onEditar = {})

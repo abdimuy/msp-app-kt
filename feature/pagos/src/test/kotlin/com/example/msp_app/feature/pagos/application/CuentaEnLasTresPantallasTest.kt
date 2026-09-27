@@ -3,7 +3,6 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
-import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
@@ -22,16 +21,21 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * **El dato entra por la mezcla, y las tres pantallas lo tienen** — la
- * condición del `task-2-brief.md`: [CargarDetalleCliente],
- * [CargarBitacoraDelCliente] y [CargarDetalleVenta] pasan por
+ * **El dato entra por la mezcla, y las pantallas que lo pintan lo tienen** — la
+ * condición del `task-2-brief.md`: [CargarBitacoraDeLaVenta] y
+ * [CargarDetalleVenta] pasan por
  * [com.example.msp_app.feature.pagos.domain.BitacoraDelCliente.de], así que la
- * cuenta tiene que llegar a las tres o el defecto reaparece en dos de tres
+ * cuenta tiene que llegar a las dos o el defecto reaparece en una de dos
  * pantallas y ninguna prueba lo vería.
  *
  * Es el caso real completo: dos cuentas del mismo cliente, cobradas con un
  * minuto de diferencia, que hoy se ven como un cobro repetido porque la fila
  * no dice a cuál cuenta se abonó.
+ *
+ * **`CargarDetalleCliente` ya no entra aquí.** Desde que el detalle de cliente
+ * perdió su sección "últimos contactos" (decisión del dueño), `DetalleCliente`
+ * no trae `contactos` ni pide productos — no hay nada de este caso que esa
+ * pantalla pueda mostrar mal.
  */
 class CuentaEnLasTresPantallasTest {
 
@@ -97,82 +101,44 @@ class CuentaEnLasTresPantallasTest {
     private fun dinero(pesos: String): Money = Money.of(BigDecimal(pesos))
 
     @Test
-    fun `CargarDetalleCliente pinta las dos cuentas con nombres distintos`() = runTest {
-        sembrarElCasoReal()
-        val detalle = checkNotNull(
-            CargarDetalleCliente(
-                reunirCobranzaDelCliente = reunirCobranzaDelCliente,
-                fichaPort = FakeFichaPort(),
-                productosPort = productosPort,
-                clock = clock
-            )(PagosFixtures.CLIENTE_ID)
-        )
-        val porVenta = detalle.contactos.associateBy { it.ventaId }
-
-        assertEquals(
-            "Recamara cantaro king size chocolate",
-            porVenta.getValue(VENTA_RECAMARA).cuenta
-        )
-        assertEquals("Bocina profesional 8'' audiobahn", porVenta.getValue(VENTA_BOCINA).cuenta)
-    }
-
-    /**
-     * **Un solo lote para las dos cuentas**, no una consulta por venta —
-     * [CargarDetalleCliente] ya reusaba el mismo resultado para "productos" y
-     * para las cuentas; esta prueba cuenta que además ese resultado sale de
-     * UNA sola llamada al puerto.
-     */
-    @Test
-    fun `CargarDetalleCliente pide productos en un solo lote`() = runTest {
-        sembrarElCasoReal()
-        CargarDetalleCliente(
-            reunirCobranzaDelCliente = reunirCobranzaDelCliente,
-            fichaPort = FakeFichaPort(),
-            productosPort = productosPort,
-            clock = clock
-        )(PagosFixtures.CLIENTE_ID)
-
-        assertEquals(1, productosPort.lotesConsultados.size)
-        assertEquals(emptyList<String>(), productosPort.foliosConsultados)
-    }
-
-    @Test
-    fun `CargarBitacoraDelCliente pinta las dos cuentas con nombres distintos`() = runTest {
+    fun `CargarBitacoraDeLaVenta pinta la cuenta que pidieron, no la de la otra`() = runTest {
         sembrarElCasoReal()
         val bitacora = checkNotNull(
-            CargarBitacoraDelCliente(
-                reunirCobranzaDelCliente = reunirCobranzaDelCliente,
+            CargarBitacoraDeLaVenta(
+                ventasPort = ventasPort,
                 productosPort = productosPort,
+                reunirCobranzaDelCliente = reunirCobranzaDelCliente,
                 clock = clock
-            )(PagosFixtures.CLIENTE_ID)
+            )(VENTA_BOCINA)
         )
         val porVenta = bitacora.contactos.associateBy { it.ventaId }
 
-        assertEquals(
-            "Recamara cantaro king size chocolate",
-            porVenta.getValue(VENTA_RECAMARA).cuenta
-        )
         assertEquals("Bocina profesional 8'' audiobahn", porVenta.getValue(VENTA_BOCINA).cuenta)
+        assertEquals(
+            "la bitácora es por VENTA: el contacto de la OTRA cuenta no debe aparecer",
+            false,
+            porVenta.containsKey(VENTA_RECAMARA)
+        )
     }
 
     /**
-     * **Hallazgo Important #2 de la ronda de arreglo 1.** `SaleDao.getByClientId`
-     * no filtra por estado — trae TODA la historia del cliente — y
-     * `CargarBitacoraDelCliente` es quien resuelve la cuenta de cada contacto
-     * sobre esa lista completa. Sin lote, un cliente viejo dispararía una
-     * consulta secuencial por venta. Aquí solo hay dos ventas, pero lo que se
-     * cuenta es que sea UNA llamada — con dos o con doscientas, sigue siendo
-     * una.
+     * **Hallazgo Important #2 de la ronda de arreglo 1, todavía vigente para
+     * la venta.** `SaleDao.getByClientId` no filtra por estado — trae TODA la
+     * historia del cliente — y `CargarBitacoraDeLaVenta` sigue resolviendo la
+     * cuenta de cada contacto sobre esa lista completa, para poder nombrar el
+     * contacto de la otra cuenta si hiciera falta filtrar. Sin lote, un
+     * cliente viejo dispararía una consulta secuencial por venta.
      */
     @Test
-    fun `CargarBitacoraDelCliente pide productos en un solo lote para todo el historial`() =
+    fun `CargarBitacoraDeLaVenta pide productos en un solo lote para todo el historial`() =
         runTest {
             sembrarElCasoReal()
-            CargarBitacoraDelCliente(
-                reunirCobranzaDelCliente = reunirCobranzaDelCliente,
+            CargarBitacoraDeLaVenta(
+                ventasPort = ventasPort,
                 productosPort = productosPort,
+                reunirCobranzaDelCliente = reunirCobranzaDelCliente,
                 clock = clock
-            )(PagosFixtures.CLIENTE_ID)
+            )(VENTA_BOCINA)
 
             assertEquals(1, productosPort.lotesConsultados.size)
             assertEquals(

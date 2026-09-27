@@ -7,7 +7,6 @@ import com.example.msp_app.feature.pagos.data.fake.FakeFichaPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
-import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
 import com.example.msp_app.feature.pagos.domain.model.DatosDeVenta
@@ -61,7 +60,6 @@ class CargarDetalleClienteOrdenTest {
 
     private fun cargar() = CargarDetalleCliente(
         fichaPort = fichaPort,
-        productosPort = FakeProductosPort(),
         clock = clock,
         reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
             ventasPort = ventasPort,

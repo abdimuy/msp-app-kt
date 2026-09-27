@@ -51,15 +51,17 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         onAbrirCliente = { navController.navigate(PagosRutas.detalleCliente(it)) }
     )
 
-    // El detalle de cliente va aparte: perdió el "⋯" y ganó la bitácora, así que
-    // ya no comparte callbacks con el detalle de venta.
+    // El detalle de cliente va aparte: perdió el "⋯" y su sección "últimos
+    // contactos" (decisión del dueño), así que ya no comparte callbacks con el
+    // detalle de venta ni conoce la bitácora — la única puerta a ella es hoy
+    // "ver los N contactos" del detalle de VENTA, más abajo en
+    // `destinosDePagos`.
     destinoDeDetalleCliente(
         onAtras = { navController.popBackStack() },
         onAbrirVenta = { navController.navigate(PagosRutas.detalleVenta(it)) },
         onRegistrarVisita = { clienteId, ventaId ->
             navController.navigate(VisitasRutas.registrar(clienteId, ventaId))
         },
-        onVerContactos = { clienteId -> navController.navigate(PagosRutas.bitacora(clienteId)) },
         // Las dos acciones de dinero de una CUENTA. Condonar desde el cliente,
         // por el "⋯" del dock, es la MISMA ruta que el detalle de venta ya
         // usaba y el mismo `NewForgivenessDialog` sin reescribir: lo único
@@ -75,39 +77,20 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         ),
         // Ver la puerta con zoom es un destino de `:app`: el mapa completo
         // necesita `play-services-maps`, que se declara acá y no en el feature.
+        //
+        // Sin `pagoId`: el detalle de cliente perdió su sección "últimos
+        // contactos" (decisión del dueño), así que lo único que abre este mapa
+        // hoy es el cuadro de la puerta, que nunca tiene una medición que
+        // destacar. Por la misma razón, sin `onVerTicket`: ya no hay hoja que
+        // pregunte "¿qué abrir?" desde esta pantalla.
         ubicacion = UbicacionEnElDetalle(
-            onVerLugares = { clienteId, direccion, pagoId ->
-                navController.navigate(
-                    UbicacionRutas.lugares(clienteId, direccion, pagoId.ifBlank { null })
-                )
+            onVerLugares = { clienteId, direccion ->
+                navController.navigate(UbicacionRutas.lugares(clienteId, direccion))
             },
             // El mapa chico del cuadro. Su default es no pintar nada, así el
             // cuadro se queda con su dibujo y los goldens del módulo siguen
             // fotografiando algo que no depende de la red.
-            suelo = { punto, tocar -> SueloDelUltimoCobro(punto, tocar) },
-            // La opción "Ticket" de la hoja que sale sobre el último cobro de
-            // hoy. Va al ticket LEGADO (`Screen.PaymentTicket` →
-            // `PaymentTicketScreen`), no al del módulo: por decisión del
-            // dueño, el papel migrado perdía el teléfono y el WhatsApp del
-            // negocio —a donde llama el cliente que reclama—, el teléfono
-            // del agente, la fecha de la venta, los productos, el precio a
-            // meses, el de contado, el enganche, los tres vendedores y el
-            // estado en la dirección. Con esto convergen los dos papeles que
-            // hoy salían del mismo teléfono: un abono imprimía el nuevo y una
-            // condonación el viejo (`NewForgivenessDialog` →
-            // `payment_ticket/{id}`). Se pierde la marca de reimpresión, el
-            // registro de impresiones, la regla del día (el nuevo sólo
-            // imprime el día del cobro; el viejo imprime cualquier día, que
-            // es lo que el cobrador espera) y el `Cobro` correcto en
-            // reimpresiones. `PagosRutas.TICKET_PAGO` /
-            // `destinoDeTicketDePago` quedan registrados sin punto de
-            // entrada, a propósito, para el día que se reencienda. Sigue
-            // siendo la MISMA ruta que la captura de abono usa al terminar
-            // (`destinoDeRegistrarAbono`), sin `popUpTo`: aquí el ticket se
-            // apila encima, así que volver deja al cobrador donde estaba.
-            onVerTicket = { pagoId ->
-                navController.navigate(Screen.PaymentTicket.createRoute(pagoId))
-            }
+            suelo = { punto, tocar -> SueloDelUltimoCobro(punto, tocar) }
         )
     )
 
@@ -196,6 +179,12 @@ fun NavGraphBuilder.destinosDeCobranza(navController: NavController) {
         // `Screen.Forgiveness` documenta.
         onCondonar = { ventaId ->
             navController.navigate(Screen.Forgiveness.createRoute(ventaId))
+        },
+        // "Ver los N contactos" de "lo que ha pasado": la bitácora completa de
+        // ESTA cuenta. Es el reemplazo de lo que el detalle de cliente ofrecía
+        // antes de perder su sección "últimos contactos" (decisión del dueño).
+        onVerContactos = { ventaId ->
+            navController.navigate(PagosRutas.bitacora(ventaId))
         },
         // El MISMO destino que abre el cuadro de la puerta del detalle de
         // cliente y la bitácora, con el punto de ESE renglón.

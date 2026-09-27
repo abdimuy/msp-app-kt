@@ -3,7 +3,6 @@ package com.example.msp_app.feature.pagos.application
 import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.AppClock
 import com.example.msp_app.core.common.time.AppTime
-import com.example.msp_app.feature.pagos.domain.BitacoraDelCliente
 import com.example.msp_app.feature.pagos.domain.MontosSugeridosDelCliente
 import com.example.msp_app.feature.pagos.domain.OrdenDeCobranza
 import com.example.msp_app.feature.pagos.domain.PlanDeAbonos
@@ -17,7 +16,6 @@ import com.example.msp_app.feature.pagos.domain.model.PagoDelHistorial
 import com.example.msp_app.feature.pagos.domain.model.ResumenDelCliente
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.domain.port.FichaDelClientePort
-import com.example.msp_app.feature.pagos.domain.port.ProductosPort
 import javax.inject.Inject
 
 /**
@@ -76,7 +74,6 @@ import javax.inject.Inject
 class CargarDetalleCliente @Inject constructor(
     private val reunirCobranzaDelCliente: ReunirCobranzaDelCliente,
     private val fichaPort: FichaDelClientePort,
-    private val productosPort: ProductosPort,
     private val clock: AppClock
 ) {
 
@@ -86,16 +83,6 @@ class CargarDetalleCliente @Inject constructor(
         // lista pintada— sale de esta misma lista ya ordenada.
         val ventas = cobranza.ventas.sortedWith(ORDEN_DE_SUS_VENTAS)
         val primera = ventas.firstOrNull() ?: return null
-        // UN lote (una consulta, troceada solo si hiciera falta), reusado para
-        // "productos" (todos los renglones) y para la cuenta de cada contacto
-        // (solo el primero por POSICION, normalizado) — ver el KDoc de
-        // `productosPorVenta`.
-        val productosPorVenta = productosPort.productosPorVenta(ventas)
-        val contactos = BitacoraDelCliente.de(
-            visitas = cobranza.visitas,
-            pagos = cobranza.pagos,
-            cuentas = productosPorVenta.aCuentas()
-        )
         val filas = ventas.map {
             it.aVentaDelCliente(
                 estado = cobranza.estados[it.ventaId],
@@ -122,18 +109,12 @@ class CargarDetalleCliente @Inject constructor(
             diaDeRuta = primera.diaDeRuta,
             frecuencia = primera.frecuencia,
             resumen = resumenDe(filas, cobranza.pagos),
-            // `.values` conserva el orden de `ventas` (ya ordenada arriba):
-            // `productosPorVenta` sale de `associate`, que arma un
-            // LinkedHashMap con el orden de inserción.
-            productos = productosPorVenta.values.flatten(),
             // El pin sale del abono MÁS RECIENTE que traiga coordenadas, no del
             // más reciente a secas: si el último se capturó sin señal, el
             // anterior sigue siendo una puerta donde de verdad se cobró.
             ultimoCobroAqui = cobranza.pagos
                 .sortedByDescending { it.fecha }
                 .firstNotNullOfOrNull { it.ubicacion },
-            contactos = contactos.take(BitacoraDelCliente.VISIBLES_EN_EL_DETALLE),
-            totalContactos = contactos.size,
             notaDeLaVenta = primera.notas.takeIf { it.isNotBlank() },
             ficha = fichaPort.fichaDe(clienteId),
             liquidacion = cobranza.liquidacionTotal(),

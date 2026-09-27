@@ -5,7 +5,7 @@ import com.example.msp_app.core.telemetry.TelemetryEventType
 import com.example.msp_app.core.testing.MainDispatcherRule
 import com.example.msp_app.core.testing.telemetry.RecordingTelemetry
 import com.example.msp_app.core.testing.time.FakeClock
-import com.example.msp_app.feature.pagos.application.CargarBitacoraDelCliente
+import com.example.msp_app.feature.pagos.application.CargarBitacoraDeLaVenta
 import com.example.msp_app.feature.pagos.application.DerivarEstadoDelPeriodo
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.application.ResolverVentanaDeCobro
@@ -32,12 +32,17 @@ import org.junit.Rule
 import org.junit.Test
 
 /**
- * **La bitácora completa.**
+ * **La bitácora completa, hoy por VENTA.**
  *
  * Lo que defiende: que la pantalla que reemplaza al "⋯" enseñe **todo** lo que
- * pasó en el domicilio —no los tres del detalle—, que mezcle visitas y abonos en
- * una sola línea de tiempo, y que un fallo de lectura se reporte en vez de
- * quedarse en blanco.
+ * pasó en esa cuenta —no sólo los cinco que pinta el detalle de venta—, que
+ * mezcle visitas y abonos en una sola línea de tiempo, y que un fallo de
+ * lectura se reporte en vez de quedarse en blanco.
+ *
+ * **Ya no es del domicilio entero.** Desde que el detalle de cliente perdió su
+ * sección "últimos contactos" (decisión del dueño), la única puerta a esta
+ * pantalla es "ver los N contactos" del detalle de VENTA, así que el
+ * `SavedStateHandle` lleva un `ventaId`, no un `clienteId`.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class BitacoraViewModelTest {
@@ -52,9 +57,11 @@ class BitacoraViewModelTest {
     private val pagosPort = FakePagosPort()
     private val visitasPort = FakeVisitasPort()
 
-    private fun viewModel(clienteId: Int = PagosFixtures.CLIENTE_ID) = BitacoraViewModel(
-        savedStateHandle = SavedStateHandle(mapOf(PagosRutas.ARG_CLIENTE_ID to clienteId)),
-        cargarBitacoraDelCliente = CargarBitacoraDelCliente(
+    private fun viewModel(ventaId: Int = PagosFixtures.VENTA_EN_PROMESA) = BitacoraViewModel(
+        savedStateHandle = SavedStateHandle(mapOf(PagosRutas.ARG_VENTA_ID to ventaId)),
+        cargarBitacoraDeLaVenta = CargarBitacoraDeLaVenta(
+            ventasPort = ventasPort,
+            productosPort = FakeProductosPort(),
             reunirCobranzaDelCliente = ReunirCobranzaDelCliente(
                 ventasPort = ventasPort,
                 pagosPort = pagosPort,
@@ -63,7 +70,6 @@ class BitacoraViewModelTest {
                 resolverVentanaDeCobro = ResolverVentanaDeCobro(FakePeriodoDeCobroPort(), clock),
                 derivarEstadoDelPeriodo = DerivarEstadoDelPeriodo(telemetria)
             ),
-            productosPort = FakeProductosPort(),
             clock = clock
         ),
         privacidad = FakePrivacidadPort(),
@@ -73,12 +79,16 @@ class BitacoraViewModelTest {
     )
 
     /**
-     * **Todo, no los tres del detalle.** El detalle recorta a
-     * `BitacoraDelCliente.VISIBLES_EN_EL_DETALLE`; ésta es la pantalla que existe
-     * justamente para enseñar el resto.
+     * **Todo lo de esta cuenta, no sólo los cinco del detalle.** El detalle
+     * recorta a `BitacoraDelCliente.VISIBLES_EN_LA_VENTA`; ésta es la pantalla
+     * que existe justamente para enseñar el resto. Las visitas y los pagos de
+     * la semilla ya llevan `ventaId = VENTA_EN_PROMESA` por default —ver
+     * `PagosFixtures.visita`/`pagosDeLaVenta`—, así que los cuenta todos.
      */
     @Test
-    fun `trae todos los contactos, no solo los del detalle`() = runTest(testDispatcher) {
+    fun `trae todos los contactos de la cuenta, no solo los del detalle`() = runTest(
+        testDispatcher
+    ) {
         ventasPort.ventas = PagosFixtures.datosDeVentas()
         visitasPort.visitas = listOf(
             PagosFixtures.visita("No estaba", fechaIso = "2026-09-01T16:00:00Z"),
@@ -94,8 +104,8 @@ class BitacoraViewModelTest {
         val contactos = checkNotNull(vm.state.value.bitacora).contactos
         assertEquals(4 + pagosPort.pagos.size, contactos.size)
         assertTrue(
-            "tiene que traer más de los tres que pinta el detalle",
-            contactos.size > 3
+            "tiene que traer más de los cinco que pinta el detalle",
+            contactos.size > 5
         )
     }
 
@@ -123,7 +133,7 @@ class BitacoraViewModelTest {
         assertTrue("faltan los abonos", contactos.any { it.etiqueta == "Abono" })
     }
 
-    /** El nombre viaja con la bitácora: la pantalla se abre sola y tiene que titularse. */
+    /** El nombre viaja con la bitácora: el subtítulo lo necesita para decir de quién es. */
     @Test
     fun `la bitacora sabe de quien es`() = runTest(testDispatcher) {
         ventasPort.ventas = PagosFixtures.datosDeVentas()
@@ -133,11 +143,24 @@ class BitacoraViewModelTest {
         assertEquals("Victoria Flores Olmedo", checkNotNull(vm.state.value.bitacora).nombre)
     }
 
+    /** El título es el producto de la cuenta, no el folio — igual que el detalle de venta. */
+    @Test
+    fun `la bitacora se titula con el producto de la cuenta`() = runTest(testDispatcher) {
+        ventasPort.ventas = PagosFixtures.datosDeVentas()
+        val vm = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(
+            "Refrigerador Mabe 14'",
+            checkNotNull(vm.state.value.bitacora).titulo
+        )
+    }
+
     /**
      * **Y de qué puerta es.** La dirección no la pinta esta pantalla: la pinta el
      * mapa que se abre al tocar un renglón, al pie, para decir de qué puerta se
-     * trata. Sale de la misma fila representante del cliente de la que ya salía el
-     * nombre, así que no cuesta una lectura más.
+     * trata. Sale de la misma fila de la venta de la que ya salía el nombre, así
+     * que no cuesta una lectura más.
      */
     @Test
     fun `la bitacora sabe de que puerta es`() = runTest(testDispatcher) {
@@ -147,16 +170,16 @@ class BitacoraViewModelTest {
 
         assertEquals(
             "sin dirección, el mapa de un contacto se abre sin decir de quién es la puerta",
-            "C. Hidalgo 214, Centro",
+            "C. Hidalgo 214, Centro, Puebla",
             checkNotNull(vm.state.value.bitacora).direccion
         )
     }
 
-    /** Un cliente que el teléfono no tiene se dice, no se pinta como "nunca pasó nada". */
+    /** Una venta que el teléfono no tiene se dice, no se pinta como "nunca pasó nada". */
     @Test
-    fun `un cliente que no esta en el telefono no es una bitacora vacia`() =
+    fun `una venta que no esta en el telefono no es una bitacora vacia`() =
         runTest(testDispatcher) {
-            val vm = viewModel(clienteId = 999)
+            val vm = viewModel(ventaId = 999)
             advanceUntilIdle()
 
             assertNull(vm.state.value.bitacora)

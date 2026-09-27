@@ -87,20 +87,12 @@ data class DetalleVenta(
     override val liquidacion: Liquidacion?,
     val garantia: GarantiaDeLaVenta?,
     /**
-     * Lo que esta VENTA trae en su campo `NOTAS`, tal como llega del servidor.
-     *
-     * **No es la ficha del cliente.** [DetalleCliente.notaDeLaVenta] muestra la
-     * nota de la PRIMERA cuenta del domicilio —la que encabeza "sus ventas"—
-     * como una migaja de contexto; ésta es la de la cuenta que la pantalla
-     * tiene abierta, siempre, sin aproximar. La ficha del cliente —el catálogo
-     * cerrado, la nota libre y editable, [DetalleCliente.ficha]— no viaja
-     * hasta acá a propósito: `CargarDetalleCliente` la lee aparte de
-     * `ReunirCobranzaDelCliente` precisamente porque esa lectura la comparte
-     * el detalle de VENTA, que no la pinta — traerla sería una consulta de más
-     * en una pantalla que no la usa. Editar el conocimiento del domicilio
-     * sigue siendo cosa del detalle de cliente.
+     * El día del ÚLTIMO abono registrado de ESTA venta, o `null` si no tiene
+     * ninguno. Sale de los pagos de esta cuenta que `CargarDetalleVenta` ya
+     * lee (`CobranzaDelCliente.pagosDe`), no de la última visita del cliente
+     * ni de otra de sus cuentas. Sin pagos la pantalla no pinta el renglón.
      */
-    val nota: String? = null,
+    val ultimoPago: LocalDate? = null,
     /**
      * El día de negocio en que se cargó esta pantalla.
      *

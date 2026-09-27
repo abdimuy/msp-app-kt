@@ -75,19 +75,12 @@ class ElTelonNoDejaHuecoTest : RobolectricTestBase() {
     val composeTestRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun `el velo no empieza mucho antes del nombre`() {
-        val imagen = pinta(FontSizeLevel.NORMAL)
-        val perfil = perfilDelMapa(imagen)
-        val arranque = inicioDeLaRampa(perfil)
-        val nombre = renglonDelNombre(imagen, perfil)
+    fun `en oscuro el velo no empieza mucho antes del nombre`() =
+        noEmpiezaMuchoAntes(FontSizeLevel.NORMAL, oscuro = true)
 
-        assertTrue(
-            "el velo empieza a morder el mapa en el renglón $arranque y el nombre está en " +
-                "$nombre: son ${nombre - arranque} px de franja antes del texto, y el mapa " +
-                "debería verse limpio casi hasta tocarlo",
-            nombre - arranque <= ANTES_DEL_NOMBRE
-        )
-    }
+    @Test
+    fun `en claro el velo no empieza mucho antes del nombre`() =
+        noEmpiezaMuchoAntes(FontSizeLevel.NORMAL, oscuro = false)
 
     /**
      * **Y el mapa se apaga con una rampa, no con un corte.**
@@ -101,25 +94,27 @@ class ElTelonNoDejaHuecoTest : RobolectricTestBase() {
      * y contarlos daba alto con canto y sin él.
      */
     @Test
-    fun `el mapa se apaga con una rampa, no con un corte`() {
-        val imagen = pinta(FontSizeLevel.NORMAL)
-        val perfil = perfilDelMapa(imagen)
-        val salto = saltoMaximo(perfil, renglonDelNombre(imagen, perfil))
+    fun `en oscuro el mapa se apaga con una rampa, no con un corte`() =
+        seApagaConRampa(FontSizeLevel.NORMAL, oscuro = true)
 
-        assertTrue(
-            "el perfil del mapa cae $salto de un renglón al siguiente: eso es un canto, " +
-                "no una disolución",
-            salto <= SALTO_MAXIMO
-        )
-    }
+    @Test
+    fun `en claro el mapa se apaga con una rampa, no con un corte`() =
+        seApagaConRampa(FontSizeLevel.NORMAL, oscuro = false)
 
     /**
-     * **El mapa se sigue distinguiendo DETRÁS del nombre.**
+     * **En OSCURO el mapa se sigue distinguiendo detrás del nombre.**
      *
      * Tercer defecto del mismo viaje al aparato: *"en el que pusiste no se ve el
      * mapa de atrás, ni en el nombre ni en las notificaciones… debe sólo verse
      * un poco blur el mapa, se debe distinguir el mapa de atrás"*. El velo era
      * una pared, no un cristal.
+     *
+     * **Sólo en oscuro desde el 2026-09-25**, y el par que forma con
+     * [`en claro el velo sí tapa el mapa detrás del nombre`] es deliberado: los
+     * dos temas quieren cosas **opuestas** y la razón está en
+     * `VELO_EN_CLARO`. Que esto ya no se pida en claro no es una exigencia
+     * relajada — es la misma exigencia contestada al revés, y la contraria está
+     * escrita al lado para que nadie "arregle" una rompiendo la otra sin verlo.
      *
      * ## Lo que NO prueba, y hay que decirlo
      *
@@ -131,10 +126,10 @@ class ElTelonNoDejaHuecoTest : RobolectricTestBase() {
      * propósito para ser determinista.
      */
     @Test
-    fun `el mapa se sigue distinguiendo detras del nombre`() {
-        val imagen = pinta(FontSizeLevel.NORMAL)
+    fun `en oscuro el mapa se sigue distinguiendo detras del nombre`() {
+        val imagen = pinta(FontSizeLevel.NORMAL, oscuro = true)
         val perfil = perfilDelMapa(imagen)
-        val rastro = perfil[renglonDelNombre(imagen, perfil)] / perfil.max()
+        val rastro = perfil[renglonDelNombre(imagen, perfil, oscuro = true)] / perfil.max()
 
         assertTrue(
             "en el renglón del nombre queda el $rastro del color del mapa: el velo volvió " +
@@ -143,32 +138,103 @@ class ElTelonNoDejaHuecoTest : RobolectricTestBase() {
         )
     }
 
-    /** Lo mismo a 2.0, que es donde el telón crece y la rampa se podría perder. */
+    /**
+     * **Y en CLARO el velo SÍ tapa el mapa detrás del nombre — lo contrario.**
+     *
+     * El dueño lo pidió así el 2026-09-25 mirando el mapa real de Google: *"en
+     * el modo claro se confunden las letras… en modo claro que el fondo en vez
+     * de blur sea más tipo blanco"*. Sobre un mapa claro, un velo translúcido no
+     * quita el ruido: deja los rótulos de las calles compitiendo con la
+     * dirección, que es lo que él vio.
+     *
+     * Así que acá se afirma el techo, no el piso: del color del mapa tiene que
+     * quedar **menos** de [RASTRO_MAXIMO_EN_CLARO] donde va el texto.
+     *
+     * ## Y sigue sin poder ser una pared
+     *
+     * El otro lado lo cobran las dos pruebas de arriba, que corren en los **dos**
+     * temas: si alguien sube el velo a 1.0 para "asegurar" la legibilidad, la
+     * rampa se queda sin recorrido y `el mapa se apaga con una rampa, no con un
+     * corte` se pone roja en claro. Las tres juntas dejan una sola franja de
+     * valores válidos.
+     */
     @Test
-    fun `a escala muy grande tampoco queda hueco ni canto`() {
-        val imagen = pinta(FontSizeLevel.MUY_GRANDE)
+    fun `en claro el velo si tapa el mapa detras del nombre`() {
+        val imagen = pinta(FontSizeLevel.NORMAL, oscuro = false)
         val perfil = perfilDelMapa(imagen)
-        val nombre = renglonDelNombre(imagen, perfil)
+        val rastro = perfil[renglonDelNombre(imagen, perfil, oscuro = false)] / perfil.max()
 
         assertTrue(
-            "a 2.0 el velo empieza ${nombre - inicioDeLaRampa(perfil)} px antes del nombre",
-            nombre - inicioDeLaRampa(perfil) <= ANTES_DEL_NOMBRE
-        )
-        assertTrue(
-            "a 2.0 el perfil cae ${saltoMaximo(perfil, nombre)} de golpe",
-            saltoMaximo(perfil, nombre) <= SALTO_MAXIMO
+            "en claro, en el renglón del nombre queda el $rastro del color del mapa: los " +
+                "rótulos de las calles siguen compitiendo con la dirección",
+            rastro < RASTRO_MAXIMO_EN_CLARO
         )
     }
 
+    /** Lo mismo a 2.0, que es donde el telón crece y la rampa se podría perder. */
+    @Test
+    fun `a escala muy grande en oscuro tampoco queda hueco`() =
+        noEmpiezaMuchoAntes(FontSizeLevel.MUY_GRANDE, oscuro = true)
+
+    @Test
+    fun `a escala muy grande en claro tampoco queda hueco`() =
+        noEmpiezaMuchoAntes(FontSizeLevel.MUY_GRANDE, oscuro = false)
+
+    @Test
+    fun `a escala muy grande en oscuro tampoco queda canto`() =
+        seApagaConRampa(FontSizeLevel.MUY_GRANDE, oscuro = true)
+
+    @Test
+    fun `a escala muy grande en claro tampoco queda canto`() =
+        seApagaConRampa(FontSizeLevel.MUY_GRANDE, oscuro = false)
+
+    // --- Las dos afirmaciones, una vez cada una ------------------------------
+    //
+    // Viven acá y no adentro de cada `@Test` porque cada una se tiene que correr
+    // en los DOS temas y a DOS escalas, y `createAndroidComposeRule` sólo admite
+    // un `setContent` por prueba: un bucle adentro del test muere con
+    // "Cannot call setContent twice per test!". Así que la combinatoria se
+    // reparte en métodos y el cuerpo se escribe una sola vez.
+
+    private fun noEmpiezaMuchoAntes(nivel: FontSizeLevel, oscuro: Boolean) {
+        val imagen = pinta(nivel, oscuro)
+        val perfil = perfilDelMapa(imagen)
+        val arranque = inicioDeLaRampa(perfil)
+        val nombre = renglonDelNombre(imagen, perfil, oscuro)
+        val tope = if (oscuro) ANTES_DEL_NOMBRE else ANTES_DEL_NOMBRE_EN_CLARO
+
+        assertTrue(
+            "en ${tema(oscuro)} a ${nivel.nominalScale} el velo empieza a morder el mapa en " +
+                "el renglón $arranque y el nombre está en $nombre: son ${nombre - arranque} " +
+                "px de franja antes del texto (el tope es $tope), y el mapa debería verse " +
+                "limpio casi hasta tocarlo",
+            nombre - arranque <= tope
+        )
+    }
+
+    private fun seApagaConRampa(nivel: FontSizeLevel, oscuro: Boolean) {
+        val imagen = pinta(nivel, oscuro)
+        val perfil = perfilDelMapa(imagen)
+        val salto = saltoMaximo(perfil, renglonDelNombre(imagen, perfil, oscuro))
+
+        assertTrue(
+            "en ${tema(oscuro)} a ${nivel.nominalScale} el perfil del mapa cae $salto de un " +
+                "renglón al siguiente: eso es un canto, no una disolución",
+            salto <= SALTO_MAXIMO
+        )
+    }
+
+    private fun tema(oscuro: Boolean) = if (oscuro) "oscuro" else "claro"
+
     // --- Andamio -------------------------------------------------------------
 
-    private fun pinta(nivel: FontSizeLevel): Bitmap {
+    private fun pinta(nivel: FontSizeLevel, oscuro: Boolean): Bitmap {
         composeTestRule.setContent {
             CompositionLocalProvider(
                 LocalDensity provides Density(DENSIDAD, nivel.nominalScale),
                 LocalFontSizeLevel provides nivel
             ) {
-                MspTheme(darkTheme = false, animateColors = false) {
+                MspTheme(darkTheme = oscuro, animateColors = false) {
                     Box(modifier = Modifier.fillMaxSize().background(MspTheme.colors.background)) {
                         FondoDeLaPuerta(
                             ubicacion = PUNTO,
@@ -252,14 +318,31 @@ class ElTelonNoDejaHuecoTest : RobolectricTestBase() {
      * Se busca **desde el arranque de la rampa** y no desde arriba porque la
      * textura tipográfica del fondo también es tinta, y es lo primero que hay.
      */
-    private fun renglonDelNombre(imagen: Bitmap, perfil: FloatArray): Int {
+    /**
+     * El umbral es de **doble filo, y el tema decide cuál**: en claro el texto
+     * es casi negro sobre gris claro, así que es tinta lo que está **por debajo**
+     * de [TINTA]; en oscuro es blanco, así que lo que hay que buscar es lo que
+     * está **por encima** de [TINTA_EN_OSCURO].
+     *
+     * Los dos números están lejos del magenta de prueba (luminancia 165) a
+     * propósito: buscar "lo oscuro" en tema oscuro daría el fondo entero en el
+     * primer renglón, y buscar "lo claro" con un umbral bajo daría el mapa. El
+     * control positivo de que esto mide lo que dice es que las dos pruebas de
+     * rastro —una pidiendo que el mapa sobreviva, la otra que no— se apoyan en
+     * este mismo renglón y salen distintas.
+     */
+    private fun renglonDelNombre(imagen: Bitmap, perfil: FloatArray, oscuro: Boolean): Int {
         for (y in inicioDeLaRampa(perfil) until imagen.height) {
-            for (x in 0 until imagen.width step MUESTREO) {
-                if (luminancia(imagen.getPixel(x, y)) < TINTA) return y
-            }
+            if (hayTinta(imagen, y, oscuro)) return y
         }
         return imagen.height - 1
     }
+
+    private fun hayTinta(imagen: Bitmap, y: Int, oscuro: Boolean): Boolean =
+        (0 until imagen.width step MUESTREO).any { x ->
+            val luz = luminancia(imagen.getPixel(x, y))
+            if (oscuro) luz > TINTA_EN_OSCURO else luz < TINTA
+        }
 
     private fun luminancia(px: Int): Float {
         val r = (px shr 16) and 0xFF
@@ -291,7 +374,8 @@ class ElTelonNoDejaHuecoTest : RobolectricTestBase() {
         const val ENTERO = 0.9f
 
         /**
-         * Cuánto color del mapa tiene que sobrevivir en el renglón del nombre.
+         * Cuánto color del mapa tiene que sobrevivir **en oscuro** en el renglón
+         * del nombre.
          *
          * Un cuarto del máximo. Con la meseta del velo en 0.36 sobrevive ~0.64,
          * así que hay sitio de sobra para que la sombra del texto y el antialias
@@ -301,22 +385,74 @@ class ElTelonNoDejaHuecoTest : RobolectricTestBase() {
         const val RASTRO_TRAS_EL_NOMBRE = 0.25f
 
         /**
+         * Y en claro, cuánto color del mapa **NO** puede quedar ahí.
+         *
+         * Es el techo gemelo del piso de arriba, y apunta al lado contrario a
+         * propósito — ver las dos pruebas de rastro. Con la meseta en 0.82
+         * sobrevive ~0.18; 0.25 deja el margen del antialias sin permitir que
+         * alguien devuelva el velo translúcido en claro y siga verde.
+         */
+        const val RASTRO_MAXIMO_EN_CLARO = 0.25f
+
+        /**
          * Cuánta franja de velo se tolera por encima del nombre.
          *
-         * 40 px a densidad 2 son 20 dp. Lo reportado eran ~92 dp de rampa antes
-         * del texto: esto se habría puesto rojo con holgura.
+         * **90 px a densidad 2 son 45 dp, y eran 40 px (20 dp).** El tope subió
+         * el 2026-09-25 porque el dueño movió la queja al lado contrario: con la
+         * rampa apretada a 12 dp le pareció *"muy pronunciada y rápida"*, así
+         * que el fade pasó a 48 dp con la subida en ese. Medido con ese reparto,
+         * el velo empieza a morder **76 px (38 dp) antes del nombre a 1.0 y 83
+         * (41.5 dp) a 2.0**; 90 deja un margen chico a propósito, para que el
+         * siguiente que lo alargue tenga que venir acá a decirlo.
+         *
+         * Sigue cobrando el defecto original con holgura: lo reportado entonces
+         * eran **~92 dp (184 px)** de rampa antes del texto, el doble de esto.
+         *
+         * Y no queda solo: el que impide alargar el fade sin límite es
+         * [RASTRO_TRAS_EL_NOMBRE] por un lado —el velo no puede cerrar sobre el
+         * mapa— y el ojo del dueño por el otro, que es quien fija este número.
          */
-        const val ANTES_DEL_NOMBRE = 40
+        const val ANTES_DEL_NOMBRE = 90
+
+        /**
+         * Lo mismo **en claro**, donde el fade es más largo a propósito.
+         *
+         * El velo en claro sube a 0.82 en vez de 0.36, y para que la pendiente
+         * por dp no empeore el recorrido tiene que crecer con él: 80 dp de fade
+         * contra 48. Ver `FADE_EN_CLARO`, que es donde está la cuenta.
+         *
+         * Que sean **dos números y no uno** es lo que impide el atajo cómodo:
+         * subir el tope único hasta que los dos temas quepan escondería que uno
+         * de los dos se alargó sin que nadie lo decidiera.
+         */
+        const val ANTES_DEL_NOMBRE_EN_CLARO = 150
 
         /**
          * Cuánto puede caer el perfil de un renglón al siguiente.
          *
-         * 0.04 del croma. Una rampa de 12 dp reparte la caída en 24 renglones,
-         * o sea ~0.025 cada uno; un corte la haría de golpe.
+         * **0.012 del croma, y eran 0.04.** El tope bajó junto con el arreglo
+         * que lo hizo posible: desde que la subida del velo es una ese
+         * (`rampaSuave`) en vez de una recta, la caída medida es de
+         * **0.00784 = 2/255** por renglón, a 1.0 y a 2.0 — o sea **el piso de
+         * cuantización de un canal de 8 bits**. Sobre este panel no existe una
+         * rampa más suave que ésta.
+         *
+         * 0.012 son ~3/255: el margen justo para el ruido del antialias sin
+         * dejar sitio a que alguien vuelva a meter una recta corta sin enterarse.
          */
-        const val SALTO_MAXIMO = 0.04f
+        const val SALTO_MAXIMO = 0.012f
 
         const val TINTA = 100f
+
+        /**
+         * El umbral de tinta **en tema oscuro**, donde el texto es blanco.
+         *
+         * 210, y tiene que quedar por encima de la luminancia del magenta de
+         * prueba (**165**): con un umbral más bajo, "el primer renglón con
+         * tinta" sería el primer renglón de mapa y toda la medición se correría
+         * hacia arriba sin ponerse roja.
+         */
+        const val TINTA_EN_OSCURO = 210f
 
         const val ROJO = 0.299f
         const val VERDE = 0.587f

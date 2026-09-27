@@ -48,13 +48,19 @@ object PagosRutas {
     const val DETALLE_CLIENTE: String = "pagos/cliente/{$ARG_CLIENTE_ID}"
 
     /**
-     * La bitácora completa de un domicilio.
+     * La bitácora completa de UNA VENTA.
      *
-     * Lleva el `clienteId` y no una lista ya armada: la bitácora es del
-     * DOMICILIO, y pasarla por la ruta la congelaría en lo que se leyó al abrir
-     * el detalle — un abono registrado en medio no aparecería.
+     * Lleva el `ventaId` y no una lista ya armada: la bitácora es de la CUENTA,
+     * y pasarla por la ruta la congelaría en lo que se leyó al abrir el
+     * detalle — un abono registrado en medio no aparecería.
+     *
+     * **Por venta, no por cliente.** Hasta la Task de "quitar últimos contactos
+     * del detalle de cliente" esta ruta llevaba el `clienteId`: el detalle de
+     * cliente era la única puerta. Con esa sección quitada, la única puerta a
+     * "ver los N contactos" es hoy el detalle de VENTA, así que la bitácora
+     * cambió de llave con ella.
      */
-    const val BITACORA: String = "pagos/cliente/{$ARG_CLIENTE_ID}/bitacora"
+    const val BITACORA: String = "pagos/venta/{$ARG_VENTA_ID}/bitacora"
 
     /** Detalle de venta. Desde un pago o un recibo se entra directo aquí (Task 21). */
     const val DETALLE_VENTA: String = "pagos/venta/{$ARG_VENTA_ID}"
@@ -71,8 +77,8 @@ object PagosRutas {
     /** La ruta concreta del cliente [clienteId]. */
     fun detalleCliente(clienteId: Int): String = "pagos/cliente/$clienteId"
 
-    /** La bitácora de [clienteId]. */
-    fun bitacora(clienteId: Int): String = "pagos/cliente/$clienteId/bitacora"
+    /** La bitácora de la venta [ventaId]. */
+    fun bitacora(ventaId: Int): String = "pagos/venta/$ventaId/bitacora"
 
     /** La ruta concreta de la venta [ventaId]. */
     fun detalleVenta(ventaId: Int): String = "pagos/venta/$ventaId"
@@ -129,6 +135,11 @@ object PagosRutas {
  * mismo destino y el mismo objeto que ya usa [destinoDeBitacora] (Ver
  * [UbicacionEnLaBitacora]). La venta no dibuja un cuadro de puerta propio,
  * así que no hace falta el `suelo` de [UbicacionEnElDetalle].
+ *
+ * [onVerContactos] recibe el `ventaId` de la cuenta cuyo "Ver los N contactos"
+ * se tocó — el destino nuevo de [destinoDeBitacora], ahora por venta. Es el
+ * reemplazo de lo que el detalle de CLIENTE ofrecía antes de perder su sección
+ * "últimos contactos": la única puerta a la bitácora es hoy esta.
  */
 // Un callback por destino al que esta pantalla puede llevar: no es fan-out
 // accidental, es la lista de puertas del detalle de venta. Agruparlos en un
@@ -143,6 +154,7 @@ fun NavGraphBuilder.destinosDePagos(
     onVerAbonos: (Int) -> Unit,
     onVerGarantia: (Int) -> Unit,
     onCondonar: (Int) -> Unit,
+    onVerContactos: (Int) -> Unit = {},
     ubicacion: UbicacionEnLaBitacora = UbicacionEnLaBitacora()
 ) {
     composable(
@@ -159,6 +171,7 @@ fun NavGraphBuilder.destinosDePagos(
             onRegistrarVisita = onRegistrarVisita,
             onVerAbonos = onVerAbonos,
             onVerGarantia = onVerGarantia,
+            onVerContactos = onVerContactos,
             onVerUbicacion = { _, direccion, pagoId ->
                 ubicacion.onVerLugares(null, ventaId, direccion, pagoId)
             },
@@ -202,24 +215,14 @@ data class UbicacionEnElDetalle(
      *
      * No reemplaza a [onVer] para no tocar la firma que las pantallas ya usan:
      * el destino envuelve la llamada y le agrega el id.
-     */
-    val onVerLugares: (clienteId: Int, direccion: String, pagoId: String) -> Unit =
-        { _, _, _ -> },
-    val suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null,
-    /**
-     * A dónde lleva la opción "Ticket" de [HojaDelContacto]: al ticket del abono
-     * cuyo `pagoId` se manda — [PagosRutas.ticketDePago], la ruta que la Task 20
-     * ya dejó puesta.
      *
-     * **El nombre del tipo se quedó corto y aquí se dice en vez de renombrarlo.**
-     * Este objeto dejó de ser "la ubicación" el día que el toque de un renglón
-     * pudo abrir dos cosas; vive aquí y no como un séptimo parámetro de
-     * [destinoDeDetalleCliente] porque detekt corta ahí (`LongParameterList`,
-     * `functionThreshold: 7`), que es el mismo motivo por el que el objeto
-     * existe. Renombrar los dos tipos por una palabra movería tres KDoc y el
-     * grafo de `:app` sin cambiar nada de lo que hacen.
+     * **Sin `pagoId`.** El detalle de cliente perdió su sección "últimos
+     * contactos" (decisión del dueño): lo único que abre este mapa hoy es el
+     * cuadro de la puerta, que nunca sale de un renglón y por lo tanto nunca
+     * tiene una medición que destacar.
      */
-    val onVerTicket: (String) -> Unit = {}
+    val onVerLugares: (clienteId: Int, direccion: String) -> Unit = { _, _ -> },
+    val suelo: (@Composable (UbicacionDelCobro?, onTocar: () -> Unit) -> Unit)? = null
 )
 
 /**
@@ -250,10 +253,10 @@ data class DineroDeLaCuenta(
  * Registra el **detalle de cliente** en el grafo.
  *
  * Va aparte de [destinosDePagos] por la misma razón que la lista y el abono: la
- * pantalla dejó de compartir callbacks con el detalle de venta. Nunca recibió
- * el "⋯" —se fue de las dos pantallas— y en cambio recibe [onVerContactos], que
- * es el destino nuevo de la bitácora; meterlos en la función compartida habría
- * dejado dos parámetros que solo uno de los dos destinos usa.
+ * pantalla dejó de compartir callbacks con el detalle de venta. **Ya no recibe
+ * `onVerContactos`**: el detalle de cliente perdió su sección "últimos
+ * contactos" (decisión del dueño) y con ella su única puerta a la bitácora — la
+ * de hoy es [destinoDeBitacora], por venta, desde el detalle de VENTA.
  *
  * **No recibe las acciones que salen de la app** (llamar, WhatsApp, cómo llegar):
  * las resuelve el ViewModel por `AccionesExternasPort`. `:app` no tiene por qué
@@ -275,7 +278,6 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
     onAtras: () -> Unit,
     onAbrirVenta: (Int) -> Unit,
     onRegistrarVisita: (Int, Int?) -> Unit,
-    onVerContactos: (Int) -> Unit,
     dinero: DineroDeLaCuenta = DineroDeLaCuenta(),
     ubicacion: UbicacionEnElDetalle = UbicacionEnElDetalle()
 ) {
@@ -293,12 +295,10 @@ fun NavGraphBuilder.destinoDeDetalleCliente(
             onAbrirVenta = onAbrirVenta,
             onRegistrarAbono = dinero.onRegistrarAbono,
             onRegistrarVisita = onRegistrarVisita,
-            onVerContactos = onVerContactos,
-            onVerUbicacion = { _, direccion, pagoId ->
-                ubicacion.onVerLugares(clienteId, direccion, pagoId)
+            onVerUbicacion = { _, direccion ->
+                ubicacion.onVerLugares(clienteId, direccion)
             },
             onCondonar = dinero.onCondonar,
-            onVerTicket = ubicacion.onVerTicket,
             suelo = ubicacion.suelo
         )
     }
@@ -344,9 +344,7 @@ data class UbicacionEnLaBitacora(
     val onVerLugares: (clienteId: Int?, ventaId: Int?, direccion: String, pagoId: String) -> Unit =
         { _, _, _, _ -> },
     /**
-     * A dónde lleva la opción "Ticket" de [HojaDelContacto] — ver el gemelo en
-     * [UbicacionEnElDetalle.onVerTicket], incluido por qué entra como miembro de
-     * este objeto y no como un parámetro más.
+     * A dónde lleva la opción "Ticket" de [HojaDelContacto].
      *
      * Su default no navega a ninguna parte, igual que [onVer]: es lo que deja
      * montar estas rutas en un `@Preview` o en un test sin saber que existe un
@@ -356,11 +354,16 @@ data class UbicacionEnLaBitacora(
 )
 
 /**
- * Registra la **bitácora** del cliente en el grafo.
+ * Registra la **bitácora** de una venta en el grafo.
  *
  * Es el destino que libera al "⋯" de su doble vida: ese botón abría la pantalla
  * legada y era también el único camino a "ver los N contactos". Ahora la bitácora
  * tiene su propia casa y el "⋯" se pudo quitar sin perder nada.
+ *
+ * **Por venta, y no por cliente.** Cuando el detalle de cliente perdió su
+ * sección "últimos contactos" (decisión del dueño), la única puerta a esta
+ * pantalla pasó a ser "ver los N contactos" del detalle de VENTA — por eso lee
+ * [PagosRutas.ARG_VENTA_ID] y no [PagosRutas.ARG_CLIENTE_ID].
  *
  * [ubicacion] es lo único que este destino le pide a `:app` — ver
  * [UbicacionEnLaBitacora]. Su default no navega a ninguna parte, que es lo que
@@ -373,14 +376,17 @@ fun NavGraphBuilder.destinoDeBitacora(
 ) {
     composable(
         route = PagosRutas.BITACORA,
-        arguments = listOf(navArgument(PagosRutas.ARG_CLIENTE_ID) { type = NavType.IntType })
+        arguments = listOf(navArgument(PagosRutas.ARG_VENTA_ID) { type = NavType.IntType })
     ) { entrada ->
-        val clienteId = entrada.arguments?.getInt(PagosRutas.ARG_CLIENTE_ID) ?: 0
+        val ventaId = entrada.arguments?.getInt(PagosRutas.ARG_VENTA_ID) ?: 0
         BitacoraScreen(
             viewModel = hiltViewModel(),
             onAtras = onAtras,
+            // Sin `clienteId`: esta ruta sólo lleva el `ventaId` — la pantalla
+            // lo resuelve por su cuenta desde la venta. Ver el gemelo en
+            // `destinosDePagos.onVerUbicacion`.
             onVerUbicacion = { _, direccion, pagoId ->
-                ubicacion.onVerLugares(clienteId, null, direccion, pagoId)
+                ubicacion.onVerLugares(null, ventaId, direccion, pagoId)
             },
             onVerTicket = ubicacion.onVerTicket
         )

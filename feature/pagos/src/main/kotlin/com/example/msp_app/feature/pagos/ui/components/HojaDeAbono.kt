@@ -1,28 +1,25 @@
 package com.example.msp_app.feature.pagos.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -32,11 +29,8 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
 import com.example.msp_app.feature.pagos.ui.DestinoDeLaCuenta
 
-/** `testTag` de la hoja que pregunta a cuál cuenta va el abono. */
+/** `testTag` del cuerpo de la hoja que pregunta a cuál cuenta va el abono. */
 const val HOJA_DE_ABONO_TAG: String = "pagos_hoja_abono"
-
-/** `testTag` del velo de la hoja del abono. */
-const val VELO_DEL_ABONO_TAG: String = "pagos_hoja_abono_velo"
 
 /** `testTag` de cada opción de cuenta dentro de la hoja. */
 const val OPCION_DE_CUENTA_TAG: String = "pagos_hoja_abono_opcion"
@@ -84,32 +78,32 @@ const val ESTADO_DE_LA_OPCION_TAG: String = "pagos_hoja_abono_opcion_estado"
  * app significa "se negó"; usarlo para "elegiste esto" convierte una captura en
  * una alarma.
  *
- * El velo consume el toque y equivale a cancelar: nada se registra.
+ * ## Por qué SÍ es un `ModalBottomSheet`, a diferencia de sus vecinas
  *
- * ## Por qué esta hoja pide su propio `navigationBarsPadding()`
+ * El pedido del dueño, textual: *"ponerle a los sheet de agregar abono y
+ * condonacion la misma animation que se le puso a la de notas... me gusta como
+ * esta esa animation"*. La de notas es [HojaDeLaFicha], un `ModalBottomSheet` de
+ * M3 sin personalizar — sube desde abajo, el velo aparece/desaparece con ella, y
+ * al cerrar se va hacia abajo ANTES de desmontarse. Esta hoja adopta la MISMA
+ * configuración (mismo `sheetState`, mismo `containerColor`/`contentColor`, sin
+ * tocar forma ni color del velo) para que la animación sea idéntica, no parecida.
  *
- * Es la **única rota de las cinco de la pantalla**, y lo fue por caer entre dos
- * redes. Tres hojas heredan el `systemBarsPadding()` de `DetalleClienteContent`
- * porque se invocan DENTRO de ese `Column` padeado; `HojaDeLaFicha` se salva
- * sola porque el `ModalBottomSheet` de M3 1.3.0 ya aplica
- * `safeDrawing.only(Bottom)`. Esta no es M3 y se invoca **fuera** del `Column`
- * —que cierra antes de la llamada—, así que arrancaba pegada a `y = alto` con la
- * ventana de navegación de SystemUI encima: en el SM-A256E el dueño lo vio en
- * vidrio, **"Continuar" queda debajo de la barra y no se puede tocar**. No es que
- * el toque no haga nada: el evento ni siquiera entra al proceso.
- *
- * **El padding va DESPUÉS del `.background(...)`, a propósito.** El precedente
- * exacto es `BlurredActionBar.kt:126` (`:feature:collectionReport`): el fondo se
- * pinta ANTES del padding, así que son los botones —no el fondo— los que suben.
- * Al revés, el fondo se encogería con el contenido y quedaría una franja del color
- * de la PANTALLA debajo de la hoja, justo encima de la barra: la hoja dejaría de
- * estar pegada al borde de abajo.
- *
- * **Y es `navigationBarsPadding()`, no `systemBarsPadding()`.** La hoja arranca
- * pegada abajo y nunca toca la barra de estado; el inset de arriba solo le metería
- * una franja muerta encima del título — separación que nadie pidió en una hoja que
- * no llega ahí. La compuerta es `LaHojaDelAbonoNoQuedaBajoLaBarraTest`.
+ * Las dos trampas documentadas en este módulo para evitar `ModalBottomSheet`
+ * —goldens en blanco (`captureRoboImage` no ve el `Popup`) y `clip` con esquinas
+ * desiguales matando el hit-test bajo Robolectric— **no aplican aquí** de la
+ * misma forma que no aplican a [HojaDeLaFicha]: el cuerpo vive aparte, en
+ * [CuerpoDeAbono], exactamente por el patrón de [CuerpoDeLaFicha]. Lo que SÍ
+ * cambia respecto de antes —medido, no supuesto, con el precedente de
+ * `PrintSheetTest` en `:feature:collectionReport`— es que `performClick()` no
+ * cruza a la ventana del `Popup`: las pruebas de toque (elegir cuenta, tocar
+ * "Continuar") pasan a montar [CuerpoDeAbono] directo, sin el `ModalBottomSheet`
+ * alrededor. El cierre por atrás, por arrastre y por velo los maneja M3 solo —ya
+ * no hace falta el `BackHandler` propio ni el velo pintado a mano— y el
+ * `navigationBarsPadding()` que esta hoja necesitaba también se retira: M3 1.3.0
+ * ya aplica `safeDrawing.only(Bottom)` al contenido, la misma protección que
+ * exime a [HojaDeLaFicha]. Ver `LaHojaDelAbonoNoQuedaBajoLaBarraTest`.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HojaDeAbono(
     cuentas: List<VentaDelCliente>,
@@ -122,100 +116,109 @@ fun HojaDeAbono(
     destino: DestinoDeLaCuenta = DestinoDeLaCuenta.ABONO
 ) {
     if (cuentas.isEmpty()) return
-    Box(modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(VELO)
-                .pointerInput(Unit) { detectTapGestures { onCerrar() } }
-                .testTag(VELO_DEL_ABONO_TAG)
+    // El `SheetState` se crea aquí dentro, no por parámetro — mismo criterio que
+    // `HojaDeLaFicha`: es un tipo experimental de M3 y ponerlo en la firma
+    // obligaría a cada llamador (incluidos los goldens) a repetir el `@OptIn`.
+    //
+    // `onDismissRequest = onCerrar` es lo que hace que "terminó de irse antes de
+    // desmontarse" funcione sin código nuestro: M3 primero anima `sheetState` a
+    // `Hidden` (velo, arrastre o atrás) y SÓLO CUANDO esa animación termina invoca
+    // este lambda — que aquí limpia `eleccionDeCuenta`/desmonta la hoja. Si se
+    // desmontara ANTES de que M3 termine de animar, se vería el mismo corte en
+    // seco que esta tarea vino a quitar.
+    ModalBottomSheet(
+        onDismissRequest = onCerrar,
+        modifier = modifier,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MspTheme.colors.surface,
+        contentColor = MspTheme.colors.onSurface
+    ) {
+        CuerpoDeAbono(
+            cuentas = cuentas,
+            elegida = elegida,
+            onElegir = onElegir,
+            onContinuar = onContinuar,
+            ocultos = ocultos,
+            destino = destino
         )
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                // `background(color, shape)` y NO `clip(shape) + background`.
-                //
-                // **Con el `clip`, esta hoja no se puede probar.**
-                // `LaHojaDelAbonoDejaElegirCuentaTest` lo mide: bajo Robolectric,
-                // tocar una opción no llamaba a `onElegir` y tocar "Continuar" no
-                // llamaba a `onContinuar` — cero veces, sin error ni línea en
-                // logcat. Se aisló cuál de las dos trampas conocidas era,
-                // cambiando una a la vez: quitar SÓLO el `detectTapGestures` de
-                // abajo deja los toques igual de muertos; quitar SÓLO el `clip`
-                // los revive. El gesto inerte del padre no es el culpable.
-                //
-                // El mecanismo es el que `HojaDeConfirmacion` ya documenta: con
-                // esquinas DESIGUALES, `isInRoundedRect` no resuelve la
-                // contención con `cornersFit` y cae a `isInPath` -> `Path.op`,
-                // **que sin gráficos nativos** deja el hit-test de los
-                // descendientes en cero.
-                //
-                // **No está demostrado que fuera un defecto en el aparato, y hay
-                // evidencia de lo contrario**: el 2026-09-22, con este mismo
-                // `clip` puesto, se eligió una cuenta y se tocó "Continuar" en un
-                // Galaxy A25 y el flujo avanzó a la pantalla de abono con la
-                // cuenta correcta. O sea que la falla es del entorno de prueba —
-                // "sin gráficos nativos" es justo la condición que el teléfono no
-                // cumple. Quitar el `clip` se queda porque **una pantalla de
-                // dinero que no se puede probar es un problema por sí sola**, y
-                // porque el recorte no hacía falta: la hoja no desborda y la forma
-                // la pinta el propio `background`. No se queda por arreglar un
-                // defecto de producción que nadie ha visto.
-                .background(MspTheme.colors.surface, FORMA_DE_LA_HOJA)
-                // La hoja se come el toque para que nada de abajo se alcance
-                // mientras está arriba: la mitad de "ninguna ruta guarda dos veces".
-                .pointerInput(Unit) { detectTapGestures { } }
-                // DESPUÉS del `background` y ANTES del `padding`, como
-                // `BlurredActionBar.kt:126`: el fondo ya se pintó, así que suben
-                // los botones y no el fondo. Antes del `background` dejaría una
-                // franja del color de la pantalla debajo de la hoja.
-                .navigationBarsPadding()
-                .padding(MspTheme.spacing.md)
-                .testTag(HOJA_DE_ABONO_TAG)
-        ) {
-            // **La misma hoja, dos destinos.** Condonar desde el cliente
-            // pregunta lo mismo con las mismas opciones y la misma
-            // preselección; lo que cambia es qué va a pasar al continuar, y eso
-            // tiene que decirlo la hoja. Un cobrador que llegó por el "⋯" del
-            // dock no puede leer "el abono entra completo a una" y tocar
-            // Continuar creyendo que va a abonar.
-            val condonando = destino == DestinoDeLaCuenta.CONDONACION
-            Text(
-                text = if (condonando) "¿De cuál cuenta?" else "¿A cuál cuenta?",
-                style = MspTheme.type.cardTitle,
-                color = MspTheme.colors.onSurface
+    }
+}
+
+/**
+ * El cuerpo de la hoja "¿a cuál cuenta?", **sin** el `ModalBottomSheet` que lo
+ * envuelve.
+ *
+ * Extraído por la misma razón que [CuerpoDeLaFicha] en este mismo paquete y que
+ * `PrintSheetBody` en `:feature:collectionReport`: `captureRoboImage` toma la
+ * ventana raíz y no el `Popup` donde M3 monta la hoja, así que un golden de la
+ * hoja completa saldría en blanco — y `performClick()` bajo Robolectric tampoco
+ * cruza a esa ventana, así que las pruebas de toque (elegir cuenta, "Continuar")
+ * montan esta pieza directo, sin el `ModalBottomSheet`. Lo que SÍ pasa por el
+ * `Popup`, y se prueba contra [HojaDeAbono] con *queries* de semántica (que sí
+ * cruzan ventanas) en vez de toques, es que la hoja abra y cierre.
+ *
+ * Ya no dibuja su propio velo ni su propio fondo/forma: el `ModalBottomSheet`
+ * los pone. Montado suelto (en las pruebas) no tiene ni uno ni otro, que es
+ * exactamente lo que ya pasaba con [CuerpoDeLaFicha].
+ */
+@Composable
+fun CuerpoDeAbono(
+    cuentas: List<VentaDelCliente>,
+    elegida: Int?,
+    onElegir: (Int) -> Unit,
+    onContinuar: () -> Unit,
+    modifier: Modifier = Modifier,
+    ocultos: Boolean = false,
+    destino: DestinoDeLaCuenta = DestinoDeLaCuenta.ABONO
+) {
+    if (cuentas.isEmpty()) return
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(MspTheme.spacing.md)
+            .testTag(HOJA_DE_ABONO_TAG)
+    ) {
+        // **La misma hoja, dos destinos.** Condonar desde el cliente
+        // pregunta lo mismo con las mismas opciones y la misma
+        // preselección; lo que cambia es qué va a pasar al continuar, y eso
+        // tiene que decirlo la hoja. Un cobrador que llegó por el "⋯" del
+        // dock no puede leer "el abono entra completo a una" y tocar
+        // Continuar creyendo que va a abonar.
+        val condonando = destino == DestinoDeLaCuenta.CONDONACION
+        Text(
+            text = if (condonando) "¿De cuál cuenta?" else "¿A cuál cuenta?",
+            style = MspTheme.type.cardTitle,
+            color = MspTheme.colors.onSurface
+        )
+        Spacer(Modifier.height(MspTheme.spacing.xs))
+        Text(
+            text = if (condonando) {
+                "Se condona el resto de una"
+            } else {
+                "El abono entra completo a una"
+            },
+            style = MspTheme.type.caption,
+            color = MspTheme.colors.onSurfaceMuted
+        )
+        Spacer(Modifier.height(MspTheme.spacing.md))
+        cuentas.forEach { cuenta ->
+            OpcionDeCuenta(
+                cuenta = cuenta,
+                seleccionada = cuenta.ventaId == elegida,
+                ocultos = ocultos,
+                onElegir = { onElegir(cuenta.ventaId) }
             )
-            Spacer(Modifier.height(MspTheme.spacing.xs))
-            Text(
-                text = if (condonando) {
-                    "Se condona el resto de una"
-                } else {
-                    "El abono entra completo a una"
-                },
-                style = MspTheme.type.caption,
-                color = MspTheme.colors.onSurfaceMuted
-            )
-            Spacer(Modifier.height(MspTheme.spacing.md))
-            cuentas.forEach { cuenta ->
-                OpcionDeCuenta(
-                    cuenta = cuenta,
-                    seleccionada = cuenta.ventaId == elegida,
-                    ocultos = ocultos,
-                    onElegir = { onElegir(cuenta.ventaId) }
-                )
-                Spacer(Modifier.height(MspTheme.spacing.sm))
-            }
-            Spacer(Modifier.height(MspTheme.spacing.xs))
-            MspPrimaryFieldButton(
-                text = if (condonando) "Continuar a condonar" else "Continuar",
-                onClick = onContinuar,
-                enabled = elegida != null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(CONTINUAR_CON_LA_CUENTA_TAG)
-            )
+            Spacer(Modifier.height(MspTheme.spacing.sm))
         }
+        Spacer(Modifier.height(MspTheme.spacing.xs))
+        MspPrimaryFieldButton(
+            text = if (condonando) "Continuar a condonar" else "Continuar",
+            onClick = onContinuar,
+            enabled = elegida != null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(CONTINUAR_CON_LA_CUENTA_TAG)
+        )
     }
 }
 
@@ -311,12 +314,6 @@ private fun Anillo(seleccionada: Boolean) {
         )
     }
 }
-
-/** El velo que tapa la pantalla mientras la hoja está arriba. */
-private val VELO = Color(0x99000000)
-
-/** La hoja redondea solo arriba: abajo se pega al borde de la pantalla. */
-private val FORMA_DE_LA_HOJA = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
 
 /** Alto mínimo de una opción — la regla de 50 dp del repo, no los 48 de Material. */
 private val TOQUE_DE_LA_OPCION = 50.dp

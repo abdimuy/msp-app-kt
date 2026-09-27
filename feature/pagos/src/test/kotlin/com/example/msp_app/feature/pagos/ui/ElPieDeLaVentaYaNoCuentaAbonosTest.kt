@@ -72,8 +72,10 @@ class ElPieDeLaVentaYaNoCuentaAbonosTest : RobolectricTestBase() {
         // dejara de encontrar CUALQUIER celda del pie.
         monta(detalle)
 
-        ve(enVersalitas("parcialidad"))
-        ve(enVersalitas("frecuencia"))
+        // El pie de hoy: "Parcialidad" a la derecha del saldo y la pastilla
+        // "Abonado", que es donde vive ahora lo abonado en dinero.
+        ve("Parcialidad")
+        ve("Abonado")
     }
 
     @Test

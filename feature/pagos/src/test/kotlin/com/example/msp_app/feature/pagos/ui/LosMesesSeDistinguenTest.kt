@@ -498,7 +498,9 @@ class LosMesesSeDistinguenTest : RobolectricTestBase() {
         /** Dos meses de calendario, que es lo que hay que poder distinguir. */
         val LA_BITACORA = BitacoraCompleta(
             clienteId = 10388,
+            ventaId = 77188,
             nombre = "Victoria Flores Olmedo",
+            titulo = "Refrigerador Mabe 14'",
             direccion = "C. Hidalgo 214",
             contactos = listOf(
                 COBRO.copy(id = "cobro-septiembre", fecha = Instant.parse("2026-09-11T22:45:00Z")),

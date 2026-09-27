@@ -56,8 +56,6 @@ data class DetalleCliente(
     val telefonoAval: String?,
     val saldoTotal: Money,
     val ventas: List<VentaDelCliente>,
-    val contactos: List<ContactoDeCobranza>,
-    val totalContactos: Int,
     /**
      * Lo que trae la VENTA en su campo `NOTAS`, tal como llega del servidor.
      *
@@ -112,22 +110,6 @@ data class DetalleCliente(
      * [ResumenDelCliente].
      */
     val resumen: ResumenDelCliente = ResumenDelCliente(),
-    /**
-     * Los productos de TODAS sus ventas, con su importe real.
-     *
-     * A nivel cliente es la lista de lo que hay en esa casa, que es como el
-     * cobrador la reconoce ("el refri y la sala"). Sale de `products`, no del
-     * `GROUP_CONCAT` de la venta — ver
-     * [com.example.msp_app.feature.pagos.domain.port.ProductosPort].
-     *
-     * **Ya no se pinta** (decisión del dueño): esos mismos nombres encabezan
-     * cada renglón de "sus ventas" —la cuenta se nombra por su producto—, así
-     * que la hoja repetía la lista un dedo más abajo. Se queda en el modelo
-     * porque la lectura que lo llena sigue siendo obligatoria: de ella sale
-     * también el nombre de la cuenta de cada contacto de la bitácora, así que
-     * exponerla no cuesta una consulta. Quitarla es alcance aparte.
-     */
-    val productos: List<ProductoDeVenta> = emptyList(),
     /**
      * Dónde se le cobró la última vez, para el pin del mapa.
      *
@@ -296,7 +278,7 @@ enum class TipoDeContacto {
 }
 
 /**
- * Una línea de la bitácora "últimos contactos". [estado] viene del catálogo de
+ * Una línea de la bitácora de contactos. [estado] viene del catálogo de
  * ocho aplicado al literal de `TIPO_VISITA` — otra vez, consumido, no derivado
  * en la pantalla.
  */

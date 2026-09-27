@@ -807,7 +807,11 @@ fun ProductoDelCliente(producto: ProductoDeVenta, modifier: Modifier = Modifier)
     }
 }
 
-/** "Ver los N contactos ›" al pie de la bitácora. */
+/**
+ * "Ver los N contactos ›" al pie de la bitácora — o "Ver 1 contacto" en
+ * singular: "Ver los 1 contactos" lee mal y es el mismo defecto que ya se
+ * cerró en el subtítulo de la bitácora (`"N contactos"` vs `"1 contacto"`).
+ */
 @Composable
 fun VerLosContactos(cuantos: Int, onVer: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
@@ -824,7 +828,7 @@ fun VerLosContactos(cuantos: Int, onVer: () -> Unit, modifier: Modifier = Modifi
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
         ) {
             Text(
-                text = "Ver los $cuantos contactos",
+                text = if (cuantos == 1) "Ver 1 contacto" else "Ver los $cuantos contactos",
                 style = MspTheme.type.captionStrong,
                 color = MspTheme.colors.brand
             )

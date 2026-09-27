@@ -485,7 +485,6 @@ class ElFondoDeLaPuertaYLosDatosTest : RobolectricTestBase() {
                         onAbrirVenta = {},
                         onRegistrarAbono = {},
                         onRegistrarVisita = {},
-                        onVerContactos = {},
                         onAlternarTema = {},
                         onAlternarPrivacidad = {},
                         onVerUbicacion = onVerUbicacion,

@@ -134,8 +134,9 @@ private fun UbicacionConectada(
     UbicacionScreen(
         state = state,
         onAtras = onAtras,
-        onComoLlegar = { lugar -> viewModel.comoLlegar(lugar, direccion) },
+        onComoLlegar = { lugar -> viewModel.comoLlegar(lugar.lugar, direccion) },
         onFiltro = viewModel::cambiarFiltro,
+        onTocarLugar = viewModel::tocarLugar,
         onAlternarTema = onAlternarTema
     )
 }

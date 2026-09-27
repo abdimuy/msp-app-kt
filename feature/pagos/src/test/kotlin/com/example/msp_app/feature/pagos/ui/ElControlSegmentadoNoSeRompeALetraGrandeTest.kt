@@ -352,13 +352,18 @@ class ElControlSegmentadoNoSeRompeALetraGrandeTest : RobolectricTestBase() {
         /** Medio dp en `xhdpi`, por redondeo a píxel — igual que [ElRenglonDeAbajoNoSeSaleTest]. */
         const val TOLERANCIA_PX = 1f
 
-        /** La MISMA fixture que produce `pagos_bitacora_*` — 5 contactos: 3 cobros, 2 visitas, 1 promesa. */
-        val BITACORA: BitacoraCompleta = PagosFixtures.detalleCliente().let { detalle ->
+        /**
+         * La MISMA derivación que `BitacoraMatrixScreenshotTest` — la bitácora es
+         * por VENTA, filtrada a los contactos de esa cuenta.
+         */
+        val BITACORA: BitacoraCompleta = PagosFixtures.detalleVenta().let { detalle ->
             BitacoraCompleta(
                 clienteId = detalle.clienteId,
-                nombre = detalle.nombre,
+                ventaId = detalle.ventaId,
+                nombre = detalle.clienteNombre,
+                titulo = detalle.titulo,
                 direccion = detalle.direccion,
-                contactos = detalle.contactos,
+                contactos = detalle.contactos.filter { it.ventaId == detalle.ventaId },
                 hoy = detalle.hoy
             )
         }

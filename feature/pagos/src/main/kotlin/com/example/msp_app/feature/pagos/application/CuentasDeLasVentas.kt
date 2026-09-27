@@ -63,7 +63,7 @@ internal fun Map<Int, List<ProductoDeVenta>>.aCuentas(): Map<Int, String> =
 /**
  * Atajo de [productosPorVenta] + [aCuentas] para el llamador que solo
  * necesita el mapa de cuentas y no los renglones completos —
- * [CargarBitacoraDelCliente]. [CargarDetalleCliente] y [CargarDetalleVenta] NO
+ * [CargarBitacoraDeLaVenta]. [CargarDetalleCliente] y [CargarDetalleVenta] NO
  * lo usan: los dos piden [productosPorVenta] directo porque además necesitan
  * los renglones completos para su propia sección "productos", y derivar de
  * ahí evita pedirlos dos veces — ver el KDoc de `CargarDetalleVenta.invoke`

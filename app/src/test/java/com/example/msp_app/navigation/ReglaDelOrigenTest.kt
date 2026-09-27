@@ -159,17 +159,26 @@ class ReglaDelOrigenTest {
     // -----------------------------------------------------------------------
 
     /**
-     * Punto de entrada: "ver los N contactos" del detalle de cliente — lo único
-     * que el "⋯" retirado sí llevaba y que ahora tiene destino propio.
+     * Punto de entrada: "Ver los N contactos" del detalle de **venta**. El
+     * detalle de cliente perdió su sección "últimos contactos" (decisión del
+     * dueño) y con ella su puerta a la bitácora; la que queda es ésta.
      *
-     * Viaja el `clienteId` porque la bitácora es del **domicilio**: mandar la
-     * lista ya armada la congelaría en lo que se leyó al abrir el detalle.
+     * Viaja el `ventaId` —el `DOCTO_CC_ACR_ID`— porque la bitácora es de la
+     * **cuenta**: mandar la lista ya armada la congelaría en lo que se leyó al
+     * abrir el detalle. Se afirma también que NO viaja el `clienteId`: la ruta
+     * vieja lo llevaba, y un id del espacio equivocado es justo el defecto que
+     * este archivo existe para atrapar.
      */
     @Test
-    fun `desde el cliente, ver los contactos abre SU bitacora`() {
-        nav.navigate(PagosRutas.bitacora(CLIENTE))
+    fun `desde la venta, ver los contactos abre la bitacora de ESA venta`() {
+        nav.navigate(PagosRutas.bitacora(VENTA))
         assertEquals(PagosRutas.BITACORA, ruta())
-        assertEquals(CLIENTE, argInt(PagosRutas.ARG_CLIENTE_ID))
+        assertEquals(VENTA, argInt(PagosRutas.ARG_VENTA_ID))
+        assertEquals(
+            false,
+            nav.currentBackStackEntry?.arguments?.containsKey(PagosRutas.ARG_CLIENTE_ID)
+        )
+        assertNotEquals(PagosRutas.bitacora(CLIENTE), PagosRutas.bitacora(VENTA))
     }
 
     /** Punto de entrada: la fila de venta dentro de una puerta, en la lista. */

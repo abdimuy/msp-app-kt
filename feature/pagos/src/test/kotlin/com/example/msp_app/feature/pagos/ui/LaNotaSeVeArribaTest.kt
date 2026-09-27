@@ -13,7 +13,6 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpRect
@@ -436,65 +435,35 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
         )
     }
 
-    // --- El detalle de venta: la nota de la oficina --------------------------
-
-    @Test
-    fun `en la venta la nota tambien sube, y sin boton de editar`() {
-        venta()
-
-        composeTestRule.onNodeWithTag(NOTA_DESTACADA_TAG).assertIsDisplayed()
-        composeTestRule.onNodeWithText("NOTA DE LA VENTA").assertIsDisplayed()
-        assertEquals(
-            "se ofreció editar una nota que el cobrador no puede escribir: la manda " +
-                "la oficina en `sales.NOTAS` y esta pantalla no tiene editor",
-            0,
-            composeTestRule.onAllNodesWithTag(EDITAR_NOTA_DESTACADA_TAG)
-                .fetchSemanticsNodes().size
-        )
-    }
+    // --- El detalle de venta: YA NO pinta nota -----------------------------
 
     /**
-     * El control positivo del de arriba: **el mismo selector SÍ encuentra un
-     * botón** en el detalle de cliente, donde la nota sí se edita. Sin esto, un
-     * `testTag` mal escrito daría cero en las dos pantallas y el test de arriba
-     * pasaría sin distinguir nada.
+     * **La venta ya no pinta nota**, ni arriba ni el vacío al fondo. Decisión
+     * del dueño sobre el mock `detalle-de-venta-final.html`: esa nota era la
+     * del cliente, no la de la cuenta. El control positivo es el de abajo: el
+     * MISMO selector sí encuentra la tarjeta en el detalle de cliente.
      */
     @Test
-    fun `control positivo - en el cliente el mismo selector si encuentra el boton`() {
-        cliente()
-
-        assertEquals(
-            1,
-            composeTestRule.onAllNodesWithTag(EDITAR_NOTA_DESTACADA_TAG)
-                .fetchSemanticsNodes().size
-        )
-    }
-
-    @Test
-    fun `en la venta la nota queda arriba del saldo`() {
+    fun `la venta no pinta la nota ni el vacio del fondo`() {
         venta()
 
-        val tarjeta = bordesDe(NOTA_DESTACADA_TAG)
-        val saldo = composeTestRule.onNodeWithText(SALDO_DE_LA_VENTA).getUnclippedBoundsInRoot()
-        assertTrue(
-            "la tarjeta termina en " + tarjeta.bottom + " y el saldo empieza en " +
-                saldo.top + ": la nota no quedó arriba",
-            tarjeta.bottom <= saldo.top
+        assertEquals("la venta volvió a pintar una tarjeta de nota", 0, cuantasTarjetas())
+        assertEquals(
+            "la venta volvió a decir que no hay notas",
+            0,
+            composeTestRule.onAllNodesWithText("Sin notas de esta venta").fetchSemanticsNodes().size
+        )
+        assertEquals(
+            0,
+            composeTestRule.onAllNodesWithText("NOTA DE LA VENTA").fetchSemanticsNodes().size
         )
     }
 
-    /** Sin nota del servidor, arriba no hay nada y abajo se dice que no hay. */
     @Test
-    fun `sin nota la venta no pinta tarjeta arriba, y lo dice abajo`() {
-        venta(nota = null)
+    fun `control positivo - en el cliente el mismo selector si ve la tarjeta`() {
+        cliente()
 
-        assertEquals(0, cuantasTarjetas())
-        // Con `performScrollTo` a propósito: el vacío vive AL FONDO y no se ve
-        // sin desplazar. Es el precio aceptado — "no hay nota" no es accionable
-        // y no puede empujar el saldo.
-        composeTestRule.onNodeWithText("Sin notas de esta venta")
-            .performScrollTo()
-            .assertIsDisplayed()
+        assertEquals(1, cuantasTarjetas())
     }
 
     // ------------------------------------------------------------------------
@@ -555,21 +524,20 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
             onAbrirVenta = {},
             onRegistrarAbono = {},
             onRegistrarVisita = {},
-            onVerContactos = {},
             onAlternarTema = {},
             onAlternarPrivacidad = {},
             fichaDelCliente = AccionesDeLaFicha(onEditar = { abrio += 1 })
         )
     }
 
-    private fun venta(nota: String? = NOTA_DE_LA_VENTA) {
+    private fun venta() {
         composeTestRule.setContent {
             CompositionLocalProvider(LocalFontSizeLevel provides NIVEL) {
                 MspTheme(darkTheme = false, animateColors = false) {
                     DetalleVentaContent(
                         state = DetalleVentaUiState(
                             cargando = false,
-                            detalle = PagosFixtures.detalleVenta().copy(nota = nota)
+                            detalle = PagosFixtures.detalleVenta()
                         ),
                         onAtras = {},
                         onRegistrarAbono = {},
@@ -598,12 +566,6 @@ class LaNotaSeVeArribaTest : RobolectricTestBase() {
 
         /** El primer renglón de la nota del fixture, que es lo que se asoma. */
         const val NOTA = "atiende la suegra"
-
-        /** La nota que el servidor manda con la venta del fixture. */
-        const val NOTA_DE_LA_VENTA = "entrega en la puerta de atrás"
-
-        /** El rótulo de la tarjeta de saldo del detalle de venta, en versalitas. */
-        const val SALDO_DE_LA_VENTA = "SALDO DE ESTA VENTA"
 
         /**
          * Una nota que NO cabe en dos renglones a 360 dp. Es larga a propósito:

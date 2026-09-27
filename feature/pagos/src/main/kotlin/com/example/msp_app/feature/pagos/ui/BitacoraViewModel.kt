@@ -5,7 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.msp_app.core.telemetry.Telemetry
-import com.example.msp_app.feature.pagos.application.CargarBitacoraDelCliente
+import com.example.msp_app.feature.pagos.application.CargarBitacoraDeLaVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
 import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
@@ -41,28 +41,33 @@ data class BitacoraUiState(
 )
 
 /**
- * La bitácora completa como **destino propio**.
+ * La bitácora completa como **destino propio**, hoy por VENTA.
  *
  * Existe porque el "⋯" del detalle se fue. Ese botón apuntaba a la pantalla
  * legada y era, sin que se notara, el único camino a "ver los N contactos":
  * quitarlo sin darle casa a la bitácora habría borrado una función de verdad,
  * no un botón.
  *
+ * **Por venta y no por cliente.** El detalle de cliente perdió su sección
+ * "últimos contactos" (decisión del dueño): la única puerta a esta pantalla es
+ * hoy "ver los N contactos" del detalle de VENTA, así que lee
+ * [PagosRutas.ARG_VENTA_ID] y no [PagosRutas.ARG_CLIENTE_ID].
+ *
  * `@HiltViewModel`, sin `@Singleton` (kill-switch de baseURL).
  */
 @HiltViewModel
 class BitacoraViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    private val cargarBitacoraDelCliente: CargarBitacoraDelCliente,
+    private val cargarBitacoraDeLaVenta: CargarBitacoraDeLaVenta,
     private val privacidad: PrivacidadPort,
     private val tema: TemaDeLaAppPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
 
-    /** El cliente cuya bitácora se abrió, leído del `SavedStateHandle`. */
-    val clienteId: Int = checkNotNull(savedStateHandle.get<Int>(PagosRutas.ARG_CLIENTE_ID)) {
-        "BitacoraViewModel sin ${PagosRutas.ARG_CLIENTE_ID} en el SavedStateHandle"
+    /** La venta cuya bitácora se abrió, leída del `SavedStateHandle`. */
+    val ventaId: Int = checkNotNull(savedStateHandle.get<Int>(PagosRutas.ARG_VENTA_ID)) {
+        "BitacoraViewModel sin ${PagosRutas.ARG_VENTA_ID} en el SavedStateHandle"
     }
 
     private val mutableState = MutableStateFlow(BitacoraUiState())
@@ -138,7 +143,7 @@ class BitacoraViewModel @Inject constructor(
         "TooGenericExceptionCaught"
     ) // cualquier fallo de Room/Firestore degrada igual; se reporta.
     private suspend fun leer(): BitacoraUiState = try {
-        val bitacora = withContext(io) { cargarBitacoraDelCliente(clienteId) }
+        val bitacora = withContext(io) { cargarBitacoraDeLaVenta(ventaId) }
         BitacoraUiState(
             cargando = false,
             bitacora = bitacora,
@@ -149,7 +154,7 @@ class BitacoraViewModel @Inject constructor(
     } catch (fallo: Throwable) {
         telemetry.error(
             code = PagosTelemetria.CODE_BITACORA_FALLO,
-            message = "no se pudo armar la bitacora del cliente",
+            message = "no se pudo armar la bitacora de la venta",
             props = mapOf(PagosTelemetria.PROP_EXCEPCION to fallo.javaClass.simpleName)
         )
         BitacoraUiState(cargando = false, error = ErrorDeDetalle.FALLO_LA_CARGA)

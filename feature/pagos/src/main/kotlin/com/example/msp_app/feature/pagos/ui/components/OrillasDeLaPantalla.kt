@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -113,13 +114,50 @@ fun VeloDeLaBarraDeEstado(modifier: Modifier = Modifier, backdrop: MspBackdrop? 
 fun ControlesFlotantes(modifier: Modifier = Modifier, contenido: @Composable () -> Unit) {
     Row(
         modifier = modifier
-            .padding(end = MspTheme.spacing.md, top = MspTheme.spacing.sm)
+            .padding(end = MspTheme.spacing.md, top = AIRE_SOBRE_LOS_CONTROLES)
+            .height(ALTO_DE_LOS_CONTROLES)
             .testTag(CONTROLES_FLOTANTES_TAG),
-        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm)
+        horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         contenido()
     }
 }
+
+/**
+ * **Cuánto bajan los controles flotantes desde el inset de la barra de estado.**
+ *
+ * Es `spacing.sm` escrito como constante, y no por gusto: el **encabezado
+ * compacto se alinea contra este número**. Mientras fue un `MspTheme.spacing.sm`
+ * suelto adentro de la fila, el encabezado no tenía nada a lo que alinearse y
+ * empezaba pegado al inset — 8 dp más arriba que los botones.
+ */
+val AIRE_SOBRE_LOS_CONTROLES: Dp = 8.dp
+
+/**
+ * **El alto de la fila de controles flotantes: 48 dp, fijo.**
+ *
+ * ## No es el tamaño de los toggles, y por eso está escrito
+ *
+ * `MspThemeToggle` y `MspPrivacyEyeToggle` miden **40**. Los 48 los mete la
+ * pastilla de la ficha, que viaja con ellos **sólo cuando tiene algo que
+ * gritar**. Dejando que la fila midiera lo que midieran sus hijos, la esquina
+ * **cambiaba de alto según el cliente**: 48 dp con advertencia, 40 sin ella.
+ *
+ * Eso se encontró midiendo el desfase que el dueño reportó el 2026-09-25, y es
+ * un defecto aparte del que él vio: dos clientes seguidos movían el ojo y el
+ * sol/luna cuatro dp, en una esquina que es de las pocas que se alcanzan sin
+ * desplazar.
+ *
+ * Fijándolo, la esquina se queda quieta pase lo que pase y el encabezado
+ * compacto tiene contra qué alinearse. Los toggles de 40 se centran dentro.
+ *
+ * **Que no se desincronice lo cobra una prueba, no este comentario**:
+ * `ElEncabezadoSeAlineaConLosControlesTest` mide las dos cajas **en pantalla**.
+ * Es a propósito que no lea esta constante — un test que leyera el número que
+ * debería fijar no probaría nada.
+ */
+val ALTO_DE_LOS_CONTROLES: Dp = 48.dp
 
 /**
  * Un control flotante, con su propio suelo opaco.

@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -95,6 +96,8 @@ fun HojaDelContacto(
     onCerrar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Atrás cierra la hoja y no la pantalla — mismo motivo que [HojaDeAbono].
+    BackHandler(onBack = onCerrar)
     Box(modifier = modifier.fillMaxSize()) {
         Box(
             modifier = Modifier

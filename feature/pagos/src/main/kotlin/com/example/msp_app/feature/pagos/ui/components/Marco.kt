@@ -1,5 +1,6 @@
 package com.example.msp_app.feature.pagos.ui.components
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,9 +29,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.msp_app.core.designsystem.component.MspBackdrop
 import com.example.msp_app.core.designsystem.component.MspPrimaryFieldButton
@@ -95,12 +98,6 @@ const val CTA_VISITA_TAG: String = "pagos_cta_visita"
 const val CTA_NOTAS_TAG: String = "pagos_cta_notas"
 
 /**
- * `testTag` del botón de Condonar del dock — el tercer espacio del detalle de
- * venta, hermano de [CTA_NOTAS_TAG] en el detalle de cliente. Ver [DockDeAcciones].
- */
-const val CTA_CONDONAR_TAG: String = "pagos_cta_condonar"
-
-/**
  * `testTag` del distintivo del botón de Notas: el punto que dice que esa puerta
  * tiene algo anotado. Aparte del botón porque el botón existe SIEMPRE y el punto
  * no — un test que sólo mirara el botón no podría distinguir los dos estados.
@@ -125,6 +122,82 @@ private val PUNTO = 8.dp
  * porque ningún reparto alcanza. Ver el comentario de [DockDeAcciones].
  */
 private const val PESO_DEL_CTA = 2.0f
+
+/**
+ * **El aire entre el final del degradado y el primer botón del dock: 4 dp.**
+ *
+ * No es el relleno de los otros tres lados y no debería serlo. Arriba del dock
+ * no hay contenido del que separarse: hay una banda que ya cerró a sólido, y
+ * cada dp que se le suma acá es un dp de fondo liso — negro o blanco según el
+ * tema— que sube el borde visible del bloque sin dar nada a cambio.
+ *
+ * Cuatro y no cero porque el canto del degradado y el canto del botón **no
+ * pueden coincidir**: pegados, la esquina redonda del CTA se recorta contra el
+ * punto más opaco de la rampa y se lee como un error de dibujo.
+ */
+private val AIRE_SOBRE_EL_DOCK: Dp = 4.dp
+
+/**
+ * **Cuánto sigue bajando la rampa después de que el fade terminó: 16 dp.**
+ *
+ * O sea: el degradado **no** cierra donde empieza el bloque de botones, sino
+ * 16 dp más abajo — ya metido en ellos.
+ *
+ * ## Por qué esto, y no una banda translúcida
+ *
+ * El intento anterior fue dejar toda la meseta a media tinta para que se viera
+ * lo de atrás entre los botones. El dueño lo descartó en dos pasos el mismo día.
+ * Primero no se veía —a 0.88 sobre una paleta OLED, el 12 % que pasaba daba
+ * `(3,4,3)`, medido en su captura— y al bajarlo a 0.60 dijo lo que de verdad
+ * quería: *"no quiero que todo se traslucide, sólo la parte de arriba mientras
+ * se difumina, que el difuminado termine hasta un poco abajo del punto más alto
+ * de los botones"*.
+ *
+ * Son dos cosas distintas y conviene no volver a confundirlas:
+ *
+ *  - **meseta translúcida** = la banda entera deja ver, de arriba abajo. Es lo
+ *    que hace el telón sobre el mapa, y acá está **descartado**.
+ *  - **solape** = la banda cierra a sólido igual que siempre, pero unos dp más
+ *    tarde. Lo único translúcido es el tramo de rampa que cae sobre los botones,
+ *    y como ellos son opacos, se ve sólo en los huecos horizontales y sólo en su
+ *    parte de arriba. Es esto.
+ *
+ * ## Por qué 16
+ *
+ * El CTA mide ~68 dp, así que 16 son su cuarto superior: bastante para que el
+ * canto de la banda deje de coincidir con el canto del botón —que es lo que la
+ * hacía leerse alta por más dp que se le quitaran— y poco para que el texto de
+ * las etiquetas quede entero sobre fondo sólido.
+ */
+private val SOLAPE_DEL_DOCK: Dp = 16.dp
+
+/**
+ * **Cuánto se levanta el color de la banda por encima del fondo de la página:
+ * 35 % del camino hacia `surface`.**
+ *
+ * ## El problema que resuelve es del tema, no del diseño
+ *
+ * La paleta oscura de esta app es OLED pura: `background = #000000`. Con la
+ * banda pintada de ese mismo negro, **un hueco sin nada detrás y un degradado ya
+ * cerrado dan el mismo píxel** — medido el 2026-09-25 en los huecos entre los
+ * botones del dueño, `(0,0,0)` en los dos casos. No hay velo ni solape que
+ * arregle eso: no es que el efecto falle, es que no hay nada que distinguir.
+ *
+ * A 0.35 la banda queda en **`#070908`** en oscuro y en **`#F8FAF9`** en claro:
+ * se lee como un panel apoyado sobre la página en vez de como la página misma, y
+ * en oscuro eso basta para que el bloque tenga borde propio aunque detrás no
+ * pase contenido.
+ *
+ * ## Por qué NO más
+ *
+ * Porque los botones secundarios —`Visita` y el `⋮`— se pintan con
+ * `colors.surface` (`#141917` en oscuro), que es justamente el destino de esta
+ * interpolación. Llevar la banda más cerca de `surface` los borra: el botón y su
+ * fondo se vuelven el mismo color y el dock se convierte en una mancha con
+ * texto. A 0.35 queda la mitad del recorrido entre los dos, que es el contraste
+ * que separa el botón de su banda.
+ */
+private const val ELEVACION_DEL_DOCK = 0.35f
 
 /**
  * La fila de navegación del mock (`.nav`): solo "atrás".
@@ -258,22 +331,14 @@ private fun BotonCircular(
  * el síntoma sería un control que se ve, se toca y no hace nada. Así el tipo no
  * deja escribir ese estado.
  *
- * ## [condonar] — el tercer espacio del detalle de VENTA
+ * ## [unaSolaFila] — el detalle de VENTA no se apila
  *
- * Hermano de [notas] y con el mismo criterio: `null` es "esta pantalla no
- * ofrece condonar" y una lambda es la puerta. El detalle de cliente lo deja en
- * `null` —condonar es de una CUENTA, no de una persona— y el de venta es quien
- * lo manda siempre, sin depender de que haya oferta de liquidación: son dos
- * acciones de dinero distintas (`"una cosa es usar el botón de 'usar' para
- * aplicar el pago y otra cosa es para condonar todo el resto que sobra"`) y la
- * condonación tiene que poder alcanzarse aunque esta cuenta no tenga liquidación
- * vigente hoy.
- *
- * Reusa [BotonDelDock] con `relleno = surface`, igual que [notas] — nunca un
- * fill rojo de `MspPrimaryFieldButton`: forzar `Danger` ahí rompería el mismo
- * peso visual que el KDoc de arriba ya protege para el resto del dock. El
- * riesgo de la acción lo dice el color del CONTENIDO (`danger`), no el relleno
- * del botón — el mismo idioma que ya usa el distintivo de "Con advertencia".
+ * Decisión del dueño sobre el mock `detalle-de-venta-final.html`: en la venta
+ * el dock es siempre UNA fila —Abonar | Visita | ⋯— también a letra grande,
+ * porque su CTA pasa de "Abonar $220" a "Abonar" y entonces sí cabe. A las
+ * escalas grandes "Visita" mide su palabra (sin `weight`) y el CTA toma el
+ * resto, con el margen lateral en 8 dp como ya hacía el dock apilado. El
+ * detalle de cliente lo deja en `false` y su dock no cambia.
  */
 @Composable
 fun DockDeAcciones(
@@ -284,7 +349,7 @@ fun DockDeAcciones(
     backdrop: MspBackdrop? = null,
     menu: MenuDelDock? = null,
     notas: AccionDeNotas? = null,
-    condonar: (() -> Unit)? = null
+    unaSolaFila: Boolean = false
 ) {
     // **Apilar antes de partir** (principio 9). Con tres celdas en una sola fila,
     // a escala 2.0 los 360 dp dejan ~74 dp por botón y el texto se rompe A MITAD
@@ -296,13 +361,18 @@ fun DockDeAcciones(
     // acciones bajan al siguiente. Cuesta un renglón de alto, que es lo que ya
     // costaba el texto partido, y a cambio no hay una sola palabra rota. A
     // NORMAL no se toca nada: los goldens de 1.0 se quedan como estaban.
-    val apilado = LocalFontSizeLevel.current != FontSizeLevel.NORMAL
+    val letraGrande = LocalFontSizeLevel.current != FontSizeLevel.NORMAL
+    val apilado = letraGrande && !unaSolaFila
     val conMenu = menu != null && !menu.vacio
     var abierto by rememberSaveable { mutableStateOf(false) }
     // El menú se cierra solo si la pantalla deja de ofrecerlo: un menú abierto
     // sobre un dock que ya no lo tiene sería un velo que nadie puede quitar.
     if (!conMenu && abierto) abierto = false
     val sinMovimiento = rememberMspReducedMotion()
+    // Con el menú abierto, atrás lo cierra — el mismo gesto que el velo. Sin
+    // esto el botón de Android se lo llevaba el `NavHost` y salía de la
+    // pantalla con el menú todavía desplegado. Ver `AtrasCierraLasHojasTest`.
+    BackHandler(enabled = abierto) { abierto = false }
     Box(modifier = modifier.fillMaxSize()) {
         if (abierto) {
             VeloDelMenu(onCerrar = { abierto = false }, modifier = Modifier.matchParentSize())
@@ -311,7 +381,17 @@ fun DockDeAcciones(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .testTag(BARRA_BLANDA_TAG),
-            backdrop = backdrop
+            backdrop = backdrop,
+            // **El difuminado termina metido en los botones, no encima de
+            // ellos.** Ver [SOLAPE_DEL_DOCK].
+            solape = SOLAPE_DEL_DOCK,
+            // **La banda no es del color de la página: está un punto por
+            // encima.** Ver [ELEVACION_DEL_DOCK].
+            tinte = lerp(
+                MspTheme.colors.background,
+                MspTheme.colors.surface,
+                ELEVACION_DEL_DOCK
+            )
         ) {
             Column(
                 modifier = Modifier
@@ -319,7 +399,29 @@ fun DockDeAcciones(
                     // A escalas grandes el aire del dock se aprieta: cada dp que se
                     // queda acá es un dp que le quita al saldo, y el saldo es por lo
                     // que el cobrador abrió la pantalla.
-                    .padding(if (apilado) MspTheme.spacing.sm else MspTheme.spacing.md)
+                    .padding(
+                        start = if (letraGrande) MspTheme.spacing.sm else MspTheme.spacing.md,
+                        end = if (letraGrande) MspTheme.spacing.sm else MspTheme.spacing.md,
+                        bottom = if (letraGrande) MspTheme.spacing.sm else MspTheme.spacing.md,
+                        // **Arriba NO lleva el mismo relleno, y ésta es la razón.**
+                        //
+                        // Este relleno se suma al `fade` de la barra, que ya
+                        // termina de cerrar justo donde empieza esta columna. O
+                        // sea que eran 16 dp de **fondo plano** metidos entre el
+                        // punto donde el degradado cerró y el primer botón: no
+                        // separaban de nada, porque lo de arriba ya está tapado.
+                        //
+                        // El dueño lo vio en el aparato el 2026-09-25: *"ese
+                        // elemento hazlo no tan alto, porque arriba deja mucho
+                        // espacio en negro o blanco dependiendo del tema"*. Medido
+                        // sobre su captura, la franja de fondo liso encima del CTA
+                        // era de ~26 dp y 16 de esos eran esto.
+                        //
+                        // Quedan [AIRE_SOBRE_EL_DOCK] para que el botón no nazca
+                        // pegado al canto del degradado. La separación de verdad
+                        // la da el fade, que es exactamente su trabajo.
+                        top = AIRE_SOBRE_EL_DOCK
+                    )
                     .testTag(DOCK_DE_ACCIONES_TAG),
                 verticalArrangement = Arrangement.spacedBy(MspTheme.spacing.xs)
             ) {
@@ -340,11 +442,12 @@ fun DockDeAcciones(
                         text = textoPrimario,
                         onClick = onPrimario,
                         modifier = Modifier
-                            .weight(if (apilado) 1f else PESO_DEL_CTA)
-                            .testTag(CTA_PRIMARIO_TAG)
+                            .weight(if (apilado || letraGrande) 1f else PESO_DEL_CTA)
+                            .testTag(CTA_PRIMARIO_TAG),
+                        maxLines = if (unaSolaFila) 1 else Int.MAX_VALUE
                     )
                     if (!apilado) {
-                        AccionesDelDock(onVisita, notas, condonar)
+                        AccionesDelDock(onVisita, notas, visitaASuPalabra = letraGrande)
                         if (conMenu) {
                             BotonDelMenu(
                                 abierto = abierto,
@@ -361,7 +464,7 @@ fun DockDeAcciones(
                         horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        AccionesDelDock(onVisita, notas, condonar)
+                        AccionesDelDock(onVisita, notas)
                         if (conMenu) {
                             BotonDelMenu(
                                 abierto = abierto,
@@ -386,28 +489,17 @@ fun DockDeAcciones(
 private fun RowScope.AccionesDelDock(
     onVisita: () -> Unit,
     notas: AccionDeNotas?,
-    condonar: (() -> Unit)? = null
+    visitaASuPalabra: Boolean = false
 ) {
     BotonDelDock(
         texto = "Visita",
         relleno = MspTheme.colors.surface,
         contenido = MspTheme.colors.onSurface,
         onClick = onVisita,
-        modifier = Modifier
-            .weight(1f)
-            .testTag(CTA_VISITA_TAG)
+        modifier = (if (visitaASuPalabra) Modifier else Modifier.weight(1f))
+            .testTag(CTA_VISITA_TAG),
+        unRenglon = visitaASuPalabra
     )
-    if (condonar != null) {
-        BotonDelDock(
-            texto = "Condonar",
-            relleno = MspTheme.colors.surface,
-            contenido = MspTheme.colors.danger,
-            onClick = condonar,
-            modifier = Modifier
-                .weight(1f)
-                .testTag(CTA_CONDONAR_TAG)
-        )
-    }
     if (notas != null) {
         BotonDelDock(
             texto = "Notas",
@@ -441,7 +533,8 @@ private fun BotonDelDock(
     contenido: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    distintivo: Pair<Color, String>? = null
+    distintivo: Pair<Color, String>? = null,
+    unRenglon: Boolean = false
 ) {
     Surface(
         onClick = onClick,
@@ -454,6 +547,7 @@ private fun BotonDelDock(
                 text = texto,
                 style = MspTheme.type.buttonLarge,
                 color = contenido,
+                maxLines = if (unRenglon) 1 else Int.MAX_VALUE,
                 modifier = Modifier.padding(horizontal = MspTheme.spacing.sm)
             )
             distintivo?.let { (color, descripcion) -> PuntoDelDistintivo(color, descripcion) }

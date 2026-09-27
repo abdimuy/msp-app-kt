@@ -181,7 +181,6 @@ private fun Cliente(ficha: FichaDelCliente?) {
         onAbrirVenta = {},
         onRegistrarAbono = {},
         onRegistrarVisita = {},
-        onVerContactos = {},
         onAlternarTema = {},
         onAlternarPrivacidad = {},
         fichaDelCliente = AccionesDeLaFicha()

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
+import com.example.msp_app.core.designsystem.component.MASKED_MONEY
 import com.example.msp_app.core.designsystem.component.MspCard
 import com.example.msp_app.core.designsystem.component.MspStatusChip
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -90,34 +91,48 @@ fun ChipDeEstado(estado: EstadoDelPeriodo, modifier: Modifier = Modifier) {
 }
 
 /**
- * El estado en grande de la pantalla de venta (`.stbig` del mock): cuadro de
- * 44dp, etiqueta y la línea que dice qué hacer.
+ * El estado en grande de la pantalla de venta (`.estado` del mock final):
+ * cuadro de 36 dp, etiqueta y la línea que dice qué hacer.
+ *
+ * [ocultos] tapa el monto de la promesa (*"Prometió $220 el 15 sept"*) con
+ * [MASKED_MONEY]: el ojo esconde TODA cantidad de la pantalla, y ésta es una.
+ * La fecha se queda — no es una cantidad.
  */
 @Composable
-fun EstadoEnGrande(estado: EstadoDelPeriodo, modifier: Modifier = Modifier) {
+fun EstadoEnGrande(
+    estado: EstadoDelPeriodo,
+    modifier: Modifier = Modifier,
+    ocultos: Boolean = false
+) {
     val visual = estadoVisualDe(estado)
-    Tarjeta(modifier = modifier) {
+    MspCard(modifier = modifier.fillMaxWidth(), shape = MspTheme.shapes.card) {
         Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(MspTheme.spacing.sm + MspTheme.spacing.xs)
         ) {
-            CuadroDeEstado(visual, lado = 44.dp)
+            CuadroDeEstado(visual, lado = 36.dp)
             Column {
                 Text(
-                    text = visual.etiqueta,
-                    style = MspTheme.type.cardTitle,
+                    text = if (ocultos) enmascaraMontos(visual.etiqueta) else visual.etiqueta,
+                    style = MspTheme.type.name,
                     color = MspTheme.colors.onSurface,
                     modifier = Modifier.testTag(ETIQUETA_DE_ESTADO_TAG)
                 )
                 Text(
                     text = visual.detalle,
-                    style = MspTheme.type.caption,
+                    style = MspTheme.type.saleMeta,
                     color = MspTheme.colors.onSurfaceMuted
                 )
             }
         }
     }
 }
+
+/** Cambia cada `$1,234` de un texto por [MASKED_MONEY]. */
+internal fun enmascaraMontos(texto: String): String = MONTO_EN_TEXTO.replace(texto) { MASKED_MONEY }
+
+private val MONTO_EN_TEXTO = Regex("""-?\$[\d,]+(\.\d+)?""")
 
 /**
  * El label de sección del mock (`.sl` = `10px/700`, `letter-spacing:.16em`,

@@ -74,72 +74,39 @@ class GruposYFiltrosDeContactosTest {
         assertNotNull(GruposDeContactos.porMes(TODOS).first().cobrado)
     }
 
-    // --- Agrupar por cercanía ------------------------------------------------
-
-    @Test
-    fun `por cercania parte en hoy, esta semana, este mes y antes`() {
-        val grupos = GruposDeContactos.porCercania(TODOS, HOY)
-
-        assertEquals(
-            listOf("Hoy", "Esta semana", "Este mes", "Antes"),
-            grupos.map { it.titulo }
-        )
-    }
+    // --- La muestra del detalle de venta (sin subtotal) -----------------------
 
     /**
-     * Un encabezado sin filas debajo es un hueco que se lee como un error de
-     * carga, no como "no hubo nada esa semana".
+     * **La muestra parte en los MISMOS meses que la lista completa.** Sólo
+     * cambia el subtotal (ver los dos tests de abajo), nunca los tramos: el
+     * detalle de venta pinta los cinco más recientes de esa cuenta y tienen
+     * que verse agrupados igual que si fueran la historia completa.
      */
     @Test
-    fun `los tramos vacios no se emiten`() {
-        val soloDeHoy = listOf(cobro("2026-09-18T16:42:00Z", "300"))
-
-        val grupos = GruposDeContactos.porCercania(soloDeHoy, HOY)
-
-        assertEquals(listOf("Hoy"), grupos.map { it.titulo })
-        grupos.forEach { assertTrue("${it.titulo} salió vacío", it.contactos.isNotEmpty()) }
-    }
-
-    /**
-     * La semana se cuenta **hacia atrás desde hoy**, no desde el lunes: el
-     * cobrador pregunta "¿fui esta semana?" queriendo decir "en estos días".
-     * El 12 de septiembre está a seis días del 18 y entra; el 11 está a siete
-     * y ya no.
-     */
-    @Test
-    fun `la semana son siete dias hacia atras, no el lunes del calendario`() {
-        val seisDias = visita("2026-09-12T16:00:00Z")
-        val sieteDias = visita("2026-09-11T16:00:00Z")
-
+    fun `muestraPorMes agrupa en los mismos meses que porMes`() {
         assertEquals(
-            "Esta semana",
-            GruposDeContactos.porCercania(listOf(seisDias), HOY).single().titulo
-        )
-        assertEquals(
-            "Este mes",
-            GruposDeContactos.porCercania(listOf(sieteDias), HOY).single().titulo
+            GruposDeContactos.porMes(TODOS).map { it.titulo },
+            GruposDeContactos.muestraPorMes(TODOS).map { it.titulo }
         )
     }
 
     /**
-     * **Por cercanía NUNCA reporta subtotal, ni cuando hay cobros adentro.**
+     * **`muestraPorMes` NUNCA reporta subtotal, ni cuando hay cobros adentro.**
      *
-     * Esta regla se invirtió a propósito: antes `porCercania` sumaba igual que
-     * [GruposDeContactos.porMes], y eso era el defecto. Su único llamador es el
-     * detalle de cliente, que le pasa **tres** contactos de veintisiete, así que
-     * la suma era de una MUESTRA puesta en el renglón donde se lee *"esto entró
-     * en el tramo"*: la pantalla pintaba *"Antes ——— $350"* con *"Ver los 27
-     * contactos"* debajo. Una cifra parcial presentada como total, en una
-     * pantalla de dinero.
+     * Es el arreglo de un defecto real: el detalle de cliente pintaba
+     * *"Antes ——— $350"* sobre una MUESTRA de tres contactos de veintisiete —una
+     * cifra parcial presentada como total, en una pantalla de dinero. Quien
+     * agrupa una muestra ([muestraPorMes]) no puede producir un subtotal; el
+     * total de verdad lo da [GruposDeContactos.porMes] sobre la lista completa.
      *
      * No se afloja el assert al primer tramo: se recorren **todos**, incluido el
      * que trae los dos cobros.
      */
     @Test
-    fun `por cercania no reporta subtotal, porque agrupa una muestra`() {
-        GruposDeContactos.porCercania(TODOS, HOY).forEach {
+    fun `muestraPorMes no reporta subtotal, porque agrupa una muestra`() {
+        GruposDeContactos.muestraPorMes(TODOS).forEach {
             assertNull(
-                "el tramo “${it.titulo}” reportó ${it.cobrado}: por cercanía agrupa lo que " +
+                "el tramo “${it.titulo}” reportó ${it.cobrado}: `muestraPorMes` agrupa lo que " +
                     "cabe en el detalle, no la historia completa, así que cualquier suma " +
                     "suya es parcial presentada como total",
                 it.cobrado
@@ -149,16 +116,16 @@ class GruposYFiltrosDeContactosTest {
 
     /**
      * **Control positivo del de arriba, y el que impide que el arreglo se coma
-     * de más.** Los MISMOS contactos agrupados por mes sí reportan su suma: lo
-     * que se quitó es el subtotal de la muestra, no la capacidad de sumar. Sin
-     * esto, un `sumaDe` roto —o un `cobrado` que nadie llenara nunca— dejaría el
-     * test anterior en verde.
+     * de más.** Los MISMOS contactos agrupados por [GruposDeContactos.porMes] sí
+     * reportan su suma: lo que se quitó es el subtotal de la muestra, no la
+     * capacidad de sumar. Sin esto, un `sumaDe` roto —o un `cobrado` que nadie
+     * llenara nunca— dejaría el test anterior en verde.
      */
     @Test
     fun `control positivo - los mismos contactos por mes si reportan subtotal`() {
         assertTrue(
             "ningún tramo por mes reportó subtotal: entonces el test de arriba no prueba " +
-                "que `porCercania` sea la que calla, sino que nadie suma",
+                "que `muestraPorMes` sea la que calla, sino que nadie suma",
             GruposDeContactos.porMes(TODOS).any { it.cobrado != null }
         )
     }

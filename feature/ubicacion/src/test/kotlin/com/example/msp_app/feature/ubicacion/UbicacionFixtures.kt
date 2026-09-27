@@ -29,21 +29,32 @@ object UbicacionFixtures {
         id: String = "pago-$diasAtras-${punto.lat}",
         ventaId: Int = 1,
         cobrador: String = "Rocío Manzano",
-        esTransferencia: Boolean = false
+        esTransferencia: Boolean = false,
+        importe: Int? = null,
+        fecha: Instant = AHORA.minus(diasAtras, ChronoUnit.DAYS)
     ) = MedicionDelCobro(
         pagoId = id,
         punto = punto,
-        fecha = AHORA.minus(diasAtras, ChronoUnit.DAYS),
+        fecha = fecha,
         ventaId = ventaId,
         cobrador = cobrador,
-        esTransferencia = esTransferencia
+        esTransferencia = esTransferencia,
+        importe = importe?.let { java.math.BigDecimal(it) },
+        formaCobroId = if (esTransferencia) 52569 else 157
     )
 
     /** Un puerto de mentira: sin Room, sin MockK. */
     class PuntosFalsos(
         private val mediciones: List<MedicionDelCobro>,
-        private val ruta: List<PuntoDeLaRuta> = emptyList()
+        private val ruta: List<PuntoDeLaRuta> = emptyList(),
+        private val visitas: List<com.example.msp_app.feature.ubicacion.domain.VisitaMedida> =
+            emptyList(),
+        private val ventas: Map<Int, String> = emptyMap()
     ) : PuntosPort {
+        override suspend fun visitasDe(clienteId: Int) = visitas
+
+        override suspend fun ventasDe(clienteId: Int) = ventas
+
         var vecesQueLeyoLaRuta = 0
             private set
 

@@ -79,7 +79,11 @@ private val DIA_Y_MES: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", 
  * La leyenda de abajo es el portador que hace que el color nunca vaya solo.
  */
 @Composable
-fun RitmoDeSemanas(historial: HistorialDePagos, modifier: Modifier = Modifier) {
+fun RitmoDeSemanas(
+    historial: HistorialDePagos,
+    modifier: Modifier = Modifier,
+    ocultos: Boolean = false
+) {
     Column(modifier = modifier.testTag(RITMO_TAG)) {
         TiraDeRitmo(historial.semanas)
         Spacer(Modifier.height(MspTheme.spacing.sm))
@@ -118,6 +122,7 @@ fun RitmoDeSemanas(historial: HistorialDePagos, modifier: Modifier = Modifier) {
                 CeldaDeResumen(
                     clave = "promedio",
                     monto = historial.resumen.promedio.amount,
+                    ocultos = ocultos,
                     modifier = celda
                 )
             },
@@ -239,7 +244,8 @@ private fun CeldaDeResumen(
     clave: String,
     modifier: Modifier = Modifier,
     valor: String? = null,
-    monto: java.math.BigDecimal? = null
+    monto: java.math.BigDecimal? = null,
+    ocultos: Boolean = false
 ) {
     Box(
         modifier = modifier
@@ -257,6 +263,7 @@ private fun CeldaDeResumen(
             if (monto != null) {
                 MspMoneyText(
                     amount = monto,
+                    masked = ocultos,
                     style = MspTheme.type.metricSmall,
                     color = MspTheme.colors.onSurface
                 )

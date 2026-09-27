@@ -7,15 +7,17 @@ import com.example.msp_app.core.telemetry.Telemetry
 import com.example.msp_app.feature.pagos.application.CargarDetalleVenta
 import com.example.msp_app.feature.pagos.application.PagosTelemetria
 import com.example.msp_app.feature.pagos.di.PagosIoDispatcher
-import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
+import com.example.msp_app.feature.pagos.domain.port.PrivacidadPort
 import com.example.msp_app.feature.pagos.domain.port.TemaDeLaAppPort
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -31,6 +33,7 @@ class DetalleVentaViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val cargarDetalleVenta: CargarDetalleVenta,
     private val tema: TemaDeLaAppPort,
+    private val privacidad: PrivacidadPort,
     private val telemetry: Telemetry,
     @PagosIoDispatcher private val io: CoroutineDispatcher
 ) : ViewModel() {
@@ -40,21 +43,29 @@ class DetalleVentaViewModel @Inject constructor(
     }
 
     private val mutableState = MutableStateFlow(DetalleVentaUiState())
-    val state: StateFlow<DetalleVentaUiState> = mutableState.asStateFlow()
+
+    /**
+     * El detalle, con el tema y la privacidad **derivados** de sus puertos en
+     * cada emisión — mismo reparto que `DetalleClienteViewModel.state` y por la
+     * misma razón: `cargar()` construye un estado nuevo desde cero y pisaría el
+     * ojo y el tema si vivieran en [mutableState]. El valor inicial se siembra
+     * con las lecturas síncronas para no enseñar los montos un frame.
+     */
+    val state: StateFlow<DetalleVentaUiState> =
+        combine(mutableState, tema.oscuro, privacidad.ocultos) { detalle, oscuro, ocultos ->
+            detalle.copy(temaOscuro = oscuro, montosOcultos = ocultos)
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = DetalleVentaUiState(
+                temaOscuro = tema.oscuroAhora(),
+                montosOcultos = privacidad.ocultosAhora()
+            )
+        )
 
     init {
         telemetry.screenView(PANTALLA)
         cargar()
-    }
-
-    /** Cambia qué se enseña de la línea. No recarga: el filtro vive sobre lo cargado. */
-    fun filtrar(filtro: FiltroDeContactos) {
-        mutableState.value = mutableState.value.copy(filtro = filtro)
-    }
-
-    /** Angosta la línea a esta cuenta, o la abre al cliente entero. */
-    fun alcance(soloEstaVenta: Boolean) {
-        mutableState.value = mutableState.value.copy(soloEstaVenta = soloEstaVenta)
     }
 
     /** Vuelve a leer. Cada llamada es UNA sincronización. */
@@ -72,38 +83,34 @@ class DetalleVentaViewModel @Inject constructor(
      * volver de registrar un abono o una visita se lee como si la pantalla se
      * hubiera perdido.
      *
-     * Conserva [DetalleVentaUiState.filtro] y [DetalleVentaUiState.soloEstaVenta]
-     * explícitamente: [leer] arma un `DetalleVentaUiState` desde cero y, sin este
-     * `copy`, una recarga en segundo plano tiraría al default la pastilla y el
-     * alcance que el cobrador ya había elegido.
+     * Sin nada que conservar entre lecturas: a diferencia de la bitácora, esta
+     * pantalla ya no tiene filtro ni alcance en su `UiState` — ver el KDoc de
+     * [DetalleVentaUiState].
      */
     fun recargar() {
         viewModelScope.launch {
-            val filtro = mutableState.value.filtro
-            val soloEstaVenta = mutableState.value.soloEstaVenta
-            mutableState.value = leer().copy(filtro = filtro, soloEstaVenta = soloEstaVenta)
+            mutableState.value = leer()
         }
     }
 
     /**
      * Alterna el tema **GLOBAL** de la app vía [TemaDeLaAppPort] —el mismo que
-     * mueven la lista, el detalle de cliente, el cajón legado, Configuración y el
-     * reporte de cobranza—, y por eso persiste: sobrevive a navegar y a que muera
-     * el proceso. Calcado de `ListaDeClientesViewModel.alternarTema`.
-     *
-     * **Lo llama `MspThemeRevealHost`, no un botón de esta pantalla.** El detalle
-     * de venta no pinta el glifo sol/luna todavía; instala el host para que el
-     * mecanismo esté donde tiene que estar, y el host es quien pide el flip justo
-     * después de grabar el frame viejo.
-     *
-     * No escribe estado aquí: esta pantalla no tiene `temaOscuro` en su `UiState`
-     * porque no dibuja nada que dependa del tema vigente. El `alternar()` real es
-     * síncrono (solo escribe `SharedPreferences`), así que no hace falta lanzar
-     * una corrutina.
+     * mueven la lista y el detalle de cliente—. Lo llaman el sol/luna de esta
+     * pantalla y `MspThemeRevealHost`; el glifo lo repinta la colecta de
+     * [TemaDeLaAppPort.oscuro] que sostiene [state].
      */
     fun alternarTema() {
         telemetry.tap(PANTALLA, ACCION_TEMA)
         tema.alternar()
+    }
+
+    /**
+     * Esconde o enseña los montos — la misma preferencia global que el ojo del
+     * detalle de cliente. [PrivacidadPort.alternar] suspende (DataStore).
+     */
+    fun alternarPrivacidad() {
+        telemetry.tap(PANTALLA, ACCION_PRIVACIDAD)
+        viewModelScope.launch { privacidad.alternar() }
     }
 
     @Suppress(
@@ -132,5 +139,8 @@ class DetalleVentaViewModel @Inject constructor(
 
         /** Id de la acción del tema en telemetría — mismo nombre que usa la lista. */
         const val ACCION_TEMA = "theme_toggle"
+
+        /** Id de la acción del ojo — mismo nombre que el detalle de cliente. */
+        const val ACCION_PRIVACIDAD = "privacidad"
     }
 }

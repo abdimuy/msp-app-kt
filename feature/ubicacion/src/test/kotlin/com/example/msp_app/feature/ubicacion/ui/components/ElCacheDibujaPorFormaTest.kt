@@ -51,11 +51,13 @@ class ElCacheDibujaPorFormaTest {
         return "bmp-${bitmap.width}x${bitmap.height}"
     }
 
-    private fun variantes() = VariantesDelMarcador(
-        colorPuerta = Color.BLUE,
-        colorCompartido = Color.YELLOW,
-        colorTransferencia = Color.CYAN,
-        colorTexto = Color.WHITE,
+    private fun variantes(aro: Int = Color.WHITE) = VariantesDelMarcador(
+        colorAro = aro,
+        colorHueco = Color.WHITE,
+        colorNumero = Color.WHITE,
+        colorPildora = Color.WHITE,
+        colorTintaPildora = Color.BLACK,
+        colorDatoPildora = Color.GRAY,
         densidad = 2f,
         envolver = ::medidaDe
     )
@@ -63,24 +65,34 @@ class ElCacheDibujaPorFormaTest {
     @Test
     fun `cuarenta marcadores de una sola forma dibujan UN bitmap`() {
         val v = variantes()
-        val forma = FormaDelMarcador(relleno = true, resaltado = false, conteo = 1)
-        val primero = v.de(forma, Color.BLUE)
-        repeat(39) { v.de(forma, Color.BLUE) }
+        val forma = FormaDelMarcador(Figura.DISCO, Color.BLUE, conteo = 1)
+        val primero = v.de(forma)
+        repeat(39) { v.de(forma) }
         assertEquals("se dibujó más de una vez la misma forma", 1, v.dibujados)
-        assertSame("el caché devolvió otra entrada", primero, v.de(forma, Color.BLUE))
+        assertSame("el caché devolvió otra entrada", primero, v.de(forma))
     }
 
     @Test
     fun `un cliente cargado no pasa de ocho bitmaps`() {
         // El peor caso realista: 40 mediciones repartidas entre las formas que
-        // la pantalla sabe pintar (relleno/aro × resaltado/no × solo/agrupado).
+        // la pantalla sabe pintar (disco/aro × resaltado/no × 1 o 2 cobros).
         val v = variantes()
-        val formas = listOf(true, false).flatMap { relleno ->
+        val formas = listOf(Figura.DISCO, Figura.HUECO).flatMap { figura ->
             listOf(true, false).flatMap { resaltado ->
-                listOf(1, 2).map { conteo -> FormaDelMarcador(relleno, resaltado, conteo) }
+                listOf(
+                    1,
+                    2
+                ).map { conteo ->
+                    FormaDelMarcador(
+                        figura,
+                        Color.BLUE,
+                        conteo,
+                        resaltado = resaltado
+                    )
+                }
             }
         }
-        repeat(40) { i -> v.de(formas[i % formas.size], Color.BLUE) }
+        repeat(40) { i -> v.de(formas[i % formas.size]) }
         assertEquals("el catálogo de formas creció sin querer", 8, formas.size)
         assertEquals("se dibujó un bitmap por marcador, no por forma", 8, v.dibujados)
         assertTrue(
@@ -91,22 +103,14 @@ class ElCacheDibujaPorFormaTest {
 
     @Test
     fun `cambiar de tema obliga a un cache nuevo`() {
-        // Los colores son de construcción, así que un tema distinto es OTRO
-        // caché. Es lo que impide que al pasar de claro a oscuro queden los
-        // bitmaps del tema anterior — el `remember` de `recordarVariantes` lleva
-        // los cuatro colores en su clave por esto mismo.
+        // La paleta es de construcción, así que un tema distinto es OTRO caché.
+        // Es lo que impide que al pasar de claro a oscuro queden los bitmaps del
+        // tema anterior — el `remember` de `recordarVariantes` lleva la paleta.
         val claro = variantes()
-        val oscuro = VariantesDelMarcador(
-            colorPuerta = Color.GREEN,
-            colorCompartido = Color.RED,
-            colorTransferencia = Color.MAGENTA,
-            colorTexto = Color.BLACK,
-            densidad = 2f,
-            envolver = ::medidaDe
-        )
-        val forma = FormaDelMarcador(relleno = true, resaltado = false, conteo = 3)
-        claro.de(forma, Color.BLUE)
-        oscuro.de(forma, Color.GREEN)
+        val oscuro = variantes(aro = Color.BLACK)
+        val forma = FormaDelMarcador(Figura.DISCO, Color.BLUE, conteo = 3)
+        claro.de(forma)
+        oscuro.de(forma)
         assertEquals(1, claro.dibujados)
         assertEquals(1, oscuro.dibujados)
     }

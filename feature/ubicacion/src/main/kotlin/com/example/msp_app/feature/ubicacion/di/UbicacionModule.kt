@@ -1,6 +1,8 @@
 package com.example.msp_app.feature.ubicacion.di
 
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.product.ProductDao
+import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.feature.ubicacion.data.RoomPuntosAdapter
 import com.example.msp_app.feature.ubicacion.domain.port.PuntosPort
 import dagger.Module
@@ -21,7 +23,11 @@ object UbicacionModule {
 
     @Provides
     @Singleton
-    fun providePuntosPort(paymentDao: PaymentDao): PuntosPort = RoomPuntosAdapter(paymentDao)
+    fun providePuntosPort(
+        paymentDao: PaymentDao,
+        visitDao: VisitDao,
+        productDao: ProductDao
+    ): PuntosPort = RoomPuntosAdapter(paymentDao, visitDao, productDao)
 
     // **`AppClock` NO se provee aquí.** `CollectionReportDataModule` ya lo
     // publica en el grafo, y el repo tiene una regla dura de un solo reloj:

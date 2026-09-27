@@ -49,5 +49,7 @@ data class MedicionDelClienteRow(
     @ColumnInfo(name = "COBRADOR") val cobrador: String,
     @ColumnInfo(name = "FORMA_COBRO_ID") val formaCobroId: Int,
     @ColumnInfo(name = "LAT") val lat: Double,
-    @ColumnInfo(name = "LNG") val lng: Double
+    @ColumnInfo(name = "LNG") val lng: Double,
+    /** El importe del abono: alimenta el "abono típico" del mapa de lugares. */
+    @ColumnInfo(name = "IMPORTE") val importe: Double
 )

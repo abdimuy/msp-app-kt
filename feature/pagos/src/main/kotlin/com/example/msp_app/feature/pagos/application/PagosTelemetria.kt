@@ -59,7 +59,7 @@ object PagosTelemetria {
      */
     const val CODE_VENTA_SIN_FECHA_LEGIBLE: String = "pagos_venta_sin_fecha_legible"
 
-    /** Falló la carga de la bitácora del cliente. El id del cliente NO se emite. */
+    /** Falló la carga de la bitácora de la venta. Ningún id se emite. */
     const val CODE_BITACORA_FALLO: String = "pagos_bitacora_fallo"
 
     /** Falló la carga de la lista de clientes. Ningún dato de cliente se emite. */

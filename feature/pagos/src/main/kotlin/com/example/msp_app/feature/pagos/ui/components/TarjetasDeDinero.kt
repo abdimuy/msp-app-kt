@@ -12,7 +12,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.example.msp_app.core.common.money.Money
 import com.example.msp_app.core.common.time.BUSINESS_LOCALE
 import com.example.msp_app.core.designsystem.component.MspMoneyText
 import com.example.msp_app.core.designsystem.theme.MspTheme
@@ -23,44 +22,6 @@ import java.time.format.DateTimeFormatter
 const val USAR_LIQUIDACION_TAG: String = "pagos_usar_liquidacion"
 
 private val VIGENCIA: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", BUSINESS_LOCALE)
-
-/**
- * La tarjeta de saldo del mock (`.money`): label, la cifra grande y un pie
- * opcional.
- *
- * **Sin chip de estado a la derecha.** El mock pone ahí "Vencido 12d", que es
- * un dato de días de atraso que el teléfono no tiene hoy; repetir en su lugar
- * la etiqueta del estado —que ya está en grande dos tarjetas arriba— sería
- * decir dos veces lo mismo en la misma pantalla. Se deja el hueco hasta que
- * exista el dato real, en vez de llenarlo con ruido.
- */
-@Composable
-fun TarjetaDeSaldo(
-    label: String,
-    monto: Money,
-    modifier: Modifier = Modifier,
-    pie: @Composable (() -> Unit)? = null
-) {
-    Tarjeta(modifier = modifier) {
-        Column {
-            Text(
-                text = label.uppercase(BUSINESS_LOCALE),
-                style = MspTheme.type.overline,
-                color = MspTheme.colors.onSurfaceMuted
-            )
-            Spacer(Modifier.height(MspTheme.spacing.sm))
-            MspMoneyText(
-                amount = monto.amount,
-                style = MspTheme.type.amountHero,
-                color = MspTheme.colors.onSurface
-            )
-            if (pie != null) {
-                Spacer(Modifier.height(MspTheme.spacing.md))
-                pie()
-            }
-        }
-    }
-}
 
 /**
  * "Hoy liquida con" (`.liq`). Existe a nivel cliente y a nivel venta y **no es
@@ -77,7 +38,8 @@ fun TarjetaDeLiquidacion(
     label: String,
     liquidacion: Liquidacion,
     onUsar: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    ocultos: Boolean = false
 ) {
     Tarjeta(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -90,6 +52,7 @@ fun TarjetaDeLiquidacion(
                 Spacer(Modifier.height(MspTheme.spacing.xs))
                 MspMoneyText(
                     amount = liquidacion.monto.amount,
+                    masked = ocultos,
                     style = MspTheme.type.amountLarge,
                     color = MspTheme.colors.onSurface
                 )

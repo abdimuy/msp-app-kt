@@ -18,11 +18,13 @@ import com.example.msp_app.feature.pagos.data.fake.FakeGarantiasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeLiquidacionPort
 import com.example.msp_app.feature.pagos.data.fake.FakePagosPort
 import com.example.msp_app.feature.pagos.data.fake.FakePeriodoDeCobroPort
+import com.example.msp_app.feature.pagos.data.fake.FakePrivacidadPort
 import com.example.msp_app.feature.pagos.data.fake.FakeProductosPort
 import com.example.msp_app.feature.pagos.data.fake.FakeTemaDeLaAppPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVentasPort
 import com.example.msp_app.feature.pagos.data.fake.FakeVisitasPort
-import com.example.msp_app.feature.pagos.ui.components.CTA_CONDONAR_TAG
+import com.example.msp_app.feature.pagos.ui.components.MENU_CONDONAR_TAG
+import com.example.msp_app.feature.pagos.ui.components.MENU_DEL_DOCK_TAG
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -107,6 +109,7 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
             clock = clock
         ),
         tema = FakeTemaDeLaAppPort(),
+        privacidad = FakePrivacidadPort(),
         telemetry = telemetria,
         io = Dispatchers.Unconfined
     )
@@ -128,7 +131,9 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithTag(CTA_CONDONAR_TAG).performClick()
+        // Condonar vive en el "⋯": primero se abre el menú, luego el renglón.
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
+        composeTestRule.onNodeWithTag(MENU_CONDONAR_TAG).performClick()
 
         assertEquals(PagosFixtures.VENTA_EN_PROMESA, recibido)
     }
@@ -156,7 +161,9 @@ class CondonarLlevaElVentaIdDeLaRutaTest : RobolectricTestBase() {
             )
         }
 
-        composeTestRule.onNodeWithTag(CTA_CONDONAR_TAG).performClick()
+        // Condonar vive en el "⋯": primero se abre el menú, luego el renglón.
+        composeTestRule.onNodeWithTag(MENU_DEL_DOCK_TAG).performClick()
+        composeTestRule.onNodeWithTag(MENU_CONDONAR_TAG).performClick()
 
         assertEquals(PagosFixtures.VENTA_PAGADA, recibido)
     }

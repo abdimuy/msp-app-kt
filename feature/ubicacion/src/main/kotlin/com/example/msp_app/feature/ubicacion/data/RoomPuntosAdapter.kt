@@ -3,16 +3,54 @@ package com.example.msp_app.feature.ubicacion.data
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.database.dao.payment.MedicionDelClienteRow
 import com.example.msp_app.core.database.dao.payment.PaymentDao
+import com.example.msp_app.core.database.dao.product.ProductDao
+import com.example.msp_app.core.database.dao.visit.VisitDao
 import com.example.msp_app.core.geo.MedicionDelCobro
 import com.example.msp_app.core.geo.Punto
 import com.example.msp_app.core.geo.PuntoDeLaRuta
+import com.example.msp_app.feature.ubicacion.domain.VisitaMedida
 import com.example.msp_app.feature.ubicacion.domain.port.PuntosPort
+import java.math.BigDecimal
 
 /**
  * [PuntosPort] sobre Room. **No toca el API**: todo lo que esta pantalla
  * necesita ya está en el teléfono.
  */
-class RoomPuntosAdapter(private val paymentDao: PaymentDao) : PuntosPort {
+class RoomPuntosAdapter(
+    private val paymentDao: PaymentDao,
+    private val visitDao: VisitDao? = null,
+    private val productDao: ProductDao? = null
+) : PuntosPort {
+
+    /**
+     * Las visitas con coordenada. Fuera el par `(0, 0)` —el centinela de "sin
+     * señal"— igual que en los abonos; fuera también la fecha impresentable.
+     */
+    override suspend fun visitasDe(clienteId: Int): List<VisitaMedida> =
+        visitDao?.getVisitsByClienteId(clienteId).orEmpty().mapNotNull { v ->
+            if (v.LAT == 0.0 && v.LNG == 0.0) return@mapNotNull null
+            val fecha = AppTime.parseWireFormatOrNull(v.FECHA) ?: return@mapNotNull null
+            VisitaMedida(
+                id = v.ID,
+                punto = Punto(v.LAT, v.LNG),
+                fecha = fecha,
+                cobrador = v.COBRADOR,
+                tipo = v.TIPO_VISITA,
+                esPromesa = v.PROMESA_FECHA != null
+            )
+        }
+
+    /**
+     * Un nombre corto por venta: el primer artículo, y "+N" si trae más. Nada
+     * de concatenar todos: la card tiene un renglón.
+     */
+    override suspend fun ventasDe(clienteId: Int): Map<Int, String> =
+        productDao?.getArticulosDeLasVentasDelCliente(clienteId).orEmpty()
+            .groupBy({ it.ventaId }, { it.articulo.trim() })
+            .mapValues { (_, articulos) ->
+                val primero = articulos.first()
+                if (articulos.size > 1) "$primero +${articulos.size - 1}" else primero
+            }
 
     override suspend fun medicionesDe(clienteId: Int): List<MedicionDelCobro> =
         paymentDao.getPuntosDelCliente(clienteId).mapNotNull { it.aMedicion() }
@@ -46,7 +84,9 @@ private fun MedicionDelClienteRow.aMedicion(): MedicionDelCobro? {
         fecha = fecha,
         ventaId = ventaId,
         cobrador = cobrador,
-        esTransferencia = formaCobroId == FORMA_TRANSFERENCIA
+        esTransferencia = formaCobroId == FORMA_TRANSFERENCIA,
+        importe = BigDecimal.valueOf(importe),
+        formaCobroId = formaCobroId
     )
 }
 

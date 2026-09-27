@@ -1,7 +1,9 @@
 package com.example.msp_app.feature.pagos.ui.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +21,17 @@ import com.example.msp_app.core.designsystem.theme.MspTheme
 
 /** `testTag` del encabezado compacto que entra cuando el fondo terminó de irse. */
 const val ENCABEZADO_COMPACTO_TAG: String = "pagos_cliente_encabezado_compacto"
+
+/**
+ * `testTag` del BLOQUE DE TEXTO del encabezado, aparte de la barra que lo
+ * contiene.
+ *
+ * Los dos hacen falta y no miden lo mismo: [ENCABEZADO_COMPACTO_TAG] es la banda
+ * entera —degradado incluido, de orilla a orilla— y éste es la caja del nombre y
+ * la dirección. La alineación contra los controles flotantes se afirma sobre
+ * ESTE, porque contra la banda cualquier cosa "alinea".
+ */
+const val TEXTO_DEL_ENCABEZADO_TAG: String = "pagos_cliente_encabezado_texto"
 
 /**
  * **El encabezado que entra cuando el mapa termina de irse.**
@@ -94,10 +107,29 @@ fun EncabezadoCompacto(
         // flotantes: el ojo y el sol/luna viven ahí fijos, y sin este margen el
         // nombre y la dirección se les meterían debajo al entrar.
         Column(
-            modifier = Modifier.padding(
-                start = MspTheme.spacing.md,
-                end = ESQUINA_DE_LOS_CONTROLES
-            )
+            modifier = Modifier
+                .padding(
+                    start = MspTheme.spacing.md,
+                    end = ESQUINA_DE_LOS_CONTROLES
+                )
+                // **Y el aire de ARRIBA es el de los controles, no otro.**
+                //
+                // El dueño lo vio en el aparato el 2026-09-25: *"está súper
+                // desalineado el nombre y los botones de visible y tema"*.
+                // Medido sobre su captura, el texto arrancaba pegado al inset y
+                // los botones 8 dp más abajo, así que los dos bloques no
+                // compartían ni borde de arriba ni centro: 11 dp de diferencia
+                // entre los dos centros.
+                //
+                // Compartiendo [AIRE_SOBRE_LOS_CONTROLES] arrancan en el mismo
+                // renglón, y [ALTO_DE_LOS_CONTROLES] con el arreglo centrado
+                // hace que el bloque de texto ocupe **la misma banda** que la
+                // fila de botones aunque mida menos. Los dos centros coinciden
+                // por construcción, no por coincidencia de números.
+                .padding(top = AIRE_SOBRE_LOS_CONTROLES)
+                .heightIn(min = ALTO_DE_LOS_CONTROLES)
+                .testTag(TEXTO_DEL_ENCABEZADO_TAG),
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = nombre,

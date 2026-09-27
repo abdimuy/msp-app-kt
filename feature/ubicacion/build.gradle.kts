@@ -33,12 +33,15 @@ dependencies {
     // PARA el mapa, así que la dependencia le toca y no contamina a nadie más.
     implementation(libs.maps.compose)
     implementation(libs.play.services.maps)
+    // "Mi ubicación": la última ubicación conocida para centrar el mapa en el cobrador.
+    implementation(libs.play.services.location)
 
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose) // collectAsStateWithLifecycle
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.hilt.navigation.compose) // hiltViewModel()
+    implementation(libs.androidx.activity.compose) // permiso de ubicación al tocar "Mi ubicación"
 
     testImplementation(project(":core:testing")) // fakes + Turbine + Robolectric + roborazzi
     testImplementation(libs.androidx.ui.test.junit4)

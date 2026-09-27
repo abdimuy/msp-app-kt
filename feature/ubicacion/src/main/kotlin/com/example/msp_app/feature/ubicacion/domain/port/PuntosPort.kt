@@ -2,6 +2,7 @@ package com.example.msp_app.feature.ubicacion.domain.port
 
 import com.example.msp_app.core.geo.MedicionDelCobro
 import com.example.msp_app.core.geo.PuntoDeLaRuta
+import com.example.msp_app.feature.ubicacion.domain.VisitaMedida
 
 /**
  * De dónde salen los puntos.
@@ -33,4 +34,13 @@ interface PuntosPort {
      * que ve el servidor.
      */
     suspend fun puntosDeLaRuta(): List<PuntoDeLaRuta>
+
+    /** Las visitas medidas del cliente. La pantalla las enseña sólo con el filtro Tipo. */
+    suspend fun visitasDe(clienteId: Int): List<VisitaMedida> = emptyList()
+
+    /**
+     * El nombre corto de cada venta del cliente (`DOCTO_CC_ACR_ID` → artículo),
+     * para decir "de qué venta" se pagó en cada lugar. Vacío si no hay productos.
+     */
+    suspend fun ventasDe(clienteId: Int): Map<Int, String> = emptyMap()
 }

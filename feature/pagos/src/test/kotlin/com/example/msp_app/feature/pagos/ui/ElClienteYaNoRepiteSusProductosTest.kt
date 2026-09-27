@@ -60,7 +60,7 @@ class ElClienteYaNoRepiteSusProductosTest : RobolectricTestBase() {
         monta()
 
         composeTestRule.onNodeWithText(TITULO_VENTAS).performScrollTo().assertIsDisplayed()
-        composeTestRule.onNodeWithText(TITULO_CONTACTOS).performScrollTo().assertIsDisplayed()
+        composeTestRule.onNodeWithText(TITULO_NOTAS).performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -100,7 +100,6 @@ class ElClienteYaNoRepiteSusProductosTest : RobolectricTestBase() {
                         onAbrirVenta = {},
                         onRegistrarAbono = {},
                         onRegistrarVisita = {},
-                        onVerContactos = {},
                         onAlternarTema = {},
                         onAlternarPrivacidad = {}
                     )
@@ -113,7 +112,13 @@ class ElClienteYaNoRepiteSusProductosTest : RobolectricTestBase() {
         /** `TituloDeHoja` pinta en mayúsculas. */
         const val TITULO_PRODUCTOS = "PRODUCTOS"
         const val TITULO_VENTAS = "SUS VENTAS"
-        const val TITULO_CONTACTOS = "ÚLTIMOS CONTACTOS"
+
+        /**
+         * `LabelDeSeccion` pinta en mayúsculas — la sección de la ficha, que
+         * sigue después de "sus ventas" desde que "últimos contactos" se quitó
+         * (decisión del dueño).
+         */
+        const val TITULO_NOTAS = "NOTAS"
         val PRODUCTOS = listOf("Sala 3 piezas + base", "Refrigerador Mabe 14'")
     }
 }

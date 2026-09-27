@@ -90,9 +90,10 @@ enum class ToqueDelContacto {
          *   alguien alcanza el reloj del sistema, y con el reloj adentro esta
          *   función no se podría probar.
          *
-         * **Sobre listas recortadas.** El detalle de cliente pinta sólo los tres
-         * contactos más recientes ([BitacoraDelCliente.VISIBLES_EN_EL_DETALLE]).
-         * No pasa nada: la lista viene ordenada de lo más reciente a lo más
+         * **Sobre listas recortadas.** El detalle de venta pinta sólo los
+         * contactos más recientes ([BitacoraDelCliente.VISIBLES_EN_LA_VENTA]),
+         * aunque le pasa aquí la línea entera. Si algún día pasara la recortada,
+         * tampoco pasaría nada: la lista viene ordenada de lo más reciente a lo más
          * viejo, así que recortarla sólo quita filas VIEJAS — cualquier renglón
          * que se esté pintando conserva a todos sus posteriores, que es lo único
          * que esta comparación mira.

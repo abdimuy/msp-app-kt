@@ -1,5 +1,6 @@
 package com.example.msp_app.core.geo
 
+import java.math.BigDecimal
 import java.time.Instant
 
 /**
@@ -46,5 +47,12 @@ data class MedicionDelCobro(
      * Un punto así **se dibuja** —nada se esconde— pero **no cuenta para decidir
      * cuál grupo es la puerta**. Ver el KDoc de la clase.
      */
-    val esTransferencia: Boolean
+    val esTransferencia: Boolean,
+    /**
+     * El importe del abono, o `null` si no viaja. No participa de ninguna regla
+     * de agrupación: lo lee la hoja del mapa para el "abono típico".
+     */
+    val importe: BigDecimal? = null,
+    /** El `FORMA_COBRO_ID` crudo, para rotular el historial ("Efectivo"). */
+    val formaCobroId: Int? = null
 )

@@ -8,8 +8,8 @@ import com.example.msp_app.feature.ubicacion.UbicacionFixtures.PuntosFalsos
 import com.example.msp_app.feature.ubicacion.UbicacionFixtures.desplazado
 import com.example.msp_app.feature.ubicacion.UbicacionFixtures.medicion
 import com.example.msp_app.feature.ubicacion.UbicacionFixtures.rutaCompartida
+import com.example.msp_app.feature.ubicacion.domain.ClaseDeLugar
 import com.example.msp_app.feature.ubicacion.domain.FiltroDeLugares
-import com.example.msp_app.feature.ubicacion.domain.TipoDeLugar
 import com.example.msp_app.feature.ubicacion.domain.VentanaDelFiltro
 import java.time.Instant
 import kotlinx.coroutines.Dispatchers
@@ -49,9 +49,9 @@ class UbicacionViewModelTest {
         runCurrent()
         val state = vm.state.value
         assertFalse(state.cargando)
-        assertEquals(1, state.lugares.size)
-        assertEquals(TipoDeLugar.LA_PUERTA, state.lugares.single().tipo)
-        assertFalse(state.sinPuertaMedida)
+        assertEquals(1, state.mapa.todos.size)
+        assertEquals(ClaseDeLugar.DONDE_MAS_PAGA, state.mapa.todos.single().clase)
+        assertTrue(state.mapa.principal != null)
     }
 
     @Test
@@ -69,9 +69,9 @@ class UbicacionViewModelTest {
         )
         vm.cargar(1, "", null)
         runCurrent()
-        assertTrue(vm.state.value.sinPuertaMedida)
-        assertEquals(TipoDeLugar.COMPARTIDO, vm.state.value.lugares.single().tipo)
-        assertEquals(1, vm.state.value.lugares.size) // se dibuja, no se esconde
+        assertTrue(vm.state.value.mapa.principal == null)
+        assertEquals(ClaseDeLugar.COMPARTIDO, vm.state.value.mapa.todos.single().clase)
+        assertEquals(1, vm.state.value.mapa.todos.size) // se dibuja, no se esconde
     }
 
     @Test
@@ -89,7 +89,7 @@ class UbicacionViewModelTest {
         val vm = UbicacionViewModel(PuntosFalsos(viejo + nuevo), MapasFalsos(), reloj)
         vm.cargar(1, "", null)
         runCurrent()
-        assertTrue("la mudanza no salió sola", vm.state.value.pareceMudanza)
+        assertTrue("la mudanza no salió sola", vm.state.value.mapa.cambioDeLugar)
         assertEquals(
             "el filtro por omisión no debe recortar nada",
             VentanaDelFiltro.TODO,
@@ -108,11 +108,11 @@ class UbicacionViewModelTest {
         val vm = UbicacionViewModel(puerto, MapasFalsos(), reloj)
         vm.cargar(1, "", null)
         runCurrent()
-        assertEquals(2, vm.state.value.lugares.size)
+        assertEquals(2, vm.state.value.mapa.todos.size)
 
         vm.cambiarFiltro(FiltroDeLugares(ventana = VentanaDelFiltro.TRES_MESES))
         runCurrent()
-        assertEquals("los viejos debían salir", 1, vm.state.value.lugares.size)
+        assertEquals("los viejos debían salir", 1, vm.state.value.mapa.todos.size)
         assertEquals(
             "el índice de compartidos se releyó al filtrar",
             1,
@@ -121,7 +121,9 @@ class UbicacionViewModelTest {
     }
 
     @Test
-    fun `ver los puntos sueltos apaga el agrupamiento`() = runTest(dispatcher) {
+    fun `ver cada punto NO cambia que lugar es cual`() = runTest(dispatcher) {
+        // "Ver cada punto" dibuja cada medición; la clasificación sigue saliendo
+        // de los 30 m, así que el principal no se pierde al encenderlo.
         val vm = UbicacionViewModel(
             PuntosFalsos(
                 (0 until 6).map { medicion(desplazado(PUERTA, it * 2.0), diasAtras = it.toLong()) }
@@ -131,19 +133,35 @@ class UbicacionViewModelTest {
         )
         vm.cargar(1, "", null)
         runCurrent()
-        assertEquals(1, vm.state.value.lugares.size)
-
         vm.cambiarFiltro(FiltroDeLugares(sinAgrupar = true))
         runCurrent()
-        assertEquals("cada medición debía quedar suelta", 6, vm.state.value.lugares.size)
-        assertFalse(
-            "sin agrupar nadie puede ganarse el título",
-            vm.state.value.lugares.any { it.tipo == TipoDeLugar.LA_PUERTA }
+        assertEquals(1, vm.state.value.mapa.todos.size)
+        assertEquals(ClaseDeLugar.DONDE_MAS_PAGA, vm.state.value.mapa.todos.single().clase)
+        assertEquals(6, vm.state.value.mapa.todos.single().lugar.mediciones.size)
+    }
+
+    @Test
+    fun `las visitas entran APAGADAS y se encienden con el filtro`() = runTest(dispatcher) {
+        val visita = com.example.msp_app.feature.ubicacion.domain.VisitaMedida(
+            id = "v1",
+            punto = PUERTA,
+            fecha = AHORA,
+            cobrador = "Rocío Manzano",
+            tipo = "No se encontraba",
+            esPromesa = false
         )
-        assertFalse(
-            "sin agrupar no tiene sentido anunciar que falta la puerta",
-            vm.state.value.sinPuertaMedida
+        val vm = UbicacionViewModel(
+            PuntosFalsos(listOf(medicion(PUERTA)), visitas = listOf(visita)),
+            MapasFalsos(),
+            reloj
         )
+        vm.cargar(1, "", null)
+        runCurrent()
+        assertEquals(1, vm.state.value.totalVisitas)
+        assertTrue("las visitas salieron sin filtro", vm.state.value.visitas.isEmpty())
+        vm.cambiarFiltro(FiltroDeLugares(verVisitas = true))
+        runCurrent()
+        assertEquals(listOf("v1"), vm.state.value.visitas.map { it.id })
     }
 
     @Test
@@ -166,16 +184,19 @@ class UbicacionViewModelTest {
         vm.cargar(1, "", null)
         runCurrent()
         assertEquals(listOf(10, 20), vm.state.value.ventasDisponibles)
-        assertEquals(listOf("Elías Mota", "Rocío Manzano"), vm.state.value.cobradoresDisponibles)
+        assertEquals(
+            setOf("Elías Mota", "Rocío Manzano"),
+            vm.state.value.cobradoresDisponibles.toSet()
+        )
 
         vm.cambiarFiltro(FiltroDeLugares(ventaId = 10))
         runCurrent()
-        assertEquals(1, vm.state.value.lugares.size)
+        assertEquals(1, vm.state.value.mapa.todos.size)
 
         vm.cambiarFiltro(FiltroDeLugares(cobrador = "Elías Mota"))
         runCurrent()
-        assertEquals(1, vm.state.value.lugares.size)
-        assertEquals("b", vm.state.value.lugares.single().lugar.mediciones.single().pagoId)
+        assertEquals(1, vm.state.value.mapa.todos.size)
+        assertEquals("b", vm.state.value.mapa.todos.single().lugar.mediciones.single().pagoId)
     }
 
     @Test
@@ -190,7 +211,7 @@ class UbicacionViewModelTest {
         val vm = UbicacionViewModel(PuntosFalsos(mediciones), mapas, reloj)
         vm.cargar(1, "Av. 5 Poniente 1204", null)
         runCurrent()
-        val lugar = vm.state.value.lugares.single().lugar
+        val lugar = vm.state.value.mapa.todos.single().lugar
         vm.comoLlegar(lugar, "Av. 5 Poniente 1204")
         runCurrent()
         val destino = mapas.ultimoDestino
@@ -219,7 +240,7 @@ class UbicacionViewModelTest {
         )
         vm.cargar(clienteId = 0, direccion = "", pagoResaltado = null, ventaId = 4477)
         runCurrent()
-        assertEquals(1, vm.state.value.lugares.size)
+        assertEquals(1, vm.state.value.mapa.todos.size)
     }
 
     @Test
@@ -228,8 +249,7 @@ class UbicacionViewModelTest {
         vm.cargar(1, "Calle 5 de Mayo 12", null)
         runCurrent()
         assertTrue(vm.state.value.sinNingunPunto)
-        assertFalse(vm.state.value.sinPuertaMedida)
-        assertTrue(vm.state.value.lugares.isEmpty())
+        assertTrue(vm.state.value.mapa.todos.isEmpty())
     }
 }
 

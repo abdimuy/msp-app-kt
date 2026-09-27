@@ -3,11 +3,18 @@ package com.example.msp_app.feature.pagos.domain.model
 import java.time.LocalDate
 
 /**
- * Todo lo que ha pasado en un domicilio, para la pantalla de bitácora.
+ * Todo lo que ha pasado en UNA VENTA, para la pantalla de bitácora.
  *
- * Trae [nombre] además de [contactos] porque la pantalla se abre sola —desde el
- * "ver los N contactos" del detalle— y sin el nombre el encabezado no podría
- * decir de quién es esta historia sin volver a leer las ventas.
+ * **Es por venta, no por cliente**, desde que el detalle de cliente perdió su
+ * sección "últimos contactos" (decisión del dueño): la única puerta a "ver los N
+ * contactos" es ahora el detalle de VENTA, así que esta pantalla contesta
+ * *"¿qué ha pasado con ESTA cuenta?"* y no *"con este domicilio"*. [ventaId] es
+ * el `DOCTO_CC_ACR_ID` que la ruta lleva, igual que [DetalleVenta.ventaId].
+ *
+ * [titulo] es el producto de la venta —`descripcion.ifBlank { folio }`, el mismo
+ * criterio que [com.example.msp_app.feature.pagos.application.CargarDetalleVenta.titulo]—
+ * y es lo que la pantalla pinta en grande: una cuenta se reconoce por su mueble,
+ * no por su folio. [nombre] sigue siendo el del cliente, y baja al subtítulo.
  *
  * ## Por qué también trae [direccion], si la pantalla no la pinta
  *
@@ -24,8 +31,11 @@ import java.time.LocalDate
  */
 data class BitacoraCompleta(
     val clienteId: Int,
+    val ventaId: Int,
     val nombre: String,
+    val titulo: String,
     val direccion: String,
+    /** Sólo lo de ESTA venta — visitas sin cuenta no entran. Ver `CargarBitacoraDeLaVenta`. */
     val contactos: List<ContactoDeCobranza>,
     /**
      * El día de negocio en que se cargó esta pantalla.

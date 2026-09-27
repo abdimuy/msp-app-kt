@@ -157,7 +157,6 @@ class ElDineroPideUnSoloDesplazamientoTest : RobolectricTestBase() {
                         onAbrirVenta = {},
                         onRegistrarAbono = {},
                         onRegistrarVisita = {},
-                        onVerContactos = {},
                         onAlternarTema = {},
                         onAlternarPrivacidad = {}
                     )

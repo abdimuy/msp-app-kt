@@ -43,15 +43,20 @@ const val TITULO_DE_BITACORA_TAG: String = "pagos_titulo_bitacora"
 const val BITACORA_VACIA_TAG: String = "pagos_bitacora_vacia"
 
 /**
- * **La bitácora completa de un domicilio.**
+ * **La bitácora completa de UNA VENTA.**
  *
  * Existe porque el "⋯" del detalle se fue. Ese botón abría la pantalla legada y
  * era —sin que se notara— el único camino a "ver los N contactos". Quitarlo sin
  * darle casa a la bitácora habría borrado una función, no un botón.
  *
- * Es la pantalla donde el cobrador contesta *"¿qué ha pasado con esta gente?"*
- * antes de tocar: cada visita y cada abono, en una sola línea de tiempo, de lo
- * más reciente a lo más viejo.
+ * **Por venta, no por domicilio.** Hasta que el detalle de cliente perdió su
+ * sección "últimos contactos" (decisión del dueño) esta pantalla mezclaba TODAS
+ * las cuentas del cliente; hoy la única puerta es "ver los N contactos" del
+ * detalle de VENTA, así que sólo enseña lo de esa cuenta.
+ *
+ * Es la pantalla donde el cobrador contesta *"¿qué ha pasado con esta cuenta?"*
+ * antes de tocar: cada visita y cada abono de ESTA venta, en una sola línea de
+ * tiempo, de lo más reciente a lo más viejo.
  *
  * **Con botón de volver**, al revés que la lista y el detalle: a esta se llega
  * empujada desde el detalle y no se llega de ninguna otra forma, así que la
@@ -223,8 +228,11 @@ private fun Contactos(
 ) {
     Column(modifier = Modifier.padding(horizontal = MspTheme.spacing.md)) {
         BarraDeDetalle(onAtras = onAtras)
+        // El TÍTULO es el producto de la venta, no el nombre del cliente: una
+        // cuenta se reconoce por su mueble, no por su folio (misma regla que
+        // el detalle de venta). El nombre baja al subtítulo.
         Text(
-            text = bitacora.nombre,
+            text = bitacora.titulo,
             style = MspTheme.type.greeting,
             color = MspTheme.colors.onSurface,
             maxLines = 1,
@@ -232,7 +240,7 @@ private fun Contactos(
             modifier = Modifier.testTag(TITULO_DE_BITACORA_TAG)
         )
         Text(
-            text = if (bitacora.contactos.size == 1) {
+            text = "${bitacora.nombre} · " + if (bitacora.contactos.size == 1) {
                 "1 contacto"
             } else {
                 "${bitacora.contactos.size} contactos"

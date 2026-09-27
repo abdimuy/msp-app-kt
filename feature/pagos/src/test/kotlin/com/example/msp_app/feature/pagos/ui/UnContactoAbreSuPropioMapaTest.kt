@@ -8,7 +8,6 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import com.example.msp_app.core.common.cobranza.domain.EstadoCuenta
@@ -124,54 +123,14 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
         )
     }
 
-    // --- Los tres del detalle -------------------------------------------------------------
-
-    @Test
-    fun `en el detalle, el contacto con punto abre el mapa en SU punto`() {
-        detalle()
-        // Desde que el dock está ENCIMA del contenido, `performScrollTo` deja el
-        // renglón dentro de la ventana pero por detrás de los botones, y el
-        // toque se lo lleva el dock. Ver `desplazaSobreElDock`.
-        composeTestRule.desplazaSobreElDock()
-
-        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
-            .performScrollTo()
-            .assertHasClickAction()
-            .performClick()
-
-        // El punto de la visita, NO `ultimoCobroAqui`: son dos puertas distintas y
-        // el renglón tiene que mandar la suya.
-        assertEquals(
-            "abrió el mapa en el último cobro y no en el punto de ese contacto",
-            PUNTO_DE_LA_VISITA,
-            abierto
-        )
-    }
-
-    @Test
-    fun `en el detalle, el contacto sin punto no se puede tocar`() {
-        detalle()
-
-        composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[SIN_PUNTO]
-            .performScrollTo()
-            .assertHasNoClickAction()
-    }
-
-    @Test
-    fun `el contacto del detalle respeta el toque minimo`() {
-        detalle()
-
-        val alto = composeTestRule.onAllNodesWithTag(CONTACTO_EN_LINEA_TAG)[CON_PUNTO]
-            .performScrollTo()
-            .getUnclippedBoundsInRoot()
-            .height
-        assertTrue(
-            "el contacto del detalle mide $alto y el piso del repo es $TOQUE_MINIMO",
-            alto >= TOQUE_MINIMO
-        )
-    }
-
     // --- Montaje --------------------------------------------------------------------------
+    //
+    // El bloque "Los tres del detalle" se quitó: el detalle de CLIENTE perdió
+    // su sección "últimos contactos" (decisión del dueño) y con ella
+    // `onVerUbicacionDelContacto` y el parámetro `contactos`. La misma
+    // garantía —una fila con punto abre SU mapa, una sin punto no se toca—
+    // sigue viva en la bitácora (arriba) y en el detalle de VENTA
+    // (`LaFilaDeHoyOfreceElTicketTest`).
 
     private fun bitacora() {
         composeTestRule.setContent {
@@ -181,7 +140,9 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
                         cargando = false,
                         bitacora = BitacoraCompleta(
                             clienteId = PagosFixtures.CLIENTE_ID,
+                            ventaId = PagosFixtures.VENTA_EN_PROMESA,
                             nombre = "Victoria Flores Olmedo",
+                            titulo = "Refrigerador Mabe 14'",
                             direccion = "C. Hidalgo 214, Centro",
                             contactos = CONTACTOS,
                             hoy = PagosFixtures.HOY
@@ -189,30 +150,6 @@ class UnContactoAbreSuPropioMapaTest : RobolectricTestBase() {
                     ),
                     onAtras = {},
                     onVerUbicacion = { punto, pagoId ->
-                        abierto = punto
-                        resaltado = pagoId
-                    }
-                )
-            }
-        }
-    }
-
-    private fun detalle() {
-        composeTestRule.setContent {
-            Tema {
-                DetalleClienteContent(
-                    state = DetalleClienteUiState(
-                        cargando = false,
-                        detalle = PagosFixtures.detalleCliente().copy(contactos = CONTACTOS)
-                    ),
-                    onAtras = {},
-                    onAbrirVenta = {},
-                    onRegistrarAbono = {},
-                    onRegistrarVisita = {},
-                    onVerContactos = {},
-                    onAlternarTema = {},
-                    onAlternarPrivacidad = {},
-                    onVerUbicacionDelContacto = { punto, pagoId ->
                         abierto = punto
                         resaltado = pagoId
                     }

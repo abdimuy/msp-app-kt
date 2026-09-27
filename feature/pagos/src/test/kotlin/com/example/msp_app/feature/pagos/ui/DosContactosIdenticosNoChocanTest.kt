@@ -100,7 +100,9 @@ class DosContactosIdenticosNoChocanTest : RobolectricTestBase() {
 
         val BITACORA = BitacoraCompleta(
             clienteId = 5021,
+            ventaId = 12_845_224,
             nombre = "Victoria Flores Olmedo",
+            titulo = "Recamara cantaro king size chocolate",
             direccion = "Privada Hidalgo 12, Atlixco, Puebla",
             contactos = listOf(ABONO_A_LA_RECAMARA, ABONO_A_LA_BOCINA),
             hoy = PagosFixtures.HOY

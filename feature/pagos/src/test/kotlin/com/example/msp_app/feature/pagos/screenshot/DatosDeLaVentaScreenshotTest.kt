@@ -1,15 +1,9 @@
 package com.example.msp_app.feature.pagos.screenshot
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import com.example.msp_app.core.designsystem.theme.MspTheme
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
-import com.example.msp_app.feature.pagos.ui.DatosDeLaVenta
+import com.example.msp_app.feature.pagos.ui.CuerpoDeLosDatosDeLaVenta
 import com.example.msp_app.feature.pagos.ui.PagosFixtures
-import com.example.msp_app.feature.pagos.ui.components.LabelDeSeccion
 import org.junit.Test
 
 /**
@@ -38,11 +32,20 @@ class DatosDeLaVentaScreenshotTest : PagosScreenshotTest() {
     @Test
     fun `datos de la venta pelada light`() = fichaPelada(dark = false)
 
+    /** (h) del mock: a 2.0× la hoja pasa a UNA columna, rótulo arriba y cifra abajo. */
+    @Test
+    fun `datos de la venta muy grande`() = capture(
+        name = "pagos_venta_datos_light_2_0",
+        nivel = com.example.msp_app.core.designsystem.theme.FontSizeLevel.MUY_GRANDE
+    ) {
+        Ficha(ventaDelMock())
+    }
+
     private fun ficha(dark: Boolean) = capture(
         name = "pagos_venta_datos_${tema(dark)}",
         dark = dark
     ) {
-        Ficha(PagosFixtures.detalleVenta())
+        Ficha(ventaDelMock())
     }
 
     private fun fichaPelada(dark: Boolean) = capture(
@@ -66,12 +69,5 @@ class DatosDeLaVentaScreenshotTest : PagosScreenshotTest() {
 
 @Composable
 private fun Ficha(detalle: DetalleVenta) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = MspTheme.spacing.md)
-    ) {
-        LabelDeSeccion("datos de la venta")
-        DatosDeLaVenta(detalle)
-    }
+    CuerpoDeLosDatosDeLaVenta(detalle = detalle, ocultos = false)
 }

@@ -1,7 +1,6 @@
 package com.example.msp_app.feature.pagos.ui
 
 import androidx.compose.runtime.Immutable
-import com.example.msp_app.feature.pagos.domain.FiltroDeContactos
 import com.example.msp_app.feature.pagos.domain.model.DetalleCliente
 import com.example.msp_app.feature.pagos.domain.model.DetalleVenta
 import com.example.msp_app.feature.pagos.domain.model.SenalDeFicha
@@ -75,23 +74,26 @@ data class EleccionDeCuenta(
  */
 enum class DestinoDeLaCuenta { ABONO, CONDONACION }
 
-/** Estado observable del detalle de venta. */
+/**
+ * Estado observable del detalle de venta.
+ *
+ * **Sin `filtro` ni `soloEstaVenta`.** La línea de contactos dejó de tener
+ * pastillas de alcance y de tipo: hoy enseña siempre los
+ * [com.example.msp_app.feature.pagos.domain.BitacoraDelCliente.VISIBLES_EN_LA_VENTA]
+ * contactos más recientes de ESTA cuenta, sin más, y "Ver los N contactos" lleva
+ * a la bitácora completa —por venta—, donde sí viven los filtros. Decisión del
+ * dueño: la pastilla "Todo el cliente" mezclaba lo de otras cuentas en una
+ * pantalla que se llama detalle de VENTA.
+ */
 @Immutable
 data class DetalleVentaUiState(
     val cargando: Boolean = true,
     val detalle: DetalleVenta? = null,
     val error: ErrorDeDetalle? = null,
-    /** Qué se enseña de la línea de contactos. Ver [FiltroDeContactos]. */
-    val filtro: FiltroDeContactos = FiltroDeContactos.TODOS,
-    /**
-     * `true` mientras la línea se angosta a lo de ESTA venta.
-     *
-     * Arranca en `true` porque la pantalla se llama "detalle de venta": lo
-     * primero que tiene que contestar es lo de esta cuenta. Abrirla mostrando
-     * la vida entera del cliente cambiaría de qué habla la pantalla sin que
-     * nadie lo pidiera; ensancharla es un toque.
-     */
-    val soloEstaVenta: Boolean = true
+    /** "Esconder cantidades" — la preferencia GLOBAL, la misma del ojo del cliente. */
+    val montosOcultos: Boolean = false,
+    /** Tema oscuro vigente de la app entera — lo pinta el botón sol/luna. */
+    val temaOscuro: Boolean = false
 )
 
 /**

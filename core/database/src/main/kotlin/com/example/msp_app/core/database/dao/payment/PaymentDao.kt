@@ -241,7 +241,7 @@ interface PaymentDao {
      */
     @Query(
         """
-            SELECT ID, DOCTO_CC_ACR_ID, FECHA_HORA_PAGO, COBRADOR, FORMA_COBRO_ID, LAT, LNG
+            SELECT ID, DOCTO_CC_ACR_ID, FECHA_HORA_PAGO, COBRADOR, FORMA_COBRO_ID, LAT, LNG, IMPORTE
             FROM Payment
             WHERE CLIENTE_ID = :clienteId
               AND LAT IS NOT NULL AND LNG IS NOT NULL

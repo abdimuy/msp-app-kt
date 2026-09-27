@@ -34,7 +34,7 @@ interface ProductosPort {
      * Los renglones de VARIOS folios, agrupados por folio — cada lista en el
      * MISMO orden que promete [productosDe]. Existe para el llamador que
      * necesita los productos de TODAS las ventas de un cliente
-     * (`CargarBitacoraDelCliente`, `CargarDetalleCliente`, `CargarDetalleVenta`,
+     * (`CargarBitacoraDeLaVenta`, `CargarDetalleCliente`, `CargarDetalleVenta`,
      * vía `application/CuentasDeLasVentas.kt`): sin esto, resolver la cuenta de
      * cada contacto de la bitácora completa de un cliente con años de historial
      * significaba una consulta secuencial por venta — un centenar de viajes a

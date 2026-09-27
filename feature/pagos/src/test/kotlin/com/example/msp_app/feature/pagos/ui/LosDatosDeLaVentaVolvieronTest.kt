@@ -206,15 +206,9 @@ class LosDatosDeLaVentaVolvieronTest : RobolectricTestBase() {
 
     @Composable
     private fun Pantalla(detalle: DetalleVenta) {
-        DetalleVentaContent(
-            state = DetalleVentaUiState(cargando = false, detalle = detalle),
-            onAtras = {},
-            onRegistrarAbono = {},
-            onRegistrarVisita = {},
-            onUsarLiquidacion = {},
-            onVerAbonos = {},
-            onVerGarantia = {}
-        )
+        // Los once datos viven ahora en la hoja "Datos de la venta"; se monta
+        // su cuerpo, que es lo que la hoja enseña.
+        CuerpoDeLosDatosDeLaVenta(detalle = detalle, ocultos = false)
     }
 
     private companion object {

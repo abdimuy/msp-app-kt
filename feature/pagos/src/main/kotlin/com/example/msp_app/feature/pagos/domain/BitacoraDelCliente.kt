@@ -114,8 +114,15 @@ object BitacoraDelCliente {
         return (deVisitas + dePagos).sortedByDescending { it.fecha }
     }
 
-    /** Cuántos contactos se pintan en el detalle antes del "ver los N". */
-    const val VISIBLES_EN_EL_DETALLE: Int = 3
+    /**
+     * Cuántos contactos pinta el detalle de venta antes de "ver los N".
+     *
+     * Cinco y no los tres que pintaba el detalle de cliente: decisión del
+     * dueño al ver el mock (*"deja unos 5"*). La lista de ahí abajo se
+     * agrupa por mes, y con tres filas el mes casi siempre daba un solo
+     * encabezado.
+     */
+    const val VISIBLES_EN_LA_VENTA: Int = 5
 
     /**
      * Etiqueta estática del abono en la bitácora.

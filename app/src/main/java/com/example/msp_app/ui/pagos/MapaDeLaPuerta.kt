@@ -8,14 +8,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import com.example.msp_app.core.designsystem.theme.appDarkTheme
 import com.example.msp_app.feature.pagos.domain.model.UbicacionDelCobro
+import com.example.msp_app.feature.ubicacion.ui.propiedadesDelMapa
 import com.google.android.gms.maps.GoogleMapOptions
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
@@ -118,20 +116,6 @@ fun SueloDelUltimoCobro(
 }
 
 /**
- * Las propiedades comunes al mapa chico y al grande: el estilo de noche cuando
- * el tema es oscuro, y nada más.
- *
- * El `remember` va **fuera** de cualquier rama condicional: un `remember` dentro
- * de un `if` cambia de posición en la slot table cuando la rama cambia, y
- * Compose lo trata como otro `remember`.
- */
-@Composable
-internal fun propiedadesDelMapa(): MapProperties {
-    val estiloDeNoche = remember { MapStyleOptions(ESTILO_OSCURO) }
-    return MapProperties(mapStyleOptions = if (appDarkTheme()) estiloDeNoche else null)
-}
-
-/**
  * Zoom 17: la cuadra, no la ciudad.
  *
  * Es el mismo con el que se midió el corrimiento de 21 dp del pin cuando lo
@@ -160,29 +144,3 @@ private val SIN_CONTROLES = MapUiSettings(
     zoomControlsEnabled = false,
     zoomGesturesEnabled = false
 )
-
-/**
- * El estilo de noche, recortado a lo que se ve en un cuadro chico: geometría,
- * agua, calles y etiquetas. Sin puntos de interés ni tránsito, que a ese tamaño
- * son ruido de color sobre la única cosa que importa, el marcador.
- *
- * Va como constante de texto y no como `res/raw`: es un archivo menos que
- * mantener por doce reglas de color. Sin él, el cuadro queda como un rectángulo
- * blanco dentro de una hoja oscura.
- */
-internal const val ESTILO_OSCURO = """
-[
-  {"elementType":"geometry","stylers":[{"color":"#1f2421"}]},
-  {"elementType":"labels.icon","stylers":[{"visibility":"off"}]},
-  {"elementType":"labels.text.fill","stylers":[{"color":"#8d968f"}]},
-  {"elementType":"labels.text.stroke","stylers":[{"color":"#1f2421"}]},
-  {"featureType":"poi","stylers":[{"visibility":"off"}]},
-  {"featureType":"transit","stylers":[{"visibility":"off"}]},
-  {"featureType":"road","elementType":"geometry","stylers":[{"color":"#2b322e"}]},
-  {"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#9aa39c"}]},
-  {"featureType":"road.arterial","elementType":"geometry","stylers":[{"color":"#343c37"}]},
-  {"featureType":"road.highway","elementType":"geometry","stylers":[{"color":"#3d4741"}]},
-  {"featureType":"water","elementType":"geometry","stylers":[{"color":"#16211e"}]},
-  {"featureType":"water","elementType":"labels.text.fill","stylers":[{"color":"#5a655e"}]}
-]
-"""

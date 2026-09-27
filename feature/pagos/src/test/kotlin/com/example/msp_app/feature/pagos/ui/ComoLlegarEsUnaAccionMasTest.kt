@@ -167,7 +167,6 @@ class ComoLlegarEsUnaAccionMasTest : RobolectricTestBase() {
                     onAbrirVenta = {},
                     onRegistrarAbono = {},
                     onRegistrarVisita = {},
-                    onVerContactos = {},
                     onAlternarTema = {},
                     onAlternarPrivacidad = {},
                     contacto = AccionesDeContacto(onComoLlegar = onComoLlegar)

@@ -48,8 +48,8 @@ import com.example.msp_app.components.DrawerContainer
 import com.example.msp_app.components.UpdateBanner
 import com.example.msp_app.core.common.time.AppTime
 import com.example.msp_app.core.context.LocalAuthViewModel
-import com.example.msp_app.core.utils.Coord
 import com.example.msp_app.core.utils.CurrentLocationReader
+import com.example.msp_app.core.utils.FuenteDePosicion
 import com.example.msp_app.core.utils.ResultState
 import com.example.msp_app.data.models.auth.User
 import com.example.msp_app.data.models.payment.Payment
@@ -60,6 +60,7 @@ import com.example.msp_app.features.home.components.homefootersection.HomeFooter
 import com.example.msp_app.features.home.components.homeheader.HomeHeader
 import com.example.msp_app.features.home.components.homenearbyclientssection.HomeNearbyClientsSection
 import com.example.msp_app.features.home.components.homenearbyclientssection.nearbyClientsFrom
+import com.example.msp_app.features.home.components.homenearbyclientssection.posicionEnVivo
 import com.example.msp_app.features.home.components.homestartweeksection.HomeStartWeekSection
 import com.example.msp_app.features.home.components.homesummary.HomeSummarySection
 import com.example.msp_app.features.home.components.homeweeklypaymentssection.HomeWeeklyPaymentsSection
@@ -81,7 +82,7 @@ import kotlinx.coroutines.flow.first
 @RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
-fun HomeScreen(navController: NavController) {
+fun HomeScreen(navController: NavController, fuenteDePosicion: FuenteDePosicion? = null) {
     val isDark = ThemeController.isDarkMode
     val listState = rememberLazyListState()
     val primary = MaterialTheme.colorScheme.primary
@@ -115,12 +116,14 @@ fun HomeScreen(navController: NavController) {
     var selectedPayments by remember { mutableStateOf(listOf<Payment>()) }
 
     val permissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
-
+    // La posición SIGUE al cobrador mientras el inicio está a la vista: ver el
+    // bloque de la petición de permiso más abajo.
+    val fuente = fuenteDePosicion ?: remember(context) { CurrentLocationReader(context) }
     // Dónde está parado el cobrador AHORA. `null` mientras no se sepa —y se
     // queda en `null` para siempre si dijo que no al permiso o si el proveedor
     // no da fix—, que es justo lo que `nearbyClientsFrom` traduce a "no pintes
     // la lista".
-    var currentPosition by remember { mutableStateOf<Coord?>(null) }
+    val currentPosition = posicionEnVivo(fuente, permissionState.status.isGranted)
 
     var showUpdateDialog by remember { mutableStateOf(false) }
     var dialogTitle by remember { mutableStateOf("") }
@@ -165,23 +168,20 @@ fun HomeScreen(navController: NavController) {
     // junto con el bloque de cercanas habría dejado a los cobradores nuevos sin
     // coordenadas en pagos y visitas, en silencio, hasta que abrieran un mapa.
     //
-    // **La lista de cercanos vuelve, pero NO vuelve el flujo continuo.** El
-    // `LocationTracker.locationUpdates()` que alimentaba esta pantalla pedía un
-    // fix de alta precisión cada 2 s —en un teléfono que anda en la calle todo
-    // el día— sólo para reordenar diez renglones. Acá se lee la ubicación UNA
-    // vez, al abrir y al conceder el permiso, con `CurrentLocationReader`.
-    // `LocationTracker` sigue vivo para su consumidor legítimo: el mapa en vivo
-    // de `SaleLocationMap`, donde el flujo sí se justifica.
+    // **La lista de cercanos sigue al cobrador, con un flujo barato.** Desde el
+    // 2026-09-26, por decisión del dueño: con una sola lectura (`0471941f`) la
+    // lista se quedaba con el primer punto aunque el cobrador avanzara. No
+    // vuelve el `LocationTracker` de alta precisión cada 2 s: `posicionEnVivo`
+    // recolecta `CurrentLocationReader.updates()` —precisión balanceada, cada
+    // 20 s y sólo con 30 m de movimiento— y sólo mientras la pantalla está
+    // STARTED. Ver el KDoc de `CurrentLocationReader`.
     //
-    // Si el cobrador dice que no, o el proveedor no da fix, `current()` devuelve
-    // `null` y `currentPosition` se queda como estaba: no hay excepción, no hay
-    // estado de carga colgado y el resto de la pantalla no se entera.
+    // Si el cobrador dice que no, o el proveedor no da fix, la posición se
+    // queda como estaba: no hay excepción ni estado de carga colgado.
     LaunchedEffect(permissionState.status.isGranted) {
         if (!permissionState.status.isGranted) {
             permissionState.launchPermissionRequest()
-            return@LaunchedEffect
         }
-        currentPosition = CurrentLocationReader(context).current()
     }
 
     LaunchedEffect(Unit) {

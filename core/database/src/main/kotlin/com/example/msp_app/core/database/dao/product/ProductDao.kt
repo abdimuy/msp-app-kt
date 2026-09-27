@@ -9,6 +9,22 @@ import com.example.msp_app.core.database.entities.ProductEntity
 @Dao
 interface ProductDao {
 
+    /**
+     * Los artículos de **todas las ventas de un cliente**, por `DOCTO_CC_ACR_ID`
+     * (la llave con la que viaja cada abono), en el orden de la venta.
+     *
+     * Lo lee el mapa de lugares para decir "de qué venta" se pagó en cada lugar.
+     * Sólo lectura, sobre tablas y columnas existentes: no toca el schema.
+     */
+    @Query(
+        """SELECT s.DOCTO_CC_ACR_ID AS ventaId, p.ARTICULO AS articulo
+        FROM sales AS s
+        JOIN products AS p ON p.FOLIO = s.FOLIO
+        WHERE s.CLIENTE_ID = :clienteId
+        ORDER BY s.DOCTO_CC_ACR_ID, p.POSICION"""
+    )
+    suspend fun getArticulosDeLasVentasDelCliente(clienteId: Int): List<ArticuloDeVentaRow>
+
     @Query(
         """SELECT 
         DOCTO_PV_DET_ID, 
@@ -73,3 +89,6 @@ interface ProductDao {
     @Query("DELETE FROM products WHERE FOLIO = :folio")
     suspend fun deleteByFolio(folio: String)
 }
+
+/** Una fila de [ProductDao.getArticulosDeLasVentasDelCliente]. */
+data class ArticuloDeVentaRow(val ventaId: Int, val articulo: String)

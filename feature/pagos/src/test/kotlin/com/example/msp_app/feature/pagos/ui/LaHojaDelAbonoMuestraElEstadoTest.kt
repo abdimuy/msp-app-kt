@@ -13,7 +13,7 @@ import com.example.msp_app.core.testing.RobolectricTestBase
 import com.example.msp_app.feature.pagos.domain.CuentaDelAbono
 import com.example.msp_app.feature.pagos.domain.model.EstadoDelPeriodo
 import com.example.msp_app.feature.pagos.domain.model.VentaDelCliente
-import com.example.msp_app.feature.pagos.ui.components.HojaDeAbono
+import com.example.msp_app.feature.pagos.ui.components.CuerpoDeAbono
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalTime
@@ -33,6 +33,11 @@ import org.robolectric.annotation.Config
  * —privado en `HojaDeAbono.kt`— solo lo pinta con la misma pieza (`ChipDeEstado`)
  * que ya usan el detalle de cliente y el de venta, para que el mismo estado no
  * se vea distinto en dos pantallas.
+ *
+ * Monta [CuerpoDeAbono] y no `HojaDeAbono`: desde que la hoja es un
+ * `ModalBottomSheet` de M3 (task del 2026-09-26, misma animación que
+ * `HojaDeLaFicha`), montar el cuerpo directo evita depender de la animación de
+ * apertura del `Popup` para una prueba que sólo lee texto en pantalla.
  */
 @Config(qualifiers = "w360dp-h800dp-xhdpi")
 class LaHojaDelAbonoMuestraElEstadoTest : RobolectricTestBase() {
@@ -80,12 +85,11 @@ class LaHojaDelAbonoMuestraElEstadoTest : RobolectricTestBase() {
         composeTestRule.setContent {
             MspTheme(darkTheme = false, animateColors = false) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    HojaDeAbono(
+                    CuerpoDeAbono(
                         cuentas = cobrables,
                         elegida = cobrables.first().ventaId,
                         onElegir = {},
-                        onContinuar = {},
-                        onCerrar = {}
+                        onContinuar = {}
                     )
                 }
             }
